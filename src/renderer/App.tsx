@@ -1,4 +1,5 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
+import Domains from './pages/Domains';
 import Home from './pages/Home';
 import About from './pages/About';
 import Settings from './pages/Settings';
@@ -19,6 +20,9 @@ export default function App() {
         <span className="text-lg font-semibold tracking-tight">dombot</span>
         <nav className="flex gap-1">
           <NavLink to="/" end className={navLinkClass}>
+            Domains
+          </NavLink>
+          <NavLink to="/home" className={navLinkClass}>
             Home
           </NavLink>
           <NavLink to="/settings" className={navLinkClass}>
@@ -32,7 +36,8 @@ export default function App() {
 
       <main className="flex-1 px-6 py-8">
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Domains />} />
+          <Route path="/home" element={<Home />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/about" element={<About />} />
         </Routes>

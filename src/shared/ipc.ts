@@ -13,6 +13,7 @@ export const IpcChannels = {
   ping: 'app:ping',
   getAppInfo: 'app:getAppInfo',
   listDynadotDomains: 'registrar:listDynadotDomains',
+  listPortfolio: 'registrar:listPortfolio',
   getRegistrarMetadata: 'registrar:getMetadata',
   getRegistrarCredentials: 'registrar:getCredentials',
   saveRegistrarCredentials: 'registrar:saveCredentials',
@@ -91,6 +92,25 @@ export interface McpClient {
 /** Re-exported so the renderer can type data without importing the lib. */
 export type { Domain, RegistrarName };
 
+/** A per-registrar failure from a portfolio fetch, flattened for IPC transport. */
+export interface PortfolioErrorInfo {
+  /** The registrar id that failed, e.g. "godaddy". */
+  registrar: string;
+  /** The error message (Error objects don't survive structured clone as-is). */
+  message: string;
+}
+
+/**
+ * Aggregated portfolio across every configured registrar. Mirrors the library's
+ * `PortfolioResult`, but flattens `errors` to plain messages for IPC.
+ */
+export interface Portfolio {
+  domains: Domain[];
+  errors: PortfolioErrorInfo[];
+  /** Registrar ids that had credentials configured and were queried. */
+  registrars: string[];
+}
+
 /**
  * The API surface exposed on `window.api` by the preload script. Add new
  * methods here and they become type-checked on both sides of the bridge.
@@ -101,6 +121,7 @@ export interface DombotApi {
 
   // Registrars
   listDynadotDomains: () => Promise<Domain[]>;
+  listPortfolio: () => Promise<Portfolio>;
   getRegistrarMetadata: () => Promise<RegistrarMeta[]>;
   getRegistrarCredentials: (name: RegistrarName) => Promise<CredentialValues>;
   saveRegistrarCredentials: (

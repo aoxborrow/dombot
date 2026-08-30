@@ -1,13 +1,17 @@
 import { ipcMain } from 'electron';
+import { listPortfolio } from '@aoxborrow/registrar-client';
 import {
   IpcChannels,
   type CredentialValues,
   type Domain,
+  type Portfolio,
   type RegistrarMeta,
   type RegistrarName,
   type TestResult,
 } from '../../shared/ipc';
 import {
+  getConfiguredRegistrars,
+  getPortfolioSources,
   getRegistrarClient,
   getRegistrarCredentialValues,
   getRegistrarMetadata,
@@ -23,6 +27,22 @@ export function registerRegistrarIpc(): void {
   ipcMain.handle(IpcChannels.listDynadotDomains, async (): Promise<Domain[]> =>
     getRegistrarClient('dynadot').listDomains(),
   );
+
+  // Aggregate every configured registrar into one portfolio. `listPortfolio`
+  // queries sources concurrently with per-registrar error isolation; we flatten
+  // its Error objects to plain messages so the result survives structured clone.
+  ipcMain.handle(IpcChannels.listPortfolio, async (): Promise<Portfolio> => {
+    const registrars = getConfiguredRegistrars();
+    const { domains, errors } = await listPortfolio(getPortfolioSources());
+    return {
+      domains,
+      errors: errors.map(({ registrar, error }) => ({
+        registrar,
+        message: error.message,
+      })),
+      registrars,
+    };
+  });
 
   ipcMain.handle(
     IpcChannels.getRegistrarMetadata,

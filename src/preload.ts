@@ -12,6 +12,7 @@ const api: DombotApi = {
 
   // Registrars
   listDynadotDomains: () => ipcRenderer.invoke(IpcChannels.listDynadotDomains),
+  listPortfolio: () => ipcRenderer.invoke(IpcChannels.listPortfolio),
   getRegistrarMetadata: () =>
     ipcRenderer.invoke(IpcChannels.getRegistrarMetadata),
   getRegistrarCredentials: (name) =>

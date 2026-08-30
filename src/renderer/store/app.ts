@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import type { AppInfo, Domain, McpInfo } from '../../shared/ipc';
+import type {
+  AppInfo,
+  Domain,
+  McpInfo,
+  PortfolioErrorInfo,
+} from '../../shared/ipc';
 
 interface AppState {
   appInfo: AppInfo | null;
@@ -10,6 +15,16 @@ interface AppState {
   loadAppInfo: () => Promise<void>;
   loadMcpInfo: () => Promise<void>;
   loadDynadotDomains: () => Promise<void>;
+
+  // Aggregated portfolio across every configured registrar.
+  portfolio: Domain[];
+  portfolioErrors: PortfolioErrorInfo[];
+  portfolioRegistrars: string[];
+  portfolioLoading: boolean;
+  portfolioError: string | null;
+  /** When the portfolio was last successfully loaded (ms epoch), or null. */
+  portfolioLoadedAt: number | null;
+  loadPortfolio: () => Promise<void>;
 }
 
 /** Global renderer store. Kept intentionally small — grow it as needed. */
@@ -36,6 +51,31 @@ export const useAppStore = create<AppState>((set) => ({
       set({
         domainsLoading: false,
         domainsError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  },
+
+  portfolio: [],
+  portfolioErrors: [],
+  portfolioRegistrars: [],
+  portfolioLoading: false,
+  portfolioError: null,
+  portfolioLoadedAt: null,
+  loadPortfolio: async () => {
+    set({ portfolioLoading: true, portfolioError: null });
+    try {
+      const result = await window.api.listPortfolio();
+      set({
+        portfolio: result.domains,
+        portfolioErrors: result.errors,
+        portfolioRegistrars: result.registrars,
+        portfolioLoading: false,
+        portfolioLoadedAt: Date.now(),
+      });
+    } catch (err) {
+      set({
+        portfolioLoading: false,
+        portfolioError: err instanceof Error ? err.message : String(err),
       });
     }
   },
