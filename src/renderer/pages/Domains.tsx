@@ -94,13 +94,11 @@ const COLUMNS: Column[] = [
       const color = expiryColor(days);
       return (
         <span
-          className={`inline-flex items-baseline gap-3 font-mono tabular-nums ${color}`}
+          className={`inline-flex items-baseline gap-2.5 font-mono tabular-nums ${color}`}
           title={dueLabel(days)}
         >
           <span>{fmtDate(d.expirationDate)}</span>
-          <span className="w-16 text-right text-xs">
-            {days !== null ? relativeDays(days) : ''}
-          </span>
+          {days !== null && <span className="text-xs">{relativeDays(days)}</span>}
         </span>
       );
     },
