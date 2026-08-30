@@ -35,21 +35,42 @@ npm start
 
 ## Project layout
 
+The tree mirrors Electron's process boundary — `main/` (Node backend),
+`renderer/` (React frontend), `preload.ts` (the bridge), and `shared/` (the
+type-safe contract between them):
+
 ```
 src/
-├─ main.ts              # Main process: window creation, app lifecycle
-├─ ipc.ts               # Main-process ipcMain handlers
-├─ preload.ts           # contextBridge — exposes the typed window.api
-├─ shared/
-│  ├─ ipc.ts            # Shared IPC contract (channels + types)
-│  └─ window.d.ts       # Ambient typing for window.api
-└─ renderer/            # React app (renderer process)
-   ├─ main.tsx          # React entry — mounts <App/> in a HashRouter
-   ├─ App.tsx           # Layout + routes
-   ├─ index.css         # Tailwind entry
-   ├─ pages/            # Route components
-   └─ store/            # Zustand stores
+├─ main/                   # ─── BACKEND (Node process) ───
+│  ├─ index.ts             # app lifecycle + window creation (the entry)
+│  ├─ ipc/                 # ipcMain handlers, one module per feature area
+│  │  ├─ index.ts          #   registerIpcHandlers() — wires them all up
+│  │  ├─ app.ts            #   ping, getAppInfo
+│  │  └─ registrars.ts     #   listDynadotDomains (thin: calls a service)
+│  └─ services/            # real logic, testable without Electron
+│     └─ registrars.ts     #   builds & caches RegistrarClient instances
+│
+├─ preload.ts              # contextBridge — assembles the typed window.api
+│                          # (kept separate: its own sandboxed context)
+│
+├─ renderer/               # ─── FRONTEND (Chromium window, React) ───
+│  ├─ main.tsx             # React entry — mounts <App/> in a HashRouter
+│  ├─ App.tsx              # layout + routes
+│  ├─ index.css            # Tailwind entry
+│  ├─ pages/               # route-level screens
+│  ├─ components/          # reusable UI
+│  └─ store/               # Zustand stores
+│
+└─ shared/                 # ─── BOTH SIDES ───
+   ├─ ipc.ts               # channel names + the DombotApi contract
+   └─ window.d.ts          # ambient typing for window.api
 ```
+
+**How a request flows** (e.g. loading the Dynadot portfolio): renderer calls
+`window.api.listDynadotDomains()` → `preload.ts` forwards it over IPC →
+`main/ipc/registrars.ts` handles it → `main/services/registrars.ts` calls the
+library → the `Domain[]` result travels back to the store, which re-renders.
+Handlers stay thin; the logic lives in `services/`.
 
 ## Local development against registrar-client
 

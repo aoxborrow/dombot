@@ -15,8 +15,8 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "sourceMap": true,
-    "baseUrl": ".",
     "outDir": "dist",
+    "rootDir": "..",
     "paths": {
       "@aoxborrow/registrar-client": ["../registrar-client/src/index.ts"]
     }
