@@ -1,6 +1,7 @@
 import { registerAppIpc } from './app';
 import { registerRegistrarIpc } from './registrars';
 import { registerMarketIpc } from './market';
+import { registerPricingIpc } from './pricing';
 import { registerMcpIpc } from './mcp';
 
 /**
@@ -11,5 +12,6 @@ export function registerIpcHandlers(): void {
   registerAppIpc();
   registerRegistrarIpc();
   registerMarketIpc();
+  registerPricingIpc();
   registerMcpIpc();
 }

@@ -12,6 +12,11 @@ const api: DombotApi = {
   openExternal: (url) => ipcRenderer.invoke(IpcChannels.openExternal, url),
   getAftermarket: (domain) =>
     ipcRenderer.invoke(IpcChannels.getAftermarket, domain),
+  getRenewalPrice: (registrar, domain) =>
+    ipcRenderer.invoke(IpcChannels.getRenewalPrice, registrar, domain),
+  setManualPrice: (registrar, domain, price) =>
+    ipcRenderer.invoke(IpcChannels.setManualPrice, registrar, domain, price),
+  clearPricingCache: () => ipcRenderer.invoke(IpcChannels.clearPricingCache),
 
   // Registrars
   listDynadotDomains: () => ipcRenderer.invoke(IpcChannels.listDynadotDomains),

@@ -6,6 +6,7 @@ import type {
   McpInfo,
   PortfolioErrorInfo,
   RegistrarName,
+  RenewalPricing,
 } from '../../shared/ipc';
 
 /** Stable per-domain key across registrars. */
@@ -20,6 +21,9 @@ const enrichFailed = new Set<string>();
 // Same idea for aftermarket lookups, keyed by domain name (DomDB is per-domain).
 const marketInFlight = new Set<string>();
 const marketDone = new Set<string>();
+
+// Renewal-price lookups in flight, keyed by `${registrar}:${domainName}`.
+const pricingInFlight = new Set<string>();
 
 interface AppState {
   appInfo: AppInfo | null;
@@ -56,6 +60,18 @@ interface AppState {
   aftermarket: Record<string, Aftermarket | null>;
   marketLoading: Record<string, boolean>;
   loadAftermarketVisible: (domains: Domain[]) => Promise<void>;
+
+  // Annual renewal pricing, keyed by `${registrar}:${domainName}`. Backs the
+  // Renewals dashboard; fetched for the whole portfolio at once (cached in main).
+  pricing: Record<string, RenewalPricing>;
+  pricingLoading: boolean;
+  loadPricingAll: (domains: Domain[]) => Promise<void>;
+  setManualPrice: (
+    registrar: string,
+    domain: string,
+    price: number | null,
+  ) => Promise<void>;
+  refreshPricing: () => Promise<void>;
 }
 
 /** Global renderer store. Kept intentionally small — grow it as needed. */
@@ -102,6 +118,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       enrichFailed.clear();
       marketInFlight.clear();
       marketDone.clear();
+      pricingInFlight.clear();
       set({
         portfolio: result.domains,
         portfolioErrors: result.errors,
@@ -113,6 +130,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         enriching: {},
         aftermarket: {},
         marketLoading: {},
+        pricing: {},
+        pricingLoading: false,
       });
     } catch (err) {
       set({
@@ -231,5 +250,60 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }),
     );
+  },
+
+  pricing: {},
+  pricingLoading: false,
+  loadPricingAll: async (domains) => {
+    const todo = domains.filter((d) => {
+      const key = domainKey(d);
+      return !get().pricing[key] && !pricingInFlight.has(key);
+    });
+    if (todo.length === 0) return;
+
+    todo.forEach((d) => pricingInFlight.add(domainKey(d)));
+    set({ pricingLoading: true });
+
+    // Bounded concurrency: the main-process service caches and dedupes per-TLD
+    // lookups, so a modest pool keeps us well under any registrar's rate limit.
+    const CONCURRENCY = 5;
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (next < todo.length) {
+        const d = todo[next++];
+        const key = domainKey(d);
+        try {
+          const info = await window.api.getRenewalPrice(
+            d.registrar as RegistrarName,
+            d.domainName,
+          );
+          set((state) => ({ pricing: { ...state.pricing, [key]: info } }));
+        } catch {
+          // Leave unset — treated as "not yet priced".
+        } finally {
+          pricingInFlight.delete(key);
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, todo.length) }, worker),
+    );
+    set({ pricingLoading: false });
+  },
+  setManualPrice: async (registrar, domain, price) => {
+    await window.api.setManualPrice(registrar as RegistrarName, domain, price);
+    const info = await window.api.getRenewalPrice(
+      registrar as RegistrarName,
+      domain,
+    );
+    set((state) => ({
+      pricing: { ...state.pricing, [`${registrar}:${domain}`]: info },
+    }));
+  },
+  refreshPricing: async () => {
+    await window.api.clearPricingCache();
+    pricingInFlight.clear();
+    set({ pricing: {} });
+    await get().loadPricingAll(get().portfolio);
   },
 }));

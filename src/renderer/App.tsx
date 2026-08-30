@@ -2,6 +2,7 @@ import { NavLink, Route, Routes } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { ModeToggle } from '@/components/mode-toggle';
 import Domains from './pages/Domains';
+import Renewals from './pages/Renewals';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
 
@@ -22,6 +23,9 @@ export default function App() {
           <NavLink to="/" end className={navLinkClass}>
             Domains
           </NavLink>
+          <NavLink to="/renewals" className={navLinkClass}>
+            Renewals
+          </NavLink>
           <NavLink to="/settings" className={navLinkClass}>
             Settings
           </NavLink>
@@ -34,6 +38,7 @@ export default function App() {
       <main className="flex-1 px-6 py-8">
         <Routes>
           <Route path="/" element={<Domains />} />
+          <Route path="/renewals" element={<Renewals />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>

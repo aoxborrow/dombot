@@ -16,6 +16,9 @@ export const IpcChannels = {
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
   getAftermarket: 'market:getAftermarket',
+  getRenewalPrice: 'pricing:getRenewalPrice',
+  setManualPrice: 'pricing:setManualPrice',
+  clearPricingCache: 'pricing:clearCache',
   openExternal: 'app:openExternal',
   getRegistrarMetadata: 'registrar:getMetadata',
   getRegistrarCredentials: 'registrar:getCredentials',
@@ -115,6 +118,28 @@ export interface Aftermarket {
   detailUrl: string;
 }
 
+/**
+ * Where a domain's renewal price came from:
+ *  - `api`         a direct, name-accurate quote from the registrar.
+ *  - `estimated`   the standard TLD rate, from a registrar that prices only by
+ *                  TLD, on a TLD that can carry per-name premiums — so a premium
+ *                  name here may renew for more than shown.
+ *  - `manual`      a price the user entered by hand.
+ *  - `unavailable` no price: the registrar exposes no pricing endpoint (or the
+ *                  lookup failed) and no manual price is set.
+ */
+export type PriceSource = 'api' | 'estimated' | 'manual' | 'unavailable';
+
+/** A domain's annual renewal price (USD), with provenance. */
+export interface RenewalPricing {
+  domain: string;
+  registrar: string;
+  /** Annual renewal price in USD, or null when unknown. */
+  renewal: number | null;
+  currency: string;
+  source: PriceSource;
+}
+
 /** Re-exported so the renderer can type data without importing the lib. */
 export type { Domain, RegistrarName };
 
@@ -151,6 +176,20 @@ export interface DombotApi {
 
   /** Aftermarket pricing for a domain (DomDB), or null if unavailable. */
   getAftermarket: (domain: string) => Promise<Aftermarket | null>;
+
+  /** Annual renewal price for a domain, cached and manual-override aware. */
+  getRenewalPrice: (
+    registrar: RegistrarName,
+    domain: string,
+  ) => Promise<RenewalPricing>;
+  /** Set (or clear, with null) a manual annual renewal price for a domain. */
+  setManualPrice: (
+    registrar: RegistrarName,
+    domain: string,
+    price: number | null,
+  ) => Promise<void>;
+  /** Drop the on-disk pricing cache so the next lookups re-fetch (keeps manual overrides). */
+  clearPricingCache: () => Promise<void>;
 
   // Registrars
   listDynadotDomains: () => Promise<Domain[]>;
