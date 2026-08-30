@@ -90,30 +90,21 @@ const COLUMNS: Column[] = [
     align: 'right',
     render: (d) => {
       const days = daysUntil(d.expirationDate);
-      const color =
-        days === null
-          ? 'text-slate-500'
-          : days < 0
-            ? 'text-red-400'
-            : days <= 30
-              ? 'text-amber-400'
-              : 'text-slate-400';
+      const color = expiryColor(days);
       return (
-        <span className={`font-mono ${color}`} title={dueLabel(days)}>
+        <span
+          className={`font-mono ${color}`}
+          title={dueLabel(days)}
+          style={{ whiteSpace: 'nowrap' }}
+        >
           {fmtDate(d.expirationDate)}
+          {days !== null && (
+            <span className="ml-2 text-xs">{relativeDays(days)}</span>
+          )}
         </span>
       );
     },
     sortValue: (d) => toTime(d.expirationDate),
-  },
-  {
-    key: 'renewalDate',
-    label: 'Renewal',
-    align: 'right',
-    render: (d) => (
-      <span className="font-mono text-slate-400">{fmtDate(d.renewalDate)}</span>
-    ),
-    sortValue: (d) => toTime(d.renewalDate),
   },
   {
     key: 'autoRenew',
@@ -152,15 +143,6 @@ const COLUMNS: Column[] = [
       ),
     sortValue: (d) => d.nameservers[0]?.toLowerCase() ?? '',
   },
-  {
-    key: 'syncedAt',
-    label: 'Synced',
-    align: 'right',
-    render: (d) => (
-      <span className="font-mono text-slate-500">{fmtDate(d.syncedAt)}</span>
-    ),
-    sortValue: (d) => toTime(d.syncedAt),
-  },
 ];
 
 function dueLabel(days: number | null): string {
@@ -168,6 +150,21 @@ function dueLabel(days: number | null): string {
   if (days < 0) return `Expired ${-days} day${days === -1 ? '' : 's'} ago`;
   if (days === 0) return 'Expires today';
   return `Expires in ${days} day${days === 1 ? '' : 's'}`;
+}
+
+/** Compact relative form shown next to the date, e.g. "30d", "today", "5d ago". */
+function relativeDays(days: number): string {
+  if (days < 0) return `${-days}d ago`;
+  if (days === 0) return 'today';
+  return `${days}d`;
+}
+
+/** Urgency color: red past-due, amber within 30 days, muted otherwise. */
+function expiryColor(days: number | null): string {
+  if (days === null) return 'text-slate-500';
+  if (days < 0) return 'text-red-400';
+  if (days <= 30) return 'text-amber-400';
+  return 'text-slate-400';
 }
 
 const PAGE_SIZES = [25, 50, 100, 250];
