@@ -6,22 +6,28 @@
 
 // Type-only import: erased at build time, so the renderer bundle never resolves
 // the library — only tsc uses it (via the tsconfig `paths` alias to source).
-import type { Domain } from '@aoxborrow/registrar-client';
+import type { Domain, RegistrarName } from '@aoxborrow/registrar-client';
 
 /** Channel identifiers for `ipcRenderer.invoke` / `ipcMain.handle`. */
 export const IpcChannels = {
   ping: 'app:ping',
   getAppInfo: 'app:getAppInfo',
   listDynadotDomains: 'registrar:listDynadotDomains',
+  getRegistrarMetadata: 'registrar:getMetadata',
+  getRegistrarCredentials: 'registrar:getCredentials',
+  saveRegistrarCredentials: 'registrar:saveCredentials',
+  testRegistrar: 'registrar:test',
   getMcpInfo: 'mcp:getInfo',
+  listPendingApprovals: 'mcp:listPendingApprovals',
+  resolveApproval: 'mcp:resolveApproval',
+  listMcpClients: 'mcp:listClients',
+  revokeMcpClient: 'mcp:revokeClient',
 } as const;
 
-/** Status of the embedded local MCP server. */
-export interface McpInfo {
-  running: boolean;
-  /** Endpoint an MCP client connects to, e.g. http://127.0.0.1:4123/mcp */
-  url: string;
-}
+/** Event (main → renderer) fired when the pending-approval set changes. */
+export const IpcEvents = {
+  approvalsChanged: 'mcp:approvalsChanged',
+} as const;
 
 export interface AppInfo {
   name: string;
@@ -32,8 +38,58 @@ export interface AppInfo {
   platform: NodeJS.Platform;
 }
 
-/** Re-exported so the renderer can type domain data without importing the lib. */
-export type { Domain };
+/** Status of the embedded local MCP server. */
+export interface McpInfo {
+  running: boolean;
+  /** Endpoint an MCP client connects to, e.g. http://127.0.0.1:4123/mcp */
+  url: string;
+}
+
+/** Credential values keyed by config-field name. */
+export type CredentialValues = Record<string, string>;
+
+/** One input in a registrar's credential form. */
+export interface RegistrarConfigField {
+  name: string;
+  label: string;
+  type: 'text' | 'password' | 'select';
+  required: boolean;
+  options?: string[];
+}
+
+/** Metadata that drives the Settings > Registrars form. */
+export interface RegistrarMeta {
+  name: RegistrarName;
+  displayName: string;
+  helpText: string;
+  supportsSandbox: boolean;
+  configured: boolean;
+  configFields: RegistrarConfigField[];
+}
+
+/** Result of a registrar connection test. */
+export interface TestResult {
+  ok: boolean;
+  message: string;
+}
+
+/** A connection awaiting the user's approval in the app window. */
+export interface McpPendingApproval {
+  id: string;
+  clientName: string;
+  code: string;
+  createdAt: number;
+}
+
+/** A client that has been paired with the MCP server. */
+export interface McpClient {
+  clientId: string;
+  clientName: string;
+  pairedAt: number;
+}
+
+/** Re-exported so the renderer can type data without importing the lib. */
+export type { Domain, RegistrarName };
 
 /**
  * The API surface exposed on `window.api` by the preload script. Add new
@@ -42,6 +98,23 @@ export type { Domain };
 export interface DombotApi {
   ping: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
+
+  // Registrars
   listDynadotDomains: () => Promise<Domain[]>;
+  getRegistrarMetadata: () => Promise<RegistrarMeta[]>;
+  getRegistrarCredentials: (name: RegistrarName) => Promise<CredentialValues>;
+  saveRegistrarCredentials: (
+    name: RegistrarName,
+    creds: CredentialValues,
+  ) => Promise<void>;
+  testRegistrar: (name: RegistrarName) => Promise<TestResult>;
+
+  // MCP server
   getMcpInfo: () => Promise<McpInfo>;
+  listPendingApprovals: () => Promise<McpPendingApproval[]>;
+  resolveApproval: (id: string, approve: boolean) => Promise<void>;
+  listMcpClients: () => Promise<McpClient[]>;
+  revokeMcpClient: (clientId: string) => Promise<void>;
+  /** Subscribe to pending-approval changes. Returns an unsubscribe function. */
+  onApprovalsChanged: (callback: () => void) => () => void;
 }

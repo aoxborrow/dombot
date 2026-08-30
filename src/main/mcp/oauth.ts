@@ -2,7 +2,6 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { app } from 'electron';
-import type { Response } from 'express';
 import type {
   AuthorizationParams,
   OAuthServerProvider,
@@ -17,15 +16,17 @@ import {
   InvalidGrantError,
   InvalidTokenError,
 } from '@modelcontextprotocol/sdk/server/auth/errors.js';
+import type { McpClient, McpPendingApproval } from '../../shared/ipc';
 
 // A minimal, single-user OAuth 2.1 authorization server for the local MCP
-// endpoint. Clients self-register (dynamic registration), the human approves
-// each new connection on dombot's approval page, and the issued access token is
-// persisted so a paired client stays paired across restarts.
+// endpoint. Clients self-register (dynamic registration); the human approves
+// each new connection in the dombot window; the issued access token is persisted
+// so a paired client stays paired across restarts.
 
 const CODE_TTL_MS = 5 * 60 * 1000;
-// Access tokens are long-lived (a paired client stays paired), but the bearer
-// middleware requires an explicit expiry, so we set a far-future one.
+const PENDING_TTL_MS = 10 * 60 * 1000;
+// Access tokens are long-lived, but the bearer middleware requires an explicit
+// expiry, so we set a far-future one.
 const TOKEN_TTL_SEC = 365 * 24 * 60 * 60;
 
 interface StoredAuthCode {
@@ -37,10 +38,14 @@ interface StoredAuthCode {
 }
 
 interface PendingApproval {
+  id: string;
   clientId: string;
   clientName: string;
   displayCode: string;
   params: AuthorizationParams;
+  status: 'pending' | 'approved' | 'denied';
+  redirect?: string;
+  createdAt: number;
 }
 
 const clients = new Map<string, OAuthClientInformationFull>();
@@ -48,13 +53,21 @@ const authCodes = new Map<string, StoredAuthCode>();
 const grantedTokens = new Map<string, AuthInfo>();
 const pending = new Map<string, PendingApproval>();
 
+// Notifies the app (window) that the pending-approval set changed.
+let approvalListener: (() => void) | null = null;
+export function setApprovalListener(cb: (() => void) | null): void {
+  approvalListener = cb;
+}
+function notifyChange(): void {
+  approvalListener?.();
+}
+
 // ── token persistence ──────────────────────────────────────────────────────
 
 function tokensFile(): string {
   return path.join(app.getPath('userData'), 'mcp-tokens.json');
 }
 
-/** Loads previously granted tokens so paired clients survive a restart. */
 export function loadGrantedTokens(): void {
   try {
     const arr = JSON.parse(fs.readFileSync(tokensFile(), 'utf8')) as AuthInfo[];
@@ -90,45 +103,99 @@ const clientsStore: OAuthRegisteredClientsStore = {
   },
 };
 
-// ── approval flow ────────────────────────────────────────────────────────────
+// ── approval flow (resolved from the app window) ─────────────────────────────
 
 function displayCode(): string {
   const raw = randomBytes(4).toString('hex').toUpperCase();
   return `${raw.slice(0, 4)}-${raw.slice(4)}`;
 }
 
-/**
- * Completes a pending authorization: on approval, mints a one-time auth code and
- * redirects back to the client; on denial, redirects with an error.
- */
-export function handleApproval(
-  id: string,
-  decision: string,
-  res: Response,
-): void {
-  const req = pending.get(id);
-  if (!req) {
-    res.status(400).send('Unknown or expired approval request.');
-    return;
+function pruneStale(): void {
+  const now = Date.now();
+  for (const [id, p] of pending) {
+    if (now - p.createdAt > PENDING_TTL_MS) pending.delete(id);
   }
-  pending.delete(id);
+}
 
-  const redirect = new URL(req.params.redirectUri);
-  if (decision === 'approve') {
+/** Pending approvals awaiting a decision, for display in the app window. */
+export function listPendingApprovals(): McpPendingApproval[] {
+  return [...pending.values()]
+    .filter((p) => p.status === 'pending')
+    .map((p) => ({
+      id: p.id,
+      clientName: p.clientName,
+      code: p.displayCode,
+      createdAt: p.createdAt,
+    }));
+}
+
+/** Status of a pending authorization, polled by the browser waiting page. */
+export function getApprovalStatus(id: string): {
+  status: PendingApproval['status'] | 'unknown';
+  redirect?: string;
+} {
+  const p = pending.get(id);
+  if (!p) return { status: 'unknown' };
+  return { status: p.status, redirect: p.redirect };
+}
+
+/**
+ * Records the user's decision: on approval mints a one-time auth code and builds
+ * the redirect back to the client; on denial builds an error redirect. The
+ * browser waiting page picks up the redirect via getApprovalStatus().
+ */
+export function resolvePending(id: string, approve: boolean): string | null {
+  const p = pending.get(id);
+  if (!p) return null;
+  if (p.status !== 'pending') return p.redirect ?? null;
+
+  const redirect = new URL(p.params.redirectUri);
+  if (approve) {
     const code = randomBytes(24).toString('hex');
     authCodes.set(code, {
-      clientId: req.clientId,
-      codeChallenge: req.params.codeChallenge,
-      redirectUri: req.params.redirectUri,
-      scopes: req.params.scopes ?? [],
+      clientId: p.clientId,
+      codeChallenge: p.params.codeChallenge,
+      redirectUri: p.params.redirectUri,
+      scopes: p.params.scopes ?? [],
       expiresAt: Date.now() + CODE_TTL_MS,
     });
     redirect.searchParams.set('code', code);
+    p.status = 'approved';
   } else {
     redirect.searchParams.set('error', 'access_denied');
+    p.status = 'denied';
   }
-  if (req.params.state) redirect.searchParams.set('state', req.params.state);
-  res.redirect(redirect.toString());
+  if (p.params.state) redirect.searchParams.set('state', p.params.state);
+  p.redirect = redirect.toString();
+  notifyChange();
+  return p.redirect;
+}
+
+// ── paired clients ───────────────────────────────────────────────────────────
+
+/** Distinct paired clients (by client id), most recent first. */
+export function listMcpClients(): McpClient[] {
+  const byClient = new Map<string, McpClient>();
+  for (const t of grantedTokens.values()) {
+    const pairedAt = Number(t.extra?.pairedAt ?? 0);
+    const existing = byClient.get(t.clientId);
+    if (!existing || pairedAt > existing.pairedAt) {
+      byClient.set(t.clientId, {
+        clientId: t.clientId,
+        clientName: String(t.extra?.clientName ?? t.clientId),
+        pairedAt,
+      });
+    }
+  }
+  return [...byClient.values()].sort((a, b) => b.pairedAt - a.pairedAt);
+}
+
+/** Revokes every token issued to a client, un-pairing it. */
+export function revokeMcpClient(clientId: string): void {
+  for (const [token, info] of grantedTokens) {
+    if (info.clientId === clientId) grantedTokens.delete(token);
+  }
+  saveGrantedTokens();
 }
 
 // ── provider ──────────────────────────────────────────────────────────────
@@ -139,23 +206,29 @@ export const oauthProvider: OAuthServerProvider = {
   },
 
   async authorize(client, params, res) {
+    pruneStale();
     const id = randomUUID();
     const clientName = client.client_name ?? client.client_id;
     pending.set(id, {
+      id,
       clientId: client.client_id,
       clientName,
       displayCode: displayCode(),
       params,
+      status: 'pending',
+      createdAt: Date.now(),
     });
+    notifyChange();
 
-    // Dev/testing: skip the human step.
+    // Dev/testing: skip the human step and redirect immediately.
     if (process.env.DOMBOT_MCP_AUTOAPPROVE === '1') {
-      handleApproval(id, 'approve', res);
+      const redirect = resolvePending(id, true);
+      if (redirect) res.redirect(redirect);
       return;
     }
 
     res.setHeader('content-type', 'text/html');
-    res.send(approvalPage(id, pending.get(id)!));
+    res.send(waitingPage(id, pending.get(id)!));
   },
 
   async challengeForAuthorizationCode(client, authorizationCode) {
@@ -183,21 +256,23 @@ export const oauthProvider: OAuthServerProvider = {
       clientId: client.client_id,
       scopes: rec.scopes,
       expiresAt: Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC,
+      extra: {
+        clientName: client.client_name ?? client.client_id,
+        pairedAt: Date.now(),
+      },
     };
     grantedTokens.set(accessToken, info);
     saveGrantedTokens();
 
-    const tokens: OAuthTokens = {
+    return {
       access_token: accessToken,
       token_type: 'bearer',
       expires_in: TOKEN_TTL_SEC,
       scope: rec.scopes.join(' ') || undefined,
-    };
-    return tokens;
+    } satisfies OAuthTokens;
   },
 
   async exchangeRefreshToken() {
-    // Long-lived local tokens; refresh isn't used.
     throw new InvalidGrantError('Refresh tokens are not supported');
   },
 
@@ -223,9 +298,9 @@ export const oauthProvider: OAuthServerProvider = {
   },
 };
 
-// ── approval page ────────────────────────────────────────────────────────────
+// ── browser waiting page ─────────────────────────────────────────────────────
 
-function approvalPage(id: string, req: PendingApproval): string {
+function waitingPage(id: string, req: PendingApproval): string {
   const esc = (s: string) =>
     s.replace(
       /[&<>"']/g,
@@ -238,44 +313,40 @@ function approvalPage(id: string, req: PendingApproval): string {
           "'": '&#39;',
         })[c]!,
     );
-  const origin = (() => {
-    try {
-      return new URL(req.params.redirectUri).origin;
-    } catch {
-      return req.params.redirectUri;
-    }
-  })();
-
   return `<!doctype html>
-<html><head><meta charset="utf-8"><title>Approve connection · dombot</title>
+<html><head><meta charset="utf-8"><title>Connecting · dombot</title>
 <style>
   body{font-family:-apple-system,system-ui,sans-serif;background:#020617;color:#e2e8f0;display:grid;place-items:center;min-height:100vh;margin:0}
-  .card{background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:420px;width:90%}
-  h1{font-size:18px;margin:0 0 4px}
+  .card{background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:420px;width:90%;text-align:center}
+  h1{font-size:18px;margin:0 0 8px}
   p{color:#94a3b8;font-size:14px;line-height:1.5}
-  .meta{margin:20px 0;font-size:13px}
-  .meta div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e293b}
-  .meta span:first-child{color:#64748b}
-  .code{font-family:ui-monospace,monospace;letter-spacing:2px;color:#a5b4fc}
-  .btns{display:flex;gap:12px;margin-top:24px}
-  button{flex:1;padding:10px;border-radius:8px;border:0;font-size:14px;font-weight:600;cursor:pointer}
-  .approve{background:#4f46e5;color:#fff}
-  .deny{background:#1e293b;color:#e2e8f0}
+  .code{font-family:ui-monospace,monospace;letter-spacing:3px;font-size:22px;color:#a5b4fc;margin:16px 0}
+  .spin{margin-top:16px;width:22px;height:22px;border:3px solid #1e293b;border-top-color:#6366f1;border-radius:50%;display:inline-block;animation:s 0.8s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .err{color:#f87171}
 </style></head>
 <body>
   <div class="card">
-    <h1>Approve MCP connection</h1>
-    <p>A client wants to connect to your dombot portfolio. Approve only if you started this.</p>
-    <div class="meta">
-      <div><span>Client</span><span>${esc(req.clientName)}</span></div>
-      <div><span>Redirect</span><span>${esc(origin)}</span></div>
-      <div><span>Code</span><span class="code">${esc(req.displayCode)}</span></div>
-    </div>
-    <form method="post" action="/oauth/approve" class="btns">
-      <input type="hidden" name="id" value="${esc(id)}">
-      <button class="deny" name="decision" value="deny">Deny</button>
-      <button class="approve" name="decision" value="approve">Approve</button>
-    </form>
+    <h1>Approve this connection in dombot</h1>
+    <p>Open the dombot app and confirm this code matches:</p>
+    <div class="code">${esc(req.displayCode)}</div>
+    <div class="spin" id="spin"></div>
+    <p id="status">Waiting for approval…</p>
   </div>
+  <script>
+    const id = ${JSON.stringify(id)};
+    async function poll() {
+      try {
+        const r = await fetch('/oauth/status?id=' + encodeURIComponent(id));
+        const s = await r.json();
+        if (s.status === 'approved' && s.redirect) { location.href = s.redirect; return; }
+        if (s.status === 'denied' && s.redirect) { location.href = s.redirect; return; }
+        if (s.status === 'unknown') { fail('This request expired. Reconnect to try again.'); return; }
+      } catch { /* keep polling */ }
+      setTimeout(poll, 1000);
+    }
+    function fail(msg){ document.getElementById('spin').style.display='none'; const el=document.getElementById('status'); el.textContent=msg; el.className='err'; }
+    poll();
+  </script>
 </body></html>`;
 }

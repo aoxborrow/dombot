@@ -90,9 +90,13 @@ The library's own runtime deps resolve from `../registrar-client/node_modules`,
 so both repos just need `npm install` run in them. Once the package is on npm,
 `npm install @aoxborrow/registrar-client` and remove the alias + `paths` entry.
 
-Registrar credentials are read from `.env` (git-ignored) by the main process via
-`dotenv`. The Dynadot demo on the Home page needs `DYNADOT_API_KEY` and
-`DYNADOT_API_SECRET`.
+In production, registrar credentials are entered once in **Settings →
+Registrars** and stored encrypted on the device via Electron `safeStorage`
+(Keychain/DPAPI) — see [`src/main/services/credentials.ts`](src/main/services/credentials.ts).
+For local dev, `.env` (git-ignored, loaded via `dotenv`) is used as a fallback:
+the resolver prefers a saved value and falls back to
+`<PROVIDER>_<FIELD>` from the environment. Either way the same credentials feed
+both the UI and the MCP server.
 
 ## Embedded MCP server
 
@@ -104,13 +108,15 @@ third _adapter_ over the same `services/` core the UI uses — see
 - **Transport:** Streamable HTTP, bound to `127.0.0.1` only. Never exposed off
   the machine.
 - **Auth:** OAuth 2.1 (dynamic client registration + PKCE), served by the app.
-  On first connect, dombot opens an **approval page** (client name + a
-  confirmation code, Approve/Deny). Approve once and the client is paired; the
-  issued token is persisted (`userData/mcp-tokens.json`) so it stays paired
-  across restarts. Env knobs: `DOMBOT_MCP_PORT` (default `4123`),
-  `DOMBOT_MCP_ENABLED=0` to disable, `DOMBOT_MCP_AUTOAPPROVE=1` to skip the
-  approval click (dev/testing), `DOMBOT_MCP_TOKEN` for a static bearer token
-  escape hatch (dev/testing). See [`src/main/mcp/oauth.ts`](src/main/mcp/oauth.ts).
+  On first connect a browser waiting page opens and **dombot's own window shows
+  an Approve/Deny prompt** (client name + a confirmation code that matches the
+  browser page). Approve once and the client is paired; the issued token is
+  persisted (`userData/mcp-tokens.json`) so it stays paired across restarts.
+  Manage or revoke paired clients in **Settings → MCP Clients**. Env knobs:
+  `DOMBOT_MCP_PORT` (default `4123`), `DOMBOT_MCP_ENABLED=0` to disable,
+  `DOMBOT_MCP_AUTOAPPROVE=1` to skip the approval prompt (dev/testing),
+  `DOMBOT_MCP_TOKEN` for a static bearer token escape hatch (dev/testing). See
+  [`src/main/mcp/oauth.ts`](src/main/mcp/oauth.ts).
 - **Tools.** Every registrar-scoped tool takes a `registrar` id, so one client
   drives the whole portfolio.
   - _Reads:_ `list_registrars`, `list_portfolio` (aggregated across configured

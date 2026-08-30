@@ -1,6 +1,8 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
 import Home from './pages/Home';
 import About from './pages/About';
+import Settings from './pages/Settings';
+import ApprovalModal from './components/ApprovalModal';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   [
@@ -19,6 +21,9 @@ export default function App() {
           <NavLink to="/" end className={navLinkClass}>
             Home
           </NavLink>
+          <NavLink to="/settings" className={navLinkClass}>
+            Settings
+          </NavLink>
           <NavLink to="/about" className={navLinkClass}>
             About
           </NavLink>
@@ -28,9 +33,13 @@ export default function App() {
       <main className="flex-1 px-6 py-8">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/about" element={<About />} />
         </Routes>
       </main>
+
+      {/* App-wide: surfaces MCP connection approvals regardless of route. */}
+      <ApprovalModal />
     </div>
   );
 }

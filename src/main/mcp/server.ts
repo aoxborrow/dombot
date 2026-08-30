@@ -12,7 +12,7 @@ import {
 } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { registerTools } from './tools';
-import { handleApproval, loadGrantedTokens, oauthProvider } from './oauth';
+import { getApprovalStatus, loadGrantedTokens, oauthProvider } from './oauth';
 import type { McpInfo } from '../../shared/ipc';
 
 // Live sessions, keyed by the MCP session id issued at initialize.
@@ -62,14 +62,10 @@ export async function startMcpServer(): Promise<McpInfo> {
     }),
   );
 
-  // The human "Approve"/"Deny" action posted from the approval page.
-  expressApp.post(
-    '/oauth/approve',
-    express.urlencoded({ extended: false }),
-    (req: Request, res: Response) => {
-      handleApproval(String(req.body.id), String(req.body.decision), res);
-    },
-  );
+  // The browser waiting page polls this until the user approves/denies in-app.
+  expressApp.get('/oauth/status', (req: Request, res: Response) => {
+    res.json(getApprovalStatus(String(req.query.id ?? '')));
+  });
 
   // The MCP endpoint itself, protected by a valid bearer token.
   const bearer = requireBearerAuth({

@@ -30,7 +30,8 @@
     }
   },
   "rules": {
-    "import/no-unresolved": "off"
+    "import/no-unresolved": "off",
+    "react-hooks/set-state-in-effect": "off"
   },
   "ignorePatterns": [".vite", "out", "dist", "node_modules"]
 }
