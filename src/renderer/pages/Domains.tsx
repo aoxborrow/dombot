@@ -6,13 +6,16 @@ import { useAppStore } from '../store/app';
 
 type SortValue = string | number;
 
+/** id → nicely capitalized registrar name, e.g. dynadot → "Dynadot". */
+type RegistrarLabels = Record<string, string>;
+
 interface Column {
   key: string;
   label: string;
   /** Cell renderer. */
-  render: (d: Domain) => React.ReactNode;
+  render: (d: Domain, labels: RegistrarLabels) => React.ReactNode;
   /** Value used for sorting; null/empty sorts last regardless of direction. */
-  sortValue: (d: Domain) => SortValue | null;
+  sortValue: (d: Domain, labels: RegistrarLabels) => SortValue | null;
   /** Right-align numeric-ish columns. */
   align?: 'left' | 'right';
   className?: string;
@@ -22,6 +25,11 @@ interface Column {
 function tldOf(domainName: string): string {
   const dot = domainName.indexOf('.');
   return dot === -1 ? '' : domainName.slice(dot + 1).toLowerCase();
+}
+
+/** A registrar's display name, falling back to its raw id. */
+function registrarLabel(id: string, labels: RegistrarLabels): string {
+  return labels[id] ?? id;
 }
 
 function toTime(date: Date | null): number | null {
@@ -60,24 +68,12 @@ const COLUMNS: Column[] = [
     sortValue: (d) => d.domainName.toLowerCase(),
   },
   {
-    key: 'tld',
-    label: 'TLD',
-    render: (d) => (
-      <span className="font-mono text-slate-400">.{tldOf(d.domainName)}</span>
-    ),
-    sortValue: (d) => tldOf(d.domainName),
-  },
-  {
     key: 'registrar',
     label: 'Registrar',
-    render: (d) => <span className="text-slate-300">{d.registrar}</span>,
-    sortValue: (d) => d.registrar.toLowerCase(),
-  },
-  {
-    key: 'status',
-    label: 'Status',
-    render: (d) => <span className="text-slate-400">{d.status || '—'}</span>,
-    sortValue: (d) => d.status.toLowerCase(),
+    render: (d, labels) => (
+      <span className="text-slate-300">{registrarLabel(d.registrar, labels)}</span>
+    ),
+    sortValue: (d, labels) => registrarLabel(d.registrar, labels).toLowerCase(),
   },
   {
     key: 'createdDate',
@@ -184,6 +180,7 @@ export default function Domains() {
     portfolio,
     portfolioErrors,
     portfolioRegistrars,
+    portfolioRegistrarLabels,
     portfolioLoading,
     portfolioError,
     portfolioLoadedAt,
@@ -193,7 +190,6 @@ export default function Domains() {
   const [search, setSearch] = useState('');
   const [tld, setTld] = useState<string>(ALL);
   const [registrar, setRegistrar] = useState<string>(ALL);
-  const [status, setStatus] = useState<string>(ALL);
   const [sortKey, setSortKey] = useState('domainName');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [pageSize, setPageSize] = useState(50);
@@ -210,15 +206,13 @@ export default function Domains() {
     [portfolio],
   );
   const registrars = useMemo(
-    () => Array.from(new Set(portfolio.map((d) => d.registrar))).sort(),
-    [portfolio],
-  );
-  const statuses = useMemo(
     () =>
-      Array.from(new Set(portfolio.map((d) => d.status)))
-        .filter(Boolean)
-        .sort(),
-    [portfolio],
+      Array.from(new Set(portfolio.map((d) => d.registrar))).sort((a, b) =>
+        registrarLabel(a, portfolioRegistrarLabels).localeCompare(
+          registrarLabel(b, portfolioRegistrarLabels),
+        ),
+      ),
+    [portfolio, portfolioRegistrarLabels],
   );
 
   // Filter → sort. Pagination is applied after, on the sorted result.
@@ -228,15 +222,14 @@ export default function Domains() {
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
       if (tld !== ALL && tldOf(d.domainName) !== tld) return false;
       if (registrar !== ALL && d.registrar !== registrar) return false;
-      if (status !== ALL && d.status !== status) return false;
       return true;
     });
 
     const col = COLUMNS.find((c) => c.key === sortKey) ?? COLUMNS[0];
     const dir = sortDir === 'asc' ? 1 : -1;
     return rows.sort((a, b) => {
-      const av = col.sortValue(a);
-      const bv = col.sortValue(b);
+      const av = col.sortValue(a, portfolioRegistrarLabels);
+      const bv = col.sortValue(b, portfolioRegistrarLabels);
       // Nulls/blanks always sort last, independent of direction.
       const aEmpty = av === null || av === '';
       const bEmpty = bv === null || bv === '';
@@ -247,7 +240,15 @@ export default function Domains() {
       if (av > bv) return 1 * dir;
       return 0;
     });
-  }, [portfolio, search, tld, registrar, status, sortKey, sortDir]);
+  }, [
+    portfolio,
+    portfolioRegistrarLabels,
+    search,
+    tld,
+    registrar,
+    sortKey,
+    sortDir,
+  ]);
 
   // Derive the effective page: if filters shrink the result below the current
   // page, `safePage` clamps it without needing to write back to state (every
@@ -271,12 +272,10 @@ export default function Domains() {
     setSearch('');
     setTld(ALL);
     setRegistrar(ALL);
-    setStatus(ALL);
     setPage(0);
   }
 
-  const filtersActive =
-    search !== '' || tld !== ALL || registrar !== ALL || status !== ALL;
+  const filtersActive = search !== '' || tld !== ALL || registrar !== ALL;
 
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-5">
@@ -323,7 +322,10 @@ export default function Domains() {
           <ul className="mt-1 space-y-0.5">
             {portfolioErrors.map((e) => (
               <li key={e.registrar} className="text-amber-400/90">
-                <span className="font-mono">{e.registrar}</span>: {e.message}
+                <span className="font-medium">
+                  {registrarLabel(e.registrar, portfolioRegistrarLabels)}
+                </span>
+                : {e.message}
               </li>
             ))}
           </ul>
@@ -362,15 +364,7 @@ export default function Domains() {
                 setPage(0);
               }}
               options={registrars}
-            />
-            <FilterSelect
-              label="Status"
-              value={status}
-              onChange={(v) => {
-                setStatus(v);
-                setPage(0);
-              }}
-              options={statuses}
+              format={(id) => registrarLabel(id, portfolioRegistrarLabels)}
             />
             {filtersActive && (
               <button
@@ -419,7 +413,7 @@ export default function Domains() {
                           col.align === 'right' ? 'text-right' : 'text-left'
                         }`}
                       >
-                        {col.render(d)}
+                        {col.render(d, portfolioRegistrarLabels)}
                       </td>
                     ))}
                   </tr>

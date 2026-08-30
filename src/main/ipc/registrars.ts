@@ -34,6 +34,10 @@ export function registerRegistrarIpc(): void {
   ipcMain.handle(IpcChannels.listPortfolio, async (): Promise<Portfolio> => {
     const registrars = getConfiguredRegistrars();
     const { domains, errors } = await listPortfolio(getPortfolioSources());
+    // id → nicely capitalized display name, for the UI's filter and table.
+    const registrarLabels = Object.fromEntries(
+      getRegistrarMetadata().map((r) => [r.name, r.displayName]),
+    );
     return {
       domains,
       errors: errors.map(({ registrar, error }) => ({
@@ -41,6 +45,7 @@ export function registerRegistrarIpc(): void {
         message: error.message,
       })),
       registrars,
+      registrarLabels,
     };
   });
 

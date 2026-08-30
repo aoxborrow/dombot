@@ -20,6 +20,8 @@ interface AppState {
   portfolio: Domain[];
   portfolioErrors: PortfolioErrorInfo[];
   portfolioRegistrars: string[];
+  /** Map of registrar id → nicely capitalized display name. */
+  portfolioRegistrarLabels: Record<string, string>;
   portfolioLoading: boolean;
   portfolioError: string | null;
   /** When the portfolio was last successfully loaded (ms epoch), or null. */
@@ -58,6 +60,7 @@ export const useAppStore = create<AppState>((set) => ({
   portfolio: [],
   portfolioErrors: [],
   portfolioRegistrars: [],
+  portfolioRegistrarLabels: {},
   portfolioLoading: false,
   portfolioError: null,
   portfolioLoadedAt: null,
@@ -69,6 +72,7 @@ export const useAppStore = create<AppState>((set) => ({
         portfolio: result.domains,
         portfolioErrors: result.errors,
         portfolioRegistrars: result.registrars,
+        portfolioRegistrarLabels: result.registrarLabels,
         portfolioLoading: false,
         portfolioLoadedAt: Date.now(),
       });

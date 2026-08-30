@@ -4,7 +4,7 @@ import McpClientsSettings from './settings/McpClientsSettings';
 
 const SECTIONS = [
   { id: 'registrars', label: 'Registrars' },
-  { id: 'mcp', label: 'MCP Clients' },
+  { id: 'mcp', label: 'MCP' },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]['id'];

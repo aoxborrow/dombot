@@ -109,6 +109,8 @@ export interface Portfolio {
   errors: PortfolioErrorInfo[];
   /** Registrar ids that had credentials configured and were queried. */
   registrars: string[];
+  /** Map of registrar id → nicely capitalized display name, e.g. dynadot → "Dynadot". */
+  registrarLabels: Record<string, string>;
 }
 
 /**
