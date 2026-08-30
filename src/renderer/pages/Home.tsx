@@ -98,7 +98,7 @@ export default function Home() {
           </h2>
           <p className="mt-2 text-sm text-slate-400">
             A local MCP server is running. Point Claude Code (or another MCP
-            client) at it to manage this portfolio with read-only tools.
+            client) at it to manage this portfolio across your registrars.
           </p>
           <dl className="mt-4 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
             <Row label="URL" value={mcpInfo.url} />

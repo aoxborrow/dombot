@@ -106,8 +106,16 @@ third _adapter_ over the same `services/` core the UI uses — see
 - **Auth:** a single bearer token (one authorization → full access). Pinnable in
   dev via `DOMBOT_MCP_TOKEN`; the port via `DOMBOT_MCP_PORT` (default `4123`).
   Disable the server with `DOMBOT_MCP_ENABLED=0`.
-- **Tools (read-only for now):** `list_domains`, `check_availability`,
-  `get_dns_records`. Mutating/money-moving tools are intentionally omitted.
+- **Tools.** Every registrar-scoped tool takes a `registrar` id, so one client
+  drives the whole portfolio.
+  - _Reads:_ `list_registrars`, `list_portfolio` (aggregated across configured
+    registrars), `list_domains`, `check_availability`, `get_dns_records`,
+    `get_nameservers`.
+  - _Writes (non-money):_ `set_nameservers`, `set_auto_renew`, `set_lock`.
+  - _Omitted:_ money-moving operations (register, renew, transfer).
+- **Credentials.** A client is built per registrar from `.env` using each
+  provider's `configFields` and the `<PROVIDER>_<FIELD>` naming convention (see
+  [`.env.example`](.env.example)). "Configured" means all required vars present.
 
 The URL, token, and a ready-to-paste connect command are shown on the Home
 screen. To connect Claude Code:

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { IpcChannels, type Domain } from '../../shared/ipc';
-import { getDynadotClient } from '../services/registrars';
+import { getRegistrarClient } from '../services/registrars';
 
 /**
  * Registrar IPC. Handlers stay thin: parse input, call a service, return the
@@ -8,6 +8,6 @@ import { getDynadotClient } from '../services/registrars';
  */
 export function registerRegistrarIpc(): void {
   ipcMain.handle(IpcChannels.listDynadotDomains, async (): Promise<Domain[]> =>
-    getDynadotClient().listDomains(),
+    getRegistrarClient('dynadot').listDomains(),
   );
 }
