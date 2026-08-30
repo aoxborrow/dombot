@@ -13,7 +13,17 @@ export const IpcChannels = {
   ping: 'app:ping',
   getAppInfo: 'app:getAppInfo',
   listDynadotDomains: 'registrar:listDynadotDomains',
+  getMcpInfo: 'mcp:getInfo',
 } as const;
+
+/** Status of the embedded local MCP server. */
+export interface McpInfo {
+  running: boolean;
+  /** Endpoint an MCP client connects to, e.g. http://127.0.0.1:4123/mcp */
+  url: string;
+  /** Bearer token a client must present (single authorization). */
+  token: string;
+}
 
 export interface AppInfo {
   name: string;
@@ -35,4 +45,5 @@ export interface DombotApi {
   ping: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
   listDynadotDomains: () => Promise<Domain[]>;
+  getMcpInfo: () => Promise<McpInfo>;
 }

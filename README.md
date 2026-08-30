@@ -4,16 +4,17 @@ Cross-platform desktop app built with **Electron Forge**, **React**, **TypeScrip
 
 ## Stack
 
-| Layer    | Choice                                     |
-| -------- | ------------------------------------------ |
-| Shell    | Electron 44 + Electron Forge (Vite plugin) |
-| UI       | React 19                                   |
-| Language | TypeScript (strict)                        |
-| Bundler  | Vite 5                                     |
-| Styling  | Tailwind CSS v4 (`@tailwindcss/vite`)      |
-| Routing  | React Router (HashRouter)                  |
-| State    | Zustand                                    |
-| Tooling  | ESLint + Prettier                          |
+| Layer    | Choice                                            |
+| -------- | ------------------------------------------------- |
+| Shell    | Electron 44 + Electron Forge (Vite plugin)        |
+| UI       | React 19                                          |
+| Language | TypeScript (strict)                               |
+| Bundler  | Vite 5                                            |
+| Styling  | Tailwind CSS v4 (`@tailwindcss/vite`)             |
+| Routing  | React Router (HashRouter)                         |
+| State    | Zustand                                           |
+| Agents   | Embedded MCP server (`@modelcontextprotocol/sdk`) |
+| Tooling  | ESLint + Prettier                                 |
 
 ## Getting started
 
@@ -92,6 +93,29 @@ so both repos just need `npm install` run in them. Once the package is on npm,
 Registrar credentials are read from `.env` (git-ignored) by the main process via
 `dotenv`. The Dynadot demo on the Home page needs `DYNADOT_API_KEY` and
 `DYNADOT_API_SECRET`.
+
+## Embedded MCP server
+
+The app runs a local [MCP](https://modelcontextprotocol.io) server so agents
+(Claude Code, Claude Desktop, any MCP client) can manage the portfolio. It's a
+third _adapter_ over the same `services/` core the UI uses — see
+[`src/main/mcp/`](src/main/mcp).
+
+- **Transport:** Streamable HTTP, bound to `127.0.0.1` only. Never exposed off
+  the machine.
+- **Auth:** a single bearer token (one authorization → full access). Pinnable in
+  dev via `DOMBOT_MCP_TOKEN`; the port via `DOMBOT_MCP_PORT` (default `4123`).
+  Disable the server with `DOMBOT_MCP_ENABLED=0`.
+- **Tools (read-only for now):** `list_domains`, `check_availability`,
+  `get_dns_records`. Mutating/money-moving tools are intentionally omitted.
+
+The URL, token, and a ready-to-paste connect command are shown on the Home
+screen. To connect Claude Code:
+
+```bash
+claude mcp add dombot --transport http http://127.0.0.1:4123/mcp \
+  --header "Authorization: Bearer <token-from-the-app>"
+```
 
 ## Architecture notes
 

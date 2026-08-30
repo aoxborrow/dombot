@@ -10,6 +10,7 @@ const api: DombotApi = {
   ping: () => ipcRenderer.invoke(IpcChannels.ping),
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
   listDynadotDomains: () => ipcRenderer.invoke(IpcChannels.listDynadotDomains),
+  getMcpInfo: () => ipcRenderer.invoke(IpcChannels.getMcpInfo),
 };
 
 contextBridge.exposeInMainWorld('api', api);

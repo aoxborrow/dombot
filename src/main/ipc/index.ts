@@ -1,5 +1,6 @@
 import { registerAppIpc } from './app';
 import { registerRegistrarIpc } from './registrars';
+import { registerMcpIpc } from './mcp';
 
 /**
  * Registers every `ipcMain.handle` responder. Call once, after the app is ready.
@@ -8,4 +9,5 @@ import { registerRegistrarIpc } from './registrars';
 export function registerIpcHandlers(): void {
   registerAppIpc();
   registerRegistrarIpc();
+  registerMcpIpc();
 }

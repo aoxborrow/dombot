@@ -3,6 +3,7 @@ import path from 'node:path';
 import 'dotenv/config';
 import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
+import { startMcpServer, stopMcpServer } from './mcp/server';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -37,6 +38,17 @@ const createWindow = () => {
 app.on('ready', () => {
   registerIpcHandlers();
   createWindow();
+
+  // Start the local MCP server unless explicitly disabled (DOMBOT_MCP_ENABLED=0).
+  if (process.env.DOMBOT_MCP_ENABLED !== '0') {
+    startMcpServer()
+      .then((mcp) => console.log(`[mcp] listening on ${mcp.url}`))
+      .catch((err) => console.error('[mcp] failed to start', err));
+  }
+});
+
+app.on('will-quit', () => {
+  void stopMcpServer();
 });
 
 // Quit when all windows are closed, except on macOS.
