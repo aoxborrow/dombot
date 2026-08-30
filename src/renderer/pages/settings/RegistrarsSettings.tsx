@@ -8,8 +8,11 @@ import type {
 export default function RegistrarsSettings() {
   const [registrars, setRegistrars] = useState<RegistrarMeta[]>([]);
 
-  const load = async () =>
-    setRegistrars(await window.api.getRegistrarMetadata());
+  const load = async () => {
+    const metas = await window.api.getRegistrarMetadata();
+    metas.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    setRegistrars(metas);
+  };
 
   useEffect(() => {
     void load();
@@ -127,7 +130,7 @@ function RegistrarCard({
                   </select>
                 ) : (
                   <input
-                    type={field.type === 'password' ? 'password' : 'text'}
+                    type="text"
                     value={values[field.name] ?? ''}
                     autoComplete="off"
                     spellCheck={false}

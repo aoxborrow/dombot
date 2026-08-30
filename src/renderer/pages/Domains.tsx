@@ -87,20 +87,18 @@ const COLUMNS: Column[] = [
   {
     key: 'expirationDate',
     label: 'Expires',
-    align: 'right',
     render: (d) => {
       const days = daysUntil(d.expirationDate);
       const color = expiryColor(days);
       return (
         <span
-          className={`font-mono ${color}`}
+          className={`inline-flex items-baseline gap-3 font-mono tabular-nums ${color}`}
           title={dueLabel(days)}
-          style={{ whiteSpace: 'nowrap' }}
         >
-          {fmtDate(d.expirationDate)}
-          {days !== null && (
-            <span className="ml-2 text-xs">{relativeDays(days)}</span>
-          )}
+          <span>{fmtDate(d.expirationDate)}</span>
+          <span className="w-16 text-right text-xs">
+            {days !== null ? relativeDays(days) : ''}
+          </span>
         </span>
       );
     },
