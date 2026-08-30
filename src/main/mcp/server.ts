@@ -1,22 +1,29 @@
-import http from 'node:http';
-import { randomBytes, randomUUID } from 'node:crypto';
+import type { Server } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { app } from 'electron';
+import express, { type Request, type Response } from 'express';
+import cors from 'cors';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import {
+  getOAuthProtectedResourceMetadataUrl,
+  mcpAuthRouter,
+} from '@modelcontextprotocol/sdk/server/auth/router.js';
+import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { registerTools } from './tools';
+import { handleApproval, loadGrantedTokens, oauthProvider } from './oauth';
 import type { McpInfo } from '../../shared/ipc';
 
-// Live sessions, keyed by the MCP session id issued at initialize. Each holds a
-// transport bound to one client connection.
+// Live sessions, keyed by the MCP session id issued at initialize.
 const transports = new Map<string, StreamableHTTPServerTransport>();
 
-let httpServer: http.Server | null = null;
+let httpServer: Server | null = null;
 let info: McpInfo | null = null;
 
 /** Current server status, or a stopped placeholder if it never started. */
 export function getMcpInfo(): McpInfo {
-  return info ?? { running: false, url: '', token: '' };
+  return info ?? { running: false, url: '' };
 }
 
 /** Builds a fresh MCP server instance with the portfolio tools registered. */
@@ -27,40 +34,59 @@ function createMcpServer(): McpServer {
 }
 
 /**
- * Starts the local MCP server on loopback with a single bearer token
- * (one authorization → full access). Idempotent: repeat calls return the
- * existing info. Port/token can be pinned via DOMBOT_MCP_PORT / DOMBOT_MCP_TOKEN.
+ * Starts the local MCP server on loopback. Auth is OAuth 2.1: clients register
+ * dynamically and the human approves each new connection on dombot's approval
+ * page. Idempotent. Port pinnable via DOMBOT_MCP_PORT.
  */
 export async function startMcpServer(): Promise<McpInfo> {
   if (info?.running) return info;
 
   const host = '127.0.0.1';
   const port = Number(process.env.DOMBOT_MCP_PORT) || 4123;
-  const token = process.env.DOMBOT_MCP_TOKEN || randomBytes(24).toString('hex');
+  const baseUrl = new URL(`http://${host}:${port}`);
+  const mcpUrl = new URL('/mcp', baseUrl);
 
-  httpServer = http.createServer((req, res) => {
-    handleRequest(req, res, token).catch((err) => {
-      console.error('[mcp] request error', err);
-      if (!res.headersSent) {
-        res.writeHead(500, { 'content-type': 'application/json' });
-      }
-      res.end(
-        JSON.stringify({
-          jsonrpc: '2.0',
-          error: { code: -32603, message: 'Internal server error' },
-          id: null,
-        }),
-      );
-    });
+  loadGrantedTokens();
+
+  const expressApp = express();
+  expressApp.use(cors({ exposedHeaders: ['Mcp-Session-Id'] }));
+
+  // OAuth endpoints: /authorize, /token, /register, /revoke, /.well-known/*
+  expressApp.use(
+    mcpAuthRouter({
+      provider: oauthProvider,
+      issuerUrl: baseUrl,
+      scopesSupported: ['portfolio'],
+      resourceName: 'dombot',
+      resourceServerUrl: mcpUrl,
+    }),
+  );
+
+  // The human "Approve"/"Deny" action posted from the approval page.
+  expressApp.post(
+    '/oauth/approve',
+    express.urlencoded({ extended: false }),
+    (req: Request, res: Response) => {
+      handleApproval(String(req.body.id), String(req.body.decision), res);
+    },
+  );
+
+  // The MCP endpoint itself, protected by a valid bearer token.
+  const bearer = requireBearerAuth({
+    verifier: oauthProvider,
+    resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(mcpUrl),
   });
+  expressApp.post('/mcp', bearer, express.json(), handleMcpPost);
+  expressApp.get('/mcp', bearer, handleMcpGet);
+  expressApp.delete('/mcp', bearer, handleMcpDelete);
 
   await new Promise<void>((resolve, reject) => {
-    httpServer!.once('error', reject);
     // Loopback only — never expose registrar control beyond this machine.
-    httpServer!.listen(port, host, () => resolve());
+    httpServer = expressApp.listen(port, host, () => resolve());
+    httpServer.once('error', reject);
   });
 
-  info = { running: true, url: `http://${host}:${port}/mcp`, token };
+  info = { running: true, url: mcpUrl.href };
   return info;
 }
 
@@ -77,96 +103,54 @@ export async function stopMcpServer(): Promise<void> {
   info = null;
 }
 
-async function handleRequest(
-  req: http.IncomingMessage,
-  res: http.ServerResponse,
-  token: string,
-): Promise<void> {
-  const url = new URL(req.url ?? '/', 'http://localhost');
-  if (url.pathname !== '/mcp') {
-    sendError(res, 404, -32601, 'Not found');
-    return;
-  }
-
-  // Single authorization: every request must carry the bearer token.
-  if (req.headers.authorization !== `Bearer ${token}`) {
-    res.setHeader('WWW-Authenticate', 'Bearer');
-    sendError(res, 401, -32001, 'Unauthorized');
-    return;
-  }
-
+async function handleMcpPost(req: Request, res: Response): Promise<void> {
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
+  let transport = sessionId ? transports.get(sessionId) : undefined;
 
-  if (req.method === 'POST') {
-    const body = await readJson(req);
-    let transport = sessionId ? transports.get(sessionId) : undefined;
-
-    if (!transport) {
-      if (sessionId || !isInitializeRequest(body)) {
-        sendError(res, 400, -32000, 'No valid session; send initialize first.');
-        return;
-      }
-      // New client: create a session on initialize.
-      transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        enableJsonResponse: true,
-        onsessioninitialized: (sid) => {
-          transports.set(sid, transport!);
-        },
-      });
-      transport.onclose = () => {
-        if (transport!.sessionId) transports.delete(transport!.sessionId);
-      };
-      await createMcpServer().connect(transport);
-    }
-
-    await transport.handleRequest(req, res, body);
-    return;
-  }
-
-  // GET (SSE stream) and DELETE (end session) operate on an existing session.
-  if (req.method === 'GET' || req.method === 'DELETE') {
-    const transport = sessionId ? transports.get(sessionId) : undefined;
-    if (!transport) {
-      sendError(res, 400, -32000, 'Unknown or missing session id.');
+  if (!transport) {
+    if (sessionId || !isInitializeRequest(req.body)) {
+      res
+        .status(400)
+        .json(jsonRpcError('No valid session; send initialize first.'));
       return;
     }
-    await transport.handleRequest(req, res);
-    return;
+    transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      enableJsonResponse: true,
+      onsessioninitialized: (sid) => {
+        transports.set(sid, transport!);
+      },
+    });
+    transport.onclose = () => {
+      if (transport!.sessionId) transports.delete(transport!.sessionId);
+    };
+    await createMcpServer().connect(transport);
   }
 
-  res.setHeader('Allow', 'POST, GET, DELETE');
-  sendError(res, 405, -32000, 'Method not allowed');
+  await transport.handleRequest(req, res, req.body);
 }
 
-function sendError(
-  res: http.ServerResponse,
-  status: number,
-  code: number,
-  message: string,
-): void {
-  res.writeHead(status, { 'content-type': 'application/json' });
-  res.end(
-    JSON.stringify({ jsonrpc: '2.0', error: { code, message }, id: null }),
-  );
+async function handleMcpGet(req: Request, res: Response): Promise<void> {
+  await handleSessionRequest(req, res);
 }
 
-function readJson(req: http.IncomingMessage): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => {
-      const raw = Buffer.concat(chunks).toString('utf8');
-      if (!raw) {
-        resolve(undefined);
-        return;
-      }
-      try {
-        resolve(JSON.parse(raw));
-      } catch (err) {
-        reject(err instanceof Error ? err : new Error(String(err)));
-      }
-    });
-    req.on('error', reject);
-  });
+async function handleMcpDelete(req: Request, res: Response): Promise<void> {
+  await handleSessionRequest(req, res);
+}
+
+async function handleSessionRequest(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const sessionId = req.headers['mcp-session-id'] as string | undefined;
+  const transport = sessionId ? transports.get(sessionId) : undefined;
+  if (!transport) {
+    res.status(400).json(jsonRpcError('Unknown or missing session id.'));
+    return;
+  }
+  await transport.handleRequest(req, res);
+}
+
+function jsonRpcError(message: string) {
+  return { jsonrpc: '2.0', error: { code: -32000, message }, id: null };
 }

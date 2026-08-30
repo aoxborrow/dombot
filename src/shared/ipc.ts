@@ -21,8 +21,6 @@ export interface McpInfo {
   running: boolean;
   /** Endpoint an MCP client connects to, e.g. http://127.0.0.1:4123/mcp */
   url: string;
-  /** Bearer token a client must present (single authorization). */
-  token: string;
 }
 
 export interface AppInfo {

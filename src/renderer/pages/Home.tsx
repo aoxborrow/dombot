@@ -98,17 +98,19 @@ export default function Home() {
           </h2>
           <p className="mt-2 text-sm text-slate-400">
             A local MCP server is running. Point Claude Code (or another MCP
-            client) at it to manage this portfolio across your registrars.
+            client) at it to manage this portfolio across your registrars. On
+            first connect, an approval page opens — approve it to pair the
+            client.
           </p>
           <dl className="mt-4 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
             <Row label="URL" value={mcpInfo.url} />
-            <Row label="Token" value={mcpInfo.token} />
+            <Row label="Auth" value="OAuth (approve on connect)" />
           </dl>
           <p className="mt-4 text-xs uppercase tracking-wide text-slate-500">
             Claude Code
           </p>
           <pre className="mt-1 overflow-x-auto rounded-md bg-slate-950 p-3 text-xs text-slate-300">
-            <code>{`claude mcp add dombot --transport http ${mcpInfo.url} \\\n  --header "Authorization: Bearer ${mcpInfo.token}"`}</code>
+            <code>{`claude mcp add dombot --transport http ${mcpInfo.url}`}</code>
           </pre>
         </section>
       )}

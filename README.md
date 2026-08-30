@@ -103,9 +103,14 @@ third _adapter_ over the same `services/` core the UI uses — see
 
 - **Transport:** Streamable HTTP, bound to `127.0.0.1` only. Never exposed off
   the machine.
-- **Auth:** a single bearer token (one authorization → full access). Pinnable in
-  dev via `DOMBOT_MCP_TOKEN`; the port via `DOMBOT_MCP_PORT` (default `4123`).
-  Disable the server with `DOMBOT_MCP_ENABLED=0`.
+- **Auth:** OAuth 2.1 (dynamic client registration + PKCE), served by the app.
+  On first connect, dombot opens an **approval page** (client name + a
+  confirmation code, Approve/Deny). Approve once and the client is paired; the
+  issued token is persisted (`userData/mcp-tokens.json`) so it stays paired
+  across restarts. Env knobs: `DOMBOT_MCP_PORT` (default `4123`),
+  `DOMBOT_MCP_ENABLED=0` to disable, `DOMBOT_MCP_AUTOAPPROVE=1` to skip the
+  approval click (dev/testing), `DOMBOT_MCP_TOKEN` for a static bearer token
+  escape hatch (dev/testing). See [`src/main/mcp/oauth.ts`](src/main/mcp/oauth.ts).
 - **Tools.** Every registrar-scoped tool takes a `registrar` id, so one client
   drives the whole portfolio.
   - _Reads:_ `list_registrars`, `list_portfolio` (aggregated across configured
@@ -117,12 +122,11 @@ third _adapter_ over the same `services/` core the UI uses — see
   provider's `configFields` and the `<PROVIDER>_<FIELD>` naming convention (see
   [`.env.example`](.env.example)). "Configured" means all required vars present.
 
-The URL, token, and a ready-to-paste connect command are shown on the Home
-screen. To connect Claude Code:
+The URL and a ready-to-paste connect command are shown on the Home screen. To
+connect Claude Code (no token needed — approve in the page that opens):
 
 ```bash
-claude mcp add dombot --transport http http://127.0.0.1:4123/mcp \
-  --header "Authorization: Bearer <token-from-the-app>"
+claude mcp add dombot --transport http http://127.0.0.1:4123/mcp
 ```
 
 ## Architecture notes
