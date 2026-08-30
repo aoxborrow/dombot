@@ -9,9 +9,9 @@ import {
   ChevronsRight,
   ChevronsUpDown,
   ExternalLink,
-  Minus,
   Search,
   TriangleAlert,
+  X,
 } from 'lucide-react';
 import type { Aftermarket, Domain, MarketListing } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
@@ -61,6 +61,8 @@ interface Column {
   /** Comes from lazily-fetched per-domain detail; shows a loading placeholder
    * until that row's detail arrives. */
   detail?: boolean;
+  /** Narrow column (trims header padding) — for the yes/no flag columns. */
+  compact?: boolean;
 }
 
 /** Everything after the first dot, e.g. "example.co.uk" → "co.uk". */
@@ -111,8 +113,54 @@ function fmtPrice(l: MarketListing): string {
   return `$${l.price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
-/** Combined marketplace cell: lowest listing + "+N more", linking to DomDB. */
-function MarketCell({
+const AFTERNIC = 'afternic';
+
+/** The Afternic listing for a domain, if any. */
+function afternicListing(
+  info: Aftermarket | null | undefined,
+): MarketListing | null {
+  return (
+    info?.listings.find((l) => l.platform.toLowerCase() === AFTERNIC) ?? null
+  );
+}
+
+/** Listings other than Afternic (already sorted lowest-price-first). */
+function otherListings(info: Aftermarket | null | undefined): MarketListing[] {
+  return (
+    info?.listings.filter((l) => l.platform.toLowerCase() !== AFTERNIC) ?? []
+  );
+}
+
+/** Afternic price cell, linking to the DomDB detail page. */
+function AfternicCell({
+  info,
+  loading,
+  onOpen,
+}: {
+  info: Aftermarket | null | undefined;
+  loading: boolean;
+  onOpen: (url: string) => void;
+}) {
+  if (loading && info === undefined) return <CellSkeleton align="right" />;
+  const listing = afternicListing(info);
+  if (!listing || !info) {
+    return <span className="text-muted-foreground/50">—</span>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(info.detailUrl)}
+      title={`Afternic: ${fmtPrice(listing)}`}
+      className="group inline-flex items-baseline gap-1 font-medium tabular-nums hover:underline"
+    >
+      {fmtPrice(listing)}
+      <ExternalLink className="size-3 self-center text-muted-foreground/60 opacity-0 group-hover:opacity-100" />
+    </button>
+  );
+}
+
+/** Other marketplaces: lowest listing + "+N more", linking to DomDB. */
+function MarketsCell({
   info,
   loading,
   onOpen,
@@ -122,14 +170,13 @@ function MarketCell({
   onOpen: (url: string) => void;
 }) {
   if (loading && info === undefined) return <CellSkeleton align="left" />;
-  if (!info || info.listings.length === 0) {
+  const others = otherListings(info);
+  if (!info || others.length === 0) {
     return <span className="text-muted-foreground/50">—</span>;
   }
-  const lowest = info.listings[0];
-  const more = info.listings.length - 1;
-  const tooltip = info.listings
-    .map((l) => `${l.platform}: ${fmtPrice(l)}`)
-    .join('\n');
+  const lowest = others[0];
+  const more = others.length - 1;
+  const tooltip = others.map((l) => `${l.platform}: ${fmtPrice(l)}`).join('\n');
   return (
     <button
       type="button"
@@ -147,15 +194,12 @@ function MarketCell({
   );
 }
 
-/** A yes/no flag rendered as a check or a muted dash. */
+/** A yes/no flag: a green check for yes, a rose ✕ for no. */
 function Flag({ value }: { value: boolean }) {
   return value ? (
-    <Check className="mx-auto size-4 text-foreground" aria-label="yes" />
+    <Check className="mx-auto size-4 text-emerald-500" aria-label="yes" />
   ) : (
-    <Minus
-      className="mx-auto size-4 text-muted-foreground/50"
-      aria-label="no"
-    />
+    <X className="mx-auto size-4 text-rose-400" aria-label="no" />
   );
 }
 
@@ -208,8 +252,9 @@ const COLUMNS: Column[] = [
   },
   {
     key: 'autoRenew',
-    label: 'Auto-renew',
+    label: 'Renew',
     align: 'right',
+    compact: true,
     render: (d) => <Flag value={d.autoRenew} />,
     sortValue: (d) => (d.autoRenew ? 1 : 0),
   },
@@ -218,6 +263,7 @@ const COLUMNS: Column[] = [
     label: 'Locked',
     align: 'right',
     detail: true,
+    compact: true,
     render: (d) => <Flag value={d.locked} />,
     sortValue: (d) => (d.locked ? 1 : 0),
   },
@@ -226,6 +272,7 @@ const COLUMNS: Column[] = [
     label: 'Privacy',
     align: 'right',
     detail: true,
+    compact: true,
     render: (d) => <Flag value={d.privacy} />,
     sortValue: (d) => (d.privacy ? 1 : 0),
   },
@@ -238,7 +285,7 @@ const COLUMNS: Column[] = [
         <span className="text-muted-foreground/50">—</span>
       ) : (
         <span
-          className="font-mono text-xs text-muted-foreground"
+          className="block max-w-[260px] truncate font-mono text-xs text-muted-foreground"
           title={d.nameservers.join('\n')}
         >
           {d.nameservers.join(', ')}
@@ -342,9 +389,14 @@ export default function Domains() {
 
     const col = COLUMNS.find((c) => c.key === sortKey) ?? COLUMNS[0];
     const dir = sortDir === 'asc' ? 1 : -1;
+    // Afternic isn't a Domain field — sort by its price from the aftermarket map.
+    const valueOf = (d: Domain): SortValue | null =>
+      sortKey === AFTERNIC
+        ? (afternicListing(aftermarket[d.domainName])?.price ?? null)
+        : col.sortValue(d, portfolioRegistrarLabels);
     return rows.sort((a, b) => {
-      const av = col.sortValue(a, portfolioRegistrarLabels);
-      const bv = col.sortValue(b, portfolioRegistrarLabels);
+      const av = valueOf(a);
+      const bv = valueOf(b);
       // Nulls/blanks always sort last, independent of direction.
       const aEmpty = av === null || av === '';
       const bEmpty = bv === null || bv === '';
@@ -363,6 +415,7 @@ export default function Domains() {
     registrar,
     sortKey,
     sortDir,
+    aftermarket,
   ]);
 
   // Derive the effective page: if filters shrink the result below the current
@@ -529,7 +582,10 @@ export default function Domains() {
                     return (
                       <TableHead
                         key={col.key}
-                        className={col.align === 'right' ? 'text-right' : ''}
+                        className={cn(
+                          col.align === 'right' && 'text-right',
+                          col.compact && 'px-1',
+                        )}
                       >
                         <button
                           type="button"
@@ -546,7 +602,28 @@ export default function Domains() {
                       </TableHead>
                     );
                   })}
-                  <TableHead>Market</TableHead>
+                  <TableHead className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(AFTERNIC)}
+                      className={cn(
+                        'inline-flex select-none flex-row-reverse items-center gap-1 hover:text-foreground',
+                        sortKey === AFTERNIC && 'text-foreground',
+                      )}
+                    >
+                      Afternic
+                      {(() => {
+                        const Icon =
+                          sortKey !== AFTERNIC
+                            ? ChevronsUpDown
+                            : sortDir === 'asc'
+                              ? ArrowUp
+                              : ArrowDown;
+                        return <Icon className="size-3.5 opacity-70" />;
+                      })()}
+                    </button>
+                  </TableHead>
+                  <TableHead>Markets</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -558,7 +635,10 @@ export default function Domains() {
                       {COLUMNS.map((col) => (
                         <TableCell
                           key={col.key}
-                          className={col.align === 'right' ? 'text-right' : ''}
+                          className={cn(
+                            col.align === 'right' && 'text-right',
+                            col.compact && 'px-1',
+                          )}
                         >
                           {col.detail && loadingDetail ? (
                             <CellSkeleton align={col.align} />
@@ -567,8 +647,15 @@ export default function Domains() {
                           )}
                         </TableCell>
                       ))}
+                      <TableCell className="text-right">
+                        <AfternicCell
+                          info={aftermarket[d.domainName]}
+                          loading={marketLoading[d.domainName] === true}
+                          onOpen={openExternal}
+                        />
+                      </TableCell>
                       <TableCell>
-                        <MarketCell
+                        <MarketsCell
                           info={aftermarket[d.domainName]}
                           loading={marketLoading[d.domainName] === true}
                           onOpen={openExternal}
@@ -580,7 +667,7 @@ export default function Domains() {
                 {visible.length === 0 && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell
-                      colSpan={COLUMNS.length + 1}
+                      colSpan={COLUMNS.length + 2}
                       className="h-32 text-center text-muted-foreground"
                     >
                       {portfolio.length === 0
