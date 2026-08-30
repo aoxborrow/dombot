@@ -9,6 +9,7 @@ import { IpcChannels, type DombotApi } from './shared/ipc';
 const api: DombotApi = {
   ping: () => ipcRenderer.invoke(IpcChannels.ping),
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
+  listDynadotDomains: () => ipcRenderer.invoke(IpcChannels.listDynadotDomains),
 };
 
 contextBridge.exposeInMainWorld('api', api);

@@ -16,7 +16,10 @@
     "resolveJsonModule": true,
     "sourceMap": true,
     "baseUrl": ".",
-    "outDir": "dist"
+    "outDir": "dist",
+    "paths": {
+      "@aoxborrow/registrar-client": ["../registrar-client/src/index.ts"]
+    }
   },
   "include": [
     "src",

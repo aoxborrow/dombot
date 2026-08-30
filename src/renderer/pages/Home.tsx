@@ -1,71 +1,116 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useAppStore } from '../store/app';
 
 export default function Home() {
-  const { appInfo, loadAppInfo, clicks, increment } = useAppStore();
-  const [pong, setPong] = useState<string | null>(null);
+  const {
+    appInfo,
+    loadAppInfo,
+    domains,
+    domainsLoading,
+    domainsError,
+    loadDynadotDomains,
+  } = useAppStore();
 
   useEffect(() => {
     void loadAppInfo();
   }, [loadAppInfo]);
 
-  const handlePing = async () => {
-    setPong(await window.api.ping());
-  };
-
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
+    <div className="mx-auto max-w-3xl space-y-8">
       <div>
         <h1 className="text-2xl font-bold">Welcome to dombot</h1>
         <p className="mt-1 text-slate-400">
-          Electron + React + TypeScript + Vite, with a typed IPC bridge.
+          Manage a domain portfolio across registrars and marketplaces.
         </p>
       </div>
 
       <section className="rounded-lg border border-slate-800 bg-slate-900 p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-          Zustand store
-        </h2>
-        <div className="mt-3 flex items-center gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+            Dynadot portfolio
+          </h2>
           <button
-            onClick={increment}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+            onClick={() => void loadDynadotDomains()}
+            disabled={domainsLoading}
+            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Clicked {clicks} times
+            {domainsLoading ? 'Loading…' : 'Load domains'}
           </button>
         </div>
+
+        {domainsError && (
+          <p className="mt-4 rounded-md border border-red-900/60 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+            {domainsError}
+          </p>
+        )}
+
+        {domains.length > 0 && (
+          <>
+            <p className="mt-4 text-sm text-slate-400">
+              {domains.length} domain{domains.length === 1 ? '' : 's'} via
+              @aoxborrow/registrar-client
+            </p>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase tracking-wide text-slate-500">
+                  <tr className="border-b border-slate-800">
+                    <th className="py-2 pr-4 font-medium">Domain</th>
+                    <th className="py-2 pr-4 font-medium">Status</th>
+                    <th className="py-2 pr-4 font-medium">Expires</th>
+                    <th className="py-2 pr-4 font-medium">Auto-renew</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/70">
+                  {domains.map((d) => (
+                    <tr key={d.domainName}>
+                      <td className="py-2 pr-4 font-mono text-slate-200">
+                        {d.domainName}
+                      </td>
+                      <td className="py-2 pr-4 text-slate-400">{d.status}</td>
+                      <td className="py-2 pr-4 text-slate-400">
+                        {formatDate(d.expirationDate)}
+                      </td>
+                      <td className="py-2 pr-4 text-slate-400">
+                        {d.autoRenew ? 'on' : 'off'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {!domainsLoading && !domainsError && domains.length === 0 && (
+          <p className="mt-4 text-sm text-slate-500">
+            Click “Load domains” to fetch your Dynadot portfolio.
+          </p>
+        )}
       </section>
 
-      <section className="rounded-lg border border-slate-800 bg-slate-900 p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-          IPC bridge
-        </h2>
-        <div className="mt-3 flex items-center gap-4">
-          <button
-            onClick={handlePing}
-            className="rounded-md border border-slate-700 px-4 py-2 text-sm font-medium hover:bg-slate-800"
-          >
-            Send ping
-          </button>
-          {pong && (
-            <span className="text-sm text-emerald-400">
-              main replied: <code>{pong}</code>
-            </span>
-          )}
-        </div>
-
-        {appInfo && (
-          <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+      {appInfo && (
+        <section className="rounded-lg border border-slate-800 bg-slate-900 p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+            Runtime
+          </h2>
+          <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             <Row label="App" value={`${appInfo.name} v${appInfo.version}`} />
             <Row label="Platform" value={appInfo.platform} />
             <Row label="Electron" value={appInfo.electron} />
             <Row label="Chromium" value={appInfo.chrome} />
             <Row label="Node" value={appInfo.node} />
           </dl>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   );
+}
+
+function formatDate(date: Date | null): string {
+  if (!date) return '—';
+  // IPC delivers a Date via structured clone; guard against string fallbacks.
+  const d = date instanceof Date ? date : new Date(date);
+  return Number.isNaN(d.getTime()) ? '—' : d.toISOString().slice(0, 10);
 }
 
 function Row({ label, value }: { label: string; value: string }) {
