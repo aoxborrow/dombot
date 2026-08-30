@@ -9,6 +9,9 @@ import { IpcChannels, IpcEvents, type DombotApi } from './shared/ipc';
 const api: DombotApi = {
   ping: () => ipcRenderer.invoke(IpcChannels.ping),
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
+  openExternal: (url) => ipcRenderer.invoke(IpcChannels.openExternal, url),
+  getAftermarket: (domain) =>
+    ipcRenderer.invoke(IpcChannels.getAftermarket, domain),
 
   // Registrars
   listDynadotDomains: () => ipcRenderer.invoke(IpcChannels.listDynadotDomains),

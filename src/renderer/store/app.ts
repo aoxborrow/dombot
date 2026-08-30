@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type {
+  Aftermarket,
   AppInfo,
   Domain,
   McpInfo,
@@ -15,6 +16,10 @@ const domainKey = (d: Domain): string => `${d.registrar}:${d.domainName}`;
 // page revisit. Kept outside the store so they don't trigger re-renders.
 const enrichInFlight = new Set<string>();
 const enrichFailed = new Set<string>();
+
+// Same idea for aftermarket lookups, keyed by domain name (DomDB is per-domain).
+const marketInFlight = new Set<string>();
+const marketDone = new Set<string>();
 
 interface AppState {
   appInfo: AppInfo | null;
@@ -45,6 +50,12 @@ interface AppState {
   /** Domains whose detail fetch is currently in flight (for per-cell loading). */
   enriching: Record<string, boolean>;
   enrichVisible: (domains: Domain[]) => Promise<void>;
+
+  // Aftermarket pricing (DomDB), keyed by domain name. `null` = fetched but
+  // untracked/unavailable. `marketLoading` drives the Market cell's spinner.
+  aftermarket: Record<string, Aftermarket | null>;
+  marketLoading: Record<string, boolean>;
+  loadAftermarketVisible: (domains: Domain[]) => Promise<void>;
 }
 
 /** Global renderer store. Kept intentionally small — grow it as needed. */
@@ -89,6 +100,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Fresh summary data invalidates any prior per-domain detail.
       enrichInFlight.clear();
       enrichFailed.clear();
+      marketInFlight.clear();
+      marketDone.clear();
       set({
         portfolio: result.domains,
         portfolioErrors: result.errors,
@@ -98,6 +111,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         portfolioLoadedAt: Date.now(),
         enriched: {},
         enriching: {},
+        aftermarket: {},
+        marketLoading: {},
       });
     } catch (err) {
       set({
@@ -172,6 +187,49 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
     await Promise.all(
       Array.from({ length: Math.min(CONCURRENCY, todo.length) }, worker),
+    );
+  },
+
+  aftermarket: {},
+  marketLoading: {},
+  loadAftermarketVisible: async (domains) => {
+    const todo = domains.filter(
+      (d) => !marketDone.has(d.domainName) && !marketInFlight.has(d.domainName),
+    );
+    if (todo.length === 0) return;
+
+    todo.forEach((d) => marketInFlight.add(d.domainName));
+    set((state) => {
+      const marketLoading = { ...state.marketLoading };
+      for (const d of todo) marketLoading[d.domainName] = true;
+      return { marketLoading };
+    });
+
+    const clearLoading = (key: string) =>
+      set((state) => {
+        const marketLoading = { ...state.marketLoading };
+        delete marketLoading[key];
+        return { marketLoading };
+      });
+
+    // Fire all visible; the main-process service serializes them to respect
+    // DomDB's rate limit, so each resolves ~1s apart and its cell fills in.
+    await Promise.all(
+      todo.map(async (d) => {
+        const key = d.domainName;
+        try {
+          const info = await window.api.getAftermarket(key);
+          set((state) => ({
+            aftermarket: { ...state.aftermarket, [key]: info },
+          }));
+        } catch {
+          // leave it unset; treated as "no data"
+        } finally {
+          marketDone.add(key);
+          marketInFlight.delete(key);
+          clearLoading(key);
+        }
+      }),
     );
   },
 }));

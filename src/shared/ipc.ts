@@ -15,6 +15,8 @@ export const IpcChannels = {
   listDynadotDomains: 'registrar:listDynadotDomains',
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
+  getAftermarket: 'market:getAftermarket',
+  openExternal: 'app:openExternal',
   getRegistrarMetadata: 'registrar:getMetadata',
   getRegistrarCredentials: 'registrar:getCredentials',
   saveRegistrarCredentials: 'registrar:saveCredentials',
@@ -90,6 +92,29 @@ export interface McpClient {
   pairedAt: number;
 }
 
+/** A single marketplace listing for a domain (from DomDB). */
+export interface MarketListing {
+  /** Display name, e.g. "Afternic", "Sedo". */
+  platform: string;
+  /** Buy-it-now price in `currency`, or null for offer-only listings. */
+  price: number | null;
+  currency: string;
+  /** e.g. "buy_it_now", "make_offer". */
+  serviceType: string;
+  canMakeOffer: boolean;
+}
+
+/** Aftermarket data for a domain (from DomDB). */
+export interface Aftermarket {
+  domain: string;
+  /** "aftermarket" | "unavailable" | "unregistered" | "untracked" | "unknown". */
+  availability: string;
+  /** Listings across marketplaces, lowest priced first (offer-only last). */
+  listings: MarketListing[];
+  /** DomDB detail page, e.g. https://domdb.com/example.com */
+  detailUrl: string;
+}
+
 /** Re-exported so the renderer can type data without importing the lib. */
 export type { Domain, RegistrarName };
 
@@ -121,6 +146,11 @@ export interface Portfolio {
 export interface DombotApi {
   ping: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
+  /** Open a URL in the user's default browser. */
+  openExternal: (url: string) => Promise<void>;
+
+  /** Aftermarket pricing for a domain (DomDB), or null if unavailable. */
+  getAftermarket: (domain: string) => Promise<Aftermarket | null>;
 
   // Registrars
   listDynadotDomains: () => Promise<Domain[]>;

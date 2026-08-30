@@ -8,11 +8,12 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronsUpDown,
+  ExternalLink,
   Minus,
   Search,
   TriangleAlert,
 } from 'lucide-react';
-import type { Domain } from '../../shared/ipc';
+import type { Aftermarket, Domain, MarketListing } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -101,6 +102,48 @@ function CellSkeleton({ align }: { align?: 'left' | 'right' }) {
       )}
       aria-label="Loading…"
     />
+  );
+}
+
+/** Formats a listing's price, e.g. "$11,231", or "Offer" for offer-only. */
+function fmtPrice(l: MarketListing): string {
+  if (l.price == null) return l.canMakeOffer ? 'Offer' : '—';
+  return `$${l.price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
+/** Combined marketplace cell: lowest listing + "+N more", linking to DomDB. */
+function MarketCell({
+  info,
+  loading,
+  onOpen,
+}: {
+  info: Aftermarket | null | undefined;
+  loading: boolean;
+  onOpen: (url: string) => void;
+}) {
+  if (loading && info === undefined) return <CellSkeleton align="left" />;
+  if (!info || info.listings.length === 0) {
+    return <span className="text-muted-foreground/50">—</span>;
+  }
+  const lowest = info.listings[0];
+  const more = info.listings.length - 1;
+  const tooltip = info.listings
+    .map((l) => `${l.platform}: ${fmtPrice(l)}`)
+    .join('\n');
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(info.detailUrl)}
+      title={tooltip}
+      className="group inline-flex items-baseline gap-1.5 hover:underline"
+    >
+      <span className="font-medium tabular-nums">{fmtPrice(lowest)}</span>
+      <span className="text-xs text-muted-foreground">{lowest.platform}</span>
+      {more > 0 && (
+        <span className="text-xs text-muted-foreground">+{more} more</span>
+      )}
+      <ExternalLink className="size-3 self-center text-muted-foreground/60 opacity-0 group-hover:opacity-100" />
+    </button>
   );
 }
 
@@ -245,7 +288,12 @@ export default function Domains() {
     enriched,
     enriching,
     enrichVisible,
+    aftermarket,
+    marketLoading,
+    loadAftermarketVisible,
   } = useAppStore();
+
+  const openExternal = (url: string) => void window.api.openExternal(url);
 
   // Overlay lazily-fetched per-domain detail (nameservers/privacy/lock) onto the
   // fast summary. Filtering, sorting, and rendering all use this merged view.
@@ -337,6 +385,12 @@ export default function Domains() {
     // visibleKey encodes the identity of the current page's rows.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleKey, enrichVisible]);
+
+  // Aftermarket pricing for the visible rows (rate-limited server-side).
+  useEffect(() => {
+    void loadAftermarketVisible(visible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleKey, loadAftermarketVisible]);
 
   function toggleSort(key: string) {
     if (key === sortKey) {
@@ -492,6 +546,7 @@ export default function Domains() {
                       </TableHead>
                     );
                   })}
+                  <TableHead>Market</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -512,13 +567,20 @@ export default function Domains() {
                           )}
                         </TableCell>
                       ))}
+                      <TableCell>
+                        <MarketCell
+                          info={aftermarket[d.domainName]}
+                          loading={marketLoading[d.domainName] === true}
+                          onOpen={openExternal}
+                        />
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {visible.length === 0 && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell
-                      colSpan={COLUMNS.length}
+                      colSpan={COLUMNS.length + 1}
                       className="h-32 text-center text-muted-foreground"
                     >
                       {portfolio.length === 0
