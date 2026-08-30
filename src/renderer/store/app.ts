@@ -39,8 +39,8 @@ interface AppState {
   loadPortfolio: () => Promise<void>;
 
   // Lazy per-domain detail (nameservers/privacy/lock), keyed by `${registrar}:${domainName}`.
-  // The list endpoints of several registrars omit these; we fetch full detail
-  // only for the domains actually on screen. See `enrichVisible`.
+  // Some registrars' list endpoints omit these; we fetch full detail only for
+  // on-screen rows that the list left without nameservers. See `enrichVisible`.
   enriched: Record<string, Domain>;
   /** Domains whose detail fetch is currently in flight (for per-cell loading). */
   enriching: Record<string, boolean>;
@@ -113,6 +113,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const todo = domains.filter((d) => {
       const key = domainKey(d);
       return (
+        // Only enrich rows the list didn't fully populate. Registrars that
+        // return nameservers in the list also report privacy/lock correctly, so
+        // a row that already has nameservers needs no detail lookup.
+        d.nameservers.length === 0 &&
         !get().enriched[key] &&
         !enrichInFlight.has(key) &&
         !enrichFailed.has(key)
