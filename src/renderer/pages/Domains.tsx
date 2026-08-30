@@ -71,7 +71,9 @@ const COLUMNS: Column[] = [
     key: 'registrar',
     label: 'Registrar',
     render: (d, labels) => (
-      <span className="text-slate-300">{registrarLabel(d.registrar, labels)}</span>
+      <span className="text-slate-300">
+        {registrarLabel(d.registrar, labels)}
+      </span>
     ),
     sortValue: (d, labels) => registrarLabel(d.registrar, labels).toLowerCase(),
   },

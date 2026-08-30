@@ -104,7 +104,14 @@ async function handleMcpPost(req: Request, res: Response): Promise<void> {
   let transport = sessionId ? transports.get(sessionId) : undefined;
 
   if (!transport) {
-    if (sessionId || !isInitializeRequest(req.body)) {
+    // A stale/unknown session id (e.g. after an app restart cleared in-memory
+    // sessions) must return 404 so the client re-initializes, per the MCP
+    // Streamable HTTP spec — not 400, which clients treat as a hard error.
+    if (sessionId) {
+      res.status(404).json(jsonRpcError('Session not found; reinitialize.'));
+      return;
+    }
+    if (!isInitializeRequest(req.body)) {
       res
         .status(400)
         .json(jsonRpcError('No valid session; send initialize first.'));
@@ -141,7 +148,8 @@ async function handleSessionRequest(
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
   const transport = sessionId ? transports.get(sessionId) : undefined;
   if (!transport) {
-    res.status(400).json(jsonRpcError('Unknown or missing session id.'));
+    // 404 signals the client to re-initialize (see handleMcpPost).
+    res.status(404).json(jsonRpcError('Session not found; reinitialize.'));
     return;
   }
   await transport.handleRequest(req, res);
