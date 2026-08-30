@@ -57,6 +57,9 @@ interface Column {
   sortValue: (d: Domain, labels: RegistrarLabels) => SortValue | null;
   /** Right-align numeric-ish columns. */
   align?: 'left' | 'right';
+  /** Comes from lazily-fetched per-domain detail; shows a loading placeholder
+   * until that row's detail arrives. */
+  detail?: boolean;
 }
 
 /** Everything after the first dot, e.g. "example.co.uk" → "co.uk". */
@@ -86,6 +89,19 @@ function fmtDate(date: Date | null): string {
 function daysUntil(date: Date | null): number | null {
   const t = toTime(date);
   return t === null ? null : Math.round((t - Date.now()) / 86_400_000);
+}
+
+/** Placeholder shown in a detail cell while that row's detail is loading. */
+function CellSkeleton({ align }: { align?: 'left' | 'right' }) {
+  return (
+    <span
+      className={cn(
+        'inline-block h-3 animate-pulse rounded bg-muted',
+        align === 'right' ? 'w-4' : 'w-24',
+      )}
+      aria-label="Loading…"
+    />
+  );
 }
 
 /** A yes/no flag rendered as a check or a muted dash. */
@@ -158,6 +174,7 @@ const COLUMNS: Column[] = [
     key: 'locked',
     label: 'Locked',
     align: 'right',
+    detail: true,
     render: (d) => <Flag value={d.locked} />,
     sortValue: (d) => (d.locked ? 1 : 0),
   },
@@ -165,12 +182,14 @@ const COLUMNS: Column[] = [
     key: 'privacy',
     label: 'Privacy',
     align: 'right',
+    detail: true,
     render: (d) => <Flag value={d.privacy} />,
     sortValue: (d) => (d.privacy ? 1 : 0),
   },
   {
     key: 'nameservers',
     label: 'Nameservers',
+    detail: true,
     render: (d) =>
       d.nameservers.length === 0 ? (
         <span className="text-muted-foreground/50">—</span>
@@ -224,6 +243,7 @@ export default function Domains() {
     portfolioLoadedAt,
     loadPortfolio,
     enriched,
+    enriching,
     enrichVisible,
   } = useAppStore();
 
@@ -475,18 +495,26 @@ export default function Domains() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map((d) => (
-                  <TableRow key={`${d.registrar}:${d.domainName}`}>
-                    {COLUMNS.map((col) => (
-                      <TableCell
-                        key={col.key}
-                        className={col.align === 'right' ? 'text-right' : ''}
-                      >
-                        {col.render(d, portfolioRegistrarLabels)}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
+                {visible.map((d) => {
+                  const loadingDetail =
+                    enriching[`${d.registrar}:${d.domainName}`] === true;
+                  return (
+                    <TableRow key={`${d.registrar}:${d.domainName}`}>
+                      {COLUMNS.map((col) => (
+                        <TableCell
+                          key={col.key}
+                          className={col.align === 'right' ? 'text-right' : ''}
+                        >
+                          {col.detail && loadingDetail ? (
+                            <CellSkeleton align={col.align} />
+                          ) : (
+                            col.render(d, portfolioRegistrarLabels)
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  );
+                })}
                 {visible.length === 0 && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell

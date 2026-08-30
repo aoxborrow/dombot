@@ -40,6 +40,8 @@ interface AppState {
   // The list endpoints of several registrars omit these; we fetch full detail
   // only for the domains actually on screen. See `enrichVisible`.
   enriched: Record<string, Domain>;
+  /** Domains whose detail fetch is currently in flight (for per-cell loading). */
+  enriching: Record<string, boolean>;
   enrichVisible: (domains: Domain[]) => Promise<void>;
 }
 
@@ -92,6 +94,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         portfolioLoading: false,
         portfolioLoadedAt: Date.now(),
         enriched: {},
+        enriching: {},
       });
     } catch (err) {
       set({
@@ -102,6 +105,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   enriched: {},
+  enriching: {},
   enrichVisible: async (domains) => {
     const todo = domains.filter((d) => {
       const key = domainKey(d);
@@ -109,13 +113,28 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     if (todo.length === 0) return;
 
+    // Mark all pending rows as loading up front so their detail cells show a
+    // placeholder immediately, before the concurrency-limited fetches start.
+    todo.forEach((d) => enrichInFlight.add(domainKey(d)));
+    set((state) => {
+      const enriching = { ...state.enriching };
+      for (const d of todo) enriching[domainKey(d)] = true;
+      return { enriching };
+    });
+
+    const clearEnriching = (key: string) =>
+      set((state) => {
+        const enriching = { ...state.enriching };
+        delete enriching[key];
+        return { enriching };
+      });
+
     const CONCURRENCY = 6;
     let next = 0;
     const worker = async (): Promise<void> => {
       while (next < todo.length) {
         const d = todo[next++];
         const key = domainKey(d);
-        enrichInFlight.add(key);
         try {
           const detail = await window.api.getDomainDetail(
             d.registrar as RegistrarName,
@@ -126,6 +145,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           // leave the summary values for this domain on detail failure
         } finally {
           enrichInFlight.delete(key);
+          clearEnriching(key);
         }
       }
     };
