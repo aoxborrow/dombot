@@ -83,38 +83,47 @@ export function saveRegistrarCredentials(
 }
 
 /**
- * Full detail for a single domain: getDomain, plus a getNameservers fallback for
- * providers whose detail endpoint omits nameservers (e.g. Namecheap). Used for
- * lazy per-row enrichment in the UI.
+ * Best-available detail for a single domain, for lazy per-row UI enrichment.
+ * Returns a partial that the caller merges over the list summary:
+ *  - `getDomain` for the full record (privacy/lock/dates/nameservers), then
+ *  - a `getNameservers` fallback for providers whose detail omits them, then
+ *  - a dns.tools WHOIS/RDAP lookup for the registry's nameservers.
+ * The nameserver fallbacks run even when `getDomain` fails (e.g. Dynadot's
+ * detail API rejects some TLDs its list still returns), so those domains still
+ * get their nameservers. Returns null only when nothing could be resolved.
  */
 export async function getDomainDetail(
   name: RegistrarName,
   domainName: string,
-): Promise<Domain | null> {
+): Promise<Partial<Domain> | null> {
   const client = getRegistrarClient(name);
-  let domain: Domain;
+
+  let domain: Domain | null = null;
   try {
     domain = await client.getDomain(domainName);
   } catch {
-    // Detail unavailable — e.g. Dynadot's detail API rejects some TLDs that its
-    // list endpoint still returns. Report "no detail" rather than throwing.
-    return null;
+    // Detail unavailable for this TLD — fall through to nameserver-only lookups.
   }
-  if (domain.nameservers.length === 0) {
+
+  let nameservers = domain?.nameservers ?? [];
+  if (nameservers.length === 0) {
     try {
-      const nameservers = await client.getNameservers(domainName);
-      if (nameservers.length > 0) return { ...domain, nameservers };
+      const fromRegistrar = await client.getNameservers(domainName);
+      if (fromRegistrar.length > 0) nameservers = fromRegistrar;
     } catch {
-      // leave nameservers empty if this provider can't supply them
+      // registrar can't supply them via this endpoint either
     }
-    // Last resort: the registrar API may report no nameservers when a domain is
-    // on the registrar's *default* DNS (e.g. Dynadot returns [] for domains
-    // using ns1/ns2.dyna-ns.net). The public registry record still lists the
-    // actual delegation, so fall back to a WHOIS/RDAP lookup for display.
-    const registry = await lookupNameservers(domainName);
-    if (registry.length > 0) return { ...domain, nameservers: registry };
   }
-  return domain;
+  if (nameservers.length === 0) {
+    // Registrar reports none — e.g. a domain on the registrar's default DNS, or
+    // a TLD the registrar's API can't read. The public registry still lists the
+    // delegation, so fall back to dns.tools (WHOIS/RDAP per TLD).
+    nameservers = await lookupNameservers(domainName);
+  }
+
+  if (domain) return { ...domain, nameservers };
+  if (nameservers.length > 0) return { nameservers };
+  return null;
 }
 
 /**

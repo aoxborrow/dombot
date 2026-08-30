@@ -56,7 +56,7 @@ export function registerRegistrarIpc(): void {
       _e,
       name: RegistrarName,
       domainName: string,
-    ): Promise<Domain | null> => getDomainDetail(name, domainName),
+    ): Promise<Partial<Domain> | null> => getDomainDetail(name, domainName),
   );
 
   ipcMain.handle(

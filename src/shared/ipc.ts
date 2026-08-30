@@ -126,13 +126,13 @@ export interface DombotApi {
   listDynadotDomains: () => Promise<Domain[]>;
   listPortfolio: () => Promise<Portfolio>;
   /**
-   * Full per-domain detail (nameservers/privacy/lock) for one domain, or `null`
-   * when the registrar can't supply it (e.g. a TLD its detail API rejects).
+   * Best-available per-domain detail (nameservers/privacy/lock) to merge over
+   * the list summary — a partial, or `null` when nothing could be resolved.
    */
   getDomainDetail: (
     registrar: RegistrarName,
     domainName: string,
-  ) => Promise<Domain | null>;
+  ) => Promise<Partial<Domain> | null>;
   getRegistrarMetadata: () => Promise<RegistrarMeta[]>;
   getRegistrarCredentials: (name: RegistrarName) => Promise<CredentialValues>;
   saveRegistrarCredentials: (

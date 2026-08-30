@@ -152,8 +152,9 @@ export const useAppStore = create<AppState>((set, get) => ({
             d.domainName,
           );
           if (detail) {
+            // detail is a partial — merge it over the list summary.
             set((state) => ({
-              enriched: { ...state.enriched, [key]: detail },
+              enriched: { ...state.enriched, [key]: { ...d, ...detail } },
             }));
           } else {
             // No detail available (unsupported TLD etc.) — keep the summary and
