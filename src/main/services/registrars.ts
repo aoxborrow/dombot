@@ -87,10 +87,11 @@ export function saveRegistrarCredentials(
  * Returns a partial that the caller merges over the list summary:
  *  - `getDomain` for the full record (privacy/lock/dates/nameservers), then
  *  - a `getNameservers` fallback for providers whose detail omits them, then
- *  - a dns.tools WHOIS/RDAP lookup for the registry's nameservers.
- * The nameserver fallbacks run even when `getDomain` fails (e.g. Dynadot's
- * detail API rejects some TLDs its list still returns), so those domains still
- * get their nameservers. Returns null only when nothing could be resolved.
+ *  - a dns.tools WHOIS/RDAP lookup for the registry's nameservers and, when the
+ *    registrar doesn't expose one, the creation date (e.g. NameBright).
+ * The registry fallbacks run even when `getDomain` fails (e.g. Dynadot's detail
+ * API rejects some TLDs its list still returns). Returns null only when nothing
+ * could be resolved.
  */
 export async function getDomainDetail(
   name: RegistrarName,
@@ -102,7 +103,7 @@ export async function getDomainDetail(
   try {
     domain = await client.getDomain(domainName);
   } catch {
-    // Detail unavailable for this TLD — fall through to nameserver-only lookups.
+    // Detail unavailable for this TLD — fall through to registry-only lookups.
   }
 
   let nameservers = domain?.nameservers ?? [];
@@ -114,24 +115,38 @@ export async function getDomainDetail(
       // registrar can't supply them via this endpoint either
     }
   }
-  if (nameservers.length === 0) {
-    // Registrar reports none — e.g. a domain on the registrar's default DNS, or
-    // a TLD the registrar's API can't read. The public registry still lists the
-    // delegation, so fall back to dns.tools (WHOIS/RDAP per TLD).
-    nameservers = await lookupNameservers(domainName);
+
+  let createdDate = domain?.createdDate ?? null;
+
+  // Fall back to the public registry (via dns.tools, RDAP/WHOIS per TLD) for
+  // whatever the registrar couldn't supply: nameservers (e.g. a domain on the
+  // registrar's default DNS) and/or the creation date (e.g. NameBright, whose
+  // API returns no registration date at all).
+  if (nameservers.length === 0 || createdDate === null) {
+    const registry = await lookupRegistry(domainName);
+    if (nameservers.length === 0) nameservers = registry.nameservers;
+    if (createdDate === null) createdDate = registry.createdDate;
   }
 
-  if (domain) return { ...domain, nameservers };
-  if (nameservers.length > 0) return { nameservers };
-  return null;
+  if (domain) {
+    return { ...domain, nameservers, ...(createdDate ? { createdDate } : {}) };
+  }
+  const partial: Partial<Domain> = {};
+  if (nameservers.length > 0) partial.nameservers = nameservers;
+  if (createdDate) partial.createdDate = createdDate;
+  return Object.keys(partial).length > 0 ? partial : null;
 }
 
 /**
- * Reads a domain's nameservers from the public registry via the dns.tools domain
- * API, which picks RDAP or WHOIS per TLD. Returns [] on any failure. Set
- * DNS_TOOLS_API_KEY to raise rate limits; the free tier needs no auth.
+ * Reads a domain's nameservers and creation date from the public registry via
+ * the dns.tools domain API, which picks RDAP or WHOIS per TLD. Fields are empty
+ * on any failure. Set DNS_TOOLS_API_KEY to raise rate limits; the free tier
+ * needs no auth.
  */
-async function lookupNameservers(domainName: string): Promise<string[]> {
+async function lookupRegistry(
+  domainName: string,
+): Promise<{ nameservers: string[]; createdDate: Date | null }> {
+  const empty = { nameservers: [] as string[], createdDate: null };
   try {
     const apiKey = process.env.DNS_TOOLS_API_KEY;
     const res = await fetch(
@@ -144,15 +159,22 @@ async function lookupNameservers(domainName: string): Promise<string[]> {
         signal: AbortSignal.timeout(15_000),
       },
     );
-    if (!res.ok) return [];
+    if (!res.ok) return empty;
     const data = (await res.json()) as {
-      results?: { nameservers?: string[] }[];
+      results?: { nameservers?: string[]; creation_date?: string }[];
     };
-    return (data.results?.[0]?.nameservers ?? [])
+    const result = data.results?.[0];
+    const nameservers = (result?.nameservers ?? [])
       .map((ns) => ns.toLowerCase())
       .filter(Boolean);
+    let createdDate: Date | null = null;
+    if (result?.creation_date) {
+      const parsed = new Date(result.creation_date);
+      if (!Number.isNaN(parsed.getTime())) createdDate = parsed;
+    }
+    return { nameservers, createdDate };
   } catch {
-    return [];
+    return empty;
   }
 }
 
