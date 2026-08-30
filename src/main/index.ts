@@ -1,6 +1,5 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
-import 'dotenv/config';
 import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { startMcpServer, stopMcpServer } from './mcp/server';

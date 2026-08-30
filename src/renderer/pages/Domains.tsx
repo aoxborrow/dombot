@@ -84,9 +84,7 @@ const COLUMNS: Column[] = [
     label: 'Created',
     align: 'right',
     render: (d) => (
-      <span className="font-mono text-slate-400">
-        {fmtDate(d.createdDate)}
-      </span>
+      <span className="font-mono text-slate-400">{fmtDate(d.createdDate)}</span>
     ),
     sortValue: (d) => toTime(d.createdDate),
   },
@@ -117,9 +115,7 @@ const COLUMNS: Column[] = [
     label: 'Renewal',
     align: 'right',
     render: (d) => (
-      <span className="font-mono text-slate-400">
-        {fmtDate(d.renewalDate)}
-      </span>
+      <span className="font-mono text-slate-400">{fmtDate(d.renewalDate)}</span>
     ),
     sortValue: (d) => toTime(d.renewalDate),
   },

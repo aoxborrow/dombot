@@ -6,6 +6,7 @@ import {
   type RegistrarName,
 } from '@aoxborrow/registrar-client';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
+import { getDevEnvVar } from './dev-env';
 import type { RegistrarMeta, TestResult } from '../../shared/ipc';
 
 // Cache one client per registrar so we don't rebuild it on every call.
@@ -104,9 +105,10 @@ function envKey(name: RegistrarName, field: string): string {
   return `${name.toUpperCase()}_${snake}`;
 }
 
-// Resolve a field: user-saved value first, then the .env fallback (dev).
+// Resolve a field: user-saved value first, then the dev-only .env fallback.
+// Never reads process.env — ambient vars from other tools must not shadow creds.
 function resolveField(name: RegistrarName, field: string): string | undefined {
-  return getStoredCredentials(name)[field] ?? process.env[envKey(name, field)];
+  return getStoredCredentials(name)[field] ?? getDevEnvVar(envKey(name, field));
 }
 
 function isConfigured(name: RegistrarName): boolean {
