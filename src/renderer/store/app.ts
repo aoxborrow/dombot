@@ -11,8 +11,10 @@ import type {
 const domainKey = (d: Domain): string => `${d.registrar}:${d.domainName}`;
 
 // Tracks detail fetches in flight so concurrent enrich calls don't duplicate
-// work. Kept outside the store so it doesn't trigger re-renders.
+// work, and ones that failed / have no detail so we don't retry them on every
+// page revisit. Kept outside the store so they don't trigger re-renders.
 const enrichInFlight = new Set<string>();
+const enrichFailed = new Set<string>();
 
 interface AppState {
   appInfo: AppInfo | null;
@@ -86,6 +88,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const result = await window.api.listPortfolio();
       // Fresh summary data invalidates any prior per-domain detail.
       enrichInFlight.clear();
+      enrichFailed.clear();
       set({
         portfolio: result.domains,
         portfolioErrors: result.errors,
@@ -109,7 +112,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   enrichVisible: async (domains) => {
     const todo = domains.filter((d) => {
       const key = domainKey(d);
-      return !get().enriched[key] && !enrichInFlight.has(key);
+      return (
+        !get().enriched[key] &&
+        !enrichInFlight.has(key) &&
+        !enrichFailed.has(key)
+      );
     });
     if (todo.length === 0) return;
 
@@ -140,9 +147,18 @@ export const useAppStore = create<AppState>((set, get) => ({
             d.registrar as RegistrarName,
             d.domainName,
           );
-          set((state) => ({ enriched: { ...state.enriched, [key]: detail } }));
+          if (detail) {
+            set((state) => ({
+              enriched: { ...state.enriched, [key]: detail },
+            }));
+          } else {
+            // No detail available (unsupported TLD etc.) — keep the summary and
+            // don't retry this domain.
+            enrichFailed.add(key);
+          }
         } catch {
-          // leave the summary values for this domain on detail failure
+          // Hard failure — keep summary values and don't retry.
+          enrichFailed.add(key);
         } finally {
           enrichInFlight.delete(key);
           clearEnriching(key);

@@ -52,8 +52,11 @@ export function registerRegistrarIpc(): void {
 
   ipcMain.handle(
     IpcChannels.getDomainDetail,
-    async (_e, name: RegistrarName, domainName: string): Promise<Domain> =>
-      getDomainDetail(name, domainName),
+    async (
+      _e,
+      name: RegistrarName,
+      domainName: string,
+    ): Promise<Domain | null> => getDomainDetail(name, domainName),
   );
 
   ipcMain.handle(

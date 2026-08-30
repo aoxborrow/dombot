@@ -90,9 +90,16 @@ export function saveRegistrarCredentials(
 export async function getDomainDetail(
   name: RegistrarName,
   domainName: string,
-): Promise<Domain> {
+): Promise<Domain | null> {
   const client = getRegistrarClient(name);
-  const domain = await client.getDomain(domainName);
+  let domain: Domain;
+  try {
+    domain = await client.getDomain(domainName);
+  } catch {
+    // Detail unavailable — e.g. Dynadot's detail API rejects some TLDs that its
+    // list endpoint still returns. Report "no detail" rather than throwing.
+    return null;
+  }
   if (domain.nameservers.length === 0) {
     try {
       const nameservers = await client.getNameservers(domainName);
@@ -100,8 +107,41 @@ export async function getDomainDetail(
     } catch {
       // leave nameservers empty if this provider can't supply them
     }
+    // Last resort: the registrar API may report no nameservers when a domain is
+    // on the registrar's *default* DNS (e.g. Dynadot returns [] for domains
+    // using ns1/ns2.dyna-ns.net). The registry's RDAP record still lists the
+    // actual delegation, so fall back to it for display.
+    const rdap = await rdapNameservers(domainName);
+    if (rdap.length > 0) return { ...domain, nameservers: rdap };
   }
   return domain;
+}
+
+/** Reads a domain's nameservers from its public RDAP record; [] on any failure. */
+async function rdapNameservers(domainName: string): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `https://rdap.org/domain/${encodeURIComponent(domainName)}`,
+      {
+        headers: {
+          accept: 'application/rdap+json',
+          // rdap.org (Cloudflare) 403s requests without a browser-like UA.
+          'user-agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+        },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      nameservers?: { ldhName?: string }[];
+    };
+    return (data.nameservers ?? [])
+      .map((ns) => ns.ldhName?.toLowerCase() ?? '')
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 /** Validates a registrar's credentials by calling its testConnection(). */
