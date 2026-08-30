@@ -1,0 +1,36 @@
+import { NavLink, Route, Routes } from 'react-router-dom';
+import Home from './pages/Home';
+import About from './pages/About';
+
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  [
+    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+    isActive
+      ? 'bg-indigo-600 text-white'
+      : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+  ].join(' ');
+
+export default function App() {
+  return (
+    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+      <header className="flex items-center gap-4 border-b border-slate-800 px-6 py-3">
+        <span className="text-lg font-semibold tracking-tight">dombot</span>
+        <nav className="flex gap-1">
+          <NavLink to="/" end className={navLinkClass}>
+            Home
+          </NavLink>
+          <NavLink to="/about" className={navLinkClass}>
+            About
+          </NavLink>
+        </nav>
+      </header>
+
+      <main className="flex-1 px-6 py-8">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
