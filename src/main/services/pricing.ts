@@ -12,12 +12,18 @@ import type { PriceSource, RenewalPricing } from '../../shared/ipc';
 // overrides on top. All prices are treated as USD. See PriceSource for how the
 // `source` field is derived.
 
-// Registrars that price only by TLD. One lookup covers every domain on that TLD
-// (big dedup), but a premium name held here shows the standard TLD rate. Every
-// other pricing-capable registrar (godaddy, dynadot, cloudflare, gandi) is
-// name-aware: passing the full domain returns that specific name's price, so
-// premium (per-name) renewals are captured — one API call per domain.
-const TLD_ONLY = new Set<RegistrarName>(['namecheap', 'namesilo', 'porkbun']);
+// Registrars priced per-TLD: one lookup covers every domain on that TLD (big
+// dedup), but a premium name held here shows the standard TLD rate. Dynadot is
+// here too — its only price source (bulk_search) quotes a name only when it's
+// available to register, so it can't price an owned domain per-name; we read the
+// TLD's standard rate instead. The name-aware registrars (godaddy, cloudflare,
+// gandi) get the full domain, so their per-name premium renewals are captured.
+const TLD_ONLY = new Set<RegistrarName>([
+  'namecheap',
+  'namesilo',
+  'porkbun',
+  'dynadot',
+]);
 
 // Registrars with no pricing endpoint at all — the user must enter a price.
 const NO_PRICING = new Set<RegistrarName>(['spaceship', 'namebright']);
