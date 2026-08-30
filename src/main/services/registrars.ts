@@ -109,35 +109,38 @@ export async function getDomainDetail(
     }
     // Last resort: the registrar API may report no nameservers when a domain is
     // on the registrar's *default* DNS (e.g. Dynadot returns [] for domains
-    // using ns1/ns2.dyna-ns.net). The registry's RDAP record still lists the
-    // actual delegation, so fall back to it for display.
-    const rdap = await rdapNameservers(domainName);
-    if (rdap.length > 0) return { ...domain, nameservers: rdap };
+    // using ns1/ns2.dyna-ns.net). The public registry record still lists the
+    // actual delegation, so fall back to a WHOIS/RDAP lookup for display.
+    const registry = await lookupNameservers(domainName);
+    if (registry.length > 0) return { ...domain, nameservers: registry };
   }
   return domain;
 }
 
-/** Reads a domain's nameservers from its public RDAP record; [] on any failure. */
-async function rdapNameservers(domainName: string): Promise<string[]> {
+/**
+ * Reads a domain's nameservers from the public registry via the dns.tools domain
+ * API, which picks RDAP or WHOIS per TLD. Returns [] on any failure. Set
+ * DNS_TOOLS_API_KEY to raise rate limits; the free tier needs no auth.
+ */
+async function lookupNameservers(domainName: string): Promise<string[]> {
   try {
+    const apiKey = process.env.DNS_TOOLS_API_KEY;
     const res = await fetch(
-      `https://rdap.org/domain/${encodeURIComponent(domainName)}`,
+      `https://api.dns.tools/v1/domain/${encodeURIComponent(domainName)}`,
       {
         headers: {
-          accept: 'application/rdap+json',
-          // rdap.org (Cloudflare) 403s requests without a browser-like UA.
-          'user-agent':
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+          accept: 'application/json',
+          ...(apiKey ? { 'x-api-key': apiKey } : {}),
         },
         signal: AbortSignal.timeout(15_000),
       },
     );
     if (!res.ok) return [];
     const data = (await res.json()) as {
-      nameservers?: { ldhName?: string }[];
+      results?: { nameservers?: string[] }[];
     };
-    return (data.nameservers ?? [])
-      .map((ns) => ns.ldhName?.toLowerCase() ?? '')
+    return (data.results?.[0]?.nameservers ?? [])
+      .map((ns) => ns.toLowerCase())
       .filter(Boolean);
   } catch {
     return [];
