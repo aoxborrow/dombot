@@ -1,6 +1,45 @@
 import { useMemo, useState } from 'react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronsUpDown,
+  Minus,
+  Search,
+  TriangleAlert,
+} from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from '@/components/ui/empty';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 // ── Column model ────────────────────────────────────────────────────────────
 
@@ -18,7 +57,6 @@ interface Column {
   sortValue: (d: Domain, labels: RegistrarLabels) => SortValue | null;
   /** Right-align numeric-ish columns. */
   align?: 'left' | 'right';
-  className?: string;
 }
 
 /** Everything after the first dot, e.g. "example.co.uk" → "co.uk". */
@@ -50,11 +88,12 @@ function daysUntil(date: Date | null): number | null {
   return t === null ? null : Math.round((t - Date.now()) / 86_400_000);
 }
 
-function Bool({ value }: { value: boolean }) {
-  return (
-    <span className={value ? 'text-emerald-400' : 'text-slate-600'}>
-      {value ? 'yes' : 'no'}
-    </span>
+/** A yes/no flag rendered as a check or a muted dash. */
+function Flag({ value }: { value: boolean }) {
+  return value ? (
+    <Check className="mx-auto size-4 text-foreground" aria-label="yes" />
+  ) : (
+    <Minus className="mx-auto size-4 text-muted-foreground/50" aria-label="no" />
   );
 }
 
@@ -62,19 +101,13 @@ const COLUMNS: Column[] = [
   {
     key: 'domainName',
     label: 'Domain',
-    render: (d) => (
-      <span className="font-mono text-slate-100">{d.domainName}</span>
-    ),
+    render: (d) => <span className="font-mono">{d.domainName}</span>,
     sortValue: (d) => d.domainName.toLowerCase(),
   },
   {
     key: 'registrar',
     label: 'Registrar',
-    render: (d, labels) => (
-      <span className="text-slate-300">
-        {registrarLabel(d.registrar, labels)}
-      </span>
-    ),
+    render: (d, labels) => registrarLabel(d.registrar, labels),
     sortValue: (d, labels) => registrarLabel(d.registrar, labels).toLowerCase(),
   },
   {
@@ -82,7 +115,9 @@ const COLUMNS: Column[] = [
     label: 'Created',
     align: 'right',
     render: (d) => (
-      <span className="font-mono text-slate-400">{fmtDate(d.createdDate)}</span>
+      <span className="font-mono text-muted-foreground">
+        {fmtDate(d.createdDate)}
+      </span>
     ),
     sortValue: (d) => toTime(d.createdDate),
   },
@@ -94,11 +129,16 @@ const COLUMNS: Column[] = [
       const color = expiryColor(days);
       return (
         <span
-          className={`inline-flex items-baseline gap-2.5 font-mono tabular-nums ${color}`}
+          className={cn(
+            'inline-flex items-baseline gap-2.5 font-mono tabular-nums',
+            color,
+          )}
           title={dueLabel(days)}
         >
           <span>{fmtDate(d.expirationDate)}</span>
-          {days !== null && <span className="text-xs">{relativeDays(days)}</span>}
+          {days !== null && (
+            <span className="text-xs opacity-60">{relativeDays(days)}</span>
+          )}
         </span>
       );
     },
@@ -108,21 +148,21 @@ const COLUMNS: Column[] = [
     key: 'autoRenew',
     label: 'Auto-renew',
     align: 'right',
-    render: (d) => <Bool value={d.autoRenew} />,
+    render: (d) => <Flag value={d.autoRenew} />,
     sortValue: (d) => (d.autoRenew ? 1 : 0),
   },
   {
     key: 'locked',
     label: 'Locked',
     align: 'right',
-    render: (d) => <Bool value={d.locked} />,
+    render: (d) => <Flag value={d.locked} />,
     sortValue: (d) => (d.locked ? 1 : 0),
   },
   {
     key: 'privacy',
     label: 'Privacy',
     align: 'right',
-    render: (d) => <Bool value={d.privacy} />,
+    render: (d) => <Flag value={d.privacy} />,
     sortValue: (d) => (d.privacy ? 1 : 0),
   },
   {
@@ -130,10 +170,10 @@ const COLUMNS: Column[] = [
     label: 'Nameservers',
     render: (d) =>
       d.nameservers.length === 0 ? (
-        <span className="text-slate-600">—</span>
+        <span className="text-muted-foreground/50">—</span>
       ) : (
         <span
-          className="font-mono text-xs text-slate-400"
+          className="font-mono text-xs text-muted-foreground"
           title={d.nameservers.join('\n')}
         >
           {d.nameservers.join(', ')}
@@ -159,10 +199,10 @@ function relativeDays(days: number): string {
 
 /** Urgency color: red past-due, amber within 30 days, muted otherwise. */
 function expiryColor(days: number | null): string {
-  if (days === null) return 'text-slate-500';
-  if (days < 0) return 'text-red-400';
-  if (days <= 30) return 'text-amber-400';
-  return 'text-slate-400';
+  if (days === null) return 'text-muted-foreground';
+  if (days < 0) return 'text-destructive';
+  if (days <= 30) return 'text-amber-600 dark:text-amber-400';
+  return 'text-foreground';
 }
 
 const PAGE_SIZES = [25, 50, 100, 250];
@@ -277,7 +317,7 @@ export default function Domains() {
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Domains</h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             {hasLoaded
               ? `${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
                   portfolioRegistrars.length === 1 ? '' : 's'
@@ -289,58 +329,66 @@ export default function Domains() {
               : 'Load your portfolio across every configured registrar.'}
           </p>
         </div>
-        <button
+        <Button
           onClick={() => void loadPortfolio()}
           disabled={portfolioLoading}
-          className="shrink-0 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {portfolioLoading
             ? 'Loading…'
             : hasLoaded
               ? 'Refresh'
               : 'Load domains'}
-        </button>
+        </Button>
       </div>
 
       {portfolioError && (
-        <p className="rounded-md border border-red-900/60 bg-red-950/40 px-3 py-2 text-sm text-red-300">
-          {portfolioError}
-        </p>
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertTitle>Couldn’t load your portfolio</AlertTitle>
+          <AlertDescription>{portfolioError}</AlertDescription>
+        </Alert>
       )}
 
       {portfolioErrors.length > 0 && (
-        <div className="rounded-md border border-amber-900/60 bg-amber-950/30 px-3 py-2 text-sm text-amber-300">
-          <p className="font-medium">
+        <Alert>
+          <TriangleAlert />
+          <AlertTitle>
             {portfolioErrors.length} registrar
-            {portfolioErrors.length === 1 ? '' : 's'} failed to load:
-          </p>
-          <ul className="mt-1 space-y-0.5">
-            {portfolioErrors.map((e) => (
-              <li key={e.registrar} className="text-amber-400/90">
-                <span className="font-medium">
-                  {registrarLabel(e.registrar, portfolioRegistrarLabels)}
-                </span>
-                : {e.message}
-              </li>
-            ))}
-          </ul>
-        </div>
+            {portfolioErrors.length === 1 ? '' : 's'} failed to load
+          </AlertTitle>
+          <AlertDescription>
+            <ul className="flex flex-col gap-0.5">
+              {portfolioErrors.map((e) => (
+                <li key={e.registrar}>
+                  <span className="font-medium text-foreground">
+                    {registrarLabel(e.registrar, portfolioRegistrarLabels)}
+                  </span>
+                  : {e.message}
+                </li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
       )}
 
       {hasLoaded && (
         <>
           {/* Toolbar: search + filters */}
           <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(0);
-              }}
-              placeholder="Search domains…"
-              className="min-w-[220px] flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none"
-            />
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(0);
+                }}
+                placeholder="Search domains…"
+                className="pl-8"
+              />
+            </div>
+
             <FilterSelect
               label="TLD"
               value={tld}
@@ -362,91 +410,99 @@ export default function Domains() {
               format={(id) => registrarLabel(id, portfolioRegistrarLabels)}
             />
             {filtersActive && (
-              <button
-                onClick={resetFilters}
-                className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800"
-              >
+              <Button variant="outline" onClick={resetFilters}>
                 Clear
-              </button>
+              </Button>
             )}
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto rounded-lg border border-slate-800">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="sticky top-0 bg-slate-900 text-xs uppercase tracking-wide text-slate-500">
-                <tr className="border-b border-slate-800">
+          <div className="overflow-x-auto rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
                   {COLUMNS.map((col) => {
                     const active = col.key === sortKey;
+                    const Icon = !active
+                      ? ChevronsUpDown
+                      : sortDir === 'asc'
+                        ? ArrowUp
+                        : ArrowDown;
                     return (
-                      <th
+                      <TableHead
                         key={col.key}
-                        onClick={() => toggleSort(col.key)}
-                        className={`cursor-pointer select-none whitespace-nowrap px-3 py-2.5 font-medium hover:text-slate-300 ${
-                          col.align === 'right' ? 'text-right' : 'text-left'
-                        } ${active ? 'text-indigo-400' : ''}`}
+                        className={col.align === 'right' ? 'text-right' : ''}
                       >
-                        {col.label}
-                        <span className="ml-1 inline-block w-2 text-slate-600">
-                          {active ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                        </span>
-                      </th>
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(col.key)}
+                          className={cn(
+                            'inline-flex items-center gap-1 select-none hover:text-foreground',
+                            col.align === 'right' && 'flex-row-reverse',
+                            active && 'text-foreground',
+                          )}
+                        >
+                          {col.label}
+                          <Icon className="size-3.5 opacity-70" />
+                        </button>
+                      </TableHead>
                     );
                   })}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/70">
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {visible.map((d) => (
-                  <tr
-                    key={`${d.registrar}:${d.domainName}`}
-                    className="hover:bg-slate-900/60"
-                  >
+                  <TableRow key={`${d.registrar}:${d.domainName}`}>
                     {COLUMNS.map((col) => (
-                      <td
+                      <TableCell
                         key={col.key}
-                        className={`whitespace-nowrap px-3 py-2 ${
-                          col.align === 'right' ? 'text-right' : 'text-left'
-                        }`}
+                        className={col.align === 'right' ? 'text-right' : ''}
                       >
                         {col.render(d, portfolioRegistrarLabels)}
-                      </td>
+                      </TableCell>
                     ))}
-                  </tr>
+                  </TableRow>
                 ))}
                 {visible.length === 0 && (
-                  <tr>
-                    <td
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell
                       colSpan={COLUMNS.length}
-                      className="px-3 py-10 text-center text-slate-500"
+                      className="h-32 text-center text-muted-foreground"
                     >
                       {portfolio.length === 0
                         ? 'No domains found in any configured registrar.'
                         : 'No domains match the current filters.'}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           {/* Pagination */}
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-400">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <span>Rows per page</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
+              <Select
+                value={String(pageSize)}
+                onValueChange={(v) => {
+                  setPageSize(Number(v));
                   setPage(0);
                 }}
-                className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 focus:border-indigo-500 focus:outline-none"
               >
-                {PAGE_SIZES.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger size="sm" className="w-[80px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {PAGE_SIZES.map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex items-center gap-3">
@@ -456,33 +512,45 @@ export default function Domains() {
                   : `${start + 1}–${Math.min(start + pageSize, filtered.length)} of ${filtered.length}`}
               </span>
               <div className="flex gap-1">
-                <PageButton
+                <Button
+                  variant="outline"
+                  size="icon-sm"
                   disabled={safePage === 0}
                   onClick={() => setPage(0)}
+                  aria-label="First page"
                 >
-                  «
-                </PageButton>
-                <PageButton
+                  <ChevronsLeft />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
                   disabled={safePage === 0}
                   onClick={() => setPage(safePage - 1)}
+                  aria-label="Previous page"
                 >
-                  ‹
-                </PageButton>
-                <span className="px-2 py-1 text-slate-300">
+                  <ChevronLeft />
+                </Button>
+                <span className="px-2 text-foreground">
                   {safePage + 1} / {pageCount}
                 </span>
-                <PageButton
+                <Button
+                  variant="outline"
+                  size="icon-sm"
                   disabled={safePage >= pageCount - 1}
                   onClick={() => setPage(safePage + 1)}
+                  aria-label="Next page"
                 >
-                  ›
-                </PageButton>
-                <PageButton
+                  <ChevronRight />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
                   disabled={safePage >= pageCount - 1}
                   onClick={() => setPage(pageCount - 1)}
+                  aria-label="Last page"
                 >
-                  »
-                </PageButton>
+                  <ChevronsRight />
+                </Button>
               </div>
             </div>
           </div>
@@ -490,10 +558,15 @@ export default function Domains() {
       )}
 
       {!hasLoaded && !portfolioLoading && !portfolioError && (
-        <div className="rounded-lg border border-dashed border-slate-800 px-6 py-16 text-center text-slate-500">
-          Click “Load domains” to fetch every configured registrar into one
-          table.
-        </div>
+        <Empty className="rounded-lg border border-dashed">
+          <EmptyHeader>
+            <EmptyTitle>No domains loaded</EmptyTitle>
+            <EmptyDescription>
+              Click “Load domains” to fetch every configured registrar into one
+              table.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       )}
     </div>
   );
@@ -513,38 +586,20 @@ function FilterSelect({
   format?: (value: string) => string;
 }) {
   return (
-    <select
-      aria-label={label}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none"
-    >
-      <option value={ALL}>All {label.toLowerCase()}s</option>
-      {options.map((o) => (
-        <option key={o} value={o}>
-          {format ? format(o) : o}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function PageButton({
-  disabled,
-  onClick,
-  children,
-}: {
-  disabled: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      disabled={disabled}
-      onClick={onClick}
-      className="rounded-md border border-slate-700 px-2.5 py-1 text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-    >
-      {children}
-    </button>
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="w-[180px]" aria-label={label}>
+        <SelectValue placeholder={label} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          <SelectItem value={ALL}>All {label.toLowerCase()}s</SelectItem>
+          {options.map((o) => (
+            <SelectItem key={o} value={o}>
+              {format ? format(o) : o}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   );
 }

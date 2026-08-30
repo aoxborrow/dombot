@@ -18,7 +18,8 @@
     "outDir": "dist",
     "rootDir": "..",
     "paths": {
-      "@aoxborrow/registrar-client": ["../registrar-client/src/index.ts"]
+      "@aoxborrow/registrar-client": ["../registrar-client/src/index.ts"],
+      "@/*": ["./src/renderer/*"]
     }
   },
   "include": [

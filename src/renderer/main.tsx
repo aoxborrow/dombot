@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import App from './App';
+import { ThemeProvider } from '@/components/theme-provider';
 import './index.css';
 
 // HashRouter is used because the packaged app loads over the file:// protocol,
@@ -13,8 +14,10 @@ if (!container) {
 
 createRoot(container).render(
   <React.StrictMode>
-    <HashRouter>
-      <App />
-    </HashRouter>
+    <ThemeProvider defaultTheme="dark">
+      <HashRouter>
+        <App />
+      </HashRouter>
+    </ThemeProvider>
   </React.StrictMode>,
 );
