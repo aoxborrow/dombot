@@ -2,6 +2,7 @@ import {
   RegistrarClient,
   createRegistrar,
   registrars,
+  type Domain,
   type RegistrarCredentials,
   type RegistrarName,
 } from '@aoxborrow/registrar-client';
@@ -79,6 +80,28 @@ export function saveRegistrarCredentials(
 ): void {
   setStoredCredentials(name, creds);
   clients.delete(name);
+}
+
+/**
+ * Full detail for a single domain: getDomain, plus a getNameservers fallback for
+ * providers whose detail endpoint omits nameservers (e.g. Namecheap). Used for
+ * lazy per-row enrichment in the UI.
+ */
+export async function getDomainDetail(
+  name: RegistrarName,
+  domainName: string,
+): Promise<Domain> {
+  const client = getRegistrarClient(name);
+  const domain = await client.getDomain(domainName);
+  if (domain.nameservers.length === 0) {
+    try {
+      const nameservers = await client.getNameservers(domainName);
+      if (nameservers.length > 0) return { ...domain, nameservers };
+    } catch {
+      // leave nameservers empty if this provider can't supply them
+    }
+  }
+  return domain;
 }
 
 /** Validates a registrar's credentials by calling its testConnection(). */

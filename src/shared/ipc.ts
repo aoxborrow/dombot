@@ -14,6 +14,7 @@ export const IpcChannels = {
   getAppInfo: 'app:getAppInfo',
   listDynadotDomains: 'registrar:listDynadotDomains',
   listPortfolio: 'registrar:listPortfolio',
+  getDomainDetail: 'registrar:getDomainDetail',
   getRegistrarMetadata: 'registrar:getMetadata',
   getRegistrarCredentials: 'registrar:getCredentials',
   saveRegistrarCredentials: 'registrar:saveCredentials',
@@ -124,6 +125,11 @@ export interface DombotApi {
   // Registrars
   listDynadotDomains: () => Promise<Domain[]>;
   listPortfolio: () => Promise<Portfolio>;
+  /** Full per-domain detail (nameservers/privacy/lock) for one domain. */
+  getDomainDetail: (
+    registrar: RegistrarName,
+    domainName: string,
+  ) => Promise<Domain>;
   getRegistrarMetadata: () => Promise<RegistrarMeta[]>;
   getRegistrarCredentials: (name: RegistrarName) => Promise<CredentialValues>;
   saveRegistrarCredentials: (

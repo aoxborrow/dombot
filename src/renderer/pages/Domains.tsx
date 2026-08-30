@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -93,7 +93,10 @@ function Flag({ value }: { value: boolean }) {
   return value ? (
     <Check className="mx-auto size-4 text-foreground" aria-label="yes" />
   ) : (
-    <Minus className="mx-auto size-4 text-muted-foreground/50" aria-label="no" />
+    <Minus
+      className="mx-auto size-4 text-muted-foreground/50"
+      aria-label="no"
+    />
   );
 }
 
@@ -220,7 +223,16 @@ export default function Domains() {
     portfolioError,
     portfolioLoadedAt,
     loadPortfolio,
+    enriched,
+    enrichVisible,
   } = useAppStore();
+
+  // Overlay lazily-fetched per-domain detail (nameservers/privacy/lock) onto the
+  // fast summary. Filtering, sorting, and rendering all use this merged view.
+  const merged = useMemo(
+    () => portfolio.map((d) => enriched[`${d.registrar}:${d.domainName}`] ?? d),
+    [portfolio, enriched],
+  );
 
   const [search, setSearch] = useState('');
   const [tld, setTld] = useState<string>(ALL);
@@ -253,7 +265,7 @@ export default function Domains() {
   // Filter → sort. Pagination is applied after, on the sorted result.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const rows = portfolio.filter((d) => {
+    const rows = merged.filter((d) => {
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
       if (tld !== ALL && tldOf(d.domainName) !== tld) return false;
       if (registrar !== ALL && d.registrar !== registrar) return false;
@@ -276,7 +288,7 @@ export default function Domains() {
       return 0;
     });
   }, [
-    portfolio,
+    merged,
     portfolioRegistrarLabels,
     search,
     tld,
@@ -293,6 +305,18 @@ export default function Domains() {
 
   const start = safePage * pageSize;
   const visible = filtered.slice(start, start + pageSize);
+
+  // Lazily fetch full detail for the rows actually on screen. Keyed on the
+  // visible domains' identities so it re-runs on page/sort/filter changes;
+  // enrichVisible dedupes against already-fetched and in-flight domains.
+  const visibleKey = visible
+    .map((d) => `${d.registrar}:${d.domainName}`)
+    .join('|');
+  useEffect(() => {
+    void enrichVisible(visible);
+    // visibleKey encodes the identity of the current page's rows.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleKey, enrichVisible]);
 
   function toggleSort(key: string) {
     if (key === sortKey) {

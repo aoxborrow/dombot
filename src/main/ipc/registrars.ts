@@ -11,6 +11,7 @@ import {
 } from '../../shared/ipc';
 import {
   getConfiguredRegistrars,
+  getDomainDetail,
   getPortfolioSources,
   getRegistrarClient,
   getRegistrarCredentialValues,
@@ -48,6 +49,12 @@ export function registerRegistrarIpc(): void {
       registrarLabels,
     };
   });
+
+  ipcMain.handle(
+    IpcChannels.getDomainDetail,
+    async (_e, name: RegistrarName, domainName: string): Promise<Domain> =>
+      getDomainDetail(name, domainName),
+  );
 
   ipcMain.handle(
     IpcChannels.getRegistrarMetadata,

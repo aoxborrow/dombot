@@ -4,7 +4,15 @@ import type {
   Domain,
   McpInfo,
   PortfolioErrorInfo,
+  RegistrarName,
 } from '../../shared/ipc';
+
+/** Stable per-domain key across registrars. */
+const domainKey = (d: Domain): string => `${d.registrar}:${d.domainName}`;
+
+// Tracks detail fetches in flight so concurrent enrich calls don't duplicate
+// work. Kept outside the store so it doesn't trigger re-renders.
+const enrichInFlight = new Set<string>();
 
 interface AppState {
   appInfo: AppInfo | null;
@@ -27,10 +35,16 @@ interface AppState {
   /** When the portfolio was last successfully loaded (ms epoch), or null. */
   portfolioLoadedAt: number | null;
   loadPortfolio: () => Promise<void>;
+
+  // Lazy per-domain detail (nameservers/privacy/lock), keyed by `${registrar}:${domainName}`.
+  // The list endpoints of several registrars omit these; we fetch full detail
+  // only for the domains actually on screen. See `enrichVisible`.
+  enriched: Record<string, Domain>;
+  enrichVisible: (domains: Domain[]) => Promise<void>;
 }
 
 /** Global renderer store. Kept intentionally small — grow it as needed. */
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   appInfo: null,
   mcpInfo: null,
   domains: [],
@@ -68,6 +82,8 @@ export const useAppStore = create<AppState>((set) => ({
     set({ portfolioLoading: true, portfolioError: null });
     try {
       const result = await window.api.listPortfolio();
+      // Fresh summary data invalidates any prior per-domain detail.
+      enrichInFlight.clear();
       set({
         portfolio: result.domains,
         portfolioErrors: result.errors,
@@ -75,6 +91,7 @@ export const useAppStore = create<AppState>((set) => ({
         portfolioRegistrarLabels: result.registrarLabels,
         portfolioLoading: false,
         portfolioLoadedAt: Date.now(),
+        enriched: {},
       });
     } catch (err) {
       set({
@@ -82,5 +99,38 @@ export const useAppStore = create<AppState>((set) => ({
         portfolioError: err instanceof Error ? err.message : String(err),
       });
     }
+  },
+
+  enriched: {},
+  enrichVisible: async (domains) => {
+    const todo = domains.filter((d) => {
+      const key = domainKey(d);
+      return !get().enriched[key] && !enrichInFlight.has(key);
+    });
+    if (todo.length === 0) return;
+
+    const CONCURRENCY = 6;
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (next < todo.length) {
+        const d = todo[next++];
+        const key = domainKey(d);
+        enrichInFlight.add(key);
+        try {
+          const detail = await window.api.getDomainDetail(
+            d.registrar as RegistrarName,
+            d.domainName,
+          );
+          set((state) => ({ enriched: { ...state.enriched, [key]: detail } }));
+        } catch {
+          // leave the summary values for this domain on detail failure
+        } finally {
+          enrichInFlight.delete(key);
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, todo.length) }, worker),
+    );
   },
 }));
