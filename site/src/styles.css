@@ -78,15 +78,35 @@ code, .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, mono
 .hero-cta { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .hero-note { margin-top: 16px; font-size: .78rem; color: var(--faint); font-family: "IBM Plex Mono", monospace; letter-spacing: .01em; }
 
-/* ── app window placeholder ── */
-.window { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); overflow: hidden; }
-.window-bar { display: flex; align-items: center; gap: 7px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
-.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); }
-.window-bar .title { margin-left: 8px; font-family: "IBM Plex Mono", monospace; font-size: .74rem; color: var(--faint); }
-.shot { position: relative; aspect-ratio: 16 / 10; display: grid; place-items: center; background:
-    repeating-linear-gradient(0deg, transparent 0 27px, var(--line) 27px 28px),
-    repeating-linear-gradient(90deg, transparent 0 27px, var(--line) 27px 28px),
-    var(--surface); }
+/* ── app screenshot ── */
+/* Dark UI on a dark page: an accent backlight lifts it off the background, a
+   thin title bar reads as window chrome, and a deep soft shadow gives it
+   elevation. The glow sits on .window (unclipped); the bar + shot carry the
+   border and clip their own corners. */
+.window {
+  position: relative; border-radius: 12px; isolation: isolate;
+  box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 22px 48px -14px rgba(0,0,0,.75);
+}
+.window::before { /* ambient accent backlight — a halo bleeding out around the frame */
+  content: ""; position: absolute; inset: -32%; z-index: -1; pointer-events: none;
+  background: radial-gradient(50% 50% at 50% 45%, color-mix(in srgb, var(--accent-ink) 92%, transparent), transparent 72%);
+  filter: blur(64px); opacity: .52;
+}
+.window-bar {
+  display: flex; align-items: center; gap: 6px; height: 20px; padding: 0 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong); border-bottom: none;
+  border-radius: 12px 12px 0 0;
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
+.shot {
+  position: relative; aspect-ratio: 2452 / 1728; overflow: hidden;
+  border: 1px solid var(--line-strong); border-top: none;
+  border-radius: 0 0 12px 12px; background: var(--surface);
+}
+/* Scale up and anchor top-left so the frame (overflow:hidden) shows only the
+   top-left ~67% of the capture — the UI reads larger. */
+.shot img { display: block; width: 149.25%; height: 149.25%; object-fit: cover; object-position: top left; }
 .shot-label { display: inline-flex; align-items: center; gap: 8px; font-family: "IBM Plex Mono", monospace; font-size: .74rem; color: var(--muted); background: var(--bg); border: 1px dashed var(--line-strong); padding: 7px 12px; border-radius: 999px; }
 
 /* ── generic section ── */
