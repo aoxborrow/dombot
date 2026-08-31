@@ -6,21 +6,34 @@
 /* ==========================================================================
    Theme — mapped to the Dombot design system ("Minimal Dark Amber"):
    a greyscale ground with a single amber accent. Light is the :root default;
-   `.dark` (the app's default mode) holds the near-black ground. Amber lives in
-   --primary and --ring only, per the design system's accent discipline.
+   `.dark` (the app's default mode) holds the near-black ground. The amber is
+   defined once as a named --brand-* token set (constant across modes) and the
+   accent-bearing shadcn tokens (--primary, --ring, sidebar) reference it, so
+   the accent has a single source of truth. Per the design system's accent
+   discipline, amber appears only through these tokens — never in --accent,
+   which is the neutral hover surface. --brand-ink/--brand-wash are provided for
+   feature glyphs and icon tiles.
    ========================================================================== */
 :root {
   /* Render native scrollbars and form controls light; `.dark` flips it. */
   color-scheme: light;
   --radius: 0.625rem; /* 10px — the design system's card radius */
+
+  /* Brand amber — the design system's single accent. */
+  --brand: #e8a33d; /* base amber — hairlines, checkmarks, focus ring, borders */
+  --brand-ink: #f0b767; /* lighter tint for text/glyphs on dark */
+  --brand-fill: #e29a2f; /* slightly deeper, for solid fills */
+  --brand-on: #1b1204; /* near-black text/icons on an amber fill */
+  --brand-wash: #241c10; /* very dark amber-tinted background (icon tiles) */
+
   --background: #ffffff;
   --foreground: #18181b;
   --card: #fafafa;
   --card-foreground: #18181b;
   --popover: #ffffff;
   --popover-foreground: #18181b;
-  --primary: #e29a2f; /* accent-fill — amber */
-  --primary-foreground: #1b1204; /* on-accent — near-black */
+  --primary: var(--brand-fill); /* amber */
+  --primary-foreground: var(--brand-on); /* near-black */
   --secondary: #f4f4f5;
   --secondary-foreground: #18181b;
   --muted: #f4f4f5;
@@ -31,7 +44,7 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: #e6e6e9; /* line */
   --input: #d4d4d8; /* line-strong */
-  --ring: #e8a33d; /* accent — amber focus ring */
+  --ring: var(--brand); /* amber focus ring */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -39,12 +52,12 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: #fafafa;
   --sidebar-foreground: #18181b;
-  --sidebar-primary: #e29a2f;
-  --sidebar-primary-foreground: #1b1204;
+  --sidebar-primary: var(--brand-fill);
+  --sidebar-primary-foreground: var(--brand-on);
   --sidebar-accent: #f4f4f5;
   --sidebar-accent-foreground: #18181b;
   --sidebar-border: #e6e6e9;
-  --sidebar-ring: #e8a33d;
+  --sidebar-ring: var(--brand);
 }
 
 .dark {
@@ -55,8 +68,8 @@
   --card-foreground: #ededf0;
   --popover: #161618;
   --popover-foreground: #ededf0;
-  --primary: #e29a2f; /* accent-fill — amber */
-  --primary-foreground: #1b1204; /* on-accent */
+  --primary: var(--brand-fill); /* amber */
+  --primary-foreground: var(--brand-on); /* near-black */
   --secondary: #1e1e21; /* surface-2 */
   --secondary-foreground: #ededf0;
   --muted: #1e1e21;
@@ -67,7 +80,7 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: #27272a; /* line */
   --input: #3a3a40; /* line-strong */
-  --ring: #e8a33d; /* accent — amber focus ring */
+  --ring: var(--brand); /* amber focus ring */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -75,12 +88,12 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: #0d0d0f;
   --sidebar-foreground: #ededf0;
-  --sidebar-primary: #e29a2f;
-  --sidebar-primary-foreground: #1b1204;
+  --sidebar-primary: var(--brand-fill);
+  --sidebar-primary-foreground: var(--brand-on);
   --sidebar-accent: #1e1e21;
   --sidebar-accent-foreground: #ededf0;
   --sidebar-border: #27272a;
-  --sidebar-ring: #e8a33d;
+  --sidebar-ring: var(--brand);
 }
 
 @theme inline {
@@ -96,6 +109,11 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-fill: var(--brand-fill);
+  --color-brand-on: var(--brand-on);
+  --color-brand-wash: var(--brand-wash);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
