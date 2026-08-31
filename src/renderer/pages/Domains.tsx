@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -154,6 +154,9 @@ function AfternicCell({
       title={`Afternic: ${fmtPrice(listing)}`}
       className="group inline-flex items-baseline gap-1 hover:underline"
     >
+      {/* Icon leads so the price/offer stays flush to the cell's right edge,
+          aligned with the "—" shown for unlisted domains. */}
+      <ExternalLink className="size-3 self-center text-muted-foreground/60 opacity-0 group-hover:opacity-100" />
       {offerOnly ? (
         <span className="text-xs font-normal tracking-wide text-muted-foreground uppercase">
           Offer
@@ -161,7 +164,6 @@ function AfternicCell({
       ) : (
         <span className="font-medium tabular-nums">{fmtPrice(listing)}</span>
       )}
-      <ExternalLink className="size-3 self-center text-muted-foreground/60 opacity-0 group-hover:opacity-100" />
     </button>
   );
 }
@@ -586,7 +588,7 @@ export default function Domains() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {COLUMNS.map((col) => {
+                  {COLUMNS.map((col, i) => {
                     const active = col.key === sortKey;
                     const Icon = !active
                       ? ChevronsUpDown
@@ -594,49 +596,55 @@ export default function Domains() {
                         ? ArrowUp
                         : ArrowDown;
                     return (
-                      <TableHead
-                        key={col.key}
-                        className={cn(
-                          col.align === 'right' && 'text-right',
-                          col.compact && 'px-1',
-                        )}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => toggleSort(col.key)}
+                      <Fragment key={col.key}>
+                        <TableHead
                           className={cn(
-                            'inline-flex items-center gap-1 select-none hover:text-foreground',
-                            col.align === 'right' && 'flex-row-reverse',
-                            active && 'text-foreground',
+                            col.align === 'right' && 'text-right',
+                            col.compact && 'px-1',
                           )}
                         >
-                          {col.label}
-                          <Icon className="size-3.5 opacity-70" />
-                        </button>
-                      </TableHead>
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(col.key)}
+                            className={cn(
+                              'inline-flex items-center gap-1 select-none hover:text-foreground',
+                              col.align === 'right' && 'flex-row-reverse',
+                              active && 'text-foreground',
+                            )}
+                          >
+                            {col.label}
+                            <Icon className="size-3.5 opacity-70" />
+                          </button>
+                        </TableHead>
+                        {/* Afternic sits right after the domain name. */}
+                        {i === 0 && (
+                          <TableHead className="text-right">
+                            <button
+                              type="button"
+                              onClick={() => toggleSort(AFTERNIC)}
+                              className={cn(
+                                'inline-flex select-none flex-row-reverse items-center gap-1 hover:text-foreground',
+                                sortKey === AFTERNIC && 'text-foreground',
+                              )}
+                            >
+                              Afternic
+                              {(() => {
+                                const AfIcon =
+                                  sortKey !== AFTERNIC
+                                    ? ChevronsUpDown
+                                    : sortDir === 'asc'
+                                      ? ArrowUp
+                                      : ArrowDown;
+                                return (
+                                  <AfIcon className="size-3.5 opacity-70" />
+                                );
+                              })()}
+                            </button>
+                          </TableHead>
+                        )}
+                      </Fragment>
                     );
                   })}
-                  <TableHead className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort(AFTERNIC)}
-                      className={cn(
-                        'inline-flex select-none flex-row-reverse items-center gap-1 hover:text-foreground',
-                        sortKey === AFTERNIC && 'text-foreground',
-                      )}
-                    >
-                      Afternic
-                      {(() => {
-                        const Icon =
-                          sortKey !== AFTERNIC
-                            ? ChevronsUpDown
-                            : sortDir === 'asc'
-                              ? ArrowUp
-                              : ArrowDown;
-                        return <Icon className="size-3.5 opacity-70" />;
-                      })()}
-                    </button>
-                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -645,28 +653,31 @@ export default function Domains() {
                     enriching[`${d.registrar}:${d.domainName}`] === true;
                   return (
                     <TableRow key={`${d.registrar}:${d.domainName}`}>
-                      {COLUMNS.map((col) => (
-                        <TableCell
-                          key={col.key}
-                          className={cn(
-                            col.align === 'right' && 'text-right',
-                            col.compact && 'px-1',
+                      {COLUMNS.map((col, i) => (
+                        <Fragment key={col.key}>
+                          <TableCell
+                            className={cn(
+                              col.align === 'right' && 'text-right',
+                              col.compact && 'px-1',
+                            )}
+                          >
+                            {col.detail && loadingDetail ? (
+                              <CellSkeleton align={col.align} />
+                            ) : (
+                              col.render(d, portfolioRegistrarLabels)
+                            )}
+                          </TableCell>
+                          {i === 0 && (
+                            <TableCell className="text-right">
+                              <AfternicCell
+                                info={aftermarket[d.domainName]}
+                                loading={marketLoading[d.domainName] === true}
+                                onOpen={openExternal}
+                              />
+                            </TableCell>
                           )}
-                        >
-                          {col.detail && loadingDetail ? (
-                            <CellSkeleton align={col.align} />
-                          ) : (
-                            col.render(d, portfolioRegistrarLabels)
-                          )}
-                        </TableCell>
+                        </Fragment>
                       ))}
-                      <TableCell className="text-right">
-                        <AfternicCell
-                          info={aftermarket[d.domainName]}
-                          loading={marketLoading[d.domainName] === true}
-                          onOpen={openExternal}
-                        />
-                      </TableCell>
                     </TableRow>
                   );
                 })}
