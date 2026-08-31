@@ -4,6 +4,7 @@ import {
   CircleDollarSign,
   Globe,
   RefreshCw,
+  type LucideIcon,
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
@@ -58,6 +59,16 @@ interface Slice {
   label: string;
   value: number;
   color: string;
+  /** Optional secondary metric shown in the legend (e.g. domain count on the
+   * spend-sized registrar donut). */
+  count?: number;
+}
+
+/** Placeholder annual price for domains we can't price yet, so every registrar
+ * still shows up on the spend donut instead of dropping out at $0. */
+const UNPRICED_ESTIMATE = 10;
+function estSpend(g: Group): number {
+  return g.yearly + (g.count - g.priced) * UNPRICED_ESTIMATE;
 }
 
 // Categorical palette (mode-stable mid-tones) plus a neutral "Other" gray.
@@ -78,8 +89,9 @@ const OTHER_COLOR = '#94a3b8';
 function toSlices(
   groups: Group[],
   value: (g: Group) => number,
-  topN = 8,
+  opts: { topN?: number; countOf?: (g: Group) => number } = {},
 ): Slice[] {
+  const { topN = 8, countOf } = opts;
   const ranked = groups
     .filter((g) => value(g) > 0)
     .sort((a, b) => value(b) - value(a));
@@ -87,6 +99,7 @@ function toSlices(
     label: g.label,
     value: value(g),
     color: DONUT_PALETTE[i % DONUT_PALETTE.length],
+    count: countOf ? countOf(g) : undefined,
   }));
   const rest = ranked.slice(topN);
   const restTotal = rest.reduce((sum, g) => sum + value(g), 0);
@@ -95,6 +108,7 @@ function toSlices(
       label: `Other (${rest.length})`,
       value: restTotal,
       color: OTHER_COLOR,
+      count: countOf ? rest.reduce((sum, g) => sum + countOf(g), 0) : undefined,
     });
   }
   return slices;
@@ -159,13 +173,10 @@ export default function Renewals() {
     [portfolio, pricing],
   );
 
-  // Donut slices: registrar spend + count, and TLD count.
+  // Donut slices: one registrar donut sized by (estimated) spend with domain
+  // count in the legend, and a TLD donut by count.
   const regSpend = useMemo(
-    () => toSlices(byRegistrar, (g) => g.yearly),
-    [byRegistrar],
-  );
-  const regCount = useMemo(
-    () => toSlices(byRegistrar, (g) => g.count),
+    () => toSlices(byRegistrar, estSpend, { countOf: (g) => g.count }),
     [byRegistrar],
   );
   const tldCount = useMemo(() => toSlices(byTld, (g) => g.count), [byTld]);
@@ -218,7 +229,8 @@ export default function Renewals() {
       {/* Totals */}
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
-          icon={<CircleDollarSign className="size-4" />}
+          icon={CircleDollarSign}
+          accentClass="text-emerald-500/15"
           label="Yearly renewals"
           value={usd(summary.yearly)}
           hint={`${usd(monthly)}/mo · ${usd(summary.yearlyAutoRenew)} auto-renews, ${usd(
@@ -226,7 +238,8 @@ export default function Renewals() {
           )} manual`}
         />
         <StatCard
-          icon={<Globe className="size-4" />}
+          icon={Globe}
+          accentClass="text-blue-500/15"
           label="Total domains"
           value={count(summary.total)}
           hint={`${byRegistrar.length} registrar${
@@ -234,7 +247,8 @@ export default function Renewals() {
           } · ${byTld.length} TLD${byTld.length === 1 ? '' : 's'}`}
         />
         <StatCard
-          icon={<CalendarClock className="size-4" />}
+          icon={CalendarClock}
+          accentClass="text-amber-500/15"
           label="Due next 90 days"
           value={usd(due90.yearly)}
           hint={`${due90.count} domain${due90.count === 1 ? '' : 's'} renewing`}
@@ -246,20 +260,13 @@ export default function Renewals() {
       <MonthlyBarChart months={months} due90={due90} />
 
       {/* Composition */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2">
         <DonutCard
-          title="Spend by registrar"
+          title="By registrar"
           slices={regSpend}
           centerValue={usd(regSpendTotal)}
-          centerLabel="per year"
+          centerLabel="per year · est"
           fmt={usd}
-        />
-        <DonutCard
-          title="Domains by registrar"
-          slices={regCount}
-          centerValue={count(summary.total)}
-          centerLabel="domains"
-          fmt={count}
         />
         <DonutCard
           title="Domains by TLD"
@@ -326,24 +333,35 @@ function PageHeader({
 // ── Stat card ────────────────────────────────────────────────────────────────
 
 function StatCard({
-  icon,
+  icon: Icon,
+  accentClass,
   label,
   value,
   hint,
 }: {
-  icon: React.ReactNode;
+  icon: LucideIcon;
+  /** Tailwind text-color + opacity for the background watermark, e.g.
+   * "text-emerald-500/15". */
+  accentClass: string;
   label: string;
   value: string;
   hint: string;
 }) {
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        {icon}
-        {label}
+    <div className="relative overflow-hidden rounded-lg border bg-card p-4">
+      <Icon
+        className={cn(
+          'pointer-events-none absolute -right-4 -bottom-4 size-28',
+          accentClass,
+        )}
+        strokeWidth={1.5}
+        aria-hidden
+      />
+      <div className="relative">
+        <div className="text-sm text-muted-foreground">{label}</div>
+        <div className="mt-2 text-2xl font-bold tabular-nums">{value}</div>
+        <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
       </div>
-      <div className="mt-2 text-2xl font-bold tabular-nums">{value}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
     </div>
   );
 }
@@ -370,8 +388,10 @@ function MonthlyBarChart({
         </span>
       </div>
       <div className="flex items-end gap-2 pt-5">
-        {months.map((m) => {
+        {months.map((m, i) => {
           const pct = (m.yearly / max) * 100;
+          // Cycle the donut palette across months for a bit of visual interest.
+          const color = DONUT_PALETTE[i % DONUT_PALETTE.length];
           return (
             <div
               key={m.key}
@@ -379,8 +399,8 @@ function MonthlyBarChart({
             >
               <div className="relative h-40 w-full">
                 <div
-                  className="absolute bottom-0 left-1/2 w-7 max-w-full -translate-x-1/2 rounded-t bg-primary"
-                  style={{ height: `${pct}%` }}
+                  className="absolute bottom-0 left-1/2 w-7 max-w-full -translate-x-1/2 rounded-t"
+                  style={{ height: `${pct}%`, backgroundColor: color }}
                   title={`${m.label}: ${usd(m.yearly)} · ${m.count} domain${
                     m.count === 1 ? '' : 's'
                   }`}
@@ -525,6 +545,11 @@ function DonutCard({
               <span className="truncate">{s.label}</span>
               <span className="ml-auto flex shrink-0 items-baseline gap-1 tabular-nums">
                 <span>{fmt(s.value)}</span>
+                {s.count != null && (
+                  <span className="text-muted-foreground/60">
+                    · {count(s.count)}
+                  </span>
+                )}
                 {total > 0 && (
                   <span className="text-muted-foreground/60">
                     {Math.round((s.value / total) * 100)}%
