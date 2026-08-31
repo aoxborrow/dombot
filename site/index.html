@@ -8,7 +8,7 @@
 <meta property="og:title" content="DomBot">
 <meta property="og:description" content="Your whole domain portfolio, every registrar, in one open-source app — plus a built-in MCP server for agents.">
 <meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%A4%96</text></svg>">
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <title>DomBot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -61,12 +61,7 @@
 
     <div class="window" aria-label="DomBot Domains screen (screenshot placeholder)">
       <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="title">DomBot — Domains</span></div>
-      <div class="shot">
-        <span class="shot-label">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16" stroke-linecap="round"/></svg>
-          Screenshot: Domains table
-        </span>
-      </div>
+      <div class="shot"></div>
     </div>
   </div>
 </header>
@@ -76,7 +71,7 @@
 <section id="registrars">
   <div class="wrap">
     <div class="sec-head">
-      <span class="eyebrow">Works with</span>
+      <span class="eyebrow">Registrars</span>
       <h2>All your registrars, one portfolio.</h2>
       <p>Connect the registrars you use with your own API keys. The list keeps growing:</p>
     </div>
@@ -101,7 +96,7 @@
 <section id="mcp">
   <div class="wrap">
     <div class="sec-head">
-      <span class="eyebrow">Connect an AI agent</span>
+      <span class="eyebrow">Connect with MCP</span>
       <h2>Manage your domains with AI</h2>
       <p>DomBot runs a local <a href="https://modelcontextprotocol.io">MCP</a> server, bound to your machine.</p>
     </div>
@@ -134,7 +129,7 @@
 <section id="features">
   <div class="wrap">
     <div class="sec-head">
-      <span class="eyebrow">What it does</span>
+      <span class="eyebrow">Features</span>
       <h2>One console for a portfolio that lives in a dozen places.</h2>
       <p>Registrars each have their own dashboard, login, and idea of “expiring soon.” DomBot makes the portfolio one thing again.</p>
     </div>
@@ -185,10 +180,10 @@
         </div>
         <span class="meta">Apple Silicon &amp; Intel</span>
         <div class="assets">
-          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Apple Silicon (.dmg) <span class="fmt">arm64</span></a>
-          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Intel (.dmg) <span class="fmt">x64</span></a>
+          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Apple Silicon (.dmg) <span class="fmt">arm64</span> <svg class="dl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg></a>
+          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Intel (.dmg) <span class="fmt">x64</span> <svg class="dl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg></a>
         </div>
-        <p class="dl-note"><b>First open:</b> right-click → Open. If it says “damaged,” run <code>xattr -dr com.apple.quarantine /Applications/dombot.app</code></p>
+        <p class="dl-note"><b>First open:</b> right-click → Open.</p>
       </div>
 
       <div class="dl-card" data-os="win">
@@ -199,7 +194,7 @@
         </div>
         <span class="meta">Windows 10 / 11 · x64</span>
         <div class="assets">
-          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Installer (Setup.exe) <span class="fmt">x64</span></a>
+          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Installer (Setup.exe) <span class="fmt">x64</span> <svg class="dl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg></a>
         </div>
         <p class="dl-note"><b>First open:</b> SmartScreen → More info → Run anyway.</p>
       </div>
@@ -212,13 +207,12 @@
         </div>
         <span class="meta">.deb · .rpm · .zip</span>
         <div class="assets">
-          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Debian / Ubuntu (.deb) <span class="fmt">amd64</span></a>
-          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Fedora / RHEL (.rpm) <span class="fmt">x86_64</span></a>
+          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Debian / Ubuntu (.deb) <span class="fmt">amd64</span> <svg class="dl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg></a>
+          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Fedora / RHEL (.rpm) <span class="fmt">x86_64</span> <svg class="dl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg></a>
         </div>
-        <p class="dl-note">No gatekeeper — just install the package.</p>
       </div>
     </div>
-    <p class="dl-foot">All builds live on <a href="https://github.com/aoxborrow/dombot/releases">GitHub Releases</a>. Checksums are published with each release — verify your download before opening.</p>
+    <p class="dl-foot">All builds live on <a href="https://github.com/aoxborrow/dombot/releases">GitHub Releases</a>.</p>
   </div>
 </section>
 

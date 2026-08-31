@@ -113,15 +113,17 @@ section { padding: 56px 0; border-top: 1px solid var(--line); }
 .dl-card .os svg { width: 20px; height: 20px; }
 .dl-card .meta { font-size: .78rem; color: var(--faint); font-family: "IBM Plex Mono", monospace; }
 .dl-card .assets { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
-.dl-card .assets a { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); text-decoration: none; font-size: .84rem; }
+.dl-card .assets a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); text-decoration: none; font-size: .84rem; }
 .dl-card .assets a:hover { border-color: var(--accent); }
-.dl-card .assets .fmt { font-family: "IBM Plex Mono", monospace; font-size: .74rem; color: var(--faint); }
+.dl-card .assets a:hover .dl-ico { color: var(--accent-ink); }
+.dl-card .assets .fmt { margin-left: auto; font-family: "IBM Plex Mono", monospace; font-size: .74rem; color: var(--faint); }
+.dl-card .assets .dl-ico { flex-shrink: 0; width: 15px; height: 15px; color: var(--faint); }
 .detected-chip { position: absolute; top: -10px; right: 14px; font-family: "IBM Plex Mono", monospace; font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; color: var(--on-accent); background: var(--accent-fill); padding: 3px 9px; border-radius: 999px; display: none; }
 .dl-card.detected .detected-chip { display: inline-block; }
 .dl-foot { margin-top: 20px; font-size: .84rem; color: var(--muted); }
 
 /* ── per-card unsigned note ── */
-.dl-note { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); font-size: .76rem; line-height: 1.5; color: var(--faint); }
+.dl-note { margin-top: auto; padding-top: 4px; font-size: .76rem; line-height: 1.5; color: var(--faint); }
 .dl-note b { color: var(--muted); font-weight: 500; }
 .dl-note code { font-family: "IBM Plex Mono", monospace; font-size: .7rem; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
 
