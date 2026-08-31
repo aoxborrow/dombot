@@ -916,7 +916,7 @@ export default function Domains() {
               </div>
 
               <MultiSelectFilter
-                label="TLDs"
+                label="TLD"
                 options={tlds.map((t) => ({ value: t, label: `.${t}` }))}
                 selected={tld}
                 onChange={(next) => {
@@ -925,7 +925,7 @@ export default function Domains() {
                 }}
               />
               <MultiSelectFilter
-                label="Registrars"
+                label="Registrar"
                 options={registrars.map((id) => ({
                   value: id,
                   label: registrarLabel(id, portfolioRegistrarLabels),
@@ -937,7 +937,7 @@ export default function Domains() {
                 }}
               />
               <MultiSelectFilter
-                label="Expirations"
+                label="Expiration"
                 options={EXPIRY_OPTIONS}
                 selected={expiry}
                 onChange={(next) => {
