@@ -21,6 +21,7 @@ import {
 import type { Aftermarket, Domain, MarketListing } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -195,11 +196,55 @@ function StateIcon({
   );
 }
 
+/**
+ * Detects a lifecycle problem from the normalized `status` string. There's no
+ * dedicated flag across registrars, so we match the substrings each surfaces:
+ * Gandi emits raw EPP codes, GoDaddy/Cloudflare/Spaceship lifecycle enums, and
+ * Namecheap/Namesilo an "expired" once detail is fetched. Returns a short label
+ * + severity, or null for healthy domains.
+ */
+function domainLifecycle(
+  status: string,
+): { label: string; danger: boolean } | null {
+  const s = status.toLowerCase();
+  if (/redemption|pending_?delete|recoverable|restorable/.test(s)) {
+    return { label: 'Redemption', danger: true };
+  }
+  if (/expired/.test(s)) return { label: 'Expired', danger: true };
+  if (/grace|autorenewperiod|renewperiod/.test(s)) {
+    return { label: 'Grace', danger: false };
+  }
+  if (/hold/.test(s)) return { label: 'Hold', danger: false };
+  return null;
+}
+
+/** Red pill for redemption/expired, amber for grace/hold; nothing when healthy. */
+function LifecycleBadge({ status }: { status: string }) {
+  const flag = domainLifecycle(status);
+  if (!flag) return null;
+  return (
+    <Badge
+      variant={flag.danger ? 'destructive' : 'outline'}
+      className={cn(
+        !flag.danger && 'border-amber-500/40 text-amber-600 dark:text-amber-400',
+      )}
+      title={`Registry status: ${status}`}
+    >
+      {flag.label}
+    </Badge>
+  );
+}
+
 const COLUMNS: Column[] = [
   {
     key: 'domainName',
     label: 'Domain',
-    render: (d) => <span className="font-mono">{d.domainName}</span>,
+    render: (d) => (
+      <span className="inline-flex items-center gap-2">
+        <span className="font-mono">{d.domainName}</span>
+        <LifecycleBadge status={d.status} />
+      </span>
+    ),
     sortValue: (d) => d.domainName.toLowerCase(),
   },
   {
