@@ -288,9 +288,10 @@ function RenewalCell({
 }
 
 /**
- * The Folder cell: a colored chip when the domain is in a folder, or a muted but
- * still-clickable placeholder when it isn't. Clicking opens a single-select menu
- * of folders (plus "None" to clear). Assignment is persisted via `onAssign`.
+ * The Folder cell: a small colored folder icon plus the folder name when the
+ * domain is in a folder, or a muted but still-clickable placeholder when it
+ * isn't. Clicking opens a single-select menu of folders (plus "None" to clear).
+ * Assignment is persisted via `onAssign`.
  */
 function FolderCell({
   folders,
@@ -308,18 +309,16 @@ function FolderCell({
         {current ? (
           <button
             type="button"
-            className="max-w-full"
             title={`Folder: ${current.name}`}
+            className="inline-flex max-w-full items-center gap-1.5 rounded px-1 py-0.5 text-sm hover:bg-muted"
           >
-            <Badge
-              variant="ghost"
+            <FolderIcon
               className={cn(
-                'cursor-pointer font-medium',
-                folderColorStyle(current.color).chip,
+                'size-3.5 shrink-0',
+                folderColorStyle(current.color).text,
               )}
-            >
-              <span className="truncate">{current.name}</span>
-            </Badge>
+            />
+            <span className="truncate">{current.name}</span>
           </button>
         ) : (
           <button
