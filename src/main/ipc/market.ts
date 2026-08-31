@@ -6,7 +6,7 @@ import { getAftermarket } from '../services/domdb';
 export function registerMarketIpc(): void {
   ipcMain.handle(
     IpcChannels.getAftermarket,
-    async (_e, domain: string): Promise<Aftermarket | null> =>
-      getAftermarket(domain),
+    async (_e, domain: string, refresh = false): Promise<Aftermarket | null> =>
+      getAftermarket(domain, refresh),
   );
 }

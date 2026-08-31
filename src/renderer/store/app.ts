@@ -43,8 +43,21 @@ interface AppState {
   portfolioRegistrarLabels: Record<string, string>;
   portfolioLoading: boolean;
   portfolioError: string | null;
-  /** When the portfolio was last successfully loaded (ms epoch), or null. */
+  /** When the portfolio data was last fetched from the registrars (ms epoch),
+   * or null. Comes from the cache on launch, or Date.now() on a live refresh. */
   portfolioLoadedAt: number | null;
+  /** How the current portfolio arrived: restored from cache on launch, or a
+   * live fetch. Gates work that should only follow an explicit refresh (e.g.
+   * the Renewals page auto-fetching per-name prices). */
+  portfolioSource: 'cache' | 'live' | null;
+  /** Bumped on every live refresh so views can force-refresh their lazy data. */
+  refreshTick: number;
+  /** Restore portfolio + detail + aftermarket + pricing from the on-disk cache
+   * with no network calls. Call once on app launch. */
+  hydrateFromCache: () => Promise<void>;
+  /** Drop every on-disk cache and reset the in-memory portfolio to empty, so
+   * the app returns to its unloaded state and the next Load re-fetches fresh. */
+  clearAllCaches: () => Promise<void>;
   loadPortfolio: () => Promise<void>;
 
   // Lazy per-domain detail (nameservers/privacy/lock), keyed by `${registrar}:${domainName}`.
@@ -53,13 +66,17 @@ interface AppState {
   enriched: Record<string, Domain>;
   /** Domains whose detail fetch is currently in flight (for per-cell loading). */
   enriching: Record<string, boolean>;
-  enrichVisible: (domains: Domain[]) => Promise<void>;
+  /** Fetch detail for on-screen rows. `force` re-fetches even cached rows and
+   * bypasses the registrar/registry cache in main (used after a live refresh). */
+  enrichVisible: (domains: Domain[], force?: boolean) => Promise<void>;
 
   // Aftermarket pricing (DomDB), keyed by domain name. `null` = fetched but
   // untracked/unavailable. `marketLoading` drives the Market cell's spinner.
   aftermarket: Record<string, Aftermarket | null>;
   marketLoading: Record<string, boolean>;
-  loadAftermarketVisible: (domains: Domain[]) => Promise<void>;
+  /** Fetch aftermarket data for on-screen rows. `force` bypasses the on-disk
+   * cache in main and re-fetches (used after a live refresh). */
+  loadAftermarketVisible: (domains: Domain[], force?: boolean) => Promise<void>;
 
   // Annual renewal pricing, keyed by `${registrar}:${domainName}`. Backs the
   // Renewals dashboard; fetched for the whole portfolio at once (cached in main).
@@ -109,30 +126,90 @@ export const useAppStore = create<AppState>((set, get) => ({
   portfolioLoading: false,
   portfolioError: null,
   portfolioLoadedAt: null,
+  portfolioSource: null,
+  refreshTick: 0,
+
+  hydrateFromCache: async () => {
+    // Only hydrate before any live load — never clobber fresher data.
+    if (get().portfolioSource !== null || get().portfolioLoading) return;
+    const snapshot = await window.api.hydrateFromCache();
+    if (!snapshot.portfolio) return;
+    // Don't overwrite a live load that landed while this was awaiting.
+    if (get().portfolioSource !== null) return;
+
+    const { portfolio, detail, aftermarket, pricing } = snapshot;
+    // Merge cached detail over its summary domain, matching enrichVisible's shape.
+    const enriched: Record<string, Domain> = {};
+    for (const d of portfolio.domains) {
+      const key = domainKey(d);
+      if (detail[key]) enriched[key] = { ...d, ...detail[key] };
+    }
+    // Mark cached aftermarket domains as done so we don't re-fetch them on view.
+    for (const name of Object.keys(aftermarket)) marketDone.add(name);
+
+    set({
+      portfolio: portfolio.domains,
+      portfolioErrors: portfolio.errors,
+      portfolioRegistrars: portfolio.registrars,
+      portfolioRegistrarLabels: portfolio.registrarLabels,
+      portfolioLoadedAt: portfolio.fetchedAt,
+      portfolioSource: 'cache',
+      enriched,
+      aftermarket,
+      pricing,
+    });
+  },
+
+  clearAllCaches: async () => {
+    await window.api.clearAllCaches();
+    enrichInFlight.clear();
+    enrichFailed.clear();
+    marketInFlight.clear();
+    marketDone.clear();
+    pricingInFlight.clear();
+    set({
+      portfolio: [],
+      portfolioErrors: [],
+      portfolioRegistrars: [],
+      portfolioRegistrarLabels: {},
+      portfolioLoadedAt: null,
+      portfolioSource: null,
+      portfolioError: null,
+      enriched: {},
+      enriching: {},
+      aftermarket: {},
+      marketLoading: {},
+      pricing: {},
+      pricingLoading: false,
+    });
+  },
+
   loadPortfolio: async () => {
     set({ portfolioLoading: true, portfolioError: null });
     try {
-      const result = await window.api.listPortfolio();
+      const result = await window.api.listPortfolio(true);
       // Fresh summary data invalidates any prior per-domain detail.
       enrichInFlight.clear();
       enrichFailed.clear();
       marketInFlight.clear();
       marketDone.clear();
       pricingInFlight.clear();
-      set({
+      set((state) => ({
         portfolio: result.domains,
         portfolioErrors: result.errors,
         portfolioRegistrars: result.registrars,
         portfolioRegistrarLabels: result.registrarLabels,
         portfolioLoading: false,
-        portfolioLoadedAt: Date.now(),
+        portfolioLoadedAt: result.fetchedAt ?? Date.now(),
+        portfolioSource: 'live',
+        refreshTick: state.refreshTick + 1,
         enriched: {},
         enriching: {},
         aftermarket: {},
         marketLoading: {},
         pricing: {},
         pricingLoading: false,
-      });
+      }));
     } catch (err) {
       set({
         portfolioLoading: false,
@@ -143,9 +220,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   enriched: {},
   enriching: {},
-  enrichVisible: async (domains) => {
+  enrichVisible: async (domains, force = false) => {
     const todo = domains.filter((d) => {
       const key = domainKey(d);
+      // A forced refresh re-fetches on-screen rows regardless of prior state,
+      // skipping only ones already in flight.
+      if (force) return !enrichInFlight.has(key);
       return (
         // Only enrich rows the list didn't fully populate. Registrars that
         // return nameservers in the list also report privacy/lock correctly, so
@@ -184,6 +264,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           const detail = await window.api.getDomainDetail(
             d.registrar as RegistrarName,
             d.domainName,
+            force,
           );
           if (detail) {
             // detail is a partial — merge it over the list summary.
@@ -211,9 +292,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   aftermarket: {},
   marketLoading: {},
-  loadAftermarketVisible: async (domains) => {
-    const todo = domains.filter(
-      (d) => !marketDone.has(d.domainName) && !marketInFlight.has(d.domainName),
+  loadAftermarketVisible: async (domains, force = false) => {
+    const todo = domains.filter((d) =>
+      force
+        ? !marketInFlight.has(d.domainName)
+        : !marketDone.has(d.domainName) && !marketInFlight.has(d.domainName),
     );
     if (todo.length === 0) return;
 
@@ -237,7 +320,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       todo.map(async (d) => {
         const key = d.domainName;
         try {
-          const info = await window.api.getAftermarket(key);
+          const info = await window.api.getAftermarket(key, force);
           set((state) => ({
             aftermarket: { ...state.aftermarket, [key]: info },
           }));

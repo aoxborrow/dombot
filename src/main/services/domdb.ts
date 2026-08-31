@@ -1,4 +1,5 @@
 import { getDevEnvVar } from './dev-env';
+import { isStale, readAll, readEntry, writeEntry } from './cache';
 import type { Aftermarket, MarketListing } from '../../shared/ipc';
 
 // DomDB aftermarket pricing (Afternic, Sedo, etc.). Single-domain endpoint only
@@ -51,7 +52,15 @@ interface DomdbResponse {
  */
 export async function getAftermarket(
   domain: string,
+  refresh = false,
 ): Promise<Aftermarket | null> {
+  // Serve a fresh-enough cached value without a network call (launch/hydration
+  // and revisits). refresh=true bypasses the cache and re-fetches.
+  if (!refresh) {
+    const cached = readEntry<Aftermarket | null>('market', domain);
+    if (cached && !isStale(cached)) return cached.data;
+  }
+
   const apiKeyPublic = getDevEnvVar('DOMDB_PUBLIC_API_KEY');
   const apiKeyPrivate = getDevEnvVar('DOMDB_PRIVATE_API_KEY');
   if (!apiKeyPublic || !apiKeyPrivate) return null;
@@ -75,7 +84,14 @@ export async function getAftermarket(
           : `https://domdb.com/${domain}`;
 
       if (!data) {
-        return { domain, availability: 'untracked', listings: [], detailUrl };
+        const untracked: Aftermarket = {
+          domain,
+          availability: 'untracked',
+          listings: [],
+          detailUrl,
+        };
+        writeEntry('market', domain, untracked);
+        return untracked;
       }
 
       const listings: MarketListing[] = (data.aftermarkets ?? []).map((a) => {
@@ -100,14 +116,24 @@ export async function getAftermarket(
         return x.price - y.price;
       });
 
-      return {
+      const result: Aftermarket = {
         domain,
         availability: data.availability ?? 'unknown',
         listings,
         detailUrl,
       };
+      writeEntry('market', domain, result);
+      return result;
     } catch {
       return null;
     }
   });
+}
+
+/** All cached aftermarket data, keyed by domain — for launch hydration. */
+export function getCachedAftermarket(): Record<string, Aftermarket | null> {
+  const all = readAll<Aftermarket | null>('market');
+  const out: Record<string, Aftermarket | null> = {};
+  for (const [domain, entry] of Object.entries(all)) out[domain] = entry.data;
+  return out;
 }

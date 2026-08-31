@@ -25,7 +25,11 @@ import type { RenewalPricing } from '../../shared/ipc';
 // Registrars whose `getPricing(domain)` returns a genuine per-name renewal for a
 // domain you already own, premium included (verified live). Only these get an
 // API lookup.
-const SPECIFIC_CAPABLE = new Set<RegistrarName>(['gandi', 'dynadot', 'porkbun']);
+const SPECIFIC_CAPABLE = new Set<RegistrarName>([
+  'gandi',
+  'dynadot',
+  'porkbun',
+]);
 
 // Cache entries older than this are re-fetched. Renewal prices change rarely, so
 // a long life keeps the dashboard instant and the APIs untouched on revisit.
@@ -197,6 +201,61 @@ export async function getRenewalPrice(
         : fetchPrice(registrar, domain),
     );
     if (entry.renewal !== null) {
+      return {
+        domain,
+        registrar,
+        renewal: entry.renewal,
+        currency: entry.currency,
+        source: 'api',
+      };
+    }
+  }
+
+  const base = getBaseRenewal(registrar, tldOf(domain));
+  if (base !== null) {
+    return {
+      domain,
+      registrar,
+      renewal: base,
+      currency: 'USD',
+      source: 'base',
+    };
+  }
+
+  return {
+    domain,
+    registrar,
+    renewal: null,
+    currency: 'USD',
+    source: 'unavailable',
+  };
+}
+
+/**
+ * The renewal price for a domain from cache/overrides/base only — never hits
+ * the network. Used to hydrate the whole portfolio's pricing on launch. Unlike
+ * `getRenewalPrice`, a stale cached API quote is still returned (we prefer
+ * showing the last-known figure to blanking it); a Refresh re-fetches. Returns
+ * `unavailable` when nothing local covers the domain.
+ */
+export function getCachedRenewalPrice(
+  registrar: RegistrarName,
+  domain: string,
+): RenewalPricing {
+  const manual = loadOverrides()[`${registrar}:${domain}`];
+  if (typeof manual === 'number') {
+    return {
+      domain,
+      registrar,
+      renewal: manual,
+      currency: 'USD',
+      source: 'manual',
+    };
+  }
+
+  if (SPECIFIC_CAPABLE.has(registrar)) {
+    const entry = loadCache()[`${registrar}:dom:${domain}`];
+    if (entry && entry.renewal !== null) {
       return {
         domain,
         registrar,

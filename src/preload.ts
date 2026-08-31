@@ -10,8 +10,10 @@ const api: DombotApi = {
   ping: () => ipcRenderer.invoke(IpcChannels.ping),
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
   openExternal: (url) => ipcRenderer.invoke(IpcChannels.openExternal, url),
-  getAftermarket: (domain) =>
-    ipcRenderer.invoke(IpcChannels.getAftermarket, domain),
+  hydrateFromCache: () => ipcRenderer.invoke(IpcChannels.hydrateFromCache),
+  clearAllCaches: () => ipcRenderer.invoke(IpcChannels.clearAllCaches),
+  getAftermarket: (domain, refresh) =>
+    ipcRenderer.invoke(IpcChannels.getAftermarket, domain, refresh),
   getRenewalPrice: (registrar, domain) =>
     ipcRenderer.invoke(IpcChannels.getRenewalPrice, registrar, domain),
   setManualPrice: (registrar, domain, price) =>
@@ -20,9 +22,15 @@ const api: DombotApi = {
 
   // Registrars
   listDynadotDomains: () => ipcRenderer.invoke(IpcChannels.listDynadotDomains),
-  getDomainDetail: (registrar, domainName) =>
-    ipcRenderer.invoke(IpcChannels.getDomainDetail, registrar, domainName),
-  listPortfolio: () => ipcRenderer.invoke(IpcChannels.listPortfolio),
+  getDomainDetail: (registrar, domainName, refresh) =>
+    ipcRenderer.invoke(
+      IpcChannels.getDomainDetail,
+      registrar,
+      domainName,
+      refresh,
+    ),
+  listPortfolio: (refresh) =>
+    ipcRenderer.invoke(IpcChannels.listPortfolio, refresh),
   getRegistrarMetadata: () =>
     ipcRenderer.invoke(IpcChannels.getRegistrarMetadata),
   getRegistrarCredentials: (name) =>

@@ -1,6 +1,7 @@
 import {
   RegistrarClient,
   createRegistrar,
+  listPortfolio,
   registrars,
   type Domain,
   type RegistrarCredentials,
@@ -8,7 +9,22 @@ import {
 } from '@aoxborrow/registrar-client';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { getDevEnvVar } from './dev-env';
-import type { RegistrarMeta, TestResult } from '../../shared/ipc';
+import { isStale, readAll, readEntry, writeEntry } from './cache';
+import type { Portfolio, RegistrarMeta, TestResult } from '../../shared/ipc';
+
+// Cache key for the single aggregated portfolio, and the per-domain detail key.
+const PORTFOLIO_KEY = 'all';
+const detailKey = (name: RegistrarName, domain: string): string =>
+  `${name}:${domain}`;
+
+/** Dates round-trip through JSON as ISO strings; revive them back to `Date`. */
+function reviveDomainDates<T extends Partial<Domain>>(d: T): T {
+  const out = { ...d } as Partial<Domain>;
+  if (out.createdDate != null) out.createdDate = new Date(out.createdDate);
+  if (out.expirationDate != null)
+    out.expirationDate = new Date(out.expirationDate);
+  return out as T;
+}
 
 // Cache one client per registrar so we don't rebuild it on every call.
 const clients = new Map<RegistrarName, RegistrarClient>();
@@ -43,6 +59,68 @@ export function getConfiguredRegistrars(): RegistrarName[] {
 /** Clients for every configured registrar — the sources for a portfolio view. */
 export function getPortfolioSources(): RegistrarClient[] {
   return getConfiguredRegistrars().map(getRegistrarClient);
+}
+
+/**
+ * The aggregated portfolio across every configured registrar, cache-backed.
+ *
+ * With `refresh` false we return the cached portfolio verbatim when one exists
+ * (instant, no network) — the launch/hydration path. With `refresh` true (the
+ * default, e.g. the UI's Refresh button) we re-query every registrar, cache the
+ * result, and return it. `listPortfolio` isolates per-registrar failures; we
+ * flatten its Error objects to plain messages so the result survives IPC clone.
+ */
+export async function getPortfolio(refresh = true): Promise<Portfolio> {
+  if (!refresh) {
+    const cached = readEntry<Portfolio>('portfolio', PORTFOLIO_KEY);
+    if (cached) {
+      return {
+        ...cached.data,
+        domains: cached.data.domains.map(reviveDomainDates),
+        fetchedAt: cached.fetchedAt,
+      };
+    }
+  }
+
+  const registrarIds = getConfiguredRegistrars();
+  const { domains, errors } = await listPortfolio(getPortfolioSources());
+  const registrarLabels = Object.fromEntries(
+    getRegistrarMetadata().map((r) => [r.name, r.displayName]),
+  );
+  const portfolio: Portfolio = {
+    domains,
+    errors: errors.map(({ registrar, error }) => ({
+      registrar,
+      message: error.message,
+    })),
+    registrars: registrarIds,
+    registrarLabels,
+    fetchedAt: null,
+  };
+  // Cache the payload; stamp the returned copy with the write time.
+  const entry = writeEntry('portfolio', PORTFOLIO_KEY, portfolio);
+  return { ...portfolio, fetchedAt: entry.fetchedAt };
+}
+
+/** The cached portfolio (revived), or null — for launch hydration only. */
+export function getCachedPortfolio(): Portfolio | null {
+  const cached = readEntry<Portfolio>('portfolio', PORTFOLIO_KEY);
+  if (!cached) return null;
+  return {
+    ...cached.data,
+    domains: cached.data.domains.map(reviveDomainDates),
+    fetchedAt: cached.fetchedAt,
+  };
+}
+
+/** All cached per-domain detail partials, keyed `registrar:domain` (revived). */
+export function getCachedDetail(): Record<string, Partial<Domain>> {
+  const all = readAll<Partial<Domain>>('detail');
+  const out: Record<string, Partial<Domain>> = {};
+  for (const [key, entry] of Object.entries(all)) {
+    out[key] = reviveDomainDates(entry.data);
+  }
+  return out;
 }
 
 /** Metadata that drives the Settings > Registrars form (no secret values). */
@@ -96,7 +174,15 @@ export function saveRegistrarCredentials(
 export async function getDomainDetail(
   name: RegistrarName,
   domainName: string,
+  refresh = false,
 ): Promise<Partial<Domain> | null> {
+  const key = detailKey(name, domainName);
+  if (!refresh) {
+    const cached = readEntry<Partial<Domain>>('detail', key);
+    // Serve a fresh-enough cached partial without any network calls.
+    if (cached && !isStale(cached)) return reviveDomainDates(cached.data);
+  }
+
   const client = getRegistrarClient(name);
 
   let domain: Domain | null = null;
@@ -129,12 +215,22 @@ export async function getDomainDetail(
   }
 
   if (domain) {
-    return { ...domain, nameservers, ...(createdDate ? { createdDate } : {}) };
+    const result = {
+      ...domain,
+      nameservers,
+      ...(createdDate ? { createdDate } : {}),
+    };
+    writeEntry('detail', key, result);
+    return result;
   }
   const partial: Partial<Domain> = {};
   if (nameservers.length > 0) partial.nameservers = nameservers;
   if (createdDate) partial.createdDate = createdDate;
-  return Object.keys(partial).length > 0 ? partial : null;
+  // Only cache a partial that actually resolved something; a null result stays
+  // uncached so a later refresh retries it.
+  if (Object.keys(partial).length === 0) return null;
+  writeEntry('detail', key, partial);
+  return partial;
 }
 
 /**
