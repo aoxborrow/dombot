@@ -70,6 +70,60 @@ const dnsRecord = z.object({
   port: z.number().int().optional().describe('Port, SRV only.'),
 });
 
+// Consent to a registrar's registration/transfer agreements, where required
+// (e.g. GoDaddy). The provider fetches the agreement docs itself; the caller
+// only affirms who consented.
+const consent = z.object({
+  agreedBy: z
+    .string()
+    .describe(
+      'Identifier of the consenting party; registrars that record it expect the user’s IP (e.g. GoDaddy).',
+    ),
+  agreedAt: z
+    .string()
+    .optional()
+    .describe('ISO 8601 timestamp of consent; defaults to now.'),
+});
+
+// Input for registering a new domain. A registrant contact is always required.
+const registerInput = z.object({
+  years: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Registration length in years (defaults to 1).'),
+  contacts: contactSet
+    .extend({ registrant: contact })
+    .describe('Contacts for the registration; a registrant is required.'),
+  nameservers: z
+    .array(z.string())
+    .optional()
+    .describe('Initial nameservers; omit to use the registrar’s defaults.'),
+  privacy: z.boolean().optional().describe('Enable WHOIS privacy, where supported.'),
+  autoRenew: z.boolean().optional().describe('Enable auto-renew.'),
+  consent: consent.optional(),
+});
+
+// Input for transferring a domain in. The EPP/auth code is always required.
+const transferInput = z.object({
+  authCode: z
+    .string()
+    .describe('The EPP/authorization code from the current registrar.'),
+  years: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Registration length to add on transfer, in years.'),
+  contacts: contactSet
+    .optional()
+    .describe('Contacts, where the registrar requires them.'),
+  consent: consent.optional(),
+  privacy: z.boolean().optional().describe('Enable WHOIS privacy on transfer.'),
+  autoRenew: z.boolean().optional().describe('Enable auto-renew on transfer.'),
+});
+
 /**
  * Registers the MCP portfolio tools. Each calls into the shared `services/`
  * layer — the same lower-level core the UI's IPC handlers use — and shapes its
@@ -172,6 +226,40 @@ export function registerTools(server: McpServer): void {
       json(await getRegistrarClient(registrar).getPricing(tld)),
   );
 
+  server.registerTool(
+    'registrar_register_domain',
+    {
+      title: 'Register a domain',
+      description:
+        'At one registrar: register a new domain. This creates a registration and costs money.',
+      inputSchema: { registrar, domain, input: registerInput },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      },
+    },
+    async ({ registrar, domain, input }) =>
+      json(await getRegistrarClient(registrar).registerDomain(domain, input)),
+  );
+
+  server.registerTool(
+    'registrar_transfer_domain',
+    {
+      title: 'Transfer a domain in',
+      description:
+        'At one registrar: transfer a domain in using its EPP/auth code. This costs money.',
+      inputSchema: { registrar, domain, input: transferInput },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      },
+    },
+    async ({ registrar, domain, input }) =>
+      json(await getRegistrarClient(registrar).transferIn(domain, input)),
+  );
+
   // ── Domain-level (registrar + domain required) ─────────────────────────────
 
   server.registerTool(
@@ -198,6 +286,32 @@ export function registerTools(server: McpServer): void {
     },
     async ({ registrar, domain }) =>
       json(await getRegistrarClient(registrar).getContacts(domain)),
+  );
+
+  server.registerTool(
+    'domain_renew',
+    {
+      title: 'Renew a domain',
+      description:
+        'For a single domain: renew it (extend its registration). This costs money.',
+      inputSchema: {
+        registrar,
+        domain,
+        years: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe('Number of years to renew (defaults to 1).'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      },
+    },
+    async ({ registrar, domain, years }) =>
+      json(await getRegistrarClient(registrar).renewDomain(domain, years)),
   );
 
   server.registerTool(
