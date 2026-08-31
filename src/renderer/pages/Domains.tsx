@@ -23,6 +23,7 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
+  FileSpreadsheet,
   Folder as FolderIcon,
   Globe,
   Lock,
@@ -1165,15 +1166,25 @@ export default function Domains() {
               </Button>
             )}
             {hasLoaded && (
-              <Button
-                variant="outline"
-                onClick={() => void exportCsv()}
-                disabled={exporting || filtered.length === 0}
-                title="Export the filtered domains as a CSV file"
-              >
-                <Download />
-                {exporting ? 'Exporting…' : 'Export CSV'}
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={exporting || filtered.length === 0}
+                    title="Export the filtered domains"
+                  >
+                    <Download />
+                    {exporting ? 'Exporting…' : 'Export'}
+                    <ChevronDown className="text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem onSelect={() => void exportCsv()}>
+                    <FileSpreadsheet />
+                    Export CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </div>
