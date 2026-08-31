@@ -1688,7 +1688,7 @@ function PriceRangeFilter({
           <ChevronDown className="size-4 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto p-3">
+      <PopoverContent align="end" className="w-auto p-3">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
             <PriceField
