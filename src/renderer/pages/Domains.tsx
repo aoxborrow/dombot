@@ -510,18 +510,17 @@ function LifecycleBadge({ status }: { status: string }) {
 }
 
 /**
- * Auto-renew toggle: starts in the domain's real state, flips locally on click,
- * but doesn't persist anything yet (wiring to registrar settings is TODO).
- * Brand green when on, a muted red when off to flag it.
+ * Auto-renew toggle: reflects the domain's state but is read-only for now —
+ * toggling is disabled until it's wired to registrar settings (TODO). Brand
+ * green when on, a muted red when off to flag it.
  */
 function AutoRenewSwitch({ value }: { value: boolean }) {
-  const [on, setOn] = useState(value);
   return (
     <Switch
-      checked={on}
-      onCheckedChange={setOn}
+      checked={value}
+      aria-readonly
       aria-label="auto-renew"
-      className="data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80"
+      className="cursor-default data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80"
     />
   );
 }
@@ -1158,8 +1157,8 @@ export default function Domains() {
 
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-[13px]">
-      <div className="flex items-end gap-4">
-        <div className="flex-1">
+      <div className="flex items-end justify-between gap-4">
+        <div>
           <h1 className="text-[32px] font-bold">Domains</h1>
           <p className="-mt-0.5 text-sm text-muted-foreground">
             {hasLoaded
@@ -1169,21 +1168,7 @@ export default function Domains() {
               : 'Load your portfolio across every configured registrar.'}
           </p>
         </div>
-        {/* Center column: Reset filters (bottom-aligned, nearest the filter
-            row), shown only while filters are active. */}
-        <div className="flex flex-1 items-end justify-center">
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="inline-flex items-center gap-1 text-xs text-[#31613b] transition-opacity hover:opacity-80 dark:text-[#7ac28d]"
-            >
-              <X className="size-3.5" />
-              Reset filters
-            </button>
-          )}
-        </div>
-        <div className="flex flex-1 flex-col items-end gap-2">
+        <div className="flex shrink-0 flex-col items-end gap-2">
           {portfolioLoadedAt !== null ? (
             // Dimmed "Refresh domains" button with the last-refreshed time as a
             // small caption centered beneath it. Amber (fill + dot) once past the
@@ -1267,9 +1252,9 @@ export default function Domains() {
       {hasLoaded && (
         <>
           {/* Toolbar: search, filters, and export all flow inline and wrap
-              together as equal items. Extra top margin separates it a bit more
-              from the title/reset/refresh row above. */}
-          <div className="mt-1 flex flex-wrap items-center gap-3">
+              together as equal items. Extra top margin separates it from the
+              title/refresh row above. */}
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             <div className="relative min-w-[220px] flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -1359,6 +1344,30 @@ export default function Domains() {
                   error={priceError}
                 />
               )}
+
+              {/* Reset button styled like the filters (no chevron); faded/
+                  disabled when nothing is active. Trialling this alongside the
+                  green header link. */}
+              <Button
+                variant="outline"
+                onClick={resetFilters}
+                disabled={!hasActiveFilters}
+                className={cn(
+                  'gap-2 pr-[14px]! pl-[8px]!',
+                  hasActiveFilters &&
+                    'border-[#4f9d6b] dark:border-[#4f9d6b]',
+                )}
+              >
+                <X
+                  className={cn(
+                    'size-[18px]',
+                    hasActiveFilters
+                      ? 'text-[#4f9d6b]'
+                      : 'text-muted-foreground',
+                  )}
+                />
+                Reset
+              </Button>
 
               <div className="flex items-center gap-3">
                 {exportNote && (
@@ -1906,10 +1915,7 @@ function MultiSelectFilter({
           {Icon && <Icon className="size-4 text-muted-foreground" />}
           {label}
           {selected.length > 0 && (
-            <Badge
-              variant="secondary"
-              className="px-1.5 py-0 text-xs tabular-nums"
-            >
+            <Badge className="bg-primary px-1.5 py-0 text-xs tabular-nums text-primary-foreground">
               {selected.length}
             </Badge>
           )}
