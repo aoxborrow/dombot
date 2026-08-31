@@ -11,18 +11,20 @@ import type { RenewalPricing } from '../../shared/ipc';
 //
 //   1. manual override — a price the user typed in.
 //   2. per-name API quote — only for registrars that price a *specific owned*
-//      domain, so the figure captures premium renewals. In practice that's just
-//      Gandi: every other provider either can't price an owned domain at all
-//      (Dynadot/Cloudflare/GoDaddy-renewal/Spaceship/NameBright) or only exposes
-//      a generic per-TLD rate, which we deliberately don't use here.
+//      domain, so the figure captures premium renewals. Gandi (its per-name price
+//      endpoint) and Dynadot (its classic renew price-check quote) qualify; the
+//      rest either can't price an owned domain at all (Cloudflare/
+//      GoDaddy-renewal/Spaceship/NameBright) or only expose a generic per-TLD
+//      rate, which we deliberately don't use here.
 //   3. base database — the standard per-TLD rate that fills everything else
 //      (see base-pricing.ts).
 //
 // All prices are treated as USD.
 
 // Registrars whose `getPricing(domain)` returns a genuine per-name renewal for a
-// domain you already own (verified live). Only these get an API lookup.
-const SPECIFIC_CAPABLE = new Set<RegistrarName>(['gandi']);
+// domain you already own, premium included (verified live). Only these get an
+// API lookup.
+const SPECIFIC_CAPABLE = new Set<RegistrarName>(['gandi', 'dynadot']);
 
 // Cache entries older than this are re-fetched. Renewal prices change rarely, so
 // a long life keeps the dashboard instant and the APIs untouched on revisit.
