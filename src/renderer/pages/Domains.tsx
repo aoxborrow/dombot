@@ -221,15 +221,26 @@ function StateIcon({
   );
 }
 
+type LifecycleTone = 'redemption' | 'expired' | 'grace' | 'hold';
+
+/**
+ * A distinct fill color per lifecycle state, most→least urgent — all solid
+ * warning pills: red, orange, amber, rose. Amber takes dark text for contrast.
+ */
+const LIFECYCLE_TONE: Record<LifecycleTone, string> = {
+  redemption: 'bg-red-600 text-white',
+  expired: 'bg-orange-500 text-white',
+  grace: 'bg-amber-400 text-amber-950',
+  hold: 'bg-rose-500 text-white',
+};
+
 /**
  * Detects a lifecycle problem from the normalized `status` string. There's no
  * dedicated flag across registrars, so we match the substrings each surfaces:
  * Gandi emits raw EPP codes, GoDaddy/Cloudflare/Spaceship lifecycle enums, and
  * Namecheap/Namesilo an "expired" once detail is fetched. Returns a short label
- * + severity, or null for healthy domains.
+ * + tone, or null for healthy domains.
  */
-type LifecycleTone = 'redemption' | 'expired' | 'grace' | 'hold';
-
 function domainLifecycle(
   status: string,
 ): { label: string; tone: LifecycleTone } | null {
@@ -245,39 +256,16 @@ function domainLifecycle(
   return null;
 }
 
-/**
- * Per-state styling, each visually distinct so the four lifecycle states never
- * read the same: solid red for redemption (most urgent), then outlined rose,
- * amber, and sky pills as severity eases.
- */
-const LIFECYCLE_STYLE: Record<
-  LifecycleTone,
-  { variant: 'destructive' | 'outline'; className?: string }
-> = {
-  redemption: { variant: 'destructive' },
-  expired: {
-    variant: 'outline',
-    className: 'border-rose-500/40 text-rose-600 dark:text-rose-400',
-  },
-  grace: {
-    variant: 'outline',
-    className: 'border-amber-500/40 text-amber-600 dark:text-amber-400',
-  },
-  hold: {
-    variant: 'outline',
-    className: 'border-sky-500/40 text-sky-600 dark:text-sky-400',
-  },
-};
-
 /** A distinctly-colored pill per lifecycle state; nothing when healthy. */
 function LifecycleBadge({ status }: { status: string }) {
   const flag = domainLifecycle(status);
   if (!flag) return null;
-  const style = LIFECYCLE_STYLE[flag.tone];
   return (
     <Badge
-      variant={style.variant}
-      className={style.className}
+      className={cn(
+        'border-transparent px-1.5 py-0 text-[11px]',
+        LIFECYCLE_TONE[flag.tone],
+      )}
       title={`Registry status: ${status}`}
     >
       {flag.label}
