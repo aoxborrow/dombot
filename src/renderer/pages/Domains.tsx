@@ -325,11 +325,15 @@ function relativeDays(days: number): string {
   return `${days}d`;
 }
 
-/** Urgency color: red past-due, amber within 30 days, muted otherwise. */
+/**
+ * Urgency heat ramp for the expiry date: red (expired or ≤14 days) → orange
+ * (≤30) → yellow (≤60, a heads-up) → normal. Muted when there's no date.
+ */
 function expiryColor(days: number | null): string {
   if (days === null) return 'text-muted-foreground';
-  if (days < 0) return 'text-destructive';
-  if (days <= 30) return 'text-amber-600 dark:text-amber-400';
+  if (days <= 14) return 'text-red-600 dark:text-red-400';
+  if (days <= 30) return 'text-orange-600 dark:text-orange-400';
+  if (days <= 60) return 'text-yellow-600 dark:text-yellow-400';
   return 'text-foreground';
 }
 
