@@ -16,7 +16,15 @@ function json(data: unknown) {
   };
 }
 
-// Every registrar-scoped tool takes this: which provider to act on.
+// ── shared parameter schemas ─────────────────────────────────────────────────
+//
+// Scope is encoded in the required-parameter signature and the tool name prefix:
+//   portfolio_* → ()                    global / cross-registrar aggregate
+//   registrar_* → (registrar)           one provider
+//   domain_*    → (registrar, domain)   one domain you own
+// `registrar` is always required and never resolved from state, so a caller can
+// act on a freshly-registered name that isn't in the cached portfolio yet.
+
 const registrar = z
   .enum(registrarNames)
   .describe('Registrar id, e.g. "dynadot" or "godaddy".');
@@ -26,17 +34,17 @@ const domain = z.string().describe('The domain name, e.g. example.com');
 /**
  * Registers the MCP portfolio tools. Each calls into the shared `services/`
  * layer — the same lower-level core the UI's IPC handlers use — and shapes its
- * own output. Money-moving operations (register/renew/transfer) are omitted.
+ * own output. Tools group by scope prefix (portfolio / registrar / domain).
  */
 export function registerTools(server: McpServer): void {
-  // ── Reads ────────────────────────────────────────────────────────────────
+  // ── Portfolio / account (no scope params) ──────────────────────────────────
 
   server.registerTool(
-    'list_registrars',
+    'registrar_list',
     {
       title: 'List registrars',
       description:
-        'List built-in registrar ids and which ones have credentials configured.',
+        'List every built-in registrar id and which ones have credentials configured.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -48,22 +56,24 @@ export function registerTools(server: McpServer): void {
   );
 
   server.registerTool(
-    'list_portfolio',
+    'portfolio_list',
     {
       title: 'List portfolio',
       description:
-        'List domains across every configured registrar (aggregated). Returns per-registrar errors alongside the combined domains.',
+        'Across all configured registrars: list every domain you own (aggregated). Returns per-registrar errors alongside the combined domains.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
     async () => json(await listPortfolio(getPortfolioSources())),
   );
 
+  // ── Registrar-level (registrar required) ───────────────────────────────────
+
   server.registerTool(
-    'list_domains',
+    'registrar_domains',
     {
-      title: 'List domains',
-      description: 'List all domains at a single registrar.',
+      title: 'List a registrar’s domains',
+      description: 'At one registrar: list every domain in the account.',
       inputSchema: { registrar },
       annotations: { readOnlyHint: true },
     },
@@ -72,11 +82,11 @@ export function registerTools(server: McpServer): void {
   );
 
   server.registerTool(
-    'check_availability',
+    'registrar_check_availability',
     {
       title: 'Check domain availability',
       description:
-        'Check whether one or more domains are available to register.',
+        'At one registrar: check whether one or more domains are available to register.',
       inputSchema: {
         registrar,
         domains: z
@@ -92,23 +102,13 @@ export function registerTools(server: McpServer): void {
       json(await getRegistrarClient(registrar).checkAvailability(domains)),
   );
 
-  server.registerTool(
-    'get_dns_records',
-    {
-      title: 'Get DNS records',
-      description: 'Fetch the DNS records for a domain.',
-      inputSchema: { registrar, domain },
-      annotations: { readOnlyHint: true },
-    },
-    async ({ registrar, domain }) =>
-      json(await getRegistrarClient(registrar).getDnsRecords(domain)),
-  );
+  // ── Domain-level (registrar + domain required) ─────────────────────────────
 
   server.registerTool(
-    'get_nameservers',
+    'domain_nameservers_get',
     {
       title: 'Get nameservers',
-      description: 'Fetch the nameservers for a domain.',
+      description: 'For a single domain: read its nameservers.',
       inputSchema: { registrar, domain },
       annotations: { readOnlyHint: true },
     },
@@ -116,13 +116,12 @@ export function registerTools(server: McpServer): void {
       json(await getRegistrarClient(registrar).getNameservers(domain)),
   );
 
-  // ── Writes (non-money) ─────────────────────────────────────────────────────
-
   server.registerTool(
-    'set_nameservers',
+    'domain_nameservers_set',
     {
       title: 'Set nameservers',
-      description: 'Replace the nameservers for a domain.',
+      description:
+        'For a single domain: replace its nameservers with the full set given.',
       inputSchema: {
         registrar,
         domain,
@@ -149,10 +148,22 @@ export function registerTools(server: McpServer): void {
   );
 
   server.registerTool(
-    'set_auto_renew',
+    'domain_dns_get',
+    {
+      title: 'Get DNS records',
+      description: 'For a single domain: read its DNS records.',
+      inputSchema: { registrar, domain },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ registrar, domain }) =>
+      json(await getRegistrarClient(registrar).getDnsRecords(domain)),
+  );
+
+  server.registerTool(
+    'domain_set_autorenew',
     {
       title: 'Set auto-renew',
-      description: 'Enable or disable auto-renew for a domain.',
+      description: 'For a single domain: enable or disable auto-renew.',
       inputSchema: {
         registrar,
         domain,
@@ -167,10 +178,11 @@ export function registerTools(server: McpServer): void {
   );
 
   server.registerTool(
-    'set_lock',
+    'domain_set_lock',
     {
       title: 'Set domain lock',
-      description: 'Lock or unlock a domain (registrar transfer lock).',
+      description:
+        'For a single domain: lock or unlock it (registrar transfer lock).',
       inputSchema: {
         registrar,
         domain,
