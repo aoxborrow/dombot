@@ -1444,7 +1444,7 @@ export default function Domains() {
                             col.align === 'right' && 'text-right',
                             col.align === 'center' && 'text-center',
                             col.compact && 'w-0 px-1.5',
-                            col.key === 'autoRenew' && 'pl-[6px]',
+                            col.key === 'autoRenew' && 'pl-[8px]',
                             col.key === 'domainName' && 'pl-3',
                           )}
                         >
