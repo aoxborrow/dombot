@@ -345,9 +345,10 @@ function FolderCell({
 
 /**
  * The menu shown when a domain row is clicked (the whole row is the trigger).
- * Visit the domain, assign it to a folder (submenu, single-select with "None"
- * to clear), and a placeholder "Hide". Rendered inside a <DropdownMenu> whose
- * trigger is the row.
+ * Visit the domain, or assign it to a folder (single-select submenu). The
+ * submenu ends with "None" (clear) and the built-in "Hidden" folder, which drops
+ * the domain from the table. Rendered inside a <DropdownMenu> whose trigger is
+ * the row.
  */
 function RowMenuContent({
   folders,
@@ -373,61 +374,48 @@ function RowMenuContent({
           Folder
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent className="max-h-[320px] max-w-[240px] overflow-y-auto">
-          {folders.length === 0 ? (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">
-              No folders yet. Create them in Settings › Folders.
-            </div>
-          ) : (
-            <>
-              {folders.map((f) => (
-                <DropdownMenuItem
-                  key={f.id}
-                  className="gap-1.5"
-                  onSelect={() => onAssign(f.id)}
-                >
-                  <FolderIcon
-                    className={cn(
-                      'size-3.5 shrink-0',
-                      folderColorStyle(f.color).text,
-                    )}
-                    aria-hidden
-                  />
-                  <span className="flex-1 truncate">{f.name}</span>
-                  {f.id === folderId && (
-                    <Check className="size-3.5 shrink-0 text-muted-foreground" />
-                  )}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="gap-1.5"
-                onSelect={() => onAssign(null)}
-              >
-                {/* Spacer keeps "None" aligned with the folder rows above. */}
-                <span className="size-3.5 shrink-0" aria-hidden />
-                <span className="flex-1">None</span>
-                {folderId === undefined && (
-                  <Check className="size-3.5 shrink-0 text-muted-foreground" />
+          {folders.map((f) => (
+            <DropdownMenuItem
+              key={f.id}
+              className="gap-1.5"
+              onSelect={() => onAssign(f.id)}
+            >
+              <FolderIcon
+                className={cn(
+                  'size-3.5 shrink-0',
+                  folderColorStyle(f.color).text,
                 )}
-              </DropdownMenuItem>
-            </>
-          )}
+                aria-hidden
+              />
+              <span className="flex-1 truncate">{f.name}</span>
+              {f.id === folderId && (
+                <Check className="size-3.5 shrink-0 text-muted-foreground" />
+              )}
+            </DropdownMenuItem>
+          ))}
+          {folders.length > 0 && <DropdownMenuSeparator />}
+          <DropdownMenuItem className="gap-1.5" onSelect={() => onAssign(null)}>
+            {/* Spacer keeps "None" aligned with the icon'd rows. */}
+            <span className="size-3.5 shrink-0" aria-hidden />
+            <span className="flex-1">None</span>
+            {folderId === undefined && (
+              <Check className="size-3.5 shrink-0 text-muted-foreground" />
+            )}
+          </DropdownMenuItem>
+          {/* Hidden is a built-in folder: assigning to it drops the domain from
+              the table until "Hidden" is picked in the Folder filter. */}
+          <DropdownMenuItem
+            className="gap-1.5"
+            onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
+          >
+            <EyeOff className="size-3.5 shrink-0" aria-hidden />
+            <span className="flex-1">Hidden</span>
+            {folderId === HIDDEN_FOLDER_ID && (
+              <Check className="size-3.5 shrink-0 text-muted-foreground" />
+            )}
+          </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
-      <DropdownMenuSeparator />
-      {/* Hide moves the domain into the built-in Hidden folder (dropping it from
-          the table by default); Unhide clears that. */}
-      {folderId === HIDDEN_FOLDER_ID ? (
-        <DropdownMenuItem onSelect={() => onAssign(null)}>
-          <Eye />
-          Unhide
-        </DropdownMenuItem>
-      ) : (
-        <DropdownMenuItem onSelect={() => onAssign(HIDDEN_FOLDER_ID)}>
-          <EyeOff />
-          Hide
-        </DropdownMenuItem>
-      )}
     </DropdownMenuContent>
   );
 }
@@ -837,10 +825,10 @@ export default function Domains() {
   }, [merged]);
 
   // Folder filter options: one per folder (with its assigned-domain count over
-  // the whole portfolio), an "Unassigned" bucket, and — only when non-empty — a
-  // "Hidden" bucket for the built-in hidden folder. A dangling assignment (its
-  // folder was deleted) counts as unassigned. `hiddenCount` also gates whether
-  // the Folder filter shows at all when the user has no folders of their own.
+  // the whole portfolio), an "Unassigned" bucket, and an always-present "Hidden"
+  // bucket for the built-in hidden folder. A dangling assignment (its folder was
+  // deleted) counts as unassigned. `hiddenCount` also lets the Folder filter show
+  // when the user has hidden domains but no folders of their own.
   const { folderOptions, hiddenCount } = useMemo(() => {
     const counts: Record<string, number> = {};
     let unassigned = 0;
@@ -861,9 +849,8 @@ export default function Domains() {
       count: counts[f.id] ?? 0,
     }));
     opts.push({ value: UNASSIGNED, label: 'Unassigned', count: unassigned });
-    if (hidden > 0) {
-      opts.push({ value: HIDDEN_FOLDER_ID, label: 'Hidden', count: hidden });
-    }
+    // Always offer Hidden so it's a discoverable way to reveal hidden domains.
+    opts.push({ value: HIDDEN_FOLDER_ID, label: 'Hidden', count: hidden });
     return { folderOptions: opts, hiddenCount: hidden };
   }, [portfolio, folders, folderAssignments]);
 
