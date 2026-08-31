@@ -33,6 +33,7 @@ import {
   RefreshCwOff,
   Search,
   Server,
+  Tag,
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
@@ -69,6 +70,11 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Empty,
@@ -1239,8 +1245,8 @@ export default function Domains() {
                 />
               )}
 
-              {/* Afternic price range — one combined min/max control */}
-              <PriceRangeInput
+              {/* Afternic price range — a dropdown holding the min/max inputs */}
+              <PriceRangeFilter
                 min={minPrice}
                 max={maxPrice}
                 onMinChange={(v) => {
@@ -1253,13 +1259,12 @@ export default function Domains() {
                 }}
                 minInvalid={Boolean(minParsed.error) || Boolean(rangeError)}
                 maxInvalid={Boolean(maxParsed.error) || Boolean(rangeError)}
+                minValue={minValue}
+                maxValue={maxValue}
+                error={priceError}
                 loading={marketAllLoading}
               />
             </div>
-
-            {priceError && (
-              <p className="text-xs text-destructive">{priceError}</p>
-            )}
           </div>
 
           {/* Table */}
@@ -1594,17 +1599,35 @@ function PriceField({
   );
 }
 
+/** Compact whole-dollar label for the trigger badge, e.g. "$1,200". */
+function fmtBound(n: number): string {
+  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
+/** A short label for the active Afternic price range, or null when none is set. */
+function priceSummary(min: number | null, max: number | null): string | null {
+  if (min !== null && max !== null) return `${fmtBound(min)}–${fmtBound(max)}`;
+  if (min !== null) return `≥ ${fmtBound(min)}`;
+  if (max !== null) return `≤ ${fmtBound(max)}`;
+  return null;
+}
+
 /**
- * Afternic price filter: a plain "Price" label followed by separate min and max
- * fields joined by "to". Each field carries a tiny inline unit label.
+ * Afternic price filter: a filter button (matching the multi-selects) that opens
+ * a popover holding the min/max inputs. The button reflects the active range as
+ * a badge; a spinner replaces the chevron while portfolio prices are still
+ * loading.
  */
-function PriceRangeInput({
+function PriceRangeFilter({
   min,
   max,
   onMinChange,
   onMaxChange,
   minInvalid,
   maxInvalid,
+  minValue,
+  maxValue,
+  error,
   loading = false,
 }: {
   min: string;
@@ -1613,34 +1636,63 @@ function PriceRangeInput({
   onMaxChange: (value: string) => void;
   minInvalid: boolean;
   maxInvalid: boolean;
+  /** Applied numeric bounds (null when unset/invalid) — drives the badge. */
+  minValue: number | null;
+  maxValue: number | null;
+  /** Validation message shown inside the popover, or null. */
+  error: string | null;
   /** Show a spinner while Afternic prices are still loading across the portfolio
    * (the filter stays usable — it just isn't complete yet). */
   loading?: boolean;
 }) {
+  const summary = priceSummary(minValue, maxValue);
   return (
-    <div className="ml-2 flex items-center gap-2">
-      <span className="text-sm text-muted-foreground">Price</span>
-      <PriceField
-        value={min}
-        onChange={onMinChange}
-        label="min"
-        ariaLabel="Minimum Afternic price"
-        invalid={minInvalid}
-      />
-      <PriceField
-        value={max}
-        onChange={onMaxChange}
-        label="max"
-        ariaLabel="Maximum Afternic price"
-        invalid={maxInvalid}
-      />
-      {loading && (
-        <Loader2
-          className="size-4 animate-spin text-muted-foreground"
-          aria-label="Loading Afternic prices"
-        />
-      )}
-    </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" aria-label="Price" className="gap-1.5">
+          <Tag className="size-4 text-muted-foreground" />
+          Price
+          {summary && (
+            <Badge
+              variant="secondary"
+              className="px-1.5 py-0 text-xs tabular-nums"
+            >
+              {summary}
+            </Badge>
+          )}
+          {loading ? (
+            <Loader2
+              className="size-4 animate-spin text-muted-foreground"
+              aria-label="Loading Afternic prices"
+            />
+          ) : (
+            <ChevronDown className="size-4 text-muted-foreground" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-auto p-3">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <PriceField
+              value={min}
+              onChange={onMinChange}
+              label="min"
+              ariaLabel="Minimum Afternic price"
+              invalid={minInvalid}
+            />
+            <span className="text-muted-foreground">–</span>
+            <PriceField
+              value={max}
+              onChange={onMaxChange}
+              label="max"
+              ariaLabel="Maximum Afternic price"
+              invalid={maxInvalid}
+            />
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
