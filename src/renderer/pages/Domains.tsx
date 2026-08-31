@@ -1244,7 +1244,7 @@ export default function Domains() {
                   ? '0 of 0'
                   : `${start + 1}–${Math.min(start + pageSize, filtered.length)} of ${filtered.length}`}
               </span>
-              <div className="flex gap-1">
+              <div className="flex items-center gap-1">
                 <Button
                   variant="outline"
                   size="icon-sm"
@@ -1263,7 +1263,7 @@ export default function Domains() {
                 >
                   <ChevronLeft />
                 </Button>
-                <span className="px-2 text-foreground">
+                <span className="px-2">
                   {safePage + 1} / {pageCount}
                 </span>
                 <Button
