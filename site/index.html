@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en" style="background:#0d0d0f">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="DomBot — an open-source domain-portfolio desktop app with a built-in MCP server. One table, one renewal forecast, one set of controls across every registrar.">
+<meta property="og:title" content="DomBot">
+<meta property="og:description" content="Your whole domain portfolio, every registrar, in one open-source app — plus a built-in MCP server for agents.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%A4%96</text></svg>">
+<title>DomBot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+<!-- ═══════════════ NAV ═══════════════ -->
+<div class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top" aria-label="DomBot home">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <line x1="16" y1="7" x2="16" y2="3" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="16" cy="2.5" r="1.8" fill="var(--accent)"/>
+        <rect x="4.5" y="7" width="23" height="18" rx="6" fill="var(--accent-fill)"/>
+        <circle cx="12" cy="16" r="2.4" fill="var(--on-accent)"/>
+        <circle cx="20" cy="16" r="2.4" fill="var(--on-accent)"/>
+        <rect x="10.5" y="25" width="4" height="4" rx="1.4" fill="var(--accent-fill)"/>
+        <rect x="17.5" y="25" width="4" height="4" rx="1.4" fill="var(--accent-fill)"/>
+      </svg>
+      DomBot
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#registrars">Registrars</a>
+      <a href="#mcp">MCP</a>
+      <a href="#features">Features</a>
+      <a href="#download">Download</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+  </div>
+</div>
+
+<a id="top"></a>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">Open source · app + MCP server</span>
+      <h1>Every domain you own, every registrar, in one app.</h1>
+      <p class="lede"><strong>DomBot pulls your whole domain portfolio</strong> — scattered across Dynadot, GoDaddy, Cloudflare, Gandi and more — into one desktop app, and serves that same portfolio to your AI agents through a built-in MCP server. Free and fully open source.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" id="hero-dl" href="#download">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <span id="hero-dl-label">Download</span>
+        </a>
+        <a class="btn" href="https://github.com/aoxborrow/dombot">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.46-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.36-2.22-.26-4.56-1.14-4.56-5.05 0-1.12.39-2.03 1.03-2.74-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.71 1.03 1.62 1.03 2.74 0 3.92-2.34 4.78-4.57 5.04.36.32.68.94.68 1.9 0 1.37-.01 2.480-.01 2.81 0 .27.18.6.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
+          View source
+        </a>
+      </div>
+      <p class="hero-note">macOS · Windows · Linux · Apple Silicon &amp; Intel</p>
+    </div>
+
+    <div class="window" aria-label="DomBot Domains screen (screenshot placeholder)">
+      <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="title">DomBot — Domains</span></div>
+      <div class="shot">
+        <span class="shot-label">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16" stroke-linecap="round"/></svg>
+          Screenshot: Domains table
+        </span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════ REGISTRARS (logo strip) ═══════════════ -->
+<section id="registrars">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Works with</span>
+      <h2>All your registrars, one portfolio.</h2>
+      <p>Connect the registrars you use with a first-party API key. The list keeps growing.</p>
+    </div>
+    <!-- Registrars with a real brand mark use <img class="logo-img">; the rest fall back to a monogram tile until a logo is added. -->
+    <div class="logos">
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/cloudflare.svg" alt="" width="26" height="26"><span class="logo-name">Cloudflare</span></div>
+      <div class="logo"><span class="logo-mark">Dy</span><span class="logo-name">Dynadot</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/gandi.svg" alt="" width="26" height="26"><span class="logo-name">Gandi.net</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/godaddy.svg" alt="" width="26" height="26"><span class="logo-name">GoDaddy</span></div>
+      <div class="logo"><span class="logo-mark">NB</span><span class="logo-name">NameBright</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/namecheap.svg" alt="" width="26" height="26"><span class="logo-name">Namecheap</span></div>
+      <div class="logo"><span class="logo-mark">NS</span><span class="logo-name">NameSilo</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/porkbun.svg" alt="" width="26" height="26"><span class="logo-name">Porkbun</span></div>
+      <div class="logo"><span class="logo-mark">Sp</span><span class="logo-name">Spaceship</span></div>
+      <div class="logo logo-more"><span class="logo-mark">+</span><span class="logo-name">More coming</span></div>
+    </div>
+    <p class="logos-foot">Each connects with one API key from your account there. Add it in <b>Settings → Registrars</b> — DomBot shows you exactly where to find it.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ MCP ═══════════════ -->
+<section id="mcp">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Connect an AI agent</span>
+      <h2>Your portfolio, over MCP.</h2>
+      <p>DomBot runs a local <a href="https://modelcontextprotocol.io">Model Context Protocol</a> server, bound to <code class="mono">127.0.0.1</code> only and never exposed off your machine.</p>
+    </div>
+
+    <div class="mcp-install">
+      <p class="mcp-install-label">Add DomBot to Claude Code, then click <strong>Approve</strong> in the app:</p>
+      <pre>claude mcp add --transport http dombot <span class="a">http://127.0.0.1:4123/mcp</span></pre>
+    </div>
+
+    <h3 class="mcp-features-head">What agents can do</h3>
+    <ul class="mcp-list">
+      <li>List Portfolio</li>
+      <li>Check Availability &amp; Pricing</li>
+      <li>Set Nameservers</li>
+      <li>Set DNS Records</li>
+      <li>Manage Contacts &amp; Forwarding</li>
+      <li>Set Auto-Renew &amp; Lock</li>
+      <li>Register, Renew &amp; Transfer</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ═══════════════ FEATURES ═══════════════ -->
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">What it does</span>
+      <h2>One console for a portfolio that lives in a dozen places.</h2>
+      <p>Registrars each have their own dashboard, login, and idea of “expiring soon.” DomBot makes the portfolio one thing again.</p>
+    </div>
+
+    <div class="features">
+      <div class="feature">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 2h6M9 14h.01M15 14h.01M9 20v2M15 20v2"/></svg></span>
+        <div class="txt"><h3>Built-in MCP server</h3><p>Desktop app and MCP server in one — agents work the same portfolio you do.</p></div>
+      </div>
+      <div class="feature">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 4-6"/></svg></span>
+        <div class="txt"><h3>Renewal forecasting</h3><p>Yearly spend, what’s due next, month by month — by registrar and TLD.</p></div>
+      </div>
+      <div class="feature">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14"/></svg></span>
+        <div class="txt"><h3>Export to CSV</h3><p>One click exports the current filtered view — spreadsheet-ready.</p></div>
+      </div>
+      <div class="feature">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span>
+        <div class="txt"><h3>Local-first</h3><p>Your portfolio is cached on-device and opens instantly. No telemetry.</p></div>
+      </div>
+      <div class="feature">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+        <div class="txt"><h3>Encrypted keys</h3><p>API keys are sealed in the OS keystore — Keychain or DPAPI.</p></div>
+      </div>
+      <div class="feature">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></span>
+        <div class="txt"><h3>Open source</h3><p>The whole app is public — read exactly what it does, or build it yourself.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ DOWNLOAD ═══════════════ -->
+<section id="download">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Download</span>
+      <h2>Download DomBot</h2>
+    </div>
+
+    <div class="dl-grid">
+      <div class="dl-card" data-os="mac">
+        <span class="detected-chip">Your system</span>
+        <div class="os">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.6-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.1-2.9.9-3.6.9s-1.9-.9-3.1-.8c-1.6 0-3 .9-3.8 2.4-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2-.05 1.6-.75 3-.75s1.8.75 3 .73c1.2-.02 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.02-.01-2.5-1-2.5-3.9zM14 5.3c.65-.8 1.1-1.9 1-3-.95.04-2.1.63-2.8 1.42-.6.7-1.15 1.83-1 2.9 1.05.08 2.15-.53 2.8-1.32z"/></svg>
+          macOS
+        </div>
+        <span class="meta">Apple Silicon &amp; Intel</span>
+        <div class="assets">
+          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Apple Silicon (.dmg) <span class="fmt">arm64</span></a>
+          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Intel (.dmg) <span class="fmt">x64</span></a>
+        </div>
+        <p class="dl-note"><b>First open:</b> right-click → Open. If it says “damaged,” run <code>xattr -dr com.apple.quarantine /Applications/dombot.app</code></p>
+      </div>
+
+      <div class="dl-card" data-os="win">
+        <span class="detected-chip">Your system</span>
+        <div class="os">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5l7.5-1v7.2H3zM11.3 4.4L21 3v8.7h-9.7zM3 12.5h7.5v7.2L3 18.5zM11.3 12.5H21V21l-9.7-1.4z"/></svg>
+          Windows
+        </div>
+        <span class="meta">Windows 10 / 11 · x64</span>
+        <div class="assets">
+          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Installer (Setup.exe) <span class="fmt">x64</span></a>
+        </div>
+        <p class="dl-note"><b>First open:</b> SmartScreen → More info → Run anyway.</p>
+      </div>
+
+      <div class="dl-card" data-os="linux">
+        <span class="detected-chip">Your system</span>
+        <div class="os">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c-1.7 0-3 1.6-3 3.6 0 1.2.2 1.7.2 2.7 0 .9-1.2 2.2-1.9 3.6-.7 1.3-1.7 2.7-1.7 4.4 0 .5.1.9.3 1.3-.3.4-.5.9-.5 1.4 0 1 .7 1.6 1.7 1.9.9.3 2 .5 2.7 1.1.5.4 1.2.6 1.9.6s1.4-.2 1.9-.6c.7-.6 1.8-.8 2.7-1.1 1-.3 1.7-.9 1.7-1.9 0-.5-.2-1-.5-1.4.2-.4.3-.8.3-1.3 0-1.7-1-3.1-1.7-4.4-.7-1.4-1.9-2.7-1.9-3.6 0-1 .2-1.5.2-2.7C15 3.6 13.7 2 12 2zm-1.4 4.1c.3 0 .5.3.5.7s-.2.7-.5.7-.5-.3-.5-.7.2-.7.5-.7zm2.8 0c.3 0 .5.3.5.7s-.2.7-.5.7-.5-.3-.5-.7.2-.7.5-.7z"/></svg>
+          Linux
+        </div>
+        <span class="meta">.deb · .rpm · .zip</span>
+        <div class="assets">
+          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Debian / Ubuntu (.deb) <span class="fmt">amd64</span></a>
+          <a href="https://github.com/aoxborrow/dombot/releases" data-dl>Fedora / RHEL (.rpm) <span class="fmt">x86_64</span></a>
+        </div>
+        <p class="dl-note">No gatekeeper — just install the package.</p>
+      </div>
+    </div>
+    <p class="dl-foot">All builds live on <a href="https://github.com/aoxborrow/dombot/releases">GitHub Releases</a>. Checksums are published with each release — verify your download before opening.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ FAQ / DOCS ═══════════════ -->
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">FAQ</span>
+      <h2>Frequently asked questions</h2>
+    </div>
+
+    <div class="faq">
+      <div class="faq-item">
+        <h3>Is DomBot really free?</h3>
+        <p>Yes. The desktop app is free and open source, and stays that way. Optional paid data services may arrive later, but they’re opt-in and separate from the app you download.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Where do my keys and data live?</h3>
+        <p>On your machine. Your portfolio is cached locally and your API keys are encrypted with the OS keystore (Keychain / DPAPI). The free app talks only to your registrars — never to a DomBot server.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Do agents need my approval?</h3>
+        <p>Yes. You approve each MCP client inside DomBot before it can connect, and you can revoke any client anytime in Settings → MCP Clients.</p>
+      </div>
+      <div class="faq-item">
+        <h3>How do I add a registrar?</h3>
+        <p>Create an API key in that registrar’s account, then paste it into <b>Settings → Registrars</b> and hit <b>Test</b>. DomBot shows exactly where to find each provider’s key. See the <a href="#registrars">supported registrars</a>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<footer>
+  <div class="wrap foot-in">
+    <a class="brand" href="#top" aria-label="DomBot">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <line x1="16" y1="7" x2="16" y2="3" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="16" cy="2.5" r="1.8" fill="var(--accent)"/>
+        <rect x="4.5" y="7" width="23" height="18" rx="6" fill="var(--accent-fill)"/>
+        <circle cx="12" cy="16" r="2.4" fill="var(--on-accent)"/>
+        <circle cx="20" cy="16" r="2.4" fill="var(--on-accent)"/>
+        <rect x="10.5" y="25" width="4" height="4" rx="1.4" fill="var(--accent-fill)"/>
+        <rect x="17.5" y="25" width="4" height="4" rx="1.4" fill="var(--accent-fill)"/>
+      </svg>
+      DomBot
+    </a>
+    <div class="foot-links">
+      <a href="#registrars">Registrars</a>
+      <a href="#mcp">MCP</a>
+      <a href="#features">Features</a>
+      <a href="#download">Download</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/aoxborrow/dombot">GitHub</a>
+      <a href="https://github.com/aoxborrow/dombot/releases">Releases</a>
+    </div>
+    <span class="foot-note">Free · open source · your keys, your machine</span>
+  </div>
+</footer>
+
+<script type="module" src="./src/main.js"></script>
+
+</body>
+</html>
