@@ -32,6 +32,11 @@ export const IpcChannels = {
   revokeMcpClient: 'mcp:revokeClient',
   hydrateFromCache: 'cache:hydrate',
   clearAllCaches: 'cache:clearAll',
+  foldersList: 'folders:list',
+  foldersCreate: 'folders:create',
+  foldersUpdate: 'folders:update',
+  foldersDelete: 'folders:delete',
+  foldersAssign: 'folders:assign',
 } as const;
 
 /** Event (main → renderer) fired when the pending-approval set changes. */
@@ -205,6 +210,93 @@ export interface CachedSnapshot {
   pricing: Record<string, RenewalPricing>;
 }
 
+// ── Folders ─────────────────────────────────────────────────────────────────
+
+/**
+ * Palette key for a folder's color. The renderer maps this to theme-aware
+ * Tailwind classes (see renderer/lib/folders.ts); main only ever stores and
+ * returns the key, so it stays presentation-agnostic.
+ */
+export type FolderColor =
+  | 'gray'
+  | 'red'
+  | 'orange'
+  | 'amber'
+  | 'green'
+  | 'teal'
+  | 'blue'
+  | 'indigo'
+  | 'violet'
+  | 'pink';
+
+/** Every palette key, in display order — the source of truth for the picker. */
+export const FOLDER_COLORS: FolderColor[] = [
+  'gray',
+  'red',
+  'orange',
+  'amber',
+  'green',
+  'teal',
+  'blue',
+  'indigo',
+  'violet',
+  'pink',
+];
+
+/**
+ * Reserved id for the built-in "Hidden" folder. Assigning a domain to it hides
+ * the domain from the table by default; it's surfaced again by selecting Hidden
+ * in the Folder filter. Not a real folder — it isn't stored in the folders list
+ * and has no color — but it's a valid assignment target.
+ */
+export const HIDDEN_FOLDER_ID = '__hidden__';
+
+/**
+ * Future per-folder configuration that cascades to the folder's domains. Kept
+ * as an optional bag so new keys are purely additive; empty/absent today. The
+ * motivating case is `forSale` — not yet acted on anywhere.
+ */
+export interface FolderSettings {
+  /** Marks the folder's domains as listed for sale. Groundwork only. */
+  forSale?: boolean;
+  // future: autoRenew?: boolean; nameserverProfile?: string; ...
+}
+
+/** A user-defined folder for organizing domains (name, description, color). */
+export interface Folder {
+  /** Stable id (crypto.randomUUID() in main). */
+  id: string;
+  name: string;
+  /** Short, may be empty. */
+  description: string;
+  color: FolderColor;
+  /** Per-folder config; absent until a feature uses it. */
+  settings?: FolderSettings;
+}
+
+/** Fields a caller supplies when creating a folder (id is assigned in main). */
+export interface FolderInput {
+  name: string;
+  description: string;
+  color: FolderColor;
+}
+
+/** A patch to an existing folder — any subset of its editable fields. */
+export type FolderPatch = Partial<
+  Pick<Folder, 'name' | 'description' | 'color' | 'settings'>
+>;
+
+/**
+ * Everything the renderer restores on launch: the folder definitions plus the
+ * domain→folder map (keyed `${registrar}:${domainName}`). Mirrors the shape of
+ * CachedSnapshot. A domain absent from `assignments` is unassigned.
+ */
+export interface FoldersSnapshot {
+  folders: Folder[];
+  /** domainKey → folderId. */
+  assignments: Record<string, string>;
+}
+
 /**
  * The API surface exposed on `window.api` by the preload script. Add new
  * methods here and they become type-checked on both sides of the bridge.
@@ -286,4 +378,16 @@ export interface DombotApi {
   revokeMcpClient: (clientId: string) => Promise<void>;
   /** Subscribe to pending-approval changes. Returns an unsubscribe function. */
   onApprovalsChanged: (callback: () => void) => () => void;
+
+  // Folders
+  /** The folder definitions plus the domain→folder map, read from disk. */
+  getFolders: () => Promise<FoldersSnapshot>;
+  /** Create a folder and return it (with its freshly-assigned id). */
+  createFolder: (input: FolderInput) => Promise<Folder>;
+  /** Patch a folder's editable fields. */
+  updateFolder: (id: string, patch: FolderPatch) => Promise<void>;
+  /** Delete a folder and drop every assignment pointing at it. */
+  deleteFolder: (id: string) => Promise<void>;
+  /** Assign a domain to a folder, or unassign it with a null folderId. */
+  assignFolder: (domainKey: string, folderId: string | null) => Promise<void>;
 }

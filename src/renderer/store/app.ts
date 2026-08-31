@@ -3,6 +3,9 @@ import type {
   Aftermarket,
   AppInfo,
   Domain,
+  Folder,
+  FolderInput,
+  FolderPatch,
   McpInfo,
   PortfolioErrorInfo,
   RegistrarName,
@@ -30,17 +33,6 @@ const pricingInFlight = new Set<string>();
 let detailAllInFlight = false;
 let marketAllInFlight = false;
 
-// Persisted UI preference: whether the bottom status bar is shown. Defaults to
-// visible; a missing/unreadable value falls back to that.
-const STATUS_BAR_KEY = 'dombot.statusBarVisible';
-function readStatusBarVisible(): boolean {
-  try {
-    return localStorage.getItem(STATUS_BAR_KEY) !== '0';
-  } catch {
-    return true;
-  }
-}
-
 interface AppState {
   appInfo: AppInfo | null;
   mcpInfo: McpInfo | null;
@@ -50,11 +42,6 @@ interface AppState {
   loadAppInfo: () => Promise<void>;
   loadMcpInfo: () => Promise<void>;
   loadDynadotDomains: () => Promise<void>;
-
-  /** Whether the app-wide bottom status bar is shown. Persisted per-user in
-   * localStorage; a UI-only preference, so it never touches the on-disk caches. */
-  statusBarVisible: boolean;
-  setStatusBarVisible: (visible: boolean) => void;
 
   // Aggregated portfolio across every configured registrar.
   portfolio: Domain[];
@@ -122,6 +109,20 @@ interface AppState {
     price: number | null,
   ) => Promise<void>;
   refreshPricing: () => Promise<void>;
+
+  // User-defined folders for organizing domains, plus the domain→folder map
+  // (keyed `${registrar}:${domainName}`, the same key as `pricing`/`enriched`).
+  // Folders are user data, not cache — `clearAllCaches` leaves them untouched.
+  folders: Folder[];
+  folderAssignments: Record<string, string>;
+  /** Load folder definitions + assignments from disk. Called once on launch. */
+  loadFolders: () => Promise<void>;
+  createFolder: (input: FolderInput) => Promise<Folder>;
+  updateFolder: (id: string, patch: FolderPatch) => Promise<void>;
+  /** Delete a folder; also drops any local assignments pointing at it. */
+  deleteFolder: (id: string) => Promise<void>;
+  /** Assign a domain to a folder, or unassign it with a null folderId. */
+  assignFolder: (domainKey: string, folderId: string | null) => Promise<void>;
 }
 
 /** Global renderer store. Kept intentionally small — grow it as needed. */
@@ -138,17 +139,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadMcpInfo: async () => {
     const mcpInfo = await window.api.getMcpInfo();
     set({ mcpInfo });
-  },
-
-  statusBarVisible: readStatusBarVisible(),
-  setStatusBarVisible: (visible) => {
-    try {
-      localStorage.setItem(STATUS_BAR_KEY, visible ? '1' : '0');
-    } catch {
-      // localStorage can throw (private mode, disabled storage); the toggle
-      // still works for this session even if the preference isn't persisted.
-    }
-    set({ statusBarVisible: visible });
   },
   loadDynadotDomains: async () => {
     set({ domainsLoading: true, domainsError: null });
@@ -469,5 +459,46 @@ export const useAppStore = create<AppState>((set, get) => ({
     pricingInFlight.clear();
     set({ pricing: {} });
     await get().loadPricingAll(get().portfolio);
+  },
+
+  folders: [],
+  folderAssignments: {},
+  loadFolders: async () => {
+    const { folders, assignments } = await window.api.getFolders();
+    set({ folders, folderAssignments: assignments });
+  },
+  createFolder: async (input) => {
+    const folder = await window.api.createFolder(input);
+    set((state) => ({ folders: [...state.folders, folder] }));
+    return folder;
+  },
+  updateFolder: async (id, patch) => {
+    await window.api.updateFolder(id, patch);
+    set((state) => ({
+      folders: state.folders.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+    }));
+  },
+  deleteFolder: async (id) => {
+    await window.api.deleteFolder(id);
+    set((state) => {
+      // Mirror the service: drop the folder and any assignments pointing at it.
+      const folderAssignments: Record<string, string> = {};
+      for (const [key, folderId] of Object.entries(state.folderAssignments)) {
+        if (folderId !== id) folderAssignments[key] = folderId;
+      }
+      return {
+        folders: state.folders.filter((f) => f.id !== id),
+        folderAssignments,
+      };
+    });
+  },
+  assignFolder: async (domainKey, folderId) => {
+    await window.api.assignFolder(domainKey, folderId);
+    set((state) => {
+      const folderAssignments = { ...state.folderAssignments };
+      if (folderId === null) delete folderAssignments[domainKey];
+      else folderAssignments[domainKey] = folderId;
+      return { folderAssignments };
+    });
   },
 }));

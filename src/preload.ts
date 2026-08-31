@@ -56,6 +56,15 @@ const api: DombotApi = {
     return () =>
       ipcRenderer.removeListener(IpcEvents.approvalsChanged, listener);
   },
+
+  // Folders
+  getFolders: () => ipcRenderer.invoke(IpcChannels.foldersList),
+  createFolder: (input) => ipcRenderer.invoke(IpcChannels.foldersCreate, input),
+  updateFolder: (id, patch) =>
+    ipcRenderer.invoke(IpcChannels.foldersUpdate, id, patch),
+  deleteFolder: (id) => ipcRenderer.invoke(IpcChannels.foldersDelete, id),
+  assignFolder: (domainKey, folderId) =>
+    ipcRenderer.invoke(IpcChannels.foldersAssign, domainKey, folderId),
 };
 
 contextBridge.exposeInMainWorld('api', api);

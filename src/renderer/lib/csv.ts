@@ -1,7 +1,13 @@
 // Builds the Domains-page CSV export. Kept separate from the page component so
 // the column model and formatting are easy to read and test in isolation.
 
-import type { Aftermarket, Domain, MarketListing } from '../../shared/ipc';
+import {
+  HIDDEN_FOLDER_ID,
+  type Aftermarket,
+  type Domain,
+  type Folder,
+  type MarketListing,
+} from '../../shared/ipc';
 
 /** id → nicely capitalized registrar name, e.g. dynadot → "Dynadot". */
 type RegistrarLabels = Record<string, string>;
@@ -65,6 +71,7 @@ interface CsvColumn {
     d: Domain,
     labels: RegistrarLabels,
     aftermarket: Record<string, Aftermarket | null>,
+    folderName: (d: Domain) => string,
   ) => string;
 }
 
@@ -75,6 +82,10 @@ const CSV_COLUMNS: CsvColumn[] = [
   {
     header: 'Registrar',
     value: (d, labels) => labels[d.registrar] ?? d.registrar,
+  },
+  {
+    header: 'Folder',
+    value: (d, _labels, _aftermarket, folderName) => folderName(d),
   },
   { header: 'Status', value: (d) => d.status },
   { header: 'Created', value: (d) => isoDate(d.createdDate) },
@@ -102,13 +113,24 @@ export function domainsToCsv(
   domains: Domain[],
   labels: RegistrarLabels,
   aftermarket: Record<string, Aftermarket | null>,
+  folders: Folder[],
+  assignments: Record<string, string>,
 ): string {
+  const nameById = new Map(folders.map((f) => [f.id, f.name]));
+  // The assigned folder's name, "Hidden" for the built-in hidden folder, or
+  // empty when unassigned or the folder is gone.
+  const folderName = (d: Domain): string => {
+    const id = assignments[`${d.registrar}:${d.domainName}`];
+    if (id === HIDDEN_FOLDER_ID) return 'Hidden';
+    return nameById.get(id ?? '') ?? '';
+  };
+
   const rows: string[] = [CSV_COLUMNS.map((c) => csvField(c.header)).join(',')];
   for (const d of domains) {
     rows.push(
-      CSV_COLUMNS.map((c) => csvField(c.value(d, labels, aftermarket))).join(
-        ',',
-      ),
+      CSV_COLUMNS.map((c) =>
+        csvField(c.value(d, labels, aftermarket, folderName)),
+      ).join(','),
     );
   }
   return rows.join('\r\n');

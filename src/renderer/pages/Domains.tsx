@@ -9,6 +9,9 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  Building2,
+  CalendarClock,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -20,25 +23,30 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
-  Loader2,
+  Folder as FolderIcon,
+  Globe,
   Lock,
   LockOpen,
   RefreshCw,
   RefreshCwOff,
   Search,
+  Server,
+  Tag,
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
 import type {
   Aftermarket,
   Domain,
+  Folder,
   MarketListing,
   RenewalPricing,
 } from '../../shared/ipc';
-import { STALE_AFTER_MS } from '../../shared/ipc';
+import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
+import { folderColorStyle } from '../lib/folders';
 import { timeAgo } from '../lib/time';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -53,8 +61,18 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Empty,
@@ -171,6 +189,11 @@ function fmtPrice(l: MarketListing): string {
 
 const AFTERNIC = 'afternic';
 
+/** Sort sentinel for the injected Folder column (folders aren't a Domain field). */
+const FOLDER = 'folder';
+/** Filter value matching domains with no folder assigned. */
+const UNASSIGNED = '__unassigned__';
+
 /** The Afternic listing for a domain, if any. */
 function afternicListing(
   info: Aftermarket | null | undefined,
@@ -229,6 +252,8 @@ function AfternicCell({
     <button
       type="button"
       onClick={() => onOpen(info.detailUrl)}
+      // Don't let the click bubble to the row trigger (which opens the row menu).
+      onPointerDown={(e) => e.stopPropagation()}
       title={`Afternic: ${fmtPrice(listing)}`}
       className="group inline-flex items-baseline gap-1 hover:underline"
     >
@@ -273,6 +298,125 @@ function RenewalCell({
     >
       {fmtUsd(info.renewal)}
     </span>
+  );
+}
+
+/**
+ * The Folder cell: a small colored folder icon plus the folder name when the
+ * domain is in a folder, a muted "Hidden" (eye-off) for the built-in hidden
+ * folder, or a muted dash when unassigned. Display only — assigning is done from
+ * the row menu.
+ */
+function FolderCell({
+  folders,
+  folderId,
+}: {
+  folders: Folder[];
+  folderId: string | undefined;
+}) {
+  if (folderId === HIDDEN_FOLDER_ID) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"
+        title="Hidden"
+      >
+        <EyeOff className="size-3.5 shrink-0" />
+        Hidden
+      </span>
+    );
+  }
+  const current = folderId ? folders.find((f) => f.id === folderId) : undefined;
+  if (!current) return <span className="text-muted-foreground/40">—</span>;
+  return (
+    <span
+      className="inline-flex max-w-full items-center gap-1.5 text-sm"
+      title={`Folder: ${current.name}`}
+    >
+      <FolderIcon
+        className={cn(
+          'size-3.5 shrink-0',
+          folderColorStyle(current.color).text,
+        )}
+      />
+      <span className="truncate">{current.name}</span>
+    </span>
+  );
+}
+
+/**
+ * The menu shown when a domain row is clicked (the whole row is the trigger).
+ * Visit the domain, or assign it to a folder (single-select submenu). The
+ * submenu ends with "None" (clear) and the built-in "Hidden" folder, which drops
+ * the domain from the table. Rendered inside a <DropdownMenu> whose trigger is
+ * the row.
+ */
+function RowMenuContent({
+  folders,
+  folderId,
+  onAssign,
+  onVisit,
+}: {
+  folders: Folder[];
+  folderId: string | undefined;
+  onAssign: (folderId: string | null) => void;
+  onVisit: () => void;
+}) {
+  return (
+    <DropdownMenuContent align="start" className="w-44">
+      <DropdownMenuItem onSelect={onVisit}>
+        <ExternalLink />
+        Visit domain
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          <FolderIcon />
+          Folder
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="max-h-[320px] max-w-[240px] overflow-y-auto">
+          {folders.map((f) => (
+            <DropdownMenuItem
+              key={f.id}
+              className="gap-1.5"
+              onSelect={() => onAssign(f.id)}
+            >
+              <FolderIcon
+                className={cn(
+                  'size-3.5 shrink-0',
+                  folderColorStyle(f.color).text,
+                )}
+                aria-hidden
+              />
+              <span className="flex-1 truncate">{f.name}</span>
+              {f.id === folderId && (
+                <Check className="size-3.5 shrink-0 text-muted-foreground" />
+              )}
+            </DropdownMenuItem>
+          ))}
+          {folders.length > 0 && <DropdownMenuSeparator />}
+          <DropdownMenuItem className="gap-1.5" onSelect={() => onAssign(null)}>
+            {/* Spacer keeps "None" aligned with the icon'd rows. */}
+            <span className="size-3.5 shrink-0" aria-hidden />
+            <span className="flex-1">None</span>
+            {folderId === undefined && (
+              <Check className="size-3.5 shrink-0 text-muted-foreground" />
+            )}
+          </DropdownMenuItem>
+          {/* Hidden is a built-in folder: assigning to it drops the domain from
+              the table until "Hidden" is picked in the Folder filter. */}
+          <DropdownMenuItem
+            className="gap-1.5"
+            onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
+          >
+            <EyeOff className="size-3.5 shrink-0" aria-hidden />
+            <span className="flex-1">Hidden</span>
+            {folderId === HIDDEN_FOLDER_ID && (
+              <Check className="size-3.5 shrink-0 text-muted-foreground" />
+            )}
+          </DropdownMenuItem>
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    </DropdownMenuContent>
   );
 }
 
@@ -384,7 +528,6 @@ const COLUMNS: Column[] = [
   {
     key: 'createdDate',
     label: 'Created',
-    align: 'right',
     render: (d) => (
       <span className="font-mono text-muted-foreground">
         {fmtDate(d.createdDate)}
@@ -560,16 +703,17 @@ export default function Domains() {
     enriched,
     enriching,
     enrichVisible,
-    detailAllLoading,
     loadAllDetail,
     aftermarket,
     marketLoading,
     loadAftermarketVisible,
-    marketAllLoading,
     loadAllMarket,
     pricing,
     pricingLoading,
     loadPricingAll,
+    folders,
+    folderAssignments,
+    assignFolder,
   } = useAppStore();
 
   const openExternal = (url: string) => void window.api.openExternal(url);
@@ -587,6 +731,7 @@ export default function Domains() {
   const [registrar, setRegistrar] = useState<string[]>([]);
   const [expiry, setExpiry] = useState<string[]>([]);
   const [ns, setNs] = useState<string[]>([]);
+  const [folder, setFolder] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [sortKey, setSortKey] = useState('domainName');
@@ -631,22 +776,45 @@ export default function Domains() {
     return () => clearTimeout(t);
   }, [portfolioLoadedAt]);
 
-  // Distinct filter options, derived from the loaded portfolio.
-  const tlds = useMemo(
+  // Distinct filter options with per-option domain counts, derived from the
+  // loaded portfolio. Counts are over the whole portfolio (independent of the
+  // other active filters), matching the Nameservers and Folder filters.
+  const tldOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of portfolio) {
+      const t = tldOf(d.domainName);
+      if (t) counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+    return Array.from(counts, ([value, count]) => ({
+      value,
+      label: `.${value}`,
+      count,
+    })).sort((a, b) => a.value.localeCompare(b.value));
+  }, [portfolio]);
+  const registrarOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of portfolio)
+      counts.set(d.registrar, (counts.get(d.registrar) ?? 0) + 1);
+    return Array.from(counts, ([value, count]) => ({
+      value,
+      label: registrarLabel(value, portfolioRegistrarLabels),
+      count,
+    })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [portfolio, portfolioRegistrarLabels]);
+  // Expiration windows are cumulative, so their counts intentionally overlap
+  // (a domain due in 20 days matches the 30-, 60-, and 90-day options).
+  const expiryOptions = useMemo(
     () =>
-      Array.from(new Set(portfolio.map((d) => tldOf(d.domainName))))
-        .filter(Boolean)
-        .sort(),
-    [portfolio],
-  );
-  const registrars = useMemo(
-    () =>
-      Array.from(new Set(portfolio.map((d) => d.registrar))).sort((a, b) =>
-        registrarLabel(a, portfolioRegistrarLabels).localeCompare(
-          registrarLabel(b, portfolioRegistrarLabels),
+      EXPIRY_OPTIONS.map((o) => ({
+        ...o,
+        count: portfolio.reduce(
+          (n, d) =>
+            n +
+            (matchesExpiryOption(o.value, daysUntil(d.expirationDate)) ? 1 : 0),
+          0,
         ),
-      ),
-    [portfolio, portfolioRegistrarLabels],
+      })),
+    [portfolio],
   );
 
   // Nameserver groups (by base domain, with per-provider splits) plus the set of
@@ -678,6 +846,36 @@ export default function Domains() {
     })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
     return { nsGroups: groups, nsKeysByDomain: keysByDomain };
   }, [merged]);
+
+  // Folder filter options: one per folder (with its assigned-domain count over
+  // the whole portfolio), an "Unassigned" bucket, and an always-present "Hidden"
+  // bucket for the built-in hidden folder. A dangling assignment (its folder was
+  // deleted) counts as unassigned. `hiddenCount` also lets the Folder filter show
+  // when the user has hidden domains but no folders of their own.
+  const { folderOptions, hiddenCount } = useMemo(() => {
+    const counts: Record<string, number> = {};
+    let unassigned = 0;
+    let hidden = 0;
+    for (const d of portfolio) {
+      const id = folderAssignments[`${d.registrar}:${d.domainName}`];
+      if (id === HIDDEN_FOLDER_ID) {
+        hidden += 1;
+      } else if (id && folders.some((f) => f.id === id)) {
+        counts[id] = (counts[id] ?? 0) + 1;
+      } else {
+        unassigned += 1;
+      }
+    }
+    const opts = folders.map((f) => ({
+      value: f.id,
+      label: f.name,
+      count: counts[f.id] ?? 0,
+    }));
+    opts.push({ value: UNASSIGNED, label: 'Unassigned', count: unassigned });
+    // Always offer Hidden so it's a discoverable way to reveal hidden domains.
+    opts.push({ value: HIDDEN_FOLDER_ID, label: 'Hidden', count: hidden });
+    return { folderOptions: opts, hiddenCount: hidden };
+  }, [portfolio, folders, folderAssignments]);
 
   // Validate the price inputs, then derive the bounds actually applied. A field
   // error (or min > max) leaves the range unapplied until it's corrected.
@@ -713,6 +911,24 @@ export default function Domains() {
         const keys = nsKeysByDomain.get(`${d.registrar}:${d.domainName}`);
         if (!keys || !ns.some((k) => keys.has(k))) return false;
       }
+      // Folder: resolve each domain to a bucket — a real folder id, the built-in
+      // Hidden id, or "Unassigned" (no folder, or a dangling assignment). With a
+      // folder filter active, keep only domains whose bucket is selected. With no
+      // folder filter, hide the Hidden bucket (that's the whole point of hiding).
+      {
+        const id = folderAssignments[`${d.registrar}:${d.domainName}`];
+        const bucket =
+          id === HIDDEN_FOLDER_ID
+            ? HIDDEN_FOLDER_ID
+            : id && folders.some((f) => f.id === id)
+              ? id
+              : UNASSIGNED;
+        if (folder.length > 0) {
+          if (!folder.includes(bucket)) return false;
+        } else if (bucket === HIDDEN_FOLDER_ID) {
+          return false;
+        }
+      }
       // Afternic price range. With any bound set, unlisted/offer-only domains
       // (no numeric price) are excluded.
       if (priceFilterActive) {
@@ -733,6 +949,10 @@ export default function Domains() {
       }
       if (sortKey === RENEWAL) {
         return pricing[`${d.registrar}:${d.domainName}`]?.renewal ?? null;
+      }
+      if (sortKey === FOLDER) {
+        const id = folderAssignments[`${d.registrar}:${d.domainName}`];
+        return folders.find((f) => f.id === id)?.name.toLowerCase() ?? null;
       }
       return col.sortValue(d, portfolioRegistrarLabels);
     };
@@ -758,6 +978,9 @@ export default function Domains() {
     expiry,
     ns,
     nsKeysByDomain,
+    folder,
+    folders,
+    folderAssignments,
     priceFilterActive,
     minValue,
     maxValue,
@@ -838,7 +1061,13 @@ export default function Domains() {
   async function exportCsv() {
     setExporting(true);
     try {
-      const csv = domainsToCsv(filtered, portfolioRegistrarLabels, aftermarket);
+      const csv = domainsToCsv(
+        filtered,
+        portfolioRegistrarLabels,
+        aftermarket,
+        folders,
+        folderAssignments,
+      );
       const result = await window.api.saveCsv(csv, csvFilename());
       if (!result.saved) return; // user cancelled the dialog
       const name = result.path?.split(/[/\\]/).pop() ?? 'file';
@@ -1000,20 +1229,9 @@ export default function Domains() {
               </div>
 
               <MultiSelectFilter
-                label="TLD"
-                options={tlds.map((t) => ({ value: t, label: `.${t}` }))}
-                selected={tld}
-                onChange={(next) => {
-                  setTld(next);
-                  setPage(0);
-                }}
-              />
-              <MultiSelectFilter
                 label="Registrar"
-                options={registrars.map((id) => ({
-                  value: id,
-                  label: registrarLabel(id, portfolioRegistrarLabels),
-                }))}
+                icon={Building2}
+                options={registrarOptions}
                 selected={registrar}
                 onChange={(next) => {
                   setRegistrar(next);
@@ -1021,27 +1239,52 @@ export default function Domains() {
                 }}
               />
               <MultiSelectFilter
-                label="Expiration"
-                options={EXPIRY_OPTIONS}
-                selected={expiry}
+                label="TLD"
+                icon={Globe}
+                options={tldOptions}
+                selected={tld}
                 onChange={(next) => {
-                  setExpiry(next);
+                  setTld(next);
                   setPage(0);
                 }}
               />
               <MultiSelectFilter
                 label="Nameservers"
+                icon={Server}
                 options={nsGroups}
                 selected={ns}
                 onChange={(next) => {
                   setNs(next);
                   setPage(0);
                 }}
-                loading={detailAllLoading}
               />
+              <MultiSelectFilter
+                label="Expiration"
+                icon={CalendarClock}
+                options={expiryOptions}
+                selected={expiry}
+                onChange={(next) => {
+                  setExpiry(next);
+                  setPage(0);
+                }}
+              />
+              {/* Offer the Folder filter once there's anything to filter by —
+                  a folder of the user's own, or hidden domains to reveal. */}
+              {(folders.length > 0 || hiddenCount > 0) && (
+                <MultiSelectFilter
+                  label="Folder"
+                  icon={FolderIcon}
+                  options={folderOptions}
+                  selected={folder}
+                  onChange={(next) => {
+                    setFolder(next);
+                    setPage(0);
+                  }}
+                />
+              )}
 
-              {/* Afternic price range — one combined min/max control */}
-              <PriceRangeInput
+              {/* Afternic price range — a dropdown holding the min/max inputs */}
+              <PriceRangeFilter
                 min={minPrice}
                 max={maxPrice}
                 onMinChange={(v) => {
@@ -1054,13 +1297,11 @@ export default function Domains() {
                 }}
                 minInvalid={Boolean(minParsed.error) || Boolean(rangeError)}
                 maxInvalid={Boolean(maxParsed.error) || Boolean(rangeError)}
-                loading={marketAllLoading}
+                minValue={minValue}
+                maxValue={maxValue}
+                error={priceError}
               />
             </div>
-
-            {priceError && (
-              <p className="text-xs text-destructive">{priceError}</p>
-            )}
           </div>
 
           {/* Table */}
@@ -1122,6 +1363,32 @@ export default function Domains() {
                             </button>
                           </TableHead>
                         )}
+                        {/* Folder sits right after Afternic, before Registrar. */}
+                        {i === 0 && (
+                          <TableHead>
+                            <button
+                              type="button"
+                              onClick={() => toggleSort(FOLDER)}
+                              className={cn(
+                                'inline-flex select-none items-center gap-1 hover:text-foreground',
+                                sortKey === FOLDER && 'text-foreground',
+                              )}
+                            >
+                              Folder
+                              {(() => {
+                                const FdIcon =
+                                  sortKey !== FOLDER
+                                    ? ChevronsUpDown
+                                    : sortDir === 'asc'
+                                      ? ArrowUp
+                                      : ArrowDown;
+                                return (
+                                  <FdIcon className="size-3.5 opacity-70" />
+                                );
+                              })()}
+                            </button>
+                          </TableHead>
+                        )}
                         {/* Renewal price sits right before the Auto-Renew flag. */}
                         {col.key === 'expirationDate' && (
                           <TableHead className="text-right">
@@ -1155,51 +1422,76 @@ export default function Domains() {
               </TableHeader>
               <TableBody>
                 {visible.map((d) => {
-                  const loadingDetail =
-                    enriching[`${d.registrar}:${d.domainName}`] === true;
+                  const key = `${d.registrar}:${d.domainName}`;
+                  const loadingDetail = enriching[key] === true;
                   return (
-                    <TableRow key={`${d.registrar}:${d.domainName}`}>
-                      {COLUMNS.map((col, i) => (
-                        <Fragment key={col.key}>
-                          <TableCell
-                            className={cn(
-                              col.align === 'right' && 'text-right',
-                              col.compact && 'px-1',
-                              col.key === 'domainName' && 'pl-3',
-                            )}
-                          >
-                            {col.detail && loadingDetail ? (
-                              <CellSkeleton align={col.align} />
-                            ) : (
-                              col.render(d, portfolioRegistrarLabels)
-                            )}
-                          </TableCell>
-                          {i === 0 && (
-                            <TableCell className="text-right">
-                              <AfternicCell
-                                info={aftermarket[d.domainName]}
-                                loading={marketLoading[d.domainName] === true}
-                                onOpen={openExternal}
-                              />
-                            </TableCell>
-                          )}
-                          {col.key === 'expirationDate' && (
-                            <TableCell className="text-right">
-                              <RenewalCell
-                                info={pricing[`${d.registrar}:${d.domainName}`]}
-                                loading={pricingLoading}
-                              />
-                            </TableCell>
-                          )}
-                        </Fragment>
-                      ))}
-                    </TableRow>
+                    // The whole row is the trigger: clicking it opens the row
+                    // menu (visit / assign folder / hide). It highlights on
+                    // hover and stays highlighted while its menu is open.
+                    <DropdownMenu key={key}>
+                      <DropdownMenuTrigger asChild>
+                        <TableRow className="cursor-pointer data-[state=open]:bg-muted/50">
+                          {COLUMNS.map((col, i) => (
+                            <Fragment key={col.key}>
+                              <TableCell
+                                className={cn(
+                                  col.align === 'right' && 'text-right',
+                                  col.compact && 'px-1',
+                                  col.key === 'domainName' && 'pl-3',
+                                )}
+                              >
+                                {col.detail && loadingDetail ? (
+                                  <CellSkeleton align={col.align} />
+                                ) : (
+                                  col.render(d, portfolioRegistrarLabels)
+                                )}
+                              </TableCell>
+                              {i === 0 && (
+                                <TableCell className="text-right">
+                                  <AfternicCell
+                                    info={aftermarket[d.domainName]}
+                                    loading={
+                                      marketLoading[d.domainName] === true
+                                    }
+                                    onOpen={openExternal}
+                                  />
+                                </TableCell>
+                              )}
+                              {i === 0 && (
+                                <TableCell>
+                                  <FolderCell
+                                    folders={folders}
+                                    folderId={folderAssignments[key]}
+                                  />
+                                </TableCell>
+                              )}
+                              {col.key === 'expirationDate' && (
+                                <TableCell className="text-right">
+                                  <RenewalCell
+                                    info={pricing[key]}
+                                    loading={pricingLoading}
+                                  />
+                                </TableCell>
+                              )}
+                            </Fragment>
+                          ))}
+                        </TableRow>
+                      </DropdownMenuTrigger>
+                      <RowMenuContent
+                        folders={folders}
+                        folderId={folderAssignments[key]}
+                        onAssign={(folderId) =>
+                          void assignFolder(key, folderId)
+                        }
+                        onVisit={() => openExternal(`https://${d.domainName}`)}
+                      />
+                    </DropdownMenu>
                   );
                 })}
                 {visible.length === 0 && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell
-                      colSpan={COLUMNS.length + 2}
+                      colSpan={COLUMNS.length + 3}
                       className="h-32 text-center text-muted-foreground"
                     >
                       {portfolio.length === 0
@@ -1321,7 +1613,7 @@ function PriceField({
   invalid: boolean;
 }) {
   return (
-    <InputGroup className="w-[95px]">
+    <InputGroup className="w-[105px]">
       <InputGroupAddon className="pl-1.5">$</InputGroupAddon>
       <InputGroupInput
         type="text"
@@ -1337,18 +1629,34 @@ function PriceField({
   );
 }
 
+/** Compact whole-dollar label for the trigger badge, e.g. "$1,200". */
+function fmtBound(n: number): string {
+  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
+/** A short label for the active Afternic price range, or null when none is set. */
+function priceSummary(min: number | null, max: number | null): string | null {
+  if (min !== null && max !== null) return `${fmtBound(min)}–${fmtBound(max)}`;
+  if (min !== null) return `≥ ${fmtBound(min)}`;
+  if (max !== null) return `≤ ${fmtBound(max)}`;
+  return null;
+}
+
 /**
- * Afternic price filter: a plain "Price" label followed by separate min and max
- * fields joined by "to". Each field carries a tiny inline unit label.
+ * Afternic price filter: a filter button (matching the multi-selects) that opens
+ * a popover holding the min/max inputs. The button reflects the active range as
+ * a badge.
  */
-function PriceRangeInput({
+function PriceRangeFilter({
   min,
   max,
   onMinChange,
   onMaxChange,
   minInvalid,
   maxInvalid,
-  loading = false,
+  minValue,
+  maxValue,
+  error,
 }: {
   min: string;
   max: string;
@@ -1356,34 +1664,53 @@ function PriceRangeInput({
   onMaxChange: (value: string) => void;
   minInvalid: boolean;
   maxInvalid: boolean;
-  /** Show a spinner while Afternic prices are still loading across the portfolio
-   * (the filter stays usable — it just isn't complete yet). */
-  loading?: boolean;
+  /** Applied numeric bounds (null when unset/invalid) — drives the badge. */
+  minValue: number | null;
+  maxValue: number | null;
+  /** Validation message shown inside the popover, or null. */
+  error: string | null;
 }) {
+  const summary = priceSummary(minValue, maxValue);
   return (
-    <div className="ml-2 flex items-center gap-2">
-      <span className="text-sm text-muted-foreground">Price</span>
-      <PriceField
-        value={min}
-        onChange={onMinChange}
-        label="min"
-        ariaLabel="Minimum Afternic price"
-        invalid={minInvalid}
-      />
-      <PriceField
-        value={max}
-        onChange={onMaxChange}
-        label="max"
-        ariaLabel="Maximum Afternic price"
-        invalid={maxInvalid}
-      />
-      {loading && (
-        <Loader2
-          className="size-4 animate-spin text-muted-foreground"
-          aria-label="Loading Afternic prices"
-        />
-      )}
-    </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" aria-label="Price" className="gap-1.5">
+          <Tag className="size-4 text-muted-foreground" />
+          Price
+          {summary && (
+            <Badge
+              variant="secondary"
+              className="px-1.5 py-0 text-xs tabular-nums"
+            >
+              {summary}
+            </Badge>
+          )}
+          <ChevronDown className="size-4 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-auto p-3">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <PriceField
+              value={min}
+              onChange={onMinChange}
+              label="min"
+              ariaLabel="Minimum Afternic price"
+              invalid={minInvalid}
+            />
+            <span className="text-muted-foreground">–</span>
+            <PriceField
+              value={max}
+              onChange={onMaxChange}
+              label="max"
+              ariaLabel="Maximum Afternic price"
+              invalid={maxInvalid}
+            />
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -1397,20 +1724,20 @@ function MultiSelectFilter({
   options,
   selected,
   onChange,
-  loading = false,
+  icon: Icon,
 }: {
   label: string;
   options: { value: string; label: string; count?: number }[];
   selected: string[];
   onChange: (next: string[]) => void;
-  /** Show a spinner in the trigger while the underlying data is still loading
-   * (the filter stays usable — it just isn't complete yet). */
-  loading?: boolean;
+  /** Optional leading icon shown before the label in the trigger. */
+  icon?: LucideIcon;
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" aria-label={label} className="gap-1.5">
+          {Icon && <Icon className="size-4 text-muted-foreground" />}
           {label}
           {selected.length > 0 && (
             <Badge
@@ -1420,14 +1747,7 @@ function MultiSelectFilter({
               {selected.length}
             </Badge>
           )}
-          {loading ? (
-            <Loader2
-              className="size-4 animate-spin text-muted-foreground"
-              aria-label="Loading"
-            />
-          ) : (
-            <ChevronDown className="size-4 text-muted-foreground" />
-          )}
+          <ChevronDown className="size-4 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
