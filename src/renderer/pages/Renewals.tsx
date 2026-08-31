@@ -173,14 +173,20 @@ export default function Renewals() {
     [portfolio, pricing],
   );
 
-  // Donut slices: one registrar donut sized by (estimated) spend with domain
-  // count in the legend, and a TLD donut by count.
-  const regSpend = useMemo(
+  // Donut slices. Kept side by side for comparison: the original spend-only
+  // registrar donut, the newer combined one (estimated spend + count), and a
+  // TLD donut by count.
+  const regSpendOld = useMemo(
+    () => toSlices(byRegistrar, (g) => g.yearly),
+    [byRegistrar],
+  );
+  const regCombined = useMemo(
     () => toSlices(byRegistrar, estSpend, { countOf: (g) => g.count }),
     [byRegistrar],
   );
   const tldCount = useMemo(() => toSlices(byTld, (g) => g.count), [byTld]);
-  const regSpendTotal = regSpend.reduce((s, x) => s + x.value, 0);
+  const regSpendOldTotal = regSpendOld.reduce((s, x) => s + x.value, 0);
+  const regCombinedTotal = regCombined.reduce((s, x) => s + x.value, 0);
 
   // Domains that can't be priced automatically or already carry a manual price —
   // the working set for the inline editor.
@@ -260,11 +266,18 @@ export default function Renewals() {
       <MonthlyBarChart months={months} due90={due90} />
 
       {/* Composition */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <DonutCard
-          title="By registrar"
-          slices={regSpend}
-          centerValue={usd(regSpendTotal)}
+          title="Spend by registrar"
+          slices={regSpendOld}
+          centerValue={usd(regSpendOldTotal)}
+          centerLabel="per year"
+          fmt={usd}
+        />
+        <DonutCard
+          title="By registrar (combined)"
+          slices={regCombined}
+          centerValue={usd(regCombinedTotal)}
           centerLabel="per year · est"
           fmt={usd}
         />
@@ -543,13 +556,13 @@ function DonutCard({
                 aria-hidden
               />
               <span className="truncate">{s.label}</span>
+              {s.count != null && (
+                <span className="shrink-0 text-muted-foreground tabular-nums">
+                  {count(s.count)}
+                </span>
+              )}
               <span className="ml-auto flex shrink-0 items-baseline gap-1 tabular-nums">
                 <span>{fmt(s.value)}</span>
-                {s.count != null && (
-                  <span className="text-muted-foreground/60">
-                    · {count(s.count)}
-                  </span>
-                )}
                 {total > 0 && (
                   <span className="text-muted-foreground/60">
                     {Math.round((s.value / total) * 100)}%
