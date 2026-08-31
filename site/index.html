@@ -34,6 +34,8 @@
     <nav class="nav-links" aria-label="Primary">
       <a href="#registrars">Registrars</a>
       <a href="#mcp">MCP</a>
+      <!-- PR: new nav link for the new section — delete if you drop #two-ways -->
+      <a href="#two-ways">App + MCP</a>
       <a href="#features">Features</a>
       <a href="#download">Download</a>
       <a href="#faq">FAQ</a>
@@ -43,7 +45,7 @@
 
 <a id="top"></a>
 
-<!-- ═══════════════ HERO ═══════════════ -->
+<!-- ═══════════════ HERO — VARIANT A (existing) · keep one hero ═══════════════ -->
 <header class="hero">
   <div class="wrap hero-grid">
     <div>
@@ -75,7 +77,28 @@
   </div>
 </header>
 
-<!-- ═══════════════ REGISTRARS (logo strip) ═══════════════ -->
+<!-- ═══════════════ HERO — VARIANT B (redesign, centered) · keep one hero ═══════════════
+     If you keep B: move id="hero-dl" / id="hero-dl-label" onto B's button (main.js targets them). -->
+<header class="hero hero-b">
+  <div class="wrap hero-center">
+    <span class="eyebrow">Free · open source · desktop app + MCP server</span>
+    <h1>One portfolio. Two ways in.</h1>
+    <p class="lede"><strong>DomBot pulls every domain you own — across Dynadot, GoDaddy, Cloudflare, Gandi and more — into one desktop app,</strong> and serves the same portfolio to your AI agents through a built-in MCP server.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="#download">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        <span>Download</span>
+      </a>
+      <a class="btn" href="https://github.com/aoxborrow/dombot">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.46-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.36-2.22-.26-4.56-1.14-4.56-5.05 0-1.12.39-2.03 1.03-2.74-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.71 1.03 1.62 1.03 2.74 0 3.92-2.34 4.78-4.57 5.04.36.32.68.94.68 1.9 0 1.37-.01 2.480-.01 2.81 0 .27.18.6.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
+        View source
+      </a>
+    </div>
+    <p class="hero-note">macOS · Windows · Linux</p>
+  </div>
+</header>
+
+<!-- ═══════════════ REGISTRARS — VARIANT A (existing) · keep one head/foot; the logo grid is identical in both ═══════════════ -->
 <section id="registrars">
   <div class="wrap">
     <div class="sec-head">
@@ -100,7 +123,30 @@
   </div>
 </section>
 
-<!-- ═══════════════ MCP ═══════════════ -->
+<!-- ═══════════════ REGISTRARS — VARIANT B (redesign copy: merged intro, no footnote) · same logo grid ═══════════════ -->
+<section id="registrars-b">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Works with</span>
+      <h2>All your registrars, one portfolio.</h2>
+      <p>Each connects with one API key from your account there — add it in <b style="color:var(--ink);font-weight:500">Settings → Registrars</b>. The list keeps growing.</p>
+    </div>
+    <div class="logos">
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/cloudflare.svg" alt="" width="33" height="33"><span class="logo-name">Cloudflare</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/dynadot.svg" alt="" width="33" height="33"><span class="logo-name">Dynadot</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/gandi.svg" alt="" width="33" height="33"><span class="logo-name">Gandi.net</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/godaddy.svg" alt="" width="33" height="33"><span class="logo-name">GoDaddy</span></div>
+      <div class="logo"><span class="logo-mark">NB</span><span class="logo-name">NameBright</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/namecheap.svg" alt="" width="33" height="33"><span class="logo-name">Namecheap</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/namesilo.svg" alt="" width="33" height="33"><span class="logo-name">NameSilo</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/porkbun.svg" alt="" width="33" height="33"><span class="logo-name">Porkbun</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/spaceship.svg" alt="" width="33" height="33"><span class="logo-name">Spaceship</span></div>
+      <div class="logo logo-more"><span class="logo-mark">+</span><span class="logo-name">More coming</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ MCP (existing) · overlaps with #two-ways below — likely keep one ═══════════════ -->
 <section id="mcp">
   <div class="wrap">
     <div class="sec-head">
@@ -127,7 +173,62 @@
   </div>
 </section>
 
-<!-- ═══════════════ FEATURES ═══════════════ -->
+<!-- ═══════════════ TWO FRONT ENDS, ONE CORE (new in redesign) ═══════════════ -->
+<section id="two-ways">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Two front ends, one core</span>
+      <h2>Use it yourself. Hand it to your agents. Same portfolio either way.</h2>
+      <p>The desktop UI and the MCP server are two adapters over the same core — same registrar connections, same cached data, same controls.</p>
+    </div>
+
+    <div class="duo">
+      <div class="duo-card">
+        <div class="duo-head">
+          <span class="eyebrow">For you — desktop app</span>
+          <h3>One table for every registrar</h3>
+          <p>Search, sort, and filter your whole portfolio — expiry, auto-renew, lock, privacy, nameservers, side by side.</p>
+        </div>
+        <div class="window">
+          <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="title">DomBot — Domains</span></div>
+          <div class="mini-table">
+            <div class="mini-row mini-head"><span>Domain</span><span>Registrar</span><span>Expires</span><span>Renew</span></div>
+            <div class="mini-row"><span>meridianlabs.io</span><span>Dynadot</span><span class="soon">28d</span><span>auto</span></div>
+            <div class="mini-row"><span>quietharbor.com</span><span>Cloudflare</span><span>2027-03</span><span>auto</span></div>
+            <div class="mini-row"><span>fernvalley.dev</span><span>Porkbun</span><span>2026-12</span><span>off</span></div>
+          </div>
+        </div>
+        <ul class="mcp-list duo-list">
+          <li>Renewal forecast — yearly spend, next 90 days, by registrar and TLD</li>
+          <li>Expiry color-coding and at-risk status badges</li>
+          <li>Opens instantly from local cache — refresh on demand</li>
+        </ul>
+      </div>
+
+      <div class="duo-card">
+        <div class="duo-head">
+          <span class="eyebrow">For your agents — MCP gateway</span>
+          <h3>The same controls, over MCP</h3>
+          <p>A local <a href="https://modelcontextprotocol.io">Model Context Protocol</a> server, bound to <code class="mono">127.0.0.1</code> only — never exposed off your machine.</p>
+        </div>
+        <pre><span class="c"># add DomBot to Claude Code, approve in the app</span>
+claude mcp add --transport http dombot <span class="a">http://127.0.0.1:4123/mcp</span></pre>
+        <ul class="mcp-list">
+          <li>List portfolio</li>
+          <li>Check availability &amp; pricing</li>
+          <li>Set nameservers</li>
+          <li>Set DNS records</li>
+          <li>Manage contacts &amp; forwarding</li>
+          <li>Set auto-renew &amp; lock</li>
+          <li>Register, renew &amp; transfer</li>
+        </ul>
+        <p class="duo-foot">Every client is approved by you inside DomBot before it connects — revoke anytime in <b>Settings → MCP Clients</b>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FEATURES (identical in both versions — no variant) ═══════════════ -->
 <section id="features">
   <div class="wrap">
     <div class="sec-head">
@@ -165,7 +266,7 @@
   </div>
 </section>
 
-<!-- ═══════════════ DOWNLOAD ═══════════════ -->
+<!-- ═══════════════ DOWNLOAD (identical in both versions — no variant) ═══════════════ -->
 <section id="download">
   <div class="wrap">
     <div class="sec-head">
@@ -219,7 +320,7 @@
   </div>
 </section>
 
-<!-- ═══════════════ FAQ / DOCS ═══════════════ -->
+<!-- ═══════════════ FAQ (identical in both versions — no variant) ═══════════════ -->
 <section id="faq">
   <div class="wrap">
     <div class="sec-head">
@@ -248,7 +349,7 @@
   </div>
 </section>
 
-<!-- ═══════════════ FOOTER ═══════════════ -->
+<!-- ═══════════════ FOOTER (unchanged; "App + MCP" link added — delete if you drop #two-ways) ═══════════════ -->
 <footer>
   <div class="wrap foot-in">
     <a class="brand" href="#top" aria-label="DomBot">
@@ -266,6 +367,7 @@
     <div class="foot-links">
       <a href="#registrars">Registrars</a>
       <a href="#mcp">MCP</a>
+      <a href="#two-ways">App + MCP</a>
       <a href="#features">Features</a>
       <a href="#download">Download</a>
       <a href="#faq">FAQ</a>

@@ -167,3 +167,41 @@ footer { border-top: 1px solid var(--line); padding: 36px 0 48px; }
 .foot-links a { color: var(--muted); text-decoration: none; font-size: .85rem; }
 .foot-links a:hover { color: var(--ink); }
 .foot-note { font-size: .78rem; color: var(--faint); font-family: "IBM Plex Mono", monospace; }
+
+/* ═══════════════════════════════════════════════════════════════
+   PR ADDITIONS — redesign variants + "Two front ends, one core".
+   If you drop a VARIANT B section during the merge, you can delete
+   its rules here too (.hero-b for hero B; .duo* for #two-ways).
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── hero — VARIANT B (centered) ── */
+.hero-b { border-top: 1px solid var(--line); padding: 88px 0 64px; }
+.hero-center { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.hero-b h1 { margin: 16px 0 0; font-size: 2.1rem; max-width: 22ch; }
+.hero-b .lede { max-width: 56ch; text-wrap: pretty; }
+.hero-b .hero-cta { margin-top: 28px; justify-content: center; }
+.hero-b .hero-note { margin-top: 18px; }
+
+/* ── two front ends, one core (#two-ways) ── */
+.duo { margin-top: 32px; display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 880px) { .duo { grid-template-columns: 1fr 1fr; } }
+.duo-card { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); display: flex; flex-direction: column; overflow: hidden; }
+.duo-head { padding: 18px 20px 14px; display: flex; flex-direction: column; gap: 4px; }
+.duo-head .eyebrow { font-size: .66rem; }
+.duo-head p { color: var(--muted); font-size: .85rem; line-height: 1.5; }
+.duo-card .window { margin: 0 20px 20px; border-radius: 8px; border-color: var(--line); background: var(--bg); }
+.duo-card .window-bar { padding: 8px 10px; }
+.duo-card .dot { width: 8px; height: 8px; }
+.duo-card pre { margin: 0 20px; }
+.duo-card .mcp-list { margin: 16px 20px 20px; gap: 8px 16px; }
+.duo-card .mcp-list li { font-size: .85rem; }
+.duo-card .mcp-list li::before { top: .4em; width: 11px; height: 6px; }
+.duo-list { margin: 0 20px 20px; display: flex; flex-direction: column; }
+.duo-foot { margin: auto 20px 20px; padding-top: 14px; border-top: 1px solid var(--line); font-size: .78rem; color: var(--faint); line-height: 1.5; }
+.duo-foot b { color: var(--muted); font-weight: 500; }
+.mini-table { font-family: "IBM Plex Mono", monospace; font-size: .72rem; line-height: 1.4; }
+.mini-row { display: grid; grid-template-columns: 1.6fr 1fr .9fr .6fr; gap: 8px; padding: 7px 12px; border-bottom: 1px solid var(--line); color: var(--ink); }
+.mini-row:last-child { border-bottom: none; }
+.mini-row span:not(:first-child) { color: var(--muted); }
+.mini-row .soon { color: var(--accent-ink); }
+.mini-head { color: var(--faint); text-transform: uppercase; letter-spacing: .06em; font-size: .62rem; }
