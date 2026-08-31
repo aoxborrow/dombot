@@ -235,15 +235,6 @@ export default function Renewals() {
       {/* Totals */}
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
-          icon={CircleDollarSign}
-          accentClass="text-emerald-500/15"
-          label="Yearly renewals"
-          value={usd(summary.yearly)}
-          hint={`${usd(monthly)}/mo · ${usd(summary.yearlyAutoRenew)} auto-renews, ${usd(
-            summary.yearly - summary.yearlyAutoRenew,
-          )} manual`}
-        />
-        <StatCard
           icon={Globe}
           accentClass="text-blue-500/15"
           label="Total domains"
@@ -251,6 +242,15 @@ export default function Renewals() {
           hint={`${byRegistrar.length} registrar${
             byRegistrar.length === 1 ? '' : 's'
           } · ${byTld.length} TLD${byTld.length === 1 ? '' : 's'}`}
+        />
+        <StatCard
+          icon={CircleDollarSign}
+          accentClass="text-emerald-500/15"
+          label="Yearly renewals"
+          value={usd(summary.yearly)}
+          hint={`${usd(monthly)}/mo · ${usd(summary.yearlyAutoRenew)} auto-renews, ${usd(
+            summary.yearly - summary.yearlyAutoRenew,
+          )} manual`}
         />
         <StatCard
           icon={CalendarClock}
@@ -263,7 +263,7 @@ export default function Renewals() {
 
       {/* Spend over time — sits between the totals and the composition donuts so
           the two rows of three never read as paired. */}
-      <MonthlyBarChart months={months} due90={due90} />
+      <MonthlyBarChart months={months} />
 
       {/* Composition */}
       <div className="grid gap-4 lg:grid-cols-3">
@@ -381,13 +381,7 @@ function StatCard({
 
 // ── Monthly bar chart ────────────────────────────────────────────────────────
 
-function MonthlyBarChart({
-  months,
-  due90,
-}: {
-  months: MonthBucket[];
-  due90: { count: number; yearly: number };
-}) {
+function MonthlyBarChart({ months }: { months: MonthBucket[] }) {
   const max = Math.max(1, ...months.map((m) => m.yearly));
   const total = months.reduce((sum, m) => sum + m.yearly, 0);
   return (
@@ -397,7 +391,7 @@ function MonthlyBarChart({
           Renewals by month
         </h2>
         <span className="text-xs text-muted-foreground">
-          {usd(total)} over 12 months · {usd(due90.yearly)} due in next 90 days
+          {usd(total)} over 12 months
         </span>
       </div>
       <div className="flex items-end gap-2 pt-5">
@@ -412,7 +406,7 @@ function MonthlyBarChart({
             >
               <div className="relative h-40 w-full">
                 <div
-                  className="absolute bottom-0 left-1/2 w-7 max-w-full -translate-x-1/2 rounded-t"
+                  className="absolute inset-x-1 bottom-0 rounded-t"
                   style={{ height: `${pct}%`, backgroundColor: color }}
                   title={`${m.label}: ${usd(m.yearly)} · ${m.count} domain${
                     m.count === 1 ? '' : 's'
