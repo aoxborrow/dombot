@@ -60,7 +60,9 @@ const contactSet = z.object({
 const dnsRecord = z.object({
   type: z
     .string()
-    .describe('Record type, uppercased: A, AAAA, CNAME, MX, TXT, NS, SRV, CAA…'),
+    .describe(
+      'Record type, uppercased: A, AAAA, CNAME, MX, TXT, NS, SRV, CAA…',
+    ),
   name: z
     .string()
     .describe('Host relative to the zone apex; "@" denotes the apex.'),
@@ -101,7 +103,10 @@ const registerInput = z.object({
     .array(z.string())
     .optional()
     .describe('Initial nameservers; omit to use the registrar’s defaults.'),
-  privacy: z.boolean().optional().describe('Enable WHOIS privacy, where supported.'),
+  privacy: z
+    .boolean()
+    .optional()
+    .describe('Enable WHOIS privacy, where supported.'),
   autoRenew: z.boolean().optional().describe('Enable auto-renew.'),
   consent: consent.optional(),
 });
@@ -403,7 +408,9 @@ export function registerTools(server: McpServer): void {
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
     async ({ registrar, domain, contacts }) =>
-      json(await getRegistrarClient(registrar).updateContacts(domain, contacts)),
+      json(
+        await getRegistrarClient(registrar).updateContacts(domain, contacts),
+      ),
   );
 
   server.registerTool(
