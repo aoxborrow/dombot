@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { Aftermarket, Domain, MarketListing } from '../../shared/ipc';
+import { STALE_AFTER_MS } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -92,6 +93,27 @@ function toTime(date: Date | null): number | null {
 function fmtDate(date: Date | null): string {
   const t = toTime(date);
   return t === null ? '—' : new Date(t).toISOString().slice(0, 10);
+}
+
+/** Coarse "time ago" for the last-refreshed label, e.g. "3 hours ago". */
+function timeAgo(ms: number): string {
+  const secs = Math.round((Date.now() - ms) / 1000);
+  if (secs < 60) return 'just now';
+  const units: [label: string, secs: number][] = [
+    ['day', 86_400],
+    ['hour', 3_600],
+    ['minute', 60],
+  ];
+  for (const [label, size] of units) {
+    const n = Math.floor(secs / size);
+    if (n >= 1) return `${n} ${label}${n === 1 ? '' : 's'} ago`;
+  }
+  return 'just now';
+}
+
+/** Whether a fetch timestamp is at or past the staleness threshold. */
+function isStale(fetchedAt: number): boolean {
+  return Date.now() - fetchedAt >= STALE_AFTER_MS;
 }
 
 /** Days until expiry, for the color-coded expiry cell. */
@@ -226,7 +248,8 @@ function LifecycleBadge({ status }: { status: string }) {
     <Badge
       variant={flag.danger ? 'destructive' : 'outline'}
       className={cn(
-        !flag.danger && 'border-amber-500/40 text-amber-600 dark:text-amber-400',
+        !flag.danger &&
+          'border-amber-500/40 text-amber-600 dark:text-amber-400',
       )}
       title={`Registry status: ${status}`}
     >
@@ -396,6 +419,7 @@ export default function Domains() {
     portfolioLoading,
     portfolioError,
     portfolioLoadedAt,
+    refreshTick,
     loadPortfolio,
     enriched,
     enriching,
@@ -423,6 +447,9 @@ export default function Domains() {
   const [page, setPage] = useState(0);
 
   const hasLoaded = portfolioLoadedAt !== null;
+  // Data past the staleness threshold — highlight the timestamp to nudge a
+  // manual refresh (we never auto-refresh).
+  const stale = portfolioLoadedAt !== null && isStale(portfolioLoadedAt);
 
   // Distinct filter options, derived from the loaded portfolio.
   const tlds = useMemo(
@@ -498,17 +525,28 @@ export default function Domains() {
   const visibleKey = visible
     .map((d) => `${d.registrar}:${d.domainName}`)
     .join('|');
+
+  // After a live refresh (refreshTick bumps), force one re-fetch of the visible
+  // rows' detail/market — bypassing the caches — then fall back to cache-first
+  // for later paging. Refs remember which tick each concern already forced.
+  const forcedDetailTick = useRef(0);
+  const forcedMarketTick = useRef(0);
+
   useEffect(() => {
-    void enrichVisible(visible);
+    const force = refreshTick !== forcedDetailTick.current;
+    forcedDetailTick.current = refreshTick;
+    void enrichVisible(visible, force);
     // visibleKey encodes the identity of the current page's rows.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleKey, enrichVisible]);
+  }, [visibleKey, refreshTick, enrichVisible]);
 
   // Aftermarket pricing for the visible rows (rate-limited server-side).
   useEffect(() => {
-    void loadAftermarketVisible(visible);
+    const force = refreshTick !== forcedMarketTick.current;
+    forcedMarketTick.current = refreshTick;
+    void loadAftermarketVisible(visible, force);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleKey, loadAftermarketVisible]);
+  }, [visibleKey, refreshTick, loadAftermarketVisible]);
 
   function toggleSort(key: string) {
     if (key === sortKey) {
@@ -534,15 +572,30 @@ export default function Domains() {
         <div>
           <h1 className="text-2xl font-bold">Domains</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {hasLoaded
-              ? `${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
+            {hasLoaded ? (
+              <>
+                {`${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
                   portfolioRegistrars.length === 1 ? '' : 's'
-                }${
-                  portfolioLoadedAt
-                    ? ` · updated ${new Date(portfolioLoadedAt).toLocaleTimeString()}`
-                    : ''
-                }`
-              : 'Load your portfolio across every configured registrar.'}
+                }`}
+                {portfolioLoadedAt !== null && (
+                  <>
+                    {' · '}
+                    <span
+                      className={cn(
+                        stale &&
+                          'font-medium text-amber-600 dark:text-amber-400',
+                      )}
+                      title={new Date(portfolioLoadedAt).toLocaleString()}
+                    >
+                      updated {timeAgo(portfolioLoadedAt)}
+                      {stale && ' — refresh recommended'}
+                    </span>
+                  </>
+                )}
+              </>
+            ) : (
+              'Load your portfolio across every configured registrar.'
+            )}
           </p>
         </div>
         <Button

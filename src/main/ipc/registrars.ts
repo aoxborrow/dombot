@@ -1,5 +1,4 @@
 import { ipcMain } from 'electron';
-import { listPortfolio } from '@aoxborrow/registrar-client';
 import {
   IpcChannels,
   type CredentialValues,
@@ -10,9 +9,8 @@ import {
   type TestResult,
 } from '../../shared/ipc';
 import {
-  getConfiguredRegistrars,
   getDomainDetail,
-  getPortfolioSources,
+  getPortfolio,
   getRegistrarClient,
   getRegistrarCredentialValues,
   getRegistrarMetadata,
@@ -29,26 +27,13 @@ export function registerRegistrarIpc(): void {
     getRegistrarClient('dynadot').listDomains(),
   );
 
-  // Aggregate every configured registrar into one portfolio. `listPortfolio`
-  // queries sources concurrently with per-registrar error isolation; we flatten
-  // its Error objects to plain messages so the result survives structured clone.
-  ipcMain.handle(IpcChannels.listPortfolio, async (): Promise<Portfolio> => {
-    const registrars = getConfiguredRegistrars();
-    const { domains, errors } = await listPortfolio(getPortfolioSources());
-    // id → nicely capitalized display name, for the UI's filter and table.
-    const registrarLabels = Object.fromEntries(
-      getRegistrarMetadata().map((r) => [r.name, r.displayName]),
-    );
-    return {
-      domains,
-      errors: errors.map(({ registrar, error }) => ({
-        registrar,
-        message: error.message,
-      })),
-      registrars,
-      registrarLabels,
-    };
-  });
+  // Aggregate every configured registrar into one portfolio (cache-backed).
+  // refresh=false serves the cached portfolio for instant launch; the default
+  // re-queries every registrar and updates the cache.
+  ipcMain.handle(
+    IpcChannels.listPortfolio,
+    async (_e, refresh = true): Promise<Portfolio> => getPortfolio(refresh),
+  );
 
   ipcMain.handle(
     IpcChannels.getDomainDetail,
@@ -56,7 +41,9 @@ export function registerRegistrarIpc(): void {
       _e,
       name: RegistrarName,
       domainName: string,
-    ): Promise<Partial<Domain> | null> => getDomainDetail(name, domainName),
+      refresh = false,
+    ): Promise<Partial<Domain> | null> =>
+      getDomainDetail(name, domainName, refresh),
   );
 
   ipcMain.handle(

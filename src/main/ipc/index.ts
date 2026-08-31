@@ -3,6 +3,7 @@ import { registerRegistrarIpc } from './registrars';
 import { registerMarketIpc } from './market';
 import { registerPricingIpc } from './pricing';
 import { registerMcpIpc } from './mcp';
+import { registerCacheIpc } from './cache';
 
 /**
  * Registers every `ipcMain.handle` responder. Call once, after the app is ready.
@@ -14,4 +15,5 @@ export function registerIpcHandlers(): void {
   registerMarketIpc();
   registerPricingIpc();
   registerMcpIpc();
+  registerCacheIpc();
 }

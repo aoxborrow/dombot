@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { NavLink, Route, Routes } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { ModeToggle } from '@/components/mode-toggle';
+import { useAppStore } from './store/app';
 import Domains from './pages/Domains';
 import Renewals from './pages/Renewals';
 import Settings from './pages/Settings';
@@ -15,6 +17,15 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   );
 
 export default function App() {
+  const hydrateFromCache = useAppStore((s) => s.hydrateFromCache);
+
+  // Restore the last-cached portfolio, detail, aftermarket, and pricing on
+  // launch so the app opens fully populated with no network calls. The user
+  // refreshes manually; we never auto-refresh, even when the data is stale.
+  useEffect(() => {
+    void hydrateFromCache();
+  }, [hydrateFromCache]);
+
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="flex items-center gap-4 border-b px-6 py-3">

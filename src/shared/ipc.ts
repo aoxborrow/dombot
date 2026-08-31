@@ -29,12 +29,22 @@ export const IpcChannels = {
   resolveApproval: 'mcp:resolveApproval',
   listMcpClients: 'mcp:listClients',
   revokeMcpClient: 'mcp:revokeClient',
+  hydrateFromCache: 'cache:hydrate',
+  clearAllCaches: 'cache:clearAll',
 } as const;
 
 /** Event (main → renderer) fired when the pending-approval set changes. */
 export const IpcEvents = {
   approvalsChanged: 'mcp:approvalsChanged',
 } as const;
+
+/**
+ * Cached data at or beyond this age is considered stale. Shared by the main
+ * cache layer (as its default TTL) and the renderer (to highlight a stale
+ * "last refreshed" timestamp). We never auto-refresh on staleness — the UI just
+ * flags it so the user can choose to refresh.
+ */
+export const STALE_AFTER_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 
 export interface AppInfo {
   name: string;
@@ -164,6 +174,26 @@ export interface Portfolio {
   registrars: string[];
   /** Map of registrar id → nicely capitalized display name, e.g. dynadot → "Dynadot". */
   registrarLabels: Record<string, string>;
+  /** When this portfolio was fetched from the registrars (ms epoch). Null for
+   * a live result that predates caching; set for cached and freshly-fetched. */
+  fetchedAt: number | null;
+}
+
+/**
+ * Everything the renderer can restore from the on-disk cache on launch, so the
+ * UI paints a full portfolio (domains, per-domain detail, aftermarket, pricing)
+ * with no network calls. `portfolio.fetchedAt` is the headline "last refreshed"
+ * timestamp shown to the user.
+ */
+export interface CachedSnapshot {
+  /** Cached portfolio, or null when nothing has ever been fetched. */
+  portfolio: Portfolio | null;
+  /** Per-domain detail (nameservers/privacy/lock/created), keyed `registrar:domain`. */
+  detail: Record<string, Partial<Domain>>;
+  /** Aftermarket data keyed by domain name; null = fetched-but-untracked. */
+  aftermarket: Record<string, Aftermarket | null>;
+  /** Renewal pricing keyed `registrar:domain`, computed from cache (no network). */
+  pricing: Record<string, RenewalPricing>;
 }
 
 /**
@@ -176,8 +206,21 @@ export interface DombotApi {
   /** Open a URL in the user's default browser. */
   openExternal: (url: string) => Promise<void>;
 
-  /** Aftermarket pricing for a domain (DomDB), or null if unavailable. */
-  getAftermarket: (domain: string) => Promise<Aftermarket | null>;
+  /** Restore the full cached portfolio + detail + aftermarket + pricing from
+   * disk with no network calls, for instant paint on launch. */
+  hydrateFromCache: () => Promise<CachedSnapshot>;
+  /** Drop every on-disk data cache (portfolio, detail, market, pricing). */
+  clearAllCaches: () => Promise<void>;
+
+  /**
+   * Aftermarket pricing for a domain (DomDB), or null if unavailable. With
+   * `refresh` false, a fresh-enough cached value is returned without a network
+   * call; otherwise it re-fetches and updates the cache.
+   */
+  getAftermarket: (
+    domain: string,
+    refresh?: boolean,
+  ) => Promise<Aftermarket | null>;
 
   /** Annual renewal price for a domain, cached and manual-override aware. */
   getRenewalPrice: (
@@ -195,14 +238,22 @@ export interface DombotApi {
 
   // Registrars
   listDynadotDomains: () => Promise<Domain[]>;
-  listPortfolio: () => Promise<Portfolio>;
+  /**
+   * Aggregate portfolio across every configured registrar. With `refresh` false,
+   * a cached portfolio is returned when present (no network); otherwise it
+   * re-queries every registrar and updates the cache. Defaults to refresh.
+   */
+  listPortfolio: (refresh?: boolean) => Promise<Portfolio>;
   /**
    * Best-available per-domain detail (nameservers/privacy/lock) to merge over
    * the list summary — a partial, or `null` when nothing could be resolved.
+   * With `refresh` false, a fresh-enough cached partial is served without a
+   * network call; otherwise it re-fetches and updates the cache.
    */
   getDomainDetail: (
     registrar: RegistrarName,
     domainName: string,
+    refresh?: boolean,
   ) => Promise<Partial<Domain> | null>;
   getRegistrarMetadata: () => Promise<RegistrarMeta[]>;
   getRegistrarCredentials: (name: RegistrarName) => Promise<CredentialValues>;
