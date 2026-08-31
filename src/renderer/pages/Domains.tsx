@@ -7,14 +7,14 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronsUpDown,
+  Eye,
+  EyeOff,
   ExternalLink,
   Lock,
   LockOpen,
   RefreshCw,
   RefreshCwOff,
   Search,
-  Shield,
-  ShieldOff,
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
@@ -282,8 +282,8 @@ const COLUMNS: Column[] = [
     render: (d) => (
       <StateIcon
         value={d.privacy}
-        on={Shield}
-        off={ShieldOff}
+        on={EyeOff}
+        off={Eye}
         onLabel="privacy on"
         offLabel="privacy off"
       />
