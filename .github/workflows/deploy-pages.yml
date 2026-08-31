@@ -1,15 +1,14 @@
 name: Deploy site to GitHub Pages
 
-# Builds the static landing page (site/src → site/dist: extracts the inline CSS
-# and JS into minified external assets) and publishes site/dist to GitHub Pages.
+# Builds the static landing page with Vite (site/ → site/dist) and publishes
+# site/dist to GitHub Pages.
 # One-time setup: repo Settings → Pages → Source → "GitHub Actions".
 
 on:
   push:
     branches: [main]
     paths:
-      - 'site/src/**'
-      - 'scripts/build-site.mjs'
+      - 'site/**'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/deploy-pages.yml'
@@ -40,11 +39,14 @@ jobs:
           node-version: 20
           cache: npm
       - name: Install build tooling
-        # --ignore-scripts skips Electron's binary download; the site build only
-        # needs html-minifier-terser, which is pure JS.
-        run: npm ci --ignore-scripts
+        # --ignore-scripts skips Electron's ~150MB binary download (not needed to
+        # build the static site). Then rebuild esbuild so Vite has its native
+        # binary, whose install step --ignore-scripts would otherwise skip.
+        run: |
+          npm ci --ignore-scripts
+          npm rebuild esbuild
       - name: Build site
-        run: npm run build:site
+        run: npm run site:build
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact
