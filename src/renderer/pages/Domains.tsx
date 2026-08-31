@@ -1139,15 +1139,6 @@ export default function Domains() {
               </div>
 
               <MultiSelectFilter
-                label="TLD"
-                options={tlds.map((t) => ({ value: t, label: `.${t}` }))}
-                selected={tld}
-                onChange={(next) => {
-                  setTld(next);
-                  setPage(0);
-                }}
-              />
-              <MultiSelectFilter
                 label="Registrar"
                 options={registrars.map((id) => ({
                   value: id,
@@ -1165,6 +1156,15 @@ export default function Domains() {
                 selected={expiry}
                 onChange={(next) => {
                   setExpiry(next);
+                  setPage(0);
+                }}
+              />
+              <MultiSelectFilter
+                label="TLD"
+                options={tlds.map((t) => ({ value: t, label: `.${t}` }))}
+                selected={tld}
+                onChange={(next) => {
+                  setTld(next);
                   setPage(0);
                 }}
               />
