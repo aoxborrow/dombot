@@ -2,7 +2,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import RegistrarsSettings from './settings/RegistrarsSettings';
 import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
-import AppearanceSettings from './settings/AppearanceSettings';
 import FoldersSettings from './settings/FoldersSettings';
 
 export default function Settings() {
@@ -24,22 +23,16 @@ export default function Settings() {
             Registrars
           </TabsTrigger>
           <TabsTrigger
-            value="mcp"
-            className="w-full justify-start data-[state=active]:bg-muted"
-          >
-            MCP
-          </TabsTrigger>
-          <TabsTrigger
             value="folders"
             className="w-full justify-start data-[state=active]:bg-muted"
           >
             Folders
           </TabsTrigger>
           <TabsTrigger
-            value="appearance"
+            value="mcp"
             className="w-full justify-start data-[state=active]:bg-muted"
           >
-            Appearance
+            MCP
           </TabsTrigger>
           <TabsTrigger
             value="data"
@@ -54,14 +47,11 @@ export default function Settings() {
         <TabsContent value="registrars">
           <RegistrarsSettings />
         </TabsContent>
-        <TabsContent value="mcp">
-          <McpClientsSettings />
-        </TabsContent>
         <TabsContent value="folders">
           <FoldersSettings />
         </TabsContent>
-        <TabsContent value="appearance">
-          <AppearanceSettings />
+        <TabsContent value="mcp">
+          <McpClientsSettings />
         </TabsContent>
         <TabsContent value="data">
           <DataSettings />
