@@ -32,6 +32,7 @@ import {
 import type {
   Aftermarket,
   Domain,
+  Folder,
   MarketListing,
   RenewalPricing,
 } from '../../shared/ipc';
@@ -39,6 +40,7 @@ import { STALE_AFTER_MS } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
+import { folderColorStyle } from '../lib/folders';
 import { timeAgo } from '../lib/time';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -53,6 +55,9 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -171,6 +176,11 @@ function fmtPrice(l: MarketListing): string {
 
 const AFTERNIC = 'afternic';
 
+/** Sort sentinel for the injected Folder column (folders aren't a Domain field). */
+const FOLDER = 'folder';
+/** Filter value matching domains with no folder assigned. */
+const UNASSIGNED = '__unassigned__';
+
 /** The Afternic listing for a domain, if any. */
 function afternicListing(
   info: Aftermarket | null | undefined,
@@ -273,6 +283,87 @@ function RenewalCell({
     >
       {fmtUsd(info.renewal)}
     </span>
+  );
+}
+
+/**
+ * The Folder cell: a colored chip when the domain is in a folder, or a muted but
+ * still-clickable placeholder when it isn't. Clicking opens a single-select menu
+ * of folders (plus "None" to clear). Assignment is persisted via `onAssign`.
+ */
+function FolderCell({
+  folders,
+  folderId,
+  onAssign,
+}: {
+  folders: Folder[];
+  folderId: string | undefined;
+  onAssign: (folderId: string | null) => void;
+}) {
+  const current = folderId ? folders.find((f) => f.id === folderId) : undefined;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {current ? (
+          <button
+            type="button"
+            className="max-w-full"
+            title={`Folder: ${current.name}`}
+          >
+            <Badge
+              variant="ghost"
+              className={cn(
+                'cursor-pointer font-medium',
+                folderColorStyle(current.color).chip,
+              )}
+            >
+              <span className="truncate">{current.name}</span>
+            </Badge>
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="Assign folder"
+            title="Assign folder"
+            className="rounded px-1.5 text-muted-foreground/40 hover:bg-muted hover:text-foreground"
+          >
+            —
+          </button>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="max-h-[320px] overflow-y-auto"
+      >
+        {folders.length === 0 ? (
+          <div className="max-w-[220px] px-2 py-1.5 text-xs text-muted-foreground">
+            No folders yet. Create them in Settings › Folders.
+          </div>
+        ) : (
+          <DropdownMenuRadioGroup
+            value={folderId ?? UNASSIGNED}
+            onValueChange={(v) => onAssign(v === UNASSIGNED ? null : v)}
+          >
+            {folders.map((f) => (
+              <DropdownMenuRadioItem key={f.id} value={f.id}>
+                <span
+                  className={cn(
+                    'mr-2 inline-block size-2.5 shrink-0 rounded-full',
+                    folderColorStyle(f.color).swatch,
+                  )}
+                  aria-hidden
+                />
+                <span className="truncate">{f.name}</span>
+              </DropdownMenuRadioItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioItem value={UNASSIGNED}>
+              None
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -570,6 +661,9 @@ export default function Domains() {
     pricing,
     pricingLoading,
     loadPricingAll,
+    folders,
+    folderAssignments,
+    assignFolder,
   } = useAppStore();
 
   const openExternal = (url: string) => void window.api.openExternal(url);
@@ -587,6 +681,7 @@ export default function Domains() {
   const [registrar, setRegistrar] = useState<string[]>([]);
   const [expiry, setExpiry] = useState<string[]>([]);
   const [ns, setNs] = useState<string[]>([]);
+  const [folder, setFolder] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [sortKey, setSortKey] = useState('domainName');
@@ -679,6 +774,29 @@ export default function Domains() {
     return { nsGroups: groups, nsKeysByDomain: keysByDomain };
   }, [merged]);
 
+  // Folder filter options: one per folder (with its assigned-domain count over
+  // the whole portfolio) plus an "Unassigned" bucket. A dangling assignment (its
+  // folder was deleted) counts as unassigned.
+  const folderOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    let unassigned = 0;
+    for (const d of portfolio) {
+      const id = folderAssignments[`${d.registrar}:${d.domainName}`];
+      if (id && folders.some((f) => f.id === id)) {
+        counts[id] = (counts[id] ?? 0) + 1;
+      } else {
+        unassigned += 1;
+      }
+    }
+    const opts = folders.map((f) => ({
+      value: f.id,
+      label: f.name,
+      count: counts[f.id] ?? 0,
+    }));
+    opts.push({ value: UNASSIGNED, label: 'Unassigned', count: unassigned });
+    return opts;
+  }, [portfolio, folders, folderAssignments]);
+
   // Validate the price inputs, then derive the bounds actually applied. A field
   // error (or min > max) leaves the range unapplied until it's corrected.
   const minParsed = parsePriceInput(minPrice);
@@ -713,6 +831,14 @@ export default function Domains() {
         const keys = nsKeysByDomain.get(`${d.registrar}:${d.domainName}`);
         if (!keys || !ns.some((k) => keys.has(k))) return false;
       }
+      // Folder: keep a domain whose folder is selected; a domain with no folder
+      // (or a dangling assignment) matches only when "Unassigned" is selected.
+      if (folder.length > 0) {
+        const id = folderAssignments[`${d.registrar}:${d.domainName}`];
+        const assigned =
+          id && folders.some((f) => f.id === id) ? id : UNASSIGNED;
+        if (!folder.includes(assigned)) return false;
+      }
       // Afternic price range. With any bound set, unlisted/offer-only domains
       // (no numeric price) are excluded.
       if (priceFilterActive) {
@@ -733,6 +859,10 @@ export default function Domains() {
       }
       if (sortKey === RENEWAL) {
         return pricing[`${d.registrar}:${d.domainName}`]?.renewal ?? null;
+      }
+      if (sortKey === FOLDER) {
+        const id = folderAssignments[`${d.registrar}:${d.domainName}`];
+        return folders.find((f) => f.id === id)?.name.toLowerCase() ?? null;
       }
       return col.sortValue(d, portfolioRegistrarLabels);
     };
@@ -758,6 +888,9 @@ export default function Domains() {
     expiry,
     ns,
     nsKeysByDomain,
+    folder,
+    folders,
+    folderAssignments,
     priceFilterActive,
     minValue,
     maxValue,
@@ -838,7 +971,13 @@ export default function Domains() {
   async function exportCsv() {
     setExporting(true);
     try {
-      const csv = domainsToCsv(filtered, portfolioRegistrarLabels, aftermarket);
+      const csv = domainsToCsv(
+        filtered,
+        portfolioRegistrarLabels,
+        aftermarket,
+        folders,
+        folderAssignments,
+      );
       const result = await window.api.saveCsv(csv, csvFilename());
       if (!result.saved) return; // user cancelled the dialog
       const name = result.path?.split(/[/\\]/).pop() ?? 'file';
@@ -1039,6 +1178,18 @@ export default function Domains() {
                 }}
                 loading={detailAllLoading}
               />
+              {/* Only offer the Folder filter once folders exist. */}
+              {folders.length > 0 && (
+                <MultiSelectFilter
+                  label="Folder"
+                  options={folderOptions}
+                  selected={folder}
+                  onChange={(next) => {
+                    setFolder(next);
+                    setPage(0);
+                  }}
+                />
+              )}
 
               {/* Afternic price range — one combined min/max control */}
               <PriceRangeInput
@@ -1148,6 +1299,32 @@ export default function Domains() {
                             </button>
                           </TableHead>
                         )}
+                        {/* Folder sits right after the Registrar column. */}
+                        {col.key === 'registrar' && (
+                          <TableHead>
+                            <button
+                              type="button"
+                              onClick={() => toggleSort(FOLDER)}
+                              className={cn(
+                                'inline-flex select-none items-center gap-1 hover:text-foreground',
+                                sortKey === FOLDER && 'text-foreground',
+                              )}
+                            >
+                              Folder
+                              {(() => {
+                                const FdIcon =
+                                  sortKey !== FOLDER
+                                    ? ChevronsUpDown
+                                    : sortDir === 'asc'
+                                      ? ArrowUp
+                                      : ArrowDown;
+                                return (
+                                  <FdIcon className="size-3.5 opacity-70" />
+                                );
+                              })()}
+                            </button>
+                          </TableHead>
+                        )}
                       </Fragment>
                     );
                   })}
@@ -1191,6 +1368,24 @@ export default function Domains() {
                               />
                             </TableCell>
                           )}
+                          {col.key === 'registrar' && (
+                            <TableCell>
+                              <FolderCell
+                                folders={folders}
+                                folderId={
+                                  folderAssignments[
+                                    `${d.registrar}:${d.domainName}`
+                                  ]
+                                }
+                                onAssign={(folderId) =>
+                                  void assignFolder(
+                                    `${d.registrar}:${d.domainName}`,
+                                    folderId,
+                                  )
+                                }
+                              />
+                            </TableCell>
+                          )}
                         </Fragment>
                       ))}
                     </TableRow>
@@ -1199,7 +1394,7 @@ export default function Domains() {
                 {visible.length === 0 && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell
-                      colSpan={COLUMNS.length + 2}
+                      colSpan={COLUMNS.length + 3}
                       className="h-32 text-center text-muted-foreground"
                     >
                       {portfolio.length === 0

@@ -3,6 +3,7 @@ import RegistrarsSettings from './settings/RegistrarsSettings';
 import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
 import AppearanceSettings from './settings/AppearanceSettings';
+import FoldersSettings from './settings/FoldersSettings';
 
 export default function Settings() {
   return (
@@ -29,6 +30,12 @@ export default function Settings() {
             MCP
           </TabsTrigger>
           <TabsTrigger
+            value="folders"
+            className="w-full justify-start data-[state=active]:bg-muted"
+          >
+            Folders
+          </TabsTrigger>
+          <TabsTrigger
             value="appearance"
             className="w-full justify-start data-[state=active]:bg-muted"
           >
@@ -49,6 +56,9 @@ export default function Settings() {
         </TabsContent>
         <TabsContent value="mcp">
           <McpClientsSettings />
+        </TabsContent>
+        <TabsContent value="folders">
+          <FoldersSettings />
         </TabsContent>
         <TabsContent value="appearance">
           <AppearanceSettings />

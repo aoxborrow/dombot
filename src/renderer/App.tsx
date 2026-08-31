@@ -19,6 +19,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 
 export default function App() {
   const hydrateFromCache = useAppStore((s) => s.hydrateFromCache);
+  const loadFolders = useAppStore((s) => s.loadFolders);
   const statusBarVisible = useAppStore((s) => s.statusBarVisible);
 
   // Restore the last-cached portfolio, detail, aftermarket, and pricing on
@@ -27,6 +28,12 @@ export default function App() {
   useEffect(() => {
     void hydrateFromCache();
   }, [hydrateFromCache]);
+
+  // Load the user's folders (definitions + assignments) on launch, alongside the
+  // cache hydration, so the Domains table paints folder chips immediately.
+  useEffect(() => {
+    void loadFolders();
+  }, [loadFolders]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
