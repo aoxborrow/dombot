@@ -1,11 +1,12 @@
 // Builds the Domains-page CSV export. Kept separate from the page component so
 // the column model and formatting are easy to read and test in isolation.
 
-import type {
-  Aftermarket,
-  Domain,
-  Folder,
-  MarketListing,
+import {
+  HIDDEN_FOLDER_ID,
+  type Aftermarket,
+  type Domain,
+  type Folder,
+  type MarketListing,
 } from '../../shared/ipc';
 
 /** id → nicely capitalized registrar name, e.g. dynadot → "Dynadot". */
@@ -116,9 +117,13 @@ export function domainsToCsv(
   assignments: Record<string, string>,
 ): string {
   const nameById = new Map(folders.map((f) => [f.id, f.name]));
-  // The assigned folder's name, or empty when unassigned or the folder is gone.
-  const folderName = (d: Domain): string =>
-    nameById.get(assignments[`${d.registrar}:${d.domainName}`] ?? '') ?? '';
+  // The assigned folder's name, "Hidden" for the built-in hidden folder, or
+  // empty when unassigned or the folder is gone.
+  const folderName = (d: Domain): string => {
+    const id = assignments[`${d.registrar}:${d.domainName}`];
+    if (id === HIDDEN_FOLDER_ID) return 'Hidden';
+    return nameById.get(id ?? '') ?? '';
+  };
 
   const rows: string[] = [CSV_COLUMNS.map((c) => csvField(c.header)).join(',')];
   for (const d of domains) {

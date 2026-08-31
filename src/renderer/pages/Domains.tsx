@@ -42,7 +42,7 @@ import type {
   MarketListing,
   RenewalPricing,
 } from '../../shared/ipc';
-import { STALE_AFTER_MS } from '../../shared/ipc';
+import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
@@ -303,8 +303,9 @@ function RenewalCell({
 
 /**
  * The Folder cell: a small colored folder icon plus the folder name when the
- * domain is in a folder, or a muted dash when it isn't. Display only —
- * assigning a folder is done from the row-actions (⋯) menu in the Domain cell.
+ * domain is in a folder, a muted "Hidden" (eye-off) for the built-in hidden
+ * folder, or a muted dash when unassigned. Display only — assigning is done from
+ * the row menu.
  */
 function FolderCell({
   folders,
@@ -313,6 +314,17 @@ function FolderCell({
   folders: Folder[];
   folderId: string | undefined;
 }) {
+  if (folderId === HIDDEN_FOLDER_ID) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"
+        title="Hidden"
+      >
+        <EyeOff className="size-3.5 shrink-0" />
+        Hidden
+      </span>
+    );
+  }
   const current = folderId ? folders.find((f) => f.id === folderId) : undefined;
   if (!current) return <span className="text-muted-foreground/40">—</span>;
   return (
@@ -403,11 +415,19 @@ function RowMenuContent({
         </DropdownMenuSubContent>
       </DropdownMenuSub>
       <DropdownMenuSeparator />
-      {/* Placeholder — not wired up yet. */}
-      <DropdownMenuItem>
-        <EyeOff />
-        Hide
-      </DropdownMenuItem>
+      {/* Hide moves the domain into the built-in Hidden folder (dropping it from
+          the table by default); Unhide clears that. */}
+      {folderId === HIDDEN_FOLDER_ID ? (
+        <DropdownMenuItem onSelect={() => onAssign(null)}>
+          <Eye />
+          Unhide
+        </DropdownMenuItem>
+      ) : (
+        <DropdownMenuItem onSelect={() => onAssign(HIDDEN_FOLDER_ID)}>
+          <EyeOff />
+          Hide
+        </DropdownMenuItem>
+      )}
     </DropdownMenuContent>
   );
 }
@@ -817,14 +837,19 @@ export default function Domains() {
   }, [merged]);
 
   // Folder filter options: one per folder (with its assigned-domain count over
-  // the whole portfolio) plus an "Unassigned" bucket. A dangling assignment (its
-  // folder was deleted) counts as unassigned.
-  const folderOptions = useMemo(() => {
+  // the whole portfolio), an "Unassigned" bucket, and — only when non-empty — a
+  // "Hidden" bucket for the built-in hidden folder. A dangling assignment (its
+  // folder was deleted) counts as unassigned. `hiddenCount` also gates whether
+  // the Folder filter shows at all when the user has no folders of their own.
+  const { folderOptions, hiddenCount } = useMemo(() => {
     const counts: Record<string, number> = {};
     let unassigned = 0;
+    let hidden = 0;
     for (const d of portfolio) {
       const id = folderAssignments[`${d.registrar}:${d.domainName}`];
-      if (id && folders.some((f) => f.id === id)) {
+      if (id === HIDDEN_FOLDER_ID) {
+        hidden += 1;
+      } else if (id && folders.some((f) => f.id === id)) {
         counts[id] = (counts[id] ?? 0) + 1;
       } else {
         unassigned += 1;
@@ -836,7 +861,10 @@ export default function Domains() {
       count: counts[f.id] ?? 0,
     }));
     opts.push({ value: UNASSIGNED, label: 'Unassigned', count: unassigned });
-    return opts;
+    if (hidden > 0) {
+      opts.push({ value: HIDDEN_FOLDER_ID, label: 'Hidden', count: hidden });
+    }
+    return { folderOptions: opts, hiddenCount: hidden };
   }, [portfolio, folders, folderAssignments]);
 
   // Validate the price inputs, then derive the bounds actually applied. A field
@@ -873,13 +901,23 @@ export default function Domains() {
         const keys = nsKeysByDomain.get(`${d.registrar}:${d.domainName}`);
         if (!keys || !ns.some((k) => keys.has(k))) return false;
       }
-      // Folder: keep a domain whose folder is selected; a domain with no folder
-      // (or a dangling assignment) matches only when "Unassigned" is selected.
-      if (folder.length > 0) {
+      // Folder: resolve each domain to a bucket — a real folder id, the built-in
+      // Hidden id, or "Unassigned" (no folder, or a dangling assignment). With a
+      // folder filter active, keep only domains whose bucket is selected. With no
+      // folder filter, hide the Hidden bucket (that's the whole point of hiding).
+      {
         const id = folderAssignments[`${d.registrar}:${d.domainName}`];
-        const assigned =
-          id && folders.some((f) => f.id === id) ? id : UNASSIGNED;
-        if (!folder.includes(assigned)) return false;
+        const bucket =
+          id === HIDDEN_FOLDER_ID
+            ? HIDDEN_FOLDER_ID
+            : id && folders.some((f) => f.id === id)
+              ? id
+              : UNASSIGNED;
+        if (folder.length > 0) {
+          if (!folder.includes(bucket)) return false;
+        } else if (bucket === HIDDEN_FOLDER_ID) {
+          return false;
+        }
       }
       // Afternic price range. With any bound set, unlisted/offer-only domains
       // (no numeric price) are excluded.
@@ -1223,8 +1261,9 @@ export default function Domains() {
                   setPage(0);
                 }}
               />
-              {/* Only offer the Folder filter once folders exist. */}
-              {folders.length > 0 && (
+              {/* Offer the Folder filter once there's anything to filter by —
+                  a folder of the user's own, or hidden domains to reveal. */}
+              {(folders.length > 0 || hiddenCount > 0) && (
                 <MultiSelectFilter
                   label="Folder"
                   icon={FolderIcon}

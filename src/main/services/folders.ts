@@ -2,11 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { app } from 'electron';
-import type {
-  Folder,
-  FolderInput,
-  FolderPatch,
-  FoldersSnapshot,
+import {
+  HIDDEN_FOLDER_ID,
+  type Folder,
+  type FolderInput,
+  type FolderPatch,
+  type FoldersSnapshot,
 } from '../../shared/ipc';
 
 // Folders are user data — the folder definitions and the domain→folder map. They
@@ -107,7 +108,9 @@ export function assignFolder(domainKey: string, folderId: string | null): void {
   const current = load();
   const assignments = { ...current.assignments };
   const valid =
-    folderId !== null && current.folders.some((f) => f.id === folderId);
+    folderId !== null &&
+    (folderId === HIDDEN_FOLDER_ID ||
+      current.folders.some((f) => f.id === folderId));
   if (valid) {
     assignments[domainKey] = folderId;
   } else {

@@ -244,6 +244,14 @@ export const FOLDER_COLORS: FolderColor[] = [
 ];
 
 /**
+ * Reserved id for the built-in "Hidden" folder. Assigning a domain to it hides
+ * the domain from the table by default; it's surfaced again by selecting Hidden
+ * in the Folder filter. Not a real folder — it isn't stored in the folders list
+ * and has no color — but it's a valid assignment target.
+ */
+export const HIDDEN_FOLDER_ID = '__hidden__';
+
+/**
  * Future per-folder configuration that cascades to the folder's domains. Kept
  * as an optional bag so new keys are purely additive; empty/absent today. The
  * motivating case is `forSale` — not yet acted on anywhere.
