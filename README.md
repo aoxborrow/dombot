@@ -73,14 +73,14 @@ npm start
 
 ## Scripts
 
-| Command             | Description                                     |
-| ------------------- | ----------------------------------------------- |
-| `npm start`         | Run the app with hot reload (Forge + Vite)      |
-| `npm run package`   | Package the app into an unpacked bundle         |
-| `npm run make`      | Build distributables (dmg/zip/deb/rpm/squirrel) |
-| `npm run lint`      | Lint `.ts`/`.tsx` files                         |
-| `npm run format`    | Format the codebase with Prettier               |
-| `npm run typecheck` | Type-check without emitting                     |
+| Command              | Description                                        |
+| -------------------- | -------------------------------------------------- |
+| `npm start`          | Run the app with hot reload (Forge + Vite)         |
+| `npm run package`    | Package the app into an unpacked bundle            |
+| `npm run make`       | Build distributables (dmg/zip/deb/rpm/squirrel)    |
+| `npm run lint`       | Lint `.ts`/`.tsx` files                            |
+| `npm run format`     | Format the codebase with Prettier                  |
+| `npm run typecheck`  | Type-check without emitting                        |
 | `npm run build:site` | Minify the landing page (`site/src` → `site/dist`) |
 
 ## Project layout
@@ -122,22 +122,26 @@ src/
 library → the `Domain[]` result travels back to the store, which re-renders.
 Handlers stay thin; the logic lives in `services/`.
 
-## Local development against registrar-client
+## The registrar-client dependency
 
 DomBot's registrar logic comes from
-[`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client),
-developed in the sibling repo at `../registrar-client`. Until that package is
-published to npm, DomBot consumes it **directly from source** via a dev-time
-alias — no build, watch, or `npm link` step:
+[`@aoxborrow/registrar-client`](https://www.npmjs.com/package/@aoxborrow/registrar-client)
+([source](https://github.com/aoxborrow/registrar-client)) — a standalone,
+provider-agnostic client for many registrar APIs, used in the main process. It's
+an ordinary npm dependency, so a plain `npm install` pulls it in (and Vite
+bundles it into the main-process build); no alias or link step is required.
 
-- [`vite.main.config.ts`](vite.main.config.ts) aliases the package to
-  `../registrar-client/src/index.ts` (the library is used in the main process).
-- [`tsconfig.json`](tsconfig.json) has a matching `paths` entry so `tsc` and the
-  editor resolve types from source.
+To develop DomBot against **unreleased local changes** in the sibling repo at
+`../registrar-client`, `npm link` it:
 
-The library's own runtime deps resolve from `../registrar-client/node_modules`,
-so both repos just need `npm install` run in them. Once the package is on npm,
-`npm install @aoxborrow/registrar-client` and remove the alias + `paths` entry.
+```bash
+cd ../registrar-client && npm run build && npm link   # build dist/, register the link
+cd -                    && npm link @aoxborrow/registrar-client
+```
+
+Rebuild the library (`npm run build`, or `npx tsup --watch` for iteration) to
+pick up edits. Return to the published version with
+`npm unlink @aoxborrow/registrar-client && npm install`.
 
 In production, registrar credentials are entered once in **Settings →
 Registrars** and stored encrypted on the device via Electron `safeStorage`
