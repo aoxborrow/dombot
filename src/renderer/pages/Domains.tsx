@@ -849,6 +849,7 @@ export default function Domains() {
                           className={cn(
                             col.align === 'right' && 'text-right',
                             col.compact && 'px-1',
+                            col.key === 'domainName' && 'pl-4',
                           )}
                         >
                           <button
@@ -856,7 +857,6 @@ export default function Domains() {
                             onClick={() => toggleSort(col.key)}
                             className={cn(
                               'inline-flex items-center gap-1 select-none hover:text-foreground',
-                              col.align === 'right' && 'flex-row-reverse',
                               active && 'text-foreground',
                             )}
                           >
@@ -871,7 +871,7 @@ export default function Domains() {
                               type="button"
                               onClick={() => toggleSort(AFTERNIC)}
                               className={cn(
-                                'inline-flex select-none flex-row-reverse items-center gap-1 hover:text-foreground',
+                                'inline-flex select-none items-center gap-1 hover:text-foreground',
                                 sortKey === AFTERNIC && 'text-foreground',
                               )}
                             >
@@ -907,6 +907,7 @@ export default function Domains() {
                             className={cn(
                               col.align === 'right' && 'text-right',
                               col.compact && 'px-1',
+                              col.key === 'domainName' && 'pl-4',
                             )}
                           >
                             {col.detail && loadingDetail ? (
