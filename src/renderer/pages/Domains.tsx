@@ -370,11 +370,15 @@ function RowActions({
                 onValueChange={(v) => onAssign(v === UNASSIGNED ? null : v)}
               >
                 {folders.map((f) => (
-                  <DropdownMenuRadioItem key={f.id} value={f.id}>
-                    <span
+                  <DropdownMenuRadioItem
+                    key={f.id}
+                    value={f.id}
+                    className="gap-1.5"
+                  >
+                    <FolderIcon
                       className={cn(
-                        'mr-2 inline-block size-2.5 shrink-0 rounded-full',
-                        folderColorStyle(f.color).swatch,
+                        'size-3.5 shrink-0',
+                        folderColorStyle(f.color).text,
                       )}
                       aria-hidden
                     />
