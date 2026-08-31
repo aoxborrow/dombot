@@ -26,28 +26,32 @@ prefix:
 |---|---|---|---|
 | **Portfolio / account** | *(none)* | `portfolio_`, `registrar_list` | Global or cross-registrar aggregate |
 | **Registrar** | `registrar` | `registrar_` | A provider, or a domain not yet owned there (register / transfer-in) |
-| **Domain** | `domain` (+ optional `registrar`) | `domain_` | One domain you own |
+| **Domain** | `domain` | `domain_` | One domain you own |
 
 Naming pattern: **`<scope>_<resource>_<action>`**, dropping `<resource>` when the
 scope already is the resource. `snake_case` throughout.
 
 ## Registrar resolution (domain-level tools)
 
-Domain-level tools take `domain` as required and `registrar` as **optional**:
+`registrar` is **never an optional parameter**. A tool either takes `registrar`
+because that *is* its scope (registrar-level), or it doesn't take it at all
+(domain-level). Domain-level tools take only `domain` and resolve the registrar
+themselves:
 
-- If `registrar` is given, use it.
-- If omitted, look `domain` up in the cached portfolio (`Domain.registrar`) and
-  use that. The aggregated portfolio is already cached on disk
-  (`services/registrars.ts` → `getCachedPortfolio`).
-- If the domain isn't in the cache → error asking the caller to pass `registrar`
-  (and suggesting they run `portfolio_list` first).
-- If the domain resolves to more than one registrar (rare) → error listing the
-  candidates and asking for an explicit `registrar`.
+- Look `domain` up in the aggregated portfolio (`Domain.registrar`), cached on
+  disk (`services/registrars.ts` → `getCachedPortfolio`).
+- On a cache miss, refresh the portfolio once (`getPortfolio(refresh: true)`) and
+  retry — so a domain that genuinely exists resolves even if the caller never ran
+  `portfolio_list`.
+- Still not found → error: the domain isn't in the portfolio.
+- Resolves to more than one registrar (you own the same name in two places —
+  rare) → error listing the candidates.
 
-Implemented once as a helper, e.g. `resolveRegistrar(domain, registrar?)`, reused
-by every domain-level handler. Registrar-level tools (`register`, `transfer`)
-keep `registrar` **required** — the domain isn't owned at the target yet, so
-there's nothing to resolve.
+Implemented once as a helper, e.g. `resolveRegistrar(domain)`, reused by every
+domain-level handler. Registrar-level tools (`list`, `test`, availability,
+pricing, `register`, `transfer`) always require `registrar` — it's their scope,
+and for register/transfer the domain isn't owned anywhere yet, so there's nothing
+to resolve.
 
 ## Tool catalog
 
@@ -81,17 +85,17 @@ which wraps `RegistrarClient`. `R.method` = `RegistrarClient` method.
 
 | Tool | Backing | Params | Annotations | Status |
 |---|---|---|---|---|
-| `domain_get` | `R.getDomain` | `domain`, `registrar?` | readOnly | **new** |
-| `domain_renew` | `R.renewDomain` | `domain`, `registrar?`, `years?` | write · not idempotent (costs money) | **new** |
-| `domain_set_autorenew` | `R.setAutoRenew` | `domain`, `registrar?`, `enabled` | write · idempotent | **rename** of `set_auto_renew` |
-| `domain_set_lock` | `R.lockDomain` / `unlockDomain` | `domain`, `registrar?`, `locked` | write · idempotent | **rename** of `set_lock` |
-| `domain_set_privacy` | `R.setPrivacy` | `domain`, `registrar?`, `enabled` | write · idempotent | **new** |
-| `domain_nameservers_get` | `R.getNameservers` | `domain`, `registrar?` | readOnly | **rename** of `get_nameservers` |
-| `domain_nameservers_set` | `R.updateNameservers` | `domain`, `registrar?`, `nameservers[]` | write · destructive · idempotent | **rename** of `set_nameservers` |
-| `domain_dns_get` | `R.getDnsRecords` | `domain`, `registrar?` | readOnly | **rename** of `get_dns_records` |
-| `domain_dns_set` | `R.setDnsRecords` | `domain`, `registrar?`, `records[]`³ | write · destructive · idempotent | **new** |
-| `domain_contacts_get` | `R.getContacts` | `domain`, `registrar?` | readOnly | **new** |
-| `domain_contacts_set` | `R.updateContacts` | `domain`, `registrar?`, `contacts`⁴ | write · idempotent | **new** |
+| `domain_get` | `R.getDomain` | `domain` | readOnly | **new** |
+| `domain_renew` | `R.renewDomain` | `domain`, `years?` | write · not idempotent (costs money) | **new** |
+| `domain_set_autorenew` | `R.setAutoRenew` | `domain`, `enabled` | write · idempotent | **rename** of `set_auto_renew` |
+| `domain_set_lock` | `R.lockDomain` / `unlockDomain` | `domain`, `locked` | write · idempotent | **rename** of `set_lock` |
+| `domain_set_privacy` | `R.setPrivacy` | `domain`, `enabled` | write · idempotent | **new** |
+| `domain_nameservers_get` | `R.getNameservers` | `domain` | readOnly | **rename** of `get_nameservers` |
+| `domain_nameservers_set` | `R.updateNameservers` | `domain`, `nameservers[]` | write · destructive · idempotent | **rename** of `set_nameservers` |
+| `domain_dns_get` | `R.getDnsRecords` | `domain` | readOnly | **rename** of `get_dns_records` |
+| `domain_dns_set` | `R.setDnsRecords` | `domain`, `records[]`³ | write · destructive · idempotent | **new** |
+| `domain_contacts_get` | `R.getContacts` | `domain` | readOnly | **new** |
+| `domain_contacts_set` | `R.updateContacts` | `domain`, `contacts`⁴ | write · idempotent | **new** |
 
 ³ `DnsRecord[]`: `{ type, name, value, ttl?, priority?, weight?, port? }`. `_set`
 replaces the full record set — mirror the client's replace semantics in the
