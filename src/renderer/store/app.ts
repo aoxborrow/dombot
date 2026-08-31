@@ -25,6 +25,11 @@ const marketDone = new Set<string>();
 // Renewal-price lookups in flight, keyed by `${registrar}:${domainName}`.
 const pricingInFlight = new Set<string>();
 
+// Guards so the eager whole-portfolio loads don't overlap themselves (which
+// would toggle their loading flag off while a pass is still running).
+let detailAllInFlight = false;
+let marketAllInFlight = false;
+
 interface AppState {
   appInfo: AppInfo | null;
   mcpInfo: McpInfo | null;
@@ -69,6 +74,12 @@ interface AppState {
   /** Fetch detail for on-screen rows. `force` re-fetches even cached rows and
    * bypasses the registrar/registry cache in main (used after a live refresh). */
   enrichVisible: (domains: Domain[], force?: boolean) => Promise<void>;
+  /** True while a whole-portfolio detail (nameserver) load runs, so the
+   * Nameservers filter can show that its groups aren't complete yet. */
+  detailAllLoading: boolean;
+  /** Enrich every domain still missing detail — the eager whole-portfolio load
+   * that backs the Nameservers filter. */
+  loadAllDetail: (domains: Domain[]) => Promise<void>;
 
   // Aftermarket pricing (DomDB), keyed by domain name. `null` = fetched but
   // untracked/unavailable. `marketLoading` drives the Market cell's spinner.
@@ -77,6 +88,12 @@ interface AppState {
   /** Fetch aftermarket data for on-screen rows. `force` bypasses the on-disk
    * cache in main and re-fetches (used after a live refresh). */
   loadAftermarketVisible: (domains: Domain[], force?: boolean) => Promise<void>;
+  /** True while a whole-portfolio aftermarket load runs, so the Price filter
+   * can show that not every domain is priced yet. */
+  marketAllLoading: boolean;
+  /** Fetch aftermarket for every domain still missing it — the eager
+   * whole-portfolio load that backs the Price filter. */
+  loadAllMarket: (domains: Domain[]) => Promise<void>;
 
   // Annual renewal pricing, keyed by `${registrar}:${domainName}`. Backs the
   // Renewals dashboard; fetched for the whole portfolio at once (cached in main).
@@ -167,6 +184,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     marketInFlight.clear();
     marketDone.clear();
     pricingInFlight.clear();
+    detailAllInFlight = false;
+    marketAllInFlight = false;
     set({
       portfolio: [],
       portfolioErrors: [],
@@ -181,6 +200,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       marketLoading: {},
       pricing: {},
       pricingLoading: false,
+      detailAllLoading: false,
+      marketAllLoading: false,
     });
   },
 
@@ -194,6 +215,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       marketInFlight.clear();
       marketDone.clear();
       pricingInFlight.clear();
+      detailAllInFlight = false;
+      marketAllInFlight = false;
       set((state) => ({
         portfolio: result.domains,
         portfolioErrors: result.errors,
@@ -209,6 +232,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         marketLoading: {},
         pricing: {},
         pricingLoading: false,
+        detailAllLoading: false,
+        marketAllLoading: false,
       }));
     } catch (err) {
       set({
@@ -290,6 +315,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     );
   },
 
+  detailAllLoading: false,
+  loadAllDetail: async (domains) => {
+    if (detailAllInFlight) return;
+    detailAllInFlight = true;
+    set({ detailAllLoading: true });
+    try {
+      // enrichVisible fetches only rows still missing detail and dedupes the
+      // rest, so passing the whole portfolio loads everything not yet cached.
+      await get().enrichVisible(domains);
+    } finally {
+      detailAllInFlight = false;
+      set({ detailAllLoading: false });
+    }
+  },
+
   aftermarket: {},
   marketLoading: {},
   loadAftermarketVisible: async (domains, force = false) => {
@@ -333,6 +373,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }),
     );
+  },
+
+  marketAllLoading: false,
+  loadAllMarket: async (domains) => {
+    if (marketAllInFlight) return;
+    marketAllInFlight = true;
+    set({ marketAllLoading: true });
+    try {
+      // Loads aftermarket for every domain not already fetched (deduped).
+      await get().loadAftermarketVisible(domains);
+    } finally {
+      marketAllInFlight = false;
+      set({ marketAllLoading: false });
+    }
   },
 
   pricing: {},
