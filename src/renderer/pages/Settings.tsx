@@ -1,5 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import RegistrarsSettings from './settings/RegistrarsSettings';
+import RegistrarsTableSettings from './settings/RegistrarsTableSettings';
 import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
 import FoldersSettings from './settings/FoldersSettings';
@@ -21,6 +22,12 @@ export default function Settings() {
             className="w-full justify-start data-[state=active]:bg-muted"
           >
             Registrars
+          </TabsTrigger>
+          <TabsTrigger
+            value="registrars-table"
+            className="w-full justify-start data-[state=active]:bg-muted"
+          >
+            Registrars (Table)
           </TabsTrigger>
           <TabsTrigger
             value="folders"
@@ -46,6 +53,9 @@ export default function Settings() {
       <div className="min-w-0 flex-1">
         <TabsContent value="registrars">
           <RegistrarsSettings />
+        </TabsContent>
+        <TabsContent value="registrars-table">
+          <RegistrarsTableSettings />
         </TabsContent>
         <TabsContent value="folders">
           <FoldersSettings />
