@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/empty';
 import { useAppStore } from '../../store/app';
 import { folderColorStyle } from '../../lib/folders';
+import { FolderIcon } from '../../components/icons/FolderIcon';
 
 /**
  * Settings → Folders: create, edit, and delete the folders used to organize
@@ -132,10 +133,7 @@ function FolderRow({
   const style = folderColorStyle(folder.color);
   return (
     <Card className="flex-row items-center gap-3 px-4 py-3">
-      <span
-        className={cn('size-3 shrink-0 rounded-full', style.swatch)}
-        aria-hidden
-      />
+      <FolderIcon className={cn('size-7 shrink-0', style.text)} aria-hidden />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="font-medium">{folder.name}</span>

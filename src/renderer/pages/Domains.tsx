@@ -24,12 +24,10 @@ import {
   EyeOff,
   ExternalLink,
   FileSpreadsheet,
-  Folder as FolderIcon,
   Globe,
   Lock,
   LockOpen,
   RefreshCw,
-  RefreshCwOff,
   Search,
   Server,
   Tag,
@@ -49,11 +47,13 @@ import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
 import { folderColorStyle } from '../lib/folders';
+import { FolderIcon } from '../components/icons/FolderIcon';
 import { timeAgo } from '../lib/time';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import {
   InputGroup,
@@ -66,9 +66,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -114,8 +111,8 @@ interface Column {
   render: (d: Domain, labels: RegistrarLabels) => React.ReactNode;
   /** Value used for sorting; null/empty sorts last regardless of direction. */
   sortValue: (d: Domain, labels: RegistrarLabels) => SortValue | null;
-  /** Right-align numeric-ish columns. */
-  align?: 'left' | 'right';
+  /** Right-align numeric-ish columns, or center the state/flag columns. */
+  align?: 'left' | 'right' | 'center';
   /** Comes from lazily-fetched per-domain detail; shows a loading placeholder
    * until that row's detail arrives. */
   detail?: boolean;
@@ -151,13 +148,6 @@ function isStale(fetchedAt: number): boolean {
   return Date.now() - fetchedAt >= STALE_AFTER_MS;
 }
 
-/** Freshly refreshed (within the last day) — the button dims itself so it
- * recedes when there's nothing to nudge. */
-const RECENT_WITHIN_MS = 24 * 60 * 60 * 1000; // 1 day
-function isRecent(fetchedAt: number): boolean {
-  return Date.now() - fetchedAt < RECENT_WITHIN_MS;
-}
-
 /** Minimum gap between manual refreshes — the button is disabled during it so a
  * fresh pull can't be hammered (every refresh re-queries every registrar). */
 const REFRESH_COOLDOWN_MS = 60 * 1000; // 1 minute
@@ -172,12 +162,14 @@ function daysUntil(date: Date | null): number | null {
 }
 
 /** Placeholder shown in a detail cell while that row's detail is loading. */
-function CellSkeleton({ align }: { align?: 'left' | 'right' }) {
+function CellSkeleton({ align }: { align?: 'left' | 'right' | 'center' }) {
+  // Narrow bar for the small icon/flag columns (right- or center-aligned).
+  const narrow = align === 'right' || align === 'center';
   return (
     <span
       className={cn(
         'inline-block h-3 animate-pulse rounded bg-muted',
-        align === 'right' ? 'w-4' : 'w-24',
+        narrow ? 'w-4' : 'w-24',
       )}
       aria-label="Loading…"
     />
@@ -310,115 +302,122 @@ function RenewalCell({
  * folder, or a muted dash when unassigned. Display only — assigning is done from
  * the row menu.
  */
+/**
+ * The Folder column cell — the row's only click target. A full-height, padded
+ * button (faded folder icon when unassigned, the colored folder chip otherwise)
+ * that opens the folder-assignment menu directly. Rendered in a `p-0` cell so
+ * the button fills the whole cell.
+ */
 function FolderCell({
   folders,
   folderId,
-}: {
-  folders: Folder[];
-  folderId: string | undefined;
-}) {
-  if (folderId === HIDDEN_FOLDER_ID) {
-    return (
-      <span
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"
-        title="Hidden"
-      >
-        <EyeOff className="size-3.5 shrink-0" />
-        Hidden
-      </span>
-    );
-  }
-  const current = folderId ? folders.find((f) => f.id === folderId) : undefined;
-  if (!current) return <span className="text-muted-foreground/40">—</span>;
-  return (
-    <span
-      className="inline-flex max-w-full items-center gap-1.5 text-sm"
-      title={`Folder: ${current.name}`}
-    >
-      <FolderIcon
-        className={cn(
-          'size-3.5 shrink-0',
-          folderColorStyle(current.color).text,
-        )}
-      />
-      <span className="truncate">{current.name}</span>
-    </span>
-  );
-}
-
-/**
- * The menu shown when a domain row is clicked (the whole row is the trigger).
- * Visit the domain, or assign it to a folder (single-select submenu). The
- * submenu ends with "None" (clear) and the built-in "Hidden" folder, which drops
- * the domain from the table. Rendered inside a <DropdownMenu> whose trigger is
- * the row.
- */
-function RowMenuContent({
-  folders,
-  folderId,
   onAssign,
-  onVisit,
 }: {
   folders: Folder[];
   folderId: string | undefined;
   onAssign: (folderId: string | null) => void;
-  onVisit: () => void;
 }) {
+  const hidden = folderId === HIDDEN_FOLDER_ID;
+  const current =
+    folderId && !hidden ? folders.find((f) => f.id === folderId) : undefined;
+
   return (
-    <DropdownMenuContent align="start" className="w-44">
-      <DropdownMenuItem onSelect={onVisit}>
-        <ExternalLink />
-        Visit domain
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
-          <FolderIcon />
-          Folder
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="max-h-[320px] max-w-[240px] overflow-y-auto">
-          {folders.map((f) => (
-            <DropdownMenuItem
-              key={f.id}
-              className="gap-1.5"
-              onSelect={() => onAssign(f.id)}
-            >
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          title="Assign folder"
+          className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground"
+        >
+          {hidden ? (
+            <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
+              <EyeOff className="size-4 shrink-0" />
+              Hidden
+            </span>
+          ) : current ? (
+            <span className="inline-flex h-4 max-w-full items-center gap-2 leading-none text-foreground">
               <FolderIcon
                 className={cn(
-                  'size-3.5 shrink-0',
-                  folderColorStyle(f.color).text,
+                  'size-4 shrink-0',
+                  folderColorStyle(current.color).text,
                 )}
-                aria-hidden
               />
-              <span className="flex-1 truncate">{f.name}</span>
-              {f.id === folderId && (
-                <Check className="size-3.5 shrink-0 text-muted-foreground" />
-              )}
-            </DropdownMenuItem>
-          ))}
-          {folders.length > 0 && <DropdownMenuSeparator />}
-          <DropdownMenuItem className="gap-1.5" onSelect={() => onAssign(null)}>
-            {/* Spacer keeps "None" aligned with the icon'd rows. */}
-            <span className="size-3.5 shrink-0" aria-hidden />
-            <span className="flex-1">None</span>
-            {folderId === undefined && (
-              <Check className="size-3.5 shrink-0 text-muted-foreground" />
-            )}
-          </DropdownMenuItem>
-          {/* Hidden is a built-in folder: assigning to it drops the domain from
-              the table until "Hidden" is picked in the Folder filter. */}
-          <DropdownMenuItem
-            className="gap-1.5"
-            onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
-          >
-            <EyeOff className="size-3.5 shrink-0" aria-hidden />
-            <span className="flex-1">Hidden</span>
-            {folderId === HIDDEN_FOLDER_ID && (
-              <Check className="size-3.5 shrink-0 text-muted-foreground" />
-            )}
-          </DropdownMenuItem>
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
+              <span className="truncate">{current.name}</span>
+            </span>
+          ) : (
+            // Fixed h-4 wrapper (the icon's own height) so every state is the
+            // same height — assigning a folder must not grow the row.
+            <span className="flex h-4 items-center">
+              <FolderIcon className="size-4 shrink-0" />
+            </span>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <FolderMenuContent
+        folders={folders}
+        folderId={folderId}
+        onAssign={onAssign}
+      />
+    </DropdownMenu>
+  );
+}
+
+/**
+ * The folder-assignment menu, opened directly from the Folder cell. A flat list
+ * of the user's folders followed by "None" (clear) and the built-in "Hidden"
+ * folder, which drops the domain from the table.
+ */
+function FolderMenuContent({
+  folders,
+  folderId,
+  onAssign,
+}: {
+  folders: Folder[];
+  folderId: string | undefined;
+  onAssign: (folderId: string | null) => void;
+}) {
+  return (
+    <DropdownMenuContent
+      align="start"
+      className="max-h-[320px] w-52 overflow-y-auto"
+    >
+      {folders.map((f) => (
+        <DropdownMenuItem
+          key={f.id}
+          className="gap-2.5"
+          onSelect={() => onAssign(f.id)}
+        >
+          <FolderIcon
+            className={cn('size-4 shrink-0', folderColorStyle(f.color).text)}
+            aria-hidden
+          />
+          <span className="flex-1 truncate">{f.name}</span>
+          {f.id === folderId && (
+            <Check className="size-3.5 shrink-0 text-muted-foreground" />
+          )}
+        </DropdownMenuItem>
+      ))}
+      {folders.length > 0 && <DropdownMenuSeparator />}
+      {/* Hidden is a built-in folder: assigning to it drops the domain from the
+          table until "Hidden" is picked in the Folder filter. */}
+      <DropdownMenuItem
+        className="gap-2.5"
+        onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
+      >
+        <EyeOff className="size-4 shrink-0" aria-hidden />
+        <span className="flex-1">Hidden</span>
+        {folderId === HIDDEN_FOLDER_ID && (
+          <Check className="size-3.5 shrink-0 text-muted-foreground" />
+        )}
+      </DropdownMenuItem>
+      <DropdownMenuItem className="gap-2.5" onSelect={() => onAssign(null)}>
+        {/* Spacer keeps "None" aligned with the icon'd rows. */}
+        <span className="size-4 shrink-0" aria-hidden />
+        <span className="flex-1">None</span>
+        {folderId === undefined && (
+          <Check className="size-3.5 shrink-0 text-muted-foreground" />
+        )}
+      </DropdownMenuItem>
     </DropdownMenuContent>
   );
 }
@@ -451,7 +450,7 @@ function StateIcon({
       className={cn(
         'size-4',
         place,
-        value ? 'text-emerald-500' : 'text-muted-foreground/50',
+        value ? 'text-[#7ac28d]/85' : 'text-muted-foreground/50',
       )}
       aria-label={value ? onLabel : offLabel}
     />
@@ -510,6 +509,22 @@ function LifecycleBadge({ status }: { status: string }) {
   );
 }
 
+/**
+ * Auto-renew toggle: reflects the domain's state but is read-only for now —
+ * toggling is disabled until it's wired to registrar settings (TODO). Brand
+ * green when on, a muted red when off to flag it.
+ */
+function AutoRenewSwitch({ value }: { value: boolean }) {
+  return (
+    <Switch
+      checked={value}
+      aria-readonly
+      aria-label="auto-renew"
+      className="cursor-default data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80"
+    />
+  );
+}
+
 const COLUMNS: Column[] = [
   {
     key: 'domainName',
@@ -562,47 +577,19 @@ const COLUMNS: Column[] = [
     sortValue: (d) => toTime(d.expirationDate),
   },
   {
-    // Sits right after the injected Renewal column, hugging the price on its
-    // left (compact + left-aligned so the icon snugs up to the figure).
     key: 'autoRenew',
-    label: 'Auto-Renew',
-    align: 'left',
+    label: 'Auto',
+    align: 'center',
     compact: true,
-    render: (d) => (
-      <StateIcon
-        value={d.autoRenew}
-        on={RefreshCw}
-        off={RefreshCwOff}
-        onLabel="auto-renew on"
-        offLabel="auto-renew off"
-        align="left"
-      />
-    ),
+    render: (d) => <AutoRenewSwitch value={d.autoRenew} />,
     sortValue: (d) => (d.autoRenew ? 1 : 0),
-  },
-  {
-    key: 'nameservers',
-    label: 'Nameservers',
-    detail: true,
-    render: (d) =>
-      d.nameservers.length === 0 ? (
-        <span className="text-muted-foreground/50">—</span>
-      ) : (
-        <span
-          className="block max-w-[260px] truncate font-mono text-xs text-muted-foreground"
-          title={d.nameservers.join('\n')}
-        >
-          {d.nameservers.join(', ')}
-        </span>
-      ),
-    sortValue: (d) => d.nameservers[0]?.toLowerCase() ?? '',
   },
   {
     key: 'privacy',
     label: 'Privacy',
-    align: 'right',
-    detail: true,
+    align: 'center',
     compact: true,
+    detail: true,
     render: (d) => (
       <StateIcon
         value={d.privacy}
@@ -617,9 +604,9 @@ const COLUMNS: Column[] = [
   {
     key: 'locked',
     label: 'Locked',
-    align: 'right',
-    detail: true,
+    align: 'center',
     compact: true,
+    detail: true,
     render: (d) => (
       <StateIcon
         value={d.locked}
@@ -630,6 +617,26 @@ const COLUMNS: Column[] = [
       />
     ),
     sortValue: (d) => (d.locked ? 1 : 0),
+  },
+  {
+    key: 'nameservers',
+    label: 'Nameservers',
+    detail: true,
+    render: (d) =>
+      d.nameservers.length === 0 ? (
+        <span className="text-muted-foreground/50">—</span>
+      ) : (
+        <span
+          className="inline-flex max-w-[260px] items-baseline gap-1.5 font-mono text-[13px] text-foreground/70"
+          title={d.nameservers.join('\n')}
+        >
+          <span className="truncate">{d.nameservers[0]}</span>
+          {d.nameservers.length > 1 && (
+            <span className="opacity-60">+{d.nameservers.length - 1}</span>
+          )}
+        </span>
+      ),
+    sortValue: (d) => d.nameservers[0]?.toLowerCase() ?? '',
   },
 ];
 
@@ -689,6 +696,15 @@ function toggleValue(selected: string[], value: string): string[] {
     ? selected.filter((v) => v !== value)
     : [...selected, value];
 }
+
+// Bulk row-selection (checkboxes + bulk action bar) is hidden for now; the
+// underlying state and handlers are kept so it can be switched back on later.
+const BULK_SELECT_ENABLED = false;
+
+// The Afternic aftermarket column and its price-range filter are hidden for
+// now; the fetch/sort/filter logic stays wired up so they can return later.
+const AFTERNIC_COLUMN_ENABLED = false;
+const PRICE_FILTER_ENABLED = false;
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
@@ -773,9 +789,6 @@ export default function Domains() {
   // Data past the staleness threshold — highlight the timestamp to nudge a
   // manual refresh (we never auto-refresh).
   const stale = portfolioLoadedAt !== null && isStale(portfolioLoadedAt);
-  // Refreshed within the last day: dim the control so it recedes when the data
-  // is plainly fresh and there's nothing to act on.
-  const recent = portfolioLoadedAt !== null && isRecent(portfolioLoadedAt);
   // Rate limit: block a re-refresh for a minute after the last one.
   const tooSoon =
     portfolioLoadedAt !== null && refreshOnCooldown(portfolioLoadedAt);
@@ -906,6 +919,29 @@ export default function Domains() {
   const minValue = priceError ? null : minParsed.value;
   const maxValue = priceError ? null : maxParsed.value;
   const priceFilterActive = minValue !== null || maxValue !== null;
+
+  // Whether any search/filter is narrowing the list — drives the "Reset filters"
+  // affordance and clearing them all at once.
+  const hasActiveFilters =
+    search.trim() !== '' ||
+    tld.length > 0 ||
+    registrar.length > 0 ||
+    expiry.length > 0 ||
+    ns.length > 0 ||
+    folder.length > 0 ||
+    priceFilterActive;
+
+  function resetFilters() {
+    setSearch('');
+    setTld([]);
+    setRegistrar([]);
+    setExpiry([]);
+    setNs([]);
+    setFolder([]);
+    setMinPrice('');
+    setMaxPrice('');
+    setPage(0);
+  }
 
   // Filter → sort. Pagination is applied after, on the sorted result.
   const filtered = useMemo(() => {
@@ -1120,11 +1156,11 @@ export default function Domains() {
   }
 
   return (
-    <div className="mx-auto flex max-w-[1400px] flex-col gap-5">
+    <div className="mx-auto flex max-w-[1400px] flex-col gap-[13px]">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Domains</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-[32px] font-bold">Domains</h1>
+          <p className="-mt-0.5 text-sm text-muted-foreground">
             {hasLoaded
               ? `${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
                   portfolioRegistrars.length === 1 ? '' : 's'
@@ -1133,27 +1169,14 @@ export default function Domains() {
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <div className="flex items-center gap-3">
-            {exportNote && (
-              <span
-                className={cn(
-                  'inline-flex items-center gap-1.5 text-sm',
-                  exportNote.error
-                    ? 'text-destructive'
-                    : 'text-emerald-600 dark:text-emerald-400',
-                )}
-                role="status"
-              >
-                {!exportNote.error && <CircleCheck className="size-4" />}
-                {exportNote.text}
-              </span>
-            )}
-            {portfolioLoadedAt !== null ? (
-              // The refresh control carries its own freshness: a "Refresh" label
-              // with the last-refreshed time in smaller muted text. Dimmed when
-              // fresh (<1 day), amber (fill + dot) once past the stale threshold.
+          {portfolioLoadedAt !== null ? (
+            // Dimmed "Refresh domains" button with the last-refreshed time as a
+            // small caption centered beneath it. Amber (fill + dot) once past the
+            // stale threshold.
+            <div className="flex flex-col items-center gap-1">
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => void loadPortfolio()}
                 disabled={portfolioLoading || tooSoon}
                 title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}${
@@ -1164,9 +1187,7 @@ export default function Domains() {
                       : ' — click to refresh'
                 }`}
                 className={cn(
-                  recent &&
-                    !stale &&
-                    'border-border/40 text-muted-foreground hover:text-foreground',
+                  'border-border/40 text-muted-foreground hover:text-foreground',
                   stale &&
                     'border-amber-500/50 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60 dark:hover:text-amber-300',
                 )}
@@ -1178,47 +1199,23 @@ export default function Domains() {
                   />
                 )}
                 <RefreshCw className={cn(portfolioLoading && 'animate-spin')} />
-                {portfolioLoading ? (
-                  'Refreshing…'
-                ) : (
-                  <span className="inline-flex items-baseline gap-1.5">
-                    Refresh
-                    <span className="text-xs font-normal opacity-70">
-                      {timeAgo(portfolioLoadedAt)}
-                    </span>
-                  </span>
-                )}
+                {portfolioLoading ? 'Refreshing…' : 'Refresh domains'}
               </Button>
-            ) : (
-              <Button
-                onClick={() => void loadPortfolio()}
-                disabled={portfolioLoading}
+              <span
+                className="text-[11px] text-muted-foreground/60"
+                title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}`}
               >
-                {portfolioLoading ? 'Loading…' : 'Load domains'}
-              </Button>
-            )}
-            {hasLoaded && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    disabled={exporting || filtered.length === 0}
-                    title="Export the filtered domains"
-                  >
-                    <Download />
-                    {exporting ? 'Exporting…' : 'Export'}
-                    <ChevronDown className="text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuItem onSelect={() => void exportCsv()}>
-                    <FileSpreadsheet />
-                    Export CSV
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
+                Refreshed {timeAgo(portfolioLoadedAt)}
+              </span>
+            </div>
+          ) : (
+            <Button
+              onClick={() => void loadPortfolio()}
+              disabled={portfolioLoading}
+            >
+              {portfolioLoading ? 'Loading…' : 'Load domains'}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1254,11 +1251,12 @@ export default function Domains() {
 
       {hasLoaded && (
         <>
-          {/* Toolbar: search + filters */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-[220px] flex-1">
-                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          {/* Toolbar: search, filters, and export all flow inline and wrap
+              together as equal items. Extra top margin separates it from the
+              title/refresh row above. */}
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="search"
                   value={search}
@@ -1269,10 +1267,10 @@ export default function Domains() {
                   placeholder="Search domains…"
                   className="pl-8"
                 />
-              </div>
+            </div>
 
-              <MultiSelectFilter
-                label="Registrar"
+            <MultiSelectFilter
+              label="Registrar"
                 icon={Building2}
                 options={registrarOptions}
                 selected={registrar}
@@ -1327,29 +1325,91 @@ export default function Domains() {
               )}
 
               {/* Afternic price range — a dropdown holding the min/max inputs */}
-              <PriceRangeFilter
-                min={minPrice}
-                max={maxPrice}
-                onMinChange={(v) => {
-                  setMinPrice(v);
-                  setPage(0);
-                }}
-                onMaxChange={(v) => {
-                  setMaxPrice(v);
-                  setPage(0);
-                }}
-                minInvalid={Boolean(minParsed.error) || Boolean(rangeError)}
-                maxInvalid={Boolean(maxParsed.error) || Boolean(rangeError)}
-                minValue={minValue}
-                maxValue={maxValue}
-                error={priceError}
-              />
+              {PRICE_FILTER_ENABLED && (
+                <PriceRangeFilter
+                  min={minPrice}
+                  max={maxPrice}
+                  onMinChange={(v) => {
+                    setMinPrice(v);
+                    setPage(0);
+                  }}
+                  onMaxChange={(v) => {
+                    setMaxPrice(v);
+                    setPage(0);
+                  }}
+                  minInvalid={Boolean(minParsed.error) || Boolean(rangeError)}
+                  maxInvalid={Boolean(maxParsed.error) || Boolean(rangeError)}
+                  minValue={minValue}
+                  maxValue={maxValue}
+                  error={priceError}
+                />
+              )}
+
+              {/* Reset button styled like the filters (no chevron); faded/
+                  disabled when nothing is active. Trialling this alongside the
+                  green header link. */}
+              <Button
+                variant="outline"
+                onClick={resetFilters}
+                disabled={!hasActiveFilters}
+                className={cn(
+                  'gap-2 pr-[14px]! pl-[8px]!',
+                  hasActiveFilters &&
+                    'border-[#4f9d6b] dark:border-[#4f9d6b]',
+                )}
+              >
+                <X
+                  className={cn(
+                    'size-[18px]',
+                    hasActiveFilters
+                      ? 'text-[#4f9d6b]'
+                      : 'text-muted-foreground',
+                  )}
+                />
+                Reset
+              </Button>
+
+              <div className="flex items-center gap-3">
+                {exportNote && (
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1.5 text-sm',
+                      exportNote.error
+                        ? 'text-destructive'
+                        : 'text-[#31613b] dark:text-[#7ac28d]',
+                    )}
+                    role="status"
+                  >
+                    {!exportNote.error && <CircleCheck className="size-4" />}
+                    {exportNote.text}
+                  </span>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      disabled={exporting || filtered.length === 0}
+                      title="Export the filtered domains"
+                      className="pr-[7px]!"
+                    >
+                      <Download className="text-muted-foreground" />
+                      {exporting ? 'Exporting…' : 'Export'}
+                      <ChevronDown className="text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => void exportCsv()}>
+                      <FileSpreadsheet className="text-muted-foreground" />
+                      Export CSV
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
-          </div>
 
           {/* Bulk action bar — contextual, appears once any row is selected.
               Actions are UI-only stubs for now. */}
-          {selectedCount > 0 && (
+          {BULK_SELECT_ENABLED && selectedCount > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
               <div className="flex items-center gap-2 text-sm">
                 <span className="font-medium">{selectedCount} selected</span>
@@ -1398,23 +1458,25 @@ export default function Domains() {
           )}
 
           {/* Table */}
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-9 pl-3">
-                    <Checkbox
-                      checked={
-                        allFilteredSelected
-                          ? true
-                          : someFilteredSelected
-                            ? 'indeterminate'
-                            : false
-                      }
-                      onCheckedChange={toggleSelectAll}
-                      aria-label="Select all domains"
-                    />
-                  </TableHead>
+                <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
+                  {BULK_SELECT_ENABLED && (
+                    <TableHead className="w-9 pl-3">
+                      <Checkbox
+                        checked={
+                          allFilteredSelected
+                            ? true
+                            : someFilteredSelected
+                              ? 'indeterminate'
+                              : false
+                        }
+                        onCheckedChange={toggleSelectAll}
+                        aria-label="Select all domains"
+                      />
+                    </TableHead>
+                  )}
                   {COLUMNS.map((col, i) => {
                     const active = col.key === sortKey;
                     const Icon = !active
@@ -1427,7 +1489,9 @@ export default function Domains() {
                         <TableHead
                           className={cn(
                             col.align === 'right' && 'text-right',
-                            col.compact && 'px-1',
+                            col.align === 'center' && 'text-center',
+                            col.compact && 'w-0 px-1.5',
+                            col.key === 'autoRenew' && 'pl-[8px]',
                             col.key === 'domainName' && 'pl-3',
                           )}
                         >
@@ -1436,6 +1500,7 @@ export default function Domains() {
                             onClick={() => toggleSort(col.key)}
                             className={cn(
                               'inline-flex items-center gap-1 select-none hover:text-foreground',
+                              col.compact && 'gap-0.5',
                               active && 'text-foreground',
                             )}
                           >
@@ -1444,7 +1509,7 @@ export default function Domains() {
                           </button>
                         </TableHead>
                         {/* Afternic sits right after the domain name. */}
-                        {i === 0 && (
+                        {i === 0 && AFTERNIC_COLUMN_ENABLED && (
                           <TableHead className="text-right">
                             <button
                               type="button"
@@ -1471,7 +1536,7 @@ export default function Domains() {
                         )}
                         {/* Folder sits right after Afternic, before Registrar. */}
                         {i === 0 && (
-                          <TableHead>
+                          <TableHead className="pl-3">
                             <button
                               type="button"
                               onClick={() => toggleSort(FOLDER)}
@@ -1497,7 +1562,7 @@ export default function Domains() {
                         )}
                         {/* Renewal price sits right before the Auto-Renew flag. */}
                         {col.key === 'expirationDate' && (
-                          <TableHead className="text-right">
+                          <TableHead className="w-0 text-right">
                             <button
                               type="button"
                               onClick={() => toggleSort(RENEWAL)}
@@ -1531,85 +1596,71 @@ export default function Domains() {
                   const key = `${d.registrar}:${d.domainName}`;
                   const loadingDetail = enriching[key] === true;
                   return (
-                    // The whole row is the trigger: clicking it opens the row
-                    // menu (visit / assign folder / hide). It highlights on
-                    // hover and stays highlighted while its menu is open.
-                    <DropdownMenu key={key}>
-                      <DropdownMenuTrigger asChild>
-                        <TableRow
-                          className={cn(
-                            'cursor-pointer data-[state=open]:bg-muted/50',
-                            selected.has(key) && 'bg-muted/50',
-                          )}
-                        >
-                          {/* Selection checkbox. Stop pointer/click here so
-                              ticking a row doesn't also open the row menu. */}
+                    // Rows highlight on hover but aren't themselves clickable —
+                    // the only click target is the Folder cell, which opens the
+                    // folder-assignment menu.
+                    <TableRow
+                      key={key}
+                      className={cn(selected.has(key) && 'bg-muted/50')}
+                    >
+                      {/* Selection checkbox. */}
+                      {BULK_SELECT_ENABLED && (
+                        <TableCell className="w-9 pl-3">
+                          <Checkbox
+                            checked={selected.has(key)}
+                            onCheckedChange={() => toggleSelected(key)}
+                            aria-label={`Select ${d.domainName}`}
+                          />
+                        </TableCell>
+                      )}
+                      {COLUMNS.map((col, i) => (
+                        <Fragment key={col.key}>
                           <TableCell
-                            className="w-9 pl-3"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={(e) => e.stopPropagation()}
+                            className={cn(
+                              col.align === 'right' && 'text-right',
+                              col.align === 'center' && 'text-center',
+                              col.compact && 'w-0 px-1.5',
+                              col.key === 'autoRenew' && 'pl-[6px]',
+                              col.key === 'domainName' && 'pl-3',
+                            )}
                           >
-                            <Checkbox
-                              checked={selected.has(key)}
-                              onCheckedChange={() => toggleSelected(key)}
-                              aria-label={`Select ${d.domainName}`}
-                            />
+                            {col.detail && loadingDetail ? (
+                              <CellSkeleton align={col.align} />
+                            ) : (
+                              col.render(d, portfolioRegistrarLabels)
+                            )}
                           </TableCell>
-                          {COLUMNS.map((col, i) => (
-                            <Fragment key={col.key}>
-                              <TableCell
-                                className={cn(
-                                  col.align === 'right' && 'text-right',
-                                  col.compact && 'px-1',
-                                  col.key === 'domainName' && 'pl-3',
-                                )}
-                              >
-                                {col.detail && loadingDetail ? (
-                                  <CellSkeleton align={col.align} />
-                                ) : (
-                                  col.render(d, portfolioRegistrarLabels)
-                                )}
-                              </TableCell>
-                              {i === 0 && (
-                                <TableCell className="text-right">
-                                  <AfternicCell
-                                    info={aftermarket[d.domainName]}
-                                    loading={
-                                      marketLoading[d.domainName] === true
-                                    }
-                                    onOpen={openExternal}
-                                  />
-                                </TableCell>
-                              )}
-                              {i === 0 && (
-                                <TableCell>
-                                  <FolderCell
-                                    folders={folders}
-                                    folderId={folderAssignments[key]}
-                                  />
-                                </TableCell>
-                              )}
-                              {col.key === 'expirationDate' && (
-                                <TableCell className="text-right">
-                                  <RenewalCell
-                                    info={pricing[key]}
-                                    loading={pricingLoading}
-                                  />
-                                </TableCell>
-                              )}
-                            </Fragment>
-                          ))}
-                        </TableRow>
-                      </DropdownMenuTrigger>
-                      <RowMenuContent
-                        folders={folders}
-                        folderId={folderAssignments[key]}
-                        onAssign={(folderId) =>
-                          void assignFolder(key, folderId)
-                        }
-                        onVisit={() => openExternal(`https://${d.domainName}`)}
-                      />
-                    </DropdownMenu>
+                          {i === 0 && AFTERNIC_COLUMN_ENABLED && (
+                            <TableCell className="text-right">
+                              <AfternicCell
+                                info={aftermarket[d.domainName]}
+                                loading={marketLoading[d.domainName] === true}
+                                onOpen={openExternal}
+                              />
+                            </TableCell>
+                          )}
+                          {i === 0 && (
+                            <TableCell className="p-0">
+                              <FolderCell
+                                folders={folders}
+                                folderId={folderAssignments[key]}
+                                onAssign={(folderId) =>
+                                  void assignFolder(key, folderId)
+                                }
+                              />
+                            </TableCell>
+                          )}
+                          {col.key === 'expirationDate' && (
+                            <TableCell className="w-0 text-right pr-3">
+                              <RenewalCell
+                                info={pricing[key]}
+                                loading={pricingLoading}
+                              />
+                            </TableCell>
+                          )}
+                        </Fragment>
+                      ))}
+                    </TableRow>
                   );
                 })}
                 {visible.length === 0 && (
@@ -1855,19 +1906,16 @@ function MultiSelectFilter({
   selected: string[];
   onChange: (next: string[]) => void;
   /** Optional leading icon shown before the label in the trigger. */
-  icon?: LucideIcon;
+  icon?: React.ComponentType<{ className?: string }>;
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" aria-label={label} className="gap-1.5">
+        <Button variant="outline" aria-label={label} className="gap-2 pr-[7px]!">
           {Icon && <Icon className="size-4 text-muted-foreground" />}
           {label}
           {selected.length > 0 && (
-            <Badge
-              variant="secondary"
-              className="px-1.5 py-0 text-xs tabular-nums"
-            >
+            <Badge className="bg-primary px-1.5 py-0 text-xs tabular-nums text-primary-foreground">
               {selected.length}
             </Badge>
           )}

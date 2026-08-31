@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, ChevronDown, CircleCheck, CircleX } from 'lucide-react';
+import { ChevronDown, CircleCheck, CircleX, Plug } from 'lucide-react';
 import type {
   CredentialValues,
   RegistrarMeta,
@@ -101,13 +101,15 @@ function RegistrarCard({
     <Card className="gap-0 overflow-hidden py-0">
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left">
-          <span className="flex items-center gap-3">
+          <span className="flex items-center gap-[18px]">
             <span className="font-medium">{meta.displayName}</span>
             {meta.configured ? (
-              <Badge variant="secondary">
-                <Check />
-                Configured
-              </Badge>
+              <span className="flex items-center gap-1.5">
+                <span className="size-2 shrink-0 rounded-full bg-[#31613b] dark:bg-[#7ac28d]" />
+                <span className="text-sm font-semibold text-[#31613b] dark:text-[#7ac28d]">
+                  Configured
+                </span>
+              </span>
             ) : (
               <Badge variant="outline" className="text-muted-foreground">
                 Not set
@@ -124,16 +126,16 @@ function RegistrarCard({
 
         <CollapsibleContent className="border-t px-5 py-4">
           {meta.helpText && (
-            <p className="mb-4 text-xs leading-relaxed text-muted-foreground">
+            <p className="mb-3 text-[13px] leading-relaxed text-muted-foreground">
               {meta.helpText}
             </p>
           )}
 
-          <FieldGroup>
+          <FieldGroup className="gap-4">
             {meta.configFields.map((field) => {
               const id = `${meta.name}-${field.name}`;
               return (
-                <Field key={field.name}>
+                <Field key={field.name} className="gap-1.5">
                   <FieldLabel htmlFor={id}>
                     {field.label}
                     {field.required && (
@@ -184,17 +186,10 @@ function RegistrarCard({
             <Button onClick={() => void save()} disabled={saving}>
               {saving ? 'Saving…' : 'Save'}
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => void runTest()}
-              disabled={testing}
-            >
-              {testing ? 'Testing…' : 'Test connection'}
-            </Button>
             {test && (
               <span
                 className={cn(
-                  'flex items-center gap-1.5 text-sm',
+                  'ml-auto flex items-center gap-1.5 text-sm',
                   test.ok ? 'text-foreground' : 'text-destructive',
                 )}
               >
@@ -206,6 +201,15 @@ function RegistrarCard({
                 {test.message}
               </span>
             )}
+            <Button
+              variant="outline"
+              onClick={() => void runTest()}
+              disabled={testing}
+              className={cn(!test && 'ml-auto')}
+            >
+              <Plug />
+              {testing ? 'Testing…' : 'Test connection'}
+            </Button>
           </div>
         </CollapsibleContent>
       </Collapsible>

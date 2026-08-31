@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
+import { timeAgo } from '../lib/time';
 import {
   dueWithin,
   groupBy,
@@ -61,18 +62,20 @@ interface Slice {
   color: string;
 }
 
-// Categorical palette (mode-stable mid-tones) plus a neutral "Other" gray.
+// Categorical palette — deliberately desaturated so the charts sit calmly on
+// the muted cards instead of reading as bright primaries. Plus a neutral
+// "Other" gray.
 const DONUT_PALETTE = [
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#8b5cf6',
-  '#ec4899',
-  '#14b8a6',
-  '#ef4444',
-  '#6366f1',
+  '#6690bf', // muted blue
+  '#5fa387', // muted green
+  '#c2a05f', // muted gold
+  '#8f88bf', // muted periwinkle
+  '#bf8fa8', // muted mauve
+  '#5f9e9e', // muted teal
+  '#bf8477', // muted terracotta
+  '#7f89b8', // muted indigo
 ];
-const OTHER_COLOR = '#94a3b8';
+const OTHER_COLOR = '#8a94a3';
 
 /** Rank groups by `value`, keep the top N as their own slices, and fold the
  * long tail into a single "Other" slice so the donut stays legible. */
@@ -101,6 +104,10 @@ function toSlices(
   return slices;
 }
 
+// The "Set prices manually" editor is hidden for now; the state and handlers
+// stay wired up so it can be switched back on later.
+const MANUAL_PRICING_ENABLED = false;
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Renewals() {
@@ -110,6 +117,7 @@ export default function Renewals() {
     portfolioRegistrarLabels,
     pricing,
     pricingLoading,
+    pricingLoadedAt,
     loadPricingAll,
     refreshPricing,
     setManualPrice,
@@ -213,6 +221,7 @@ export default function Renewals() {
         loading={pricingLoading}
         onLoad={hasPricing ? undefined : () => void loadPricingAll(portfolio)}
         onRefresh={hasPricing ? () => void refreshPricing() : undefined}
+        refreshedAt={pricingLoadedAt}
         summary={summary}
       />
 
@@ -220,7 +229,7 @@ export default function Renewals() {
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
           icon={Globe}
-          accentClass="text-blue-500/15"
+          accentClass="text-blue-500"
           label="Total domains"
           value={count(summary.total)}
           hint={`${byRegistrar.length} registrar${
@@ -229,7 +238,7 @@ export default function Renewals() {
         />
         <StatCard
           icon={CircleDollarSign}
-          accentClass="text-emerald-500/15"
+          accentClass="text-emerald-500"
           label="Yearly renewals"
           value={usd(summary.yearly)}
           hint={`${usd(monthly)}/mo · ${usd(summary.yearlyAutoRenew)} auto-renews, ${usd(
@@ -238,7 +247,7 @@ export default function Renewals() {
         />
         <StatCard
           icon={CalendarClock}
-          accentClass="text-amber-500/15"
+          accentClass="text-amber-500"
           label="Due next 90 days"
           value={usd(due90.yearly)}
           hint={`${due90.count} domain${due90.count === 1 ? '' : 's'} renewing`}
@@ -275,7 +284,7 @@ export default function Renewals() {
       </div>
 
       {/* Manual price editor */}
-      {needsPrice.length > 0 && (
+      {MANUAL_PRICING_ENABLED && needsPrice.length > 0 && (
         <PriceEditor
           domains={needsPrice}
           labels={portfolioRegistrarLabels}
@@ -293,18 +302,20 @@ function PageHeader({
   loading,
   onLoad,
   onRefresh,
+  refreshedAt,
   summary,
 }: {
   loading: boolean;
   onLoad?: () => void;
   onRefresh?: () => void;
+  refreshedAt?: number | null;
   summary: ReturnType<typeof summarize>;
 }) {
   return (
     <div className="flex items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-bold">Renewals</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-[32px] font-bold">Renewals</h1>
+        <p className="-mt-0.5 text-sm text-muted-foreground">
           {loading
             ? `Pricing… ${summary.priced}/${summary.total}`
             : summary.priced > 0
@@ -318,10 +329,26 @@ function PageHeader({
         </Button>
       )}
       {onRefresh && (
-        <Button variant="outline" onClick={onRefresh} disabled={loading}>
-          <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
-          Refresh prices
-        </Button>
+        <div className="flex flex-col items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={loading}
+            className="border-border/40 text-muted-foreground hover:text-foreground"
+          >
+            <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
+            Refresh prices
+          </Button>
+          {refreshedAt != null && (
+            <span
+              className="text-[11px] text-muted-foreground/60"
+              title={`Refreshed ${new Date(refreshedAt).toLocaleString()}`}
+            >
+              Refreshed {timeAgo(refreshedAt)}
+            </span>
+          )}
+        </div>
       )}
     </div>
   );
@@ -337,25 +364,28 @@ function StatCard({
   hint,
 }: {
   icon: LucideIcon;
-  /** Tailwind text-color + opacity for the background watermark, e.g.
-   * "text-emerald-500/15". */
+  /** Tailwind text-color for the background watermark (rendered at a low group
+   * opacity), e.g. "text-emerald-500". */
   accentClass: string;
   label: string;
   value: string;
   hint: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-lg border bg-card p-4">
+    <div className="relative overflow-hidden rounded-lg border bg-card px-4 pt-[9px] pb-[11px]">
       <Icon
         className={cn(
-          'pointer-events-none absolute -right-4 -bottom-4 size-28',
+          // Fade the whole shape as a group (opacity-[0.15]) rather than using a
+          // translucent stroke color — a semi-transparent stroke composites to
+          // bright spots wherever the icon's paths overlap.
+          'pointer-events-none absolute -right-4 -bottom-6 size-[123px] opacity-[0.15]',
           accentClass,
         )}
         strokeWidth={1.5}
         aria-hidden
       />
       <div className="relative">
-        <div className="text-sm text-muted-foreground">{label}</div>
+        <div className="text-[15px] text-foreground/75">{label}</div>
         <div className="mt-2 text-2xl font-bold tabular-nums">{value}</div>
         <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
       </div>
@@ -365,40 +395,57 @@ function StatCard({
 
 // ── Monthly bar chart ────────────────────────────────────────────────────────
 
+// A calm subset of the donut palette for the bars — the cool/gold tones only,
+// dropping the mauve/periwinkle/terracotta/indigo so 12 bars don't read as a
+// rainbow.
+const BAR_PALETTE = ['#6690bf', '#5fa387', '#c2a05f', '#5f9e9e'];
+
 function MonthlyBarChart({ months }: { months: MonthBucket[] }) {
   const max = Math.max(1, ...months.map((m) => m.yearly));
   const total = months.reduce((sum, m) => sum + m.yearly, 0);
   return (
-    <div className="flex flex-col gap-3 rounded-lg border bg-card p-4">
+    <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 pt-[14px]">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="text-sm font-semibold text-muted-foreground">
+        <h2 className="text-[15px] font-semibold text-foreground/75">
           Renewals by month
         </h2>
         <span className="text-xs text-muted-foreground">
           {usd(total)} over 12 months
         </span>
       </div>
-      <div className="flex items-end gap-2 pt-5">
+      <div className="flex items-end gap-1.5 pt-2">
         {months.map((m, i) => {
           const pct = (m.yearly / max) * 100;
-          // Cycle the donut palette across months for a bit of visual interest.
-          const color = DONUT_PALETTE[i % DONUT_PALETTE.length];
+          // Cycle the calm palette so adjacent months stay distinct without the
+          // rainbow effect.
+          const color = BAR_PALETTE[i % BAR_PALETTE.length];
           return (
             <div
               key={m.key}
               className="flex min-w-0 flex-1 flex-col items-center gap-1.5"
             >
-              <div className="relative h-40 w-full">
+              <div className="relative h-48 w-full">
+                {/* Faint full-height track so the chart keeps a readable grid
+                    even where a month is empty or very short. */}
                 <div
-                  className="absolute inset-x-1 bottom-0 rounded-t"
-                  style={{ height: `${pct}%`, backgroundColor: color }}
+                  className="absolute inset-x-0 inset-y-0 rounded-t-[5px] rounded-b-[3px] bg-muted/30"
+                  aria-hidden
+                />
+                <div
+                  className="absolute inset-x-0 bottom-0 rounded-t-[5px] rounded-b-[3px] transition-[filter] hover:brightness-110"
+                  style={{
+                    height: `${pct}%`,
+                    // Subtle top-lit gradient (a touch lighter at the top) for
+                    // depth rather than a flat fill.
+                    backgroundImage: `linear-gradient(180deg, color-mix(in srgb, ${color} 80%, white), ${color})`,
+                  }}
                   title={`${m.label}: ${usd(m.yearly)} · ${m.count} domain${
                     m.count === 1 ? '' : 's'
                   }`}
                 />
                 {m.yearly > 0 && (
                   <span
-                    className="absolute left-1/2 -translate-x-1/2 -translate-y-1 text-[10px] whitespace-nowrap text-muted-foreground tabular-nums"
+                    className="absolute left-1/2 -translate-x-1/2 -translate-y-1 text-[11px] whitespace-nowrap text-muted-foreground tabular-nums"
                     style={{ bottom: `${pct}%` }}
                   >
                     {usd(m.yearly)}
@@ -514,8 +561,8 @@ function DonutCard({
 }) {
   const total = slices.reduce((sum, s) => sum + s.value, 0);
   return (
-    <div className="flex flex-col gap-3 rounded-lg border bg-card p-4">
-      <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
+    <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 pt-[14px]">
+      <h2 className="text-[15px] font-semibold text-foreground/75">{title}</h2>
       <div className="flex items-center gap-4">
         <Donut
           slices={slices}
@@ -569,7 +616,7 @@ function PriceEditor({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <h2 className="text-sm font-semibold text-muted-foreground">
+      <h2 className="text-[15px] font-semibold text-foreground/75">
         Set prices manually{' '}
         <span className="font-normal text-muted-foreground/70">
           · registrars with no pricing API, or your own overrides

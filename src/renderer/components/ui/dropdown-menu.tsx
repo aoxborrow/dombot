@@ -5,9 +5,18 @@ import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui';
 import { cn } from '@/lib/utils';
 
 function DropdownMenu({
+  modal = false,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
+  // Default to non-modal so opening a menu doesn't lock body scroll (which
+  // removes the scrollbar and shifts the whole page). Callers can still opt in.
+  return (
+    <DropdownMenuPrimitive.Root
+      data-slot="dropdown-menu"
+      modal={modal}
+      {...props}
+    />
+  );
 }
 
 function DropdownMenuPortal({
@@ -100,7 +109,7 @@ function DropdownMenuCheckboxItem({
           a multi-select menu reads as checkboxes even with nothing selected. */}
       <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center rounded-[4px] border border-input transition-colors group-data-[state=checked]/checkbox-item:border-primary group-data-[state=checked]/checkbox-item:bg-primary group-data-[state=checked]/checkbox-item:text-primary-foreground">
         <DropdownMenuPrimitive.ItemIndicator>
-          <CheckIcon className="size-3.5" />
+          <CheckIcon className="size-3.5" strokeWidth={2.75} />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
       {children}

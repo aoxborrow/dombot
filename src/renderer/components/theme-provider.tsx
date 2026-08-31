@@ -44,9 +44,11 @@ export function ThemeProvider({
   children: React.ReactNode;
   defaultTheme?: Theme;
 }) {
-  const [theme, setThemeState] = useState<Theme>(() =>
-    readStored(defaultTheme),
-  );
+  // Forced to dark for now — the light/auto toggle is hidden. To restore user
+  // theme selection, revert this to `readStored(defaultTheme)`.
+  void readStored;
+  void defaultTheme;
+  const [theme, setThemeState] = useState<Theme>('dark');
 
   useEffect(() => {
     const root = document.documentElement;
