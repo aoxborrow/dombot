@@ -218,38 +218,50 @@ function StateIcon({
   );
 }
 
+type LifecycleTone = 'redemption' | 'expired' | 'grace' | 'hold';
+
+/**
+ * A distinct fill color per lifecycle state, most→least urgent — all solid
+ * warning pills: red, orange, amber, rose. Amber takes dark text for contrast.
+ */
+const LIFECYCLE_TONE: Record<LifecycleTone, string> = {
+  redemption: 'bg-red-600 text-white',
+  expired: 'bg-orange-500 text-white',
+  grace: 'bg-amber-400 text-amber-950',
+  hold: 'bg-rose-500 text-white',
+};
+
 /**
  * Detects a lifecycle problem from the normalized `status` string. There's no
  * dedicated flag across registrars, so we match the substrings each surfaces:
  * Gandi emits raw EPP codes, GoDaddy/Cloudflare/Spaceship lifecycle enums, and
  * Namecheap/Namesilo an "expired" once detail is fetched. Returns a short label
- * + severity, or null for healthy domains.
+ * + tone, or null for healthy domains.
  */
 function domainLifecycle(
   status: string,
-): { label: string; danger: boolean } | null {
+): { label: string; tone: LifecycleTone } | null {
   const s = status.toLowerCase();
   if (/redemption|pending_?delete|recoverable|restorable/.test(s)) {
-    return { label: 'Redemption', danger: true };
+    return { label: 'Redemption', tone: 'redemption' };
   }
-  if (/expired/.test(s)) return { label: 'Expired', danger: true };
+  if (/expired/.test(s)) return { label: 'Expired', tone: 'expired' };
   if (/grace|autorenewperiod|renewperiod/.test(s)) {
-    return { label: 'Grace', danger: false };
+    return { label: 'Grace', tone: 'grace' };
   }
-  if (/hold/.test(s)) return { label: 'Hold', danger: false };
+  if (/hold/.test(s)) return { label: 'Hold', tone: 'hold' };
   return null;
 }
 
-/** Red pill for redemption/expired, amber for grace/hold; nothing when healthy. */
+/** A distinctly-colored pill per lifecycle state; nothing when healthy. */
 function LifecycleBadge({ status }: { status: string }) {
   const flag = domainLifecycle(status);
   if (!flag) return null;
   return (
     <Badge
-      variant={flag.danger ? 'destructive' : 'outline'}
       className={cn(
-        !flag.danger &&
-          'border-amber-500/40 text-amber-600 dark:text-amber-400',
+        'border-transparent px-1.5 py-0 text-[11px]',
+        LIFECYCLE_TONE[flag.tone],
       )}
       title={`Registry status: ${status}`}
     >
