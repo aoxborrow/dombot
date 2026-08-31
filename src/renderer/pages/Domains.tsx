@@ -9,6 +9,7 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -35,6 +36,17 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Empty,
@@ -470,22 +482,35 @@ function expiryColor(days: number | null): string {
 }
 
 const PAGE_SIZES = [25, 50, 100, 250];
-const ALL = '__all__';
 
-/** Sentinel expiration-filter value that keeps only already-expired domains. */
+/** Sentinel expiration value that keeps only already-expired domains. */
 const EXPIRED = 'expired';
 
 /**
- * Expiration-filter options. ALL disables it, EXPIRED keeps only past-due
- * domains, and a numeric value keeps domains expiring within that many days.
+ * Expiration-filter options for the multi-select. No "all" entry — an empty
+ * selection means no expiration filter. EXPIRED keeps past-due domains; a
+ * numeric value keeps domains expiring within that many upcoming days.
  */
 const EXPIRY_OPTIONS: { value: string; label: string }[] = [
-  { value: ALL, label: 'All Expirations' },
+  { value: EXPIRED, label: 'Expired' },
   { value: '30', label: 'Next 30 days' },
   { value: '60', label: 'Next 60 days' },
   { value: '90', label: 'Next 90 days' },
-  { value: EXPIRED, label: 'Expired' },
 ];
+
+/** Whether a domain (with `days` until expiry) matches one expiration option. */
+function matchesExpiryOption(option: string, days: number | null): boolean {
+  if (days === null) return false;
+  if (option === EXPIRED) return days < 0;
+  return days >= 0 && days <= Number(option);
+}
+
+/** Adds or removes `value` from a multi-select selection array. */
+function toggleValue(selected: string[], value: string): string[] {
+  return selected.includes(value)
+    ? selected.filter((v) => v !== value)
+    : [...selected, value];
+}
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
@@ -518,9 +543,10 @@ export default function Domains() {
   );
 
   const [search, setSearch] = useState('');
-  const [tld, setTld] = useState<string>(ALL);
-  const [registrar, setRegistrar] = useState<string>(ALL);
-  const [expiry, setExpiry] = useState<string>(ALL);
+  // Multi-select filters; an empty array means "no filter" (show all).
+  const [tld, setTld] = useState<string[]>([]);
+  const [registrar, setRegistrar] = useState<string[]>([]);
+  const [expiry, setExpiry] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [sortKey, setSortKey] = useState('domainName');
@@ -608,18 +634,14 @@ export default function Domains() {
     const q = search.trim().toLowerCase();
     const rows = merged.filter((d) => {
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
-      if (tld !== ALL && tldOf(d.domainName) !== tld) return false;
-      if (registrar !== ALL && d.registrar !== registrar) return false;
-      // Expiration filter: "Expired" keeps only past-due domains; a numeric
-      // window keeps domains expiring within that many upcoming days.
-      if (expiry !== ALL) {
+      if (tld.length > 0 && !tld.includes(tldOf(d.domainName))) return false;
+      if (registrar.length > 0 && !registrar.includes(d.registrar))
+        return false;
+      // Expiration: keep a domain matching ANY selected window ("Expired" =
+      // past-due; a numeric window = within that many upcoming days).
+      if (expiry.length > 0) {
         const days = daysUntil(d.expirationDate);
-        if (days === null) return false;
-        if (expiry === EXPIRED) {
-          if (days >= 0) return false;
-        } else if (days < 0 || days > Number(expiry)) {
-          return false;
-        }
+        if (!expiry.some((o) => matchesExpiryOption(o, days))) return false;
       }
       // Afternic price range. With any bound set, unlisted/offer-only domains
       // (no numeric price) are excluded.
@@ -722,24 +744,6 @@ export default function Domains() {
       setSortDir('asc');
     }
   }
-
-  function resetFilters() {
-    setSearch('');
-    setTld(ALL);
-    setRegistrar(ALL);
-    setExpiry(ALL);
-    setMinPrice('');
-    setMaxPrice('');
-    setPage(0);
-  }
-
-  const filtersActive =
-    search !== '' ||
-    tld !== ALL ||
-    registrar !== ALL ||
-    expiry !== ALL ||
-    minPrice !== '' ||
-    maxPrice !== '';
 
   function flashExportNote(text: string, error: boolean) {
     setExportNote({ text, error });
@@ -911,78 +915,52 @@ export default function Domains() {
                 />
               </div>
 
-              <FilterSelect
-                label="TLD"
-                value={tld}
-                onChange={(v) => {
-                  setTld(v);
+              <MultiSelectFilter
+                label="TLDs"
+                options={tlds.map((t) => ({ value: t, label: `.${t}` }))}
+                selected={tld}
+                onChange={(next) => {
+                  setTld(next);
                   setPage(0);
                 }}
-                options={tlds}
-                format={(t) => `.${t}`}
               />
-              <FilterSelect
-                label="Registrar"
-                value={registrar}
-                onChange={(v) => {
-                  setRegistrar(v);
+              <MultiSelectFilter
+                label="Registrars"
+                options={registrars.map((id) => ({
+                  value: id,
+                  label: registrarLabel(id, portfolioRegistrarLabels),
+                }))}
+                selected={registrar}
+                onChange={(next) => {
+                  setRegistrar(next);
                   setPage(0);
                 }}
-                options={registrars}
-                format={(id) => registrarLabel(id, portfolioRegistrarLabels)}
+              />
+              <MultiSelectFilter
+                label="Expirations"
+                options={EXPIRY_OPTIONS}
+                selected={expiry}
+                onChange={(next) => {
+                  setExpiry(next);
+                  setPage(0);
+                }}
               />
 
-              <Select
-                value={expiry}
-                onValueChange={(v) => {
-                  setExpiry(v);
+              {/* Afternic price range — one combined min/max control */}
+              <PriceRangeInput
+                min={minPrice}
+                max={maxPrice}
+                onMinChange={(v) => {
+                  setMinPrice(v);
                   setPage(0);
                 }}
-              >
-                <SelectTrigger className="w-[170px]" aria-label="Expiration">
-                  <SelectValue placeholder="Expiration" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {EXPIRY_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-
-              {/* Afternic price range */}
-              <div className="flex items-center gap-1.5">
-                <PriceInput
-                  value={minPrice}
-                  onChange={(v) => {
-                    setMinPrice(v);
-                    setPage(0);
-                  }}
-                  placeholder="Min"
-                  ariaLabel="Minimum Afternic price"
-                  invalid={Boolean(minParsed.error) || Boolean(rangeError)}
-                />
-                <span className="text-muted-foreground">–</span>
-                <PriceInput
-                  value={maxPrice}
-                  onChange={(v) => {
-                    setMaxPrice(v);
-                    setPage(0);
-                  }}
-                  placeholder="Max"
-                  ariaLabel="Maximum Afternic price"
-                  invalid={Boolean(maxParsed.error) || Boolean(rangeError)}
-                />
-              </div>
-
-              {filtersActive && (
-                <Button variant="outline" onClick={resetFilters}>
-                  Clear
-                </Button>
-              )}
+                onMaxChange={(v) => {
+                  setMaxPrice(v);
+                  setPage(0);
+                }}
+                minInvalid={Boolean(minParsed.error) || Boolean(rangeError)}
+                maxInvalid={Boolean(maxParsed.error) || Boolean(rangeError)}
+              />
             </div>
 
             {(priceError || pricesLoading) && (
@@ -1206,69 +1184,125 @@ export default function Domains() {
 }
 
 /** Numeric price field with a "$" prefix and no spinner buttons (type=text). */
-function PriceInput({
+/** One "$"-prefixed price field with a tiny, right-aligned unit label inside. */
+function PriceField({
   value,
   onChange,
-  placeholder,
+  label,
   ariaLabel,
   invalid,
 }: {
   value: string;
   onChange: (value: string) => void;
-  placeholder: string;
+  label: string;
   ariaLabel: string;
   invalid: boolean;
 }) {
   return (
-    <div className="relative">
-      <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-sm text-muted-foreground">
-        $
-      </span>
-      <Input
+    <InputGroup className="w-[95px]">
+      <InputGroupAddon className="pl-1.5">$</InputGroupAddon>
+      <InputGroupInput
         type="text"
         inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
         aria-label={ariaLabel}
-        aria-invalid={invalid}
-        className={cn(
-          'w-[104px] pl-6 tabular-nums',
-          invalid && 'border-destructive focus-visible:ring-destructive/30',
-        )}
+        aria-invalid={invalid || undefined}
+        className="flex-1 pl-1 tabular-nums"
+      />
+      <InputGroupAddon className="pr-2 text-xs">{label}</InputGroupAddon>
+    </InputGroup>
+  );
+}
+
+/**
+ * Afternic price filter: a plain "Price" label followed by separate min and max
+ * fields joined by "to". Each field carries a tiny inline unit label.
+ */
+function PriceRangeInput({
+  min,
+  max,
+  onMinChange,
+  onMaxChange,
+  minInvalid,
+  maxInvalid,
+}: {
+  min: string;
+  max: string;
+  onMinChange: (value: string) => void;
+  onMaxChange: (value: string) => void;
+  minInvalid: boolean;
+  maxInvalid: boolean;
+}) {
+  return (
+    <div className="ml-2 flex items-center gap-2">
+      <span className="text-sm text-muted-foreground">Price</span>
+      <PriceField
+        value={min}
+        onChange={onMinChange}
+        label="min"
+        ariaLabel="Minimum Afternic price"
+        invalid={minInvalid}
+      />
+      <PriceField
+        value={max}
+        onChange={onMaxChange}
+        label="max"
+        ariaLabel="Maximum Afternic price"
+        invalid={maxInvalid}
       />
     </div>
   );
 }
 
-function FilterSelect({
+/**
+ * A checkbox dropdown filter. The trigger shows the plural `label` plus a count
+ * badge once anything is selected; an empty selection means "no filter". The
+ * menu stays open while toggling so several can be picked at once.
+ */
+function MultiSelectFilter({
   label,
-  value,
-  onChange,
   options,
-  format,
+  selected,
+  onChange,
 }: {
   label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: string[];
-  format?: (value: string) => string;
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
 }) {
   return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-[180px]" aria-label={label}>
-        <SelectValue placeholder={label} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          <SelectItem value={ALL}>All {label.toLowerCase()}s</SelectItem>
-          {options.map((o) => (
-            <SelectItem key={o} value={o}>
-              {format ? format(o) : o}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" aria-label={label} className="gap-1.5">
+          {label}
+          {selected.length > 0 && (
+            <Badge
+              variant="secondary"
+              className="px-1.5 py-0 text-xs tabular-nums"
+            >
+              {selected.length}
+            </Badge>
+          )}
+          <ChevronDown className="size-4 text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="max-h-[320px] overflow-y-auto"
+      >
+        {options.map((o) => (
+          <DropdownMenuCheckboxItem
+            key={o.value}
+            checked={selected.includes(o.value)}
+            // Keep the menu open so multiple options can be toggled in one go.
+            onSelect={(e) => e.preventDefault()}
+            onCheckedChange={() => onChange(toggleValue(selected, o.value))}
+          >
+            {o.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
