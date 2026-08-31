@@ -7,6 +7,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronsUpDown,
+  CircleCheck,
+  Download,
   Eye,
   EyeOff,
   ExternalLink,
@@ -21,6 +23,7 @@ import {
 import type { Aftermarket, Domain, MarketListing } from '../../shared/ipc';
 import { STALE_AFTER_MS } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
+import { csvFilename, domainsToCsv } from '../lib/csv';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -458,6 +461,21 @@ export default function Domains() {
   const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(0);
 
+  // CSV export: an in-flight flag (dialog open + write) and a transient result
+  // note ("Exported N rows to …" / an error) that clears itself after a moment.
+  const [exporting, setExporting] = useState(false);
+  const [exportNote, setExportNote] = useState<{
+    text: string;
+    error: boolean;
+  } | null>(null);
+  const exportNoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (exportNoteTimer.current) clearTimeout(exportNoteTimer.current);
+    },
+    [],
+  );
+
   const hasLoaded = portfolioLoadedAt !== null;
   // Data past the staleness threshold — highlight the timestamp to nudge a
   // manual refresh (we never auto-refresh).
@@ -578,48 +596,113 @@ export default function Domains() {
 
   const filtersActive = search !== '' || tld !== ALL || registrar !== ALL;
 
+  function flashExportNote(text: string, error: boolean) {
+    setExportNote({ text, error });
+    if (exportNoteTimer.current) clearTimeout(exportNoteTimer.current);
+    exportNoteTimer.current = setTimeout(() => setExportNote(null), 6000);
+  }
+
+  // Export the full filtered + sorted result set (every column we have, not just
+  // the current page) via the native save dialog in main.
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const csv = domainsToCsv(filtered, portfolioRegistrarLabels, aftermarket);
+      const result = await window.api.saveCsv(csv, csvFilename());
+      if (!result.saved) return; // user cancelled the dialog
+      const name = result.path?.split(/[/\\]/).pop() ?? 'file';
+      const n = filtered.length;
+      flashExportNote(
+        `Exported ${n} row${n === 1 ? '' : 's'} to ${name}`,
+        false,
+      );
+    } catch (err) {
+      flashExportNote(
+        err instanceof Error ? err.message : 'Export failed',
+        true,
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-5">
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Domains</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {hasLoaded ? (
-              <>
-                {`${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
+            {hasLoaded
+              ? `${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
                   portfolioRegistrars.length === 1 ? '' : 's'
-                }`}
-                {portfolioLoadedAt !== null && (
-                  <>
-                    {' · '}
-                    <span
-                      className={cn(
-                        stale &&
-                          'font-medium text-amber-600 dark:text-amber-400',
-                      )}
-                      title={new Date(portfolioLoadedAt).toLocaleString()}
-                    >
-                      updated {timeAgo(portfolioLoadedAt)}
-                      {stale && ' — refresh recommended'}
-                    </span>
-                  </>
-                )}
-              </>
-            ) : (
-              'Load your portfolio across every configured registrar.'
-            )}
+                }`
+              : 'Load your portfolio across every configured registrar.'}
           </p>
         </div>
-        <Button
-          onClick={() => void loadPortfolio()}
-          disabled={portfolioLoading}
-        >
-          {portfolioLoading
-            ? 'Loading…'
-            : hasLoaded
-              ? 'Refresh'
-              : 'Load domains'}
-        </Button>
+        <div className="flex shrink-0 items-center gap-3">
+          {exportNote && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 text-sm',
+                exportNote.error
+                  ? 'text-destructive'
+                  : 'text-emerald-600 dark:text-emerald-400',
+              )}
+              role="status"
+            >
+              {!exportNote.error && <CircleCheck className="size-4" />}
+              {exportNote.text}
+            </span>
+          )}
+          {portfolioLoadedAt !== null ? (
+            // The freshness label doubles as the refresh control: "Refreshed N
+            // days ago" you can click to re-fetch. Goes amber (fill + dot + spin
+            // icon) once the data crosses the staleness threshold.
+            <Button
+              variant="outline"
+              onClick={() => void loadPortfolio()}
+              disabled={portfolioLoading}
+              title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}${
+                stale
+                  ? ' — data may be stale, click to refresh'
+                  : ' — click to refresh'
+              }`}
+              className={cn(
+                stale &&
+                  'border-amber-500/50 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60 dark:hover:text-amber-300',
+              )}
+            >
+              {stale && !portfolioLoading && (
+                <span
+                  className="size-2 rounded-full bg-amber-500 dark:bg-amber-400"
+                  aria-hidden
+                />
+              )}
+              <RefreshCw className={cn(portfolioLoading && 'animate-spin')} />
+              {portfolioLoading
+                ? 'Refreshing…'
+                : `Refreshed ${timeAgo(portfolioLoadedAt)}`}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => void loadPortfolio()}
+              disabled={portfolioLoading}
+            >
+              {portfolioLoading ? 'Loading…' : 'Load domains'}
+            </Button>
+          )}
+          {hasLoaded && (
+            <Button
+              variant="outline"
+              onClick={() => void exportCsv()}
+              disabled={exporting || filtered.length === 0}
+              title="Export the filtered domains as a CSV file"
+            >
+              <Download />
+              {exporting ? 'Exporting…' : 'Export CSV'}
+            </Button>
+          )}
+        </div>
       </div>
 
       {portfolioError && (
