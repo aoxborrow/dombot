@@ -120,7 +120,6 @@ section { padding: 56px 0; border-top: 1px solid var(--line); }
 .dl-card .assets .dl-ico { flex-shrink: 0; width: 15px; height: 15px; color: var(--faint); }
 .detected-chip { position: absolute; top: -10px; right: 14px; font-family: "IBM Plex Mono", monospace; font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; color: var(--on-accent); background: var(--accent-fill); padding: 3px 9px; border-radius: 999px; display: none; }
 .dl-card.detected .detected-chip { display: inline-block; }
-.dl-foot { margin-top: 20px; font-size: .84rem; color: var(--muted); }
 
 /* ── per-card unsigned note ── */
 .dl-note { margin-top: auto; padding-top: 4px; font-size: .76rem; line-height: 1.5; color: var(--faint); }
