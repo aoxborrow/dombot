@@ -1,4 +1,11 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -125,6 +132,13 @@ function isStale(fetchedAt: number): boolean {
 const RECENT_WITHIN_MS = 24 * 60 * 60 * 1000; // 1 day
 function isRecent(fetchedAt: number): boolean {
   return Date.now() - fetchedAt < RECENT_WITHIN_MS;
+}
+
+/** Minimum gap between manual refreshes — the button is disabled during it so a
+ * fresh pull can't be hammered (every refresh re-queries every registrar). */
+const REFRESH_COOLDOWN_MS = 60 * 1000; // 1 minute
+function refreshOnCooldown(fetchedAt: number): boolean {
+  return Date.now() - fetchedAt < REFRESH_COOLDOWN_MS;
 }
 
 /** Days until expiry, for the color-coded expiry cell. */
@@ -491,6 +505,20 @@ export default function Domains() {
   // Refreshed within the last day: dim the control so it recedes when the data
   // is plainly fresh and there's nothing to act on.
   const recent = portfolioLoadedAt !== null && isRecent(portfolioLoadedAt);
+  // Rate limit: block a re-refresh for a minute after the last one.
+  const tooSoon =
+    portfolioLoadedAt !== null && refreshOnCooldown(portfolioLoadedAt);
+
+  // Nothing else re-renders when the cooldown simply elapses, so schedule one
+  // render at the moment it lifts to re-enable the button on its own.
+  const [, tickCooldown] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (portfolioLoadedAt === null) return;
+    const remaining = REFRESH_COOLDOWN_MS - (Date.now() - portfolioLoadedAt);
+    if (remaining <= 0) return;
+    const t = setTimeout(tickCooldown, remaining + 50);
+    return () => clearTimeout(t);
+  }, [portfolioLoadedAt]);
 
   // Distinct filter options, derived from the loaded portfolio.
   const tlds = useMemo(
@@ -672,11 +700,13 @@ export default function Domains() {
             <Button
               variant="outline"
               onClick={() => void loadPortfolio()}
-              disabled={portfolioLoading}
+              disabled={portfolioLoading || tooSoon}
               title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}${
-                stale
-                  ? ' — data may be stale, click to refresh'
-                  : ' — click to refresh'
+                tooSoon
+                  ? ' — just refreshed, try again in a minute'
+                  : stale
+                    ? ' — data may be stale, click to refresh'
+                    : ' — click to refresh'
               }`}
               className={cn(
                 recent &&
