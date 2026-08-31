@@ -1,21 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
-  Check,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   ChevronsUpDown,
+  Eye,
+  EyeOff,
   ExternalLink,
+  Lock,
+  LockOpen,
+  RefreshCw,
+  RefreshCwOff,
   Search,
   TriangleAlert,
-  X,
+  type LucideIcon,
 } from 'lucide-react';
 import type { Aftermarket, Domain, MarketListing } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -124,13 +130,6 @@ function afternicListing(
   );
 }
 
-/** Listings other than Afternic (already sorted lowest-price-first). */
-function otherListings(info: Aftermarket | null | undefined): MarketListing[] {
-  return (
-    info?.listings.filter((l) => l.platform.toLowerCase() !== AFTERNIC) ?? []
-  );
-}
-
 /** Afternic price cell, linking to the DomDB detail page. */
 function AfternicCell({
   info,
@@ -143,63 +142,96 @@ function AfternicCell({
 }) {
   if (loading && info === undefined) return <CellSkeleton align="right" />;
   const listing = afternicListing(info);
-  if (!listing || !info) {
+  if (!listing || !info || (listing.price == null && !listing.canMakeOffer)) {
     return <span className="text-muted-foreground/50">—</span>;
   }
+  // Offer-only listings show a muted "Offer" label so they don't read as a
+  // price; listings with a buy-it-now price show the tabular figure.
+  const offerOnly = listing.price == null;
   return (
     <button
       type="button"
       onClick={() => onOpen(info.detailUrl)}
       title={`Afternic: ${fmtPrice(listing)}`}
-      className="group inline-flex items-baseline gap-1 font-medium tabular-nums hover:underline"
+      className="group inline-flex items-baseline gap-1 hover:underline"
     >
-      {fmtPrice(listing)}
+      {/* Icon leads so the price/offer stays flush to the cell's right edge,
+          aligned with the "—" shown for unlisted domains. */}
       <ExternalLink className="size-3 self-center text-muted-foreground/60 opacity-0 group-hover:opacity-100" />
-    </button>
-  );
-}
-
-/** Other marketplaces: lowest listing + "+N more", linking to DomDB. */
-function MarketsCell({
-  info,
-  loading,
-  onOpen,
-}: {
-  info: Aftermarket | null | undefined;
-  loading: boolean;
-  onOpen: (url: string) => void;
-}) {
-  if (loading && info === undefined) return <CellSkeleton align="left" />;
-  const others = otherListings(info);
-  if (!info || others.length === 0) {
-    return <span className="text-muted-foreground/50">—</span>;
-  }
-  const lowest = others[0];
-  const more = others.length - 1;
-  const tooltip = others.map((l) => `${l.platform}: ${fmtPrice(l)}`).join('\n');
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(info.detailUrl)}
-      title={tooltip}
-      className="group inline-flex items-baseline gap-1.5 hover:underline"
-    >
-      <span className="font-medium tabular-nums">{fmtPrice(lowest)}</span>
-      <span className="text-xs text-muted-foreground">{lowest.platform}</span>
-      {more > 0 && (
-        <span className="text-xs text-muted-foreground">+{more} more</span>
+      {offerOnly ? (
+        <span className="text-xs font-normal tracking-wide text-muted-foreground uppercase">
+          Offer
+        </span>
+      ) : (
+        <span className="font-medium tabular-nums">{fmtPrice(listing)}</span>
       )}
-      <ExternalLink className="size-3 self-center text-muted-foreground/60 opacity-0 group-hover:opacity-100" />
     </button>
   );
 }
 
-/** A yes/no flag: a green check for yes, a rose ✕ for no. */
-function Flag({ value }: { value: boolean }) {
+/**
+ * On/off state shown with column-appropriate icons: the `on` icon (emphasized)
+ * when enabled, its muted `off` counterpart when disabled.
+ */
+function StateIcon({
+  value,
+  on: On,
+  off: Off,
+  onLabel,
+  offLabel,
+}: {
+  value: boolean;
+  on: LucideIcon;
+  off: LucideIcon;
+  onLabel: string;
+  offLabel: string;
+}) {
   return value ? (
-    <Check className="mx-auto size-4 text-emerald-500" aria-label="yes" />
+    <On className="mx-auto size-4 text-emerald-500" aria-label={onLabel} />
   ) : (
-    <X className="mx-auto size-4 text-rose-400" aria-label="no" />
+    <Off
+      className="mx-auto size-4 text-muted-foreground/50"
+      aria-label={offLabel}
+    />
+  );
+}
+
+/**
+ * Detects a lifecycle problem from the normalized `status` string. There's no
+ * dedicated flag across registrars, so we match the substrings each surfaces:
+ * Gandi emits raw EPP codes, GoDaddy/Cloudflare/Spaceship lifecycle enums, and
+ * Namecheap/Namesilo an "expired" once detail is fetched. Returns a short label
+ * + severity, or null for healthy domains.
+ */
+function domainLifecycle(
+  status: string,
+): { label: string; danger: boolean } | null {
+  const s = status.toLowerCase();
+  if (/redemption|pending_?delete|recoverable|restorable/.test(s)) {
+    return { label: 'Redemption', danger: true };
+  }
+  if (/expired/.test(s)) return { label: 'Expired', danger: true };
+  if (/grace|autorenewperiod|renewperiod/.test(s)) {
+    return { label: 'Grace', danger: false };
+  }
+  if (/hold/.test(s)) return { label: 'Hold', danger: false };
+  return null;
+}
+
+/** Red pill for redemption/expired, amber for grace/hold; nothing when healthy. */
+function LifecycleBadge({ status }: { status: string }) {
+  const flag = domainLifecycle(status);
+  if (!flag) return null;
+  return (
+    <Badge
+      variant={flag.danger ? 'destructive' : 'outline'}
+      className={cn(
+        !flag.danger && 'border-amber-500/40 text-amber-600 dark:text-amber-400',
+      )}
+      title={`Registry status: ${status}`}
+    >
+      {flag.label}
+    </Badge>
   );
 }
 
@@ -207,7 +239,12 @@ const COLUMNS: Column[] = [
   {
     key: 'domainName',
     label: 'Domain',
-    render: (d) => <span className="font-mono">{d.domainName}</span>,
+    render: (d) => (
+      <span className="inline-flex items-center gap-2">
+        <span className="font-mono">{d.domainName}</span>
+        <LifecycleBadge status={d.status} />
+      </span>
+    ),
     sortValue: (d) => d.domainName.toLowerCase(),
   },
   {
@@ -255,7 +292,15 @@ const COLUMNS: Column[] = [
     label: 'Renew',
     align: 'right',
     compact: true,
-    render: (d) => <Flag value={d.autoRenew} />,
+    render: (d) => (
+      <StateIcon
+        value={d.autoRenew}
+        on={RefreshCw}
+        off={RefreshCwOff}
+        onLabel="auto-renew on"
+        offLabel="auto-renew off"
+      />
+    ),
     sortValue: (d) => (d.autoRenew ? 1 : 0),
   },
   {
@@ -264,7 +309,15 @@ const COLUMNS: Column[] = [
     align: 'right',
     detail: true,
     compact: true,
-    render: (d) => <Flag value={d.locked} />,
+    render: (d) => (
+      <StateIcon
+        value={d.locked}
+        on={Lock}
+        off={LockOpen}
+        onLabel="locked"
+        offLabel="unlocked"
+      />
+    ),
     sortValue: (d) => (d.locked ? 1 : 0),
   },
   {
@@ -273,7 +326,15 @@ const COLUMNS: Column[] = [
     align: 'right',
     detail: true,
     compact: true,
-    render: (d) => <Flag value={d.privacy} />,
+    render: (d) => (
+      <StateIcon
+        value={d.privacy}
+        on={EyeOff}
+        off={Eye}
+        onLabel="privacy on"
+        offLabel="privacy off"
+      />
+    ),
     sortValue: (d) => (d.privacy ? 1 : 0),
   },
   {
@@ -309,11 +370,15 @@ function relativeDays(days: number): string {
   return `${days}d`;
 }
 
-/** Urgency color: red past-due, amber within 30 days, muted otherwise. */
+/**
+ * Urgency heat ramp for the expiry date: red (expired or ≤14 days) → orange
+ * (≤30) → yellow (≤60, a heads-up) → normal. Muted when there's no date.
+ */
 function expiryColor(days: number | null): string {
   if (days === null) return 'text-muted-foreground';
-  if (days < 0) return 'text-destructive';
-  if (days <= 30) return 'text-amber-600 dark:text-amber-400';
+  if (days <= 14) return 'text-red-600 dark:text-red-400';
+  if (days <= 30) return 'text-orange-600 dark:text-orange-400';
+  if (days <= 60) return 'text-yellow-600 dark:text-yellow-400';
   return 'text-foreground';
 }
 
@@ -572,7 +637,7 @@ export default function Domains() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {COLUMNS.map((col) => {
+                  {COLUMNS.map((col, i) => {
                     const active = col.key === sortKey;
                     const Icon = !active
                       ? ChevronsUpDown
@@ -580,50 +645,55 @@ export default function Domains() {
                         ? ArrowUp
                         : ArrowDown;
                     return (
-                      <TableHead
-                        key={col.key}
-                        className={cn(
-                          col.align === 'right' && 'text-right',
-                          col.compact && 'px-1',
-                        )}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => toggleSort(col.key)}
+                      <Fragment key={col.key}>
+                        <TableHead
                           className={cn(
-                            'inline-flex items-center gap-1 select-none hover:text-foreground',
-                            col.align === 'right' && 'flex-row-reverse',
-                            active && 'text-foreground',
+                            col.align === 'right' && 'text-right',
+                            col.compact && 'px-1',
                           )}
                         >
-                          {col.label}
-                          <Icon className="size-3.5 opacity-70" />
-                        </button>
-                      </TableHead>
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(col.key)}
+                            className={cn(
+                              'inline-flex items-center gap-1 select-none hover:text-foreground',
+                              col.align === 'right' && 'flex-row-reverse',
+                              active && 'text-foreground',
+                            )}
+                          >
+                            {col.label}
+                            <Icon className="size-3.5 opacity-70" />
+                          </button>
+                        </TableHead>
+                        {/* Afternic sits right after the domain name. */}
+                        {i === 0 && (
+                          <TableHead className="text-right">
+                            <button
+                              type="button"
+                              onClick={() => toggleSort(AFTERNIC)}
+                              className={cn(
+                                'inline-flex select-none flex-row-reverse items-center gap-1 hover:text-foreground',
+                                sortKey === AFTERNIC && 'text-foreground',
+                              )}
+                            >
+                              Afternic
+                              {(() => {
+                                const AfIcon =
+                                  sortKey !== AFTERNIC
+                                    ? ChevronsUpDown
+                                    : sortDir === 'asc'
+                                      ? ArrowUp
+                                      : ArrowDown;
+                                return (
+                                  <AfIcon className="size-3.5 opacity-70" />
+                                );
+                              })()}
+                            </button>
+                          </TableHead>
+                        )}
+                      </Fragment>
                     );
                   })}
-                  <TableHead className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort(AFTERNIC)}
-                      className={cn(
-                        'inline-flex select-none flex-row-reverse items-center gap-1 hover:text-foreground',
-                        sortKey === AFTERNIC && 'text-foreground',
-                      )}
-                    >
-                      Afternic
-                      {(() => {
-                        const Icon =
-                          sortKey !== AFTERNIC
-                            ? ChevronsUpDown
-                            : sortDir === 'asc'
-                              ? ArrowUp
-                              : ArrowDown;
-                        return <Icon className="size-3.5 opacity-70" />;
-                      })()}
-                    </button>
-                  </TableHead>
-                  <TableHead>Markets</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -632,42 +702,38 @@ export default function Domains() {
                     enriching[`${d.registrar}:${d.domainName}`] === true;
                   return (
                     <TableRow key={`${d.registrar}:${d.domainName}`}>
-                      {COLUMNS.map((col) => (
-                        <TableCell
-                          key={col.key}
-                          className={cn(
-                            col.align === 'right' && 'text-right',
-                            col.compact && 'px-1',
+                      {COLUMNS.map((col, i) => (
+                        <Fragment key={col.key}>
+                          <TableCell
+                            className={cn(
+                              col.align === 'right' && 'text-right',
+                              col.compact && 'px-1',
+                            )}
+                          >
+                            {col.detail && loadingDetail ? (
+                              <CellSkeleton align={col.align} />
+                            ) : (
+                              col.render(d, portfolioRegistrarLabels)
+                            )}
+                          </TableCell>
+                          {i === 0 && (
+                            <TableCell className="text-right">
+                              <AfternicCell
+                                info={aftermarket[d.domainName]}
+                                loading={marketLoading[d.domainName] === true}
+                                onOpen={openExternal}
+                              />
+                            </TableCell>
                           )}
-                        >
-                          {col.detail && loadingDetail ? (
-                            <CellSkeleton align={col.align} />
-                          ) : (
-                            col.render(d, portfolioRegistrarLabels)
-                          )}
-                        </TableCell>
+                        </Fragment>
                       ))}
-                      <TableCell className="text-right">
-                        <AfternicCell
-                          info={aftermarket[d.domainName]}
-                          loading={marketLoading[d.domainName] === true}
-                          onOpen={openExternal}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <MarketsCell
-                          info={aftermarket[d.domainName]}
-                          loading={marketLoading[d.domainName] === true}
-                          onOpen={openExternal}
-                        />
-                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {visible.length === 0 && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell
-                      colSpan={COLUMNS.length + 2}
+                      colSpan={COLUMNS.length + 1}
                       className="h-32 text-center text-muted-foreground"
                     >
                       {portfolio.length === 0
