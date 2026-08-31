@@ -52,6 +52,11 @@ export function LoadStatus({
           >
             <StatusDot state={state} />
             <span>{it.label}</span>
+            {it.total > 0 && (
+              <span className="tabular-nums">
+                {it.loaded}/{it.total}
+              </span>
+            )}
           </span>
         );
       })}

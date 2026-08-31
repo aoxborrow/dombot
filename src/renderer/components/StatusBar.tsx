@@ -1,13 +1,15 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
+import { timeAgo } from '../lib/time';
 import { LoadStatus, type LoadStatusItem } from './LoadStatus';
 
 /**
- * App-wide bottom status bar (VS Code style): a thin footer that surfaces the
- * embedded MCP server's status on the left and the background-load lights
- * (Domains / Markets / Pricing) on the right. Shown on every route; the user
- * can hide it from Settings → Appearance.
+ * App-wide bottom status bar (VS Code style): a thin bar fixed across the
+ * viewport bottom, with page content scrolling underneath it. Surfaces the
+ * embedded MCP server's status on the left and the last-refreshed time plus the
+ * background-load lights (Domains / Markets / Pricing) on the right. Shown on
+ * every route; the user can hide it from Settings → Appearance.
  */
 export default function StatusBar() {
   const visible = useAppStore((s) => s.statusBarVisible);
@@ -18,6 +20,7 @@ export default function StatusBar() {
   const enriched = useAppStore((s) => s.enriched);
   const aftermarket = useAppStore((s) => s.aftermarket);
   const pricing = useAppStore((s) => s.pricing);
+  const portfolioLoadedAt = useAppStore((s) => s.portfolioLoadedAt);
   const portfolioLoading = useAppStore((s) => s.portfolioLoading);
   const detailAllLoading = useAppStore((s) => s.detailAllLoading);
   const marketAllLoading = useAppStore((s) => s.marketAllLoading);
@@ -27,6 +30,15 @@ export default function StatusBar() {
   useEffect(() => {
     if (mcpInfo === null) void loadMcpInfo();
   }, [mcpInfo, loadMcpInfo]);
+
+  // Re-render every 30s so the relative "refreshed" label stays current even
+  // when nothing else changes.
+  const [, tick] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (portfolioLoadedAt === null) return;
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, [portfolioLoadedAt]);
 
   // Per-dataset "loaded / total" counts, recomputed as data streams in. Loaded
   // counts domains that have that datum present; detail overlays onto summary.
@@ -83,7 +95,7 @@ export default function StatusBar() {
   const hasPortfolio = portfolio.length > 0;
 
   return (
-    <footer className="flex h-6 shrink-0 items-center justify-between gap-4 border-t bg-background px-4 text-xs text-muted-foreground select-none">
+    <footer className="fixed inset-x-0 bottom-0 z-40 flex h-6 items-center justify-between gap-4 border-t bg-background px-4 text-xs text-muted-foreground select-none">
       <span
         className="inline-flex items-center gap-1.5"
         title={
@@ -102,7 +114,16 @@ export default function StatusBar() {
         {mcpRunning && mcpEndpoint ? `MCP ${mcpEndpoint}` : 'MCP off'}
       </span>
 
-      {hasPortfolio && <LoadStatus items={items} />}
+      <div className="flex items-center gap-4">
+        {portfolioLoadedAt !== null && (
+          <span
+            title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}`}
+          >
+            Refreshed {timeAgo(portfolioLoadedAt)}
+          </span>
+        )}
+        {hasPortfolio && <LoadStatus items={items} />}
+      </div>
     </footer>
   );
 }

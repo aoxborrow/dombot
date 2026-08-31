@@ -19,6 +19,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 
 export default function App() {
   const hydrateFromCache = useAppStore((s) => s.hydrateFromCache);
+  const statusBarVisible = useAppStore((s) => s.statusBarVisible);
 
   // Restore the last-cached portfolio, detail, aftermarket, and pricing on
   // launch so the app opens fully populated with no network calls. The user
@@ -45,7 +46,11 @@ export default function App() {
         <ModeToggle />
       </header>
 
-      <main className="flex-1 px-6 py-8">
+      {/* Extra bottom padding clears the fixed status bar (h-6) so the last
+          row of a page is never hidden behind it. */}
+      <main
+        className={cn('flex-1 px-6 pt-8', statusBarVisible ? 'pb-14' : 'pb-8')}
+      >
         <Routes>
           <Route path="/" element={<Domains />} />
           <Route path="/renewals" element={<Renewals />} />

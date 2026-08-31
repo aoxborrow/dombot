@@ -39,6 +39,7 @@ import { STALE_AFTER_MS } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
+import { timeAgo } from '../lib/time';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -122,23 +123,6 @@ function toTime(date: Date | null): number | null {
 function fmtDate(date: Date | null): string {
   const t = toTime(date);
   return t === null ? '—' : new Date(t).toISOString().slice(0, 10);
-}
-
-/** Compact "time ago" for the last-refreshed button, e.g. "3 hrs ago". Uses
- * abbreviated units so the label stays short in the toolbar. */
-function timeAgo(ms: number): string {
-  const secs = Math.round((Date.now() - ms) / 1000);
-  if (secs < 60) return 'just now';
-  const units: [label: string, secs: number][] = [
-    ['day', 86_400],
-    ['hr', 3_600],
-    ['min', 60],
-  ];
-  for (const [label, size] of units) {
-    const n = Math.floor(secs / size);
-    if (n >= 1) return `${n} ${label}${n === 1 ? '' : 's'} ago`;
-  }
-  return 'just now';
 }
 
 /** Whether a fetch timestamp is at or past the staleness threshold. */
