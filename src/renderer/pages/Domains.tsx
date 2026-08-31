@@ -177,6 +177,33 @@ function afternicListing(
   );
 }
 
+/**
+ * The numeric Afternic buy-it-now price for a domain, or null when there's no
+ * listing or it's offer-only (no fixed price). Used by the price filter, which
+ * compares against a numeric range — so offer-only and unlisted both count as
+ * "no price".
+ */
+function afternicPriceOf(info: Aftermarket | null | undefined): number | null {
+  return afternicListing(info)?.price ?? null;
+}
+
+/**
+ * Parses a price-filter input. Empty → no bound (null value, no error). A valid
+ * non-negative number → that value. Anything else → an error message and null
+ * value so the bound is ignored until corrected.
+ */
+function parsePriceInput(raw: string): {
+  value: number | null;
+  error: string | null;
+} {
+  const s = raw.trim();
+  if (s === '') return { value: null, error: null };
+  if (!/^\d*\.?\d+$/.test(s)) return { value: null, error: 'Numbers only' };
+  const n = Number(s);
+  if (!Number.isFinite(n)) return { value: null, error: 'Numbers only' };
+  return { value: n, error: null };
+}
+
 /** Afternic price cell, linking to the DomDB detail page. */
 function AfternicCell({
   info,
@@ -445,6 +472,21 @@ function expiryColor(days: number | null): string {
 const PAGE_SIZES = [25, 50, 100, 250];
 const ALL = '__all__';
 
+/** Sentinel expiration-filter value that keeps only already-expired domains. */
+const EXPIRED = 'expired';
+
+/**
+ * Expiration-filter options. ALL disables it, EXPIRED keeps only past-due
+ * domains, and a numeric value keeps domains expiring within that many days.
+ */
+const EXPIRY_OPTIONS: { value: string; label: string }[] = [
+  { value: ALL, label: 'All Expirations' },
+  { value: '30', label: 'Next 30 days' },
+  { value: '60', label: 'Next 60 days' },
+  { value: '90', label: 'Next 90 days' },
+  { value: EXPIRED, label: 'Expired' },
+];
+
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function Domains() {
@@ -478,6 +520,9 @@ export default function Domains() {
   const [search, setSearch] = useState('');
   const [tld, setTld] = useState<string>(ALL);
   const [registrar, setRegistrar] = useState<string>(ALL);
+  const [expiry, setExpiry] = useState<string>(ALL);
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
   const [sortKey, setSortKey] = useState('domainName');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [pageSize, setPageSize] = useState(50);
@@ -538,6 +583,26 @@ export default function Domains() {
     [portfolio, portfolioRegistrarLabels],
   );
 
+  // Validate the price inputs, then derive the bounds actually applied. A field
+  // error (or min > max) leaves the range unapplied until it's corrected.
+  const minParsed = parsePriceInput(minPrice);
+  const maxParsed = parsePriceInput(maxPrice);
+  const rangeError =
+    minParsed.value !== null &&
+    maxParsed.value !== null &&
+    minParsed.value > maxParsed.value
+      ? 'Min must be ≤ max'
+      : null;
+  const priceError = minParsed.error ?? maxParsed.error ?? rangeError;
+  const minValue = priceError ? null : minParsed.value;
+  const maxValue = priceError ? null : maxParsed.value;
+  const priceFilterActive = minValue !== null || maxValue !== null;
+  // While a price filter is active, Afternic data may still be streaming in for
+  // off-screen rows — surface that so a shrinking result set reads as "loading".
+  const pricesLoading =
+    priceFilterActive &&
+    merged.some((d) => aftermarket[d.domainName] === undefined);
+
   // Filter → sort. Pagination is applied after, on the sorted result.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -545,6 +610,25 @@ export default function Domains() {
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
       if (tld !== ALL && tldOf(d.domainName) !== tld) return false;
       if (registrar !== ALL && d.registrar !== registrar) return false;
+      // Expiration filter: "Expired" keeps only past-due domains; a numeric
+      // window keeps domains expiring within that many upcoming days.
+      if (expiry !== ALL) {
+        const days = daysUntil(d.expirationDate);
+        if (days === null) return false;
+        if (expiry === EXPIRED) {
+          if (days >= 0) return false;
+        } else if (days < 0 || days > Number(expiry)) {
+          return false;
+        }
+      }
+      // Afternic price range. With any bound set, unlisted/offer-only domains
+      // (no numeric price) are excluded.
+      if (priceFilterActive) {
+        const price = afternicPriceOf(aftermarket[d.domainName]);
+        if (price === null) return false;
+        if (minValue !== null && price < minValue) return false;
+        if (maxValue !== null && price > maxValue) return false;
+      }
       return true;
     });
 
@@ -574,6 +658,10 @@ export default function Domains() {
     search,
     tld,
     registrar,
+    expiry,
+    priceFilterActive,
+    minValue,
+    maxValue,
     sortKey,
     sortDir,
     aftermarket,
@@ -617,6 +705,15 @@ export default function Domains() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleKey, refreshTick, loadAftermarketVisible]);
 
+  // The price filter compares against Afternic data, which otherwise loads only
+  // for on-screen rows. When a bound is set, pull it for the whole portfolio so
+  // the filter is accurate across every page; the loader dedupes and is cached,
+  // and results refine as each (rate-limited) fetch lands.
+  useEffect(() => {
+    if (priceFilterActive) void loadAftermarketVisible(merged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [priceFilterActive, merged, loadAftermarketVisible]);
+
   function toggleSort(key: string) {
     if (key === sortKey) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -630,10 +727,19 @@ export default function Domains() {
     setSearch('');
     setTld(ALL);
     setRegistrar(ALL);
+    setExpiry(ALL);
+    setMinPrice('');
+    setMaxPrice('');
     setPage(0);
   }
 
-  const filtersActive = search !== '' || tld !== ALL || registrar !== ALL;
+  const filtersActive =
+    search !== '' ||
+    tld !== ALL ||
+    registrar !== ALL ||
+    expiry !== ALL ||
+    minPrice !== '' ||
+    maxPrice !== '';
 
   function flashExportNote(text: string, error: boolean) {
     setExportNote({ text, error });
@@ -789,45 +895,105 @@ export default function Domains() {
       {hasLoaded && (
         <>
           {/* Toolbar: search + filters */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[220px] flex-1">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
+          <div className="flex flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[220px] flex-1">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(0);
+                  }}
+                  placeholder="Search domains…"
+                  className="pl-8"
+                />
+              </div>
+
+              <FilterSelect
+                label="TLD"
+                value={tld}
+                onChange={(v) => {
+                  setTld(v);
                   setPage(0);
                 }}
-                placeholder="Search domains…"
-                className="pl-8"
+                options={tlds}
+                format={(t) => `.${t}`}
               />
+              <FilterSelect
+                label="Registrar"
+                value={registrar}
+                onChange={(v) => {
+                  setRegistrar(v);
+                  setPage(0);
+                }}
+                options={registrars}
+                format={(id) => registrarLabel(id, portfolioRegistrarLabels)}
+              />
+
+              <Select
+                value={expiry}
+                onValueChange={(v) => {
+                  setExpiry(v);
+                  setPage(0);
+                }}
+              >
+                <SelectTrigger className="w-[170px]" aria-label="Expiration">
+                  <SelectValue placeholder="Expiration" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {EXPIRY_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+
+              {/* Afternic price range */}
+              <div className="flex items-center gap-1.5">
+                <PriceInput
+                  value={minPrice}
+                  onChange={(v) => {
+                    setMinPrice(v);
+                    setPage(0);
+                  }}
+                  placeholder="Min"
+                  ariaLabel="Minimum Afternic price"
+                  invalid={Boolean(minParsed.error) || Boolean(rangeError)}
+                />
+                <span className="text-muted-foreground">–</span>
+                <PriceInput
+                  value={maxPrice}
+                  onChange={(v) => {
+                    setMaxPrice(v);
+                    setPage(0);
+                  }}
+                  placeholder="Max"
+                  ariaLabel="Maximum Afternic price"
+                  invalid={Boolean(maxParsed.error) || Boolean(rangeError)}
+                />
+              </div>
+
+              {filtersActive && (
+                <Button variant="outline" onClick={resetFilters}>
+                  Clear
+                </Button>
+              )}
             </div>
 
-            <FilterSelect
-              label="TLD"
-              value={tld}
-              onChange={(v) => {
-                setTld(v);
-                setPage(0);
-              }}
-              options={tlds}
-              format={(t) => `.${t}`}
-            />
-            <FilterSelect
-              label="Registrar"
-              value={registrar}
-              onChange={(v) => {
-                setRegistrar(v);
-                setPage(0);
-              }}
-              options={registrars}
-              format={(id) => registrarLabel(id, portfolioRegistrarLabels)}
-            />
-            {filtersActive && (
-              <Button variant="outline" onClick={resetFilters}>
-                Clear
-              </Button>
+            {(priceError || pricesLoading) && (
+              <p
+                className={cn(
+                  'text-xs',
+                  priceError ? 'text-destructive' : 'text-muted-foreground',
+                )}
+              >
+                {priceError ?? 'Loading Afternic prices…'}
+              </p>
             )}
           </div>
 
@@ -1035,6 +1201,42 @@ export default function Domains() {
           </EmptyHeader>
         </Empty>
       )}
+    </div>
+  );
+}
+
+/** Numeric price field with a "$" prefix and no spinner buttons (type=text). */
+function PriceInput({
+  value,
+  onChange,
+  placeholder,
+  ariaLabel,
+  invalid,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  ariaLabel: string;
+  invalid: boolean;
+}) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-sm text-muted-foreground">
+        $
+      </span>
+      <Input
+        type="text"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        aria-invalid={invalid}
+        className={cn(
+          'w-[104px] pl-6 tabular-nums',
+          invalid && 'border-destructive focus-visible:ring-destructive/30',
+        )}
+      />
     </div>
   );
 }
