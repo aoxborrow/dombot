@@ -1,6 +1,54 @@
 # dombot
 
-Cross-platform desktop app built with **Electron Forge**, **React**, **TypeScript**, and **Vite**.
+**dombot is a desktop app for managing a domain portfolio that's spread across
+many registrars — from one place.** If you hold names at Dynadot, Namecheap,
+GoDaddy, Cloudflare, Gandi, and others, each has its own dashboard, its own
+login, and its own idea of what "expiring soon" looks like, so there's no single
+view of what you own, what's about to renew, or what it all costs. dombot pulls
+every registrar into one table, one renewal forecast, and one set of controls.
+
+It's a cross-platform desktop app built with **Electron Forge**, **React**,
+**TypeScript**, and **Vite**.
+
+## What it does
+
+- **One portfolio, every registrar.** Aggregates all your domains across the
+  registrars you configure into a single sortable, filterable table — search by
+  name, filter by TLD / registrar / nameserver, and see registrar, creation and
+  expiry dates, auto-renew, transfer lock, WHOIS privacy, and nameservers side
+  by side. Expiry dates are color-coded by urgency, and at-risk domains
+  (expired, grace, redemption, hold) get a status badge.
+- **Renewal costs at a glance.** A renewals dashboard forecasts your spend:
+  yearly total, amount due in the next 90 days, a month-by-month renewal chart,
+  and breakdowns by registrar and TLD. Prices come from registrar quotes where
+  available and a base per-TLD price database otherwise, and you can enter a
+  price by hand for anything still unpriced.
+- **Aftermarket values.** Shows Afternic buy-it-now / offer prices (via DomDB)
+  next to each domain, so resale value sits alongside carrying cost.
+- **Export.** One click exports the current (filtered, sorted) view to a
+  spreadsheet-friendly CSV.
+- **Safe management actions.** Update nameservers, toggle auto-renew, and
+  lock/unlock — deliberately read-only for anything that moves money (no
+  register, renew, or transfer).
+- **Instant, offline-friendly launch.** The whole portfolio is cached on disk
+  and painted the moment the app opens, with no network calls; you refresh on
+  demand (it never auto-refreshes) and a timestamp flags when data is going
+  stale.
+- **Agent-ready.** An embedded local MCP server lets AI agents (Claude Code,
+  Claude Desktop, any MCP client) read and manage the same portfolio — see
+  [Embedded MCP server](#embedded-mcp-server).
+
+## Why it's useful
+
+Domain portfolios sprawl. Once you're past a handful of names across two or
+three registrars, the questions that actually matter — _What's about to expire?
+What will I pay this quarter? Which of these auto-renew? Where are my nameservers
+pointed?_ — have no single answer, because the data lives behind several
+dashboards. dombot's premise is that the portfolio is one thing even when the
+registrars aren't: it gives you a consolidated, always-current view, flags the
+domains that need attention before they lapse, turns renewal dates into a
+spending forecast, and hands that same consolidated control surface to AI agents
+over MCP.
 
 ## Stack
 
