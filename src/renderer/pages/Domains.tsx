@@ -34,6 +34,7 @@ import {
   Server,
   Tag,
   TriangleAlert,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import type {
@@ -52,6 +53,7 @@ import { timeAgo } from '../lib/time';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
   InputGroup,
@@ -740,6 +742,18 @@ export default function Domains() {
   const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(0);
 
+  // Row selection for bulk actions, keyed by `${registrar}:${domainName}`.
+  // UI only for now — the actions themselves aren't wired up yet.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleSelected = (key: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const clearSelection = () => setSelected(new Set());
+
   // CSV export: an in-flight flag (dialog open + write) and a transient result
   // note ("Exported N rows to …" / an error) that clears itself after a moment.
   const [exporting, setExporting] = useState(false);
@@ -999,6 +1013,24 @@ export default function Domains() {
 
   const start = safePage * pageSize;
   const visible = filtered.slice(start, start + pageSize);
+
+  // Header checkbox reflects the whole filtered set (across pages): fully checked
+  // when every filtered row is selected, indeterminate when only some are.
+  const selectedCount = selected.size;
+  const allFilteredSelected =
+    filtered.length > 0 &&
+    filtered.every((d) => selected.has(`${d.registrar}:${d.domainName}`));
+  const someFilteredSelected =
+    !allFilteredSelected &&
+    filtered.some((d) => selected.has(`${d.registrar}:${d.domainName}`));
+  const toggleSelectAll = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const keys = filtered.map((d) => `${d.registrar}:${d.domainName}`);
+      if (allFilteredSelected) keys.forEach((k) => next.delete(k));
+      else keys.forEach((k) => next.add(k));
+      return next;
+    });
 
   // Lazily fetch full detail for the rows actually on screen. Keyed on the
   // visible domains' identities so it re-runs on page/sort/filter changes;
@@ -1315,11 +1347,74 @@ export default function Domains() {
             </div>
           </div>
 
+          {/* Bulk action bar — contextual, appears once any row is selected.
+              Actions are UI-only stubs for now. */}
+          {selectedCount > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-medium">{selectedCount} selected</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-muted-foreground"
+                  onClick={clearSelection}
+                >
+                  <X />
+                  Clear
+                </Button>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    Bulk actions
+                    <ChevronDown className="text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem disabled>
+                    <FolderIcon />
+                    Assign to folder…
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled>
+                    <RefreshCw />
+                    Set auto-renew…
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled>
+                    <Lock />
+                    Set lock…
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled>
+                    <FileSpreadsheet />
+                    Export selected
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled>
+                    <EyeOff />
+                    Hide
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+
           {/* Table */}
           <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-9 pl-3">
+                    <Checkbox
+                      checked={
+                        allFilteredSelected
+                          ? true
+                          : someFilteredSelected
+                            ? 'indeterminate'
+                            : false
+                      }
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all domains"
+                    />
+                  </TableHead>
                   {COLUMNS.map((col, i) => {
                     const active = col.key === sortKey;
                     const Icon = !active
@@ -1441,7 +1536,25 @@ export default function Domains() {
                     // hover and stays highlighted while its menu is open.
                     <DropdownMenu key={key}>
                       <DropdownMenuTrigger asChild>
-                        <TableRow className="cursor-pointer data-[state=open]:bg-muted/50">
+                        <TableRow
+                          className={cn(
+                            'cursor-pointer data-[state=open]:bg-muted/50',
+                            selected.has(key) && 'bg-muted/50',
+                          )}
+                        >
+                          {/* Selection checkbox. Stop pointer/click here so
+                              ticking a row doesn't also open the row menu. */}
+                          <TableCell
+                            className="w-9 pl-3"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Checkbox
+                              checked={selected.has(key)}
+                              onCheckedChange={() => toggleSelected(key)}
+                              aria-label={`Select ${d.domainName}`}
+                            />
+                          </TableCell>
                           {COLUMNS.map((col, i) => (
                             <Fragment key={col.key}>
                               <TableCell
@@ -1502,7 +1615,7 @@ export default function Domains() {
                 {visible.length === 0 && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell
-                      colSpan={COLUMNS.length + 3}
+                      colSpan={COLUMNS.length + 4}
                       className="h-32 text-center text-muted-foreground"
                     >
                       {portfolio.length === 0
