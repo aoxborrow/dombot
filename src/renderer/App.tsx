@@ -37,7 +37,7 @@ export default function App() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="flex items-center gap-4 border-b px-6 py-3">
-        <span className="text-lg font-semibold tracking-tight">dombot</span>
+        <span className="text-lg font-semibold tracking-tight">DomBot</span>
         <nav className="ml-auto flex gap-1">
           <NavLink to="/" end className={navLinkClass}>
             Domains

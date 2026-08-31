@@ -1,10 +1,10 @@
-# dombot
+# DomBot
 
-**dombot is a desktop app for managing a domain portfolio that's spread across
+**DomBot is a desktop app for managing a domain portfolio that's spread across
 many registrars — from one place.** If you hold names at Dynadot, Namecheap,
 GoDaddy, Cloudflare, Gandi, and others, each has its own dashboard, its own
 login, and its own idea of what "expiring soon" looks like, so there's no single
-view of what you own, what's about to renew, or what it all costs. dombot pulls
+view of what you own, what's about to renew, or what it all costs. DomBot pulls
 every registrar into one table, one renewal forecast, and one set of controls.
 
 It's a cross-platform desktop app built with **Electron Forge**, **React**,
@@ -44,7 +44,7 @@ Domain portfolios sprawl. Once you're past a handful of names across two or
 three registrars, the questions that actually matter — _What's about to expire?
 What will I pay this quarter? Which of these auto-renew? Where are my nameservers
 pointed?_ — have no single answer, because the data lives behind several
-dashboards. dombot's premise is that the portfolio is one thing even when the
+dashboards. DomBot's premise is that the portfolio is one thing even when the
 registrars aren't: it gives you a consolidated, always-current view, flags the
 domains that need attention before they lapse, turns renewal dates into a
 spending forecast, and hands that same consolidated control surface to AI agents
@@ -124,10 +124,10 @@ Handlers stay thin; the logic lives in `services/`.
 
 ## Local development against registrar-client
 
-dombot's registrar logic comes from
+DomBot's registrar logic comes from
 [`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client),
 developed in the sibling repo at `../registrar-client`. Until that package is
-published to npm, dombot consumes it **directly from source** via a dev-time
+published to npm, DomBot consumes it **directly from source** via a dev-time
 alias — no build, watch, or `npm link` step:
 
 - [`vite.main.config.ts`](vite.main.config.ts) aliases the package to
@@ -157,7 +157,7 @@ third _adapter_ over the same `services/` core the UI uses — see
 - **Transport:** Streamable HTTP, bound to `127.0.0.1` only. Never exposed off
   the machine.
 - **Auth:** OAuth 2.1 (dynamic client registration + PKCE), served by the app.
-  On first connect a browser waiting page opens and **dombot's own window shows
+  On first connect a browser waiting page opens and **DomBot's own window shows
   an Approve/Deny prompt** (client name + a confirmation code that matches the
   browser page). Approve once and the client is paired; the issued token is
   persisted (`userData/mcp-tokens.json`) so it stays paired across restarts.

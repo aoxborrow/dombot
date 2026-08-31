@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAppStore } from '../../store/app';
 
 /**
- * Data & cache settings. dombot caches your portfolio, per-domain detail,
+ * Data & cache settings. DomBot caches your portfolio, per-domain detail,
  * aftermarket, and renewal prices on disk (timestamped) so the app opens fully
  * populated with no network calls. Clearing forces the next load to re-fetch.
  */
@@ -29,7 +29,7 @@ export default function DataSettings() {
       <div>
         <h2 className="text-xl font-bold">Data</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          dombot caches your portfolio, domain detail, marketplace listings, and
+          DomBot caches your portfolio, domain detail, marketplace listings, and
           renewal prices on disk so it opens instantly. Data older than 14 days
           is flagged as stale; refresh any time from the Domains or Renewals
           page.
