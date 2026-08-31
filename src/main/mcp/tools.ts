@@ -70,6 +70,19 @@ export function registerTools(server: McpServer): void {
   // ── Registrar-level (registrar required) ───────────────────────────────────
 
   server.registerTool(
+    'registrar_test',
+    {
+      title: 'Test registrar connection',
+      description:
+        'At one registrar: verify the configured credentials work (a connection test).',
+      inputSchema: { registrar },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ registrar }) =>
+      json(await getRegistrarClient(registrar).testConnection()),
+  );
+
+  server.registerTool(
     'registrar_domains',
     {
       title: 'List a registrar’s domains',
@@ -102,7 +115,51 @@ export function registerTools(server: McpServer): void {
       json(await getRegistrarClient(registrar).checkAvailability(domains)),
   );
 
+  server.registerTool(
+    'registrar_pricing',
+    {
+      title: 'Get TLD pricing',
+      description:
+        'At one registrar: look up live registration/renewal/transfer pricing for a TLD (or a specific domain). This is the registrar’s own quote — for DomBot’s estimated renewal price use domain_renewal_price.',
+      inputSchema: {
+        registrar,
+        tld: z
+          .string()
+          .describe('A TLD ("com") or a full domain ("example.com").'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ registrar, tld }) =>
+      json(await getRegistrarClient(registrar).getPricing(tld)),
+  );
+
   // ── Domain-level (registrar + domain required) ─────────────────────────────
+
+  server.registerTool(
+    'domain_get',
+    {
+      title: 'Get domain',
+      description:
+        'For a single domain: fetch its full record — status, creation/expiration dates, auto-renew, transfer lock, WHOIS privacy, and nameservers.',
+      inputSchema: { registrar, domain },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ registrar, domain }) =>
+      json(await getRegistrarClient(registrar).getDomain(domain)),
+  );
+
+  server.registerTool(
+    'domain_contacts_get',
+    {
+      title: 'Get domain contacts',
+      description:
+        'For a single domain: read its registrant, admin, tech, and billing contacts.',
+      inputSchema: { registrar, domain },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ registrar, domain }) =>
+      json(await getRegistrarClient(registrar).getContacts(domain)),
+  );
 
   server.registerTool(
     'domain_nameservers_get',
