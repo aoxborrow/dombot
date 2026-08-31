@@ -27,7 +27,6 @@ import {
   Globe,
   Lock,
   LockOpen,
-  MoreVertical,
   RefreshCw,
   RefreshCwOff,
   Search,
@@ -253,6 +252,8 @@ function AfternicCell({
     <button
       type="button"
       onClick={() => onOpen(info.detailUrl)}
+      // Don't let the click bubble to the row trigger (which opens the row menu).
+      onPointerDown={(e) => e.stopPropagation()}
       title={`Afternic: ${fmtPrice(listing)}`}
       className="group inline-flex items-baseline gap-1 hover:underline"
     >
@@ -331,88 +332,83 @@ function FolderCell({
 }
 
 /**
- * Per-row actions (⋯) shown at the right edge of the Domain cell. An
- * always-visible but muted trigger, so it's discoverable — the Folder column
- * alone didn't make it obvious you could assign one. Currently: a Folder
- * submenu (single-select, "None" to clear) and a placeholder "Hide".
+ * The menu shown when a domain row is clicked (the whole row is the trigger).
+ * Visit the domain, assign it to a folder (submenu, single-select with "None"
+ * to clear), and a placeholder "Hide". Rendered inside a <DropdownMenu> whose
+ * trigger is the row.
  */
-function RowActions({
+function RowMenuContent({
   folders,
   folderId,
   onAssign,
+  onVisit,
 }: {
   folders: Folder[];
   folderId: string | undefined;
   onAssign: (folderId: string | null) => void;
+  onVisit: () => void;
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Row actions"
-          className="text-muted-foreground/60 hover:text-foreground"
-        >
-          <MoreVertical />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <FolderIcon />
-            Folder
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="max-h-[320px] max-w-[240px] overflow-y-auto">
-            {folders.length === 0 ? (
-              <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                No folders yet. Create them in Settings › Folders.
-              </div>
-            ) : (
-              <>
-                {folders.map((f) => (
-                  <DropdownMenuItem
-                    key={f.id}
-                    className="gap-1.5"
-                    onSelect={() => onAssign(f.id)}
-                  >
-                    <FolderIcon
-                      className={cn(
-                        'size-3.5 shrink-0',
-                        folderColorStyle(f.color).text,
-                      )}
-                      aria-hidden
-                    />
-                    <span className="flex-1 truncate">{f.name}</span>
-                    {f.id === folderId && (
-                      <Check className="size-3.5 shrink-0 text-muted-foreground" />
-                    )}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
+    <DropdownMenuContent align="start" className="w-44">
+      <DropdownMenuItem onSelect={onVisit}>
+        <ExternalLink />
+        Visit domain
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          <FolderIcon />
+          Folder
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="max-h-[320px] max-w-[240px] overflow-y-auto">
+          {folders.length === 0 ? (
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">
+              No folders yet. Create them in Settings › Folders.
+            </div>
+          ) : (
+            <>
+              {folders.map((f) => (
                 <DropdownMenuItem
+                  key={f.id}
                   className="gap-1.5"
-                  onSelect={() => onAssign(null)}
+                  onSelect={() => onAssign(f.id)}
                 >
-                  {/* Spacer keeps "None" aligned with the folder rows above. */}
-                  <span className="size-3.5 shrink-0" aria-hidden />
-                  <span className="flex-1">None</span>
-                  {folderId === undefined && (
+                  <FolderIcon
+                    className={cn(
+                      'size-3.5 shrink-0',
+                      folderColorStyle(f.color).text,
+                    )}
+                    aria-hidden
+                  />
+                  <span className="flex-1 truncate">{f.name}</span>
+                  {f.id === folderId && (
                     <Check className="size-3.5 shrink-0 text-muted-foreground" />
                   )}
                 </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        <DropdownMenuSeparator />
-        {/* Placeholder — not wired up yet. */}
-        <DropdownMenuItem>
-          <EyeOff />
-          Hide
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="gap-1.5"
+                onSelect={() => onAssign(null)}
+              >
+                {/* Spacer keeps "None" aligned with the folder rows above. */}
+                <span className="size-3.5 shrink-0" aria-hidden />
+                <span className="flex-1">None</span>
+                {folderId === undefined && (
+                  <Check className="size-3.5 shrink-0 text-muted-foreground" />
+                )}
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DropdownMenuSeparator />
+      {/* Placeholder — not wired up yet. */}
+      <DropdownMenuItem>
+        <EyeOff />
+        Hide
+      </DropdownMenuItem>
+    </DropdownMenuContent>
   );
 }
 
@@ -1380,77 +1376,70 @@ export default function Domains() {
               </TableHeader>
               <TableBody>
                 {visible.map((d) => {
-                  const loadingDetail =
-                    enriching[`${d.registrar}:${d.domainName}`] === true;
+                  const key = `${d.registrar}:${d.domainName}`;
+                  const loadingDetail = enriching[key] === true;
                   return (
-                    <TableRow key={`${d.registrar}:${d.domainName}`}>
-                      {COLUMNS.map((col, i) => (
-                        <Fragment key={col.key}>
-                          <TableCell
-                            className={cn(
-                              col.align === 'right' && 'text-right',
-                              col.compact && 'px-1',
-                              col.key === 'domainName' && 'pl-3',
-                            )}
-                          >
-                            {col.key === 'domainName' ? (
-                              // Domain name on the left, a row-actions (⋯) menu
-                              // pinned to the cell's right edge.
-                              <div className="flex items-center justify-between gap-2">
-                                {col.render(d, portfolioRegistrarLabels)}
-                                <RowActions
-                                  folders={folders}
-                                  folderId={
-                                    folderAssignments[
-                                      `${d.registrar}:${d.domainName}`
-                                    ]
-                                  }
-                                  onAssign={(folderId) =>
-                                    void assignFolder(
-                                      `${d.registrar}:${d.domainName}`,
-                                      folderId,
-                                    )
-                                  }
-                                />
-                              </div>
-                            ) : col.detail && loadingDetail ? (
-                              <CellSkeleton align={col.align} />
-                            ) : (
-                              col.render(d, portfolioRegistrarLabels)
-                            )}
-                          </TableCell>
-                          {i === 0 && (
-                            <TableCell className="text-right">
-                              <AfternicCell
-                                info={aftermarket[d.domainName]}
-                                loading={marketLoading[d.domainName] === true}
-                                onOpen={openExternal}
-                              />
-                            </TableCell>
-                          )}
-                          {i === 0 && (
-                            <TableCell>
-                              <FolderCell
-                                folders={folders}
-                                folderId={
-                                  folderAssignments[
-                                    `${d.registrar}:${d.domainName}`
-                                  ]
-                                }
-                              />
-                            </TableCell>
-                          )}
-                          {col.key === 'expirationDate' && (
-                            <TableCell className="text-right">
-                              <RenewalCell
-                                info={pricing[`${d.registrar}:${d.domainName}`]}
-                                loading={pricingLoading}
-                              />
-                            </TableCell>
-                          )}
-                        </Fragment>
-                      ))}
-                    </TableRow>
+                    // The whole row is the trigger: clicking it opens the row
+                    // menu (visit / assign folder / hide). It highlights on
+                    // hover and stays highlighted while its menu is open.
+                    <DropdownMenu key={key}>
+                      <DropdownMenuTrigger asChild>
+                        <TableRow className="cursor-pointer data-[state=open]:bg-muted/50">
+                          {COLUMNS.map((col, i) => (
+                            <Fragment key={col.key}>
+                              <TableCell
+                                className={cn(
+                                  col.align === 'right' && 'text-right',
+                                  col.compact && 'px-1',
+                                  col.key === 'domainName' && 'pl-3',
+                                )}
+                              >
+                                {col.detail && loadingDetail ? (
+                                  <CellSkeleton align={col.align} />
+                                ) : (
+                                  col.render(d, portfolioRegistrarLabels)
+                                )}
+                              </TableCell>
+                              {i === 0 && (
+                                <TableCell className="text-right">
+                                  <AfternicCell
+                                    info={aftermarket[d.domainName]}
+                                    loading={
+                                      marketLoading[d.domainName] === true
+                                    }
+                                    onOpen={openExternal}
+                                  />
+                                </TableCell>
+                              )}
+                              {i === 0 && (
+                                <TableCell>
+                                  <FolderCell
+                                    folders={folders}
+                                    folderId={folderAssignments[key]}
+                                  />
+                                </TableCell>
+                              )}
+                              {col.key === 'expirationDate' && (
+                                <TableCell className="text-right">
+                                  <RenewalCell
+                                    info={pricing[key]}
+                                    loading={pricingLoading}
+                                  />
+                                </TableCell>
+                              )}
+                            </Fragment>
+                          ))}
+                        </TableRow>
+                      </DropdownMenuTrigger>
+                      <RowMenuContent
+                        folders={folders}
+                        folderId={folderAssignments[key]}
+                        onAssign={(folderId) =>
+                          void assignFolder(key, folderId)
+                        }
+                        onVisit={() => openExternal(`https://${d.domainName}`)}
+                      />
+                    </DropdownMenu>
                   );
                 })}
                 {visible.length === 0 && (
