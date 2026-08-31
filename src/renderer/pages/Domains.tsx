@@ -450,12 +450,19 @@ function expiryColor(days: number | null): string {
 const PAGE_SIZES = [25, 50, 100, 250];
 const ALL = '__all__';
 
-/** Expiration-window filter options. Value is the day count; ALL disables it. */
+/** Sentinel expiration-filter value that keeps only already-expired domains. */
+const EXPIRED = 'expired';
+
+/**
+ * Expiration-filter options. ALL disables it, EXPIRED keeps only past-due
+ * domains, and a numeric value keeps domains expiring within that many days.
+ */
 const EXPIRY_OPTIONS: { value: string; label: string }[] = [
   { value: ALL, label: 'All Expirations' },
   { value: '30', label: 'Next 30 days' },
   { value: '60', label: 'Next 60 days' },
   { value: '90', label: 'Next 90 days' },
+  { value: EXPIRED, label: 'Expired' },
 ];
 
 // ── Page ────────────────────────────────────────────────────────────────────
@@ -557,8 +564,6 @@ export default function Domains() {
     priceFilterActive &&
     merged.some((d) => aftermarket[d.domainName] === undefined);
 
-  const expiryDays = expiry === ALL ? null : Number(expiry);
-
   // Filter → sort. Pagination is applied after, on the sorted result.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -566,10 +571,16 @@ export default function Domains() {
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
       if (tld !== ALL && tldOf(d.domainName) !== tld) return false;
       if (registrar !== ALL && d.registrar !== registrar) return false;
-      // Expiration window: keep domains due within N days (includes overdue).
-      if (expiryDays !== null) {
+      // Expiration filter: "Expired" keeps only past-due domains; a numeric
+      // window keeps domains expiring within that many upcoming days.
+      if (expiry !== ALL) {
         const days = daysUntil(d.expirationDate);
-        if (days === null || days > expiryDays) return false;
+        if (days === null) return false;
+        if (expiry === EXPIRED) {
+          if (days >= 0) return false;
+        } else if (days < 0 || days > Number(expiry)) {
+          return false;
+        }
       }
       // Afternic price range. With any bound set, unlisted/offer-only domains
       // (no numeric price) are excluded.
@@ -608,7 +619,7 @@ export default function Domains() {
     search,
     tld,
     registrar,
-    expiryDays,
+    expiry,
     priceFilterActive,
     minValue,
     maxValue,
