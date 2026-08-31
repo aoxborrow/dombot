@@ -28,14 +28,14 @@ export function getMcpInfo(): McpInfo {
 
 /** Builds a fresh MCP server instance with the portfolio tools registered. */
 function createMcpServer(): McpServer {
-  const server = new McpServer({ name: 'dombot', version: app.getVersion() });
+  const server = new McpServer({ name: 'DomBot', version: app.getVersion() });
   registerTools(server);
   return server;
 }
 
 /**
  * Starts the local MCP server on loopback. Auth is OAuth 2.1: clients register
- * dynamically and the human approves each new connection on dombot's approval
+ * dynamically and the human approves each new connection on DomBot's approval
  * page. Idempotent. Port pinnable via DOMBOT_MCP_PORT.
  */
 export async function startMcpServer(): Promise<McpInfo> {
@@ -57,7 +57,7 @@ export async function startMcpServer(): Promise<McpInfo> {
       provider: oauthProvider,
       issuerUrl: baseUrl,
       scopesSupported: ['portfolio'],
-      resourceName: 'dombot',
+      resourceName: 'DomBot',
       resourceServerUrl: mcpUrl,
     }),
   );

@@ -31,7 +31,7 @@ export default function McpClientsSettings() {
       <div>
         <h2 className="text-xl font-bold">MCP</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Agents connect to dombot&apos;s local MCP server to manage your
+          Agents connect to DomBot&apos;s local MCP server to manage your
           portfolio. New connections must be approved in the app.
         </p>
       </div>

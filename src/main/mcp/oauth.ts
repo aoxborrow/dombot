@@ -20,7 +20,7 @@ import type { McpClient, McpPendingApproval } from '../../shared/ipc';
 
 // A minimal, single-user OAuth 2.1 authorization server for the local MCP
 // endpoint. Clients self-register (dynamic registration); the human approves
-// each new connection in the dombot window; the issued access token is persisted
+// each new connection in the DomBot window; the issued access token is persisted
 // so a paired client stays paired across restarts.
 
 const CODE_TTL_MS = 5 * 60 * 1000;
@@ -314,7 +314,7 @@ function waitingPage(id: string, req: PendingApproval): string {
         })[c]!,
     );
   return `<!doctype html>
-<html><head><meta charset="utf-8"><title>Connecting · dombot</title>
+<html><head><meta charset="utf-8"><title>Connecting · DomBot</title>
 <style>
   body{font-family:-apple-system,system-ui,sans-serif;background:#020617;color:#e2e8f0;display:grid;place-items:center;min-height:100vh;margin:0}
   .card{background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:420px;width:90%;text-align:center}
@@ -327,8 +327,8 @@ function waitingPage(id: string, req: PendingApproval): string {
 </style></head>
 <body>
   <div class="card">
-    <h1>Approve this connection in dombot</h1>
-    <p>Open the dombot app and confirm this code matches:</p>
+    <h1>Approve this connection in DomBot</h1>
+    <p>Open the DomBot app and confirm this code matches:</p>
     <div class="code">${esc(req.displayCode)}</div>
     <div class="spin" id="spin"></div>
     <p id="status">Waiting for approval…</p>
