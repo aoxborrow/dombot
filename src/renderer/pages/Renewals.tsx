@@ -173,19 +173,17 @@ export default function Renewals() {
     [portfolio, pricing],
   );
 
-  // Donut slices. Kept side by side for comparison: the original spend-only
-  // registrar donut, the newer combined one (estimated spend + count), and a
-  // TLD donut by count.
-  const regSpendOld = useMemo(
-    () => toSlices(byRegistrar, (g) => g.yearly),
-    [byRegistrar],
-  );
+  // Donut slices: the combined registrar donut (estimated spend + count), a
+  // standalone registrar donut by domain count, and a TLD donut by count.
   const regCombined = useMemo(
     () => toSlices(byRegistrar, estSpend, { countOf: (g) => g.count }),
     [byRegistrar],
   );
+  const regCount = useMemo(
+    () => toSlices(byRegistrar, (g) => g.count),
+    [byRegistrar],
+  );
   const tldCount = useMemo(() => toSlices(byTld, (g) => g.count), [byTld]);
-  const regSpendOldTotal = regSpendOld.reduce((s, x) => s + x.value, 0);
   const regCombinedTotal = regCombined.reduce((s, x) => s + x.value, 0);
 
   // Domains that can't be priced automatically or already carry a manual price —
@@ -268,18 +266,18 @@ export default function Renewals() {
       {/* Composition */}
       <div className="grid gap-4 lg:grid-cols-3">
         <DonutCard
-          title="Spend by registrar"
-          slices={regSpendOld}
-          centerValue={usd(regSpendOldTotal)}
-          centerLabel="per year"
-          fmt={usd}
-        />
-        <DonutCard
           title="By registrar (combined)"
           slices={regCombined}
           centerValue={usd(regCombinedTotal)}
           centerLabel="per year · est"
           fmt={usd}
+        />
+        <DonutCard
+          title="Domains by registrar"
+          slices={regCount}
+          centerValue={count(summary.total)}
+          centerLabel="domains"
+          fmt={count}
         />
         <DonutCard
           title="Domains by TLD"
