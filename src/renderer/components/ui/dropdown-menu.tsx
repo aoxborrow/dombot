@@ -109,7 +109,7 @@ function DropdownMenuCheckboxItem({
           a multi-select menu reads as checkboxes even with nothing selected. */}
       <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center rounded-[4px] border border-input transition-colors group-data-[state=checked]/checkbox-item:border-primary group-data-[state=checked]/checkbox-item:bg-primary group-data-[state=checked]/checkbox-item:text-primary-foreground">
         <DropdownMenuPrimitive.ItemIndicator>
-          <CheckIcon className="size-3.5" />
+          <CheckIcon className="size-3.5" strokeWidth={2.75} />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
       {children}

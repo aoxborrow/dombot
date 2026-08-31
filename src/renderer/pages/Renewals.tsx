@@ -314,8 +314,8 @@ function PageHeader({
   return (
     <div className="flex items-end justify-between gap-4">
       <div>
-        <h1 className="text-[28px] font-bold">Renewals</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-[32px] font-bold">Renewals</h1>
+        <p className="-mt-0.5 text-sm text-muted-foreground">
           {loading
             ? `Pricing… ${summary.priced}/${summary.total}`
             : summary.priced > 0

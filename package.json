@@ -1,6 +1,6 @@
 {
   "name": "dombot",
-  "productName": "dombot",
+  "productName": "DomBot",
   "version": "1.0.0",
   "description": "Cross-platform desktop app built with Electron, React, TypeScript, and Vite.",
   "main": ".vite/build/index.js",

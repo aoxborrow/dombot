@@ -921,6 +921,29 @@ export default function Domains() {
   const maxValue = priceError ? null : maxParsed.value;
   const priceFilterActive = minValue !== null || maxValue !== null;
 
+  // Whether any search/filter is narrowing the list — drives the "Reset filters"
+  // affordance and clearing them all at once.
+  const hasActiveFilters =
+    search.trim() !== '' ||
+    tld.length > 0 ||
+    registrar.length > 0 ||
+    expiry.length > 0 ||
+    ns.length > 0 ||
+    folder.length > 0 ||
+    priceFilterActive;
+
+  function resetFilters() {
+    setSearch('');
+    setTld([]);
+    setRegistrar([]);
+    setExpiry([]);
+    setNs([]);
+    setFolder([]);
+    setMinPrice('');
+    setMaxPrice('');
+    setPage(0);
+  }
+
   // Filter → sort. Pagination is applied after, on the sorted result.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1134,11 +1157,11 @@ export default function Domains() {
   }
 
   return (
-    <div className="mx-auto flex max-w-[1400px] flex-col gap-5">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[28px] font-bold">Domains</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+    <div className="mx-auto flex max-w-[1400px] flex-col gap-[13px]">
+      <div className="flex items-end gap-4">
+        <div className="flex-1">
+          <h1 className="text-[32px] font-bold">Domains</h1>
+          <p className="-mt-0.5 text-sm text-muted-foreground">
             {hasLoaded
               ? `${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
                   portfolioRegistrars.length === 1 ? '' : 's'
@@ -1146,7 +1169,21 @@ export default function Domains() {
               : 'Load your portfolio across every configured registrar.'}
           </p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
+        {/* Center column: Reset filters (bottom-aligned, nearest the filter
+            row), shown only while filters are active. */}
+        <div className="flex flex-1 items-end justify-center">
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center gap-1 text-xs text-[#31613b] transition-opacity hover:opacity-80 dark:text-[#7ac28d]"
+            >
+              <X className="size-3.5" />
+              Reset filters
+            </button>
+          )}
+        </div>
+        <div className="flex flex-1 flex-col items-end gap-2">
           {portfolioLoadedAt !== null ? (
             // Dimmed "Refresh domains" button with the last-refreshed time as a
             // small caption centered beneath it. Amber (fill + dot) once past the
@@ -1229,11 +1266,12 @@ export default function Domains() {
 
       {hasLoaded && (
         <>
-          {/* Toolbar: search + filters */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative min-w-[220px] flex-1">
-                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          {/* Toolbar: search, filters, and export all flow inline and wrap
+              together as equal items. Extra top margin separates it a bit more
+              from the title/reset/refresh row above. */}
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="search"
                   value={search}
@@ -1244,10 +1282,10 @@ export default function Domains() {
                   placeholder="Search domains…"
                   className="pl-8"
                 />
-              </div>
+            </div>
 
-              <MultiSelectFilter
-                label="Registrar"
+            <MultiSelectFilter
+              label="Registrar"
                 icon={Building2}
                 options={registrarOptions}
                 selected={registrar}
@@ -1322,7 +1360,7 @@ export default function Domains() {
                 />
               )}
 
-              <div className="ml-auto flex items-center gap-3">
+              <div className="flex items-center gap-3">
                 {exportNote && (
                   <span
                     className={cn(
@@ -1343,6 +1381,7 @@ export default function Domains() {
                       variant="outline"
                       disabled={exporting || filtered.length === 0}
                       title="Export the filtered domains"
+                      className="pr-[7px]!"
                     >
                       <Download className="text-muted-foreground" />
                       {exporting ? 'Exporting…' : 'Export'}
@@ -1358,7 +1397,6 @@ export default function Domains() {
                 </DropdownMenu>
               </div>
             </div>
-          </div>
 
           {/* Bulk action bar — contextual, appears once any row is selected.
               Actions are UI-only stubs for now. */}
@@ -1864,7 +1902,7 @@ function MultiSelectFilter({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" aria-label={label} className="gap-2">
+        <Button variant="outline" aria-label={label} className="gap-2 pr-[7px]!">
           {Icon && <Icon className="size-4 text-muted-foreground" />}
           {label}
           {selected.length > 0 && (
