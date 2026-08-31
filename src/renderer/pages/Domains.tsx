@@ -20,6 +20,7 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
+  Folder as FolderIcon,
   Loader2,
   Lock,
   LockOpen,
@@ -1182,6 +1183,7 @@ export default function Domains() {
               {folders.length > 0 && (
                 <MultiSelectFilter
                   label="Folder"
+                  icon={FolderIcon}
                   options={folderOptions}
                   selected={folder}
                   onChange={(next) => {
@@ -1273,6 +1275,32 @@ export default function Domains() {
                             </button>
                           </TableHead>
                         )}
+                        {/* Folder sits right after Afternic, before Registrar. */}
+                        {i === 0 && (
+                          <TableHead>
+                            <button
+                              type="button"
+                              onClick={() => toggleSort(FOLDER)}
+                              className={cn(
+                                'inline-flex select-none items-center gap-1 hover:text-foreground',
+                                sortKey === FOLDER && 'text-foreground',
+                              )}
+                            >
+                              Folder
+                              {(() => {
+                                const FdIcon =
+                                  sortKey !== FOLDER
+                                    ? ChevronsUpDown
+                                    : sortDir === 'asc'
+                                      ? ArrowUp
+                                      : ArrowDown;
+                                return (
+                                  <FdIcon className="size-3.5 opacity-70" />
+                                );
+                              })()}
+                            </button>
+                          </TableHead>
+                        )}
                         {/* Renewal price sits right before the Auto-Renew flag. */}
                         {col.key === 'expirationDate' && (
                           <TableHead className="text-right">
@@ -1294,32 +1322,6 @@ export default function Domains() {
                                       : ArrowDown;
                                 return (
                                   <RnIcon className="size-3.5 opacity-70" />
-                                );
-                              })()}
-                            </button>
-                          </TableHead>
-                        )}
-                        {/* Folder sits right after the Registrar column. */}
-                        {col.key === 'registrar' && (
-                          <TableHead>
-                            <button
-                              type="button"
-                              onClick={() => toggleSort(FOLDER)}
-                              className={cn(
-                                'inline-flex select-none items-center gap-1 hover:text-foreground',
-                                sortKey === FOLDER && 'text-foreground',
-                              )}
-                            >
-                              Folder
-                              {(() => {
-                                const FdIcon =
-                                  sortKey !== FOLDER
-                                    ? ChevronsUpDown
-                                    : sortDir === 'asc'
-                                      ? ArrowUp
-                                      : ArrowDown;
-                                return (
-                                  <FdIcon className="size-3.5 opacity-70" />
                                 );
                               })()}
                             </button>
@@ -1360,15 +1362,7 @@ export default function Domains() {
                               />
                             </TableCell>
                           )}
-                          {col.key === 'expirationDate' && (
-                            <TableCell className="text-right">
-                              <RenewalCell
-                                info={pricing[`${d.registrar}:${d.domainName}`]}
-                                loading={pricingLoading}
-                              />
-                            </TableCell>
-                          )}
-                          {col.key === 'registrar' && (
+                          {i === 0 && (
                             <TableCell>
                               <FolderCell
                                 folders={folders}
@@ -1383,6 +1377,14 @@ export default function Domains() {
                                     folderId,
                                   )
                                 }
+                              />
+                            </TableCell>
+                          )}
+                          {col.key === 'expirationDate' && (
+                            <TableCell className="text-right">
+                              <RenewalCell
+                                info={pricing[`${d.registrar}:${d.domainName}`]}
+                                loading={pricingLoading}
                               />
                             </TableCell>
                           )}
@@ -1593,6 +1595,7 @@ function MultiSelectFilter({
   selected,
   onChange,
   loading = false,
+  icon: Icon,
 }: {
   label: string;
   options: { value: string; label: string; count?: number }[];
@@ -1601,11 +1604,14 @@ function MultiSelectFilter({
   /** Show a spinner in the trigger while the underlying data is still loading
    * (the filter stays usable — it just isn't complete yet). */
   loading?: boolean;
+  /** Optional leading icon shown before the label in the trigger. */
+  icon?: LucideIcon;
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" aria-label={label} className="gap-1.5">
+          {Icon && <Icon className="size-4 text-muted-foreground" />}
           {label}
           {selected.length > 0 && (
             <Badge
