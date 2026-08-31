@@ -7,6 +7,7 @@ import {
   getRegistrarClient,
   registrarNames,
 } from '../services/registrars';
+import { getRenewalPrice } from '../services/pricing';
 
 // Serialize a service result as a pretty-printed JSON text block — the simplest
 // MCP tool payload. (Dates become ISO strings via JSON.stringify.)
@@ -462,5 +463,18 @@ export function registerTools(server: McpServer): void {
           : client.unlockDomain(domain)),
       );
     },
+  );
+
+  server.registerTool(
+    'domain_renewal_price',
+    {
+      title: 'Estimate renewal price',
+      description:
+        'For a single domain: DomBot’s estimated annual renewal price, with provenance — a manual override, else a per-name registrar quote where supported, else the base per-TLD database. Distinct from registrar_pricing, which is the registrar’s own live quote.',
+      inputSchema: { registrar, domain },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ registrar, domain }) =>
+      json(await getRenewalPrice(registrar, domain)),
   );
 }
