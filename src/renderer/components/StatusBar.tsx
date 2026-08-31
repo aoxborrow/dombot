@@ -9,10 +9,9 @@ import { LoadStatus, type LoadStatusItem } from './LoadStatus';
  * viewport bottom, with page content scrolling underneath it. Surfaces the
  * embedded MCP server's status on the left and the last-refreshed time plus the
  * background-load lights (Domains / Markets / Pricing) on the right. Shown on
- * every route; the user can hide it from Settings → Appearance.
+ * every route.
  */
 export default function StatusBar() {
-  const visible = useAppStore((s) => s.statusBarVisible);
   const mcpInfo = useAppStore((s) => s.mcpInfo);
   const loadMcpInfo = useAppStore((s) => s.loadMcpInfo);
 
@@ -84,8 +83,6 @@ export default function StatusBar() {
     marketAllLoading,
     pricingLoading,
   ]);
-
-  if (!visible) return null;
 
   const mcpRunning = mcpInfo?.running ?? false;
   // Show just host:port from the endpoint (drop the scheme and /mcp path).

@@ -33,17 +33,6 @@ const pricingInFlight = new Set<string>();
 let detailAllInFlight = false;
 let marketAllInFlight = false;
 
-// Persisted UI preference: whether the bottom status bar is shown. Defaults to
-// visible; a missing/unreadable value falls back to that.
-const STATUS_BAR_KEY = 'dombot.statusBarVisible';
-function readStatusBarVisible(): boolean {
-  try {
-    return localStorage.getItem(STATUS_BAR_KEY) !== '0';
-  } catch {
-    return true;
-  }
-}
-
 interface AppState {
   appInfo: AppInfo | null;
   mcpInfo: McpInfo | null;
@@ -53,11 +42,6 @@ interface AppState {
   loadAppInfo: () => Promise<void>;
   loadMcpInfo: () => Promise<void>;
   loadDynadotDomains: () => Promise<void>;
-
-  /** Whether the app-wide bottom status bar is shown. Persisted per-user in
-   * localStorage; a UI-only preference, so it never touches the on-disk caches. */
-  statusBarVisible: boolean;
-  setStatusBarVisible: (visible: boolean) => void;
 
   // Aggregated portfolio across every configured registrar.
   portfolio: Domain[];
@@ -155,17 +139,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadMcpInfo: async () => {
     const mcpInfo = await window.api.getMcpInfo();
     set({ mcpInfo });
-  },
-
-  statusBarVisible: readStatusBarVisible(),
-  setStatusBarVisible: (visible) => {
-    try {
-      localStorage.setItem(STATUS_BAR_KEY, visible ? '1' : '0');
-    } catch {
-      // localStorage can throw (private mode, disabled storage); the toggle
-      // still works for this session even if the preference isn't persisted.
-    }
-    set({ statusBarVisible: visible });
   },
   loadDynadotDomains: async () => {
     set({ domainsLoading: true, domainsError: null });
