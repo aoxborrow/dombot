@@ -36,6 +36,23 @@ export const registrarNames = Object.keys(registrars) as [
 ];
 
 /**
+ * The public website domain for each registrar. This is the key the base
+ * TLD-pricing source (tldes.com) uses to identify a registrar, so it's how we
+ * join our internal registrar id to a row in that dataset (see base-pricing.ts).
+ */
+export const registrarWebsite: Record<RegistrarName, string> = {
+  cloudflare: 'cloudflare.com',
+  dynadot: 'dynadot.com',
+  gandi: 'gandi.net',
+  godaddy: 'godaddy.com',
+  namebright: 'namebright.com',
+  namecheap: 'namecheap.com',
+  namesilo: 'namesilo.com',
+  porkbun: 'porkbun.com',
+  spaceship: 'spaceship.com',
+};
+
+/**
  * Returns a cached client for `name`, building it from resolved credentials on
  * first use. The shared lower-level core: MCP tools and UI IPC handlers both
  * call in.
