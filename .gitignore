@@ -36,6 +36,9 @@ build/Release
 node_modules/
 jspm_packages/
 
+# Built static site (generated from site/src by scripts/build-site.mjs)
+site/dist/
+
 # TypeScript v1 declaration files
 typings/
 

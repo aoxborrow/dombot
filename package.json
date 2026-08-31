@@ -12,7 +12,8 @@
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
     "format": "prettier --write .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:site": "node scripts/build-site.mjs"
   },
   "keywords": [],
   "author": {
@@ -39,6 +40,7 @@
     "@typescript-eslint/eslint-plugin": "^8.68.0",
     "@typescript-eslint/parser": "^8.68.0",
     "@vitejs/plugin-react": "^4.7.0",
+    "clean-css": "^5.3.3",
     "dotenv": "^17.4.2",
     "electron": "44.0.0",
     "eslint": "^8.57.1",
@@ -46,8 +48,10 @@
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "html-minifier-terser": "^7.2.0",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.3.3",
+    "terser": "^5.31.0",
     "tw-animate-css": "^1.4.0",
     "typescript": "~5.6.3",
     "vite": "^5.4.21"

@@ -81,6 +81,7 @@ npm start
 | `npm run lint`      | Lint `.ts`/`.tsx` files                         |
 | `npm run format`    | Format the codebase with Prettier               |
 | `npm run typecheck` | Type-check without emitting                     |
+| `npm run build:site` | Minify the landing page (`site/src` → `site/dist`) |
 
 ## Project layout
 

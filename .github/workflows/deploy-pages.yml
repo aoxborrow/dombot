@@ -1,13 +1,17 @@
 name: Deploy site to GitHub Pages
 
-# Publishes the static landing page in site/ to GitHub Pages.
+# Builds the static landing page (site/src → site/dist: extracts the inline CSS
+# and JS into minified external assets) and publishes site/dist to GitHub Pages.
 # One-time setup: repo Settings → Pages → Source → "GitHub Actions".
 
 on:
   push:
     branches: [main]
     paths:
-      - 'site/**'
+      - 'site/src/**'
+      - 'scripts/build-site.mjs'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
@@ -30,12 +34,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install build tooling
+        # --ignore-scripts skips Electron's binary download; the site build only
+        # needs html-minifier-terser, which is pure JS.
+        run: npm ci --ignore-scripts
+      - name: Build site
+        run: npm run build:site
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: site/dist
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
