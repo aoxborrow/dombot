@@ -20,6 +20,7 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
+  Loader2,
   Lock,
   LockOpen,
   RefreshCw,
@@ -28,10 +29,16 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
-import type { Aftermarket, Domain, MarketListing } from '../../shared/ipc';
+import type {
+  Aftermarket,
+  Domain,
+  MarketListing,
+  RenewalPricing,
+} from '../../shared/ipc';
 import { STALE_AFTER_MS } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
+import { nameserverGroup } from '../lib/nameservers';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -255,6 +262,36 @@ function AfternicCell({
   );
 }
 
+const RENEWAL = 'renewal';
+
+/** Whole/decimal USD, e.g. "$12" or "$12.99". */
+function fmtUsd(n: number): string {
+  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+}
+
+/** Annual renewal-price cell. Shows the figure with a source tooltip, a skeleton
+ *  while pricing is still loading, or "—" when unavailable. */
+function RenewalCell({
+  info,
+  loading,
+}: {
+  info: RenewalPricing | undefined;
+  loading: boolean;
+}) {
+  if (info === undefined && loading) return <CellSkeleton align="right" />;
+  if (!info || info.renewal == null) {
+    return <span className="text-muted-foreground/50">—</span>;
+  }
+  return (
+    <span
+      className="font-medium tabular-nums"
+      title={`Renewal source: ${info.source}`}
+    >
+      {fmtUsd(info.renewal)}
+    </span>
+  );
+}
+
 /**
  * On/off state shown with column-appropriate icons: the `on` icon (emphasized)
  * when enabled, its muted `off` counterpart when disabled.
@@ -265,19 +302,27 @@ function StateIcon({
   off: Off,
   onLabel,
   offLabel,
+  align = 'center',
 }: {
   value: boolean;
   on: LucideIcon;
   off: LucideIcon;
   onLabel: string;
   offLabel: string;
+  /** Horizontal placement within the cell. Default centers; 'left' hugs the
+   * left edge (used by Auto-Renew so it snugs up to the renewal price). */
+  align?: 'center' | 'left';
 }) {
-  return value ? (
-    <On className="mx-auto size-4 text-emerald-500" aria-label={onLabel} />
-  ) : (
-    <Off
-      className="mx-auto size-4 text-muted-foreground/50"
-      aria-label={offLabel}
+  const place = align === 'left' ? 'mr-auto' : 'mx-auto';
+  const Icon = value ? On : Off;
+  return (
+    <Icon
+      className={cn(
+        'size-4',
+        place,
+        value ? 'text-emerald-500' : 'text-muted-foreground/50',
+      )}
+      aria-label={value ? onLabel : offLabel}
     />
   );
 }
@@ -387,9 +432,11 @@ const COLUMNS: Column[] = [
     sortValue: (d) => toTime(d.expirationDate),
   },
   {
+    // Sits right after the injected Renewal column, hugging the price on its
+    // left (compact + left-aligned so the icon snugs up to the figure).
     key: 'autoRenew',
-    label: 'Renew',
-    align: 'right',
+    label: 'Auto-Renew',
+    align: 'left',
     compact: true,
     render: (d) => (
       <StateIcon
@@ -398,26 +445,27 @@ const COLUMNS: Column[] = [
         off={RefreshCwOff}
         onLabel="auto-renew on"
         offLabel="auto-renew off"
+        align="left"
       />
     ),
     sortValue: (d) => (d.autoRenew ? 1 : 0),
   },
   {
-    key: 'locked',
-    label: 'Locked',
-    align: 'right',
+    key: 'nameservers',
+    label: 'Nameservers',
     detail: true,
-    compact: true,
-    render: (d) => (
-      <StateIcon
-        value={d.locked}
-        on={Lock}
-        off={LockOpen}
-        onLabel="locked"
-        offLabel="unlocked"
-      />
-    ),
-    sortValue: (d) => (d.locked ? 1 : 0),
+    render: (d) =>
+      d.nameservers.length === 0 ? (
+        <span className="text-muted-foreground/50">—</span>
+      ) : (
+        <span
+          className="block max-w-[260px] truncate font-mono text-xs text-muted-foreground"
+          title={d.nameservers.join('\n')}
+        >
+          {d.nameservers.join(', ')}
+        </span>
+      ),
+    sortValue: (d) => d.nameservers[0]?.toLowerCase() ?? '',
   },
   {
     key: 'privacy',
@@ -437,21 +485,21 @@ const COLUMNS: Column[] = [
     sortValue: (d) => (d.privacy ? 1 : 0),
   },
   {
-    key: 'nameservers',
-    label: 'Nameservers',
+    key: 'locked',
+    label: 'Locked',
+    align: 'right',
     detail: true,
-    render: (d) =>
-      d.nameservers.length === 0 ? (
-        <span className="text-muted-foreground/50">—</span>
-      ) : (
-        <span
-          className="block max-w-[260px] truncate font-mono text-xs text-muted-foreground"
-          title={d.nameservers.join('\n')}
-        >
-          {d.nameservers.join(', ')}
-        </span>
-      ),
-    sortValue: (d) => d.nameservers[0]?.toLowerCase() ?? '',
+    compact: true,
+    render: (d) => (
+      <StateIcon
+        value={d.locked}
+        on={Lock}
+        off={LockOpen}
+        onLabel="locked"
+        offLabel="unlocked"
+      />
+    ),
+    sortValue: (d) => (d.locked ? 1 : 0),
   },
 ];
 
@@ -528,9 +576,16 @@ export default function Domains() {
     enriched,
     enriching,
     enrichVisible,
+    detailAllLoading,
+    loadAllDetail,
     aftermarket,
     marketLoading,
     loadAftermarketVisible,
+    marketAllLoading,
+    loadAllMarket,
+    pricing,
+    pricingLoading,
+    loadPricingAll,
   } = useAppStore();
 
   const openExternal = (url: string) => void window.api.openExternal(url);
@@ -547,6 +602,7 @@ export default function Domains() {
   const [tld, setTld] = useState<string[]>([]);
   const [registrar, setRegistrar] = useState<string[]>([]);
   const [expiry, setExpiry] = useState<string[]>([]);
+  const [ns, setNs] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [sortKey, setSortKey] = useState('domainName');
@@ -609,6 +665,36 @@ export default function Domains() {
     [portfolio, portfolioRegistrarLabels],
   );
 
+  // Nameserver groups (by base domain, with per-provider splits) plus the set of
+  // groups each domain belongs to. Derived from `merged`, so it fills in as
+  // lazily-loaded nameservers arrive; the count is domains-per-group. Options
+  // are sorted by count desc, then label.
+  const { nsGroups, nsKeysByDomain } = useMemo(() => {
+    const keysByDomain = new Map<string, Set<string>>();
+    const counts = new Map<string, { label: string; count: number }>();
+    for (const d of merged) {
+      const keys = new Set<string>();
+      for (const host of d.nameservers) {
+        const group = nameserverGroup(host);
+        if (!group) continue;
+        // Count each domain once per group even with multiple hosts in it.
+        if (!keys.has(group.key)) {
+          const existing = counts.get(group.key);
+          if (existing) existing.count += 1;
+          else counts.set(group.key, { label: group.label, count: 1 });
+        }
+        keys.add(group.key);
+      }
+      keysByDomain.set(`${d.registrar}:${d.domainName}`, keys);
+    }
+    const groups = Array.from(counts, ([value, v]) => ({
+      value,
+      label: v.label,
+      count: v.count,
+    })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+    return { nsGroups: groups, nsKeysByDomain: keysByDomain };
+  }, [merged]);
+
   // Validate the price inputs, then derive the bounds actually applied. A field
   // error (or min > max) leaves the range unapplied until it's corrected.
   const minParsed = parsePriceInput(minPrice);
@@ -623,11 +709,42 @@ export default function Domains() {
   const minValue = priceError ? null : minParsed.value;
   const maxValue = priceError ? null : maxParsed.value;
   const priceFilterActive = minValue !== null || maxValue !== null;
-  // While a price filter is active, Afternic data may still be streaming in for
-  // off-screen rows — surface that so a shrinking result set reads as "loading".
-  const pricesLoading =
-    priceFilterActive &&
-    merged.some((d) => aftermarket[d.domainName] === undefined);
+
+  // Per-dataset "loaded / total" counts for the toolbar load-status cluster.
+  // Loaded = domains with that datum present; recomputed as data streams in.
+  const loadCounts = useMemo(() => {
+    let nsLoaded = 0;
+    let marketLoaded = 0;
+    let pricingLoaded = 0;
+    for (const d of merged) {
+      if (d.nameservers.length > 0) nsLoaded += 1;
+      if (aftermarket[d.domainName] !== undefined) marketLoaded += 1;
+      if (pricing[`${d.registrar}:${d.domainName}`] !== undefined)
+        pricingLoaded += 1;
+    }
+    return { nsLoaded, marketLoaded, pricingLoaded };
+  }, [merged, aftermarket, pricing]);
+
+  const loadStatusItems = [
+    {
+      label: 'Domains',
+      loaded: loadCounts.nsLoaded,
+      total: portfolio.length,
+      loading: portfolioLoading || detailAllLoading,
+    },
+    {
+      label: 'Markets',
+      loaded: loadCounts.marketLoaded,
+      total: portfolio.length,
+      loading: marketAllLoading,
+    },
+    {
+      label: 'Pricing',
+      loaded: loadCounts.pricingLoaded,
+      total: portfolio.length,
+      loading: pricingLoading,
+    },
+  ];
 
   // Filter → sort. Pagination is applied after, on the sorted result.
   const filtered = useMemo(() => {
@@ -643,6 +760,11 @@ export default function Domains() {
         const days = daysUntil(d.expirationDate);
         if (!expiry.some((o) => matchesExpiryOption(o, days))) return false;
       }
+      // Nameservers: keep a domain in ANY selected nameserver group.
+      if (ns.length > 0) {
+        const keys = nsKeysByDomain.get(`${d.registrar}:${d.domainName}`);
+        if (!keys || !ns.some((k) => keys.has(k))) return false;
+      }
       // Afternic price range. With any bound set, unlisted/offer-only domains
       // (no numeric price) are excluded.
       if (priceFilterActive) {
@@ -656,11 +778,16 @@ export default function Domains() {
 
     const col = COLUMNS.find((c) => c.key === sortKey) ?? COLUMNS[0];
     const dir = sortDir === 'asc' ? 1 : -1;
-    // Afternic isn't a Domain field — sort by its price from the aftermarket map.
-    const valueOf = (d: Domain): SortValue | null =>
-      sortKey === AFTERNIC
-        ? (afternicListing(aftermarket[d.domainName])?.price ?? null)
-        : col.sortValue(d, portfolioRegistrarLabels);
+    // Afternic and Renewal aren't Domain fields — sort them from their maps.
+    const valueOf = (d: Domain): SortValue | null => {
+      if (sortKey === AFTERNIC) {
+        return afternicListing(aftermarket[d.domainName])?.price ?? null;
+      }
+      if (sortKey === RENEWAL) {
+        return pricing[`${d.registrar}:${d.domainName}`]?.renewal ?? null;
+      }
+      return col.sortValue(d, portfolioRegistrarLabels);
+    };
     return rows.sort((a, b) => {
       const av = valueOf(a);
       const bv = valueOf(b);
@@ -681,12 +808,15 @@ export default function Domains() {
     tld,
     registrar,
     expiry,
+    ns,
+    nsKeysByDomain,
     priceFilterActive,
     minValue,
     maxValue,
     sortKey,
     sortDir,
     aftermarket,
+    pricing,
   ]);
 
   // Derive the effective page: if filters shrink the result below the current
@@ -727,14 +857,18 @@ export default function Domains() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleKey, refreshTick, loadAftermarketVisible]);
 
-  // The price filter compares against Afternic data, which otherwise loads only
-  // for on-screen rows. When a bound is set, pull it for the whole portfolio so
-  // the filter is accurate across every page; the loader dedupes and is cached,
-  // and results refine as each (rate-limited) fetch lands.
+  // Eagerly load detail (nameservers) and Afternic pricing for the WHOLE
+  // portfolio once it's loaded, so the Nameservers and Price filters see every
+  // domain — not just on-screen rows. Both loaders dedupe against the visible
+  // fetches and are cached on disk; the loading flags drive the filter spinners.
+  // Keyed on the portfolio identity + refreshTick so it runs once per load.
   useEffect(() => {
-    if (priceFilterActive) void loadAftermarketVisible(merged);
+    if (portfolio.length === 0) return;
+    void loadAllDetail(portfolio);
+    void loadAllMarket(portfolio);
+    void loadPricingAll(portfolio);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [priceFilterActive, merged, loadAftermarketVisible]);
+  }, [portfolio, refreshTick]);
 
   function toggleSort(key: string) {
     if (key === sortKey) {
@@ -788,81 +922,84 @@ export default function Domains() {
               : 'Load your portfolio across every configured registrar.'}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {exportNote && (
-            <span
-              className={cn(
-                'inline-flex items-center gap-1.5 text-sm',
-                exportNote.error
-                  ? 'text-destructive'
-                  : 'text-emerald-600 dark:text-emerald-400',
-              )}
-              role="status"
-            >
-              {!exportNote.error && <CircleCheck className="size-4" />}
-              {exportNote.text}
-            </span>
-          )}
-          {portfolioLoadedAt !== null ? (
-            // The refresh control carries its own freshness: a "Refresh" label
-            // with the last-refreshed time in smaller muted text. Dimmed when
-            // fresh (<1 day), amber (fill + dot) once past the stale threshold.
-            <Button
-              variant="outline"
-              onClick={() => void loadPortfolio()}
-              disabled={portfolioLoading || tooSoon}
-              title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}${
-                tooSoon
-                  ? ' — just refreshed, try again in a minute'
-                  : stale
-                    ? ' — data may be stale, click to refresh'
-                    : ' — click to refresh'
-              }`}
-              className={cn(
-                recent &&
-                  !stale &&
-                  'border-border/40 text-muted-foreground hover:text-foreground',
-                stale &&
-                  'border-amber-500/50 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60 dark:hover:text-amber-300',
-              )}
-            >
-              {stale && !portfolioLoading && (
-                <span
-                  className="size-2 rounded-full bg-amber-500 dark:bg-amber-400"
-                  aria-hidden
-                />
-              )}
-              <RefreshCw className={cn(portfolioLoading && 'animate-spin')} />
-              {portfolioLoading ? (
-                'Refreshing…'
-              ) : (
-                <span className="inline-flex items-baseline gap-1.5">
-                  Refresh
-                  <span className="text-xs font-normal opacity-70">
-                    {timeAgo(portfolioLoadedAt)}
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {hasLoaded && <LoadStatus items={loadStatusItems} />}
+          <div className="flex items-center gap-3">
+            {exportNote && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1.5 text-sm',
+                  exportNote.error
+                    ? 'text-destructive'
+                    : 'text-emerald-600 dark:text-emerald-400',
+                )}
+                role="status"
+              >
+                {!exportNote.error && <CircleCheck className="size-4" />}
+                {exportNote.text}
+              </span>
+            )}
+            {portfolioLoadedAt !== null ? (
+              // The refresh control carries its own freshness: a "Refresh" label
+              // with the last-refreshed time in smaller muted text. Dimmed when
+              // fresh (<1 day), amber (fill + dot) once past the stale threshold.
+              <Button
+                variant="outline"
+                onClick={() => void loadPortfolio()}
+                disabled={portfolioLoading || tooSoon}
+                title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}${
+                  tooSoon
+                    ? ' — just refreshed, try again in a minute'
+                    : stale
+                      ? ' — data may be stale, click to refresh'
+                      : ' — click to refresh'
+                }`}
+                className={cn(
+                  recent &&
+                    !stale &&
+                    'border-border/40 text-muted-foreground hover:text-foreground',
+                  stale &&
+                    'border-amber-500/50 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60 dark:hover:text-amber-300',
+                )}
+              >
+                {stale && !portfolioLoading && (
+                  <span
+                    className="size-2 rounded-full bg-amber-500 dark:bg-amber-400"
+                    aria-hidden
+                  />
+                )}
+                <RefreshCw className={cn(portfolioLoading && 'animate-spin')} />
+                {portfolioLoading ? (
+                  'Refreshing…'
+                ) : (
+                  <span className="inline-flex items-baseline gap-1.5">
+                    Refresh
+                    <span className="text-xs font-normal opacity-70">
+                      {timeAgo(portfolioLoadedAt)}
+                    </span>
                   </span>
-                </span>
-              )}
-            </Button>
-          ) : (
-            <Button
-              onClick={() => void loadPortfolio()}
-              disabled={portfolioLoading}
-            >
-              {portfolioLoading ? 'Loading…' : 'Load domains'}
-            </Button>
-          )}
-          {hasLoaded && (
-            <Button
-              variant="outline"
-              onClick={() => void exportCsv()}
-              disabled={exporting || filtered.length === 0}
-              title="Export the filtered domains as a CSV file"
-            >
-              <Download />
-              {exporting ? 'Exporting…' : 'Export CSV'}
-            </Button>
-          )}
+                )}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => void loadPortfolio()}
+                disabled={portfolioLoading}
+              >
+                {portfolioLoading ? 'Loading…' : 'Load domains'}
+              </Button>
+            )}
+            {hasLoaded && (
+              <Button
+                variant="outline"
+                onClick={() => void exportCsv()}
+                disabled={exporting || filtered.length === 0}
+                title="Export the filtered domains as a CSV file"
+              >
+                <Download />
+                {exporting ? 'Exporting…' : 'Export CSV'}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -945,6 +1082,16 @@ export default function Domains() {
                   setPage(0);
                 }}
               />
+              <MultiSelectFilter
+                label="Nameservers"
+                options={nsGroups}
+                selected={ns}
+                onChange={(next) => {
+                  setNs(next);
+                  setPage(0);
+                }}
+                loading={detailAllLoading}
+              />
 
               {/* Afternic price range — one combined min/max control */}
               <PriceRangeInput
@@ -960,18 +1107,12 @@ export default function Domains() {
                 }}
                 minInvalid={Boolean(minParsed.error) || Boolean(rangeError)}
                 maxInvalid={Boolean(maxParsed.error) || Boolean(rangeError)}
+                loading={marketAllLoading}
               />
             </div>
 
-            {(priceError || pricesLoading) && (
-              <p
-                className={cn(
-                  'text-xs',
-                  priceError ? 'text-destructive' : 'text-muted-foreground',
-                )}
-              >
-                {priceError ?? 'Loading Afternic prices…'}
-              </p>
+            {priceError && (
+              <p className="text-xs text-destructive">{priceError}</p>
             )}
           </div>
 
@@ -1034,6 +1175,32 @@ export default function Domains() {
                             </button>
                           </TableHead>
                         )}
+                        {/* Renewal price sits right before the Auto-Renew flag. */}
+                        {col.key === 'expirationDate' && (
+                          <TableHead className="text-right">
+                            <button
+                              type="button"
+                              onClick={() => toggleSort(RENEWAL)}
+                              className={cn(
+                                'inline-flex select-none items-center gap-1 hover:text-foreground',
+                                sortKey === RENEWAL && 'text-foreground',
+                              )}
+                            >
+                              Renewal
+                              {(() => {
+                                const RnIcon =
+                                  sortKey !== RENEWAL
+                                    ? ChevronsUpDown
+                                    : sortDir === 'asc'
+                                      ? ArrowUp
+                                      : ArrowDown;
+                                return (
+                                  <RnIcon className="size-3.5 opacity-70" />
+                                );
+                              })()}
+                            </button>
+                          </TableHead>
+                        )}
                       </Fragment>
                     );
                   })}
@@ -1069,6 +1236,14 @@ export default function Domains() {
                               />
                             </TableCell>
                           )}
+                          {col.key === 'expirationDate' && (
+                            <TableCell className="text-right">
+                              <RenewalCell
+                                info={pricing[`${d.registrar}:${d.domainName}`]}
+                                loading={pricingLoading}
+                              />
+                            </TableCell>
+                          )}
                         </Fragment>
                       ))}
                     </TableRow>
@@ -1077,7 +1252,7 @@ export default function Domains() {
                 {visible.length === 0 && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell
-                      colSpan={COLUMNS.length + 1}
+                      colSpan={COLUMNS.length + 2}
                       className="h-32 text-center text-muted-foreground"
                     >
                       {portfolio.length === 0
@@ -1226,6 +1401,7 @@ function PriceRangeInput({
   onMaxChange,
   minInvalid,
   maxInvalid,
+  loading = false,
 }: {
   min: string;
   max: string;
@@ -1233,6 +1409,9 @@ function PriceRangeInput({
   onMaxChange: (value: string) => void;
   minInvalid: boolean;
   maxInvalid: boolean;
+  /** Show a spinner while Afternic prices are still loading across the portfolio
+   * (the filter stays usable — it just isn't complete yet). */
+  loading?: boolean;
 }) {
   return (
     <div className="ml-2 flex items-center gap-2">
@@ -1251,6 +1430,12 @@ function PriceRangeInput({
         ariaLabel="Maximum Afternic price"
         invalid={maxInvalid}
       />
+      {loading && (
+        <Loader2
+          className="size-4 animate-spin text-muted-foreground"
+          aria-label="Loading Afternic prices"
+        />
+      )}
     </div>
   );
 }
@@ -1265,11 +1450,15 @@ function MultiSelectFilter({
   options,
   selected,
   onChange,
+  loading = false,
 }: {
   label: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; count?: number }[];
   selected: string[];
   onChange: (next: string[]) => void;
+  /** Show a spinner in the trigger while the underlying data is still loading
+   * (the filter stays usable — it just isn't complete yet). */
+  loading?: boolean;
 }) {
   return (
     <DropdownMenu>
@@ -1284,13 +1473,25 @@ function MultiSelectFilter({
               {selected.length}
             </Badge>
           )}
-          <ChevronDown className="size-4 text-muted-foreground" />
+          {loading ? (
+            <Loader2
+              className="size-4 animate-spin text-muted-foreground"
+              aria-label="Loading"
+            />
+          ) : (
+            <ChevronDown className="size-4 text-muted-foreground" />
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
         className="max-h-[320px] overflow-y-auto"
       >
+        {options.length === 0 && (
+          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+            No options
+          </div>
+        )}
         {options.map((o) => (
           <DropdownMenuCheckboxItem
             key={o.value}
@@ -1299,10 +1500,65 @@ function MultiSelectFilter({
             onSelect={(e) => e.preventDefault()}
             onCheckedChange={() => onChange(toggleValue(selected, o.value))}
           >
-            {o.label}
+            <span className="flex-1 truncate">{o.label}</span>
+            {o.count != null && (
+              <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">
+                {o.count}
+              </span>
+            )}
           </DropdownMenuCheckboxItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** A status light: spinner while loading, green when done, grey when idle. */
+function StatusDot({ state }: { state: 'idle' | 'loading' | 'done' }) {
+  if (state === 'loading') {
+    return <Loader2 className="size-3 animate-spin text-muted-foreground" />;
+  }
+  return (
+    <span
+      className={cn(
+        'size-2 rounded-full',
+        state === 'done' ? 'bg-emerald-500' : 'bg-muted-foreground/30',
+      )}
+    />
+  );
+}
+
+/**
+ * Combined background-load status: one light per dataset (Domains, Markets,
+ * Pricing). The "loaded / total" count lives in each segment's tooltip.
+ */
+function LoadStatus({
+  items,
+  className,
+}: {
+  items: { label: string; loaded: number; total: number; loading: boolean }[];
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-3 text-xs text-muted-foreground',
+        className,
+      )}
+    >
+      {items.map((it) => {
+        const state = it.total === 0 ? 'idle' : it.loading ? 'loading' : 'done';
+        return (
+          <span
+            key={it.label}
+            className="inline-flex items-center gap-1.5"
+            title={`${it.label}: ${it.loaded} / ${it.total} loaded`}
+          >
+            <StatusDot state={state} />
+            <span>{it.label}</span>
+          </span>
+        );
+      })}
+    </div>
   );
 }
