@@ -277,9 +277,9 @@ function BreakdownTable({
   return (
     <div className="flex flex-col gap-2">
       <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="max-h-96 overflow-auto rounded-lg border">
         <Table>
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-muted">
             <TableRow>
               <TableHead>{heading}</TableHead>
               <TableHead className="text-right">Domains</TableHead>
@@ -293,7 +293,7 @@ function BreakdownTable({
                 <TableCell className="relative">
                   {/* Spend bar behind the label. */}
                   <span
-                    className="absolute inset-y-1 left-0 rounded-sm bg-primary/10"
+                    className="absolute inset-y-1 left-0 rounded-r-sm bg-primary/20"
                     style={{ width: `${(g.yearly / max) * 100}%` }}
                     aria-hidden
                   />
@@ -345,7 +345,7 @@ function RenewalCalendar({ months }: { months: MonthBucket[] }) {
                 <TableCell className="relative">
                   {/* Spend bar behind the label, matching the breakdowns. */}
                   <span
-                    className="absolute inset-y-1 left-0 rounded-sm bg-primary/10"
+                    className="absolute inset-y-1 left-0 rounded-r-sm bg-primary/20"
                     style={{ width: `${(m.yearly / max) * 100}%` }}
                     aria-hidden
                   />
