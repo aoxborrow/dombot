@@ -1,4 +1,11 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -98,14 +105,15 @@ function fmtDate(date: Date | null): string {
   return t === null ? '—' : new Date(t).toISOString().slice(0, 10);
 }
 
-/** Coarse "time ago" for the last-refreshed label, e.g. "3 hours ago". */
+/** Compact "time ago" for the last-refreshed button, e.g. "3 hrs ago". Uses
+ * abbreviated units so the label stays short in the toolbar. */
 function timeAgo(ms: number): string {
   const secs = Math.round((Date.now() - ms) / 1000);
   if (secs < 60) return 'just now';
   const units: [label: string, secs: number][] = [
     ['day', 86_400],
-    ['hour', 3_600],
-    ['minute', 60],
+    ['hr', 3_600],
+    ['min', 60],
   ];
   for (const [label, size] of units) {
     const n = Math.floor(secs / size);
@@ -117,6 +125,20 @@ function timeAgo(ms: number): string {
 /** Whether a fetch timestamp is at or past the staleness threshold. */
 function isStale(fetchedAt: number): boolean {
   return Date.now() - fetchedAt >= STALE_AFTER_MS;
+}
+
+/** Freshly refreshed (within the last day) — the button dims itself so it
+ * recedes when there's nothing to nudge. */
+const RECENT_WITHIN_MS = 24 * 60 * 60 * 1000; // 1 day
+function isRecent(fetchedAt: number): boolean {
+  return Date.now() - fetchedAt < RECENT_WITHIN_MS;
+}
+
+/** Minimum gap between manual refreshes — the button is disabled during it so a
+ * fresh pull can't be hammered (every refresh re-queries every registrar). */
+const REFRESH_COOLDOWN_MS = 60 * 1000; // 1 minute
+function refreshOnCooldown(fetchedAt: number): boolean {
+  return Date.now() - fetchedAt < REFRESH_COOLDOWN_MS;
 }
 
 /** Days until expiry, for the color-coded expiry cell. */
@@ -525,6 +547,23 @@ export default function Domains() {
   // Data past the staleness threshold — highlight the timestamp to nudge a
   // manual refresh (we never auto-refresh).
   const stale = portfolioLoadedAt !== null && isStale(portfolioLoadedAt);
+  // Refreshed within the last day: dim the control so it recedes when the data
+  // is plainly fresh and there's nothing to act on.
+  const recent = portfolioLoadedAt !== null && isRecent(portfolioLoadedAt);
+  // Rate limit: block a re-refresh for a minute after the last one.
+  const tooSoon =
+    portfolioLoadedAt !== null && refreshOnCooldown(portfolioLoadedAt);
+
+  // Nothing else re-renders when the cooldown simply elapses, so schedule one
+  // render at the moment it lifts to re-enable the button on its own.
+  const [, tickCooldown] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (portfolioLoadedAt === null) return;
+    const remaining = REFRESH_COOLDOWN_MS - (Date.now() - portfolioLoadedAt);
+    if (remaining <= 0) return;
+    const t = setTimeout(tickCooldown, remaining + 50);
+    return () => clearTimeout(t);
+  }, [portfolioLoadedAt]);
 
   // Distinct filter options, derived from the loaded portfolio.
   const tlds = useMemo(
@@ -761,19 +800,24 @@ export default function Domains() {
             </span>
           )}
           {portfolioLoadedAt !== null ? (
-            // The freshness label doubles as the refresh control: "Refreshed N
-            // days ago" you can click to re-fetch. Goes amber (fill + dot + spin
-            // icon) once the data crosses the staleness threshold.
+            // The refresh control carries its own freshness: a "Refresh" label
+            // with the last-refreshed time in smaller muted text. Dimmed when
+            // fresh (<1 day), amber (fill + dot) once past the stale threshold.
             <Button
               variant="outline"
               onClick={() => void loadPortfolio()}
-              disabled={portfolioLoading}
+              disabled={portfolioLoading || tooSoon}
               title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}${
-                stale
-                  ? ' — data may be stale, click to refresh'
-                  : ' — click to refresh'
+                tooSoon
+                  ? ' — just refreshed, try again in a minute'
+                  : stale
+                    ? ' — data may be stale, click to refresh'
+                    : ' — click to refresh'
               }`}
               className={cn(
+                recent &&
+                  !stale &&
+                  'border-border/40 text-muted-foreground hover:text-foreground',
                 stale &&
                   'border-amber-500/50 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60 dark:hover:text-amber-300',
               )}
@@ -785,9 +829,16 @@ export default function Domains() {
                 />
               )}
               <RefreshCw className={cn(portfolioLoading && 'animate-spin')} />
-              {portfolioLoading
-                ? 'Refreshing…'
-                : `Refreshed ${timeAgo(portfolioLoadedAt)}`}
+              {portfolioLoading ? (
+                'Refreshing…'
+              ) : (
+                <span className="inline-flex items-baseline gap-1.5">
+                  Refresh
+                  <span className="text-xs font-normal opacity-70">
+                    {timeAgo(portfolioLoadedAt)}
+                  </span>
+                </span>
+              )}
             </Button>
           ) : (
             <Button
@@ -964,6 +1015,7 @@ export default function Domains() {
                           className={cn(
                             col.align === 'right' && 'text-right',
                             col.compact && 'px-1',
+                            col.key === 'domainName' && 'pl-3',
                           )}
                         >
                           <button
@@ -971,7 +1023,6 @@ export default function Domains() {
                             onClick={() => toggleSort(col.key)}
                             className={cn(
                               'inline-flex items-center gap-1 select-none hover:text-foreground',
-                              col.align === 'right' && 'flex-row-reverse',
                               active && 'text-foreground',
                             )}
                           >
@@ -986,7 +1037,7 @@ export default function Domains() {
                               type="button"
                               onClick={() => toggleSort(AFTERNIC)}
                               className={cn(
-                                'inline-flex select-none flex-row-reverse items-center gap-1 hover:text-foreground',
+                                'inline-flex select-none items-center gap-1 hover:text-foreground',
                                 sortKey === AFTERNIC && 'text-foreground',
                               )}
                             >
@@ -1022,6 +1073,7 @@ export default function Domains() {
                             className={cn(
                               col.align === 'right' && 'text-right',
                               col.compact && 'px-1',
+                              col.key === 'domainName' && 'pl-3',
                             )}
                           >
                             {col.detail && loadingDetail ? (

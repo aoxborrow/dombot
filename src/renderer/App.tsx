@@ -30,7 +30,7 @@ export default function App() {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="flex items-center gap-4 border-b px-6 py-3">
         <span className="text-lg font-semibold tracking-tight">dombot</span>
-        <nav className="flex gap-1">
+        <nav className="ml-auto flex gap-1">
           <NavLink to="/" end className={navLinkClass}>
             Domains
           </NavLink>
@@ -41,9 +41,7 @@ export default function App() {
             Settings
           </NavLink>
         </nav>
-        <div className="ml-auto">
-          <ModeToggle />
-        </div>
+        <ModeToggle />
       </header>
 
       <main className="flex-1 px-6 py-8">

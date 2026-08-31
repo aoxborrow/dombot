@@ -123,4 +123,11 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Tailwind v4's Preflight resets buttons to `cursor: default` (matching the
+   * browser default), which drops the finger pointer web users expect on
+   * clickable controls. Restore it for enabled buttons and role="button". */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
 }
