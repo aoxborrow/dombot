@@ -1151,15 +1151,6 @@ export default function Domains() {
                 }}
               />
               <MultiSelectFilter
-                label="Expiration"
-                options={EXPIRY_OPTIONS}
-                selected={expiry}
-                onChange={(next) => {
-                  setExpiry(next);
-                  setPage(0);
-                }}
-              />
-              <MultiSelectFilter
                 label="TLD"
                 options={tlds.map((t) => ({ value: t, label: `.${t}` }))}
                 selected={tld}
@@ -1177,6 +1168,15 @@ export default function Domains() {
                   setPage(0);
                 }}
                 loading={detailAllLoading}
+              />
+              <MultiSelectFilter
+                label="Expiration"
+                options={EXPIRY_OPTIONS}
+                selected={expiry}
+                onChange={(next) => {
+                  setExpiry(next);
+                  setPage(0);
+                }}
               />
               {/* Only offer the Folder filter once folders exist. */}
               {folders.length > 0 && (
