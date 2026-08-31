@@ -166,13 +166,24 @@ third _adapter_ over the same `services/` core the UI uses — see
   `DOMBOT_MCP_AUTOAPPROVE=1` to skip the approval prompt (dev/testing),
   `DOMBOT_MCP_TOKEN` for a static bearer token escape hatch (dev/testing). See
   [`src/main/mcp/oauth.ts`](src/main/mcp/oauth.ts).
-- **Tools.** Every registrar-scoped tool takes a `registrar` id, so one client
-  drives the whole portfolio.
-  - _Reads:_ `list_registrars`, `list_portfolio` (aggregated across configured
-    registrars), `list_domains`, `check_availability`, `get_dns_records`,
-    `get_nameservers`.
-  - _Writes (non-money):_ `set_nameservers`, `set_auto_renew`, `set_lock`.
-  - _Omitted:_ money-moving operations (register, renew, transfer).
+- **Tools.** Named by scope, so a caller can tell at a glance what a tool acts
+  on: `portfolio_*` take no scope params, `registrar_*` require a `registrar`
+  id, and `domain_*` require `registrar` + `domain`. `registrar` is always
+  required (never resolved from state), so a client can act on a freshly
+  registered name that isn't in the cached portfolio yet.
+  - _Portfolio:_ `registrar_list`, `portfolio_list` (aggregated across
+    configured registrars).
+  - _Registrar reads:_ `registrar_test`, `registrar_domains`,
+    `registrar_check_availability`, `registrar_pricing`.
+  - _Domain reads:_ `domain_get`, `domain_contacts_get`,
+    `domain_nameservers_get`, `domain_dns_get`, `domain_renewal_price`
+    (DomBot's own estimate, distinct from `registrar_pricing`).
+  - _Writes (non-money):_ `domain_nameservers_set`, `domain_dns_set`,
+    `domain_contacts_set`, `domain_set_autorenew`, `domain_set_lock`,
+    `domain_set_privacy`.
+  - _Writes (money):_ `registrar_register_domain`, `registrar_transfer_domain`,
+    `domain_renew`. Not gated behind extra per-call approval — the
+    connection-level OAuth approval is the gate — and annotated non-idempotent.
 - **Credentials.** A client is built per registrar from `.env` using each
   provider's `configFields` and the `<PROVIDER>_<FIELD>` naming convention (see
   [`.env.example`](.env.example)). "Configured" means all required vars present.
