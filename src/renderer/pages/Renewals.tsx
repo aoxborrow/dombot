@@ -197,10 +197,12 @@ export default function Renewals() {
             a price
           </AlertTitle>
           <AlertDescription>
-            Spaceship and NameBright expose no pricing API, and some lookups can
-            miss. Enter prices by hand below to complete the totals.
-            {summary.estimated > 0 &&
-              ` ${summary.estimated} more are TLD-rate estimates (premium names may renew for more).`}
+            Only Gandi quotes an exact per-name renewal; everything else is
+            filled from the base per-TLD pricing database, and anything the
+            database doesn’t cover stays unpriced. Enter prices by hand below to
+            complete the totals.
+            {summary.base > 0 &&
+              ` ${summary.base} are base per-TLD rates (premium names may renew for more).`}
           </AlertDescription>
         </Alert>
       )}
@@ -273,7 +275,7 @@ function PageHeader({
 
 function coverageHint(summary: ReturnType<typeof summarize>): string {
   const parts: string[] = [];
-  if (summary.estimated > 0) parts.push(`${summary.estimated} estimated`);
+  if (summary.base > 0) parts.push(`${summary.base} base rate`);
   if (summary.manual > 0) parts.push(`${summary.manual} manual`);
   if (summary.unpriced > 0) parts.push(`${summary.unpriced} missing`);
   return parts.length > 0 ? parts.join(' · ') : 'all priced from API';

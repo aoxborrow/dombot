@@ -120,15 +120,17 @@ export interface Aftermarket {
 
 /**
  * Where a domain's renewal price came from:
- *  - `api`         a direct, name-accurate quote from the registrar.
- *  - `estimated`   the standard TLD rate, from a registrar that prices only by
- *                  TLD, on a TLD that can carry per-name premiums — so a premium
- *                  name here may renew for more than shown.
+ *  - `api`         a direct, name-accurate quote from the registrar (captures
+ *                  premium renewals). Only registrars that price a *specific*
+ *                  owned domain qualify.
+ *  - `base`        the standard TLD rate from the base pricing database — the
+ *                  fill for every domain we can't quote per-name. May understate
+ *                  premium names.
  *  - `manual`      a price the user entered by hand.
- *  - `unavailable` no price: the registrar exposes no pricing endpoint (or the
- *                  lookup failed) and no manual price is set.
+ *  - `unavailable` no price: nothing in the API, the base database, or a manual
+ *                  override covers this domain yet.
  */
-export type PriceSource = 'api' | 'estimated' | 'manual' | 'unavailable';
+export type PriceSource = 'api' | 'base' | 'manual' | 'unavailable';
 
 /** A domain's annual renewal price (USD), with provenance. */
 export interface RenewalPricing {

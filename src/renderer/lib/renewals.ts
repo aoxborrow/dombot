@@ -38,8 +38,8 @@ export interface RenewalSummary {
   priced: number;
   /** Domains still without a price. */
   unpriced: number;
-  /** Priced domains whose figure is a TLD-rate estimate. */
-  estimated: number;
+  /** Priced domains filled from the base per-TLD database (may miss premiums). */
+  base: number;
   /** Priced domains using a manual override. */
   manual: number;
   /** Sum of known annual renewals across all priced domains. */
@@ -55,7 +55,7 @@ export function summarize(
   pricing: Record<string, RenewalPricing>,
 ): RenewalSummary {
   let priced = 0;
-  let estimated = 0;
+  let base = 0;
   let manual = 0;
   let yearly = 0;
   let yearlyAutoRenew = 0;
@@ -67,7 +67,7 @@ export function summarize(
     priced += 1;
     yearly += value;
     if (d.autoRenew) yearlyAutoRenew += value;
-    if (p?.source === 'estimated') estimated += 1;
+    if (p?.source === 'base') base += 1;
     if (p?.source === 'manual') manual += 1;
   }
 
@@ -75,7 +75,7 @@ export function summarize(
     total: domains.length,
     priced,
     unpriced: domains.length - priced,
-    estimated,
+    base,
     manual,
     yearly,
     yearlyAutoRenew,

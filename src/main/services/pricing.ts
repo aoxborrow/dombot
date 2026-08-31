@@ -3,36 +3,26 @@ import path from 'node:path';
 import { app } from 'electron';
 import type { RegistrarName } from '@aoxborrow/registrar-client';
 import { getRegistrarClient } from './registrars';
-import type { PriceSource, RenewalPricing } from '../../shared/ipc';
+import { getBaseRenewal, reloadBasePricing } from './base-pricing';
+import type { RenewalPricing } from '../../shared/ipc';
 
-// Renewal-price service backing the Renewals dashboard. Every registrar's
-// `getPricing` returns a per-TLD/per-domain renewal figure; this module routes
-// each domain to the right kind of lookup, caches results on disk (prices move
-// slowly), dedupes concurrent identical lookups, and layers user-entered manual
-// overrides on top. All prices are treated as USD. See PriceSource for how the
-// `source` field is derived.
+// Renewal-price service backing the Renewals dashboard. Prices come from three
+// layers, most-accurate first:
+//
+//   1. manual override — a price the user typed in.
+//   2. per-name API quote — only for registrars that price a *specific owned*
+//      domain, so the figure captures premium renewals. In practice that's just
+//      Gandi: every other provider either can't price an owned domain at all
+//      (Dynadot/Cloudflare/GoDaddy-renewal/Spaceship/NameBright) or only exposes
+//      a generic per-TLD rate, which we deliberately don't use here.
+//   3. base database — the standard per-TLD rate that fills everything else
+//      (see base-pricing.ts).
+//
+// All prices are treated as USD.
 
-// Registrars priced per-TLD: one lookup covers every domain on that TLD (big
-// dedup), but a premium name held here shows the standard TLD rate. Dynadot is
-// here too — its only price source (bulk_search) quotes a name only when it's
-// available to register, so it can't price an owned domain per-name; we read the
-// TLD's standard rate instead. The name-aware registrars (godaddy, cloudflare,
-// gandi) get the full domain, so their per-name premium renewals are captured.
-const TLD_ONLY = new Set<RegistrarName>([
-  'namecheap',
-  'namesilo',
-  'porkbun',
-  'dynadot',
-]);
-
-// Registrars with no pricing endpoint at all — the user must enter a price.
-const NO_PRICING = new Set<RegistrarName>(['spaceship', 'namebright']);
-
-// TLDs with no premium tier: a standard TLD-rate lookup is exact for these, so
-// results from a TLD-only registrar aren't flagged `estimated`. Legacy gTLDs and
-// .io renew at a flat rate regardless of the name; most everything else can
-// carry registry premiums.
-const FLAT_TLDS = new Set(['com', 'net', 'org', 'info', 'biz', 'io']);
+// Registrars whose `getPricing(domain)` returns a genuine per-name renewal for a
+// domain you already own (verified live). Only these get an API lookup.
+const SPECIFIC_CAPABLE = new Set<RegistrarName>(['gandi']);
 
 // Cache entries older than this are re-fetched. Renewal prices change rarely, so
 // a long life keeps the dashboard instant and the APIs untouched on revisit.
@@ -46,8 +36,7 @@ interface CacheEntry {
 
 let cache: Record<string, CacheEntry> | null = null;
 let overrides: Record<string, number> | null = null;
-// Dedupes in-flight lookups by cache key so, e.g., forty .com domains at one
-// TLD-priced registrar make a single API call instead of forty.
+// Dedupes in-flight lookups by cache key so concurrent requests coalesce.
 const inFlight = new Map<string, Promise<CacheEntry>>();
 
 function cacheFile(): string {
@@ -108,21 +97,19 @@ function tldOf(domain: string): string {
   return dot === -1 ? '' : domain.slice(dot + 1).toLowerCase();
 }
 
-/** Fetches a fresh renewal price; returns a null-priced entry on any failure. */
+/** Fetches a fresh per-name renewal price; null-priced entry on any failure. */
 async function fetchPrice(
   registrar: RegistrarName,
-  tldOrDomain: string,
+  domain: string,
 ): Promise<CacheEntry> {
   try {
-    const pricing = await getRegistrarClient(registrar).getPricing(tldOrDomain);
+    const pricing = await getRegistrarClient(registrar).getPricing(domain);
     return {
       renewal: typeof pricing.renewal === 'number' ? pricing.renewal : null,
       currency: pricing.currency ?? 'USD',
       fetchedAt: Date.now(),
     };
   } catch {
-    // Unsupported TLD, transient error, or a registrar that can't price an
-    // already-owned name — cache the miss so we don't retry every visit.
     return { renewal: null, currency: 'USD', fetchedAt: Date.now() };
   }
 }
@@ -152,10 +139,9 @@ function resolveCached(
 }
 
 /**
- * The annual renewal price for a domain, with provenance. Manual overrides win;
- * otherwise it routes to a per-domain or per-TLD registrar lookup (see the
- * registrar sets above) and flags TLD-rate quotes on premium-capable TLDs as
- * `estimated`.
+ * The annual renewal price for a domain, with provenance. Manual override wins;
+ * then a per-name API quote for the registrars that support it (accurate,
+ * premium-inclusive); then the base per-TLD database; otherwise unavailable.
  */
 export async function getRenewalPrice(
   registrar: RegistrarName,
@@ -172,36 +158,38 @@ export async function getRenewalPrice(
     };
   }
 
-  if (NO_PRICING.has(registrar)) {
+  if (SPECIFIC_CAPABLE.has(registrar)) {
+    const entry = await resolveCached(`${registrar}:dom:${domain}`, () =>
+      fetchPrice(registrar, domain),
+    );
+    if (entry.renewal !== null) {
+      return {
+        domain,
+        registrar,
+        renewal: entry.renewal,
+        currency: entry.currency,
+        source: 'api',
+      };
+    }
+  }
+
+  const base = getBaseRenewal(registrar, tldOf(domain));
+  if (base !== null) {
     return {
       domain,
       registrar,
-      renewal: null,
+      renewal: base,
       currency: 'USD',
-      source: 'unavailable',
+      source: 'base',
     };
   }
-
-  const tld = tldOf(domain);
-  const tldOnly = TLD_ONLY.has(registrar);
-  const key = tldOnly
-    ? `${registrar}:tld:${tld}`
-    : `${registrar}:dom:${domain}`;
-  const entry = await resolveCached(key, () =>
-    fetchPrice(registrar, tldOnly ? tld : domain),
-  );
-
-  let source: PriceSource = 'api';
-  if (entry.renewal === null) source = 'unavailable';
-  else if (tldOnly && !FLAT_TLDS.has(tld)) source = 'estimated';
-  // Name-aware registrars fall through as 'api' — their quote is name-accurate.
 
   return {
     domain,
     registrar,
-    renewal: entry.renewal,
-    currency: entry.currency,
-    source,
+    renewal: null,
+    currency: 'USD',
+    source: 'unavailable',
   };
 }
 
@@ -221,10 +209,14 @@ export function setManualPrice(
   persistOverrides(store);
 }
 
-/** Drops the on-disk price cache (manual overrides are untouched). */
+/**
+ * Drops the on-disk price cache and re-reads the base pricing database (manual
+ * overrides are untouched), so the next lookups reflect fresh data.
+ */
 export function clearPricingCache(): void {
   cache = {};
   inFlight.clear();
+  reloadBasePricing();
   try {
     fs.rmSync(cacheFile(), { force: true });
   } catch {
