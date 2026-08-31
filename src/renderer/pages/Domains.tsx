@@ -475,7 +475,6 @@ const COLUMNS: Column[] = [
   {
     key: 'createdDate',
     label: 'Created',
-    align: 'right',
     render: (d) => (
       <span className="font-mono text-muted-foreground">
         {fmtDate(d.createdDate)}
