@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   CalendarClock,
   CircleDollarSign,
-  Info,
   RefreshCw,
-  TriangleAlert,
   Wallet,
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
@@ -23,7 +21,6 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Empty,
   EmptyDescription,
@@ -162,7 +159,7 @@ export default function Renewals() {
       />
 
       {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           icon={<CircleDollarSign className="size-4" />}
           label="Yearly renewals"
@@ -181,31 +178,7 @@ export default function Renewals() {
           value={usd(due90.yearly)}
           hint={`${due90.count} domain${due90.count === 1 ? '' : 's'} renewing`}
         />
-        <StatCard
-          icon={<Info className="size-4" />}
-          label="Coverage"
-          value={`${summary.priced}/${summary.total}`}
-          hint={coverageHint(summary)}
-        />
       </div>
-
-      {summary.unpriced > 0 && (
-        <Alert>
-          <TriangleAlert />
-          <AlertTitle>
-            {summary.unpriced} domain{summary.unpriced === 1 ? '' : 's'} without
-            a price
-          </AlertTitle>
-          <AlertDescription>
-            Only Gandi quotes an exact per-name renewal; everything else is
-            filled from the base per-TLD pricing database, and anything the
-            database doesn’t cover stays unpriced. Enter prices by hand below to
-            complete the totals.
-            {summary.base > 0 &&
-              ` ${summary.base} are base per-TLD rates (premium names may renew for more).`}
-          </AlertDescription>
-        </Alert>
-      )}
 
       {/* Breakdowns */}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -271,14 +244,6 @@ function PageHeader({
       )}
     </div>
   );
-}
-
-function coverageHint(summary: ReturnType<typeof summarize>): string {
-  const parts: string[] = [];
-  if (summary.base > 0) parts.push(`${summary.base} base rate`);
-  if (summary.manual > 0) parts.push(`${summary.manual} manual`);
-  if (summary.unpriced > 0) parts.push(`${summary.unpriced} missing`);
-  return parts.length > 0 ? parts.join(' · ') : 'all priced from API';
 }
 
 // ── Stat card ────────────────────────────────────────────────────────────────
@@ -374,26 +339,37 @@ function RenewalCalendar({ months }: { months: MonthBucket[] }) {
           · {usd(total)} due in window
         </span>
       </h2>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {months.map((m) => (
-          <div key={m.key} className="rounded-lg border p-3">
-            <div className="text-xs font-medium text-muted-foreground">
-              {m.label}
-            </div>
-            <div className="mt-1 font-semibold tabular-nums">
-              {m.yearly > 0 ? usd(m.yearly) : '—'}
-            </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary"
-                style={{ width: `${(m.yearly / max) * 100}%` }}
-              />
-            </div>
-            <div className="mt-1.5 text-xs text-muted-foreground">
-              {m.count} domain{m.count === 1 ? '' : 's'}
-            </div>
-          </div>
-        ))}
+      <div className="overflow-x-auto rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Month</TableHead>
+              <TableHead className="text-right">Domains</TableHead>
+              <TableHead className="text-right">Due</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {months.map((m) => (
+              <TableRow key={m.key}>
+                <TableCell className="relative">
+                  {/* Spend bar behind the label, matching the breakdowns. */}
+                  <span
+                    className="absolute inset-y-1 left-0 rounded-sm bg-primary/10"
+                    style={{ width: `${(m.yearly / max) * 100}%` }}
+                    aria-hidden
+                  />
+                  <span className="relative font-medium">{m.label}</span>
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {m.count}
+                </TableCell>
+                <TableCell className="text-right font-medium tabular-nums">
+                  {m.yearly > 0 ? usd(m.yearly) : '—'}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
