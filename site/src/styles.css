@@ -8,12 +8,13 @@
   --faint: #71717a;
   --line: #27272a;
   --line-strong: #3a3a40;
-  --accent: #3f5327;
-  --accent-ink: #90ac70;
-  --accent-fill: #3f5327;
+  --accent: #31613b;
+  /* Lighter tint of the brand green for text/icons/logo on the near-black bg. */
+  --accent-ink: #74c98b;
+  --accent-fill: #31613b;
   --on-accent: #eef1e6;
-  --accent-wash: #12170c;
-  --focus: 0 0 0 3px rgba(63,83,39,.45);
+  --accent-wash: #0e1710;
+  --focus: 0 0 0 3px rgba(49,97,59,.45);
 }
 
 * { box-sizing: border-box; }
@@ -52,7 +53,7 @@ code, .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, mono
 /* ── nav ── */
 .nav { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
 .nav-in { display: flex; align-items: center; gap: 20px; height: 54px; }
-.brand { display: inline-flex; align-items: center; gap: 7px; font-family: "IBM Plex Mono", monospace; font-weight: 700; font-size: 1.28rem; color: var(--ink); text-decoration: none; letter-spacing: -.01em; }
+.brand { display: inline-flex; align-items: center; gap: 7px; font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; font-weight: 700; font-size: 1.28rem; color: var(--ink); text-decoration: none; letter-spacing: -.01em; }
 .brand svg { width: 28px; height: 28px; display: block; }
 .brand-dom { color: var(--ink); }
 .brand-bot { color: var(--accent-ink); }

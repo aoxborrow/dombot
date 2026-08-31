@@ -1,33 +1,35 @@
+import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import RegistrarsSettings from './settings/RegistrarsSettings';
-import RegistrarsTableSettings from './settings/RegistrarsTableSettings';
 import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
 import FoldersSettings from './settings/FoldersSettings';
 
+const TAB_VALUES = ['registrars', 'folders', 'mcp', 'data'];
+
 export default function Settings() {
+  const [params, setParams] = useSearchParams();
+  const requested = params.get('tab');
+  const tab =
+    requested && TAB_VALUES.includes(requested) ? requested : 'registrars';
+
   return (
     <Tabs
-      defaultValue="registrars"
+      value={tab}
+      onValueChange={(v) => setParams({ tab: v }, { replace: true })}
       orientation="vertical"
-      className="mx-auto flex max-w-4xl flex-row gap-8"
+      className="mx-auto flex max-w-4xl flex-row gap-[47px]"
     >
       <div className="w-44 shrink-0">
-        <h1 className="mb-3 px-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        <h1 className="mb-3 px-2.5 text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase">
           Settings
         </h1>
-        <TabsList className="flex h-auto w-full flex-col gap-1 bg-transparent p-0">
+        <TabsList className="flex h-auto w-full flex-col gap-1 bg-transparent p-0 [&_button]:text-[15px]">
           <TabsTrigger
             value="registrars"
             className="w-full justify-start data-[state=active]:bg-muted"
           >
             Registrars
-          </TabsTrigger>
-          <TabsTrigger
-            value="registrars-table"
-            className="w-full justify-start data-[state=active]:bg-muted"
-          >
-            Registrars (Table)
           </TabsTrigger>
           <TabsTrigger
             value="folders"
@@ -45,7 +47,7 @@ export default function Settings() {
             value="data"
             className="w-full justify-start data-[state=active]:bg-muted"
           >
-            Data
+            Cache
           </TabsTrigger>
         </TabsList>
       </div>
@@ -53,9 +55,6 @@ export default function Settings() {
       <div className="min-w-0 flex-1">
         <TabsContent value="registrars">
           <RegistrarsSettings />
-        </TabsContent>
-        <TabsContent value="registrars-table">
-          <RegistrarsTableSettings />
         </TabsContent>
         <TabsContent value="folders">
           <FoldersSettings />

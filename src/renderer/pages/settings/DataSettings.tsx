@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAppStore } from '../../store/app';
+import { SettingsCard } from './SettingsCard';
 
 /**
  * Data & cache settings. DomBot caches your portfolio, per-domain detail,
@@ -27,7 +27,7 @@ export default function DataSettings() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-xl font-bold">Data</h2>
+        <h2 className="text-xl font-bold">Cache</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           DomBot caches your portfolio, domain detail, marketplace listings, and
           renewal prices on disk so it opens instantly. Data older than 14 days
@@ -36,34 +36,27 @@ export default function DataSettings() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-            Cached data
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <p className="text-sm text-muted-foreground">
-            Clear every on-disk cache and reset the loaded portfolio. Your saved
-            registrar credentials, manual prices, and folders are kept. The next
-            “Load domains” re-fetches everything fresh.
-          </p>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              onClick={() => void onClear()}
-              disabled={clearing}
-            >
-              {clearing ? 'Clearing…' : 'Clear cache'}
-            </Button>
-            {cleared && (
-              <span className="text-sm text-muted-foreground">
-                Cache cleared.
-              </span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <SettingsCard title="Cached data" contentClassName="flex flex-col gap-4">
+        <p className="text-sm text-muted-foreground">
+          Clear every on-disk cache and reset the loaded portfolio. Your saved
+          registrar credentials, manual prices, and folders are kept. The next
+          “Load domains” re-fetches everything fresh.
+        </p>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="destructive"
+            onClick={() => void onClear()}
+            disabled={clearing}
+          >
+            {clearing ? 'Clearing…' : 'Clear cache'}
+          </Button>
+          {cleared && (
+            <span className="text-sm text-muted-foreground">
+              Cache cleared.
+            </span>
+          )}
+        </div>
+      </SettingsCard>
     </div>
   );
 }

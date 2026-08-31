@@ -1,29 +1,23 @@
-import { useEffect, useMemo, useReducer } from 'react';
+import { useEffect, useReducer } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
-import { LoadStatus, type LoadStatusItem } from './LoadStatus';
 
 /**
  * App-wide bottom status bar (VS Code style): a thin bar fixed across the
  * viewport bottom, with page content scrolling underneath it. Surfaces the
- * embedded MCP server's status on the left and the last-refreshed time plus the
- * background-load lights (Domains / Markets / Pricing) on the right. Shown on
- * every route.
+ * embedded MCP server's status on the left (a link into MCP settings) and the
+ * last-refreshed time plus a Refresh Domains link on the right. Shown on every
+ * route.
  */
 export default function StatusBar() {
   const mcpInfo = useAppStore((s) => s.mcpInfo);
   const loadMcpInfo = useAppStore((s) => s.loadMcpInfo);
-
-  const portfolio = useAppStore((s) => s.portfolio);
-  const enriched = useAppStore((s) => s.enriched);
-  const aftermarket = useAppStore((s) => s.aftermarket);
-  const pricing = useAppStore((s) => s.pricing);
   const portfolioLoadedAt = useAppStore((s) => s.portfolioLoadedAt);
-  const portfolioLoading = useAppStore((s) => s.portfolioLoading);
-  const detailAllLoading = useAppStore((s) => s.detailAllLoading);
-  const marketAllLoading = useAppStore((s) => s.marketAllLoading);
-  const pricingLoading = useAppStore((s) => s.pricingLoading);
+  const portfolioRegistrars = useAppStore((s) => s.portfolioRegistrars);
+  const portfolioErrors = useAppStore((s) => s.portfolioErrors);
+  const navigate = useNavigate();
 
   // Fetch the MCP endpoint once; it's static for the app's lifetime.
   useEffect(() => {
@@ -39,88 +33,78 @@ export default function StatusBar() {
     return () => clearInterval(id);
   }, [portfolioLoadedAt]);
 
-  // Per-dataset "loaded / total" counts, recomputed as data streams in. Loaded
-  // counts domains that have that datum present; detail overlays onto summary.
-  const items = useMemo<LoadStatusItem[]>(() => {
-    const total = portfolio.length;
-    let nsLoaded = 0;
-    let marketLoaded = 0;
-    let pricingLoaded = 0;
-    for (const d of portfolio) {
-      const key = `${d.registrar}:${d.domainName}`;
-      const detail = enriched[key] ?? d;
-      if (detail.nameservers.length > 0) nsLoaded += 1;
-      if (aftermarket[d.domainName] !== undefined) marketLoaded += 1;
-      if (pricing[key] !== undefined) pricingLoaded += 1;
-    }
-    return [
-      {
-        label: 'Domains',
-        loaded: nsLoaded,
-        total,
-        loading: portfolioLoading || detailAllLoading,
-      },
-      {
-        label: 'Markets',
-        loaded: marketLoaded,
-        total,
-        loading: marketAllLoading,
-      },
-      {
-        label: 'Pricing',
-        loaded: pricingLoaded,
-        total,
-        loading: pricingLoading,
-      },
-    ];
-  }, [
-    portfolio,
-    enriched,
-    aftermarket,
-    pricing,
-    portfolioLoading,
-    detailAllLoading,
-    marketAllLoading,
-    pricingLoading,
-  ]);
-
   const mcpRunning = mcpInfo?.running ?? false;
   // Show just host:port from the endpoint (drop the scheme and /mcp path).
   const mcpEndpoint = mcpInfo?.url
     ? mcpInfo.url.replace(/^\w+:\/\//, '').replace(/\/.*$/, '')
     : null;
-  const hasPortfolio = portfolio.length > 0;
+
+  // Registrar connection status: every configured (queried) registrar minus the
+  // ones that errored on the last load.
+  const configuredCount = portfolioRegistrars.length;
+  const erroredIds = new Set(portfolioErrors.map((e) => e.registrar));
+  const connectedCount = portfolioRegistrars.filter(
+    (r) => !erroredIds.has(r),
+  ).length;
+  const allConnected = connectedCount === configuredCount;
 
   return (
-    <footer className="fixed inset-x-0 bottom-0 z-40 flex h-6 items-center justify-between gap-4 border-t bg-background px-4 text-xs text-muted-foreground select-none">
-      <span
-        className="inline-flex items-center gap-1.5"
+    <footer className="fixed inset-x-0 bottom-0 z-40 flex h-[29px] items-center justify-between gap-4 border-t bg-background px-4 text-xs text-muted-foreground select-none">
+      <button
+        type="button"
+        onClick={() => navigate('/settings?tab=mcp')}
+        className="inline-flex items-center gap-1.5 rounded-sm hover:text-foreground"
         title={
           mcpRunning
-            ? `MCP server listening at ${mcpInfo?.url}`
-            : 'MCP server is not running'
+            ? `MCP server listening at ${mcpInfo?.url} — open MCP settings`
+            : 'MCP server is not running — open MCP settings'
         }
       >
         <span
           className={cn(
             'size-2 rounded-full',
-            mcpRunning ? 'bg-emerald-500' : 'bg-muted-foreground/30',
+            mcpRunning ? 'bg-[#74c98b]' : 'bg-muted-foreground/30',
           )}
           aria-hidden
         />
         {mcpRunning && mcpEndpoint ? `MCP ${mcpEndpoint}` : 'MCP off'}
-      </span>
+      </button>
 
-      <div className="flex items-center gap-4">
-        {portfolioLoadedAt !== null && (
+      {portfolioLoadedAt !== null && (
+        <div className="flex items-center gap-3">
           <span
             title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}`}
           >
             Refreshed {timeAgo(portfolioLoadedAt)}
           </span>
-        )}
-        {hasPortfolio && <LoadStatus items={items} />}
-      </div>
+          {configuredCount > 0 && (
+            <button
+              type="button"
+              onClick={() => navigate('/settings?tab=registrars')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-sm hover:text-foreground',
+                !allConnected && 'text-amber-600 dark:text-amber-400',
+              )}
+              title={
+                allConnected
+                  ? 'All configured registrars connected — open registrar settings'
+                  : `${configuredCount - connectedCount} registrar(s) failed to connect — open registrar settings`
+              }
+            >
+              <span
+                className={cn(
+                  'size-2 rounded-full',
+                  allConnected
+                    ? 'bg-[#74c98b]'
+                    : 'bg-amber-500 dark:bg-amber-400',
+                )}
+                aria-hidden
+              />
+              {connectedCount}/{configuredCount} registrars connected
+            </button>
+          )}
+        </div>
+      )}
     </footer>
   );
 }

@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Check, Copy } from 'lucide-react';
 import type { McpClient, McpInfo } from '../../../shared/ipc';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { SettingsCard } from './SettingsCard';
 
 export default function McpClientsSettings() {
   const [info, setInfo] = useState<McpInfo | null>(null);
@@ -37,66 +39,92 @@ export default function McpClientsSettings() {
       </div>
 
       {info?.running && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-              Connect a client
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <p className="text-sm text-muted-foreground">
-              Server URL:{' '}
-              <span className="font-mono text-foreground">{info.url}</span>
-            </p>
-            <div>
-              <p className="mb-1 text-xs tracking-wide text-muted-foreground uppercase">
-                Claude Code
-              </p>
-              <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
-                <code>{`claude mcp add dombot --transport http ${info.url}`}</code>
-              </pre>
-            </div>
-          </CardContent>
-        </Card>
+        <SettingsCard
+          title="Connect a client"
+          contentClassName="flex flex-col gap-4"
+        >
+          <CopyField label="Server URL" value={info.url} />
+          <CopyField
+            label="Claude Code"
+            value={`claude mcp add dombot --transport http ${info.url}`}
+          />
+        </SettingsCard>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-            Paired clients
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {clients.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No clients paired yet. Connect one and approve it to see it here.
-            </p>
-          ) : (
-            <ul className="flex flex-col">
-              {clients.map((c, i) => (
-                <li key={c.clientId}>
-                  {i > 0 && <Separator />}
-                  <div className="flex items-center justify-between py-3">
-                    <div>
-                      <p className="text-sm font-medium">{c.clientName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Paired {formatDate(c.pairedAt)}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void revoke(c.clientId)}
-                    >
-                      Revoke
-                    </Button>
+      <SettingsCard title="Paired clients">
+        {clients.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No clients paired yet. Connect one and approve it to see it here.
+          </p>
+        ) : (
+          <ul className="flex flex-col">
+            {clients.map((c, i) => (
+              <li key={c.clientId}>
+                {i > 0 && <Separator />}
+                <div className="flex items-center justify-between py-3">
+                  <div>
+                    <p className="text-sm font-medium">{c.clientName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Paired {formatDate(c.pairedAt)}
+                    </p>
                   </div>
-                </li>
-              ))}
-            </ul>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void revoke(c.clientId)}
+                  >
+                    Revoke
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SettingsCard>
+    </div>
+  );
+}
+
+/**
+ * A labeled, read-only value with a copy button — mirrors the copy snippet on
+ * the marketing site: a small uppercase label above a mono field that flips the
+ * button to a check for a moment on copy.
+ */
+function CopyField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const copy = () => {
+    if (!navigator.clipboard) return;
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1600);
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        {label}
+      </span>
+      <div className="flex items-center gap-2 rounded-md border bg-muted/40 py-1.5 pr-1.5 pl-3">
+        <code className="min-w-0 flex-1 overflow-x-auto font-mono text-xs whitespace-nowrap text-foreground">
+          {value}
+        </code>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={copy}
+          aria-label={`Copy ${label}`}
+          className={cn(
+            'shrink-0 text-muted-foreground hover:text-foreground',
+            copied && 'text-[#74c98b] hover:text-[#74c98b]',
           )}
-        </CardContent>
-      </Card>
+        >
+          {copied ? <Check /> : <Copy />}
+        </Button>
+      </div>
     </div>
   );
 }

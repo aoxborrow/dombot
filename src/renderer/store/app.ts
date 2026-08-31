@@ -102,6 +102,7 @@ interface AppState {
   // Renewals dashboard; fetched for the whole portfolio at once (cached in main).
   pricing: Record<string, RenewalPricing>;
   pricingLoading: boolean;
+  pricingLoadedAt: number | null;
   loadPricingAll: (domains: Domain[]) => Promise<void>;
   setManualPrice: (
     registrar: string,
@@ -191,6 +192,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       enriched,
       aftermarket,
       pricing,
+      pricingLoadedAt: portfolio.fetchedAt,
     });
   },
 
@@ -217,6 +219,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       marketLoading: {},
       pricing: {},
       pricingLoading: false,
+      pricingLoadedAt: null,
       detailAllLoading: false,
       marketAllLoading: false,
     });
@@ -249,6 +252,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         marketLoading: {},
         pricing: {},
         pricingLoading: false,
+        pricingLoadedAt: null,
         detailAllLoading: false,
         marketAllLoading: false,
       }));
@@ -408,6 +412,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   pricing: {},
   pricingLoading: false,
+  pricingLoadedAt: null,
   loadPricingAll: async (domains) => {
     const todo = domains.filter((d) => {
       const key = domainKey(d);
@@ -442,7 +447,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     await Promise.all(
       Array.from({ length: Math.min(CONCURRENCY, todo.length) }, worker),
     );
-    set({ pricingLoading: false });
+    set({ pricingLoading: false, pricingLoadedAt: Date.now() });
   },
   setManualPrice: async (registrar, domain, price) => {
     await window.api.setManualPrice(registrar as RegistrarName, domain, price);
