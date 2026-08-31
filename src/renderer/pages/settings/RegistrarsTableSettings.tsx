@@ -42,8 +42,8 @@ const STATUS_META: Record<
 > = {
   connected: {
     label: 'Connected',
-    dot: 'bg-emerald-500',
-    fg: 'text-emerald-600 dark:text-emerald-400',
+    dot: 'bg-primary',
+    fg: 'text-primary',
   },
   error: {
     label: 'Auth error',
@@ -117,7 +117,7 @@ export default function RegistrarsTableSettings() {
     {
       key: 'connected',
       label: 'Connected',
-      accent: 'text-emerald-600 dark:text-emerald-400',
+      accent: 'text-primary',
     },
     {
       key: 'unconfigured',
@@ -243,7 +243,7 @@ function RegistrarRow({
           disabled={!configured}
           className={cn(
             'relative h-5 w-[34px] shrink-0 rounded-full transition-colors',
-            enabled ? 'bg-emerald-500' : 'bg-muted-foreground/30',
+            enabled ? 'bg-primary' : 'bg-muted-foreground/30',
             !configured && 'opacity-50',
           )}
         >
@@ -306,8 +306,7 @@ function RegistrarRow({
             onClick={onEdit}
             className={cn(
               'h-8 w-full text-xs',
-              editing &&
-                'border-emerald-500/45 text-emerald-600 dark:text-emerald-400',
+              editing && 'border-primary/45 text-primary',
             )}
           >
             {editing ? 'Close' : configured ? 'Edit connection' : 'Add connection'}

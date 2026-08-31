@@ -18,7 +18,7 @@ export function StatusDot({ state }: { state: 'idle' | 'loading' | 'done' }) {
     <span
       className={cn(
         'size-2 rounded-full',
-        state === 'done' ? 'bg-emerald-500' : 'bg-muted-foreground/30',
+        state === 'done' ? 'bg-primary' : 'bg-muted-foreground/30',
       )}
     />
   );

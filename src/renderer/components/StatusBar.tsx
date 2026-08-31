@@ -104,7 +104,7 @@ export default function StatusBar() {
         <span
           className={cn(
             'size-2 rounded-full',
-            mcpRunning ? 'bg-emerald-500' : 'bg-muted-foreground/30',
+            mcpRunning ? 'bg-primary' : 'bg-muted-foreground/30',
           )}
           aria-hidden
         />
