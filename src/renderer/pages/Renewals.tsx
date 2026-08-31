@@ -1,10 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  CalendarClock,
-  CircleDollarSign,
-  RefreshCw,
-  Wallet,
-} from 'lucide-react';
+import { CalendarClock, CircleDollarSign, RefreshCw } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import {
@@ -159,18 +154,14 @@ export default function Renewals() {
       />
 
       {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
           icon={<CircleDollarSign className="size-4" />}
           label="Yearly renewals"
           value={usd(summary.yearly)}
-          hint={`${usd(monthly)}/mo · avg ${usdCents(summary.avgPerDomain)}/domain`}
-        />
-        <StatCard
-          icon={<Wallet className="size-4" />}
-          label="Committed (auto-renew)"
-          value={usd(summary.yearlyAutoRenew)}
-          hint={`${usd(summary.yearly - summary.yearlyAutoRenew)} discretionary`}
+          hint={`${usd(monthly)}/mo · ${usd(summary.yearlyAutoRenew)} auto-renews, ${usd(
+            summary.yearly - summary.yearlyAutoRenew,
+          )} manual`}
         />
         <StatCard
           icon={<CalendarClock className="size-4" />}
