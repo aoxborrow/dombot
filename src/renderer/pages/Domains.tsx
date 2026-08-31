@@ -11,6 +11,7 @@ import {
   ArrowUp,
   Building2,
   CalendarClock,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -62,8 +63,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -359,21 +358,18 @@ function RowActions({
             <FolderIcon />
             Folder
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="max-h-[320px] overflow-y-auto">
+          <DropdownMenuSubContent className="max-h-[320px] max-w-[240px] overflow-y-auto">
             {folders.length === 0 ? (
-              <div className="max-w-[220px] px-2 py-1.5 text-xs text-muted-foreground">
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">
                 No folders yet. Create them in Settings › Folders.
               </div>
             ) : (
-              <DropdownMenuRadioGroup
-                value={folderId ?? UNASSIGNED}
-                onValueChange={(v) => onAssign(v === UNASSIGNED ? null : v)}
-              >
+              <>
                 {folders.map((f) => (
-                  <DropdownMenuRadioItem
+                  <DropdownMenuItem
                     key={f.id}
-                    value={f.id}
                     className="gap-1.5"
+                    onSelect={() => onAssign(f.id)}
                   >
                     <FolderIcon
                       className={cn(
@@ -382,14 +378,25 @@ function RowActions({
                       )}
                       aria-hidden
                     />
-                    <span className="truncate">{f.name}</span>
-                  </DropdownMenuRadioItem>
+                    <span className="flex-1 truncate">{f.name}</span>
+                    {f.id === folderId && (
+                      <Check className="size-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                  </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuRadioItem value={UNASSIGNED}>
-                  None
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
+                <DropdownMenuItem
+                  className="gap-1.5"
+                  onSelect={() => onAssign(null)}
+                >
+                  {/* Spacer keeps "None" aligned with the folder rows above. */}
+                  <span className="size-3.5 shrink-0" aria-hidden />
+                  <span className="flex-1">None</span>
+                  {folderId === undefined && (
+                    <Check className="size-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                </DropdownMenuItem>
+              </>
             )}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
