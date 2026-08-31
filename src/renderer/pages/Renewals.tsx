@@ -59,16 +59,6 @@ interface Slice {
   label: string;
   value: number;
   color: string;
-  /** Optional secondary metric shown in the legend (e.g. domain count on the
-   * spend-sized registrar donut). */
-  count?: number;
-}
-
-/** Placeholder annual price for domains we can't price yet, so every registrar
- * still shows up on the spend donut instead of dropping out at $0. */
-const UNPRICED_ESTIMATE = 10;
-function estSpend(g: Group): number {
-  return g.yearly + (g.count - g.priced) * UNPRICED_ESTIMATE;
 }
 
 // Categorical palette (mode-stable mid-tones) plus a neutral "Other" gray.
@@ -89,9 +79,8 @@ const OTHER_COLOR = '#94a3b8';
 function toSlices(
   groups: Group[],
   value: (g: Group) => number,
-  opts: { topN?: number; countOf?: (g: Group) => number } = {},
+  topN = 8,
 ): Slice[] {
-  const { topN = 8, countOf } = opts;
   const ranked = groups
     .filter((g) => value(g) > 0)
     .sort((a, b) => value(b) - value(a));
@@ -99,7 +88,6 @@ function toSlices(
     label: g.label,
     value: value(g),
     color: DONUT_PALETTE[i % DONUT_PALETTE.length],
-    count: countOf ? countOf(g) : undefined,
   }));
   const rest = ranked.slice(topN);
   const restTotal = rest.reduce((sum, g) => sum + value(g), 0);
@@ -108,7 +96,6 @@ function toSlices(
       label: `Other (${rest.length})`,
       value: restTotal,
       color: OTHER_COLOR,
-      count: countOf ? rest.reduce((sum, g) => sum + countOf(g), 0) : undefined,
     });
   }
   return slices;
@@ -173,18 +160,17 @@ export default function Renewals() {
     [portfolio, pricing],
   );
 
-  // Donut slices: the combined registrar donut (estimated spend + count), a
-  // standalone registrar donut by domain count, and a TLD donut by count.
-  const regCombined = useMemo(
-    () => toSlices(byRegistrar, estSpend, { countOf: (g) => g.count }),
-    [byRegistrar],
-  );
+  // Donut slices: registrar by domain count, registrar by spend, TLD by count.
   const regCount = useMemo(
     () => toSlices(byRegistrar, (g) => g.count),
     [byRegistrar],
   );
+  const regSpend = useMemo(
+    () => toSlices(byRegistrar, (g) => g.yearly),
+    [byRegistrar],
+  );
   const tldCount = useMemo(() => toSlices(byTld, (g) => g.count), [byTld]);
-  const regCombinedTotal = regCombined.reduce((s, x) => s + x.value, 0);
+  const regSpendTotal = regSpend.reduce((s, x) => s + x.value, 0);
 
   // Domains that can't be priced automatically or already carry a manual price —
   // the working set for the inline editor.
@@ -266,18 +252,18 @@ export default function Renewals() {
       {/* Composition */}
       <div className="grid gap-4 lg:grid-cols-3">
         <DonutCard
-          title="By registrar (combined)"
-          slices={regCombined}
-          centerValue={usd(regCombinedTotal)}
-          centerLabel="per year · est"
-          fmt={usd}
-        />
-        <DonutCard
           title="Domains by registrar"
           slices={regCount}
           centerValue={count(summary.total)}
           centerLabel="domains"
           fmt={count}
+        />
+        <DonutCard
+          title="Spend by registrar"
+          slices={regSpend}
+          centerValue={usd(regSpendTotal)}
+          centerLabel="per year"
+          fmt={usd}
         />
         <DonutCard
           title="Domains by TLD"
@@ -548,11 +534,6 @@ function DonutCard({
                 aria-hidden
               />
               <span className="truncate">{s.label}</span>
-              {s.count != null && (
-                <span className="shrink-0 text-muted-foreground tabular-nums">
-                  {count(s.count)}
-                </span>
-              )}
               <span className="ml-auto flex shrink-0 items-baseline gap-1 tabular-nums">
                 <span>{fmt(s.value)}</span>
                 {total > 0 && (
