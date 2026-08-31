@@ -138,14 +138,14 @@ pre .a { color: var(--accent-ink); font-weight: 500; }
 .logos { margin-top: 28px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 @media (min-width: 520px) { .logos { grid-template-columns: repeat(3, 1fr); } }
 @media (min-width: 820px) { .logos { grid-template-columns: repeat(5, 1fr); } }
-.logo { display: flex; align-items: center; gap: 9px; padding: 8px 4px; }
-.logo-mark { flex-shrink: 0; width: 28px; height: 28px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); display: grid; place-items: center; font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: .68rem; color: var(--faint); }
+.logo { display: flex; align-items: center; gap: 11px; padding: 8px 4px; }
+.logo-mark { flex-shrink: 0; width: 35px; height: 35px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); display: grid; place-items: center; font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: .85rem; color: var(--faint); }
 /* Real brand mark: flat light-grey at rest (grayscale() would let dark logos vanish
    on the near-black ground), true brand color on hover. Needs transparent SVGs. */
-.logo-img { flex-shrink: 0; width: 26px; height: 26px; object-fit: contain; filter: brightness(0) invert(.68); opacity: .9; transition: filter .15s ease, opacity .15s ease; }
+.logo-img { flex-shrink: 0; width: 33px; height: 33px; object-fit: contain; filter: brightness(0) invert(.68); opacity: .9; transition: filter .15s ease, opacity .15s ease; }
 .logo:hover .logo-img { filter: none; opacity: 1; }
-.logo-name { font-weight: 500; font-size: .92rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.logo-more .logo-mark { border: none; background: transparent; color: var(--accent-ink); font-size: 1.15rem; }
+.logo-name { font-weight: 500; font-size: 1.15rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.logo-more .logo-mark { border: none; background: transparent; color: var(--accent-ink); font-size: 1.45rem; }
 .logo-more .logo-name { color: var(--muted); }
 .logos-foot { margin-top: 20px; font-size: .86rem; color: var(--muted); }
 .logos-foot b { color: var(--ink); font-weight: 500; }
