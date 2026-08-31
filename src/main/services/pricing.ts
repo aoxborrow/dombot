@@ -10,12 +10,13 @@ import type { RenewalPricing } from '../../shared/ipc';
 // layers, most-accurate first:
 //
 //   1. manual override — a price the user typed in.
-//   2. per-name API quote — only for registrars that price a *specific owned*
-//      domain, so the figure captures premium renewals. Gandi (its per-name price
-//      endpoint) and Dynadot (its classic renew price-check quote) qualify; the
-//      rest either can't price an owned domain at all (Cloudflare/
-//      GoDaddy-renewal/Spaceship/NameBright) or only expose a generic per-TLD
-//      rate, which we deliberately don't use here.
+//   2. per-name API quote — only for registrars that price a *specific* domain,
+//      so the figure captures premium renewals. Gandi (its per-name price
+//      endpoint), Dynadot (its classic renew price-check quote), and Porkbun (its
+//      checkDomain renewal price-check) qualify; the rest either can't price an
+//      owned domain at all (Cloudflare/GoDaddy-renewal/Spaceship/NameBright/
+//      Namecheap) or only expose a generic per-TLD rate, which we deliberately
+//      don't use here.
 //   3. base database — the standard per-TLD rate that fills everything else
 //      (see base-pricing.ts).
 //
@@ -24,7 +25,7 @@ import type { RenewalPricing } from '../../shared/ipc';
 // Registrars whose `getPricing(domain)` returns a genuine per-name renewal for a
 // domain you already own, premium included (verified live). Only these get an
 // API lookup.
-const SPECIFIC_CAPABLE = new Set<RegistrarName>(['gandi', 'dynadot']);
+const SPECIFIC_CAPABLE = new Set<RegistrarName>(['gandi', 'dynadot', 'porkbun']);
 
 // Cache entries older than this are re-fetched. Renewal prices change rarely, so
 // a long life keeps the dashboard instant and the APIs untouched on revisit.
@@ -40,6 +41,35 @@ let cache: Record<string, CacheEntry> | null = null;
 let overrides: Record<string, number> | null = null;
 // Dedupes in-flight lookups by cache key so concurrent requests coalesce.
 const inFlight = new Map<string, Promise<CacheEntry>>();
+
+// Porkbun rate-limits its per-name renewal check (checkDomain) to ~1 call per
+// 10s. The renderer fetches prices with a small concurrency pool, so without
+// pacing several Porkbun lookups would fire at once, 429, exhaust the HTTP
+// layer's 2 retries, and get cached as unpriced (falling back to base) for a
+// premium name. Serialize Porkbun fetches through a chain that leaves a gap
+// between each; other registrars are unaffected. (Only genuine, uncached
+// fetches reach here — resolveCached coalesces and caches the rest.)
+const PORKBUN_MIN_INTERVAL_MS = 10_500;
+let porkbunChain: Promise<unknown> = Promise.resolve();
+let porkbunLastAt = 0;
+
+function throttlePorkbun<T>(task: () => Promise<T>): Promise<T> {
+  const run = porkbunChain.then(async () => {
+    const wait = porkbunLastAt + PORKBUN_MIN_INTERVAL_MS - Date.now();
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    try {
+      return await task();
+    } finally {
+      porkbunLastAt = Date.now();
+    }
+  });
+  // Keep the chain alive whether or not this task settled cleanly.
+  porkbunChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
 
 function cacheFile(): string {
   return path.join(app.getPath('userData'), 'pricing-cache.json');
@@ -162,7 +192,9 @@ export async function getRenewalPrice(
 
   if (SPECIFIC_CAPABLE.has(registrar)) {
     const entry = await resolveCached(`${registrar}:dom:${domain}`, () =>
-      fetchPrice(registrar, domain),
+      registrar === 'porkbun'
+        ? throttlePorkbun(() => fetchPrice(registrar, domain))
+        : fetchPrice(registrar, domain),
     );
     if (entry.renewal !== null) {
       return {
