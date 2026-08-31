@@ -119,7 +119,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
           aria-label={`Copy ${label}`}
           className={cn(
             'shrink-0 text-muted-foreground hover:text-foreground',
-            copied && 'text-[#74c98b] hover:text-[#74c98b]',
+            copied && 'text-[#7ac28d] hover:text-[#7ac28d]',
           )}
         >
           {copied ? <Check /> : <Copy />}

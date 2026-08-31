@@ -105,8 +105,8 @@ function RegistrarCard({
             <span className="font-medium">{meta.displayName}</span>
             {meta.configured ? (
               <span className="flex items-center gap-1.5">
-                <span className="size-2 shrink-0 rounded-full bg-[#31613b] dark:bg-[#74c98b]" />
-                <span className="text-sm font-semibold text-[#31613b] dark:text-[#74c98b]">
+                <span className="size-2 shrink-0 rounded-full bg-[#31613b] dark:bg-[#7ac28d]" />
+                <span className="text-sm font-semibold text-[#31613b] dark:text-[#7ac28d]">
                   Configured
                 </span>
               </span>

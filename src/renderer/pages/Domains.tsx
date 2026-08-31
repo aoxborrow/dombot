@@ -24,12 +24,10 @@ import {
   EyeOff,
   ExternalLink,
   FileSpreadsheet,
-  Folder as FolderIcon,
   Globe,
   Lock,
   LockOpen,
   RefreshCw,
-  RefreshCwOff,
   Search,
   Server,
   Tag,
@@ -49,11 +47,13 @@ import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
 import { folderColorStyle } from '../lib/folders';
+import { FolderIcon } from '../components/icons/FolderIcon';
 import { timeAgo } from '../lib/time';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import {
   InputGroup,
@@ -111,8 +111,8 @@ interface Column {
   render: (d: Domain, labels: RegistrarLabels) => React.ReactNode;
   /** Value used for sorting; null/empty sorts last regardless of direction. */
   sortValue: (d: Domain, labels: RegistrarLabels) => SortValue | null;
-  /** Right-align numeric-ish columns. */
-  align?: 'left' | 'right';
+  /** Right-align numeric-ish columns, or center the state/flag columns. */
+  align?: 'left' | 'right' | 'center';
   /** Comes from lazily-fetched per-domain detail; shows a loading placeholder
    * until that row's detail arrives. */
   detail?: boolean;
@@ -162,12 +162,14 @@ function daysUntil(date: Date | null): number | null {
 }
 
 /** Placeholder shown in a detail cell while that row's detail is loading. */
-function CellSkeleton({ align }: { align?: 'left' | 'right' }) {
+function CellSkeleton({ align }: { align?: 'left' | 'right' | 'center' }) {
+  // Narrow bar for the small icon/flag columns (right- or center-aligned).
+  const narrow = align === 'right' || align === 'center';
   return (
     <span
       className={cn(
         'inline-block h-3 animate-pulse rounded bg-muted',
-        align === 'right' ? 'w-4' : 'w-24',
+        narrow ? 'w-4' : 'w-24',
       )}
       aria-label="Loading…"
     />
@@ -329,14 +331,14 @@ function FolderCell({
         >
           {hidden ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
-              <EyeOff className="size-3.5 shrink-0" />
+              <EyeOff className="size-4 shrink-0" />
               Hidden
             </span>
           ) : current ? (
             <span className="inline-flex h-4 max-w-full items-center gap-2 leading-none text-foreground">
               <FolderIcon
                 className={cn(
-                  'size-3.5 shrink-0',
+                  'size-4 shrink-0',
                   folderColorStyle(current.color).text,
                 )}
               />
@@ -386,7 +388,7 @@ function FolderMenuContent({
           onSelect={() => onAssign(f.id)}
         >
           <FolderIcon
-            className={cn('size-3.5 shrink-0', folderColorStyle(f.color).text)}
+            className={cn('size-4 shrink-0', folderColorStyle(f.color).text)}
             aria-hidden
           />
           <span className="flex-1 truncate">{f.name}</span>
@@ -402,16 +404,15 @@ function FolderMenuContent({
         className="gap-2.5"
         onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
       >
-        <EyeOff className="size-3.5 shrink-0" aria-hidden />
+        <EyeOff className="size-4 shrink-0" aria-hidden />
         <span className="flex-1">Hidden</span>
         {folderId === HIDDEN_FOLDER_ID && (
           <Check className="size-3.5 shrink-0 text-muted-foreground" />
         )}
       </DropdownMenuItem>
       <DropdownMenuItem className="gap-2.5" onSelect={() => onAssign(null)}>
-        {/* Spacer keeps "None" aligned with the icon'd rows (1px wider than the
-            icons to match their visual left edge). */}
-        <span className="h-3.5 w-[15px] shrink-0" aria-hidden />
+        {/* Spacer keeps "None" aligned with the icon'd rows. */}
+        <span className="size-4 shrink-0" aria-hidden />
         <span className="flex-1">None</span>
         {folderId === undefined && (
           <Check className="size-3.5 shrink-0 text-muted-foreground" />
@@ -449,7 +450,7 @@ function StateIcon({
       className={cn(
         'size-4',
         place,
-        value ? 'text-[#74c98b]' : 'text-muted-foreground/50',
+        value ? 'text-[#7ac28d]/85' : 'text-muted-foreground/50',
       )}
       aria-label={value ? onLabel : offLabel}
     />
@@ -508,6 +509,23 @@ function LifecycleBadge({ status }: { status: string }) {
   );
 }
 
+/**
+ * Auto-renew toggle: starts in the domain's real state, flips locally on click,
+ * but doesn't persist anything yet (wiring to registrar settings is TODO).
+ * Brand green when on, a muted red when off to flag it.
+ */
+function AutoRenewSwitch({ value }: { value: boolean }) {
+  const [on, setOn] = useState(value);
+  return (
+    <Switch
+      checked={on}
+      onCheckedChange={setOn}
+      aria-label="auto-renew"
+      className="data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80"
+    />
+  );
+}
+
 const COLUMNS: Column[] = [
   {
     key: 'domainName',
@@ -560,30 +578,19 @@ const COLUMNS: Column[] = [
     sortValue: (d) => toTime(d.expirationDate),
   },
   {
-    // Sits right after the injected Renewal column, hugging the price on its
-    // left (compact + left-aligned so the icon snugs up to the figure).
     key: 'autoRenew',
     label: 'Auto',
-    align: 'left',
+    align: 'center',
     compact: true,
-    render: (d) => (
-      <StateIcon
-        value={d.autoRenew}
-        on={RefreshCw}
-        off={RefreshCwOff}
-        onLabel="auto-renew on"
-        offLabel="auto-renew off"
-        align="left"
-      />
-    ),
+    render: (d) => <AutoRenewSwitch value={d.autoRenew} />,
     sortValue: (d) => (d.autoRenew ? 1 : 0),
   },
   {
     key: 'privacy',
     label: 'Privacy',
-    align: 'right',
-    detail: true,
+    align: 'center',
     compact: true,
+    detail: true,
     render: (d) => (
       <StateIcon
         value={d.privacy}
@@ -598,9 +605,9 @@ const COLUMNS: Column[] = [
   {
     key: 'locked',
     label: 'Locked',
-    align: 'right',
-    detail: true,
+    align: 'center',
     compact: true,
+    detail: true,
     render: (d) => (
       <StateIcon
         value={d.locked}
@@ -621,7 +628,7 @@ const COLUMNS: Column[] = [
         <span className="text-muted-foreground/50">—</span>
       ) : (
         <span
-          className="inline-flex max-w-[260px] items-baseline gap-1.5 font-mono text-xs text-muted-foreground"
+          className="inline-flex max-w-[260px] items-baseline gap-1.5 font-mono text-[13px] text-foreground/70"
           title={d.nameservers.join('\n')}
         >
           <span className="truncate">{d.nameservers[0]}</span>
@@ -1322,7 +1329,7 @@ export default function Domains() {
                       'inline-flex items-center gap-1.5 text-sm',
                       exportNote.error
                         ? 'text-destructive'
-                        : 'text-[#31613b] dark:text-[#74c98b]',
+                        : 'text-[#31613b] dark:text-[#7ac28d]',
                     )}
                     role="status"
                   >
@@ -1404,7 +1411,7 @@ export default function Domains() {
           )}
 
           {/* Table */}
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50">
             <Table>
               <TableHeader>
                 <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
@@ -1435,7 +1442,9 @@ export default function Domains() {
                         <TableHead
                           className={cn(
                             col.align === 'right' && 'text-right',
-                            col.compact && 'px-1',
+                            col.align === 'center' && 'text-center',
+                            col.compact && 'w-0 px-1.5',
+                            col.key === 'autoRenew' && 'pl-[6px]',
                             col.key === 'domainName' && 'pl-3',
                           )}
                         >
@@ -1444,6 +1453,7 @@ export default function Domains() {
                             onClick={() => toggleSort(col.key)}
                             className={cn(
                               'inline-flex items-center gap-1 select-none hover:text-foreground',
+                              col.compact && 'gap-0.5',
                               active && 'text-foreground',
                             )}
                           >
@@ -1479,7 +1489,7 @@ export default function Domains() {
                         )}
                         {/* Folder sits right after Afternic, before Registrar. */}
                         {i === 0 && (
-                          <TableHead>
+                          <TableHead className="pl-3">
                             <button
                               type="button"
                               onClick={() => toggleSort(FOLDER)}
@@ -1505,7 +1515,7 @@ export default function Domains() {
                         )}
                         {/* Renewal price sits right before the Auto-Renew flag. */}
                         {col.key === 'expirationDate' && (
-                          <TableHead className="text-right">
+                          <TableHead className="w-0 text-right">
                             <button
                               type="button"
                               onClick={() => toggleSort(RENEWAL)}
@@ -1561,7 +1571,9 @@ export default function Domains() {
                           <TableCell
                             className={cn(
                               col.align === 'right' && 'text-right',
-                              col.compact && 'px-1',
+                              col.align === 'center' && 'text-center',
+                              col.compact && 'w-0 px-1.5',
+                              col.key === 'autoRenew' && 'pl-[6px]',
                               col.key === 'domainName' && 'pl-3',
                             )}
                           >
@@ -1592,7 +1604,7 @@ export default function Domains() {
                             </TableCell>
                           )}
                           {col.key === 'expirationDate' && (
-                            <TableCell className="text-right">
+                            <TableCell className="w-0 text-right pr-3">
                               <RenewalCell
                                 info={pricing[key]}
                                 loading={pricingLoading}
@@ -1847,7 +1859,7 @@ function MultiSelectFilter({
   selected: string[];
   onChange: (next: string[]) => void;
   /** Optional leading icon shown before the label in the trigger. */
-  icon?: LucideIcon;
+  icon?: React.ComponentType<{ className?: string }>;
 }) {
   return (
     <DropdownMenu>

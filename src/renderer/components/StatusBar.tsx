@@ -63,7 +63,7 @@ export default function StatusBar() {
         <span
           className={cn(
             'size-2 rounded-full',
-            mcpRunning ? 'bg-[#74c98b]' : 'bg-muted-foreground/30',
+            mcpRunning ? 'bg-[#7ac28d]' : 'bg-muted-foreground/30',
           )}
           aria-hidden
         />
@@ -95,7 +95,7 @@ export default function StatusBar() {
                 className={cn(
                   'size-2 rounded-full',
                   allConnected
-                    ? 'bg-[#74c98b]'
+                    ? 'bg-[#7ac28d]'
                     : 'bg-amber-500 dark:bg-amber-400',
                 )}
                 aria-hidden
