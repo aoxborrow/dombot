@@ -83,7 +83,7 @@ which wraps `RegistrarClient`. `R.method` = `RegistrarClient` method.
 ² `TransferDomainInput`: `authCode` (required), `years?`, `contacts?`, `consent?`,
 `privacy?`, `autoRenew?`.
 
-### Domain-level (`domain` required, `registrar` resolved)
+### Domain-level (`registrar` + `domain` required)
 
 | Tool | Backing | Params | Annotations | Status |
 |---|---|---|---|---|
@@ -104,11 +104,20 @@ replaces the full record set — mirror the client's replace semantics in the
 description.
 ⁴ `ContactSet`: `{ registrant?, admin?, tech?, billing? }`, each a `Contact`.
 
+### Domain-level, dombot-specific
+
+| Tool | Backing | Params | Annotations | Status |
+|---|---|---|---|---|
+| `domain_renewal_price` | `services/pricing.ts` → `getRenewalPrice` | `registrar`, `domain` | readOnly | **new** |
+
+Dombot-specific estimate (manual override → per-name registrar quote where
+supported → base per-TLD database), **not** a registrar call. Distinct from
+`registrar_pricing` (live registrar pricing).
+
 ### Deferred
 
 | Tool | Backing | Why deferred |
 |---|---|---|
-| `domain_renewal_price` | `services/pricing.ts` → `getRenewalPrice` | dombot-specific estimate (base TLD pricing + manual overrides), **not** a registrar call. Distinct from `registrar_pricing` (live registrar pricing). **Punted to the last phase.** |
 | `domain_forwarding_get` / `_set` | `getEmailForwarding` / `getDomainForwarding` (+ set) | These exist only on the **provider** base class (`registrar.ts`), not on the `RegistrarClient` facade dombot consumes — and are `notImplemented` per registrar. Needs a facade addition in the sibling repo first; support is per-registrar. **Out of scope for this PR.** |
 
 ## Conventions
@@ -138,16 +147,17 @@ description.
 
 ## Implementation phases
 
-1. **Rename.** Rename the 9 existing tools to the scheme (`registrar` stays
+1. ✅ **Rename.** Rename the 9 existing tools to the scheme (`registrar` stays
    required where it already is). No behavior change.
-2. **New reads.** `registrar_test`, `registrar_pricing`, `domain_get`,
+2. ✅ **New reads.** `registrar_test`, `registrar_pricing`, `domain_get`,
    `domain_contacts_get`.
-3. **New non-money writes.** `domain_dns_set`, `domain_contacts_set`,
+3. ✅ **New non-money writes.** `domain_dns_set`, `domain_contacts_set`,
    `domain_set_privacy`.
-4. **Money writes.** `registrar_register_domain`, `registrar_transfer_domain`,
+4. ✅ **Money writes.** `registrar_register_domain`, `registrar_transfer_domain`,
    `domain_renew`.
-5. **Renewal price (punted).** `domain_renewal_price` via `services/pricing.ts`.
-6. **Forwarding (separate PR).** After the `RegistrarClient` facade gains
+5. ✅ **Renewal price.** `domain_renewal_price` via `services/pricing.ts`.
+6. ⏳ **Forwarding (separate PR).** After the `RegistrarClient` facade gains
    forwarding methods in the sibling repo.
 
-Each phase: `npm run typecheck` clean, commit, push to the draft PR.
+Each phase: `npm run typecheck` clean, commit, push to the draft PR. Phases 1–5
+landed in this PR (one commit each); phase 6 is a follow-up.
