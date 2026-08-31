@@ -31,6 +31,45 @@ const registrar = z
 
 const domain = z.string().describe('The domain name, e.g. example.com');
 
+// A registrant/admin/tech/billing contact (mirrors registrar-client's Contact).
+const contact = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  organization: z.string().optional(),
+  email: z.string(),
+  phone: z.string().describe('International format, e.g. "+1.4805551234"'),
+  fax: z.string().optional(),
+  address1: z.string(),
+  address2: z.string().optional(),
+  city: z.string(),
+  state: z.string().optional().describe('State/province/region; may be empty'),
+  postalCode: z.string(),
+  country: z.string().describe('ISO 3166-1 alpha-2 country code, e.g. "US"'),
+});
+
+// The four contact roles on a domain; registrant is the legal owner.
+const contactSet = z.object({
+  registrant: contact.optional(),
+  admin: contact.optional(),
+  tech: contact.optional(),
+  billing: contact.optional(),
+});
+
+// A single DNS record in provider-agnostic form.
+const dnsRecord = z.object({
+  type: z
+    .string()
+    .describe('Record type, uppercased: A, AAAA, CNAME, MX, TXT, NS, SRV, CAA…'),
+  name: z
+    .string()
+    .describe('Host relative to the zone apex; "@" denotes the apex.'),
+  value: z.string().describe('Record data (IP, target host, text, …).'),
+  ttl: z.number().int().optional().describe('Time-to-live in seconds.'),
+  priority: z.number().int().optional().describe('Priority, for MX and SRV.'),
+  weight: z.number().int().optional().describe('Weight, SRV only.'),
+  port: z.number().int().optional().describe('Port, SRV only.'),
+});
+
 /**
  * Registers the MCP portfolio tools. Each calls into the shared `services/`
  * layer — the same lower-level core the UI's IPC handlers use — and shapes its
@@ -214,6 +253,60 @@ export function registerTools(server: McpServer): void {
     },
     async ({ registrar, domain }) =>
       json(await getRegistrarClient(registrar).getDnsRecords(domain)),
+  );
+
+  server.registerTool(
+    'domain_dns_set',
+    {
+      title: 'Set DNS records',
+      description:
+        'For a single domain: replace its DNS records with the full set given. This is a full replace — any record you omit is removed, and an empty array clears the zone.',
+      inputSchema: {
+        registrar,
+        domain,
+        records: z
+          .array(dnsRecord)
+          .describe('The complete DNS record set to write.'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+    },
+    async ({ registrar, domain, records }) =>
+      json(await getRegistrarClient(registrar).setDnsRecords(domain, records)),
+  );
+
+  server.registerTool(
+    'domain_contacts_set',
+    {
+      title: 'Set domain contacts',
+      description:
+        'For a single domain: update its contacts. Provide only the roles you want to change (registrant, admin, tech, billing).',
+      inputSchema: { registrar, domain, contacts: contactSet },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ registrar, domain, contacts }) =>
+      json(await getRegistrarClient(registrar).updateContacts(domain, contacts)),
+  );
+
+  server.registerTool(
+    'domain_set_privacy',
+    {
+      title: 'Set WHOIS privacy',
+      description: 'For a single domain: enable or disable WHOIS privacy.',
+      inputSchema: {
+        registrar,
+        domain,
+        enabled: z
+          .boolean()
+          .describe('true to enable WHOIS privacy, false to disable'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ registrar, domain, enabled }) =>
+      json(await getRegistrarClient(registrar).setPrivacy(domain, enabled)),
   );
 
   server.registerTool(
