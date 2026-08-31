@@ -9,6 +9,8 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  Building2,
+  CalendarClock,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -21,13 +23,15 @@ import {
   EyeOff,
   ExternalLink,
   Folder as FolderIcon,
+  Globe,
   Loader2,
   Lock,
   LockOpen,
-  MoreHorizontal,
+  MoreVertical,
   RefreshCw,
   RefreshCwOff,
   Search,
+  Server,
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
@@ -346,7 +350,7 @@ function RowActions({
           aria-label="Row actions"
           className="text-muted-foreground/60 hover:text-foreground"
         >
-          <MoreHorizontal />
+          <MoreVertical />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40">
@@ -1168,6 +1172,7 @@ export default function Domains() {
 
               <MultiSelectFilter
                 label="Registrar"
+                icon={Building2}
                 options={registrars.map((id) => ({
                   value: id,
                   label: registrarLabel(id, portfolioRegistrarLabels),
@@ -1180,6 +1185,7 @@ export default function Domains() {
               />
               <MultiSelectFilter
                 label="TLD"
+                icon={Globe}
                 options={tlds.map((t) => ({ value: t, label: `.${t}` }))}
                 selected={tld}
                 onChange={(next) => {
@@ -1189,6 +1195,7 @@ export default function Domains() {
               />
               <MultiSelectFilter
                 label="Nameservers"
+                icon={Server}
                 options={nsGroups}
                 selected={ns}
                 onChange={(next) => {
@@ -1199,6 +1206,7 @@ export default function Domains() {
               />
               <MultiSelectFilter
                 label="Expiration"
+                icon={CalendarClock}
                 options={EXPIRY_OPTIONS}
                 selected={expiry}
                 onChange={(next) => {
