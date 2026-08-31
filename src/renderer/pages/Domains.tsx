@@ -24,6 +24,7 @@ import {
   Loader2,
   Lock,
   LockOpen,
+  MoreHorizontal,
   RefreshCw,
   RefreshCwOff,
   Search,
@@ -56,9 +57,13 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -289,11 +294,41 @@ function RenewalCell({
 
 /**
  * The Folder cell: a small colored folder icon plus the folder name when the
- * domain is in a folder, or a muted but still-clickable placeholder when it
- * isn't. Clicking opens a single-select menu of folders (plus "None" to clear).
- * Assignment is persisted via `onAssign`.
+ * domain is in a folder, or a muted dash when it isn't. Display only —
+ * assigning a folder is done from the row-actions (⋯) menu in the Domain cell.
  */
 function FolderCell({
+  folders,
+  folderId,
+}: {
+  folders: Folder[];
+  folderId: string | undefined;
+}) {
+  const current = folderId ? folders.find((f) => f.id === folderId) : undefined;
+  if (!current) return <span className="text-muted-foreground/40">—</span>;
+  return (
+    <span
+      className="inline-flex max-w-full items-center gap-1.5 text-sm"
+      title={`Folder: ${current.name}`}
+    >
+      <FolderIcon
+        className={cn(
+          'size-3.5 shrink-0',
+          folderColorStyle(current.color).text,
+        )}
+      />
+      <span className="truncate">{current.name}</span>
+    </span>
+  );
+}
+
+/**
+ * Per-row actions (⋯) shown at the right edge of the Domain cell. An
+ * always-visible but muted trigger, so it's discoverable — the Folder column
+ * alone didn't make it obvious you could assign one. Currently: a Folder
+ * submenu (single-select, "None" to clear) and a placeholder "Hide".
+ */
+function RowActions({
   folders,
   folderId,
   onAssign,
@@ -302,66 +337,60 @@ function FolderCell({
   folderId: string | undefined;
   onAssign: (folderId: string | null) => void;
 }) {
-  const current = folderId ? folders.find((f) => f.id === folderId) : undefined;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {current ? (
-          <button
-            type="button"
-            title={`Folder: ${current.name}`}
-            className="inline-flex max-w-full items-center gap-1.5 rounded px-1 py-0.5 text-sm hover:bg-muted"
-          >
-            <FolderIcon
-              className={cn(
-                'size-3.5 shrink-0',
-                folderColorStyle(current.color).text,
-              )}
-            />
-            <span className="truncate">{current.name}</span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            aria-label="Assign folder"
-            title="Assign folder"
-            className="rounded px-1.5 text-muted-foreground/40 hover:bg-muted hover:text-foreground"
-          >
-            —
-          </button>
-        )}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Row actions"
+          className="text-muted-foreground/60 hover:text-foreground"
+        >
+          <MoreHorizontal />
+        </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className="max-h-[320px] overflow-y-auto"
-      >
-        {folders.length === 0 ? (
-          <div className="max-w-[220px] px-2 py-1.5 text-xs text-muted-foreground">
-            No folders yet. Create them in Settings › Folders.
-          </div>
-        ) : (
-          <DropdownMenuRadioGroup
-            value={folderId ?? UNASSIGNED}
-            onValueChange={(v) => onAssign(v === UNASSIGNED ? null : v)}
-          >
-            {folders.map((f) => (
-              <DropdownMenuRadioItem key={f.id} value={f.id}>
-                <span
-                  className={cn(
-                    'mr-2 inline-block size-2.5 shrink-0 rounded-full',
-                    folderColorStyle(f.color).swatch,
-                  )}
-                  aria-hidden
-                />
-                <span className="truncate">{f.name}</span>
-              </DropdownMenuRadioItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuRadioItem value={UNASSIGNED}>
-              None
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        )}
+      <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <FolderIcon />
+            Folder
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="max-h-[320px] overflow-y-auto">
+            {folders.length === 0 ? (
+              <div className="max-w-[220px] px-2 py-1.5 text-xs text-muted-foreground">
+                No folders yet. Create them in Settings › Folders.
+              </div>
+            ) : (
+              <DropdownMenuRadioGroup
+                value={folderId ?? UNASSIGNED}
+                onValueChange={(v) => onAssign(v === UNASSIGNED ? null : v)}
+              >
+                {folders.map((f) => (
+                  <DropdownMenuRadioItem key={f.id} value={f.id}>
+                    <span
+                      className={cn(
+                        'mr-2 inline-block size-2.5 shrink-0 rounded-full',
+                        folderColorStyle(f.color).swatch,
+                      )}
+                      aria-hidden
+                    />
+                    <span className="truncate">{f.name}</span>
+                  </DropdownMenuRadioItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioItem value={UNASSIGNED}>
+                  None
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            )}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        {/* Placeholder — not wired up yet. */}
+        <DropdownMenuItem>
+          <EyeOff />
+          Hide
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1345,7 +1374,27 @@ export default function Domains() {
                               col.key === 'domainName' && 'pl-3',
                             )}
                           >
-                            {col.detail && loadingDetail ? (
+                            {col.key === 'domainName' ? (
+                              // Domain name on the left, a row-actions (⋯) menu
+                              // pinned to the cell's right edge.
+                              <div className="flex items-center justify-between gap-2">
+                                {col.render(d, portfolioRegistrarLabels)}
+                                <RowActions
+                                  folders={folders}
+                                  folderId={
+                                    folderAssignments[
+                                      `${d.registrar}:${d.domainName}`
+                                    ]
+                                  }
+                                  onAssign={(folderId) =>
+                                    void assignFolder(
+                                      `${d.registrar}:${d.domainName}`,
+                                      folderId,
+                                    )
+                                  }
+                                />
+                              </div>
+                            ) : col.detail && loadingDetail ? (
                               <CellSkeleton align={col.align} />
                             ) : (
                               col.render(d, portfolioRegistrarLabels)
@@ -1368,12 +1417,6 @@ export default function Domains() {
                                   folderAssignments[
                                     `${d.registrar}:${d.domainName}`
                                   ]
-                                }
-                                onAssign={(folderId) =>
-                                  void assignFolder(
-                                    `${d.registrar}:${d.domainName}`,
-                                    folderId,
-                                  )
                                 }
                               />
                             </TableCell>
