@@ -7,6 +7,7 @@ import Domains from './pages/Domains';
 import Renewals from './pages/Renewals';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
+import StatusBar from './components/StatusBar';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
@@ -51,6 +52,9 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
+
+      {/* App-wide bottom status bar (MCP status + background-load lights). */}
+      <StatusBar />
 
       {/* App-wide: surfaces MCP connection approvals regardless of route. */}
       <ApprovalModal />

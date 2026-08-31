@@ -2,6 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import RegistrarsSettings from './settings/RegistrarsSettings';
 import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
+import AppearanceSettings from './settings/AppearanceSettings';
 
 export default function Settings() {
   return (
@@ -28,6 +29,12 @@ export default function Settings() {
             MCP
           </TabsTrigger>
           <TabsTrigger
+            value="appearance"
+            className="w-full justify-start data-[state=active]:bg-muted"
+          >
+            Appearance
+          </TabsTrigger>
+          <TabsTrigger
             value="data"
             className="w-full justify-start data-[state=active]:bg-muted"
           >
@@ -42,6 +49,9 @@ export default function Settings() {
         </TabsContent>
         <TabsContent value="mcp">
           <McpClientsSettings />
+        </TabsContent>
+        <TabsContent value="appearance">
+          <AppearanceSettings />
         </TabsContent>
         <TabsContent value="data">
           <DataSettings />

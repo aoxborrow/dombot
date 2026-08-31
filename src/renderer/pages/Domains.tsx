@@ -710,42 +710,6 @@ export default function Domains() {
   const maxValue = priceError ? null : maxParsed.value;
   const priceFilterActive = minValue !== null || maxValue !== null;
 
-  // Per-dataset "loaded / total" counts for the toolbar load-status cluster.
-  // Loaded = domains with that datum present; recomputed as data streams in.
-  const loadCounts = useMemo(() => {
-    let nsLoaded = 0;
-    let marketLoaded = 0;
-    let pricingLoaded = 0;
-    for (const d of merged) {
-      if (d.nameservers.length > 0) nsLoaded += 1;
-      if (aftermarket[d.domainName] !== undefined) marketLoaded += 1;
-      if (pricing[`${d.registrar}:${d.domainName}`] !== undefined)
-        pricingLoaded += 1;
-    }
-    return { nsLoaded, marketLoaded, pricingLoaded };
-  }, [merged, aftermarket, pricing]);
-
-  const loadStatusItems = [
-    {
-      label: 'Domains',
-      loaded: loadCounts.nsLoaded,
-      total: portfolio.length,
-      loading: portfolioLoading || detailAllLoading,
-    },
-    {
-      label: 'Markets',
-      loaded: loadCounts.marketLoaded,
-      total: portfolio.length,
-      loading: marketAllLoading,
-    },
-    {
-      label: 'Pricing',
-      loaded: loadCounts.pricingLoaded,
-      total: portfolio.length,
-      loading: pricingLoading,
-    },
-  ];
-
   // Filter → sort. Pagination is applied after, on the sorted result.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -923,7 +887,6 @@ export default function Domains() {
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          {hasLoaded && <LoadStatus items={loadStatusItems} />}
           <div className="flex items-center gap-3">
             {exportNote && (
               <span
@@ -1510,55 +1473,5 @@ function MultiSelectFilter({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-/** A status light: spinner while loading, green when done, grey when idle. */
-function StatusDot({ state }: { state: 'idle' | 'loading' | 'done' }) {
-  if (state === 'loading') {
-    return <Loader2 className="size-3 animate-spin text-muted-foreground" />;
-  }
-  return (
-    <span
-      className={cn(
-        'size-2 rounded-full',
-        state === 'done' ? 'bg-emerald-500' : 'bg-muted-foreground/30',
-      )}
-    />
-  );
-}
-
-/**
- * Combined background-load status: one light per dataset (Domains, Markets,
- * Pricing). The "loaded / total" count lives in each segment's tooltip.
- */
-function LoadStatus({
-  items,
-  className,
-}: {
-  items: { label: string; loaded: number; total: number; loading: boolean }[];
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        'flex items-center gap-3 text-xs text-muted-foreground',
-        className,
-      )}
-    >
-      {items.map((it) => {
-        const state = it.total === 0 ? 'idle' : it.loading ? 'loading' : 'done';
-        return (
-          <span
-            key={it.label}
-            className="inline-flex items-center gap-1.5"
-            title={`${it.label}: ${it.loaded} / ${it.total} loaded`}
-          >
-            <StatusDot state={state} />
-            <span>{it.label}</span>
-          </span>
-        );
-      })}
-    </div>
   );
 }
