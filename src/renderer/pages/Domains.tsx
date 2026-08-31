@@ -25,7 +25,6 @@ import {
   ExternalLink,
   Folder as FolderIcon,
   Globe,
-  Loader2,
   Lock,
   LockOpen,
   MoreVertical,
@@ -700,12 +699,10 @@ export default function Domains() {
     enriched,
     enriching,
     enrichVisible,
-    detailAllLoading,
     loadAllDetail,
     aftermarket,
     marketLoading,
     loadAftermarketVisible,
-    marketAllLoading,
     loadAllMarket,
     pricing,
     pricingLoading,
@@ -1219,7 +1216,6 @@ export default function Domains() {
                   setNs(next);
                   setPage(0);
                 }}
-                loading={detailAllLoading}
               />
               <MultiSelectFilter
                 label="Expiration"
@@ -1262,7 +1258,6 @@ export default function Domains() {
                 minValue={minValue}
                 maxValue={maxValue}
                 error={priceError}
-                loading={marketAllLoading}
               />
             </div>
           </div>
@@ -1583,7 +1578,7 @@ function PriceField({
   invalid: boolean;
 }) {
   return (
-    <InputGroup className="w-[95px]">
+    <InputGroup className="w-[105px]">
       <InputGroupAddon className="pl-1.5">$</InputGroupAddon>
       <InputGroupInput
         type="text"
@@ -1615,8 +1610,7 @@ function priceSummary(min: number | null, max: number | null): string | null {
 /**
  * Afternic price filter: a filter button (matching the multi-selects) that opens
  * a popover holding the min/max inputs. The button reflects the active range as
- * a badge; a spinner replaces the chevron while portfolio prices are still
- * loading.
+ * a badge.
  */
 function PriceRangeFilter({
   min,
@@ -1628,7 +1622,6 @@ function PriceRangeFilter({
   minValue,
   maxValue,
   error,
-  loading = false,
 }: {
   min: string;
   max: string;
@@ -1641,9 +1634,6 @@ function PriceRangeFilter({
   maxValue: number | null;
   /** Validation message shown inside the popover, or null. */
   error: string | null;
-  /** Show a spinner while Afternic prices are still loading across the portfolio
-   * (the filter stays usable — it just isn't complete yet). */
-  loading?: boolean;
 }) {
   const summary = priceSummary(minValue, maxValue);
   return (
@@ -1660,14 +1650,7 @@ function PriceRangeFilter({
               {summary}
             </Badge>
           )}
-          {loading ? (
-            <Loader2
-              className="size-4 animate-spin text-muted-foreground"
-              aria-label="Loading Afternic prices"
-            />
-          ) : (
-            <ChevronDown className="size-4 text-muted-foreground" />
-          )}
+          <ChevronDown className="size-4 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto p-3">
@@ -1706,16 +1689,12 @@ function MultiSelectFilter({
   options,
   selected,
   onChange,
-  loading = false,
   icon: Icon,
 }: {
   label: string;
   options: { value: string; label: string; count?: number }[];
   selected: string[];
   onChange: (next: string[]) => void;
-  /** Show a spinner in the trigger while the underlying data is still loading
-   * (the filter stays usable — it just isn't complete yet). */
-  loading?: boolean;
   /** Optional leading icon shown before the label in the trigger. */
   icon?: LucideIcon;
 }) {
@@ -1733,14 +1712,7 @@ function MultiSelectFilter({
               {selected.length}
             </Badge>
           )}
-          {loading ? (
-            <Loader2
-              className="size-4 animate-spin text-muted-foreground"
-              aria-label="Loading"
-            />
-          ) : (
-            <ChevronDown className="size-4 text-muted-foreground" />
-          )}
+          <ChevronDown className="size-4 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
