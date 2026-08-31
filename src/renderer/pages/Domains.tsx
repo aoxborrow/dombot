@@ -124,13 +124,6 @@ function afternicListing(
   );
 }
 
-/** Listings other than Afternic (already sorted lowest-price-first). */
-function otherListings(info: Aftermarket | null | undefined): MarketListing[] {
-  return (
-    info?.listings.filter((l) => l.platform.toLowerCase() !== AFTERNIC) ?? []
-  );
-}
-
 /** Afternic price cell, linking to the DomDB detail page. */
 function AfternicCell({
   info,
@@ -143,51 +136,25 @@ function AfternicCell({
 }) {
   if (loading && info === undefined) return <CellSkeleton align="right" />;
   const listing = afternicListing(info);
-  if (!listing || !info) {
+  if (!listing || !info || (listing.price == null && !listing.canMakeOffer)) {
     return <span className="text-muted-foreground/50">—</span>;
   }
+  // Offer-only listings show a muted "Offer" label so they don't read as a
+  // price; listings with a buy-it-now price show the tabular figure.
+  const offerOnly = listing.price == null;
   return (
     <button
       type="button"
       onClick={() => onOpen(info.detailUrl)}
       title={`Afternic: ${fmtPrice(listing)}`}
-      className="group inline-flex items-baseline gap-1 font-medium tabular-nums hover:underline"
+      className="group inline-flex items-baseline gap-1 hover:underline"
     >
-      {fmtPrice(listing)}
-      <ExternalLink className="size-3 self-center text-muted-foreground/60 opacity-0 group-hover:opacity-100" />
-    </button>
-  );
-}
-
-/** Other marketplaces: lowest listing + "+N more", linking to DomDB. */
-function MarketsCell({
-  info,
-  loading,
-  onOpen,
-}: {
-  info: Aftermarket | null | undefined;
-  loading: boolean;
-  onOpen: (url: string) => void;
-}) {
-  if (loading && info === undefined) return <CellSkeleton align="left" />;
-  const others = otherListings(info);
-  if (!info || others.length === 0) {
-    return <span className="text-muted-foreground/50">—</span>;
-  }
-  const lowest = others[0];
-  const more = others.length - 1;
-  const tooltip = others.map((l) => `${l.platform}: ${fmtPrice(l)}`).join('\n');
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(info.detailUrl)}
-      title={tooltip}
-      className="group inline-flex items-baseline gap-1.5 hover:underline"
-    >
-      <span className="font-medium tabular-nums">{fmtPrice(lowest)}</span>
-      <span className="text-xs text-muted-foreground">{lowest.platform}</span>
-      {more > 0 && (
-        <span className="text-xs text-muted-foreground">+{more} more</span>
+      {offerOnly ? (
+        <span className="text-xs font-normal tracking-wide text-muted-foreground uppercase">
+          Offer
+        </span>
+      ) : (
+        <span className="font-medium tabular-nums">{fmtPrice(listing)}</span>
       )}
       <ExternalLink className="size-3 self-center text-muted-foreground/60 opacity-0 group-hover:opacity-100" />
     </button>
@@ -623,7 +590,6 @@ export default function Domains() {
                       })()}
                     </button>
                   </TableHead>
-                  <TableHead>Markets</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -654,20 +620,13 @@ export default function Domains() {
                           onOpen={openExternal}
                         />
                       </TableCell>
-                      <TableCell>
-                        <MarketsCell
-                          info={aftermarket[d.domainName]}
-                          loading={marketLoading[d.domainName] === true}
-                          onOpen={openExternal}
-                        />
-                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {visible.length === 0 && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell
-                      colSpan={COLUMNS.length + 2}
+                      colSpan={COLUMNS.length + 1}
                       className="h-32 text-center text-muted-foreground"
                     >
                       {portfolio.length === 0
