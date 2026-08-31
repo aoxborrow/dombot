@@ -1,5 +1,6 @@
-import { app, ipcMain, shell } from 'electron';
-import { IpcChannels, type AppInfo } from '../../shared/ipc';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { writeFile } from 'node:fs/promises';
+import { IpcChannels, type AppInfo, type SaveResult } from '../../shared/ipc';
 
 /** App-level IPC: health check, runtime info, opening external links. */
 export function registerAppIpc(): void {
@@ -28,6 +29,35 @@ export function registerAppIpc(): void {
       if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
         await shell.openExternal(parsed.toString());
       }
+    },
+  );
+
+  // Write text (e.g. an exported CSV) to a user-chosen location via the native
+  // save dialog. The renderer is sandboxed and can't touch the filesystem, so
+  // it hands us the fully-built content and we prompt + write here.
+  ipcMain.handle(
+    IpcChannels.saveCsv,
+    async (
+      event,
+      content: string,
+      suggestedName: string,
+    ): Promise<SaveResult> => {
+      const window = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+      const options = {
+        defaultPath: suggestedName,
+        filters: [
+          { name: 'CSV', extensions: ['csv'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      };
+      const { canceled, filePath } = window
+        ? await dialog.showSaveDialog(window, options)
+        : await dialog.showSaveDialog(options);
+      if (canceled || !filePath) return { saved: false };
+      // UTF-8 with a BOM so Excel detects the encoding and renders accents
+      // and other non-ASCII characters correctly.
+      await writeFile(filePath, '\uFEFF' + content, 'utf8');
+      return { saved: true, path: filePath };
     },
   );
 }

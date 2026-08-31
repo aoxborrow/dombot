@@ -20,6 +20,7 @@ export const IpcChannels = {
   setManualPrice: 'pricing:setManualPrice',
   clearPricingCache: 'pricing:clearCache',
   openExternal: 'app:openExternal',
+  saveCsv: 'app:saveCsv',
   getRegistrarMetadata: 'registrar:getMetadata',
   getRegistrarCredentials: 'registrar:getCredentials',
   saveRegistrarCredentials: 'registrar:saveCredentials',
@@ -88,6 +89,14 @@ export interface RegistrarMeta {
 export interface TestResult {
   ok: boolean;
   message: string;
+}
+
+/** Outcome of a native "save file" dialog. */
+export interface SaveResult {
+  /** False when the user dismissed the dialog. */
+  saved: boolean;
+  /** Absolute path written, when `saved`. */
+  path?: string;
 }
 
 /** A connection awaiting the user's approval in the app window. */
@@ -205,6 +214,12 @@ export interface DombotApi {
   getAppInfo: () => Promise<AppInfo>;
   /** Open a URL in the user's default browser. */
   openExternal: (url: string) => Promise<void>;
+  /**
+   * Prompt for a save location and write `content` there as a UTF-8 text file.
+   * `suggestedName` seeds the dialog's filename. Resolves with the chosen path,
+   * or `{ saved: false }` if the user cancels.
+   */
+  saveCsv: (content: string, suggestedName: string) => Promise<SaveResult>;
 
   /** Restore the full cached portfolio + detail + aftermarket + pricing from
    * disk with no network calls, for instant paint on launch. */
