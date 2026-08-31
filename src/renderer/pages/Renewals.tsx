@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarClock, CircleDollarSign, RefreshCw } from 'lucide-react';
+import {
+  CalendarClock,
+  CircleDollarSign,
+  Globe,
+  RefreshCw,
+} from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import {
@@ -42,12 +47,57 @@ function usd(n: number): string {
   return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
-/** USD with cents, e.g. "$12.99". */
-function usdCents(n: number): string {
-  return `$${n.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+/** Grouped count, e.g. "1,050". */
+function count(n: number): string {
+  return n.toLocaleString('en-US');
+}
+
+// ── Donut slices ─────────────────────────────────────────────────────────────
+
+interface Slice {
+  label: string;
+  value: number;
+  color: string;
+}
+
+// Categorical palette (mode-stable mid-tones) plus a neutral "Other" gray.
+const DONUT_PALETTE = [
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#8b5cf6',
+  '#ec4899',
+  '#14b8a6',
+  '#ef4444',
+  '#6366f1',
+];
+const OTHER_COLOR = '#94a3b8';
+
+/** Rank groups by `value`, keep the top N as their own slices, and fold the
+ * long tail into a single "Other" slice so the donut stays legible. */
+function toSlices(
+  groups: Group[],
+  value: (g: Group) => number,
+  topN = 8,
+): Slice[] {
+  const ranked = groups
+    .filter((g) => value(g) > 0)
+    .sort((a, b) => value(b) - value(a));
+  const slices: Slice[] = ranked.slice(0, topN).map((g, i) => ({
+    label: g.label,
+    value: value(g),
+    color: DONUT_PALETTE[i % DONUT_PALETTE.length],
+  }));
+  const rest = ranked.slice(topN);
+  const restTotal = rest.reduce((sum, g) => sum + value(g), 0);
+  if (restTotal > 0) {
+    slices.push({
+      label: `Other (${rest.length})`,
+      value: restTotal,
+      color: OTHER_COLOR,
+    });
+  }
+  return slices;
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -109,6 +159,18 @@ export default function Renewals() {
     [portfolio, pricing],
   );
 
+  // Donut slices: registrar spend + count, and TLD count.
+  const regSpend = useMemo(
+    () => toSlices(byRegistrar, (g) => g.yearly),
+    [byRegistrar],
+  );
+  const regCount = useMemo(
+    () => toSlices(byRegistrar, (g) => g.count),
+    [byRegistrar],
+  );
+  const tldCount = useMemo(() => toSlices(byTld, (g) => g.count), [byTld]);
+  const regSpendTotal = regSpend.reduce((s, x) => s + x.value, 0);
+
   // Domains that can't be priced automatically or already carry a manual price —
   // the working set for the inline editor.
   const needsPrice = useMemo(
@@ -153,8 +215,8 @@ export default function Renewals() {
         summary={summary}
       />
 
-      {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* Totals */}
+      <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
           icon={<CircleDollarSign className="size-4" />}
           label="Yearly renewals"
@@ -164,6 +226,14 @@ export default function Renewals() {
           )} manual`}
         />
         <StatCard
+          icon={<Globe className="size-4" />}
+          label="Total domains"
+          value={count(summary.total)}
+          hint={`${byRegistrar.length} registrar${
+            byRegistrar.length === 1 ? '' : 's'
+          } · ${byTld.length} TLD${byTld.length === 1 ? '' : 's'}`}
+        />
+        <StatCard
           icon={<CalendarClock className="size-4" />}
           label="Due next 90 days"
           value={usd(due90.yearly)}
@@ -171,18 +241,34 @@ export default function Renewals() {
         />
       </div>
 
-      {/* Breakdowns */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <BreakdownTable
-          title="By registrar"
-          heading="Registrar"
-          groups={byRegistrar}
-        />
-        <BreakdownTable title="By TLD" heading="TLD" groups={byTld} />
-      </div>
+      {/* Spend over time — sits between the totals and the composition donuts so
+          the two rows of three never read as paired. */}
+      <MonthlyBarChart months={months} due90={due90} />
 
-      {/* Renewal calendar */}
-      <RenewalCalendar months={months} />
+      {/* Composition */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <DonutCard
+          title="Spend by registrar"
+          slices={regSpend}
+          centerValue={usd(regSpendTotal)}
+          centerLabel="per year"
+          fmt={usd}
+        />
+        <DonutCard
+          title="Domains by registrar"
+          slices={regCount}
+          centerValue={count(summary.total)}
+          centerLabel="domains"
+          fmt={count}
+        />
+        <DonutCard
+          title="Domains by TLD"
+          slices={tldCount}
+          centerValue={count(summary.total)}
+          centerLabel="domains"
+          fmt={count}
+        />
+      </div>
 
       {/* Manual price editor */}
       {needsPrice.length > 0 && (
@@ -262,105 +348,192 @@ function StatCard({
   );
 }
 
-// ── Breakdown table ──────────────────────────────────────────────────────────
+// ── Monthly bar chart ────────────────────────────────────────────────────────
 
-function BreakdownTable({
-  title,
-  heading,
-  groups,
+function MonthlyBarChart({
+  months,
+  due90,
 }: {
-  title: string;
-  heading: string;
-  groups: Group[];
+  months: MonthBucket[];
+  due90: { count: number; yearly: number };
 }) {
-  const max = Math.max(1, ...groups.map((g) => g.yearly));
+  const max = Math.max(1, ...months.map((m) => m.yearly));
+  const total = months.reduce((sum, m) => sum + m.yearly, 0);
   return (
-    <div className="flex flex-col gap-2">
-      <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
-      <div className="max-h-96 overflow-auto rounded-lg border">
-        <Table>
-          <TableHeader className="sticky top-0 z-10 bg-muted">
-            <TableRow>
-              <TableHead>{heading}</TableHead>
-              <TableHead className="text-right">Domains</TableHead>
-              <TableHead className="text-right">Yearly</TableHead>
-              <TableHead className="text-right">Avg</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {groups.map((g) => (
-              <TableRow key={g.key}>
-                <TableCell className="relative">
-                  {/* Spend bar behind the label. */}
+    <div className="flex flex-col gap-3 rounded-lg border bg-card p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 className="text-sm font-semibold text-muted-foreground">
+          Renewals by month
+        </h2>
+        <span className="text-xs text-muted-foreground">
+          {usd(total)} over 12 months · {usd(due90.yearly)} due in next 90 days
+        </span>
+      </div>
+      <div className="flex items-end gap-2 pt-5">
+        {months.map((m) => {
+          const pct = (m.yearly / max) * 100;
+          return (
+            <div
+              key={m.key}
+              className="flex min-w-0 flex-1 flex-col items-center gap-1.5"
+            >
+              <div className="relative h-40 w-full">
+                <div
+                  className="absolute bottom-0 left-1/2 w-7 max-w-full -translate-x-1/2 rounded-t bg-primary"
+                  style={{ height: `${pct}%` }}
+                  title={`${m.label}: ${usd(m.yearly)} · ${m.count} domain${
+                    m.count === 1 ? '' : 's'
+                  }`}
+                />
+                {m.yearly > 0 && (
                   <span
-                    className="absolute inset-y-1 left-0 rounded-r-sm bg-primary/20"
-                    style={{ width: `${(g.yearly / max) * 100}%` }}
-                    aria-hidden
-                  />
-                  <span className="relative font-medium">{g.label}</span>
-                </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {g.priced < g.count ? `${g.priced}/${g.count}` : g.count}
-                </TableCell>
-                <TableCell className="text-right font-medium tabular-nums">
-                  {usd(g.yearly)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {g.priced > 0 ? usdCents(g.yearly / g.priced) : '—'}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                    className="absolute left-1/2 -translate-x-1/2 -translate-y-1 text-[10px] whitespace-nowrap text-muted-foreground tabular-nums"
+                    style={{ bottom: `${pct}%` }}
+                  >
+                    {usd(m.yearly)}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-muted-foreground">{m.label}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// ── Renewal calendar ─────────────────────────────────────────────────────────
+// ── Donut ────────────────────────────────────────────────────────────────────
 
-function RenewalCalendar({ months }: { months: MonthBucket[] }) {
-  const max = Math.max(1, ...months.map((m) => m.yearly));
-  const total = months.reduce((sum, m) => sum + m.yearly, 0);
+function Donut({
+  slices,
+  centerValue,
+  centerLabel,
+}: {
+  slices: Slice[];
+  centerValue: string;
+  centerLabel: string;
+}) {
+  const size = 132;
+  const stroke = 20;
+  const r = (size - stroke) / 2;
+  const c = size / 2;
+  const circumference = 2 * Math.PI * r;
+  const total = slices.reduce((sum, s) => sum + s.value, 0);
+  const gap = slices.length > 1 ? 1.5 : 0;
+  // Arc length of each slice and its cumulative start offset — computed purely
+  // (no running mutation) so the map below just reads them by index.
+  const lengths =
+    total > 0 ? slices.map((s) => (s.value / total) * circumference) : [];
+  const offsets = lengths.map((_, i) =>
+    lengths.slice(0, i).reduce((sum, l) => sum + l, 0),
+  );
   return (
-    <div className="flex flex-col gap-2">
-      <h2 className="text-sm font-semibold text-muted-foreground">
-        Next 12 months{' '}
-        <span className="font-normal text-muted-foreground/70">
-          · {usd(total)} due in window
-        </span>
-      </h2>
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Month</TableHead>
-              <TableHead className="text-right">Domains</TableHead>
-              <TableHead className="text-right">Due</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {months.map((m) => (
-              <TableRow key={m.key}>
-                <TableCell className="relative">
-                  {/* Spend bar behind the label, matching the breakdowns. */}
-                  <span
-                    className="absolute inset-y-1 left-0 rounded-r-sm bg-primary/20"
-                    style={{ width: `${(m.yearly / max) * 100}%` }}
-                    aria-hidden
-                  />
-                  <span className="relative font-medium">{m.label}</span>
-                </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {m.count}
-                </TableCell>
-                <TableCell className="text-right font-medium tabular-nums">
-                  {m.yearly > 0 ? usd(m.yearly) : '—'}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="shrink-0"
+      role="img"
+      aria-label={`${centerValue} ${centerLabel}`}
+    >
+      {total === 0 ? (
+        <circle
+          cx={c}
+          cy={c}
+          r={r}
+          fill="none"
+          strokeWidth={stroke}
+          className="stroke-muted"
+        />
+      ) : (
+        <g transform={`rotate(-90 ${c} ${c})`}>
+          {slices.map((s, i) => {
+            const draw = Math.max(0, lengths[i] - gap);
+            return (
+              <circle
+                key={s.label}
+                cx={c}
+                cy={c}
+                r={r}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={stroke}
+                strokeDasharray={`${draw} ${circumference - draw}`}
+                strokeDashoffset={-offsets[i]}
+              />
+            );
+          })}
+        </g>
+      )}
+      <text
+        x={c}
+        y={c - 5}
+        textAnchor="middle"
+        dominantBaseline="central"
+        className="fill-current text-sm font-bold text-foreground"
+      >
+        {centerValue}
+      </text>
+      <text
+        x={c}
+        y={c + 11}
+        textAnchor="middle"
+        dominantBaseline="central"
+        className="fill-current text-[10px] text-muted-foreground"
+      >
+        {centerLabel}
+      </text>
+    </svg>
+  );
+}
+
+function DonutCard({
+  title,
+  slices,
+  centerValue,
+  centerLabel,
+  fmt,
+}: {
+  title: string;
+  slices: Slice[];
+  centerValue: string;
+  centerLabel: string;
+  fmt: (n: number) => string;
+}) {
+  const total = slices.reduce((sum, s) => sum + s.value, 0);
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border bg-card p-4">
+      <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
+      <div className="flex items-center gap-4">
+        <Donut
+          slices={slices}
+          centerValue={centerValue}
+          centerLabel={centerLabel}
+        />
+        <ul className="flex min-w-0 flex-1 flex-col gap-1.5 text-xs">
+          {slices.length === 0 && (
+            <li className="text-muted-foreground">No data yet</li>
+          )}
+          {slices.map((s) => (
+            <li key={s.label} className="flex items-center gap-2">
+              <span
+                className="size-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: s.color }}
+                aria-hidden
+              />
+              <span className="truncate">{s.label}</span>
+              <span className="ml-auto flex shrink-0 items-baseline gap-1 tabular-nums">
+                <span>{fmt(s.value)}</span>
+                {total > 0 && (
+                  <span className="text-muted-foreground/60">
+                    {Math.round((s.value / total) * 100)}%
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
