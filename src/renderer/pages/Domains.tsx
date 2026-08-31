@@ -849,7 +849,7 @@ export default function Domains() {
                           className={cn(
                             col.align === 'right' && 'text-right',
                             col.compact && 'px-1',
-                            col.key === 'domainName' && 'pl-4',
+                            col.key === 'domainName' && 'pl-3',
                           )}
                         >
                           <button
@@ -907,7 +907,7 @@ export default function Domains() {
                             className={cn(
                               col.align === 'right' && 'text-right',
                               col.compact && 'px-1',
-                              col.key === 'domainName' && 'pl-4',
+                              col.key === 'domainName' && 'pl-3',
                             )}
                           >
                             {col.detail && loadingDetail ? (
