@@ -20,22 +20,16 @@
 <div class="nav">
   <div class="wrap nav-in">
     <a class="brand" href="#top" aria-label="DomBot home">
-      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <line x1="16" y1="7" x2="16" y2="3" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
-        <circle cx="16" cy="2.5" r="1.8" fill="var(--accent)"/>
-        <rect x="4.5" y="7" width="23" height="18" rx="6" fill="var(--accent-fill)"/>
-        <circle cx="12" cy="16" r="2.4" fill="var(--on-accent)"/>
-        <circle cx="20" cy="16" r="2.4" fill="var(--on-accent)"/>
-        <rect x="10.5" y="25" width="4" height="4" rx="1.4" fill="var(--accent-fill)"/>
-        <rect x="17.5" y="25" width="4" height="4" rx="1.4" fill="var(--accent-fill)"/>
+      <svg viewBox="0 0 32 32" fill="var(--accent-ink)" aria-hidden="true">
+        <path d="m25 6h-18c-1.06087 0-2.07828.42143-2.82843 1.17157-.75014.75015-1.17157 1.76756-1.17157 2.82843v14c0 1.0609.42143 2.0783 1.17157 2.8284.75015.7502 1.76756 1.1716 2.82843 1.1716h18c1.0609 0 2.0783-.4214 2.8284-1.1716.7502-.7501 1.1716-1.7675 1.1716-2.8284v-14c0-1.06087-.4214-2.07828-1.1716-2.82843-.7501-.75014-1.7675-1.17157-2.8284-1.17157zm2 18c0 .5304-.2107 1.0391-.5858 1.4142s-.8838.5858-1.4142.5858h-18c-.53043 0-1.03914-.2107-1.41421-.5858-.37508-.3751-.58579-.8838-.58579-1.4142v-14c0-.53043.21071-1.03914.58579-1.41421.37507-.37508.88378-.58579 1.41421-.58579h18c.5304 0 1.0391.21071 1.4142.58579.3751.37507.5858.88378.5858 1.41421zm-6.5-7h-9c-.9283 0-1.8185.3687-2.47487 1.0251-.65638.6564-1.02513 1.5466-1.02513 2.4749s.36875 1.8185 1.02513 2.4749c.65637.6564 1.54657 1.0251 2.47487 1.0251h9c.9283 0 1.8185-.3687 2.4749-1.0251s1.0251-1.5466 1.0251-2.4749-.3687-1.8185-1.0251-2.4749-1.5466-1.0251-2.4749-1.0251zm-3.5 2v3h-2v-3zm-7 1.5c0-.3978.158-.7794.4393-1.0607s.6629-.4393 1.0607-.4393h1.5v3h-1.5c-.3978 0-.7794-.158-1.0607-.4393s-.4393-.6629-.4393-1.0607zm10.5 1.5h-1.5v-3h1.5c.3978 0 .7794.158 1.0607.4393s.4393.6629.4393 1.0607-.158.7794-.4393 1.0607-.6629.4393-1.0607.4393z"/>
+        <circle cx="10.5" cy="12" r="2"/>
+        <circle cx="21.5" cy="12" r="2"/>
       </svg>
-      DomBot
+      <span class="brand-name"><span class="brand-dom">Dom</span><span class="brand-bot">Bot</span></span>
     </a>
     <nav class="nav-links" aria-label="Primary">
       <a href="#registrars">Registrars</a>
       <a href="#mcp">MCP</a>
-      <!-- PR: new nav link for the new section — delete if you drop #two-ways -->
-      <a href="#two-ways">App + MCP</a>
       <a href="#features">Features</a>
       <a href="#download">Download</a>
       <a href="#faq">FAQ</a>
@@ -50,8 +44,8 @@
   <div class="wrap hero-grid">
     <div>
       <span class="eyebrow">Open source · app + MCP server</span>
-      <h1>Every domain you own, every registrar, in one app.</h1>
-      <p class="lede"><strong>DomBot pulls your whole domain portfolio</strong> — scattered across Dynadot, GoDaddy, Cloudflare, Gandi and more — into one desktop app, and serves that same portfolio to your AI agents through a built-in MCP server. Free and fully open source.</p>
+      <h1>All your domains, from every registrar, in one app + MCP.</h1>
+      <p class="lede"><strong>DomBot pulls your whole domain portfolio</strong> — scattered across GoDaddy, Dynadot, Cloudflare, and more — into one desktop app, and serves the same portfolio to your AI agents through a built-in MCP server.</p>
       <div class="hero-cta">
         <a class="btn btn-primary" id="hero-dl" href="#download">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
@@ -62,7 +56,7 @@
           View source
         </a>
       </div>
-      <p class="hero-note">macOS · Windows · Linux · Apple Silicon &amp; Intel</p>
+      <p class="hero-note">macOS · Windows · Linux</p>
     </div>
 
     <div class="window" aria-label="DomBot Domains screen (screenshot placeholder)">
@@ -77,26 +71,6 @@
   </div>
 </header>
 
-<!-- ═══════════════ HERO — VARIANT B (redesign, centered) · keep one hero ═══════════════
-     If you keep B: move id="hero-dl" / id="hero-dl-label" onto B's button (main.js targets them). -->
-<header class="hero hero-b">
-  <div class="wrap hero-center">
-    <span class="eyebrow">Free · open source · desktop app + MCP server</span>
-    <h1>One portfolio. Two ways in.</h1>
-    <p class="lede"><strong>DomBot pulls every domain you own — across Dynadot, GoDaddy, Cloudflare, Gandi and more — into one desktop app,</strong> and serves the same portfolio to your AI agents through a built-in MCP server.</p>
-    <div class="hero-cta">
-      <a class="btn btn-primary" href="#download">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        <span>Download</span>
-      </a>
-      <a class="btn" href="https://github.com/aoxborrow/dombot">
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.46-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.36-2.22-.26-4.56-1.14-4.56-5.05 0-1.12.39-2.03 1.03-2.74-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.71 1.03 1.62 1.03 2.74 0 3.92-2.34 4.78-4.57 5.04.36.32.68.94.68 1.9 0 1.37-.01 2.480-.01 2.81 0 .27.18.6.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
-        View source
-      </a>
-    </div>
-    <p class="hero-note">macOS · Windows · Linux</p>
-  </div>
-</header>
 
 <!-- ═══════════════ REGISTRARS — VARIANT A (existing) · keep one head/foot; the logo grid is identical in both ═══════════════ -->
 <section id="registrars">
@@ -104,7 +78,7 @@
     <div class="sec-head">
       <span class="eyebrow">Works with</span>
       <h2>All your registrars, one portfolio.</h2>
-      <p>Connect the registrars you use with a first-party API key. The list keeps growing.</p>
+      <p>Connect the registrars you use with your own API keys. The list keeps growing:</p>
     </div>
     <!-- Registrars with a real brand mark use <img class="logo-img">; the rest fall back to a monogram tile until a logo is added. -->
     <div class="logos">
@@ -112,57 +86,39 @@
       <div class="logo"><img class="logo-img" src="./src/assets/logos/dynadot.svg" alt="" width="33" height="33"><span class="logo-name">Dynadot</span></div>
       <div class="logo"><img class="logo-img" src="./src/assets/logos/gandi.svg" alt="" width="33" height="33"><span class="logo-name">Gandi.net</span></div>
       <div class="logo"><img class="logo-img" src="./src/assets/logos/godaddy.svg" alt="" width="33" height="33"><span class="logo-name">GoDaddy</span></div>
-      <div class="logo"><span class="logo-mark">NB</span><span class="logo-name">NameBright</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/namebright.svg" alt="" width="33" height="33"><span class="logo-name">NameBright</span></div>
       <div class="logo"><img class="logo-img" src="./src/assets/logos/namecheap.svg" alt="" width="33" height="33"><span class="logo-name">Namecheap</span></div>
       <div class="logo"><img class="logo-img" src="./src/assets/logos/namesilo.svg" alt="" width="33" height="33"><span class="logo-name">NameSilo</span></div>
       <div class="logo"><img class="logo-img" src="./src/assets/logos/porkbun.svg" alt="" width="33" height="33"><span class="logo-name">Porkbun</span></div>
       <div class="logo"><img class="logo-img" src="./src/assets/logos/spaceship.svg" alt="" width="33" height="33"><span class="logo-name">Spaceship</span></div>
-      <div class="logo logo-more"><span class="logo-mark">+</span><span class="logo-name">More coming</span></div>
+      <div class="logo logo-more"><span class="more-plus" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="logo-name">More soon</span></div>
     </div>
-    <p class="logos-foot">Each connects with one API key from your account there. Add it in <b>Settings → Registrars</b> — DomBot shows you exactly where to find it.</p>
   </div>
 </section>
 
-<!-- ═══════════════ REGISTRARS — VARIANT B (redesign copy: merged intro, no footnote) · same logo grid ═══════════════ -->
-<section id="registrars-b">
-  <div class="wrap">
-    <div class="sec-head">
-      <span class="eyebrow">Works with</span>
-      <h2>All your registrars, one portfolio.</h2>
-      <p>Each connects with one API key from your account there — add it in <b style="color:var(--ink);font-weight:500">Settings → Registrars</b>. The list keeps growing.</p>
-    </div>
-    <div class="logos">
-      <div class="logo"><img class="logo-img" src="./src/assets/logos/cloudflare.svg" alt="" width="33" height="33"><span class="logo-name">Cloudflare</span></div>
-      <div class="logo"><img class="logo-img" src="./src/assets/logos/dynadot.svg" alt="" width="33" height="33"><span class="logo-name">Dynadot</span></div>
-      <div class="logo"><img class="logo-img" src="./src/assets/logos/gandi.svg" alt="" width="33" height="33"><span class="logo-name">Gandi.net</span></div>
-      <div class="logo"><img class="logo-img" src="./src/assets/logos/godaddy.svg" alt="" width="33" height="33"><span class="logo-name">GoDaddy</span></div>
-      <div class="logo"><span class="logo-mark">NB</span><span class="logo-name">NameBright</span></div>
-      <div class="logo"><img class="logo-img" src="./src/assets/logos/namecheap.svg" alt="" width="33" height="33"><span class="logo-name">Namecheap</span></div>
-      <div class="logo"><img class="logo-img" src="./src/assets/logos/namesilo.svg" alt="" width="33" height="33"><span class="logo-name">NameSilo</span></div>
-      <div class="logo"><img class="logo-img" src="./src/assets/logos/porkbun.svg" alt="" width="33" height="33"><span class="logo-name">Porkbun</span></div>
-      <div class="logo"><img class="logo-img" src="./src/assets/logos/spaceship.svg" alt="" width="33" height="33"><span class="logo-name">Spaceship</span></div>
-      <div class="logo logo-more"><span class="logo-mark">+</span><span class="logo-name">More coming</span></div>
-    </div>
-  </div>
-</section>
 
 <!-- ═══════════════ MCP (existing) · overlaps with #two-ways below — likely keep one ═══════════════ -->
 <section id="mcp">
   <div class="wrap">
     <div class="sec-head">
       <span class="eyebrow">Connect an AI agent</span>
-      <h2>Your portfolio, over MCP.</h2>
-      <p>DomBot runs a local <a href="https://modelcontextprotocol.io">Model Context Protocol</a> server, bound to <code class="mono">127.0.0.1</code> only and never exposed off your machine.</p>
+      <h2>Manage your domains with AI</h2>
+      <p>DomBot runs a local <a href="https://modelcontextprotocol.io">MCP</a> server, bound to your machine.</p>
     </div>
 
     <div class="mcp-install">
-      <p class="mcp-install-label">Add DomBot to Claude Code, then click <strong>Approve</strong> in the app:</p>
-      <pre>claude mcp add --transport http dombot <span class="a">http://127.0.0.1:4123/mcp</span></pre>
+      <p class="mcp-install-label">Add to Claude Code</p>
+      <div class="snippet">
+        <pre>claude mcp add --transport http dombot <span class="a">http://127.0.0.1:4123/mcp</span></pre>
+        <button class="copy-btn" type="button" aria-label="Copy command" data-copy="claude mcp add --transport http dombot http://127.0.0.1:4123/mcp">
+          <svg class="ic-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <svg class="ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+        </button>
+      </div>
     </div>
 
     <h3 class="mcp-features-head">What agents can do</h3>
     <ul class="mcp-list">
-      <li>List Portfolio</li>
       <li>Check Availability &amp; Pricing</li>
       <li>Set Nameservers</li>
       <li>Set DNS Records</li>
@@ -173,60 +129,6 @@
   </div>
 </section>
 
-<!-- ═══════════════ TWO FRONT ENDS, ONE CORE (new in redesign) ═══════════════ -->
-<section id="two-ways">
-  <div class="wrap">
-    <div class="sec-head">
-      <span class="eyebrow">Two front ends, one core</span>
-      <h2>Use it yourself. Hand it to your agents. Same portfolio either way.</h2>
-      <p>The desktop UI and the MCP server are two adapters over the same core — same registrar connections, same cached data, same controls.</p>
-    </div>
-
-    <div class="duo">
-      <div class="duo-card">
-        <div class="duo-head">
-          <span class="eyebrow">For you — desktop app</span>
-          <h3>One table for every registrar</h3>
-          <p>Search, sort, and filter your whole portfolio — expiry, auto-renew, lock, privacy, nameservers, side by side.</p>
-        </div>
-        <div class="window">
-          <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="title">DomBot — Domains</span></div>
-          <div class="mini-table">
-            <div class="mini-row mini-head"><span>Domain</span><span>Registrar</span><span>Expires</span><span>Renew</span></div>
-            <div class="mini-row"><span>meridianlabs.io</span><span>Dynadot</span><span class="soon">28d</span><span>auto</span></div>
-            <div class="mini-row"><span>quietharbor.com</span><span>Cloudflare</span><span>2027-03</span><span>auto</span></div>
-            <div class="mini-row"><span>fernvalley.dev</span><span>Porkbun</span><span>2026-12</span><span>off</span></div>
-          </div>
-        </div>
-        <ul class="mcp-list duo-list">
-          <li>Renewal forecast — yearly spend, next 90 days, by registrar and TLD</li>
-          <li>Expiry color-coding and at-risk status badges</li>
-          <li>Opens instantly from local cache — refresh on demand</li>
-        </ul>
-      </div>
-
-      <div class="duo-card">
-        <div class="duo-head">
-          <span class="eyebrow">For your agents — MCP gateway</span>
-          <h3>The same controls, over MCP</h3>
-          <p>A local <a href="https://modelcontextprotocol.io">Model Context Protocol</a> server, bound to <code class="mono">127.0.0.1</code> only — never exposed off your machine.</p>
-        </div>
-        <pre><span class="c"># add DomBot to Claude Code, approve in the app</span>
-claude mcp add --transport http dombot <span class="a">http://127.0.0.1:4123/mcp</span></pre>
-        <ul class="mcp-list">
-          <li>List portfolio</li>
-          <li>Check availability &amp; pricing</li>
-          <li>Set nameservers</li>
-          <li>Set DNS records</li>
-          <li>Manage contacts &amp; forwarding</li>
-          <li>Set auto-renew &amp; lock</li>
-          <li>Register, renew &amp; transfer</li>
-        </ul>
-        <p class="duo-foot">Every client is approved by you inside DomBot before it connects — revoke anytime in <b>Settings → MCP Clients</b>.</p>
-      </div>
-    </div>
-  </div>
-</section>
 
 <!-- ═══════════════ FEATURES (identical in both versions — no variant) ═══════════════ -->
 <section id="features">
@@ -353,28 +255,22 @@ claude mcp add --transport http dombot <span class="a">http://127.0.0.1:4123/mcp
 <footer>
   <div class="wrap foot-in">
     <a class="brand" href="#top" aria-label="DomBot">
-      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <line x1="16" y1="7" x2="16" y2="3" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
-        <circle cx="16" cy="2.5" r="1.8" fill="var(--accent)"/>
-        <rect x="4.5" y="7" width="23" height="18" rx="6" fill="var(--accent-fill)"/>
-        <circle cx="12" cy="16" r="2.4" fill="var(--on-accent)"/>
-        <circle cx="20" cy="16" r="2.4" fill="var(--on-accent)"/>
-        <rect x="10.5" y="25" width="4" height="4" rx="1.4" fill="var(--accent-fill)"/>
-        <rect x="17.5" y="25" width="4" height="4" rx="1.4" fill="var(--accent-fill)"/>
+      <svg viewBox="0 0 32 32" fill="var(--accent-ink)" aria-hidden="true">
+        <path d="m25 6h-18c-1.06087 0-2.07828.42143-2.82843 1.17157-.75014.75015-1.17157 1.76756-1.17157 2.82843v14c0 1.0609.42143 2.0783 1.17157 2.8284.75015.7502 1.76756 1.1716 2.82843 1.1716h18c1.0609 0 2.0783-.4214 2.8284-1.1716.7502-.7501 1.1716-1.7675 1.1716-2.8284v-14c0-1.06087-.4214-2.07828-1.1716-2.82843-.7501-.75014-1.7675-1.17157-2.8284-1.17157zm2 18c0 .5304-.2107 1.0391-.5858 1.4142s-.8838.5858-1.4142.5858h-18c-.53043 0-1.03914-.2107-1.41421-.5858-.37508-.3751-.58579-.8838-.58579-1.4142v-14c0-.53043.21071-1.03914.58579-1.41421.37507-.37508.88378-.58579 1.41421-.58579h18c.5304 0 1.0391.21071 1.4142.58579.3751.37507.5858.88378.5858 1.41421zm-6.5-7h-9c-.9283 0-1.8185.3687-2.47487 1.0251-.65638.6564-1.02513 1.5466-1.02513 2.4749s.36875 1.8185 1.02513 2.4749c.65637.6564 1.54657 1.0251 2.47487 1.0251h9c.9283 0 1.8185-.3687 2.4749-1.0251s1.0251-1.5466 1.0251-2.4749-.3687-1.8185-1.0251-2.4749-1.5466-1.0251-2.4749-1.0251zm-3.5 2v3h-2v-3zm-7 1.5c0-.3978.158-.7794.4393-1.0607s.6629-.4393 1.0607-.4393h1.5v3h-1.5c-.3978 0-.7794-.158-1.0607-.4393s-.4393-.6629-.4393-1.0607zm10.5 1.5h-1.5v-3h1.5c.3978 0 .7794.158 1.0607.4393s.4393.6629.4393 1.0607-.158.7794-.4393 1.0607-.6629.4393-1.0607.4393z"/>
+        <circle cx="10.5" cy="12" r="2"/>
+        <circle cx="21.5" cy="12" r="2"/>
       </svg>
-      DomBot
+      <span class="brand-name"><span class="brand-dom">Dom</span><span class="brand-bot">Bot</span></span>
     </a>
     <div class="foot-links">
       <a href="#registrars">Registrars</a>
       <a href="#mcp">MCP</a>
-      <a href="#two-ways">App + MCP</a>
       <a href="#features">Features</a>
       <a href="#download">Download</a>
       <a href="#faq">FAQ</a>
       <a href="https://github.com/aoxborrow/dombot">GitHub</a>
-      <a href="https://github.com/aoxborrow/dombot/releases">Releases</a>
     </div>
-    <span class="foot-note">Free · open source · your keys, your machine</span>
+    <span class="foot-note">built by <a href="https://x.com/aoxborrow" target="_blank" rel="noopener">@aoxborrow</a></span>
   </div>
 </footer>
 

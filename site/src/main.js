@@ -18,3 +18,30 @@
     });
   }
 })();
+
+// Copy-to-clipboard buttons — flip to a check for a moment on success.
+(function () {
+  document.querySelectorAll('.copy-btn').forEach(function (btn) {
+    let timer;
+    btn.addEventListener('click', function () {
+      const text = btn.getAttribute('data-copy') || '';
+      const done = function () {
+        btn.classList.add('copied');
+        clearTimeout(timer);
+        timer = setTimeout(function () { btn.classList.remove('copied'); }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function () {});
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+    });
+  });
+})();

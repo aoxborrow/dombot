@@ -1,5 +1,5 @@
 :root {
-  /* light ink on near-black, with a single amber accent */
+  /* light ink on near-black, with a single army-green accent */
   --bg: #0d0d0f;
   --surface: #161618;
   --surface-2: #1e1e21;
@@ -8,12 +8,12 @@
   --faint: #71717a;
   --line: #27272a;
   --line-strong: #3a3a40;
-  --accent: #e8a33d;
-  --accent-ink: #f0b767;
-  --accent-fill: #e29a2f;
-  --on-accent: #1b1204;
-  --accent-wash: #241c10;
-  --focus: 0 0 0 3px rgba(232,163,61,.35);
+  --accent: #3f5327;
+  --accent-ink: #90ac70;
+  --accent-fill: #3f5327;
+  --on-accent: #eef1e6;
+  --accent-wash: #12170c;
+  --focus: 0 0 0 3px rgba(63,83,39,.45);
 }
 
 * { box-sizing: border-box; }
@@ -52,8 +52,10 @@ code, .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, mono
 /* ── nav ── */
 .nav { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
 .nav-in { display: flex; align-items: center; gap: 20px; height: 54px; }
-.brand { display: inline-flex; align-items: center; gap: 9px; font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: .98rem; color: var(--ink); text-decoration: none; letter-spacing: -.01em; }
-.brand svg { width: 22px; height: 22px; display: block; }
+.brand { display: inline-flex; align-items: center; gap: 7px; font-family: "IBM Plex Mono", monospace; font-weight: 700; font-size: 1.28rem; color: var(--ink); text-decoration: none; letter-spacing: -.01em; }
+.brand svg { width: 28px; height: 28px; display: block; }
+.brand-dom { color: var(--ink); }
+.brand-bot { color: var(--accent-ink); }
 .nav-links { margin-left: auto; display: flex; align-items: center; gap: 20px; }
 .nav-links a { color: var(--muted); text-decoration: none; font-size: .85rem; }
 .nav-links a:hover { color: var(--ink); }
@@ -145,20 +147,30 @@ pre .a { color: var(--accent-ink); font-weight: 500; }
 .logo-img { flex-shrink: 0; width: 33px; height: 33px; object-fit: contain; filter: brightness(0) invert(.68); opacity: .9; transition: filter .15s ease, opacity .15s ease; }
 .logo:hover .logo-img { filter: none; opacity: 1; }
 .logo-name { font-weight: 500; font-size: 1.15rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.logo-more .logo-mark { border: none; background: transparent; color: var(--accent-ink); font-size: 1.45rem; }
-.logo-more .logo-name { color: var(--muted); }
+.more-plus { flex-shrink: 0; width: 35px; height: 35px; display: grid; place-items: center; color: var(--accent-ink); }
+.more-plus svg { width: 24px; height: 24px; display: block; }
+.logo-more .logo-name { color: var(--accent-ink); font-weight: 400; }
 .logos-foot { margin-top: 20px; font-size: .86rem; color: var(--muted); }
 .logos-foot b { color: var(--ink); font-weight: 500; }
 
 /* ── mcp ── */
 .mcp-install { margin-top: 30px; }
-.mcp-install-label { color: var(--muted); font-size: .9rem; margin-bottom: 8px; }
-.mcp-install pre { margin: 0; }
+.mcp-install-label { color: var(--faint); font-family: "IBM Plex Mono", monospace; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 8px; }
+.mcp-install pre { margin: 0; padding-right: 46px; }
+.snippet { position: relative; display: inline-block; max-width: 100%; vertical-align: top; }
+.copy-btn { position: absolute; top: 7px; right: 7px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); cursor: pointer; transition: color .15s ease, border-color .15s ease, background .15s ease; }
+.copy-btn:hover { color: var(--ink); border-color: var(--line-strong); background: var(--surface-2); }
+.copy-btn:focus-visible { outline: none; box-shadow: var(--focus); }
+.copy-btn svg { width: 15px; height: 15px; display: block; }
+.copy-btn .ic-check { display: none; }
+.copy-btn.copied { color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 45%, var(--line-strong)); }
+.copy-btn.copied .ic-copy { display: none; }
+.copy-btn.copied .ic-check { display: block; }
 .mcp-features-head { margin-top: 34px; margin-bottom: 14px; }
 .mcp-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 10px 20px; }
 @media (min-width: 480px) { .mcp-list { grid-template-columns: 1fr 1fr; } }
 .mcp-list li { position: relative; padding-left: 22px; font-size: .88rem; color: var(--ink); }
-.mcp-list li::before { content: ""; position: absolute; left: 2px; top: .34em; width: 12px; height: 7px; border-left: 2px solid var(--accent); border-bottom: 2px solid var(--accent); transform: rotate(-45deg); }
+.mcp-list li::before { content: ""; position: absolute; left: 3px; top: .58em; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-ink); }
 
 /* ── footer ── */
 footer { border-top: 1px solid var(--line); padding: 36px 0 48px; }
@@ -166,7 +178,7 @@ footer { border-top: 1px solid var(--line); padding: 36px 0 48px; }
 .foot-links { display: flex; flex-wrap: wrap; gap: 20px; }
 .foot-links a { color: var(--muted); text-decoration: none; font-size: .85rem; }
 .foot-links a:hover { color: var(--ink); }
-.foot-note { font-size: .78rem; color: var(--faint); font-family: "IBM Plex Mono", monospace; }
+.foot-note { margin-left: auto; text-align: right; font-size: .78rem; color: var(--faint); font-family: "IBM Plex Mono", monospace; }
 
 /* ═══════════════════════════════════════════════════════════════
    PR ADDITIONS — redesign variants + "Two front ends, one core".
