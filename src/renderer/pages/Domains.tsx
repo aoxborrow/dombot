@@ -98,14 +98,15 @@ function fmtDate(date: Date | null): string {
   return t === null ? '—' : new Date(t).toISOString().slice(0, 10);
 }
 
-/** Coarse "time ago" for the last-refreshed label, e.g. "3 hours ago". */
+/** Compact "time ago" for the last-refreshed button, e.g. "3 hrs ago". Uses
+ * abbreviated units so the label stays short in the toolbar. */
 function timeAgo(ms: number): string {
   const secs = Math.round((Date.now() - ms) / 1000);
   if (secs < 60) return 'just now';
   const units: [label: string, secs: number][] = [
     ['day', 86_400],
-    ['hour', 3_600],
-    ['minute', 60],
+    ['hr', 3_600],
+    ['min', 60],
   ];
   for (const [label, size] of units) {
     const n = Math.floor(secs / size);
@@ -117,6 +118,13 @@ function timeAgo(ms: number): string {
 /** Whether a fetch timestamp is at or past the staleness threshold. */
 function isStale(fetchedAt: number): boolean {
   return Date.now() - fetchedAt >= STALE_AFTER_MS;
+}
+
+/** Freshly refreshed (within the last day) — the button dims itself so it
+ * recedes when there's nothing to nudge. */
+const RECENT_WITHIN_MS = 24 * 60 * 60 * 1000; // 1 day
+function isRecent(fetchedAt: number): boolean {
+  return Date.now() - fetchedAt < RECENT_WITHIN_MS;
 }
 
 /** Days until expiry, for the color-coded expiry cell. */
@@ -480,6 +488,9 @@ export default function Domains() {
   // Data past the staleness threshold — highlight the timestamp to nudge a
   // manual refresh (we never auto-refresh).
   const stale = portfolioLoadedAt !== null && isStale(portfolioLoadedAt);
+  // Refreshed within the last day: dim the control so it recedes when the data
+  // is plainly fresh and there's nothing to act on.
+  const recent = portfolioLoadedAt !== null && isRecent(portfolioLoadedAt);
 
   // Distinct filter options, derived from the loaded portfolio.
   const tlds = useMemo(
@@ -668,6 +679,9 @@ export default function Domains() {
                   : ' — click to refresh'
               }`}
               className={cn(
+                recent &&
+                  !stale &&
+                  'border-border/40 text-muted-foreground hover:text-foreground',
                 stale &&
                   'border-amber-500/50 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60 dark:hover:text-amber-300',
               )}
