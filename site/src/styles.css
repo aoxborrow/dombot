@@ -84,6 +84,8 @@ code, .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, mono
    elevation. The glow sits on .window (unclipped); the bar + shot carry the
    border and clip their own corners. */
 .window {
+  /* 14px narrower than the hero column (image kept the same size — see .shot img). */
+  width: calc(100% - 14px);
   position: relative; border-radius: 12px; isolation: isolate;
   box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 22px 48px -14px rgba(0,0,0,.75);
 }
@@ -100,13 +102,16 @@ code, .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, mono
 }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
 .shot {
-  position: relative; aspect-ratio: 2452 / 1728; overflow: hidden;
+  /* 2100/1530 is the image ratio; the shorter denominator crops the bottom of
+     the viewport (image size unchanged) so it lands on a row boundary. */
+  position: relative; aspect-ratio: 2100 / 1490; overflow: hidden;
   border: 1px solid var(--line-strong); border-top: none;
   border-radius: 0 0 12px 12px; background: var(--surface);
 }
-/* Scale up and anchor top-left so the frame (overflow:hidden) shows only the
-   top-left ~67% of the capture — the UI reads larger. */
-.shot img { display: block; width: 149.25%; height: 149.25%; object-fit: cover; object-position: top left; }
+/* Scale up and anchor top-left so the frame shows the top-left ~70% of the
+   capture — the UI reads larger. The +20px (= 14px × 1.42857) cancels the
+   window's 14px narrowing so the image renders at the same absolute size. */
+.shot img { display: block; width: calc(142.857% + 20px); height: calc(142.857% + 20px); object-fit: cover; object-position: top left; }
 .shot-label { display: inline-flex; align-items: center; gap: 8px; font-family: "IBM Plex Mono", monospace; font-size: .74rem; color: var(--muted); background: var(--bg); border: 1px dashed var(--line-strong); padding: 7px 12px; border-radius: 999px; }
 
 /* ── generic section ── */
