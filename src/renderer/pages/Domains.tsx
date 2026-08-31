@@ -666,9 +666,9 @@ export default function Domains() {
             </span>
           )}
           {portfolioLoadedAt !== null ? (
-            // The freshness label doubles as the refresh control: "Refreshed N
-            // days ago" you can click to re-fetch. Goes amber (fill + dot + spin
-            // icon) once the data crosses the staleness threshold.
+            // The refresh control carries its own freshness: a "Refresh" label
+            // with the last-refreshed time in smaller muted text. Dimmed when
+            // fresh (<1 day), amber (fill + dot) once past the stale threshold.
             <Button
               variant="outline"
               onClick={() => void loadPortfolio()}
@@ -693,9 +693,16 @@ export default function Domains() {
                 />
               )}
               <RefreshCw className={cn(portfolioLoading && 'animate-spin')} />
-              {portfolioLoading
-                ? 'Refreshing…'
-                : `Refreshed ${timeAgo(portfolioLoadedAt)}`}
+              {portfolioLoading ? (
+                'Refreshing…'
+              ) : (
+                <span className="inline-flex items-baseline gap-1.5">
+                  Refresh
+                  <span className="text-xs font-normal opacity-70">
+                    {timeAgo(portfolioLoadedAt)}
+                  </span>
+                </span>
+              )}
             </Button>
           ) : (
             <Button
