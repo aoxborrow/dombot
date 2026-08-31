@@ -73,6 +73,36 @@ const dnsRecord = z.object({
   port: z.number().int().optional().describe('Port, SRV only.'),
 });
 
+// An alias-style email forward: mail to `alias`@domain redirects to `forwardTo`
+// (redirect only — no mailbox is provisioned).
+const emailForward = z.object({
+  alias: z
+    .string()
+    .describe(
+      'Local part at the domain, e.g. "hello" for hello@example.com. "@" or "*" is a catch-all, where the registrar supports it.',
+    ),
+  forwardTo: z
+    .string()
+    .describe('The destination address mail is forwarded to.'),
+});
+
+// A URL/domain forward: requests to `host` at the domain redirect to `url`. The
+// `masked` type is read-only (get can report it; set rejects it), so the set
+// schema offers only the two real redirect styles.
+const domainForward = z.object({
+  host: z
+    .string()
+    .describe(
+      'Source host relative to the apex; "@" is the apex, "www" the www subdomain.',
+    ),
+  url: z.string().describe('The destination URL requests are redirected to.'),
+  type: z
+    .enum(['temporary', 'permanent'])
+    .describe(
+      'Redirect style: "temporary" (302) or "permanent" (301). Both show the destination URL in the address bar.',
+    ),
+});
+
 // Consent to a registrar's registration/transfer agreements, where required
 // (e.g. GoDaddy). The provider fetches the agreement docs itself; the caller
 // only affirms who consented.
@@ -470,6 +500,88 @@ export function registerTools(server: McpServer): void {
           : client.unlockDomain(domain)),
       );
     },
+  );
+
+  server.registerTool(
+    'domain_email_forwarding_get',
+    {
+      title: 'Get email forwarding',
+      description:
+        'For a single domain: read its alias-style email forwarding rules (mail sent to an alias at the domain redirects to a destination address). Not supported by every registrar.',
+      inputSchema: { registrar, domain },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ registrar, domain }) =>
+      json(await getRegistrarClient(registrar).getEmailForwarding(domain)),
+  );
+
+  server.registerTool(
+    'domain_email_forwarding_set',
+    {
+      title: 'Set email forwarding',
+      description:
+        'For a single domain: replace its email forwarding rules with the full set given. This is a full replace — any alias you omit is removed, and an empty array clears all email forwarding. Not supported by every registrar.',
+      inputSchema: {
+        registrar,
+        domain,
+        forwards: z
+          .array(emailForward)
+          .describe('The complete set of email forwarding rules to write.'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+    },
+    async ({ registrar, domain, forwards }) =>
+      json(
+        await getRegistrarClient(registrar).setEmailForwarding(
+          domain,
+          forwards,
+        ),
+      ),
+  );
+
+  server.registerTool(
+    'domain_url_forwarding_get',
+    {
+      title: 'Get URL forwarding',
+      description:
+        'For a single domain: read its URL forwarding rules (HTTP redirects from a host at the domain to a destination URL). A rule may report a read-only "masked" type; the set tool cannot create one. Not supported by every registrar.',
+      inputSchema: { registrar, domain },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ registrar, domain }) =>
+      json(await getRegistrarClient(registrar).getDomainForwarding(domain)),
+  );
+
+  server.registerTool(
+    'domain_url_forwarding_set',
+    {
+      title: 'Set URL forwarding',
+      description:
+        'For a single domain: replace its URL forwarding rules with the full set given. This is a full replace — any rule you omit is removed, and an empty array clears all URL forwarding. Only "temporary"/"permanent" redirects can be set. Not supported by every registrar.',
+      inputSchema: {
+        registrar,
+        domain,
+        forwards: z
+          .array(domainForward)
+          .describe('The complete set of URL forwarding rules to write.'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+    },
+    async ({ registrar, domain, forwards }) =>
+      json(
+        await getRegistrarClient(registrar).setDomainForwarding(
+          domain,
+          forwards,
+        ),
+      ),
   );
 
   server.registerTool(

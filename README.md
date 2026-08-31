@@ -176,11 +176,14 @@ third _adapter_ over the same `services/` core the UI uses — see
   - _Registrar reads:_ `registrar_test`, `registrar_domains`,
     `registrar_check_availability`, `registrar_pricing`.
   - _Domain reads:_ `domain_get`, `domain_contacts_get`,
-    `domain_nameservers_get`, `domain_dns_get`, `domain_renewal_price`
-    (DomBot's own estimate, distinct from `registrar_pricing`).
+    `domain_nameservers_get`, `domain_dns_get`, `domain_email_forwarding_get`,
+    `domain_url_forwarding_get`, `domain_renewal_price` (DomBot's own estimate,
+    distinct from `registrar_pricing`).
   - _Writes (non-money):_ `domain_nameservers_set`, `domain_dns_set`,
-    `domain_contacts_set`, `domain_set_autorenew`, `domain_set_lock`,
-    `domain_set_privacy`.
+    `domain_contacts_set`, `domain_email_forwarding_set`,
+    `domain_url_forwarding_set`, `domain_set_autorenew`, `domain_set_lock`,
+    `domain_set_privacy`. Forwarding (email alias and URL redirect) is
+    per-registrar — unsupported providers return an error.
   - _Writes (money):_ `registrar_register_domain`, `registrar_transfer_domain`,
     `domain_renew`. Not gated behind extra per-call approval — the
     connection-level OAuth approval is the gate — and annotated non-idempotent.

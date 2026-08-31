@@ -2,7 +2,7 @@
 
 Plan for restructuring the MCP tool surface in [`src/main/mcp/tools.ts`](../src/main/mcp/tools.ts)
 so that every tool's **scope is obvious** (portfolio / registrar / domain), the
-naming is consistent, and the full non-forwarding capability of
+naming is consistent, and the full capability of
 `@aoxborrow/registrar-client` is exposed. Writes are **not** gated behind extra
 per-call approval — the connection-level OAuth approval is the gate.
 
@@ -14,8 +14,7 @@ per-call approval — the connection-level OAuth approval is the gate.
 3. **Explicit, predictable scope** — a tool's required params say exactly what it
    acts on; no hidden state, no cache-dependent routing.
 4. **Cover the surface** — every `RegistrarClient` method gets a tool (money ops
-   included), plus dombot's own renewal-price estimate. Forwarding is deferred
-   (needs a client-facade change — see below).
+   and forwarding included), plus dombot's own renewal-price estimate.
 
 ## Scope model
 
@@ -114,34 +113,35 @@ Dombot-specific estimate (manual override → per-name registrar quote where
 supported → base per-TLD database), **not** a registrar call. Distinct from
 `registrar_pricing` (live registrar pricing).
 
-### Deferred — forwarding (separate PR)
+### Domain-level forwarding
 
 Email and URL forwarding are **two unrelated features**, so they get **four
 separate tools** — not one shared `domain_forwarding_*`. "Domain forwarding" is
 registrar jargon for URL redirects, and sitting it next to email forwarding
 invites confusion; name each tool for what it actually does.
 
-| Tool | Backing | Params | Annotations |
-|---|---|---|---|
-| `domain_email_forwarding_get` | `getEmailForwarding` | `registrar`, `domain` | readOnly |
-| `domain_email_forwarding_set` | `setEmailForwarding` | `registrar`, `domain`, `forwards[]`¹ | write · destructive · idempotent |
-| `domain_url_forwarding_get` | `getDomainForwarding` | `registrar`, `domain` | readOnly |
-| `domain_url_forwarding_set` | `setDomainForwarding` | `registrar`, `domain`, `forwards[]`² | write · destructive · idempotent |
+| Tool | Backing | Params | Annotations | Status |
+|---|---|---|---|---|
+| `domain_email_forwarding_get` | `R.getEmailForwarding` | `registrar`, `domain` | readOnly | **new** |
+| `domain_email_forwarding_set` | `R.setEmailForwarding` | `registrar`, `domain`, `forwards[]`¹ | write · destructive · idempotent | **new** |
+| `domain_url_forwarding_get` | `R.getDomainForwarding` | `registrar`, `domain` | readOnly | **new** |
+| `domain_url_forwarding_set` | `R.setDomainForwarding` | `registrar`, `domain`, `forwards[]`² | write · destructive · idempotent | **new** |
 
 ¹ `EmailForward[]`: `{ alias, forwardTo }` — alias-style email redirects
 (`hello@example.com` → a destination address).
 ² `DomainForward[]`: `{ host, url, type }` — HTTP redirects (`@` / `www` → a
 URL). The `masked` `type` is **read-only**: `getDomainForwarding` reports it but
-`setDomainForwarding` rejects it.
+`domain_url_forwarding_set` only accepts `temporary`/`permanent` (its schema
+omits `masked`).
 
 Each `_set` is a **full replace** — any rule omitted is removed, an empty array
 clears all forwarding.
 
-**Why deferred.** These exist only on the **provider** base class
-(`registrar.ts`), not on the `RegistrarClient` facade dombot consumes — and are
-`notImplemented` per registrar. Needs a facade addition in the sibling repo
-first (four passthrough methods); support is per-registrar, gated on
-`supports(feature)`. **Out of scope for this PR.**
+**Support is per-registrar.** These are extended features on the client facade;
+a provider that doesn't declare the capability rejects with `NotImplementedError`
+(surfaced as the tool's error), so each tool notes it isn't supported everywhere.
+The facade passthroughs landed in the sibling repo
+([registrar-client#40](https://github.com/aoxborrow/registrar-client/pull/40)).
 
 ## Conventions
 
@@ -179,9 +179,9 @@ first (four passthrough methods); support is per-registrar, gated on
 4. ✅ **Money writes.** `registrar_register_domain`, `registrar_transfer_domain`,
    `domain_renew`.
 5. ✅ **Renewal price.** `domain_renewal_price` via `services/pricing.ts`.
-6. ⏳ **Forwarding (separate PR).** Four tools — `domain_email_forwarding_get`
-   / `_set` and `domain_url_forwarding_get` / `_set` — after the
-   `RegistrarClient` facade gains forwarding methods in the sibling repo.
+6. ✅ **Forwarding.** Four tools — `domain_email_forwarding_get` / `_set` and
+   `domain_url_forwarding_get` / `_set` — landed alongside the `RegistrarClient`
+   facade methods in the sibling repo
+   ([registrar-client#40](https://github.com/aoxborrow/registrar-client/pull/40)).
 
-Each phase: `npm run typecheck` clean, commit, push to the draft PR. Phases 1–5
-landed in this PR (one commit each); phase 6 is a follow-up.
+Each phase: `npm run typecheck` clean, commit, push to the PR.
