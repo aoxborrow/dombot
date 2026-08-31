@@ -776,22 +776,45 @@ export default function Domains() {
     return () => clearTimeout(t);
   }, [portfolioLoadedAt]);
 
-  // Distinct filter options, derived from the loaded portfolio.
-  const tlds = useMemo(
+  // Distinct filter options with per-option domain counts, derived from the
+  // loaded portfolio. Counts are over the whole portfolio (independent of the
+  // other active filters), matching the Nameservers and Folder filters.
+  const tldOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of portfolio) {
+      const t = tldOf(d.domainName);
+      if (t) counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+    return Array.from(counts, ([value, count]) => ({
+      value,
+      label: `.${value}`,
+      count,
+    })).sort((a, b) => a.value.localeCompare(b.value));
+  }, [portfolio]);
+  const registrarOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of portfolio)
+      counts.set(d.registrar, (counts.get(d.registrar) ?? 0) + 1);
+    return Array.from(counts, ([value, count]) => ({
+      value,
+      label: registrarLabel(value, portfolioRegistrarLabels),
+      count,
+    })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [portfolio, portfolioRegistrarLabels]);
+  // Expiration windows are cumulative, so their counts intentionally overlap
+  // (a domain due in 20 days matches the 30-, 60-, and 90-day options).
+  const expiryOptions = useMemo(
     () =>
-      Array.from(new Set(portfolio.map((d) => tldOf(d.domainName))))
-        .filter(Boolean)
-        .sort(),
-    [portfolio],
-  );
-  const registrars = useMemo(
-    () =>
-      Array.from(new Set(portfolio.map((d) => d.registrar))).sort((a, b) =>
-        registrarLabel(a, portfolioRegistrarLabels).localeCompare(
-          registrarLabel(b, portfolioRegistrarLabels),
+      EXPIRY_OPTIONS.map((o) => ({
+        ...o,
+        count: portfolio.reduce(
+          (n, d) =>
+            n +
+            (matchesExpiryOption(o.value, daysUntil(d.expirationDate)) ? 1 : 0),
+          0,
         ),
-      ),
-    [portfolio, portfolioRegistrarLabels],
+      })),
+    [portfolio],
   );
 
   // Nameserver groups (by base domain, with per-provider splits) plus the set of
@@ -1208,10 +1231,7 @@ export default function Domains() {
               <MultiSelectFilter
                 label="Registrar"
                 icon={Building2}
-                options={registrars.map((id) => ({
-                  value: id,
-                  label: registrarLabel(id, portfolioRegistrarLabels),
-                }))}
+                options={registrarOptions}
                 selected={registrar}
                 onChange={(next) => {
                   setRegistrar(next);
@@ -1221,7 +1241,7 @@ export default function Domains() {
               <MultiSelectFilter
                 label="TLD"
                 icon={Globe}
-                options={tlds.map((t) => ({ value: t, label: `.${t}` }))}
+                options={tldOptions}
                 selected={tld}
                 onChange={(next) => {
                   setTld(next);
@@ -1241,7 +1261,7 @@ export default function Domains() {
               <MultiSelectFilter
                 label="Expiration"
                 icon={CalendarClock}
-                options={EXPIRY_OPTIONS}
+                options={expiryOptions}
                 selected={expiry}
                 onChange={(next) => {
                   setExpiry(next);
