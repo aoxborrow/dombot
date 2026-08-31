@@ -2,16 +2,21 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
-  Check,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   ChevronsUpDown,
   ExternalLink,
+  Lock,
+  LockOpen,
+  RefreshCw,
+  RefreshCwOff,
   Search,
+  Shield,
+  ShieldOff,
   TriangleAlert,
-  X,
+  type LucideIcon,
 } from 'lucide-react';
 import type { Aftermarket, Domain, MarketListing } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
@@ -161,12 +166,30 @@ function AfternicCell({
   );
 }
 
-/** A yes/no flag: a green check for yes, a rose ✕ for no. */
-function Flag({ value }: { value: boolean }) {
+/**
+ * On/off state shown with column-appropriate icons: the `on` icon (emphasized)
+ * when enabled, its muted `off` counterpart when disabled.
+ */
+function StateIcon({
+  value,
+  on: On,
+  off: Off,
+  onLabel,
+  offLabel,
+}: {
+  value: boolean;
+  on: LucideIcon;
+  off: LucideIcon;
+  onLabel: string;
+  offLabel: string;
+}) {
   return value ? (
-    <Check className="mx-auto size-4 text-emerald-500" aria-label="yes" />
+    <On className="mx-auto size-4 text-emerald-500" aria-label={onLabel} />
   ) : (
-    <X className="mx-auto size-4 text-rose-400" aria-label="no" />
+    <Off
+      className="mx-auto size-4 text-muted-foreground/50"
+      aria-label={offLabel}
+    />
   );
 }
 
@@ -222,7 +245,15 @@ const COLUMNS: Column[] = [
     label: 'Renew',
     align: 'right',
     compact: true,
-    render: (d) => <Flag value={d.autoRenew} />,
+    render: (d) => (
+      <StateIcon
+        value={d.autoRenew}
+        on={RefreshCw}
+        off={RefreshCwOff}
+        onLabel="auto-renew on"
+        offLabel="auto-renew off"
+      />
+    ),
     sortValue: (d) => (d.autoRenew ? 1 : 0),
   },
   {
@@ -231,7 +262,15 @@ const COLUMNS: Column[] = [
     align: 'right',
     detail: true,
     compact: true,
-    render: (d) => <Flag value={d.locked} />,
+    render: (d) => (
+      <StateIcon
+        value={d.locked}
+        on={Lock}
+        off={LockOpen}
+        onLabel="locked"
+        offLabel="unlocked"
+      />
+    ),
     sortValue: (d) => (d.locked ? 1 : 0),
   },
   {
@@ -240,7 +279,15 @@ const COLUMNS: Column[] = [
     align: 'right',
     detail: true,
     compact: true,
-    render: (d) => <Flag value={d.privacy} />,
+    render: (d) => (
+      <StateIcon
+        value={d.privacy}
+        on={Shield}
+        off={ShieldOff}
+        onLabel="privacy on"
+        offLabel="privacy off"
+      />
+    ),
     sortValue: (d) => (d.privacy ? 1 : 0),
   },
   {
