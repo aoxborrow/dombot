@@ -43,6 +43,7 @@ import type {
   RegistrarName,
   RenewalPricing,
 } from '../../shared/ipc';
+import { toast } from 'sonner';
 import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
@@ -513,25 +514,27 @@ function LifecycleBadge({ status }: { status: string }) {
 /**
  * Auto-renew toggle: writes through to the registrar. The store applies the new
  * value optimistically (so the switch flips immediately) and rolls back if the
- * registrar rejects — some can't toggle it post-registration (e.g. Cloudflare)
- * and surface an error, which we show as a red ring + tooltip. Brand green when
- * on, a muted red when off. Disabled while the round trip is in flight.
+ * registrar rejects — some can't toggle it post-registration (e.g. Cloudflare).
+ * Outcome is surfaced as a toast; the switch is disabled while in flight. Brand
+ * green when on, a muted red when off.
  */
 function AutoRenewSwitch({ domain }: { domain: Domain }) {
   const setAutoRenew = useAppStore((s) => s.setAutoRenew);
   const key = `${domain.registrar}:${domain.domainName}`;
   const pending = useAppStore((s) => s.mutating[key] ?? false);
-  const [error, setError] = useState<string | null>(null);
 
   const onToggle = (next: boolean) => {
-    setError(null);
-    void setAutoRenew(
-      domain.registrar as RegistrarName,
-      domain.domainName,
-      next,
-    ).catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : String(err));
-    });
+    setAutoRenew(domain.registrar as RegistrarName, domain.domainName, next)
+      .then(() =>
+        toast.success(
+          `Auto-renew ${next ? 'enabled' : 'disabled'} for ${domain.domainName}`,
+        ),
+      )
+      .catch((err: unknown) =>
+        toast.error(`Couldn’t update auto-renew for ${domain.domainName}`, {
+          description: err instanceof Error ? err.message : String(err),
+        }),
+      );
   };
 
   return (
@@ -540,13 +543,8 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
       onCheckedChange={onToggle}
       disabled={pending}
       aria-label="auto-renew"
-      title={
-        error ?? `Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`
-      }
-      className={cn(
-        'data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80',
-        error && 'ring-2 ring-red-500 ring-offset-1',
-      )}
+      title={`Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`}
+      className="data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80"
     />
   );
 }
