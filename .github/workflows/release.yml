@@ -1,0 +1,136 @@
+name: Release
+
+# Builds DomBot distributables for macOS, Windows, and Linux with Electron
+# Forge and attaches them to a GitHub Release. dombot.ai links to
+# github.com/aoxborrow/dombot/releases for downloads.
+#
+# Cut a release by pushing a version tag (see README → Cutting a release):
+#   npm version <patch|minor|major>   # commits + tags vX.Y.Z
+#   git push --follow-tags
+#
+# Assets are unsigned (no Apple/Windows code-signing certificates wired in yet),
+# so the site documents the first-open workaround. To add signing later, set the
+# maker/packager signing options and provide the certs as encrypted secrets.
+#
+# workflow_dispatch runs the build on demand and publishes the artifacts to the
+# Actions run (not to a Release) — useful for verifying the pipeline off a tag.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # create the Release and upload assets
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Create a draft Release up front so every platform build uploads into the
+  # same one. Tag pushes only.
+  prepare:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --draft --generate-notes --title "DomBot $GITHUB_REF_NAME"
+          fi
+
+  build:
+    needs: [prepare]
+    # Run after prepare on tag pushes, and directly on workflow_dispatch (where
+    # prepare is skipped).
+    if: ${{ always() && (needs.prepare.result == 'success' || needs.prepare.result == 'skipped') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, platform: mac, arch: arm64 } # Apple Silicon
+          - { os: macos-13, platform: mac, arch: x64 } # Intel
+          - { os: windows-latest, platform: win, arch: x64 }
+          - { os: ubuntu-latest, platform: linux, arch: x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        # maker-deb needs fakeroot/dpkg; maker-rpm needs rpm — not preinstalled.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fakeroot rpm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build distributables
+        run: npm run make -- --arch=${{ matrix.arch }}
+
+      - name: Assemble .dmg (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        # maker-dmg pulls in the fragile native `appdmg`; hdiutil is built into
+        # macOS and wraps the packaged .app into a compressed .dmg with the
+        # familiar "drag to Applications" layout.
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          APP="out/DomBot-darwin-${{ matrix.arch }}/DomBot.app"
+          test -d "$APP" || { echo "::error::app not found at $APP"; ls -R out | head -40; exit 1; }
+          STAGE="$(mktemp -d)"
+          cp -R "$APP" "$STAGE/"
+          ln -s /Applications "$STAGE/Applications"
+          mkdir -p out/dmg
+          hdiutil create -volname "DomBot" -srcfolder "$STAGE" -ov -format UDZO \
+            "out/dmg/DomBot-${VERSION}-${{ matrix.arch }}.dmg"
+          rm -rf "$STAGE"
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p dist
+          for d in out/make out/dmg; do
+            if [ -d "$d" ]; then
+              find "$d" -type f \
+                \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' \
+                   -o -name '*.deb' -o -name '*.rpm' \) \
+                -exec cp {} dist/ \;
+            fi
+          done
+          echo "Collected:" && ls -la dist
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dombot-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+
+  # Flip the draft Release to published once every platform has uploaded.
+  publish:
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest

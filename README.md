@@ -10,6 +10,14 @@ every registrar into one table, one renewal forecast, and one set of controls.
 It's a cross-platform desktop app built with **Electron Forge**, **React**,
 **TypeScript**, and **Vite**.
 
+## Download
+
+Grab the latest build for macOS (Apple Silicon & Intel), Windows, or Linux from
+the [**Releases**](https://github.com/aoxborrow/dombot/releases) page, or from
+[dombot.ai](https://dombot.ai). Builds are currently **unsigned**, so on first
+launch: macOS → right-click the app → **Open**; Windows → SmartScreen → **More
+info** → **Run anyway**.
+
 ## What it does
 
 - **One portfolio, every registrar.** Aggregates all your domains across the
@@ -77,11 +85,37 @@ npm start
 | -------------------- | -------------------------------------------------- |
 | `npm start`          | Run the app with hot reload (Forge + Vite)         |
 | `npm run package`    | Package the app into an unpacked bundle            |
-| `npm run make`       | Build distributables (dmg/zip/deb/rpm/squirrel)    |
+| `npm run make`       | Build distributables (zip/deb/rpm/Squirrel)        |
 | `npm run lint`       | Lint `.ts`/`.tsx` files                            |
 | `npm run format`     | Format the codebase with Prettier                  |
 | `npm run typecheck`  | Type-check without emitting                        |
-| `npm run build:site` | Minify the landing page (`site/src` → `site/dist`) |
+| `npm run site:build` | Minify the landing page (`site/src` → `site/dist`) |
+
+## Cutting a release
+
+Binaries are built and published by GitHub Actions
+([`.github/workflows/release.yml`](.github/workflows/release.yml)) — push a
+version tag and the workflow builds every platform and attaches the installers
+to a GitHub Release:
+
+```bash
+npm version patch      # or minor / major — commits + creates tag vX.Y.Z
+git push --follow-tags # pushing the tag triggers the release workflow
+```
+
+The workflow fans out across macOS (arm64 + x64), Windows (x64), and Linux
+(x64), runs `npm run make` on each, and uploads the results — `.dmg` + `.zip`
+(macOS), `Setup.exe` (Windows), `.deb` + `.rpm` (Linux) — to a draft Release,
+which it publishes once all platforms succeed. The `.dmg` is assembled from the
+packaged `.app` with `hdiutil` (macOS's built-in tool), sidestepping
+`maker-dmg`'s fragile native `appdmg` dependency. Run the workflow manually from
+the Actions tab (**workflow_dispatch**) to test the build without publishing;
+those runs attach the artifacts to the Actions run instead of a Release.
+
+Builds are **unsigned** — there are no Apple/Windows code-signing certificates
+wired in yet, which is why the download page documents the first-open workaround.
+To sign later, add the maker/packager signing options and provide the
+certificates as encrypted repository secrets.
 
 ## Project layout
 
@@ -216,3 +250,15 @@ claude mcp add dombot --transport http http://127.0.0.1:4123/mcp
   the project stays CommonJS.
 - **HashRouter.** The packaged app loads over `file://`, where history-based
   routing does not resolve — hash routing avoids that.
+
+## License
+
+DomBot is free and open source software: Copyright (C) 2026 Aaron Oxborrow,
+licensed under the [GNU Affero General Public License v3.0 or later](LICENSE)
+(AGPL-3.0-or-later). You may use, study, share, and modify it; if you distribute
+a modified version, it must also be AGPL and ship its source.
+
+Any paid data feeds are a separate, optional add-on service with their own terms
+— the app itself is and stays free. The registrar logic in
+[`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client)
+is a separate project under the MIT license.

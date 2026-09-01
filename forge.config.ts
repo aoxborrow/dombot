@@ -18,6 +18,9 @@ const config: ForgeConfig = {
     new MakerSquirrel({
       setupIcon: 'assets/icon.ico',
     }),
+    // macOS ships a .zip here; the downloadable .dmg is assembled from the
+    // packaged .app in CI with hdiutil (see .github/workflows/release.yml) to
+    // avoid maker-dmg's fragile native `appdmg` dependency.
     new MakerZIP({}, ['darwin']),
     new MakerRpm({
       options: {
