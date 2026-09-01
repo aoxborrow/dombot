@@ -88,6 +88,23 @@ export function writeEntry<T>(
   return entry;
 }
 
+/**
+ * Updates an existing entry's data in place via `update`, preserving its
+ * original `fetchedAt` so the entry's age (and any "last refreshed" display) is
+ * unaffected. No-op if the entry is missing. Use this to reflect a known
+ * mutation (e.g. a toggled setting) in the cache without faking a fresh fetch.
+ */
+export function patchEntryData<T>(
+  ns: CacheNamespace,
+  key: string,
+  update: (data: T) => T,
+): void {
+  const store = load(ns);
+  const entry = store[key] as CacheEntry<T> | undefined;
+  if (!entry) return;
+  persist(ns, { ...store, [key]: { ...entry, data: update(entry.data) } });
+}
+
 /** Age of an entry in ms, or Infinity when there is none. */
 export function ageOf(entry: { fetchedAt: number } | null | undefined): number {
   return entry ? Date.now() - entry.fetchedAt : Infinity;

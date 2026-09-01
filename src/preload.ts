@@ -31,6 +31,13 @@ const api: DombotApi = {
       domainName,
       refresh,
     ),
+  setAutoRenew: (registrar, domainName, enabled) =>
+    ipcRenderer.invoke(
+      IpcChannels.setAutoRenew,
+      registrar,
+      domainName,
+      enabled,
+    ),
   listPortfolio: (refresh) =>
     ipcRenderer.invoke(IpcChannels.listPortfolio, refresh),
   getRegistrarMetadata: () =>

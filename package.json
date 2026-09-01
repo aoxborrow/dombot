@@ -68,6 +68,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3",
+    "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0",
     "tldts": "^7.4.11",
     "zod": "^3.25.76",

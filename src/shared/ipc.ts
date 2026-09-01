@@ -15,6 +15,7 @@ export const IpcChannels = {
   listDynadotDomains: 'registrar:listDynadotDomains',
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
+  setAutoRenew: 'registrar:setAutoRenew',
   getAftermarket: 'market:getAftermarket',
   getRenewalPrice: 'pricing:getRenewalPrice',
   setManualPrice: 'pricing:setManualPrice',
@@ -362,6 +363,16 @@ export interface DombotApi {
     domainName: string,
     refresh?: boolean,
   ) => Promise<Partial<Domain> | null>;
+  /**
+   * Toggle auto-renew for a domain at its registrar. Resolves on success;
+   * rejects if the registrar reports a failure or doesn't support the operation
+   * (e.g. Cloudflare has no post-registration auto-renew endpoint).
+   */
+  setAutoRenew: (
+    registrar: RegistrarName,
+    domainName: string,
+    enabled: boolean,
+  ) => Promise<void>;
   getRegistrarMetadata: () => Promise<RegistrarMeta[]>;
   getRegistrarCredentials: (name: RegistrarName) => Promise<CredentialValues>;
   saveRegistrarCredentials: (

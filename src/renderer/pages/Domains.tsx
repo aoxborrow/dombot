@@ -40,8 +40,10 @@ import type {
   Domain,
   Folder,
   MarketListing,
+  RegistrarName,
   RenewalPricing,
 } from '../../shared/ipc';
+import { toast } from 'sonner';
 import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
@@ -510,17 +512,39 @@ function LifecycleBadge({ status }: { status: string }) {
 }
 
 /**
- * Auto-renew toggle: reflects the domain's state but is read-only for now —
- * toggling is disabled until it's wired to registrar settings (TODO). Brand
- * green when on, a muted red when off to flag it.
+ * Auto-renew toggle: writes through to the registrar. The store applies the new
+ * value optimistically (so the switch flips immediately) and rolls back if the
+ * registrar rejects — some can't toggle it post-registration (e.g. Cloudflare).
+ * Outcome is surfaced as a toast; the switch is disabled while in flight. Brand
+ * green when on, a muted red when off.
  */
-function AutoRenewSwitch({ value }: { value: boolean }) {
+function AutoRenewSwitch({ domain }: { domain: Domain }) {
+  const setAutoRenew = useAppStore((s) => s.setAutoRenew);
+  const key = `${domain.registrar}:${domain.domainName}`;
+  const pending = useAppStore((s) => s.mutating[key] ?? false);
+
+  const onToggle = (next: boolean) => {
+    setAutoRenew(domain.registrar as RegistrarName, domain.domainName, next)
+      .then(() =>
+        toast.success(
+          `Auto-renew ${next ? 'enabled' : 'disabled'} for ${domain.domainName}`,
+        ),
+      )
+      .catch((err: unknown) =>
+        toast.error(`Couldn’t update auto-renew for ${domain.domainName}`, {
+          description: err instanceof Error ? err.message : String(err),
+        }),
+      );
+  };
+
   return (
     <Switch
-      checked={value}
-      aria-readonly
+      checked={domain.autoRenew}
+      onCheckedChange={onToggle}
+      disabled={pending}
       aria-label="auto-renew"
-      className="cursor-default data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80"
+      title={`Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`}
+      className="data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80"
     />
   );
 }
@@ -581,7 +605,7 @@ const COLUMNS: Column[] = [
     label: 'Auto',
     align: 'center',
     compact: true,
-    render: (d) => <AutoRenewSwitch value={d.autoRenew} />,
+    render: (d) => <AutoRenewSwitch domain={d} />,
     sortValue: (d) => (d.autoRenew ? 1 : 0),
   },
   {

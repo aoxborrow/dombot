@@ -4,12 +4,19 @@ import {
   listPortfolio,
   registrars,
   type Domain,
+  type OperationResult,
   type RegistrarCredentials,
   type RegistrarName,
 } from '@aoxborrow/registrar-client';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { getDevEnvVar } from './dev-env';
-import { isStale, readAll, readEntry, writeEntry } from './cache';
+import {
+  isStale,
+  patchEntryData,
+  readAll,
+  readEntry,
+  writeEntry,
+} from './cache';
 import type { Portfolio, RegistrarMeta, TestResult } from '../../shared/ipc';
 
 // Cache key for the single aggregated portfolio, and the per-domain detail key.
@@ -248,6 +255,45 @@ export async function getDomainDetail(
   if (Object.keys(partial).length === 0) return null;
   writeEntry('detail', key, partial);
   return partial;
+}
+
+/**
+ * Toggles auto-renew for a domain at its registrar. Some providers report a soft
+ * failure via `OperationResult.success` rather than throwing (e.g. Namecheap),
+ * so a false `success` is normalized to a thrown error — callers only have to
+ * handle one failure mode. On success, the change is written into the portfolio
+ * and per-domain detail caches (fetchedAt preserved) so a relaunch reflects the
+ * new value without waiting for the next full refresh.
+ */
+export async function setDomainAutoRenew(
+  name: RegistrarName,
+  domainName: string,
+  enabled: boolean,
+): Promise<OperationResult> {
+  const result = await getRegistrarClient(name).setAutoRenew(
+    domainName,
+    enabled,
+  );
+  if (!result.success) {
+    throw new Error(
+      result.message || `Failed to update auto-renew for ${domainName}`,
+    );
+  }
+
+  patchEntryData<Portfolio>('portfolio', PORTFOLIO_KEY, (p) => ({
+    ...p,
+    domains: p.domains.map((d) =>
+      d.registrar === name && d.domainName === domainName
+        ? { ...d, autoRenew: enabled }
+        : d,
+    ),
+  }));
+  patchEntryData<Partial<Domain>>('detail', detailKey(name, domainName), (d) => ({
+    ...d,
+    autoRenew: enabled,
+  }));
+
+  return result;
 }
 
 /**

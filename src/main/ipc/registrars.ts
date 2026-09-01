@@ -15,6 +15,7 @@ import {
   getRegistrarCredentialValues,
   getRegistrarMetadata,
   saveRegistrarCredentials,
+  setDomainAutoRenew,
   testRegistrar,
 } from '../services/registrars';
 
@@ -44,6 +45,18 @@ export function registerRegistrarIpc(): void {
       refresh = false,
     ): Promise<Partial<Domain> | null> =>
       getDomainDetail(name, domainName, refresh),
+  );
+
+  ipcMain.handle(
+    IpcChannels.setAutoRenew,
+    async (
+      _e,
+      name: RegistrarName,
+      domainName: string,
+      enabled: boolean,
+    ): Promise<void> => {
+      await setDomainAutoRenew(name, domainName, enabled);
+    },
   );
 
   ipcMain.handle(

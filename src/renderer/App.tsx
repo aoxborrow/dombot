@@ -8,6 +8,7 @@ import Renewals from './pages/Renewals';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
 import StatusBar from './components/StatusBar';
+import { Toaster } from '@/components/ui/sonner';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
@@ -100,6 +101,9 @@ export default function App() {
 
       {/* App-wide: surfaces MCP connection approvals regardless of route. */}
       <ApprovalModal />
+
+      {/* App-wide toast host. Offset above the fixed status bar (h-6). */}
+      <Toaster position="bottom-right" offset={32} />
     </div>
   );
 }
