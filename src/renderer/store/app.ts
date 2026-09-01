@@ -84,6 +84,20 @@ interface AppState {
    * that backs the Nameservers filter. */
   loadAllDetail: (domains: Domain[]) => Promise<void>;
 
+  // Per-domain writes currently in flight, keyed `${registrar}:${domainName}`,
+  // so a toggled cell can disable itself until the round trip settles.
+  mutating: Record<string, boolean>;
+  /**
+   * Toggle a domain's auto-renew at its registrar. Optimistically updates the
+   * merged view (via `enriched`), then rolls back and rethrows if the registrar
+   * rejects — the caller surfaces the error.
+   */
+  setAutoRenew: (
+    registrar: RegistrarName,
+    domainName: string,
+    enabled: boolean,
+  ) => Promise<void>;
+
   // Aftermarket pricing (DomDB), keyed by domain name. `null` = fetched but
   // untracked/unavailable. `marketLoading` drives the Market cell's spinner.
   aftermarket: Record<string, Aftermarket | null>;
@@ -266,6 +280,39 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   enriched: {},
   enriching: {},
+  mutating: {},
+  setAutoRenew: async (registrar, domainName, enabled) => {
+    const key = `${registrar}:${domainName}`;
+    const state = get();
+    // Base to merge onto: the already-enriched full domain if present, else the
+    // portfolio summary. Bail if we can't find it (nothing to update).
+    const base =
+      state.enriched[key] ??
+      state.portfolio.find((d) => domainKey(d) === key);
+    if (!base) return;
+
+    // Optimistically reflect the new value and mark the cell in flight.
+    set((s) => ({
+      enriched: { ...s.enriched, [key]: { ...base, autoRenew: enabled } },
+      mutating: { ...s.mutating, [key]: true },
+    }));
+
+    try {
+      await window.api.setAutoRenew(registrar, domainName, enabled);
+    } catch (err) {
+      // Roll back to the pre-toggle value on any registrar-side failure.
+      set((s) => ({
+        enriched: { ...s.enriched, [key]: base },
+      }));
+      throw err;
+    } finally {
+      set((s) => {
+        const mutating = { ...s.mutating };
+        delete mutating[key];
+        return { mutating };
+      });
+    }
+  },
   enrichVisible: async (domains, force = false) => {
     const todo = domains.filter((d) => {
       const key = domainKey(d);

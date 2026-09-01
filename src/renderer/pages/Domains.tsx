@@ -40,6 +40,7 @@ import type {
   Domain,
   Folder,
   MarketListing,
+  RegistrarName,
   RenewalPricing,
 } from '../../shared/ipc';
 import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
@@ -510,17 +511,42 @@ function LifecycleBadge({ status }: { status: string }) {
 }
 
 /**
- * Auto-renew toggle: reflects the domain's state but is read-only for now —
- * toggling is disabled until it's wired to registrar settings (TODO). Brand
- * green when on, a muted red when off to flag it.
+ * Auto-renew toggle: writes through to the registrar. The store applies the new
+ * value optimistically (so the switch flips immediately) and rolls back if the
+ * registrar rejects — some can't toggle it post-registration (e.g. Cloudflare)
+ * and surface an error, which we show as a red ring + tooltip. Brand green when
+ * on, a muted red when off. Disabled while the round trip is in flight.
  */
-function AutoRenewSwitch({ value }: { value: boolean }) {
+function AutoRenewSwitch({ domain }: { domain: Domain }) {
+  const setAutoRenew = useAppStore((s) => s.setAutoRenew);
+  const key = `${domain.registrar}:${domain.domainName}`;
+  const pending = useAppStore((s) => s.mutating[key] ?? false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onToggle = (next: boolean) => {
+    setError(null);
+    void setAutoRenew(
+      domain.registrar as RegistrarName,
+      domain.domainName,
+      next,
+    ).catch((err: unknown) => {
+      setError(err instanceof Error ? err.message : String(err));
+    });
+  };
+
   return (
     <Switch
-      checked={value}
-      aria-readonly
+      checked={domain.autoRenew}
+      onCheckedChange={onToggle}
+      disabled={pending}
       aria-label="auto-renew"
-      className="cursor-default data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80"
+      title={
+        error ?? `Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`
+      }
+      className={cn(
+        'data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80',
+        error && 'ring-2 ring-red-500 ring-offset-1',
+      )}
     />
   );
 }
@@ -581,7 +607,7 @@ const COLUMNS: Column[] = [
     label: 'Auto',
     align: 'center',
     compact: true,
-    render: (d) => <AutoRenewSwitch value={d.autoRenew} />,
+    render: (d) => <AutoRenewSwitch domain={d} />,
     sortValue: (d) => (d.autoRenew ? 1 : 0),
   },
   {
