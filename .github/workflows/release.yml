@@ -25,6 +25,7 @@ on:
 
 permissions:
   contents: write # create tags/releases and upload assets
+  actions: write # dispatch the deploy-pages workflow after publishing
 
 concurrency:
   group: release-${{ github.ref }}
@@ -215,3 +216,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release edit "${{ needs.setup.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+      - name: Rebuild the site with the new release
+        # Publishing with GITHUB_TOKEN doesn't fire `release: published` for other
+        # workflows (anti-recursion), so trigger deploy-pages explicitly to refresh
+        # the download links + version. workflow_dispatch IS allowed via GITHUB_TOKEN.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run deploy-pages.yml --repo "$GITHUB_REPOSITORY" --ref main
