@@ -103,3 +103,8 @@ out/
 *.provisionprofile
 *.keychain
 *.keychain-db
+
+# Full tldes.com pricing dumps — large and not ours to redistribute. Only the
+# extracted data/tld-renewal-pricing.json (built by scripts/build-base-pricing.mjs)
+# is committed.
+data/tld-pricing-[0-9]*.json
