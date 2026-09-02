@@ -61,13 +61,6 @@ state. Registrar API support comes from
 [`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client);
 agents connect through an embedded MCP server. Contributions welcome.
 
-## Getting started
-
-```bash
-npm install
-npm start
-```
-
 ## Scripts
 
 | Command              | Description                                        |
@@ -140,21 +133,6 @@ connect Claude Code (no token needed — approve in the page that opens):
 ```bash
 claude mcp add dombot --transport http http://127.0.0.1:4123/mcp
 ```
-
-## Architecture notes
-
-- **Security.** The renderer runs with `contextIsolation` and `sandbox` enabled
-  and `nodeIntegration` disabled. It reaches the main process only through the
-  typed bridge exposed on `window.api`.
-- **Typed IPC.** [`src/shared/ipc.ts`](src/shared/ipc.ts) is the single source
-  of truth: it defines channel names, payload/return types, and the `DombotApi`
-  interface consumed by both the preload script and the renderer. Add a method
-  there and both sides are type-checked.
-- **Renderer Vite config is `.mts`.** Tailwind v4's Vite plugin is ESM-only, so
-  [`vite.renderer.config.mts`](vite.renderer.config.mts) is an ES module while
-  the project stays CommonJS.
-- **HashRouter.** The packaged app loads over `file://`, where history-based
-  routing does not resolve — hash routing avoids that.
 
 ## License
 
