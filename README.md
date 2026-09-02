@@ -36,12 +36,10 @@ local-first: your data and API keys stay on your machine.
 
 ## Configuring registrars
 
-Registrar credentials are entered once in **Settings → Registrars** and stored
-encrypted on the device via Electron `safeStorage` (Keychain on macOS, DPAPI on
-Windows) — DomBot never sends them anywhere but the registrar's own API. Each
-registrar's required fields come from
-[`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client),
-which documents how to obtain an API key for each supported provider.
+Add each registrar in **Settings → Registrars** with an API key from that
+provider's account — DomBot shows where to find each one. Credentials are stored
+encrypted on your device via Electron `safeStorage` (Keychain on macOS, DPAPI on
+Windows) and are never sent anywhere but the registrar's own API.
 
 ---
 
