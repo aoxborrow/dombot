@@ -7,17 +7,9 @@ Cloudflare, and more — into one desktop app, and serves the same portfolio to
 your AI agents through a built-in MCP server. It's free, open source, and
 local-first: your data and API keys stay on your machine.
 
-[**dombot.ai**](https://dombot.ai) · macOS · Windows · Linux
-
-## Download & install
-
-Grab the latest build for macOS (Apple Silicon & Intel), Windows, or Linux from
+**Download** for macOS, Windows, or Linux from
 [**dombot.ai**](https://dombot.ai) or the
-[**Releases**](https://github.com/aoxborrow/dombot/releases) page.
-
-- **macOS** — signed and notarized; open it like any other app.
-- **Windows** — the installer is unsigned, so on first launch SmartScreen may
-  appear → **More info** → **Run anyway**.
+[Releases](https://github.com/aoxborrow/dombot/releases) page.
 
 ## What it does
 
