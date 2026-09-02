@@ -50,7 +50,6 @@ export default function McpClientsSettings() {
           />
           <CopyField
             label="stdio command"
-            hint="For clients that launch a command instead of dialing a URL (Claude Desktop: add it under mcpServers in claude_desktop_config.json). DomBot launches automatically if it isn't running."
             value={shellQuote([info.stdioCommand, ...info.stdioArgs])}
           />
         </SettingsCard>
@@ -95,15 +94,7 @@ export default function McpClientsSettings() {
  * the marketing site: a small uppercase label above a mono field that flips the
  * button to a check for a moment on copy.
  */
-function CopyField({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-}) {
+function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -138,7 +129,6 @@ function CopyField({
           {copied ? <Check /> : <Copy />}
         </Button>
       </div>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
