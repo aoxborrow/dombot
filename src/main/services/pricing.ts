@@ -12,11 +12,14 @@ import type { RenewalPricing } from '../../shared/ipc';
 //   1. manual override — a price the user typed in.
 //   2. per-name API quote — only for registrars that price a *specific* domain,
 //      so the figure captures premium renewals. Gandi (its per-name price
-//      endpoint), Dynadot (its classic renew price-check quote), and Porkbun (its
-//      checkDomain renewal price-check) qualify; the rest either can't price an
-//      owned domain at all (Cloudflare/GoDaddy-renewal/Spaceship/NameBright/
-//      Namecheap) or only expose a generic per-TLD rate, which we deliberately
-//      don't use here.
+//      endpoint) and Dynadot (its classic renew price-check quote) qualify; the
+//      rest either can't price an owned domain at all (Cloudflare/GoDaddy-renewal/
+//      Spaceship/NameBright/Namecheap) or only expose a generic per-TLD rate,
+//      which we don't use here. (Porkbun *can* price per-name via checkDomain,
+//      but its aggressive rate limit made that impractical, so it now takes the
+//      base rate too.) This layer is also skipped for TLDs with no registry
+//      premium program (NO_PREMIUM_TLDS): the base rate is already exact there,
+//      so there's nothing a per-name quote can add.
 //   3. base database — the standard per-TLD rate that fills everything else
 //      (see base-pricing.ts).
 //
@@ -24,12 +27,27 @@ import type { RenewalPricing } from '../../shared/ipc';
 
 // Registrars whose `getPricing(domain)` returns a genuine per-name renewal for a
 // domain you already own, premium included (verified live). Only these get an
-// API lookup.
-const SPECIFIC_CAPABLE = new Set<RegistrarName>([
-  'gandi',
-  'dynadot',
-  'porkbun',
-]);
+// API lookup, and only for TLDs that can actually carry premium names (see
+// NO_PREMIUM_TLDS). Porkbun qualifies technically, but its aggressive rate limit
+// made per-name lookups impractical, so it's intentionally left out and falls
+// back to the base rate.
+const SPECIFIC_CAPABLE = new Set<RegistrarName>(['gandi', 'dynadot']);
+
+// TLDs whose registry runs no premium program, so every name renews at one
+// uniform rate — the base per-TLD price is already exact and a per-name quote
+// can't improve on it. These are the legacy gTLDs; extend as more flat-priced
+// TLDs are confirmed. (Within any TLD *not* listed here, individual names may be
+// premium, so we still need a per-name quote to be sure.)
+const NO_PREMIUM_TLDS = new Set<string>(['com', 'net', 'org', 'info', 'biz']);
+
+// Whether a per-name API quote is worth fetching for this registrar + TLD: the
+// registrar must price owned domains specifically, and the TLD must be able to
+// carry premium names in the first place.
+function usesPerNameQuote(registrar: RegistrarName, tld: string): boolean {
+  return (
+    SPECIFIC_CAPABLE.has(registrar) && !NO_PREMIUM_TLDS.has(tld.toLowerCase())
+  );
+}
 
 // Cache entries older than this are re-fetched. Renewal prices change rarely, so
 // a long life keeps the dashboard instant and the APIs untouched on revisit.
@@ -45,35 +63,6 @@ let cache: Record<string, CacheEntry> | null = null;
 let overrides: Record<string, number> | null = null;
 // Dedupes in-flight lookups by cache key so concurrent requests coalesce.
 const inFlight = new Map<string, Promise<CacheEntry>>();
-
-// Porkbun rate-limits its per-name renewal check (checkDomain) to ~1 call per
-// 10s. The renderer fetches prices with a small concurrency pool, so without
-// pacing several Porkbun lookups would fire at once, 429, exhaust the HTTP
-// layer's 2 retries, and get cached as unpriced (falling back to base) for a
-// premium name. Serialize Porkbun fetches through a chain that leaves a gap
-// between each; other registrars are unaffected. (Only genuine, uncached
-// fetches reach here — resolveCached coalesces and caches the rest.)
-const PORKBUN_MIN_INTERVAL_MS = 10_500;
-let porkbunChain: Promise<unknown> = Promise.resolve();
-let porkbunLastAt = 0;
-
-function throttlePorkbun<T>(task: () => Promise<T>): Promise<T> {
-  const run = porkbunChain.then(async () => {
-    const wait = porkbunLastAt + PORKBUN_MIN_INTERVAL_MS - Date.now();
-    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-    try {
-      return await task();
-    } finally {
-      porkbunLastAt = Date.now();
-    }
-  });
-  // Keep the chain alive whether or not this task settled cleanly.
-  porkbunChain = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
 
 function cacheFile(): string {
   return path.join(app.getPath('userData'), 'pricing-cache.json');
@@ -194,11 +183,9 @@ export async function getRenewalPrice(
     };
   }
 
-  if (SPECIFIC_CAPABLE.has(registrar)) {
+  if (usesPerNameQuote(registrar, tldOf(domain))) {
     const entry = await resolveCached(`${registrar}:dom:${domain}`, () =>
-      registrar === 'porkbun'
-        ? throttlePorkbun(() => fetchPrice(registrar, domain))
-        : fetchPrice(registrar, domain),
+      fetchPrice(registrar, domain),
     );
     if (entry.renewal !== null) {
       return {
@@ -253,7 +240,7 @@ export function getCachedRenewalPrice(
     };
   }
 
-  if (SPECIFIC_CAPABLE.has(registrar)) {
+  if (usesPerNameQuote(registrar, tldOf(domain))) {
     const entry = loadCache()[`${registrar}:dom:${domain}`];
     if (entry && entry.renewal !== null) {
       return {
