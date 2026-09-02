@@ -1,27 +1,23 @@
 # DomBot
 
-**DomBot is a desktop app for managing a domain portfolio that's spread across
-many registrars — from one place.** If you hold names at Dynadot, Namecheap,
-GoDaddy, Cloudflare, Gandi, and others, each has its own dashboard, its own
-login, and its own idea of what "expiring soon" looks like, so there's no single
-view of what you own, what's about to renew, or what it all costs. DomBot pulls
-every registrar into one table, one renewal forecast, and one set of controls.
+**All your domains, from every registrar, in one app + MCP.**
 
-Registrar API support — the actual talking-to-Dynadot/Namecheap/GoDaddy/… — is
-provided by [`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client),
-a standalone, provider-agnostic library. DomBot is the desktop app around it.
+DomBot pulls your whole domain portfolio — scattered across GoDaddy, Dynadot,
+Cloudflare, and more — into one desktop app, and serves the same portfolio to
+your AI agents through a built-in MCP server. It's free, open source, and
+local-first: your data and API keys stay on your machine.
+
+[**dombot.ai**](https://dombot.ai) · macOS · Windows · Linux
 
 ## Download & install
 
 Grab the latest build for macOS (Apple Silicon & Intel), Windows, or Linux from
-the [**Releases**](https://github.com/aoxborrow/dombot/releases) page, or from
-[dombot.ai](https://dombot.ai).
+[**dombot.ai**](https://dombot.ai) or the
+[**Releases**](https://github.com/aoxborrow/dombot/releases) page.
 
-Builds are currently **unsigned**, so on first launch:
-
-- **macOS** → right-click the app → **Open** (or run
-  `xattr -dr com.apple.quarantine <app>`)
-- **Windows** → SmartScreen → **More info** → **Run anyway**
+- **macOS** — signed and notarized; open it like any other app.
+- **Windows** — the installer is unsigned, so on first launch SmartScreen may
+  appear → **More info** → **Run anyway**.
 
 ## What it does
 
@@ -53,15 +49,13 @@ Builds are currently **unsigned**, so on first launch:
 
 ## Why it's useful
 
-Domain portfolios sprawl. Once you're past a handful of names across two or
-three registrars, the questions that actually matter — _What's about to expire?
-What will I pay this quarter? Which of these auto-renew? Where are my nameservers
-pointed?_ — have no single answer, because the data lives behind several
-dashboards. DomBot's premise is that the portfolio is one thing even when the
-registrars aren't: it gives you a consolidated, always-current view, flags the
-domains that need attention before they lapse, turns renewal dates into a
-spending forecast, and hands that same consolidated control surface to AI agents
-over MCP.
+Registrars each have their own dashboard, login, and idea of "expiring soon," so
+once you're past a handful of names the questions that actually matter — _What's
+about to expire? What will I pay this quarter? Which of these auto-renew? Where
+are my nameservers pointed?_ — have no single answer. DomBot makes the portfolio
+one thing again: a consolidated, always-current view that flags the domains
+needing attention before they lapse, turns renewal dates into a spending
+forecast, and hands that same control surface to AI agents over MCP.
 
 ## Configuring registrars
 
@@ -76,23 +70,11 @@ which documents how to obtain an API key for each supported provider.
 
 # Development
 
-DomBot is a cross-platform desktop app built with **Electron Forge**, **React
-19**, **TypeScript** (strict), and **Vite**. Contributions welcome.
-
-## Stack
-
-| Layer    | Choice                                            |
-| -------- | ------------------------------------------------- |
-| Shell    | Electron 44 + Electron Forge (Vite plugin)        |
-| UI       | React 19                                          |
-| Language | TypeScript (strict)                               |
-| Bundler  | Vite 5                                            |
-| Styling  | Tailwind CSS v4 (`@tailwindcss/vite`)             |
-| Routing  | React Router (HashRouter)                         |
-| State    | Zustand                                           |
-| Registrars | [`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client) |
-| Agents   | Embedded MCP server (`@modelcontextprotocol/sdk`) |
-| Tooling  | ESLint + Prettier                                 |
+DomBot is a cross-platform desktop app built with Electron Forge, React 19,
+TypeScript (strict), and Vite, styled with Tailwind CSS v4 and Zustand for
+state. Registrar API support comes from
+[`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client);
+agents connect through an embedded MCP server. Contributions welcome.
 
 ## Getting started
 
@@ -276,15 +258,11 @@ packaged `.app` with `hdiutil` (macOS's built-in tool), sidestepping
 
 ### Code signing
 
-By default builds are **ad-hoc signed** on macOS (valid signature, but not
-notarized) and **unsigned** on Windows — so first launch shows a Gatekeeper /
-SmartScreen prompt, which the download page documents (macOS: right-click →
-Open, or `xattr -dr com.apple.quarantine <app>`; Windows: More info → Run
-anyway).
-
-**macOS notarization** is wired up and activates automatically once these
-repository secrets are set (Settings → Secrets and variables → Actions) — until
-then the mac build stays ad-hoc and the signing step is skipped:
+**macOS** builds are Developer ID signed and notarized, so they launch with no
+Gatekeeper prompt. Signing activates when these repository secrets are present
+(Settings → Secrets and variables → Actions); without them the mac build falls
+back to **ad-hoc signed** (valid signature, not notarized) and the signing step
+is skipped:
 
 | Secret | What it is |
 | ------ | ---------- |
