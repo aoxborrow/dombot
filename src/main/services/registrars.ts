@@ -368,9 +368,20 @@ function resolveField(name: RegistrarName, field: string): string | undefined {
 }
 
 function isConfigured(name: RegistrarName): boolean {
-  return registrars[name].configFields.every(
+  const fields = registrars[name].configFields;
+  // Every required field must resolve to a value.
+  const requiredOk = fields.every(
     (field) => !field.required || Boolean(resolveField(name, field.name)),
   );
+  if (!requiredOk) return false;
+  // Some registrars mark every credential field optional because they accept
+  // one of several auth shapes (e.g. GoDaddy: a PAT, or a key + secret pair).
+  // There "all required fields present" is vacuously true even with nothing
+  // entered, which would make the registrar look configured on a fresh install
+  // and then 401 on the first query. So when nothing is required, also demand
+  // at least one credential value before treating the registrar as configured.
+  if (fields.some((field) => field.required)) return true;
+  return fields.some((field) => Boolean(resolveField(name, field.name)));
 }
 
 function resolveCredentials(name: RegistrarName): RegistrarCredentials {

@@ -13,6 +13,15 @@ const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 1000,
     height: 720,
+    // Paint the window with the app's dark background from the first frame so
+    // there's no white flash before the renderer loads. The UI is forced to
+    // dark (see renderer theme-provider), and this matches its `--background`
+    // (oklch(0.145 0 0)). Also defer showing until the content is ready.
+    backgroundColor: '#0a0a0a',
+    show: false,
+    // Hide the native File/Edit/View menu bar on Windows/Linux (Alt won't
+    // reveal it — see removeMenu below). macOS keeps its standard app menu.
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       // Security defaults: keep the renderer isolated from Node and only let it
@@ -22,6 +31,14 @@ const createWindow = () => {
       sandbox: true,
     },
   });
+
+  // Fully remove the menu on Windows/Linux so Alt can't toggle it back into
+  // view. No-op on macOS, which uses the application menu bar instead.
+  if (process.platform !== 'darwin') {
+    mainWindow.removeMenu();
+  }
+
+  mainWindow.once('ready-to-show', () => mainWindow.show());
 
   // Load the Vite dev server in development, or the built index.html in prod.
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {

@@ -1,5 +1,8 @@
 <!doctype html>
-<html lang="en">
+<!-- The UI is forced to dark (see renderer theme-provider). Start the document
+     dark so the very first paint — before React mounts and before the stylesheet
+     loads — matches, with no white flash for dark-mode users. -->
+<html lang="en" class="dark" style="background-color: #0a0a0a; color-scheme: dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

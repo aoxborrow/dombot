@@ -40,7 +40,7 @@ export default function DataSettings() {
         <p className="text-sm text-muted-foreground">
           Clear every on-disk cache and reset the loaded portfolio. Your saved
           registrar credentials, manual prices, and folders are kept. The next
-          “Load domains” re-fetches everything fresh.
+          “Refresh domains” re-fetches everything fresh.
         </p>
         <div className="flex items-center gap-3">
           <Button

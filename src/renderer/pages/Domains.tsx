@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ArrowDown,
   ArrowUp,
@@ -27,6 +28,7 @@ import {
   Globe,
   Lock,
   LockOpen,
+  Plug,
   RefreshCw,
   Search,
   Server,
@@ -78,6 +80,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyTitle,
@@ -759,7 +762,22 @@ export default function Domains() {
     assignFolder,
   } = useAppStore();
 
+  const navigate = useNavigate();
   const openExternal = (url: string) => void window.api.openExternal(url);
+
+  // Whether any registrar has credentials configured. Drives the empty state:
+  // with none configured we point the user at Settings rather than show an
+  // empty table they can't fill. Defaults to true so the table (not the
+  // configure prompt) shows while this first resolves. Re-checked after a
+  // refresh in case credentials changed.
+  const [hasConfiguredRegistrars, setHasConfiguredRegistrars] = useState(true);
+  useEffect(() => {
+    void window.api
+      .getRegistrarMetadata()
+      .then((metas) =>
+        setHasConfiguredRegistrars(metas.some((m) => m.configured)),
+      );
+  }, [portfolioLoadedAt]);
 
   // Overlay lazily-fetched per-domain detail (nameservers/privacy/lock) onto the
   // fast summary. Filtering, sorting, and rendering all use this merged view.
@@ -1189,57 +1207,59 @@ export default function Domains() {
               ? `${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
                   portfolioRegistrars.length === 1 ? '' : 's'
                 }`
-              : 'Load your portfolio across every configured registrar.'}
+              : !hasConfiguredRegistrars
+                ? 'Configure a registrar to load your domains.'
+                : 'Refresh to load your portfolio across every configured registrar.'}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          {portfolioLoadedAt !== null ? (
-            // Dimmed "Refresh domains" button with the last-refreshed time as a
-            // small caption centered beneath it. Amber (fill + dot) once past the
-            // stale threshold.
-            <div className="flex flex-col items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void loadPortfolio()}
-                disabled={portfolioLoading || tooSoon}
-                title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}${
-                  tooSoon
-                    ? ' — just refreshed, try again in a minute'
-                    : stale
-                      ? ' — data may be stale, click to refresh'
-                      : ' — click to refresh'
-                }`}
-                className={cn(
-                  'border-border/40 text-muted-foreground hover:text-foreground',
-                  stale &&
-                    'border-amber-500/50 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60 dark:hover:text-amber-300',
-                )}
-              >
-                {stale && !portfolioLoading && (
-                  <span
-                    className="size-2 rounded-full bg-amber-500 dark:bg-amber-400"
-                    aria-hidden
-                  />
-                )}
-                <RefreshCw className={cn(portfolioLoading && 'animate-spin')} />
-                {portfolioLoading ? 'Refreshing…' : 'Refresh domains'}
-              </Button>
+          {/* Always the "Refresh domains" button — the same control before and
+              after the first load. Once loaded it dims and grows a last-refreshed
+              caption beneath it (amber fill + dot past the stale threshold).
+              Disabled until at least one registrar is configured. */}
+          <div className="flex flex-col items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadPortfolio()}
+              disabled={portfolioLoading || tooSoon || !hasConfiguredRegistrars}
+              title={
+                !hasConfiguredRegistrars
+                  ? 'Configure a registrar in Settings first'
+                  : portfolioLoadedAt !== null
+                    ? `Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}${
+                        tooSoon
+                          ? ' — just refreshed, try again in a minute'
+                          : stale
+                            ? ' — data may be stale, click to refresh'
+                            : ' — click to refresh'
+                      }`
+                    : 'Click to load your portfolio'
+              }
+              className={cn(
+                'border-border/40 text-muted-foreground hover:text-foreground',
+                stale &&
+                  'border-amber-500/50 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60 dark:hover:text-amber-300',
+              )}
+            >
+              {stale && !portfolioLoading && (
+                <span
+                  className="size-2 rounded-full bg-amber-500 dark:bg-amber-400"
+                  aria-hidden
+                />
+              )}
+              <RefreshCw className={cn(portfolioLoading && 'animate-spin')} />
+              {portfolioLoading ? 'Refreshing…' : 'Refresh domains'}
+            </Button>
+            {portfolioLoadedAt !== null && (
               <span
                 className="text-[11px] text-muted-foreground/60"
                 title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}`}
               >
                 Refreshed {timeAgo(portfolioLoadedAt)}
               </span>
-            </div>
-          ) : (
-            <Button
-              onClick={() => void loadPortfolio()}
-              disabled={portfolioLoading}
-            >
-              {portfolioLoading ? 'Loading…' : 'Load domains'}
-            </Button>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -1273,7 +1293,7 @@ export default function Domains() {
         </Alert>
       )}
 
-      {hasLoaded && (
+      {hasConfiguredRegistrars && (
         <>
           {/* Toolbar: search, filters, and export all flow inline and wrap
               together as equal items. Extra top margin separates it from the
@@ -1694,7 +1714,9 @@ export default function Domains() {
                       className="h-32 text-center text-muted-foreground"
                     >
                       {portfolio.length === 0
-                        ? 'No domains found in any configured registrar.'
+                        ? hasLoaded
+                          ? 'No domains found in any configured registrar.'
+                          : 'Click “Refresh domains” to load your portfolio.'
                         : 'No domains match the current filters.'}
                     </TableCell>
                   </TableRow>
@@ -1781,15 +1803,21 @@ export default function Domains() {
         </>
       )}
 
-      {!hasLoaded && !portfolioLoading && !portfolioError && (
+      {!hasConfiguredRegistrars && (
         <Empty className="rounded-lg border border-dashed">
           <EmptyHeader>
-            <EmptyTitle>No domains loaded</EmptyTitle>
+            <EmptyTitle>No registrars configured</EmptyTitle>
             <EmptyDescription>
-              Click “Load domains” to fetch every configured registrar into one
+              Add API credentials for a registrar to load your domains into one
               table.
             </EmptyDescription>
           </EmptyHeader>
+          <EmptyContent>
+            <Button onClick={() => navigate('/settings?tab=registrars')}>
+              <Plug />
+              Configure registrars
+            </Button>
+          </EmptyContent>
         </Empty>
       )}
     </div>
