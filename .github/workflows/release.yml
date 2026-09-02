@@ -176,6 +176,8 @@ jobs:
         # familiar "drag to Applications" layout.
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          # Label the Intel build "intel-x64" so it's obvious which mac is which.
+          LABEL="${{ matrix.arch }}"; [ "$LABEL" = "x64" ] && LABEL="intel-x64"
           APP="out/DomBot-darwin-${{ matrix.arch }}/DomBot.app"
           test -d "$APP" || { echo "::error::app not found at $APP"; ls -R out | head -40; exit 1; }
           STAGE="$(mktemp -d)"
@@ -183,7 +185,7 @@ jobs:
           ln -s /Applications "$STAGE/Applications"
           mkdir -p out/dmg
           hdiutil create -volname "DomBot" -srcfolder "$STAGE" -ov -format UDZO \
-            "out/dmg/DomBot-${VERSION}-mac-${{ matrix.arch }}.dmg"
+            "out/dmg/DomBot-${VERSION}-mac-${LABEL}.dmg"
           rm -rf "$STAGE"
 
       - name: Collect artifacts
@@ -200,6 +202,10 @@ jobs:
                 -exec cp {} dist/ \;
             fi
           done
+          # Group + clearly label the Linux packages: dombot-linux-<arch>-<version>.
+          V="$(node -p "require('./package.json').version")"
+          for f in dist/*.deb; do [ -e "$f" ] && mv "$f" "dist/dombot-linux-amd64-$V.deb"; done
+          for f in dist/*.rpm; do [ -e "$f" ] && mv "$f" "dist/dombot-linux-x86_64-$V.rpm"; done
           echo "Collected:" && ls -la dist
 
       - name: Upload build artifact
