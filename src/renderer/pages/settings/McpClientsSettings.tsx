@@ -113,7 +113,10 @@ function CopyField({ label, value }: { label: string; value: string }) {
         {label}
       </span>
       <div className="flex items-center gap-2 rounded-md border bg-muted/40 py-1.5 pr-1.5 pl-3">
-        <code className="min-w-0 flex-1 overflow-x-auto font-mono text-xs whitespace-nowrap text-foreground">
+        <code
+          className="min-w-0 flex-1 truncate font-mono text-xs text-foreground"
+          title={value}
+        >
           {value}
         </code>
         <Button
