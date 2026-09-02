@@ -94,23 +94,27 @@ npm start
 ## Cutting a release
 
 Binaries are built and published by GitHub Actions
-([`.github/workflows/release.yml`](.github/workflows/release.yml)) — push a
-version tag and the workflow builds every platform and attaches the installers
-to a GitHub Release:
+([`.github/workflows/release.yml`](.github/workflows/release.yml)). There are
+three ways to run it:
 
-```bash
-npm version patch      # or minor / major — commits + creates tag vX.Y.Z
-git push --follow-tags # pushing the tag triggers the release workflow
-```
+- **Push a version tag** (builds + publishes):
+  ```bash
+  npm version patch      # or minor / major — commits + creates tag vX.Y.Z
+  git push --follow-tags # pushing the tag triggers the release workflow
+  ```
+- **From the Actions tab** (no terminal): bump the version in `package.json`
+  (via a PR), then **Actions → Release → Run workflow**, tick **publish**. It
+  tags `v<package.json version>` and publishes (and refuses if that version was
+  already released).
+- **Validate only**: run the workflow with **publish** left off — it builds and
+  uploads the installers as artifacts on the run, without publishing a Release.
 
 The workflow fans out across macOS (arm64 + x64), Windows (x64), and Linux
 (x64), runs `npm run make` on each, and uploads the results — `.dmg` + `.zip`
 (macOS), `Setup.exe` (Windows), `.deb` + `.rpm` (Linux) — to a draft Release,
 which it publishes once all platforms succeed. The `.dmg` is assembled from the
 packaged `.app` with `hdiutil` (macOS's built-in tool), sidestepping
-`maker-dmg`'s fragile native `appdmg` dependency. Run the workflow manually from
-the Actions tab (**workflow_dispatch**) to test the build without publishing;
-those runs attach the artifacts to the Actions run instead of a Release.
+`maker-dmg`'s fragile native `appdmg` dependency.
 
 ### Code signing
 
