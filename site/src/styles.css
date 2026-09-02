@@ -188,7 +188,29 @@ pre .a { color: var(--accent-ink); font-weight: 500; }
 .logos-foot b { color: var(--ink); font-weight: 500; }
 
 /* ── mcp ── */
+/* ── MCP: copy + connect snippets on the left, a mock conversation on the right ── */
+.mcp-grid { display: grid; gap: 28px; align-items: center; }
+@media (min-width: 880px) { .mcp-grid { grid-template-columns: 1fr 1fr; gap: 48px; } .mcp-connect { margin-top: 30px; } }
+/* Stacked: dissolve the left wrapper so the chat can sit between the intro and the connect snippets. */
+@media (max-width: 879px) { .mcp-left { display: contents; } .chat { order: 1; } .mcp-connect { order: 2; } .mcp-connect .mcp-install:first-child { margin-top: 0; } }
+/* min-width: 0 stops the no-wrap connect snippet from widening the left track past 1fr. */
+.mcp-grid > * { min-width: 0; }
+.mcp-grid .sec-head p { line-height: 1.6; }
+/* In the half-width column the connect command doesn't fit on one line — wrap it rather than scroll. */
+.mcp-grid .mcp-install pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat {
+  border: 1px solid var(--line-strong); border-radius: 12px; overflow: hidden; background: var(--surface);
+  box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 22px 48px -14px rgba(0,0,0,.75);
+}
+.chat .window-bar { border: none; border-bottom: 1px solid var(--line); border-radius: 0; }
+.chat-body { padding: 18px; display: flex; flex-direction: column; gap: 10px; font-size: .86rem; line-height: 1.5; }
+.msg { max-width: 86%; padding: 9px 13px; border-radius: 14px; }
+.msg.user { align-self: flex-end; color: var(--ink); background: var(--accent-wash); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-bottom-right-radius: 4px; }
+.msg.bot { align-self: flex-start; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.msg.bot b { color: var(--ink); font-weight: 500; }
+
 .mcp-install { margin-top: 30px; }
+.mcp-install + .mcp-install { margin-top: 18px; }
 .mcp-install-label { color: var(--faint); font-family: "IBM Plex Mono", monospace; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 8px; }
 .mcp-install pre { margin: 0; padding-right: 46px; }
 .snippet { position: relative; display: inline-block; max-width: 100%; vertical-align: top; }

@@ -102,33 +102,50 @@
 
 <!-- ═══════════════ MCP ═══════════════ -->
 <section id="mcp">
-  <div class="wrap">
-    <div class="sec-head">
-      <span class="eyebrow">Connect with MCP</span>
-      <h2>Manage your domains with AI</h2>
-      <p>DomBot runs a local <a href="https://modelcontextprotocol.io">MCP</a> server, bound to your machine.</p>
-    </div>
+  <!-- On phones .mcp-left is display: contents, so the head, chat, and snippets become siblings and the chat slots in after the intro. -->
+  <div class="wrap mcp-grid">
+    <div class="mcp-left">
+      <div class="sec-head">
+        <span class="eyebrow">Connect with MCP</span>
+        <h2>Manage your domains with AI</h2>
+        <p>DomBot runs a local <a href="https://modelcontextprotocol.io">MCP</a> server, securely bound to your machine. Ask it anything about your portfolio and manage your domains in plain English: registrations, renewals, transfers, DNS, etc.</p>
+      </div>
 
-    <div class="mcp-install">
-      <p class="mcp-install-label">Add to Claude Code</p>
-      <div class="snippet">
-        <pre>claude mcp add --transport http dombot <span class="a">http://127.0.0.1:4123/mcp</span></pre>
-        <button class="copy-btn" type="button" aria-label="Copy command" data-copy="claude mcp add --transport http dombot http://127.0.0.1:4123/mcp">
-          <svg class="ic-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          <svg class="ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
-        </button>
+      <div class="mcp-connect">
+        <div class="mcp-install">
+          <p class="mcp-install-label">Server URL</p>
+          <div class="snippet">
+            <pre><span class="a">http://127.0.0.1:4123/mcp</span></pre>
+            <button class="copy-btn" type="button" aria-label="Copy server URL" data-copy="http://127.0.0.1:4123/mcp">
+              <svg class="ic-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <svg class="ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="mcp-install">
+          <p class="mcp-install-label">Add to Claude Code</p>
+          <div class="snippet">
+            <pre>claude mcp add --transport http dombot <span class="a">http://127.0.0.1:4123/mcp</span></pre>
+            <button class="copy-btn" type="button" aria-label="Copy command" data-copy="claude mcp add --transport http dombot http://127.0.0.1:4123/mcp">
+              <svg class="ic-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <svg class="ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <h3 class="mcp-features-head">What agents can do</h3>
-    <ul class="mcp-list">
-      <li>Check Availability &amp; Pricing</li>
-      <li>Set Nameservers</li>
-      <li>Set DNS Records</li>
-      <li>Manage Contacts &amp; Forwarding</li>
-      <li>Set Auto-Renew &amp; Lock</li>
-      <li>Register, Renew &amp; Transfer</li>
-    </ul>
+    <!-- Mock conversation: the fastest way to show what "MCP" means for a user. Pure markup, no image. -->
+    <div class="chat" aria-label="Example conversation with an agent connected to DomBot">
+      <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="chat-body">
+        <div class="msg user">which of my domains have auto-renew off and are expiring soon</div>
+        <div class="msg bot">Three in the next 60 days:<br><b>postmaster.io</b> (Spaceship) — Sep 7<br><b>ranker.io</b> (Namecheap) — Oct 22<br><b>brander.io</b> (GoDaddy) — Oct 30</div>
+        <div class="msg user">turn it on for brander.io</div>
+        <div class="msg bot">Done — auto-renew is now on for brander.io.</div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -138,34 +155,34 @@
   <div class="wrap">
     <div class="sec-head">
       <span class="eyebrow">Features</span>
-      <h2>One console for a portfolio that lives in a dozen places.</h2>
-      <p>Registrars each have their own dashboard, login, and idea of “expiring soon.” DomBot makes the portfolio one thing again.</p>
+      <h2>Everything you own, in one place.</h2>
+      <p>What you own, what’s renewing, and what it costs — across every registrar.</p>
     </div>
 
     <div class="features">
       <div class="feature">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 2h6M9 14h.01M15 14h.01M9 20v2M15 20v2"/></svg></span>
-        <div class="txt"><h3>Built-in MCP server</h3><p>Desktop app and MCP server in one — agents work the same portfolio you do.</p></div>
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M3 15h18M9 10v9"/></svg></span>
+        <div class="txt"><h3>Every registrar, one table</h3><p>Search, sort, and filter by TLD, registrar, or nameserver — then export any view to CSV.</p></div>
+      </div>
+      <div class="feature">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <div class="txt"><h3>Expiry at a glance</h3><p>Expiry dates color-coded by urgency, with badges for expired, grace, redemption, and hold.</p></div>
+      </div>
+      <div class="feature">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+        <div class="txt"><h3>Organize with folders</h3><p>Group domains into color-coded folders — For Sale, Dropping, Projects, whatever fits.</p></div>
       </div>
       <div class="feature">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 4-6"/></svg></span>
         <div class="txt"><h3>Renewals dashboard</h3><p>Yearly spend, what’s due next, month by month — by registrar and TLD.</p></div>
       </div>
       <div class="feature">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14"/></svg></span>
-        <div class="txt"><h3>Export to CSV</h3><p>One click exports the current filtered view — spreadsheet-ready.</p></div>
-      </div>
-      <div class="feature">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span>
-        <div class="txt"><h3>Local-first</h3><p>Your portfolio is cached on-device and opens instantly. No telemetry.</p></div>
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 2h6M9 14h.01M15 14h.01M9 20v2M15 20v2"/></svg></span>
+        <div class="txt"><h3>Built-in MCP server</h3><p>Desktop app and MCP server in one — agents work the same portfolio you do.</p></div>
       </div>
       <div class="feature">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
-        <div class="txt"><h3>Encrypted keys</h3><p>API keys are sealed in the OS keystore — Keychain, DPAPI, or libsecret.</p></div>
-      </div>
-      <div class="feature">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></span>
-        <div class="txt"><h3>Open source</h3><p>The whole app is public — read exactly what it does, or build it yourself.</p></div>
+        <div class="txt"><h3>Local-first &amp; private</h3><p>Cached on-device, opens instantly, works offline. API keys stay sealed in your OS keystore.</p></div>
       </div>
     </div>
   </div>
