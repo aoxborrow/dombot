@@ -13,6 +13,7 @@
     "lint": "eslint --ext .ts,.tsx .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
+    "pricing:build": "node scripts/build-base-pricing.mjs",
     "site:dev": "vite site",
     "site:build": "vite build site",
     "site:preview": "vite preview site"
@@ -56,7 +57,7 @@
     "vite": "^5.4.21"
   },
   "dependencies": {
-    "@aoxborrow/registrar-client": "^0.1.0",
+    "@aoxborrow/registrar-client": "^0.2.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
