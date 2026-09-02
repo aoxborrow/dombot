@@ -1,5 +1,8 @@
 # DomBot
 
+[![Latest release](https://img.shields.io/github/v/release/aoxborrow/dombot?label=release)](https://github.com/aoxborrow/dombot/releases/latest)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
+
 **All your domains, from every registrar, in one app + MCP.**
 
 DomBot pulls your whole domain portfolio — scattered across GoDaddy, Dynadot,
@@ -34,14 +37,33 @@ local-first: your data and API keys stay on your machine.
   stale.
 - **Agent-ready.** An embedded local MCP server lets AI agents (Claude Code,
   Claude Desktop, any MCP client) read and manage the same portfolio — see
-  [Embedded MCP server](#embedded-mcp-server).
+  [Connecting an AI agent](#connecting-an-ai-agent).
 
 ## Configuring registrars
 
+DomBot currently supports **GoDaddy, Cloudflare, Dynadot, NameSilo, Spaceship,
+Namecheap, Porkbun, Gandi, and NameBright**, with more on the way.
+
 Add each registrar in **Settings → Registrars** with an API key from that
 provider's account — DomBot shows where to find each one. Credentials are stored
-encrypted on your device via Electron `safeStorage` (Keychain on macOS, DPAPI on
-Windows) and are never sent anywhere but the registrar's own API.
+encrypted on your device via your OS keychain (Electron `safeStorage`) and are
+never sent anywhere but the registrar's own API.
+
+## Connecting an AI agent
+
+DomBot runs a local [MCP](https://modelcontextprotocol.io) server, bound to
+your machine only, so any MCP client can work with your portfolio. To connect
+Claude Code:
+
+```bash
+claude mcp add dombot --transport http http://127.0.0.1:4123/mcp
+```
+
+On first connect a browser page opens and DomBot's own window shows an
+Approve/Deny prompt with a matching confirmation code. Approve once and the
+client stays paired across restarts; manage or revoke paired clients in
+**Settings → MCP Clients**. The URL and a ready-to-paste connect command are
+also shown on the Home screen.
 
 ---
 
@@ -51,7 +73,8 @@ DomBot is a cross-platform desktop app built with Electron Forge, React 19,
 TypeScript (strict), and Vite, styled with Tailwind CSS v4 and Zustand for
 state. Registrar API support comes from
 [`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client);
-agents connect through an embedded MCP server. Contributions welcome.
+agents connect through an embedded MCP server. Contributions welcome — clone
+the repo, `npm install`, and `npm start` to run the app with hot reload.
 
 ## Scripts
 
@@ -77,22 +100,19 @@ credentials feed both the UI and the MCP server.
 
 ## Embedded MCP server
 
-The app runs a local [MCP](https://modelcontextprotocol.io) server so agents
-(Claude Code, Claude Desktop, any MCP client) can manage the portfolio. It's a
+The MCP server (see [Connecting an AI agent](#connecting-an-ai-agent)) is a
 third _adapter_ over the same `services/` core the UI uses — see
 [`src/main/mcp/`](src/main/mcp).
 
 - **Transport:** Streamable HTTP, bound to `127.0.0.1` only. Never exposed off
   the machine.
 - **Auth:** OAuth 2.1 (dynamic client registration + PKCE), served by the app.
-  On first connect a browser waiting page opens and **DomBot's own window shows
-  an Approve/Deny prompt** (client name + a confirmation code that matches the
-  browser page). Approve once and the client is paired; the issued token is
-  persisted (`userData/mcp-tokens.json`) so it stays paired across restarts.
-  Manage or revoke paired clients in **Settings → MCP Clients**. Env knobs:
-  `DOMBOT_MCP_PORT` (default `4123`), `DOMBOT_MCP_ENABLED=0` to disable,
-  `DOMBOT_MCP_AUTOAPPROVE=1` to skip the approval prompt (dev/testing),
-  `DOMBOT_MCP_TOKEN` for a static bearer token escape hatch (dev/testing). See
+  The approval prompt lives in DomBot's own window; the issued token is
+  persisted (`userData/mcp-tokens.json`) so clients stay paired across
+  restarts. Env knobs: `DOMBOT_MCP_PORT` (default `4123`),
+  `DOMBOT_MCP_ENABLED=0` to disable, `DOMBOT_MCP_AUTOAPPROVE=1` to skip the
+  approval prompt (dev/testing), `DOMBOT_MCP_TOKEN` for a static bearer token
+  escape hatch (dev/testing). See
   [`src/main/mcp/oauth.ts`](src/main/mcp/oauth.ts).
 - **Tools.** Named by scope, so a caller can tell at a glance what a tool acts
   on: `portfolio_*` take no scope params, `registrar_*` require a `registrar`
@@ -115,16 +135,9 @@ third _adapter_ over the same `services/` core the UI uses — see
   - _Writes (money):_ `registrar_register_domain`, `registrar_transfer_domain`,
     `domain_renew`. Not gated behind extra per-call approval — the
     connection-level OAuth approval is the gate — and annotated non-idempotent.
-- **Credentials.** A client is built per registrar from `.env` using each
-  provider's `configFields` and the `<PROVIDER>_<FIELD>` naming convention (see
-  [`.env.example`](.env.example)). "Configured" means all required vars present.
-
-The URL and a ready-to-paste connect command are shown on the Home screen. To
-connect Claude Code (no token needed — approve in the page that opens):
-
-```bash
-claude mcp add dombot --transport http http://127.0.0.1:4123/mcp
-```
+- **Credentials.** Resolved the same way as the UI (see
+  [Credentials in development](#credentials-in-development)); a registrar is
+  "configured" when all of its required fields are present.
 
 ## License
 
