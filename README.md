@@ -7,16 +7,21 @@ login, and its own idea of what "expiring soon" looks like, so there's no single
 view of what you own, what's about to renew, or what it all costs. DomBot pulls
 every registrar into one table, one renewal forecast, and one set of controls.
 
-It's a cross-platform desktop app built with **Electron Forge**, **React**,
-**TypeScript**, and **Vite**.
+Registrar API support — the actual talking-to-Dynadot/Namecheap/GoDaddy/… — is
+provided by [`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client),
+a standalone, provider-agnostic library. DomBot is the desktop app around it.
 
-## Download
+## Download & install
 
 Grab the latest build for macOS (Apple Silicon & Intel), Windows, or Linux from
 the [**Releases**](https://github.com/aoxborrow/dombot/releases) page, or from
-[dombot.ai](https://dombot.ai). Builds are currently **unsigned**, so on first
-launch: macOS → right-click the app → **Open**; Windows → SmartScreen → **More
-info** → **Run anyway**.
+[dombot.ai](https://dombot.ai).
+
+Builds are currently **unsigned**, so on first launch:
+
+- **macOS** → right-click the app → **Open** (or run
+  `xattr -dr com.apple.quarantine <app>`)
+- **Windows** → SmartScreen → **More info** → **Run anyway**
 
 ## What it does
 
@@ -58,6 +63,22 @@ domains that need attention before they lapse, turns renewal dates into a
 spending forecast, and hands that same consolidated control surface to AI agents
 over MCP.
 
+## Configuring registrars
+
+Registrar credentials are entered once in **Settings → Registrars** and stored
+encrypted on the device via Electron `safeStorage` (Keychain on macOS, DPAPI on
+Windows) — DomBot never sends them anywhere but the registrar's own API. Each
+registrar's required fields come from
+[`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client),
+which documents how to obtain an API key for each supported provider.
+
+---
+
+# Development
+
+DomBot is a cross-platform desktop app built with **Electron Forge**, **React
+19**, **TypeScript** (strict), and **Vite**. Contributions welcome.
+
 ## Stack
 
 | Layer    | Choice                                            |
@@ -69,6 +90,7 @@ over MCP.
 | Styling  | Tailwind CSS v4 (`@tailwindcss/vite`)             |
 | Routing  | React Router (HashRouter)                         |
 | State    | Zustand                                           |
+| Registrars | [`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client) |
 | Agents   | Embedded MCP server (`@modelcontextprotocol/sdk`) |
 | Tooling  | ESLint + Prettier                                 |
 
@@ -90,61 +112,6 @@ npm start
 | `npm run format`     | Format the codebase with Prettier                  |
 | `npm run typecheck`  | Type-check without emitting                        |
 | `npm run site:build` | Minify the landing page (`site/src` → `site/dist`) |
-
-## Cutting a release
-
-Binaries are built and published by GitHub Actions
-([`.github/workflows/release.yml`](.github/workflows/release.yml)). There are
-three ways to run it:
-
-- **Push a version tag** (builds + publishes):
-  ```bash
-  npm version patch      # or minor / major — commits + creates tag vX.Y.Z
-  git push --follow-tags # pushing the tag triggers the release workflow
-  ```
-- **From the Actions tab** (no terminal): bump the version in `package.json`
-  (via a PR), then **Actions → Release → Run workflow**, tick **publish**. It
-  tags `v<package.json version>` and publishes (and refuses if that version was
-  already released).
-- **Validate only**: run the workflow with **publish** left off — it builds and
-  uploads the installers as artifacts on the run, without publishing a Release.
-
-The workflow fans out across macOS (arm64 + x64), Windows (x64), and Linux
-(x64), runs `npm run make` on each, and uploads the results — `.dmg` + `.zip`
-(macOS), `Setup.exe` (Windows), `.deb` + `.rpm` (Linux) — to a draft Release,
-which it publishes once all platforms succeed. The `.dmg` is assembled from the
-packaged `.app` with `hdiutil` (macOS's built-in tool), sidestepping
-`maker-dmg`'s fragile native `appdmg` dependency.
-
-### Code signing
-
-By default builds are **ad-hoc signed** on macOS (valid signature, but not
-notarized) and **unsigned** on Windows — so first launch shows a Gatekeeper /
-SmartScreen prompt, which the download page documents (macOS: right-click →
-Open, or `xattr -dr com.apple.quarantine <app>`; Windows: More info → Run
-anyway).
-
-**macOS notarization** is wired up and activates automatically once these
-repository secrets are set (Settings → Secrets and variables → Actions) — until
-then the mac build stays ad-hoc and the signing step is skipped:
-
-| Secret | What it is |
-| ------ | ---------- |
-| `MACOS_CERTIFICATE_P12` | Base64 of your **Developer ID Application** cert exported from Keychain as `.p12` (`base64 -i cert.p12 \| pbcopy`) |
-| `MACOS_CERTIFICATE_PASSWORD` | Password you set on that `.p12` export |
-| `APPLE_SIGNING_IDENTITY` | The identity string, e.g. `Developer ID Application: Your Name (TEAMID)` |
-| `APPLE_API_KEY_P8` | Base64 of your App Store Connect API key `.p8` (Notary) |
-| `APPLE_API_KEY_ID` | The API key's Key ID |
-| `APPLE_API_ISSUER` | The API key's Issuer ID |
-
-With those set, the release workflow imports the cert into a temporary keychain,
-`forge.config.ts` signs with hardened runtime and notarizes via the Notary API,
-and the app is stapled — producing a no-prompt download. Requires an
-[Apple Developer Program](https://developer.apple.com/programs/) membership.
-
-**Windows** signing is not wired in; the installer relies on the SmartScreen
-workaround. Adding it later (e.g. Azure Trusted Signing) would remove that
-prompt.
 
 ## Project layout
 
@@ -206,13 +173,15 @@ Rebuild the library (`npm run build`, or `npx tsup --watch` for iteration) to
 pick up edits. Return to the published version with
 `npm unlink @aoxborrow/registrar-client && npm install`.
 
-In production, registrar credentials are entered once in **Settings →
-Registrars** and stored encrypted on the device via Electron `safeStorage`
-(Keychain/DPAPI) — see [`src/main/services/credentials.ts`](src/main/services/credentials.ts).
-For local dev, `.env` (git-ignored, loaded via `dotenv`) is used as a fallback:
-the resolver prefers a saved value and falls back to
-`<PROVIDER>_<FIELD>` from the environment. Either way the same credentials feed
-both the UI and the MCP server.
+### Credentials in development
+
+In production, registrar credentials are entered in **Settings → Registrars**
+and stored encrypted via Electron `safeStorage` — see
+[`src/main/services/credentials.ts`](src/main/services/credentials.ts). For
+local dev, `.env` (git-ignored, loaded via `dotenv`) is used as a fallback: the
+resolver prefers a saved value and falls back to `<PROVIDER>_<FIELD>` from the
+environment (see [`.env.example`](.env.example)). Either way the same
+credentials feed both the UI and the MCP server.
 
 ## Embedded MCP server
 
@@ -279,6 +248,61 @@ claude mcp add dombot --transport http http://127.0.0.1:4123/mcp
   the project stays CommonJS.
 - **HashRouter.** The packaged app loads over `file://`, where history-based
   routing does not resolve — hash routing avoids that.
+
+## Cutting a release
+
+Binaries are built and published by GitHub Actions
+([`.github/workflows/release.yml`](.github/workflows/release.yml)). There are
+three ways to run it:
+
+- **Push a version tag** (builds + publishes):
+  ```bash
+  npm version patch      # or minor / major — commits + creates tag vX.Y.Z
+  git push --follow-tags # pushing the tag triggers the release workflow
+  ```
+- **From the Actions tab** (no terminal): bump the version in `package.json`
+  (via a PR), then **Actions → Release → Run workflow**, tick **publish**. It
+  tags `v<package.json version>` and publishes (and refuses if that version was
+  already released).
+- **Validate only**: run the workflow with **publish** left off — it builds and
+  uploads the installers as artifacts on the run, without publishing a Release.
+
+The workflow fans out across macOS (arm64 + x64), Windows (x64), and Linux
+(x64), runs `npm run make` on each, and uploads the results — `.dmg` + `.zip`
+(macOS), `Setup.exe` (Windows), `.deb` + `.rpm` (Linux) — to a draft Release,
+which it publishes once all platforms succeed. The `.dmg` is assembled from the
+packaged `.app` with `hdiutil` (macOS's built-in tool), sidestepping
+`maker-dmg`'s fragile native `appdmg` dependency.
+
+### Code signing
+
+By default builds are **ad-hoc signed** on macOS (valid signature, but not
+notarized) and **unsigned** on Windows — so first launch shows a Gatekeeper /
+SmartScreen prompt, which the download page documents (macOS: right-click →
+Open, or `xattr -dr com.apple.quarantine <app>`; Windows: More info → Run
+anyway).
+
+**macOS notarization** is wired up and activates automatically once these
+repository secrets are set (Settings → Secrets and variables → Actions) — until
+then the mac build stays ad-hoc and the signing step is skipped:
+
+| Secret | What it is |
+| ------ | ---------- |
+| `MACOS_CERTIFICATE_P12` | Base64 of your **Developer ID Application** cert exported from Keychain as `.p12` (`base64 -i cert.p12 \| pbcopy`) |
+| `MACOS_CERTIFICATE_PASSWORD` | Password you set on that `.p12` export |
+| `APPLE_SIGNING_IDENTITY` | The identity string, e.g. `Developer ID Application: Your Name (TEAMID)` |
+| `APPLE_API_KEY_P8` | Base64 of your App Store Connect API key `.p8` (Notary) |
+| `APPLE_API_KEY_ID` | The API key's Key ID |
+| `APPLE_API_ISSUER` | The API key's Issuer ID |
+
+With those set, the release workflow imports the cert into a temporary keychain,
+`forge.config.ts` signs with hardened runtime and notarizes via the Notary API,
+and the app is stapled — producing a no-prompt download. Requires an
+[Apple Developer Program](https://developer.apple.com/programs/) membership.
+
+**Windows** signing is not wired in; the installer relies on the SmartScreen
+workaround. Adding it later (e.g. Azure Trusted Signing) would remove that
+prompt.
 
 ## License
 
