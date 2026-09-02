@@ -1,11 +1,4 @@
-import {
-  Fragment,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-} from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowDown,
@@ -46,13 +39,12 @@ import type {
   RenewalPricing,
 } from '../../shared/ipc';
 import { toast } from 'sonner';
-import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
+import { HIDDEN_FOLDER_ID } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
 import { folderColorStyle } from '../lib/folders';
 import { FolderIcon } from '../components/icons/FolderIcon';
-import { timeAgo } from '../lib/time';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -139,18 +131,6 @@ function toTime(date: Date | null): number | null {
 function fmtDate(date: Date | null): string {
   const t = toTime(date);
   return t === null ? '—' : new Date(t).toISOString().slice(0, 10);
-}
-
-/** Whether a fetch timestamp is at or past the staleness threshold. */
-function isStale(fetchedAt: number): boolean {
-  return Date.now() - fetchedAt >= STALE_AFTER_MS;
-}
-
-/** Minimum gap between manual refreshes — the button is disabled during it so a
- * fresh pull can't be hammered (every refresh re-queries every registrar). */
-const REFRESH_COOLDOWN_MS = 60 * 1000; // 1 minute
-function refreshOnCooldown(fetchedAt: number): boolean {
-  return Date.now() - fetchedAt < REFRESH_COOLDOWN_MS;
 }
 
 /** Days until expiry, for the color-coded expiry cell. */
@@ -734,13 +714,11 @@ export default function Domains() {
     portfolioErrors,
     portfolioRegistrars,
     portfolioRegistrarLabels,
-    portfolioLoading,
     portfolioError,
     portfolioLoadedAt,
     refreshTick,
     registrars,
     loadRegistrars,
-    loadPortfolio,
     enriched,
     enriching,
     enrichVisible,
@@ -819,23 +797,6 @@ export default function Domains() {
   );
 
   const hasLoaded = portfolioLoadedAt !== null;
-  // Data past the staleness threshold — highlight the timestamp to nudge a
-  // manual refresh (we never auto-refresh).
-  const stale = portfolioLoadedAt !== null && isStale(portfolioLoadedAt);
-  // Rate limit: block a re-refresh for a minute after the last one.
-  const tooSoon =
-    portfolioLoadedAt !== null && refreshOnCooldown(portfolioLoadedAt);
-
-  // Nothing else re-renders when the cooldown simply elapses, so schedule one
-  // render at the moment it lifts to re-enable the button on its own.
-  const [, tickCooldown] = useReducer((n: number) => n + 1, 0);
-  useEffect(() => {
-    if (portfolioLoadedAt === null) return;
-    const remaining = REFRESH_COOLDOWN_MS - (Date.now() - portfolioLoadedAt);
-    if (remaining <= 0) return;
-    const t = setTimeout(tickCooldown, remaining + 50);
-    return () => clearTimeout(t);
-  }, [portfolioLoadedAt]);
 
   // Distinct filter options with per-option domain counts, derived from the
   // loaded portfolio. Counts are over the whole portfolio (independent of the
@@ -1190,66 +1151,15 @@ export default function Domains() {
 
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-[13px]">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[32px] font-bold">Domains</h1>
-          <p className="-mt-0.5 text-sm text-muted-foreground">
-            {/* Always a count — "0 domains across 0 registrars" before a load or
-                when nothing is configured, never a call-to-action sentence. */}
-            {`${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
-              portfolioRegistrars.length === 1 ? '' : 's'
-            }`}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          {/* Always the "Sync domains" button — the same control before and
-              after the first sync. Once synced it dims and grows a last-synced
-              caption beneath it (amber fill + dot past the stale threshold).
-              Disabled until at least one registrar is configured. */}
-          <div className="flex flex-col items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void loadPortfolio()}
-              disabled={portfolioLoading || tooSoon || noneConfigured}
-              title={
-                noneConfigured
-                  ? 'Configure a registrar in Settings first'
-                  : portfolioLoadedAt !== null
-                    ? `Last synced ${new Date(portfolioLoadedAt).toLocaleString()}${
-                        tooSoon
-                          ? ' — just synced, try again in a minute'
-                          : stale
-                            ? ' — data may be stale, click to sync'
-                            : ' — click to sync'
-                      }`
-                    : 'Click to sync your portfolio'
-              }
-              className={cn(
-                'border-border/40 text-muted-foreground hover:text-foreground',
-                stale &&
-                  'border-amber-500/50 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60 dark:hover:text-amber-300',
-              )}
-            >
-              {stale && !portfolioLoading && (
-                <span
-                  className="size-2 rounded-full bg-amber-500 dark:bg-amber-400"
-                  aria-hidden
-                />
-              )}
-              <RefreshCw className={cn(portfolioLoading && 'animate-spin')} />
-              {portfolioLoading ? 'Syncing…' : 'Sync domains'}
-            </Button>
-            {portfolioLoadedAt !== null && (
-              <span
-                className="text-[11px] text-muted-foreground/60"
-                title={`Last synced ${new Date(portfolioLoadedAt).toLocaleString()}`}
-              >
-                Last synced {timeAgo(portfolioLoadedAt)}
-              </span>
-            )}
-          </div>
-        </div>
+      <div>
+        <h1 className="text-[32px] font-bold">Domains</h1>
+        <p className="-mt-0.5 text-sm text-muted-foreground">
+          {/* Always a count — "0 domains across 0 registrars" before a load or
+              when nothing is configured, never a call-to-action sentence. */}
+          {`${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
+            portfolioRegistrars.length === 1 ? '' : 's'
+          }`}
+        </p>
       </div>
 
       {portfolioError && (

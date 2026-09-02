@@ -45,20 +45,19 @@ export default function StatusBar() {
     ? mcpInfo.url.replace(/^\w+:\/\//, '').replace(/\/.*$/, '')
     : null;
 
-  // Connection status per the shared registrar metadata. A registrar is
-  // "connected" when it's configured and its last sync succeeded (lastSyncedAt
-  // set, no lastError). `null` = metadata not yet known.
+  // Sync status per the shared registrar metadata. A registrar counts as synced
+  // when it's configured and its last sync succeeded (lastSyncedAt set, no
+  // lastError). `null` = metadata not yet known.
   const configured = registrars?.filter((r) => r.configured) ?? [];
   const configuredCount = configured.length;
-  const connectedCount = configured.filter(
+  const syncedCount = configured.filter(
     (r) => r.sync.lastSyncedAt != null && r.sync.lastError == null,
   ).length;
   const noneConfigured = registrars !== null && configuredCount === 0;
-  const allConnected =
-    configuredCount > 0 && connectedCount === configuredCount;
-  // Show the connection pill once we know the metadata (0/0 amber when nothing
-  // is configured); hide it only while that's still loading.
-  const showConnection = registrars !== null;
+  const allSynced = configuredCount > 0 && syncedCount === configuredCount;
+  // Show the sync pill once we know the metadata (0/0 amber when nothing is
+  // configured); hide it only while that's still loading.
+  const showSync = registrars !== null;
   // The "Last synced X ago" caption only makes sense once real data has loaded.
   const showRefreshed = portfolioLoadedAt !== null && configuredCount > 0;
 
@@ -84,7 +83,7 @@ export default function StatusBar() {
         {mcpRunning && mcpEndpoint ? `MCP ${mcpEndpoint}` : 'MCP off'}
       </button>
 
-      {(showRefreshed || showConnection) && (
+      {(showRefreshed || showSync) && (
         <div className="flex items-center gap-3">
           {showRefreshed && (
             <span
@@ -93,32 +92,30 @@ export default function StatusBar() {
               Last synced {timeAgo(portfolioLoadedAt)}
             </span>
           )}
-          {showConnection && (
+          {showSync && (
             <button
               type="button"
               onClick={() => navigate('/settings?tab=registrars')}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-sm hover:text-foreground',
-                !allConnected && 'text-amber-600 dark:text-amber-400',
+                !allSynced && 'text-amber-600 dark:text-amber-400',
               )}
               title={
                 noneConfigured
                   ? 'No registrars configured — open registrar settings'
-                  : allConnected
-                    ? 'All configured registrars connected — open registrar settings'
-                    : `${configuredCount - connectedCount} registrar(s) not connected — open registrar settings`
+                  : allSynced
+                    ? 'All configured registrars synced — open registrar settings'
+                    : `${configuredCount - syncedCount} registrar(s) not synced — open registrar settings`
               }
             >
               <span
                 className={cn(
                   'size-2 rounded-full',
-                  allConnected
-                    ? 'bg-[#7ac28d]'
-                    : 'bg-amber-500 dark:bg-amber-400',
+                  allSynced ? 'bg-[#7ac28d]' : 'bg-amber-500 dark:bg-amber-400',
                 )}
                 aria-hidden
               />
-              {connectedCount}/{configuredCount} registrars connected
+              {syncedCount}/{configuredCount} registrars synced
             </button>
           )}
         </div>

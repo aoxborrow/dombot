@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Route, Routes } from 'react-router-dom';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { CalendarClock, Globe, Settings as SettingsIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from './store/app';
 import Domains from './pages/Domains';
@@ -8,11 +8,15 @@ import Renewals from './pages/Renewals';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
 import StatusBar from './components/StatusBar';
+import SyncControl from './components/SyncControl';
 import { Toaster } from '@/components/ui/sonner';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
-    'rounded-md px-[15px] py-1 text-base font-medium transition-colors',
+    // inline-flex + items-center + leading-none centers the icon/label as one
+    // box, so the active pill's fill is vertically symmetric (plain line-height
+    // left a few extra px on top).
+    'inline-flex h-9 items-center gap-2 rounded-md px-[15px] text-base font-medium leading-none transition-colors',
     isActive
       ? 'bg-primary text-primary-foreground'
       : 'text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -60,29 +64,24 @@ export default function App() {
             </span>
           </button>
         </div>
-        <nav className="flex flex-1 justify-center gap-[14px]">
+        <nav className="flex flex-1 justify-center gap-4">
           <NavLink to="/" end className={navLinkClass}>
+            <Globe className="size-[18px]" />
             Domains
           </NavLink>
           <NavLink to="/renewals" className={navLinkClass}>
+            <CalendarClock className="size-[18px]" />
             Renewals
           </NavLink>
-        </nav>
-        <div className="flex flex-1 justify-end">
-          <NavLink
-            to="/settings"
-            aria-label="Settings"
-            className={({ isActive }) =>
-              cn(
-                'rounded-md p-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
-                isActive
-                  ? 'text-[#7ac28d]'
-                  : 'text-muted-foreground hover:text-foreground',
-              )
-            }
-          >
-            <SettingsIcon className="size-6" />
+          <NavLink to="/settings" className={navLinkClass}>
+            <SettingsIcon className="size-[18px]" />
+            Settings
           </NavLink>
+        </nav>
+        {/* Global sync control on the right; also balances the logo so the nav
+            stays centered. */}
+        <div className="flex flex-1 justify-end">
+          <SyncControl />
         </div>
       </header>
 
