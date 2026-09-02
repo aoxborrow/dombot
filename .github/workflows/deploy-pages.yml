@@ -9,9 +9,14 @@ on:
     branches: [main]
     paths:
       - 'site/**'
+      - 'scripts/inject-release.mjs'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/deploy-pages.yml'
+  # Rebuild when a release is published so the download links + version on the
+  # page point at the newest release's assets.
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -45,6 +50,16 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npm rebuild esbuild
+      - name: Bake latest release into download links
+        # Fetch the latest release and rewrite the download buttons' hrefs +
+        # version into the page before building, so the shipped HTML is fully
+        # static. No release yet → the script no-ops and the /releases fallback
+        # links stay.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view --repo "$GITHUB_REPOSITORY" --json tagName,assets > /tmp/release.json 2>/dev/null || echo '{}' > /tmp/release.json
+          node scripts/inject-release.mjs /tmp/release.json site/index.html
       - name: Build site
         run: npm run site:build
       - name: Configure Pages
