@@ -17,12 +17,20 @@ export default function StatusBar() {
   const portfolioLoadedAt = useAppStore((s) => s.portfolioLoadedAt);
   const portfolioRegistrars = useAppStore((s) => s.portfolioRegistrars);
   const portfolioErrors = useAppStore((s) => s.portfolioErrors);
+  const hasConfiguredRegistrars = useAppStore((s) => s.hasConfiguredRegistrars);
+  const loadRegistrarConfigured = useAppStore((s) => s.loadRegistrarConfigured);
   const navigate = useNavigate();
 
   // Fetch the MCP endpoint once; it's static for the app's lifetime.
   useEffect(() => {
     if (mcpInfo === null) void loadMcpInfo();
   }, [mcpInfo, loadMcpInfo]);
+
+  // Learn whether any registrar is configured so we never show cached portfolio
+  // stats (last-refreshed, N/N connected) when nothing is actually connected.
+  useEffect(() => {
+    if (hasConfiguredRegistrars === null) void loadRegistrarConfigured();
+  }, [hasConfiguredRegistrars, loadRegistrarConfigured]);
 
   // Re-render every 30s so the relative "refreshed" label stays current even
   // when nothing else changes.
@@ -40,13 +48,20 @@ export default function StatusBar() {
     : null;
 
   // Registrar connection status: every configured (queried) registrar minus the
-  // ones that errored on the last load.
-  const configuredCount = portfolioRegistrars.length;
+  // ones that errored on the last load. When nothing is configured we force the
+  // display to 0/0 (amber) — the cached portfolioRegistrars are orphaned.
+  const noneConfigured = hasConfiguredRegistrars === false;
   const erroredIds = new Set(portfolioErrors.map((e) => e.registrar));
-  const connectedCount = portfolioRegistrars.filter(
-    (r) => !erroredIds.has(r),
-  ).length;
-  const allConnected = connectedCount === configuredCount;
+  const configuredCount = noneConfigured ? 0 : portfolioRegistrars.length;
+  const connectedCount = noneConfigured
+    ? 0
+    : portfolioRegistrars.filter((r) => !erroredIds.has(r)).length;
+  const allConnected = !noneConfigured && connectedCount === configuredCount;
+  // Show the connection pill whenever we know the config state: 0/0 when nothing
+  // is configured, else the live N/N. Hide only while config is still unknown.
+  const showConnection = noneConfigured || configuredCount > 0;
+  // The "Refreshed X ago" caption only makes sense once real data has loaded.
+  const showRefreshed = portfolioLoadedAt !== null && !noneConfigured;
 
   return (
     <footer className="fixed inset-x-0 bottom-0 z-40 flex h-[29px] items-center justify-between gap-4 border-t bg-background px-4 text-xs text-muted-foreground select-none">
@@ -70,14 +85,16 @@ export default function StatusBar() {
         {mcpRunning && mcpEndpoint ? `MCP ${mcpEndpoint}` : 'MCP off'}
       </button>
 
-      {portfolioLoadedAt !== null && (
+      {(showRefreshed || showConnection) && (
         <div className="flex items-center gap-3">
-          <span
-            title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}`}
-          >
-            Refreshed {timeAgo(portfolioLoadedAt)}
-          </span>
-          {configuredCount > 0 && (
+          {showRefreshed && (
+            <span
+              title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}`}
+            >
+              Refreshed {timeAgo(portfolioLoadedAt)}
+            </span>
+          )}
+          {showConnection && (
             <button
               type="button"
               onClick={() => navigate('/settings?tab=registrars')}
@@ -86,9 +103,11 @@ export default function StatusBar() {
                 !allConnected && 'text-amber-600 dark:text-amber-400',
               )}
               title={
-                allConnected
-                  ? 'All configured registrars connected — open registrar settings'
-                  : `${configuredCount - connectedCount} registrar(s) failed to connect — open registrar settings`
+                noneConfigured
+                  ? 'No registrars configured — open registrar settings'
+                  : allConnected
+                    ? 'All configured registrars connected — open registrar settings'
+                    : `${configuredCount - connectedCount} registrar(s) failed to connect — open registrar settings`
               }
             >
               <span
