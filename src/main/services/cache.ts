@@ -118,6 +118,15 @@ export function isStale(
   return ageOf(entry) >= ttl;
 }
 
+/** Drops a single entry from a namespace (memory + disk). No-op if absent. */
+export function clearEntry(ns: CacheNamespace, key: string): void {
+  const store = load(ns);
+  if (!(key in store)) return;
+  const next = { ...store };
+  delete next[key];
+  persist(ns, next);
+}
+
 /** Drops one namespace's cache (memory + disk). */
 export function clearNamespace(ns: CacheNamespace): void {
   memory.set(ns, {});

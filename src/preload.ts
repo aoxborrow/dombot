@@ -40,13 +40,13 @@ const api: DombotApi = {
     ),
   listPortfolio: (refresh) =>
     ipcRenderer.invoke(IpcChannels.listPortfolio, refresh),
+  syncRegistrar: (name) => ipcRenderer.invoke(IpcChannels.syncRegistrar, name),
   getRegistrarMetadata: () =>
     ipcRenderer.invoke(IpcChannels.getRegistrarMetadata),
   getRegistrarCredentials: (name) =>
     ipcRenderer.invoke(IpcChannels.getRegistrarCredentials, name),
   saveRegistrarCredentials: (name, creds) =>
     ipcRenderer.invoke(IpcChannels.saveRegistrarCredentials, name, creds),
-  testRegistrar: (name) => ipcRenderer.invoke(IpcChannels.testRegistrar, name),
 
   // MCP server
   getMcpInfo: () => ipcRenderer.invoke(IpcChannels.getMcpInfo),

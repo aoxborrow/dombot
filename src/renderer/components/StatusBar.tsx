@@ -8,17 +8,14 @@ import { timeAgo } from '../lib/time';
  * App-wide bottom status bar (VS Code style): a thin bar fixed across the
  * viewport bottom, with page content scrolling underneath it. Surfaces the
  * embedded MCP server's status on the left (a link into MCP settings) and the
- * last-refreshed time plus a Refresh Domains link on the right. Shown on every
- * route.
+ * last-synced time plus a Sync Domains link on the right. Shown on every route.
  */
 export default function StatusBar() {
   const mcpInfo = useAppStore((s) => s.mcpInfo);
   const loadMcpInfo = useAppStore((s) => s.loadMcpInfo);
   const portfolioLoadedAt = useAppStore((s) => s.portfolioLoadedAt);
-  const portfolioRegistrars = useAppStore((s) => s.portfolioRegistrars);
-  const portfolioErrors = useAppStore((s) => s.portfolioErrors);
-  const hasConfiguredRegistrars = useAppStore((s) => s.hasConfiguredRegistrars);
-  const loadRegistrarConfigured = useAppStore((s) => s.loadRegistrarConfigured);
+  const registrars = useAppStore((s) => s.registrars);
+  const loadRegistrars = useAppStore((s) => s.loadRegistrars);
   const navigate = useNavigate();
 
   // Fetch the MCP endpoint once; it's static for the app's lifetime.
@@ -26,13 +23,14 @@ export default function StatusBar() {
     if (mcpInfo === null) void loadMcpInfo();
   }, [mcpInfo, loadMcpInfo]);
 
-  // Learn whether any registrar is configured so we never show cached portfolio
-  // stats (last-refreshed, N/N connected) when nothing is actually connected.
+  // Learn the registrar metadata so the pill reflects config/sync state
+  // immediately (e.g. right after one is set up in Settings) and never shows
+  // cached portfolio stats when nothing is actually configured.
   useEffect(() => {
-    if (hasConfiguredRegistrars === null) void loadRegistrarConfigured();
-  }, [hasConfiguredRegistrars, loadRegistrarConfigured]);
+    if (registrars === null) void loadRegistrars();
+  }, [registrars, loadRegistrars]);
 
-  // Re-render every 30s so the relative "refreshed" label stays current even
+  // Re-render every 30s so the relative "last synced" label stays current even
   // when nothing else changes.
   const [, tick] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
@@ -47,21 +45,22 @@ export default function StatusBar() {
     ? mcpInfo.url.replace(/^\w+:\/\//, '').replace(/\/.*$/, '')
     : null;
 
-  // Registrar connection status: every configured (queried) registrar minus the
-  // ones that errored on the last load. When nothing is configured we force the
-  // display to 0/0 (amber) — the cached portfolioRegistrars are orphaned.
-  const noneConfigured = hasConfiguredRegistrars === false;
-  const erroredIds = new Set(portfolioErrors.map((e) => e.registrar));
-  const configuredCount = noneConfigured ? 0 : portfolioRegistrars.length;
-  const connectedCount = noneConfigured
-    ? 0
-    : portfolioRegistrars.filter((r) => !erroredIds.has(r)).length;
-  const allConnected = !noneConfigured && connectedCount === configuredCount;
-  // Show the connection pill whenever we know the config state: 0/0 when nothing
-  // is configured, else the live N/N. Hide only while config is still unknown.
-  const showConnection = noneConfigured || configuredCount > 0;
-  // The "Refreshed X ago" caption only makes sense once real data has loaded.
-  const showRefreshed = portfolioLoadedAt !== null && !noneConfigured;
+  // Connection status per the shared registrar metadata. A registrar is
+  // "connected" when it's configured and its last sync succeeded (lastSyncedAt
+  // set, no lastError). `null` = metadata not yet known.
+  const configured = registrars?.filter((r) => r.configured) ?? [];
+  const configuredCount = configured.length;
+  const connectedCount = configured.filter(
+    (r) => r.sync.lastSyncedAt != null && r.sync.lastError == null,
+  ).length;
+  const noneConfigured = registrars !== null && configuredCount === 0;
+  const allConnected =
+    configuredCount > 0 && connectedCount === configuredCount;
+  // Show the connection pill once we know the metadata (0/0 amber when nothing
+  // is configured); hide it only while that's still loading.
+  const showConnection = registrars !== null;
+  // The "Last synced X ago" caption only makes sense once real data has loaded.
+  const showRefreshed = portfolioLoadedAt !== null && configuredCount > 0;
 
   return (
     <footer className="fixed inset-x-0 bottom-0 z-40 flex h-[29px] items-center justify-between gap-4 border-t bg-background px-4 text-xs text-muted-foreground select-none">
@@ -89,9 +88,9 @@ export default function StatusBar() {
         <div className="flex items-center gap-3">
           {showRefreshed && (
             <span
-              title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}`}
+              title={`Last synced ${new Date(portfolioLoadedAt).toLocaleString()}`}
             >
-              Refreshed {timeAgo(portfolioLoadedAt)}
+              Last synced {timeAgo(portfolioLoadedAt)}
             </span>
           )}
           {showConnection && (
@@ -107,7 +106,7 @@ export default function StatusBar() {
                   ? 'No registrars configured — open registrar settings'
                   : allConnected
                     ? 'All configured registrars connected — open registrar settings'
-                    : `${configuredCount - connectedCount} registrar(s) failed to connect — open registrar settings`
+                    : `${configuredCount - connectedCount} registrar(s) not connected — open registrar settings`
               }
             >
               <span

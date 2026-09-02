@@ -6,7 +6,6 @@ import {
   type Portfolio,
   type RegistrarMeta,
   type RegistrarName,
-  type TestResult,
 } from '../../shared/ipc';
 import {
   getDomainDetail,
@@ -16,7 +15,7 @@ import {
   getRegistrarMetadata,
   saveRegistrarCredentials,
   setDomainAutoRenew,
-  testRegistrar,
+  syncRegistrar,
 } from '../services/registrars';
 
 /**
@@ -78,7 +77,7 @@ export function registerRegistrarIpc(): void {
   );
 
   ipcMain.handle(
-    IpcChannels.testRegistrar,
-    async (_e, name: RegistrarName): Promise<TestResult> => testRegistrar(name),
+    IpcChannels.syncRegistrar,
+    async (_e, name: RegistrarName): Promise<Portfolio> => syncRegistrar(name),
   );
 }

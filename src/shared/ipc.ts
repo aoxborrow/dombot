@@ -25,7 +25,7 @@ export const IpcChannels = {
   getRegistrarMetadata: 'registrar:getMetadata',
   getRegistrarCredentials: 'registrar:getCredentials',
   saveRegistrarCredentials: 'registrar:saveCredentials',
-  testRegistrar: 'registrar:test',
+  syncRegistrar: 'registrar:sync',
   getMcpInfo: 'mcp:getInfo',
   listPendingApprovals: 'mcp:listPendingApprovals',
   resolveApproval: 'mcp:resolveApproval',
@@ -81,6 +81,21 @@ export interface RegistrarConfigField {
   options?: string[];
 }
 
+/**
+ * Per-registrar sync state. A registrar is "connected" when it's configured and
+ * its last domain sync succeeded — i.e. `lastSyncedAt` is set and `lastError` is
+ * null. This drives the three-state light on the settings card (not set /
+ * configured-but-not-connected / connected) and the status-bar pill.
+ */
+export interface RegistrarSync {
+  /** Last SUCCESSFUL domain sync (ms epoch), or null if it never succeeded. */
+  lastSyncedAt: number | null;
+  /** Error from the most recent sync attempt, or null when it succeeded. */
+  lastError: string | null;
+  /** Domains held from the last successful sync. */
+  domainCount: number;
+}
+
 /** Metadata that drives the Settings > Registrars form. */
 export interface RegistrarMeta {
   name: RegistrarName;
@@ -88,13 +103,9 @@ export interface RegistrarMeta {
   helpText: string;
   supportsSandbox: boolean;
   configured: boolean;
+  /** Sync state (from cache), present regardless of whether it's configured. */
+  sync: RegistrarSync;
   configFields: RegistrarConfigField[];
-}
-
-/** Result of a registrar connection test. */
-export interface TestResult {
-  ok: boolean;
-  message: string;
 }
 
 /** Outcome of a native "save file" dialog. */
@@ -348,10 +359,16 @@ export interface DombotApi {
   listDynadotDomains: () => Promise<Domain[]>;
   /**
    * Aggregate portfolio across every configured registrar. With `refresh` false,
-   * a cached portfolio is returned when present (no network); otherwise it
-   * re-queries every registrar and updates the cache. Defaults to refresh.
+   * the cached portfolio is returned (no network); otherwise it re-syncs every
+   * registrar and updates the cache. Defaults to refresh (a full "Sync domains").
    */
   listPortfolio: (refresh?: boolean) => Promise<Portfolio>;
+  /**
+   * Sync a single registrar's domains, merge the result into the cached
+   * portfolio, and return the updated aggregate. Used right after saving that
+   * registrar's credentials so its domains appear without a full re-sync.
+   */
+  syncRegistrar: (name: RegistrarName) => Promise<Portfolio>;
   /**
    * Best-available per-domain detail (nameservers/privacy/lock) to merge over
    * the list summary — a partial, or `null` when nothing could be resolved.
@@ -379,7 +396,6 @@ export interface DombotApi {
     name: RegistrarName,
     creds: CredentialValues,
   ) => Promise<void>;
-  testRegistrar: (name: RegistrarName) => Promise<TestResult>;
 
   // MCP server
   getMcpInfo: () => Promise<McpInfo>;

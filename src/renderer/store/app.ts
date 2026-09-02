@@ -8,7 +8,9 @@ import type {
   FolderPatch,
   McpInfo,
   PortfolioErrorInfo,
+  RegistrarMeta,
   RegistrarName,
+  RegistrarSync,
   RenewalPricing,
 } from '../../shared/ipc';
 
@@ -60,13 +62,17 @@ interface AppState {
   portfolioSource: 'cache' | 'live' | null;
   /** Bumped on every live refresh so views can force-refresh their lazy data. */
   refreshTick: number;
-  /** Whether at least one registrar currently has credentials configured, from
-   * the live metadata check (not the cache). `null` until first loaded. Shared
-   * source of truth so the header, status bar, and empty state never disagree —
-   * cached portfolio counts must not show when nothing is configured. */
-  hasConfiguredRegistrars: boolean | null;
-  /** Refresh `hasConfiguredRegistrars` from the main process. */
-  loadRegistrarConfigured: () => Promise<void>;
+  /** Live registrar metadata (configured flag + per-registrar sync state), from
+   * `getRegistrarMetadata`. `null` until first loaded. Shared source of truth so
+   * the Settings cards, status bar, and Domains empty state never disagree —
+   * cached portfolio counts must not show when nothing is configured, and
+   * configuring/syncing a registrar updates every surface immediately. */
+  registrars: RegistrarMeta[] | null;
+  /** Refresh `registrars` metadata from the main process. */
+  loadRegistrars: () => Promise<void>;
+  /** Sync one registrar's domains (e.g. after saving its credentials), merge the
+   * result into the portfolio, refresh `registrars`, and return its sync state. */
+  syncRegistrar: (name: RegistrarName) => Promise<RegistrarSync>;
   /** Restore portfolio + detail + aftermarket + pricing from the on-disk cache
    * with no network calls. Call once on app launch. */
   hydrateFromCache: () => Promise<void>;
@@ -184,11 +190,33 @@ export const useAppStore = create<AppState>((set, get) => ({
   portfolioLoadedAt: null,
   portfolioSource: null,
   refreshTick: 0,
-  hasConfiguredRegistrars: null,
+  registrars: null,
 
-  loadRegistrarConfigured: async () => {
-    const metas = await window.api.getRegistrarMetadata();
-    set({ hasConfiguredRegistrars: metas.some((m) => m.configured) });
+  loadRegistrars: async () => {
+    set({ registrars: await window.api.getRegistrarMetadata() });
+  },
+
+  syncRegistrar: async (name) => {
+    const result = await window.api.syncRegistrar(name);
+    // Merge the updated aggregate into the portfolio without disturbing other
+    // registrars' lazily-loaded detail/pricing (those maps stay keyed by
+    // registrar:domain and remain valid). A full "Sync domains" is what clears
+    // them.
+    set((state) => ({
+      portfolio: result.domains,
+      portfolioErrors: result.errors,
+      portfolioRegistrars: result.registrars,
+      portfolioRegistrarLabels: result.registrarLabels,
+      portfolioLoadedAt: result.fetchedAt ?? Date.now(),
+      portfolioSource: state.portfolioSource ?? 'live',
+    }));
+    // Refresh sync statuses (this registrar's lastSyncedAt/lastError) for the
+    // Settings cards and the status-bar pill.
+    await get().loadRegistrars();
+    const meta = get().registrars?.find((r) => r.name === name);
+    return (
+      meta?.sync ?? { lastSyncedAt: null, lastError: null, domainCount: 0 }
+    );
   },
 
   hydrateFromCache: async () => {
@@ -283,6 +311,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         detailAllLoading: false,
         marketAllLoading: false,
       }));
+      // Per-registrar sync statuses changed — refresh the shared metadata.
+      void get().loadRegistrars();
     } catch (err) {
       set({
         portfolioLoading: false,
@@ -300,8 +330,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Base to merge onto: the already-enriched full domain if present, else the
     // portfolio summary. Bail if we can't find it (nothing to update).
     const base =
-      state.enriched[key] ??
-      state.portfolio.find((d) => domainKey(d) === key);
+      state.enriched[key] ?? state.portfolio.find((d) => domainKey(d) === key);
     if (!base) return;
 
     // Optimistically reflect the new value and mark the cell in flight.

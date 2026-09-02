@@ -79,13 +79,6 @@ import {
 } from '@/components/ui/popover';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from '@/components/ui/empty';
-import {
   Select,
   SelectContent,
   SelectGroup,
@@ -745,8 +738,8 @@ export default function Domains() {
     portfolioError,
     portfolioLoadedAt,
     refreshTick,
-    hasConfiguredRegistrars,
-    loadRegistrarConfigured,
+    registrars,
+    loadRegistrars,
     loadPortfolio,
     enriched,
     enriching,
@@ -768,15 +761,14 @@ export default function Domains() {
   const openExternal = (url: string) => void window.api.openExternal(url);
 
   // Whether any registrar has credentials configured (shared store state, so the
-  // header/status bar/empty state agree). Drives the empty state: with none
-  // configured we point the user at Settings rather than show an empty table
-  // they can't fill. Re-checked after a refresh in case credentials changed.
+  // header/status bar/empty state agree). Drives the in-table empty prompt: with
+  // none configured we point the user at Settings. Re-checked after a refresh in
+  // case credentials changed. `null` (pre-load) is treated as "not yet known".
   useEffect(() => {
-    void loadRegistrarConfigured();
-  }, [portfolioLoadedAt, loadRegistrarConfigured]);
-  // Treat the pre-load `null` as "configured" so the table (not the configure
-  // prompt) shows during the brief first resolve.
-  const noneConfigured = hasConfiguredRegistrars === false;
+    void loadRegistrars();
+  }, [portfolioLoadedAt, loadRegistrars]);
+  const noneConfigured =
+    registrars !== null && registrars.every((r) => !r.configured);
 
   // Overlay lazily-fetched per-domain detail (nameservers/privacy/lock) onto the
   // fast summary. Filtering, sorting, and rendering all use this merged view.
@@ -1202,18 +1194,16 @@ export default function Domains() {
         <div>
           <h1 className="text-[32px] font-bold">Domains</h1>
           <p className="-mt-0.5 text-sm text-muted-foreground">
-            {noneConfigured
-              ? '0 domains across 0 registrars'
-              : hasLoaded
-                ? `${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
-                    portfolioRegistrars.length === 1 ? '' : 's'
-                  }`
-                : 'Refresh to load your portfolio across every configured registrar.'}
+            {/* Always a count — "0 domains across 0 registrars" before a load or
+                when nothing is configured, never a call-to-action sentence. */}
+            {`${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
+              portfolioRegistrars.length === 1 ? '' : 's'
+            }`}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          {/* Always the "Refresh domains" button — the same control before and
-              after the first load. Once loaded it dims and grows a last-refreshed
+          {/* Always the "Sync domains" button — the same control before and
+              after the first sync. Once synced it dims and grows a last-synced
               caption beneath it (amber fill + dot past the stale threshold).
               Disabled until at least one registrar is configured. */}
           <div className="flex flex-col items-center gap-1">
@@ -1226,14 +1216,14 @@ export default function Domains() {
                 noneConfigured
                   ? 'Configure a registrar in Settings first'
                   : portfolioLoadedAt !== null
-                    ? `Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}${
+                    ? `Last synced ${new Date(portfolioLoadedAt).toLocaleString()}${
                         tooSoon
-                          ? ' — just refreshed, try again in a minute'
+                          ? ' — just synced, try again in a minute'
                           : stale
-                            ? ' — data may be stale, click to refresh'
-                            : ' — click to refresh'
+                            ? ' — data may be stale, click to sync'
+                            : ' — click to sync'
                       }`
-                    : 'Click to load your portfolio'
+                    : 'Click to sync your portfolio'
               }
               className={cn(
                 'border-border/40 text-muted-foreground hover:text-foreground',
@@ -1248,14 +1238,14 @@ export default function Domains() {
                 />
               )}
               <RefreshCw className={cn(portfolioLoading && 'animate-spin')} />
-              {portfolioLoading ? 'Refreshing…' : 'Refresh domains'}
+              {portfolioLoading ? 'Syncing…' : 'Sync domains'}
             </Button>
             {portfolioLoadedAt !== null && (
               <span
                 className="text-[11px] text-muted-foreground/60"
-                title={`Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}`}
+                title={`Last synced ${new Date(portfolioLoadedAt).toLocaleString()}`}
               >
-                Refreshed {timeAgo(portfolioLoadedAt)}
+                Last synced {timeAgo(portfolioLoadedAt)}
               </span>
             )}
           </div>
@@ -1292,533 +1282,530 @@ export default function Domains() {
         </Alert>
       )}
 
-      {!noneConfigured && (
-        <>
-          {/* Toolbar: search, filters, and export all flow inline and wrap
+      {/* The table always renders — even before a load or with no registrars
+          configured — so its toolbar and structure stay put; the empty body row
+          carries the contextual prompt (configure a registrar / refresh / no
+          matches). */}
+      <>
+        {/* Toolbar: search, filters, and export all flow inline and wrap
               together as equal items. Extra top margin separates it from the
               title/refresh row above. */}
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <div className="relative min-w-[220px] flex-1">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(0);
-                  }}
-                  placeholder="Search domains…"
-                  className="pl-8"
-                />
-            </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
+              placeholder="Search domains…"
+              className="pl-8"
+            />
+          </div>
 
-            <MultiSelectFilter
-              label="Registrar"
-                icon={Building2}
-                options={registrarOptions}
-                selected={registrar}
-                onChange={(next) => {
-                  setRegistrar(next);
-                  setPage(0);
-                }}
-              />
-              <MultiSelectFilter
-                label="TLD"
-                icon={Globe}
-                options={tldOptions}
-                selected={tld}
-                onChange={(next) => {
-                  setTld(next);
-                  setPage(0);
-                }}
-              />
-              <MultiSelectFilter
-                label="Nameservers"
-                icon={Server}
-                options={nsGroups}
-                selected={ns}
-                onChange={(next) => {
-                  setNs(next);
-                  setPage(0);
-                }}
-              />
-              <MultiSelectFilter
-                label="Expiration"
-                icon={CalendarClock}
-                options={expiryOptions}
-                selected={expiry}
-                onChange={(next) => {
-                  setExpiry(next);
-                  setPage(0);
-                }}
-              />
-              {/* Offer the Folder filter once there's anything to filter by —
+          <MultiSelectFilter
+            label="Registrar"
+            icon={Building2}
+            options={registrarOptions}
+            selected={registrar}
+            onChange={(next) => {
+              setRegistrar(next);
+              setPage(0);
+            }}
+          />
+          <MultiSelectFilter
+            label="TLD"
+            icon={Globe}
+            options={tldOptions}
+            selected={tld}
+            onChange={(next) => {
+              setTld(next);
+              setPage(0);
+            }}
+          />
+          <MultiSelectFilter
+            label="Nameservers"
+            icon={Server}
+            options={nsGroups}
+            selected={ns}
+            onChange={(next) => {
+              setNs(next);
+              setPage(0);
+            }}
+          />
+          <MultiSelectFilter
+            label="Expiration"
+            icon={CalendarClock}
+            options={expiryOptions}
+            selected={expiry}
+            onChange={(next) => {
+              setExpiry(next);
+              setPage(0);
+            }}
+          />
+          {/* Offer the Folder filter once there's anything to filter by —
                   a folder of the user's own, or hidden domains to reveal. */}
-              {(folders.length > 0 || hiddenCount > 0) && (
-                <MultiSelectFilter
-                  label="Folder"
-                  icon={FolderIcon}
-                  options={folderOptions}
-                  selected={folder}
-                  onChange={(next) => {
-                    setFolder(next);
-                    setPage(0);
-                  }}
-                />
-              )}
-
-              {/* Afternic price range — a dropdown holding the min/max inputs */}
-              {PRICE_FILTER_ENABLED && (
-                <PriceRangeFilter
-                  min={minPrice}
-                  max={maxPrice}
-                  onMinChange={(v) => {
-                    setMinPrice(v);
-                    setPage(0);
-                  }}
-                  onMaxChange={(v) => {
-                    setMaxPrice(v);
-                    setPage(0);
-                  }}
-                  minInvalid={Boolean(minParsed.error) || Boolean(rangeError)}
-                  maxInvalid={Boolean(maxParsed.error) || Boolean(rangeError)}
-                  minValue={minValue}
-                  maxValue={maxValue}
-                  error={priceError}
-                />
-              )}
-
-              {/* Reset button styled like the filters (no chevron); faded/
-                  disabled when nothing is active. Trialling this alongside the
-                  green header link. */}
-              <Button
-                variant="outline"
-                onClick={resetFilters}
-                disabled={!hasActiveFilters}
-                className={cn(
-                  'gap-2 pr-[14px]! pl-[8px]!',
-                  hasActiveFilters &&
-                    'border-[#4f9d6b] dark:border-[#4f9d6b]',
-                )}
-              >
-                <X
-                  className={cn(
-                    'size-[18px]',
-                    hasActiveFilters
-                      ? 'text-[#4f9d6b]'
-                      : 'text-muted-foreground',
-                  )}
-                />
-                Reset
-              </Button>
-
-              <div className="flex items-center gap-3">
-                {exportNote && (
-                  <span
-                    className={cn(
-                      'inline-flex items-center gap-1.5 text-sm',
-                      exportNote.error
-                        ? 'text-destructive'
-                        : 'text-[#31613b] dark:text-[#7ac28d]',
-                    )}
-                    role="status"
-                  >
-                    {!exportNote.error && <CircleCheck className="size-4" />}
-                    {exportNote.text}
-                  </span>
-                )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      disabled={exporting || filtered.length === 0}
-                      title="Export the filtered domains"
-                      className="pr-[7px]!"
-                    >
-                      <Download className="text-muted-foreground" />
-                      {exporting ? 'Exporting…' : 'Export'}
-                      <ChevronDown className="text-muted-foreground" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => void exportCsv()}>
-                      <FileSpreadsheet className="text-muted-foreground" />
-                      Export CSV
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
-          {/* Bulk action bar — contextual, appears once any row is selected.
-              Actions are UI-only stubs for now. */}
-          {BULK_SELECT_ENABLED && selectedCount > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-medium">{selectedCount} selected</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1 px-2 text-muted-foreground"
-                  onClick={clearSelection}
-                >
-                  <X />
-                  Clear
-                </Button>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    Bulk actions
-                    <ChevronDown className="text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem disabled>
-                    <FolderIcon />
-                    Assign to folder…
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled>
-                    <RefreshCw />
-                    Set auto-renew…
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled>
-                    <Lock />
-                    Set lock…
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled>
-                    <FileSpreadsheet />
-                    Export selected
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem disabled>
-                    <EyeOff />
-                    Hide
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+          {(folders.length > 0 || hiddenCount > 0) && (
+            <MultiSelectFilter
+              label="Folder"
+              icon={FolderIcon}
+              options={folderOptions}
+              selected={folder}
+              onChange={(next) => {
+                setFolder(next);
+                setPage(0);
+              }}
+            />
           )}
 
-          {/* Table */}
-          <div className="overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50">
-            <Table>
-              <TableHeader>
-                <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
-                  {BULK_SELECT_ENABLED && (
-                    <TableHead className="w-9 pl-3">
-                      <Checkbox
-                        checked={
-                          allFilteredSelected
-                            ? true
-                            : someFilteredSelected
-                              ? 'indeterminate'
-                              : false
-                        }
-                        onCheckedChange={toggleSelectAll}
-                        aria-label="Select all domains"
-                      />
-                    </TableHead>
-                  )}
-                  {COLUMNS.map((col, i) => {
-                    const active = col.key === sortKey;
-                    const Icon = !active
-                      ? ChevronsUpDown
-                      : sortDir === 'asc'
-                        ? ArrowUp
-                        : ArrowDown;
-                    return (
+          {/* Afternic price range — a dropdown holding the min/max inputs */}
+          {PRICE_FILTER_ENABLED && (
+            <PriceRangeFilter
+              min={minPrice}
+              max={maxPrice}
+              onMinChange={(v) => {
+                setMinPrice(v);
+                setPage(0);
+              }}
+              onMaxChange={(v) => {
+                setMaxPrice(v);
+                setPage(0);
+              }}
+              minInvalid={Boolean(minParsed.error) || Boolean(rangeError)}
+              maxInvalid={Boolean(maxParsed.error) || Boolean(rangeError)}
+              minValue={minValue}
+              maxValue={maxValue}
+              error={priceError}
+            />
+          )}
+
+          {/* Reset button styled like the filters (no chevron); faded/
+                  disabled when nothing is active. Trialling this alongside the
+                  green header link. */}
+          <Button
+            variant="outline"
+            onClick={resetFilters}
+            disabled={!hasActiveFilters}
+            className={cn(
+              'gap-2 pr-[14px]! pl-[8px]!',
+              hasActiveFilters && 'border-[#4f9d6b] dark:border-[#4f9d6b]',
+            )}
+          >
+            <X
+              className={cn(
+                'size-[18px]',
+                hasActiveFilters ? 'text-[#4f9d6b]' : 'text-muted-foreground',
+              )}
+            />
+            Reset
+          </Button>
+
+          <div className="flex items-center gap-3">
+            {exportNote && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1.5 text-sm',
+                  exportNote.error
+                    ? 'text-destructive'
+                    : 'text-[#31613b] dark:text-[#7ac28d]',
+                )}
+                role="status"
+              >
+                {!exportNote.error && <CircleCheck className="size-4" />}
+                {exportNote.text}
+              </span>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={exporting || filtered.length === 0}
+                  title="Export the filtered domains"
+                  className="pr-[7px]!"
+                >
+                  <Download className="text-muted-foreground" />
+                  {exporting ? 'Exporting…' : 'Export'}
+                  <ChevronDown className="text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => void exportCsv()}>
+                  <FileSpreadsheet className="text-muted-foreground" />
+                  Export CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Bulk action bar — contextual, appears once any row is selected.
+              Actions are UI-only stubs for now. */}
+        {BULK_SELECT_ENABLED && selectedCount > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-medium">{selectedCount} selected</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-muted-foreground"
+                onClick={clearSelection}
+              >
+                <X />
+                Clear
+              </Button>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  Bulk actions
+                  <ChevronDown className="text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem disabled>
+                  <FolderIcon />
+                  Assign to folder…
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled>
+                  <RefreshCw />
+                  Set auto-renew…
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled>
+                  <Lock />
+                  Set lock…
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled>
+                  <FileSpreadsheet />
+                  Export selected
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled>
+                  <EyeOff />
+                  Hide
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50">
+          <Table>
+            <TableHeader>
+              <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
+                {BULK_SELECT_ENABLED && (
+                  <TableHead className="w-9 pl-3">
+                    <Checkbox
+                      checked={
+                        allFilteredSelected
+                          ? true
+                          : someFilteredSelected
+                            ? 'indeterminate'
+                            : false
+                      }
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all domains"
+                    />
+                  </TableHead>
+                )}
+                {COLUMNS.map((col, i) => {
+                  const active = col.key === sortKey;
+                  const Icon = !active
+                    ? ChevronsUpDown
+                    : sortDir === 'asc'
+                      ? ArrowUp
+                      : ArrowDown;
+                  return (
+                    <Fragment key={col.key}>
+                      <TableHead
+                        className={cn(
+                          col.align === 'right' && 'text-right',
+                          col.align === 'center' && 'text-center',
+                          col.compact && 'w-0 px-1.5',
+                          col.key === 'autoRenew' && 'pl-[8px]',
+                          col.key === 'domainName' && 'pl-3',
+                        )}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(col.key)}
+                          className={cn(
+                            'inline-flex items-center gap-1 select-none hover:text-foreground',
+                            col.compact && 'gap-0.5',
+                            active && 'text-foreground',
+                          )}
+                        >
+                          {col.label}
+                          <Icon className="size-3.5 opacity-70" />
+                        </button>
+                      </TableHead>
+                      {/* Afternic sits right after the domain name. */}
+                      {i === 0 && AFTERNIC_COLUMN_ENABLED && (
+                        <TableHead className="text-right">
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(AFTERNIC)}
+                            className={cn(
+                              'inline-flex select-none items-center gap-1 hover:text-foreground',
+                              sortKey === AFTERNIC && 'text-foreground',
+                            )}
+                          >
+                            Afternic
+                            {(() => {
+                              const AfIcon =
+                                sortKey !== AFTERNIC
+                                  ? ChevronsUpDown
+                                  : sortDir === 'asc'
+                                    ? ArrowUp
+                                    : ArrowDown;
+                              return <AfIcon className="size-3.5 opacity-70" />;
+                            })()}
+                          </button>
+                        </TableHead>
+                      )}
+                      {/* Folder sits right after Afternic, before Registrar. */}
+                      {i === 0 && (
+                        <TableHead className="pl-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(FOLDER)}
+                            className={cn(
+                              'inline-flex select-none items-center gap-1 hover:text-foreground',
+                              sortKey === FOLDER && 'text-foreground',
+                            )}
+                          >
+                            Folder
+                            {(() => {
+                              const FdIcon =
+                                sortKey !== FOLDER
+                                  ? ChevronsUpDown
+                                  : sortDir === 'asc'
+                                    ? ArrowUp
+                                    : ArrowDown;
+                              return <FdIcon className="size-3.5 opacity-70" />;
+                            })()}
+                          </button>
+                        </TableHead>
+                      )}
+                      {/* Renewal price sits right before the Auto-Renew flag. */}
+                      {col.key === 'expirationDate' && (
+                        <TableHead className="w-0 text-right">
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(RENEWAL)}
+                            className={cn(
+                              'inline-flex select-none items-center gap-1 hover:text-foreground',
+                              sortKey === RENEWAL && 'text-foreground',
+                            )}
+                          >
+                            Renewal
+                            {(() => {
+                              const RnIcon =
+                                sortKey !== RENEWAL
+                                  ? ChevronsUpDown
+                                  : sortDir === 'asc'
+                                    ? ArrowUp
+                                    : ArrowDown;
+                              return <RnIcon className="size-3.5 opacity-70" />;
+                            })()}
+                          </button>
+                        </TableHead>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visible.map((d) => {
+                const key = `${d.registrar}:${d.domainName}`;
+                const loadingDetail = enriching[key] === true;
+                return (
+                  // Rows highlight on hover but aren't themselves clickable —
+                  // the only click target is the Folder cell, which opens the
+                  // folder-assignment menu.
+                  <TableRow
+                    key={key}
+                    className={cn(selected.has(key) && 'bg-muted/50')}
+                  >
+                    {/* Selection checkbox. */}
+                    {BULK_SELECT_ENABLED && (
+                      <TableCell className="w-9 pl-3">
+                        <Checkbox
+                          checked={selected.has(key)}
+                          onCheckedChange={() => toggleSelected(key)}
+                          aria-label={`Select ${d.domainName}`}
+                        />
+                      </TableCell>
+                    )}
+                    {COLUMNS.map((col, i) => (
                       <Fragment key={col.key}>
-                        <TableHead
+                        <TableCell
                           className={cn(
                             col.align === 'right' && 'text-right',
                             col.align === 'center' && 'text-center',
                             col.compact && 'w-0 px-1.5',
-                            col.key === 'autoRenew' && 'pl-[8px]',
+                            col.key === 'autoRenew' && 'pl-[6px]',
                             col.key === 'domainName' && 'pl-3',
                           )}
                         >
-                          <button
-                            type="button"
-                            onClick={() => toggleSort(col.key)}
-                            className={cn(
-                              'inline-flex items-center gap-1 select-none hover:text-foreground',
-                              col.compact && 'gap-0.5',
-                              active && 'text-foreground',
-                            )}
-                          >
-                            {col.label}
-                            <Icon className="size-3.5 opacity-70" />
-                          </button>
-                        </TableHead>
-                        {/* Afternic sits right after the domain name. */}
+                          {col.detail && loadingDetail ? (
+                            <CellSkeleton align={col.align} />
+                          ) : (
+                            col.render(d, portfolioRegistrarLabels)
+                          )}
+                        </TableCell>
                         {i === 0 && AFTERNIC_COLUMN_ENABLED && (
-                          <TableHead className="text-right">
-                            <button
-                              type="button"
-                              onClick={() => toggleSort(AFTERNIC)}
-                              className={cn(
-                                'inline-flex select-none items-center gap-1 hover:text-foreground',
-                                sortKey === AFTERNIC && 'text-foreground',
-                              )}
-                            >
-                              Afternic
-                              {(() => {
-                                const AfIcon =
-                                  sortKey !== AFTERNIC
-                                    ? ChevronsUpDown
-                                    : sortDir === 'asc'
-                                      ? ArrowUp
-                                      : ArrowDown;
-                                return (
-                                  <AfIcon className="size-3.5 opacity-70" />
-                                );
-                              })()}
-                            </button>
-                          </TableHead>
+                          <TableCell className="text-right">
+                            <AfternicCell
+                              info={aftermarket[d.domainName]}
+                              loading={marketLoading[d.domainName] === true}
+                              onOpen={openExternal}
+                            />
+                          </TableCell>
                         )}
-                        {/* Folder sits right after Afternic, before Registrar. */}
                         {i === 0 && (
-                          <TableHead className="pl-3">
-                            <button
-                              type="button"
-                              onClick={() => toggleSort(FOLDER)}
-                              className={cn(
-                                'inline-flex select-none items-center gap-1 hover:text-foreground',
-                                sortKey === FOLDER && 'text-foreground',
-                              )}
-                            >
-                              Folder
-                              {(() => {
-                                const FdIcon =
-                                  sortKey !== FOLDER
-                                    ? ChevronsUpDown
-                                    : sortDir === 'asc'
-                                      ? ArrowUp
-                                      : ArrowDown;
-                                return (
-                                  <FdIcon className="size-3.5 opacity-70" />
-                                );
-                              })()}
-                            </button>
-                          </TableHead>
+                          <TableCell className="p-0">
+                            <FolderCell
+                              folders={folders}
+                              folderId={folderAssignments[key]}
+                              onAssign={(folderId) =>
+                                void assignFolder(key, folderId)
+                              }
+                            />
+                          </TableCell>
                         )}
-                        {/* Renewal price sits right before the Auto-Renew flag. */}
                         {col.key === 'expirationDate' && (
-                          <TableHead className="w-0 text-right">
-                            <button
-                              type="button"
-                              onClick={() => toggleSort(RENEWAL)}
-                              className={cn(
-                                'inline-flex select-none items-center gap-1 hover:text-foreground',
-                                sortKey === RENEWAL && 'text-foreground',
-                              )}
-                            >
-                              Renewal
-                              {(() => {
-                                const RnIcon =
-                                  sortKey !== RENEWAL
-                                    ? ChevronsUpDown
-                                    : sortDir === 'asc'
-                                      ? ArrowUp
-                                      : ArrowDown;
-                                return (
-                                  <RnIcon className="size-3.5 opacity-70" />
-                                );
-                              })()}
-                            </button>
-                          </TableHead>
+                          <TableCell className="w-0 text-right pr-3">
+                            <RenewalCell
+                              info={pricing[key]}
+                              loading={pricingLoading}
+                            />
+                          </TableCell>
                         )}
                       </Fragment>
-                    );
-                  })}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visible.map((d) => {
-                  const key = `${d.registrar}:${d.domainName}`;
-                  const loadingDetail = enriching[key] === true;
-                  return (
-                    // Rows highlight on hover but aren't themselves clickable —
-                    // the only click target is the Folder cell, which opens the
-                    // folder-assignment menu.
-                    <TableRow
-                      key={key}
-                      className={cn(selected.has(key) && 'bg-muted/50')}
-                    >
-                      {/* Selection checkbox. */}
-                      {BULK_SELECT_ENABLED && (
-                        <TableCell className="w-9 pl-3">
-                          <Checkbox
-                            checked={selected.has(key)}
-                            onCheckedChange={() => toggleSelected(key)}
-                            aria-label={`Select ${d.domainName}`}
-                          />
-                        </TableCell>
-                      )}
-                      {COLUMNS.map((col, i) => (
-                        <Fragment key={col.key}>
-                          <TableCell
-                            className={cn(
-                              col.align === 'right' && 'text-right',
-                              col.align === 'center' && 'text-center',
-                              col.compact && 'w-0 px-1.5',
-                              col.key === 'autoRenew' && 'pl-[6px]',
-                              col.key === 'domainName' && 'pl-3',
-                            )}
-                          >
-                            {col.detail && loadingDetail ? (
-                              <CellSkeleton align={col.align} />
-                            ) : (
-                              col.render(d, portfolioRegistrarLabels)
-                            )}
-                          </TableCell>
-                          {i === 0 && AFTERNIC_COLUMN_ENABLED && (
-                            <TableCell className="text-right">
-                              <AfternicCell
-                                info={aftermarket[d.domainName]}
-                                loading={marketLoading[d.domainName] === true}
-                                onOpen={openExternal}
-                              />
-                            </TableCell>
-                          )}
-                          {i === 0 && (
-                            <TableCell className="p-0">
-                              <FolderCell
-                                folders={folders}
-                                folderId={folderAssignments[key]}
-                                onAssign={(folderId) =>
-                                  void assignFolder(key, folderId)
-                                }
-                              />
-                            </TableCell>
-                          )}
-                          {col.key === 'expirationDate' && (
-                            <TableCell className="w-0 text-right pr-3">
-                              <RenewalCell
-                                info={pricing[key]}
-                                loading={pricingLoading}
-                              />
-                            </TableCell>
-                          )}
-                        </Fragment>
-                      ))}
-                    </TableRow>
-                  );
-                })}
-                {visible.length === 0 && (
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell
-                      colSpan={COLUMNS.length + 4}
-                      className="h-32 text-center text-muted-foreground"
-                    >
-                      {portfolio.length === 0
-                        ? hasLoaded
-                          ? 'No domains found in any configured registrar.'
-                          : 'Click “Refresh domains” to load your portfolio.'
-                        : 'No domains match the current filters.'}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Pagination */}
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <span>Rows per page</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(v) => {
-                  setPageSize(Number(v));
-                  setPage(0);
-                }}
-              >
-                <SelectTrigger size="sm" className="w-[80px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {PAGE_SIZES.map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {n}
-                      </SelectItem>
                     ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
+                  </TableRow>
+                );
+              })}
+              {visible.length === 0 && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={COLUMNS.length + 4}
+                    className="h-40 text-center text-muted-foreground"
+                  >
+                    {noneConfigured ? (
+                      <div className="flex flex-col items-center gap-3 py-4">
+                        <div>
+                          <p className="font-medium text-foreground">
+                            No registrars configured
+                          </p>
+                          <p className="mt-0.5">
+                            Add API credentials for a registrar to load your
+                            domains into this table.
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => navigate('/settings?tab=registrars')}
+                        >
+                          <Plug />
+                          Configure registrars
+                        </Button>
+                      </div>
+                    ) : portfolio.length === 0 ? (
+                      hasLoaded ? (
+                        'No domains found in any configured registrar.'
+                      ) : (
+                        'Click “Sync domains” to load your portfolio.'
+                      )
+                    ) : (
+                      'No domains match the current filters.'
+                    )}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
 
-            <div className="flex items-center gap-3">
-              <span>
-                {filtered.length === 0
-                  ? '0 of 0'
-                  : `${start + 1}–${Math.min(start + pageSize, filtered.length)} of ${filtered.length}`}
+        {/* Pagination */}
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span>Rows per page</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setPage(0);
+              }}
+            >
+              <SelectTrigger size="sm" className="w-[80px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {PAGE_SIZES.map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span>
+              {filtered.length === 0
+                ? '0 of 0'
+                : `${start + 1}–${Math.min(start + pageSize, filtered.length)} of ${filtered.length}`}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={safePage === 0}
+                onClick={() => setPage(0)}
+                aria-label="First page"
+              >
+                <ChevronsLeft />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={safePage === 0}
+                onClick={() => setPage(safePage - 1)}
+                aria-label="Previous page"
+              >
+                <ChevronLeft />
+              </Button>
+              <span className="px-2">
+                {safePage + 1} / {pageCount}
               </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={safePage === 0}
-                  onClick={() => setPage(0)}
-                  aria-label="First page"
-                >
-                  <ChevronsLeft />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={safePage === 0}
-                  onClick={() => setPage(safePage - 1)}
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft />
-                </Button>
-                <span className="px-2">
-                  {safePage + 1} / {pageCount}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={safePage >= pageCount - 1}
-                  onClick={() => setPage(safePage + 1)}
-                  aria-label="Next page"
-                >
-                  <ChevronRight />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={safePage >= pageCount - 1}
-                  onClick={() => setPage(pageCount - 1)}
-                  aria-label="Last page"
-                >
-                  <ChevronsRight />
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={safePage >= pageCount - 1}
+                onClick={() => setPage(safePage + 1)}
+                aria-label="Next page"
+              >
+                <ChevronRight />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={safePage >= pageCount - 1}
+                onClick={() => setPage(pageCount - 1)}
+                aria-label="Last page"
+              >
+                <ChevronsRight />
+              </Button>
             </div>
           </div>
-        </>
-      )}
-
-      {noneConfigured && (
-        <Empty className="rounded-lg border border-dashed">
-          <EmptyHeader>
-            <EmptyTitle>No registrars configured</EmptyTitle>
-            <EmptyDescription>
-              Add API credentials for a registrar to load your domains into one
-              table.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button onClick={() => navigate('/settings?tab=registrars')}>
-              <Plug />
-              Configure registrars
-            </Button>
-          </EmptyContent>
-        </Empty>
-      )}
+        </div>
+      </>
     </div>
   );
 }
@@ -1962,7 +1949,11 @@ function MultiSelectFilter({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" aria-label={label} className="gap-2 pr-[7px]!">
+        <Button
+          variant="outline"
+          aria-label={label}
+          className="gap-2 pr-[7px]!"
+        >
           {Icon && <Icon className="size-4 text-muted-foreground" />}
           {label}
           {selected.length > 0 && (

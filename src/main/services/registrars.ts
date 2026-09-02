@@ -11,18 +11,34 @@ import {
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { getDevEnvVar } from './dev-env';
 import {
+  clearEntry,
   isStale,
   patchEntryData,
   readAll,
   readEntry,
   writeEntry,
 } from './cache';
-import type { Portfolio, RegistrarMeta, TestResult } from '../../shared/ipc';
+import type {
+  Portfolio,
+  PortfolioErrorInfo,
+  RegistrarMeta,
+} from '../../shared/ipc';
 
-// Cache key for the single aggregated portfolio, and the per-domain detail key.
-const PORTFOLIO_KEY = 'all';
 const detailKey = (name: RegistrarName, domain: string): string =>
   `${name}:${domain}`;
+
+/**
+ * One registrar's slice of the portfolio, cached under the 'portfolio' namespace
+ * keyed by registrar id (so each syncs independently). `lastSyncedAt` is the last
+ * time domains were fetched *successfully*; `lastError` is the most recent
+ * attempt's error (null when it succeeded). On a failed sync we keep the last-good
+ * `domains` and `lastSyncedAt`, and only set `lastError`.
+ */
+interface RegistrarPortfolioEntry {
+  domains: Domain[];
+  lastSyncedAt: number | null;
+  lastError: string | null;
+}
 
 /** Dates round-trip through JSON as ISO strings; revive them back to `Date`. */
 function reviveDomainDates<T extends Partial<Domain>>(d: T): T {
@@ -63,61 +79,132 @@ export function getConfiguredRegistrars(): RegistrarName[] {
   return registrarNames.filter((name) => isConfigured(name));
 }
 
-/** Clients for every configured registrar — the sources for a portfolio view. */
+/** Clients for every configured registrar — the sources for a live aggregate
+ * (e.g. the MCP `portfolio_list` tool, which reads through without caching). */
 export function getPortfolioSources(): RegistrarClient[] {
   return getConfiguredRegistrars().map(getRegistrarClient);
+}
+
+/** One registrar's cached slice (dates revived), or null when never synced. */
+function readRegistrarEntry(
+  name: RegistrarName,
+): RegistrarPortfolioEntry | null {
+  const cached = readEntry<RegistrarPortfolioEntry>('portfolio', name);
+  if (!cached) return null;
+  return {
+    ...cached.data,
+    domains: cached.data.domains.map(reviveDomainDates),
+  };
+}
+
+/** Display-name map for every built-in registrar (id → e.g. "Dynadot"). */
+function registrarLabelMap(): Record<string, string> {
+  return Object.fromEntries(
+    registrarNames.map((name) => [name, registrars[name].displayName]),
+  );
+}
+
+/**
+ * Assembles the aggregate portfolio from the per-registrar cache slices of every
+ * *configured* registrar. `registrars` and the headline `fetchedAt` cover only
+ * registrars that have synced successfully at least once (so counts reflect real
+ * data); a configured registrar that only ever errored still contributes its
+ * error. No network — pure cache read.
+ */
+function assemblePortfolio(): Portfolio {
+  const domains: Domain[] = [];
+  const errors: PortfolioErrorInfo[] = [];
+  const registrarIds: string[] = [];
+  let fetchedAt: number | null = null;
+
+  for (const name of getConfiguredRegistrars()) {
+    const entry = readRegistrarEntry(name);
+    if (!entry) continue;
+    domains.push(...entry.domains);
+    if (entry.lastError)
+      errors.push({ registrar: name, message: entry.lastError });
+    if (entry.lastSyncedAt != null) {
+      registrarIds.push(name);
+      fetchedAt = Math.max(fetchedAt ?? 0, entry.lastSyncedAt);
+    }
+  }
+
+  return {
+    domains,
+    errors,
+    registrars: registrarIds,
+    registrarLabels: registrarLabelMap(),
+    fetchedAt,
+  };
+}
+
+/**
+ * Syncs one registrar's domains into the cache. On success we replace its slice
+ * with the freshly-listed domains and stamp `lastSyncedAt`. On failure (missing
+ * creds, or a per-registrar list error) we keep the last-good domains and
+ * `lastSyncedAt` and only record `lastError`, so a transient failure doesn't blank
+ * a registrar that was working.
+ */
+async function syncRegistrarInto(name: RegistrarName): Promise<void> {
+  const prev = readRegistrarEntry(name);
+  let entry: RegistrarPortfolioEntry;
+  try {
+    const { domains, errors } = await listPortfolio([getRegistrarClient(name)]);
+    const error = errors[0]?.error;
+    entry = error
+      ? {
+          domains: prev?.domains ?? [],
+          lastSyncedAt: prev?.lastSyncedAt ?? null,
+          lastError: error.message,
+        }
+      : { domains, lastSyncedAt: Date.now(), lastError: null };
+  } catch (err) {
+    entry = {
+      domains: prev?.domains ?? [],
+      lastSyncedAt: prev?.lastSyncedAt ?? null,
+      lastError: err instanceof Error ? err.message : String(err),
+    };
+  }
+  writeEntry('portfolio', name, entry);
 }
 
 /**
  * The aggregated portfolio across every configured registrar, cache-backed.
  *
- * With `refresh` false we return the cached portfolio verbatim when one exists
- * (instant, no network) — the launch/hydration path. With `refresh` true (the
- * default, e.g. the UI's Refresh button) we re-query every registrar, cache the
- * result, and return it. `listPortfolio` isolates per-registrar failures; we
- * flatten its Error objects to plain messages so the result survives IPC clone.
+ * With `refresh` false we return the assembled cache verbatim (instant, no
+ * network) — the launch/hydration path. With `refresh` true (the default, e.g.
+ * the "Sync domains" button) we re-sync every configured registrar in parallel,
+ * then return the assembled result.
  */
 export async function getPortfolio(refresh = true): Promise<Portfolio> {
-  if (!refresh) {
-    const cached = readEntry<Portfolio>('portfolio', PORTFOLIO_KEY);
-    if (cached) {
-      return {
-        ...cached.data,
-        domains: cached.data.domains.map(reviveDomainDates),
-        fetchedAt: cached.fetchedAt,
-      };
-    }
+  if (refresh) {
+    await Promise.all(getConfiguredRegistrars().map(syncRegistrarInto));
   }
-
-  const registrarIds = getConfiguredRegistrars();
-  const { domains, errors } = await listPortfolio(getPortfolioSources());
-  const registrarLabels = Object.fromEntries(
-    getRegistrarMetadata().map((r) => [r.name, r.displayName]),
-  );
-  const portfolio: Portfolio = {
-    domains,
-    errors: errors.map(({ registrar, error }) => ({
-      registrar,
-      message: error.message,
-    })),
-    registrars: registrarIds,
-    registrarLabels,
-    fetchedAt: null,
-  };
-  // Cache the payload; stamp the returned copy with the write time.
-  const entry = writeEntry('portfolio', PORTFOLIO_KEY, portfolio);
-  return { ...portfolio, fetchedAt: entry.fetchedAt };
+  return assemblePortfolio();
 }
 
-/** The cached portfolio (revived), or null — for launch hydration only. */
+/**
+ * Syncs a single registrar (e.g. right after its credentials are saved) and
+ * returns the updated aggregate portfolio, merged with every other registrar's
+ * cached slice.
+ */
+export async function syncRegistrar(name: RegistrarName): Promise<Portfolio> {
+  if (isConfigured(name)) {
+    await syncRegistrarInto(name);
+  } else {
+    // Credentials were cleared — drop the registrar's slice so its domains don't
+    // linger (or resurface if it's reconfigured before the next sync).
+    clearEntry('portfolio', name);
+  }
+  return assemblePortfolio();
+}
+
+/** The cached portfolio (revived), or null when nothing has ever synced. */
 export function getCachedPortfolio(): Portfolio | null {
-  const cached = readEntry<Portfolio>('portfolio', PORTFOLIO_KEY);
-  if (!cached) return null;
-  return {
-    ...cached.data,
-    domains: cached.data.domains.map(reviveDomainDates),
-    fetchedAt: cached.fetchedAt,
-  };
+  const anySynced = getConfiguredRegistrars().some((name) =>
+    readEntry('portfolio', name),
+  );
+  return anySynced ? assemblePortfolio() : null;
 }
 
 /** All cached per-domain detail partials, keyed `registrar:domain` (revived). */
@@ -134,12 +221,18 @@ export function getCachedDetail(): Record<string, Partial<Domain>> {
 export function getRegistrarMetadata(): RegistrarMeta[] {
   return registrarNames.map((name) => {
     const R = registrars[name];
+    const sync = readEntry<RegistrarPortfolioEntry>('portfolio', name)?.data;
     return {
       name,
       displayName: R.displayName,
       helpText: R.helpText,
       supportsSandbox: R.supportsSandbox,
       configured: isConfigured(name),
+      sync: {
+        lastSyncedAt: sync?.lastSyncedAt ?? null,
+        lastError: sync?.lastError ?? null,
+        domainCount: sync?.domains.length ?? 0,
+      },
       configFields: R.configFields.map((f) => ({
         name: f.name,
         label: f.label,
@@ -263,18 +356,20 @@ export async function setDomainAutoRenew(
     );
   }
 
-  patchEntryData<Portfolio>('portfolio', PORTFOLIO_KEY, (p) => ({
-    ...p,
-    domains: p.domains.map((d) =>
-      d.registrar === name && d.domainName === domainName
-        ? { ...d, autoRenew: enabled }
-        : d,
+  patchEntryData<RegistrarPortfolioEntry>('portfolio', name, (e) => ({
+    ...e,
+    domains: e.domains.map((d) =>
+      d.domainName === domainName ? { ...d, autoRenew: enabled } : d,
     ),
   }));
-  patchEntryData<Partial<Domain>>('detail', detailKey(name, domainName), (d) => ({
-    ...d,
-    autoRenew: enabled,
-  }));
+  patchEntryData<Partial<Domain>>(
+    'detail',
+    detailKey(name, domainName),
+    (d) => ({
+      ...d,
+      autoRenew: enabled,
+    }),
+  );
 
   return result;
 }
@@ -317,21 +412,6 @@ async function lookupRegistry(
     return { nameservers, createdDate };
   } catch {
     return empty;
-  }
-}
-
-/** Validates a registrar's credentials by calling its testConnection(). */
-export async function testRegistrar(name: RegistrarName): Promise<TestResult> {
-  try {
-    const result = await getRegistrarClient(name).testConnection();
-    return { ok: result.success, message: result.message };
-  } catch (err) {
-    // Bad creds may have been cached; drop so the next attempt rebuilds.
-    clients.delete(name);
-    return {
-      ok: false,
-      message: err instanceof Error ? err.message : String(err),
-    };
   }
 }
 
