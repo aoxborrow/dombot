@@ -32,13 +32,8 @@ Grab the latest build for macOS (Apple Silicon & Intel), Windows, or Linux from
   and breakdowns by registrar and TLD. Prices come from registrar quotes where
   available and a base per-TLD price database otherwise, and you can enter a
   price by hand for anything still unpriced.
-- **Aftermarket values.** Shows Afternic buy-it-now / offer prices (via DomDB)
-  next to each domain, so resale value sits alongside carrying cost.
 - **Export.** One click exports the current (filtered, sorted) view to a
   spreadsheet-friendly CSV.
-- **Safe management actions.** Update nameservers, toggle auto-renew, and
-  lock/unlock — deliberately read-only for anything that moves money (no
-  register, renew, or transfer).
 - **Instant, offline-friendly launch.** The whole portfolio is cached on disk
   and painted the moment the app opens, with no network calls; you refresh on
   demand (it never auto-refreshes) and a timestamp flags when data is going
@@ -46,16 +41,6 @@ Grab the latest build for macOS (Apple Silicon & Intel), Windows, or Linux from
 - **Agent-ready.** An embedded local MCP server lets AI agents (Claude Code,
   Claude Desktop, any MCP client) read and manage the same portfolio — see
   [Embedded MCP server](#embedded-mcp-server).
-
-## Why it's useful
-
-Registrars each have their own dashboard, login, and idea of "expiring soon," so
-once you're past a handful of names the questions that actually matter — _What's
-about to expire? What will I pay this quarter? Which of these auto-renew? Where
-are my nameservers pointed?_ — have no single answer. DomBot makes the portfolio
-one thing again: a consolidated, always-current view that flags the domains
-needing attention before they lapse, turns renewal dates into a spending
-forecast, and hands that same control surface to AI agents over MCP.
 
 ## Configuring registrars
 
@@ -95,67 +80,7 @@ npm start
 | `npm run typecheck`  | Type-check without emitting                        |
 | `npm run site:build` | Minify the landing page (`site/src` → `site/dist`) |
 
-## Project layout
-
-The tree mirrors Electron's process boundary — `main/` (Node backend),
-`renderer/` (React frontend), `preload.ts` (the bridge), and `shared/` (the
-type-safe contract between them):
-
-```
-src/
-├─ main/                   # ─── BACKEND (Node process) ───
-│  ├─ index.ts             # app lifecycle + window creation (the entry)
-│  ├─ ipc/                 # ipcMain handlers, one module per feature area
-│  │  ├─ index.ts          #   registerIpcHandlers() — wires them all up
-│  │  ├─ app.ts            #   ping, getAppInfo
-│  │  └─ registrars.ts     #   listDynadotDomains (thin: calls a service)
-│  └─ services/            # real logic, testable without Electron
-│     └─ registrars.ts     #   builds & caches RegistrarClient instances
-│
-├─ preload.ts              # contextBridge — assembles the typed window.api
-│                          # (kept separate: its own sandboxed context)
-│
-├─ renderer/               # ─── FRONTEND (Chromium window, React) ───
-│  ├─ main.tsx             # React entry — mounts <App/> in a HashRouter
-│  ├─ App.tsx              # layout + routes
-│  ├─ index.css            # Tailwind entry
-│  ├─ pages/               # route-level screens
-│  ├─ components/          # reusable UI
-│  └─ store/               # Zustand stores
-│
-└─ shared/                 # ─── BOTH SIDES ───
-   ├─ ipc.ts               # channel names + the DombotApi contract
-   └─ window.d.ts          # ambient typing for window.api
-```
-
-**How a request flows** (e.g. loading the Dynadot portfolio): renderer calls
-`window.api.listDynadotDomains()` → `preload.ts` forwards it over IPC →
-`main/ipc/registrars.ts` handles it → `main/services/registrars.ts` calls the
-library → the `Domain[]` result travels back to the store, which re-renders.
-Handlers stay thin; the logic lives in `services/`.
-
-## The registrar-client dependency
-
-DomBot's registrar logic comes from
-[`@aoxborrow/registrar-client`](https://www.npmjs.com/package/@aoxborrow/registrar-client)
-([source](https://github.com/aoxborrow/registrar-client)) — a standalone,
-provider-agnostic client for many registrar APIs, used in the main process. It's
-an ordinary npm dependency, so a plain `npm install` pulls it in (and Vite
-bundles it into the main-process build); no alias or link step is required.
-
-To develop DomBot against **unreleased local changes** in the sibling repo at
-`../registrar-client`, `npm link` it:
-
-```bash
-cd ../registrar-client && npm run build && npm link   # build dist/, register the link
-cd -                    && npm link @aoxborrow/registrar-client
-```
-
-Rebuild the library (`npm run build`, or `npx tsup --watch` for iteration) to
-pick up edits. Return to the published version with
-`npm unlink @aoxborrow/registrar-client && npm install`.
-
-### Credentials in development
+## Credentials in development
 
 In production, registrar credentials are entered in **Settings → Registrars**
 and stored encrypted via Electron `safeStorage` — see
@@ -230,57 +155,6 @@ claude mcp add dombot --transport http http://127.0.0.1:4123/mcp
   the project stays CommonJS.
 - **HashRouter.** The packaged app loads over `file://`, where history-based
   routing does not resolve — hash routing avoids that.
-
-## Cutting a release
-
-Binaries are built and published by GitHub Actions
-([`.github/workflows/release.yml`](.github/workflows/release.yml)). There are
-three ways to run it:
-
-- **Push a version tag** (builds + publishes):
-  ```bash
-  npm version patch      # or minor / major — commits + creates tag vX.Y.Z
-  git push --follow-tags # pushing the tag triggers the release workflow
-  ```
-- **From the Actions tab** (no terminal): bump the version in `package.json`
-  (via a PR), then **Actions → Release → Run workflow**, tick **publish**. It
-  tags `v<package.json version>` and publishes (and refuses if that version was
-  already released).
-- **Validate only**: run the workflow with **publish** left off — it builds and
-  uploads the installers as artifacts on the run, without publishing a Release.
-
-The workflow fans out across macOS (arm64 + x64), Windows (x64), and Linux
-(x64), runs `npm run make` on each, and uploads the results — `.dmg` + `.zip`
-(macOS), `Setup.exe` (Windows), `.deb` + `.rpm` (Linux) — to a draft Release,
-which it publishes once all platforms succeed. The `.dmg` is assembled from the
-packaged `.app` with `hdiutil` (macOS's built-in tool), sidestepping
-`maker-dmg`'s fragile native `appdmg` dependency.
-
-### Code signing
-
-**macOS** builds are Developer ID signed and notarized, so they launch with no
-Gatekeeper prompt. Signing activates when these repository secrets are present
-(Settings → Secrets and variables → Actions); without them the mac build falls
-back to **ad-hoc signed** (valid signature, not notarized) and the signing step
-is skipped:
-
-| Secret | What it is |
-| ------ | ---------- |
-| `MACOS_CERTIFICATE_P12` | Base64 of your **Developer ID Application** cert exported from Keychain as `.p12` (`base64 -i cert.p12 \| pbcopy`) |
-| `MACOS_CERTIFICATE_PASSWORD` | Password you set on that `.p12` export |
-| `APPLE_SIGNING_IDENTITY` | The identity string, e.g. `Developer ID Application: Your Name (TEAMID)` |
-| `APPLE_API_KEY_P8` | Base64 of your App Store Connect API key `.p8` (Notary) |
-| `APPLE_API_KEY_ID` | The API key's Key ID |
-| `APPLE_API_ISSUER` | The API key's Issuer ID |
-
-With those set, the release workflow imports the cert into a temporary keychain,
-`forge.config.ts` signs with hardened runtime and notarizes via the Notary API,
-and the app is stapled — producing a no-prompt download. Requires an
-[Apple Developer Program](https://developer.apple.com/programs/) membership.
-
-**Windows** signing is not wired in; the installer relies on the SmartScreen
-workaround. Adding it later (e.g. Azure Trusted Signing) would remove that
-prompt.
 
 ## License
 
