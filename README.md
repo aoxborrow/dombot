@@ -112,10 +112,35 @@ packaged `.app` with `hdiutil` (macOS's built-in tool), sidestepping
 the Actions tab (**workflow_dispatch**) to test the build without publishing;
 those runs attach the artifacts to the Actions run instead of a Release.
 
-Builds are **unsigned** — there are no Apple/Windows code-signing certificates
-wired in yet, which is why the download page documents the first-open workaround.
-To sign later, add the maker/packager signing options and provide the
-certificates as encrypted repository secrets.
+### Code signing
+
+By default builds are **ad-hoc signed** on macOS (valid signature, but not
+notarized) and **unsigned** on Windows — so first launch shows a Gatekeeper /
+SmartScreen prompt, which the download page documents (macOS: right-click →
+Open, or `xattr -dr com.apple.quarantine <app>`; Windows: More info → Run
+anyway).
+
+**macOS notarization** is wired up and activates automatically once these
+repository secrets are set (Settings → Secrets and variables → Actions) — until
+then the mac build stays ad-hoc and the signing step is skipped:
+
+| Secret | What it is |
+| ------ | ---------- |
+| `MACOS_CERTIFICATE_P12` | Base64 of your **Developer ID Application** cert exported from Keychain as `.p12` (`base64 -i cert.p12 \| pbcopy`) |
+| `MACOS_CERTIFICATE_PASSWORD` | Password you set on that `.p12` export |
+| `APPLE_SIGNING_IDENTITY` | The identity string, e.g. `Developer ID Application: Your Name (TEAMID)` |
+| `APPLE_API_KEY_P8` | Base64 of your App Store Connect API key `.p8` (Notary) |
+| `APPLE_API_KEY_ID` | The API key's Key ID |
+| `APPLE_API_ISSUER` | The API key's Issuer ID |
+
+With those set, the release workflow imports the cert into a temporary keychain,
+`forge.config.ts` signs with hardened runtime and notarizes via the Notary API,
+and the app is stapled — producing a no-prompt download. Requires an
+[Apple Developer Program](https://developer.apple.com/programs/) membership.
+
+**Windows** signing is not wired in; the installer relies on the SmartScreen
+workaround. Adding it later (e.g. Azure Trusted Signing) would remove that
+prompt.
 
 ## Project layout
 
