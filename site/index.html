@@ -4,10 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0d0d0f">
 <meta name="description" content="DomBot — all your domains, from every registrar, in one open-source desktop app with a built-in MCP server. One set of controls across every registrar.">
+<link rel="canonical" href="https://dombot.ai/">
 <meta property="og:title" content="DomBot">
 <meta property="og:description" content="Your whole domain portfolio, every registrar, in one open-source app — plus a built-in MCP server for agents.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://dombot.ai/">
+<meta property="og:image" content="https://dombot.ai/og-image.png">
+<meta property="og:image:alt" content="DomBot Domains screen — every domain across all your registrars in one table">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <title>DomBot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -40,13 +46,13 @@
 
 <a id="top"></a>
 
-<!-- ═══════════════ HERO — VARIANT A (existing) · keep one hero ═══════════════ -->
+<!-- ═══════════════ HERO ═══════════════ -->
 <header class="hero">
   <div class="wrap hero-grid">
     <div>
-      <span class="eyebrow">Open source · app + MCP server</span>
+      <span class="eyebrow">Desktop app + MCP server</span>
       <h1>All your domains, from every registrar, in one app + MCP.</h1>
-      <p class="lede"><strong>DomBot pulls your whole domain portfolio</strong> — scattered across GoDaddy, Dynadot, Cloudflare, and more — into one desktop app, and serves the same portfolio to your AI agents through a built-in MCP server.</p>
+      <p class="lede"><strong>DomBot pulls your whole domain portfolio</strong> — scattered across GoDaddy, Dynadot, Cloudflare, and more — into one desktop app, and serves the same portfolio to your AI agents through a built-in MCP server. <strong class="nowrap">Free and open source.</strong></p>
       <div class="hero-cta">
         <a class="btn btn-primary" id="hero-dl" href="#download">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
@@ -62,13 +68,14 @@
 
     <div class="window" aria-label="DomBot Domains screen">
       <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-      <div class="shot"><img src="./public/dombot-domains.png" alt="DomBot Domains screen — 120 domains across 9 registrars in one sortable, filterable table" width="2452" height="1728" loading="lazy"></div>
+      <!-- Served from site/public at the site root (the same file the README links to). Above the fold, so load it eagerly. -->
+      <div class="shot"><img src="./dombot-domains.png" alt="DomBot Domains screen — 120 domains across 9 registrars in one sortable, filterable table" width="2100" height="1530" fetchpriority="high" decoding="async"></div>
     </div>
   </div>
 </header>
 
 
-<!-- ═══════════════ REGISTRARS — VARIANT A (existing) · keep one head/foot; the logo grid is identical in both ═══════════════ -->
+<!-- ═══════════════ REGISTRARS ═══════════════ -->
 <section id="registrars">
   <div class="wrap">
     <div class="sec-head">
@@ -93,7 +100,7 @@
 </section>
 
 
-<!-- ═══════════════ MCP (existing) · overlaps with #two-ways below — likely keep one ═══════════════ -->
+<!-- ═══════════════ MCP ═══════════════ -->
 <section id="mcp">
   <div class="wrap">
     <div class="sec-head">
@@ -126,7 +133,7 @@
 </section>
 
 
-<!-- ═══════════════ FEATURES (identical in both versions — no variant) ═══════════════ -->
+<!-- ═══════════════ FEATURES ═══════════════ -->
 <section id="features">
   <div class="wrap">
     <div class="sec-head">
@@ -142,7 +149,7 @@
       </div>
       <div class="feature">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 4-6"/></svg></span>
-        <div class="txt"><h3>Renewal forecasting</h3><p>Yearly spend, what’s due next, month by month — by registrar and TLD.</p></div>
+        <div class="txt"><h3>Renewals dashboard</h3><p>Yearly spend, what’s due next, month by month — by registrar and TLD.</p></div>
       </div>
       <div class="feature">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14"/></svg></span>
@@ -154,7 +161,7 @@
       </div>
       <div class="feature">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
-        <div class="txt"><h3>Encrypted keys</h3><p>API keys are sealed in the OS keystore — Keychain or DPAPI.</p></div>
+        <div class="txt"><h3>Encrypted keys</h3><p>API keys are sealed in the OS keystore — Keychain, DPAPI, or libsecret.</p></div>
       </div>
       <div class="feature">
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></span>
@@ -164,7 +171,7 @@
   </div>
 </section>
 
-<!-- ═══════════════ DOWNLOAD (identical in both versions — no variant) ═══════════════ -->
+<!-- ═══════════════ DOWNLOAD ═══════════════ -->
 <section id="download">
   <div class="wrap">
     <div class="sec-head">
@@ -185,6 +192,7 @@
           <a href="https://github.com/aoxborrow/dombot/releases" data-dl data-asset="dmg-arm64">Apple Silicon (.dmg) <span class="fmt">arm64</span> <svg class="dl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg></a>
           <a href="https://github.com/aoxborrow/dombot/releases" data-dl data-asset="dmg-x64">Intel (.dmg) <span class="fmt">x64</span> <svg class="dl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg></a>
         </div>
+        <p class="dl-note"><b>Signed &amp; notarized</b> by Apple — opens without any Gatekeeper warnings.</p>
       </div>
 
       <div class="dl-card" data-os="win">
@@ -206,7 +214,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c-1.7 0-3 1.6-3 3.6 0 1.2.2 1.7.2 2.7 0 .9-1.2 2.2-1.9 3.6-.7 1.3-1.7 2.7-1.7 4.4 0 .5.1.9.3 1.3-.3.4-.5.9-.5 1.4 0 1 .7 1.6 1.7 1.9.9.3 2 .5 2.7 1.1.5.4 1.2.6 1.9.6s1.4-.2 1.9-.6c.7-.6 1.8-.8 2.7-1.1 1-.3 1.7-.9 1.7-1.9 0-.5-.2-1-.5-1.4.2-.4.3-.8.3-1.3 0-1.7-1-3.1-1.7-4.4-.7-1.4-1.9-2.7-1.9-3.6 0-1 .2-1.5.2-2.7C15 3.6 13.7 2 12 2zm-1.4 4.1c.3 0 .5.3.5.7s-.2.7-.5.7-.5-.3-.5-.7.2-.7.5-.7zm2.8 0c.3 0 .5.3.5.7s-.2.7-.5.7-.5-.3-.5-.7.2-.7.5-.7z"/></svg>
           Linux
         </div>
-        <span class="meta">.deb · .rpm · .zip</span>
+        <span class="meta">.deb · .rpm</span>
         <div class="assets">
           <a href="https://github.com/aoxborrow/dombot/releases" data-dl data-asset="deb">Debian / Ubuntu (.deb) <span class="fmt">amd64</span> <svg class="dl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg></a>
           <a href="https://github.com/aoxborrow/dombot/releases" data-dl data-asset="rpm">Fedora / RHEL (.rpm) <span class="fmt">x86_64</span> <svg class="dl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg></a>
@@ -216,7 +224,7 @@
   </div>
 </section>
 
-<!-- ═══════════════ FAQ (identical in both versions — no variant) ═══════════════ -->
+<!-- ═══════════════ FAQ ═══════════════ -->
 <section id="faq">
   <div class="wrap">
     <div class="sec-head">
@@ -231,7 +239,7 @@
       </div>
       <div class="faq-item">
         <h3>Where do my keys and data live?</h3>
-        <p>On your machine. Your portfolio is cached locally and your API keys are encrypted with the OS keystore (Keychain / DPAPI). The free app talks only to your registrars — never to a DomBot server.</p>
+        <p>On your machine. Your portfolio is cached locally and your API keys are encrypted with the OS keystore (Keychain / DPAPI / libsecret). The free app talks only to your registrars — never to a DomBot server.</p>
       </div>
       <div class="faq-item">
         <h3>Do agents need my approval?</h3>
@@ -245,7 +253,7 @@
   </div>
 </section>
 
-<!-- ═══════════════ FOOTER (unchanged; "App + MCP" link added — delete if you drop #two-ways) ═══════════════ -->
+<!-- ═══════════════ FOOTER ═══════════════ -->
 <footer>
   <div class="wrap foot-in">
     <a class="brand" href="#top" aria-label="DomBot">
