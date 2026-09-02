@@ -48,6 +48,17 @@ export default function McpClientsSettings() {
             label="Claude Code"
             value={`claude mcp add dombot --transport http ${info.url}`}
           />
+          {info.stdioCommand && (
+            <CopyField
+              label="Claude Desktop"
+              hint="Paste into claude_desktop_config.json. DomBot launches automatically if it isn't running."
+              value={JSON.stringify({
+                mcpServers: {
+                  dombot: { command: info.stdioCommand, args: ['--mcp-stdio'] },
+                },
+              })}
+            />
+          )}
         </SettingsCard>
       )}
 
@@ -90,7 +101,15 @@ export default function McpClientsSettings() {
  * the marketing site: a small uppercase label above a mono field that flips the
  * button to a check for a moment on copy.
  */
-function CopyField({ label, value }: { label: string; value: string }) {
+function CopyField({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -125,6 +144,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
           {copied ? <Check /> : <Copy />}
         </Button>
       </div>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }

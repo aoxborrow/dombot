@@ -17,6 +17,7 @@ import {
   InvalidTokenError,
 } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import type { McpClient, McpPendingApproval } from '../../shared/ipc';
+import { getStdioToken } from './stdio-config';
 
 // A minimal, single-user OAuth 2.1 authorization server for the local MCP
 // endpoint. Clients self-register (dynamic registration); the human approves
@@ -285,6 +286,18 @@ export const oauthProvider: OAuthServerProvider = {
         clientId: 'static',
         scopes: [],
         expiresAt: Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC,
+      };
+    }
+    // The stdio shim (`DomBot --mcp-stdio`) authenticates with a per-install
+    // token from userData — same user, same machine, so no approval prompt.
+    const stdioToken = getStdioToken();
+    if (stdioToken && token === stdioToken) {
+      return {
+        token,
+        clientId: 'stdio',
+        scopes: ['portfolio'],
+        expiresAt: Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC,
+        extra: { clientName: 'Local stdio' },
       };
     }
     const info = grantedTokens.get(token);

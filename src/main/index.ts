@@ -3,6 +3,7 @@ import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { startMcpServer, stopMcpServer } from './mcp/server';
+import { isStdioShimMode, runStdioShim } from './mcp/stdio';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -50,32 +51,56 @@ const createWindow = () => {
   }
 };
 
-app.on('ready', () => {
-  registerIpcHandlers();
-  createWindow();
-
-  // Start the local MCP server unless explicitly disabled (DOMBOT_MCP_ENABLED=0).
-  if (process.env.DOMBOT_MCP_ENABLED !== '0') {
-    startMcpServer()
-      .then((mcp) => console.log(`[mcp] listening on ${mcp.url}`))
-      .catch((err) => console.error('[mcp] failed to start', err));
-  }
-});
-
-app.on('will-quit', () => {
-  void stopMcpServer();
-});
-
-// Quit when all windows are closed, except on macOS.
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
-
-app.on('activate', () => {
-  // On macOS re-create a window when the dock icon is clicked and none are open.
-  if (BrowserWindow.getAllWindows().length === 0) {
+/** The desktop app proper: window, IPC, and the embedded MCP server. */
+function runApp(): void {
+  app.on('ready', () => {
+    registerIpcHandlers();
     createWindow();
-  }
-});
+
+    // Start the local MCP server unless explicitly disabled (DOMBOT_MCP_ENABLED=0).
+    if (process.env.DOMBOT_MCP_ENABLED !== '0') {
+      startMcpServer()
+        .then((mcp) => console.log(`[mcp] listening on ${mcp.url}`))
+        .catch((err) => console.error('[mcp] failed to start', err));
+    }
+  });
+
+  app.on('will-quit', () => {
+    void stopMcpServer();
+  });
+
+  // Quit when all windows are closed, except on macOS.
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit();
+    }
+  });
+
+  app.on('activate', () => {
+    // On macOS re-create a window when the dock icon is clicked and none are open.
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
+}
+
+/**
+ * `DomBot --mcp-stdio`: a headless stdio bridge to the app's MCP server, for
+ * Claude Desktop and other stdio-only clients. No window, no Dock icon, no
+ * server of its own — see mcp/stdio.ts.
+ */
+function runShim(): void {
+  app.on('ready', () => {
+    app.dock?.hide();
+    runStdioShim().catch((err) => {
+      console.error('[mcp-stdio] fatal:', err);
+      app.exit(1);
+    });
+  });
+}
+
+if (isStdioShimMode()) {
+  runShim();
+} else {
+  runApp();
+}

@@ -65,6 +65,24 @@ client stays paired across restarts; manage or revoke paired clients in
 **Settings → MCP Clients**. The URL and a ready-to-paste connect command are
 also shown on the Home screen.
 
+**Claude Desktop** (and other clients that can only launch a command) use the
+app itself as a stdio server. Copy the ready-made entry from **Settings → MCP**
+into `claude_desktop_config.json`; it looks like:
+
+```json
+{
+  "mcpServers": {
+    "dombot": {
+      "command": "/Applications/DomBot.app/Contents/MacOS/DomBot",
+      "args": ["--mcp-stdio"]
+    }
+  }
+}
+```
+
+No approval prompt is needed for this route — it runs as you, on your machine —
+and if DomBot isn't open when the client starts, it launches automatically.
+
 ---
 
 # Development
@@ -114,6 +132,14 @@ third _adapter_ over the same `services/` core the UI uses — see
   approval prompt (dev/testing), `DOMBOT_MCP_TOKEN` for a static bearer token
   escape hatch (dev/testing). See
   [`src/main/mcp/oauth.ts`](src/main/mcp/oauth.ts).
+- **stdio shim.** `DomBot --mcp-stdio` runs the same binary headless as a
+  stdin/stdout bridge to the HTTP server, for clients that can't dial a URL
+  (Claude Desktop). It authenticates with a per-install token the app writes to
+  `userData/mcp-stdio.json`, launches the app if it isn't running, and
+  re-initializes its session transparently if the app restarts. stdout is the
+  JSON-RPC channel, so all logging in that mode goes to stderr. See
+  [`src/main/mcp/stdio.ts`](src/main/mcp/stdio.ts). Dev builds aren't
+  auto-launched — start the app first.
 - **Tools.** Named by scope, so a caller can tell at a glance what a tool acts
   on: `portfolio_*` take no scope params, `registrar_*` require a `registrar`
   id, and `domain_*` require `registrar` + `domain`. `registrar` is always

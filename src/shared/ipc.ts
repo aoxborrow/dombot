@@ -67,6 +67,11 @@ export interface McpInfo {
   running: boolean;
   /** Endpoint an MCP client connects to, e.g. http://127.0.0.1:4123/mcp */
   url: string;
+  /**
+   * Executable a stdio-only client (Claude Desktop) runs with `--mcp-stdio` to
+   * reach the same server. Empty in dev builds.
+   */
+  stdioCommand: string;
 }
 
 /** Credential values keyed by config-field name. */
