@@ -15,26 +15,35 @@ const config: ForgeConfig = {
     icon: 'assets/icon',
     // Lowercase binary name: the Linux deb/rpm makers look for this exact name
     // (else "could not find the Electron app binary at .../dombot"), and it's the
-    // conventional CLI/launcher name on every platform.
+    // conventional CLI/launcher name on every platform. On macOS it also lowercases
+    // the Info.plist display name to "dombot" — the postPackage hook restores it.
     executableName: 'dombot',
   },
   rebuildConfig: {},
   hooks: {
-    // The fuses plugin flips security fuses in the binary and Packager then writes
-    // the app's Info.plist (bundle id, name) — both invalidate the stock Electron
-    // ad-hoc signature, so macOS rejects the packaged app as "damaged". Re-sign the
-    // whole bundle ad-hoc AFTER packaging so the signature validates again; users
-    // then get the ordinary "unidentified developer" prompt (right-click → Open)
-    // instead of "damaged". Replace with Developer ID signing + notarization to
-    // remove the prompt entirely.
+    // macOS post-package fixups, run after Packager finishes and before the makers
+    // zip/dmg the bundle:
+    //  1. Restore the user-facing name to "DomBot" — executableName lowercased
+    //     CFBundleDisplayName to "dombot" (shown in Finder, the menu bar, and the
+    //     Gatekeeper dialog).
+    //  2. Deep ad-hoc re-sign the bundle. Flipping fuses and Packager's Info.plist
+    //     edits invalidate the stock Electron signature, so macOS rejects the app
+    //     as "damaged"; re-signing here (after the plist edit above, so the seal
+    //     covers it) restores a valid signature and users get the ordinary
+    //     "unidentified developer" prompt instead. Replace with Developer ID
+    //     signing + notarization to remove the prompt entirely.
     postPackage: async (_forgeConfig, { platform, outputPaths }) => {
       if (platform !== 'darwin') return;
       for (const outputPath of outputPaths) {
+        const app = `${outputPath}/DomBot.app`;
         execFileSync(
-          'codesign',
-          ['--force', '--deep', '--sign', '-', `${outputPath}/DomBot.app`],
+          '/usr/libexec/PlistBuddy',
+          ['-c', 'Set :CFBundleDisplayName DomBot', `${app}/Contents/Info.plist`],
           { stdio: 'inherit' },
         );
+        execFileSync('codesign', ['--force', '--deep', '--sign', '-', app], {
+          stdio: 'inherit',
+        });
       }
     },
   },
