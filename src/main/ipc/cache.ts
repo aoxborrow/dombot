@@ -6,7 +6,11 @@ import {
   type RenewalPricing,
 } from '../../shared/ipc';
 import { clearAll } from '../services/cache';
-import { getCachedDetail, getCachedPortfolio } from '../services/registrars';
+import {
+  getCachedDetail,
+  getCachedPortfolio,
+  getConfiguredRegistrars,
+} from '../services/registrars';
 import { getCachedAftermarket } from '../services/domdb';
 import { clearPricingCache, getCachedRenewalPrice } from '../services/pricing';
 
@@ -19,6 +23,18 @@ export function registerCacheIpc(): void {
   ipcMain.handle(
     IpcChannels.hydrateFromCache,
     async (): Promise<CachedSnapshot> => {
+      // The portfolio/detail/market/pricing caches were all fetched under
+      // registrar credentials. If none are configured now — a fresh install, or
+      // every credential removed — that cached data is orphaned: it would paint
+      // stale domain counts and "N/N connected" over a UI that otherwise
+      // (correctly) reports no registrars. Drop it and hydrate nothing so the
+      // whole app reflects the true unconfigured state.
+      if (getConfiguredRegistrars().length === 0) {
+        clearAll();
+        clearPricingCache();
+        return { portfolio: null, detail: {}, aftermarket: {}, pricing: {} };
+      }
+
       const portfolio = getCachedPortfolio();
 
       // Compute pricing for every cached domain from local data only.

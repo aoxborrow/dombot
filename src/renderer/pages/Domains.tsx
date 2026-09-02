@@ -745,6 +745,8 @@ export default function Domains() {
     portfolioError,
     portfolioLoadedAt,
     refreshTick,
+    hasConfiguredRegistrars,
+    loadRegistrarConfigured,
     loadPortfolio,
     enriched,
     enriching,
@@ -765,19 +767,16 @@ export default function Domains() {
   const navigate = useNavigate();
   const openExternal = (url: string) => void window.api.openExternal(url);
 
-  // Whether any registrar has credentials configured. Drives the empty state:
-  // with none configured we point the user at Settings rather than show an
-  // empty table they can't fill. Defaults to true so the table (not the
-  // configure prompt) shows while this first resolves. Re-checked after a
-  // refresh in case credentials changed.
-  const [hasConfiguredRegistrars, setHasConfiguredRegistrars] = useState(true);
+  // Whether any registrar has credentials configured (shared store state, so the
+  // header/status bar/empty state agree). Drives the empty state: with none
+  // configured we point the user at Settings rather than show an empty table
+  // they can't fill. Re-checked after a refresh in case credentials changed.
   useEffect(() => {
-    void window.api
-      .getRegistrarMetadata()
-      .then((metas) =>
-        setHasConfiguredRegistrars(metas.some((m) => m.configured)),
-      );
-  }, [portfolioLoadedAt]);
+    void loadRegistrarConfigured();
+  }, [portfolioLoadedAt, loadRegistrarConfigured]);
+  // Treat the pre-load `null` as "configured" so the table (not the configure
+  // prompt) shows during the brief first resolve.
+  const noneConfigured = hasConfiguredRegistrars === false;
 
   // Overlay lazily-fetched per-domain detail (nameservers/privacy/lock) onto the
   // fast summary. Filtering, sorting, and rendering all use this merged view.
@@ -1203,12 +1202,12 @@ export default function Domains() {
         <div>
           <h1 className="text-[32px] font-bold">Domains</h1>
           <p className="-mt-0.5 text-sm text-muted-foreground">
-            {hasLoaded
-              ? `${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
-                  portfolioRegistrars.length === 1 ? '' : 's'
-                }`
-              : !hasConfiguredRegistrars
-                ? 'Configure a registrar to load your domains.'
+            {noneConfigured
+              ? '0 domains across 0 registrars'
+              : hasLoaded
+                ? `${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
+                    portfolioRegistrars.length === 1 ? '' : 's'
+                  }`
                 : 'Refresh to load your portfolio across every configured registrar.'}
           </p>
         </div>
@@ -1222,9 +1221,9 @@ export default function Domains() {
               variant="outline"
               size="sm"
               onClick={() => void loadPortfolio()}
-              disabled={portfolioLoading || tooSoon || !hasConfiguredRegistrars}
+              disabled={portfolioLoading || tooSoon || noneConfigured}
               title={
-                !hasConfiguredRegistrars
+                noneConfigured
                   ? 'Configure a registrar in Settings first'
                   : portfolioLoadedAt !== null
                     ? `Refreshed ${new Date(portfolioLoadedAt).toLocaleString()}${
@@ -1293,7 +1292,7 @@ export default function Domains() {
         </Alert>
       )}
 
-      {hasConfiguredRegistrars && (
+      {!noneConfigured && (
         <>
           {/* Toolbar: search, filters, and export all flow inline and wrap
               together as equal items. Extra top margin separates it from the
@@ -1803,7 +1802,7 @@ export default function Domains() {
         </>
       )}
 
-      {!hasConfiguredRegistrars && (
+      {noneConfigured && (
         <Empty className="rounded-lg border border-dashed">
           <EmptyHeader>
             <EmptyTitle>No registrars configured</EmptyTitle>

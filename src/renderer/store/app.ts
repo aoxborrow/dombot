@@ -60,6 +60,13 @@ interface AppState {
   portfolioSource: 'cache' | 'live' | null;
   /** Bumped on every live refresh so views can force-refresh their lazy data. */
   refreshTick: number;
+  /** Whether at least one registrar currently has credentials configured, from
+   * the live metadata check (not the cache). `null` until first loaded. Shared
+   * source of truth so the header, status bar, and empty state never disagree —
+   * cached portfolio counts must not show when nothing is configured. */
+  hasConfiguredRegistrars: boolean | null;
+  /** Refresh `hasConfiguredRegistrars` from the main process. */
+  loadRegistrarConfigured: () => Promise<void>;
   /** Restore portfolio + detail + aftermarket + pricing from the on-disk cache
    * with no network calls. Call once on app launch. */
   hydrateFromCache: () => Promise<void>;
@@ -177,6 +184,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   portfolioLoadedAt: null,
   portfolioSource: null,
   refreshTick: 0,
+  hasConfiguredRegistrars: null,
+
+  loadRegistrarConfigured: async () => {
+    const metas = await window.api.getRegistrarMetadata();
+    set({ hasConfiguredRegistrars: metas.some((m) => m.configured) });
+  },
 
   hydrateFromCache: async () => {
     // Only hydrate before any live load — never clobber fresher data.
