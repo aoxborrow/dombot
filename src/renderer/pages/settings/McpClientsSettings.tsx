@@ -49,13 +49,9 @@ export default function McpClientsSettings() {
             value={`claude mcp add dombot --transport http ${info.url}`}
           />
           <CopyField
-            label="Claude Desktop"
-            hint="Paste into claude_desktop_config.json. DomBot launches automatically if it isn't running."
-            value={JSON.stringify({
-              mcpServers: {
-                dombot: { command: info.stdioCommand, args: info.stdioArgs },
-              },
-            })}
+            label="stdio command"
+            hint="For clients that launch a command instead of dialing a URL (Claude Desktop: add it under mcpServers in claude_desktop_config.json). DomBot launches automatically if it isn't running."
+            value={shellQuote([info.stdioCommand, ...info.stdioArgs])}
           />
         </SettingsCard>
       )}
@@ -145,6 +141,11 @@ function CopyField({
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
+}
+
+/** Joins a command line, quoting any part with spaces (e.g. "Application Support"). */
+function shellQuote(parts: string[]): string {
+  return parts.map((p) => (/[\s"]/.test(p) ? `"${p}"` : p)).join(' ');
 }
 
 function formatDate(ms: number): string {
