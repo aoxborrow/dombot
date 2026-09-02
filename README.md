@@ -11,6 +11,8 @@ local-first: your data and API keys stay on your machine.
 [**dombot.ai**](https://dombot.ai) or the
 [Releases](https://github.com/aoxborrow/dombot/releases) page.
 
+![DomBot's Domains screen — every domain across all your registrars in one sortable, filterable table](site/public/dombot-domains.png)
+
 ## What it does
 
 - **One portfolio, every registrar.** Aggregates all your domains across the
