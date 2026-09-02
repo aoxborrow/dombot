@@ -93,3 +93,13 @@ typings/
 
 # Electron-Forge
 out/
+
+# Code-signing artifacts — NEVER commit these (private keys / certs / profiles)
+*.p12
+*.p8
+*.cer
+*.certSigningRequest
+*.mobileprovision
+*.provisionprofile
+*.keychain
+*.keychain-db
