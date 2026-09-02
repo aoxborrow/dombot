@@ -48,17 +48,15 @@ export default function McpClientsSettings() {
             label="Claude Code"
             value={`claude mcp add dombot --transport http ${info.url}`}
           />
-          {info.stdioCommand && (
-            <CopyField
-              label="Claude Desktop"
-              hint="Paste into claude_desktop_config.json. DomBot launches automatically if it isn't running."
-              value={JSON.stringify({
-                mcpServers: {
-                  dombot: { command: info.stdioCommand, args: ['--mcp-stdio'] },
-                },
-              })}
-            />
-          )}
+          <CopyField
+            label="Claude Desktop"
+            hint="Paste into claude_desktop_config.json. DomBot launches automatically if it isn't running."
+            value={JSON.stringify({
+              mcpServers: {
+                dombot: { command: info.stdioCommand, args: info.stdioArgs },
+              },
+            })}
+          />
         </SettingsCard>
       )}
 

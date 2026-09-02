@@ -68,10 +68,12 @@ export interface McpInfo {
   /** Endpoint an MCP client connects to, e.g. http://127.0.0.1:4123/mcp */
   url: string;
   /**
-   * Executable a stdio-only client (Claude Desktop) runs with `--mcp-stdio` to
-   * reach the same server. Empty in dev builds.
+   * Command + args a stdio-only client (Claude Desktop) runs to reach the same
+   * server: the app executable with `--mcp-stdio`. In dev builds the command is
+   * the Electron binary and the app path is passed as an extra arg.
    */
   stdioCommand: string;
+  stdioArgs: string[];
 }
 
 /** Credential values keyed by config-field name. */

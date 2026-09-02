@@ -25,7 +25,7 @@ let info: McpInfo | null = null;
 
 /** Current server status, or a stopped placeholder if it never started. */
 export function getMcpInfo(): McpInfo {
-  return info ?? { running: false, url: '', stdioCommand: '' };
+  return info ?? { running: false, url: '', stdioCommand: '', stdioArgs: [] };
 }
 
 /** Builds a fresh MCP server instance with the portfolio tools registered. */
@@ -87,7 +87,13 @@ export async function startMcpServer(): Promise<McpInfo> {
   // Tell stdio shims where we are (and mint their token on first run).
   writeStdioConfig(mcpUrl.href);
 
-  info = { running: true, url: mcpUrl.href, stdioCommand: stdioCommand() };
+  const stdio = stdioCommand();
+  info = {
+    running: true,
+    url: mcpUrl.href,
+    stdioCommand: stdio.command,
+    stdioArgs: stdio.args,
+  };
   return info;
 }
 

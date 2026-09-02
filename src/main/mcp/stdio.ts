@@ -202,19 +202,23 @@ function macAppBundle(): string | null {
 
 /**
  * The command an MCP client should run to get a stdio server — shown in
- * Settings → MCP. Empty in dev (see launchApp). On Windows, Squirrel installs
- * a stub launcher one directory up that forwards to the current version, so
- * the path survives updates.
+ * Settings → MCP. Packaged: the app executable (on Windows, Squirrel's stub
+ * launcher one directory up, which forwards to the current version so the
+ * path survives updates). Dev: the Electron binary plus the app path, i.e.
+ * `electron <repo> --mcp-stdio`, which works while `npm start` is running.
  */
-export function stdioCommand(): string {
-  if (!app.isPackaged) return '';
+export function stdioCommand(): { command: string; args: string[] } {
+  if (!app.isPackaged) {
+    return { command: process.execPath, args: [app.getAppPath(), STDIO_FLAG] };
+  }
+  let command = process.execPath;
   if (process.platform === 'win32') {
     const stub = path.join(
       path.dirname(process.execPath),
       '..',
       path.basename(process.execPath),
     );
-    if (fs.existsSync(stub)) return stub;
+    if (fs.existsSync(stub)) command = stub;
   }
-  return process.execPath;
+  return { command, args: [STDIO_FLAG] };
 }
