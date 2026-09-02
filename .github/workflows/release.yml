@@ -1,53 +1,90 @@
 name: Release
 
-# Builds DomBot distributables for macOS, Windows, and Linux with Electron
-# Forge and attaches them to a GitHub Release. dombot.ai links to
-# github.com/aoxborrow/dombot/releases for downloads.
+# Builds DomBot for macOS (signed + notarized when the Apple secrets are set),
+# Windows, and Linux and publishes them to a GitHub Release.
 #
-# Cut a release by pushing a version tag (see README → Cutting a release):
-#   npm version <patch|minor|major>   # commits + tags vX.Y.Z
-#   git push --follow-tags
-#
-# Assets are unsigned (no Apple/Windows code-signing certificates wired in yet),
-# so the site documents the first-open workaround. To add signing later, set the
-# maker/packager signing options and provide the certs as encrypted secrets.
-#
-# workflow_dispatch runs the build on demand and publishes the artifacts to the
-# Actions run (not to a Release) — useful for verifying the pipeline off a tag.
+# Three ways to run it:
+#  - Push a version tag — builds + publishes:
+#       npm version <patch|minor|major>   # commits + tags vX.Y.Z
+#       git push --follow-tags
+#  - Actions → Release → Run workflow, tick "publish" — tags v<package.json
+#    version> and publishes. Bump the version in package.json first (via PR);
+#    it refuses if that version was already released.
+#  - Actions → Run workflow, leave "publish" off — just builds and uploads the
+#    artifacts to the run (validation, nothing published).
 
 on:
   push:
     tags: ['v*']
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a release (tags v<package.json version>). Leave off to only build/validate.'
+        type: boolean
+        default: false
 
 permissions:
-  contents: write # create the Release and upload assets
+  contents: write # create tags/releases and upload assets
+  actions: write # dispatch the deploy-pages workflow after publishing
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  # Create a draft Release up front so every platform build uploads into the
-  # same one. Tag pushes only.
-  prepare:
-    if: startsWith(github.ref, 'refs/tags/')
+  # Decide whether this run publishes a release and under which tag, create the
+  # tag (for a dispatch publish), and open a draft Release for the build to fill.
+  setup:
     runs-on: ubuntu-latest
+    outputs:
+      releasing: ${{ steps.decide.outputs.releasing }}
+      tag: ${{ steps.decide.outputs.tag }}
+      ref: ${{ steps.decide.outputs.ref }}
     steps:
-      - name: Create draft release
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Decide release vs validate
+        id: decide
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-              --draft --generate-notes --title "DomBot $GITHUB_REF_NAME"
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="$GITHUB_REF_NAME"
+            echo "Tag push → releasing $TAG"
+            { echo "releasing=true"; echo "tag=$TAG"; echo "ref=$TAG"; } >> "$GITHUB_OUTPUT"
+          elif [ "${{ inputs.publish }}" = "true" ]; then
+            TAG="v$(jq -r .version package.json)"
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+               || git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+              echo "::error::$TAG already exists — bump the version in package.json first."
+              exit 1
+            fi
+            echo "Dispatch publish → cutting $TAG"
+            git config user.name  'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git tag "$TAG"
+            git push origin "$TAG"   # GITHUB_TOKEN push doesn't re-trigger the tag path
+            { echo "releasing=true"; echo "tag=$TAG"; echo "ref=$TAG"; } >> "$GITHUB_OUTPUT"
+          else
+            echo "Dispatch without publish → validate-only build"
+            { echo "releasing=false"; echo "tag="; echo "ref=$GITHUB_SHA"; } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create draft release
+        if: steps.decide.outputs.releasing == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.decide.outputs.tag }}"
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --draft --generate-notes --title "DomBot $TAG"
           fi
 
   build:
-    needs: [prepare]
-    # Run after prepare on tag pushes, and directly on workflow_dispatch (where
-    # prepare is skipped).
-    if: ${{ always() && (needs.prepare.result == 'success' || needs.prepare.result == 'skipped') }}
+    needs: [setup]
     strategy:
       fail-fast: false
       matrix:
@@ -67,6 +104,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The tag when releasing, else the dispatched commit.
+          ref: ${{ needs.setup.outputs.ref }}
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -160,19 +200,27 @@ jobs:
           if-no-files-found: error
 
       - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: needs.setup.outputs.releasing == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
-        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "${{ needs.setup.outputs.tag }}" dist/* --clobber --repo "$GITHUB_REPOSITORY"
 
   # Flip the draft Release to published once every platform has uploaded.
   publish:
-    needs: [build]
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [setup, build]
+    if: needs.setup.outputs.releasing == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+        run: gh release edit "${{ needs.setup.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+      - name: Rebuild the site with the new release
+        # Publishing with GITHUB_TOKEN doesn't fire `release: published` for other
+        # workflows (anti-recursion), so trigger deploy-pages explicitly to refresh
+        # the download links + version. workflow_dispatch IS allowed via GITHUB_TOKEN.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run deploy-pages.yml --repo "$GITHUB_REPOSITORY" --ref main
