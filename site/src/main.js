@@ -10,11 +10,20 @@
         ? 'linux'
         : null;
   const label = { mac: 'Download for macOS', win: 'Download for Windows', linux: 'Download for Linux' };
+  // How the app binary is spelled per platform (the stdio snippet shows the
+  // gist, not the full install path — the app's Settings → MCP has that).
+  const exe = { mac: 'DomBot', win: 'DomBot.exe', linux: 'dombot' };
   if (os) {
     const hl = document.getElementById('hero-dl-label');
     if (hl) hl.textContent = label[os];
     document.querySelectorAll('.dl-card[data-os="' + os + '"]').forEach(function (el) {
       el.classList.add('detected');
+    });
+    document.querySelectorAll('[data-stdio-exe]').forEach(function (el) {
+      el.textContent = exe[os];
+    });
+    document.querySelectorAll('[data-stdio-copy]').forEach(function (el) {
+      el.setAttribute('data-copy', exe[os] + ' --mcp-stdio');
     });
   }
 })();
