@@ -8,6 +8,7 @@ import {
   type RegisterDomainInput,
   type RegistrarCredentials,
   type RegistrarName,
+  type RequestOptions,
 } from '@aoxborrow/registrar-client';
 import { promises as dnsPromises } from 'node:dns';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
@@ -80,6 +81,11 @@ export const registrarNames = Object.keys(registrars) as [
   RegistrarName,
   ...RegistrarName[],
 ];
+
+/** The library's capability list for a provider (core + extended `Feature` ids). */
+export function getRegistrarFeatures(name: RegistrarName): readonly string[] {
+  return registrars[name].features;
+}
 
 /**
  * Returns a cached client for `name`, building it from resolved credentials on
@@ -231,7 +237,9 @@ async function syncRenewalQuotes(
   name: RegistrarName,
   domains: Domain[],
 ): Promise<void> {
-  const todo = domains.filter((d) => usesPerNameQuote(name, tldOf(d.domainName)));
+  const todo = domains.filter((d) =>
+    usesPerNameQuote(name, tldOf(d.domainName)),
+  );
   if (todo.length === 0) return;
 
   const CONCURRENCY = 4;
@@ -443,6 +451,7 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
         required: f.required,
         options: f.options,
       })),
+      features: [...R.features],
     };
   });
 }
@@ -614,10 +623,12 @@ export async function setAutoRenewCached(
   name: RegistrarName,
   domainName: string,
   enabled: boolean,
+  opts?: RequestOptions,
 ): Promise<OperationResult> {
   const result = await getRegistrarClient(name).setAutoRenew(
     domainName,
     enabled,
+    opts,
   );
   if (result.success)
     patchDomainInCaches(name, domainName, { autoRenew: enabled });
@@ -630,11 +641,12 @@ export async function setLockCached(
   name: RegistrarName,
   domainName: string,
   locked: boolean,
+  opts?: RequestOptions,
 ): Promise<OperationResult> {
   const client = getRegistrarClient(name);
   const result = await (locked
-    ? client.lockDomain(domainName)
-    : client.unlockDomain(domainName));
+    ? client.lockDomain(domainName, opts)
+    : client.unlockDomain(domainName, opts));
   if (result.success) patchDomainInCaches(name, domainName, { locked });
   return result;
 }
@@ -645,8 +657,13 @@ export async function setPrivacyCached(
   name: RegistrarName,
   domainName: string,
   enabled: boolean,
+  opts?: RequestOptions,
 ): Promise<OperationResult> {
-  const result = await getRegistrarClient(name).setPrivacy(domainName, enabled);
+  const result = await getRegistrarClient(name).setPrivacy(
+    domainName,
+    enabled,
+    opts,
+  );
   if (result.success)
     patchDomainInCaches(name, domainName, { privacy: enabled });
   return result;
@@ -658,10 +675,12 @@ export async function setNameserversCached(
   name: RegistrarName,
   domainName: string,
   nameservers: string[],
+  opts?: RequestOptions,
 ): Promise<OperationResult> {
   const result = await getRegistrarClient(name).updateNameservers(
     domainName,
     nameservers,
+    opts,
   );
   if (result.success) patchDomainInCaches(name, domainName, { nameservers });
   return result;
@@ -671,19 +690,28 @@ export async function setNameserversCached(
  * Renews a domain. The registrar's `OperationResult` doesn't carry the new
  * expiry, so on success we re-fetch the domain's detail (which writes through the
  * detail cache) and patch the fresh expiration/renewal/status into the portfolio
- * slice too. A re-fetch failure is swallowed — the renewal still succeeded and
- * the next Sync corrects the date. Returns the raw result (no throw).
+ * slice too — that patch is returned so the caller can overlay it on its row. A
+ * re-fetch failure is swallowed — the renewal still succeeded and the next Sync
+ * corrects the date. Returns the raw result (no throw).
+ *
+ * Callers should pass `{ retries: 0 }`: a timed-out renew may have gone
+ * through, and a blind retry would renew twice.
  */
 export async function renewDomainCached(
   name: RegistrarName,
   domainName: string,
   years?: number,
-): Promise<OperationResult> {
-  const result = await getRegistrarClient(name).renewDomain(domainName, years);
+  opts?: RequestOptions,
+): Promise<{ result: OperationResult; patch: Partial<Domain> }> {
+  const result = await getRegistrarClient(name).renewDomain(
+    domainName,
+    years,
+    opts,
+  );
+  const patch: Partial<Domain> = {};
   if (result.success) {
     try {
       const detail = await getDomainDetail(name, domainName, true);
-      const patch: Partial<Domain> = {};
       if (detail?.expirationDate != null)
         patch.expirationDate = detail.expirationDate;
       if (detail?.renewalDate != null) patch.renewalDate = detail.renewalDate;
@@ -694,7 +722,7 @@ export async function renewDomainCached(
       // Renewal succeeded; leave the cached expiry for the next Sync to correct.
     }
   }
-  return result;
+  return { result, patch };
 }
 
 /**
@@ -712,25 +740,6 @@ export async function registerDomainCached(
     input,
   );
   if (result.success) await syncRegistrarInto(name);
-  return result;
-}
-
-/**
- * UI-facing auto-renew toggle. Wraps `setAutoRenewCached` and normalizes a soft
- * failure (`success: false`, e.g. Namecheap) to a thrown error so the renderer's
- * optimistic toggle can roll back on a single failure mode.
- */
-export async function setDomainAutoRenew(
-  name: RegistrarName,
-  domainName: string,
-  enabled: boolean,
-): Promise<OperationResult> {
-  const result = await setAutoRenewCached(name, domainName, enabled);
-  if (!result.success) {
-    throw new Error(
-      result.message || `Failed to update auto-renew for ${domainName}`,
-    );
-  }
   return result;
 }
 

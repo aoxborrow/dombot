@@ -26,21 +26,24 @@ import {
   Server,
   TriangleAlert,
   X,
-  type LucideIcon,
 } from 'lucide-react';
-import type {
-  Domain,
-  Folder,
-  RegistrarName,
-  RenewalPricing,
-} from '../../shared/ipc';
+import type { Domain, Folder, RenewalPricing } from '../../shared/ipc';
 import { toast } from 'sonner';
 import { HIDDEN_FOLDER_ID } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
 import { folderColorStyle } from '../lib/folders';
+import {
+  reportOpResult,
+  targetOf,
+  useOpUnsupportedReason,
+} from '../lib/domain-ops';
 import { FolderIcon } from '../components/icons/FolderIcon';
+import { FlagToggle } from '../components/domains/FlagToggle';
+import { RowActionsMenu } from '../components/domains/RowActionsMenu';
+import { AuthCodeDialog } from '../components/domains/AuthCodeDialog';
+import { RenewDialog } from '../components/domains/RenewDialog';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -310,41 +313,6 @@ function FolderMenuContent({
   );
 }
 
-/**
- * On/off state shown with column-appropriate icons: the `on` icon (emphasized)
- * when enabled, its muted `off` counterpart when disabled.
- */
-function StateIcon({
-  value,
-  on: On,
-  off: Off,
-  onLabel,
-  offLabel,
-  align = 'center',
-}: {
-  value: boolean;
-  on: LucideIcon;
-  off: LucideIcon;
-  onLabel: string;
-  offLabel: string;
-  /** Horizontal placement within the cell. Default centers; 'left' hugs the
-   * left edge (used by Auto-Renew so it snugs up to the renewal price). */
-  align?: 'center' | 'left';
-}) {
-  const place = align === 'left' ? 'mr-auto' : 'mx-auto';
-  const Icon = value ? On : Off;
-  return (
-    <Icon
-      className={cn(
-        'size-4',
-        place,
-        value ? 'text-[#7ac28d]/85' : 'text-muted-foreground/50',
-      )}
-      aria-label={value ? onLabel : offLabel}
-    />
-  );
-}
-
 type LifecycleTone = 'redemption' | 'expired' | 'grace' | 'hold';
 
 /**
@@ -398,38 +366,39 @@ function LifecycleBadge({ status }: { status: string }) {
 }
 
 /**
- * Auto-renew toggle: writes through to the registrar. The store applies the new
- * value optimistically (so the switch flips immediately) and rolls back if the
- * registrar rejects — some can't toggle it post-registration (e.g. Cloudflare).
- * Outcome is surfaced as a toast; the switch is disabled while in flight. Brand
+ * Auto-renew toggle: writes through to the registrar via the shared domain-op
+ * path. The store applies the new value optimistically (so the switch flips
+ * immediately) and rolls back if the registrar rejects. Disabled, with the
+ * reason as its tooltip, where the registrar can't toggle it post-registration
+ * (Cloudflare), and while the write is in flight. Outcome is a toast. Brand
  * green when on, a muted red when off.
  */
 function AutoRenewSwitch({ domain }: { domain: Domain }) {
-  const setAutoRenew = useAppStore((s) => s.setAutoRenew);
+  const applyDomainOp = useAppStore((s) => s.applyDomainOp);
   const key = `${domain.registrar}:${domain.domainName}`;
   const pending = useAppStore((s) => s.mutating[key] ?? false);
+  const reason = useOpUnsupportedReason(domain.registrar, {
+    kind: 'autoRenew',
+    enabled: !domain.autoRenew,
+  });
 
   const onToggle = (next: boolean) => {
-    setAutoRenew(domain.registrar as RegistrarName, domain.domainName, next)
-      .then(() =>
-        toast.success(
-          `Auto-renew ${next ? 'enabled' : 'disabled'} for ${domain.domainName}`,
-        ),
-      )
-      .catch((err: unknown) =>
-        toast.error(`Couldn’t update auto-renew for ${domain.domainName}`, {
-          description: err instanceof Error ? err.message : String(err),
-        }),
-      );
+    const op = { kind: 'autoRenew' as const, enabled: next };
+    void applyDomainOp(targetOf(domain), op, { autoRenew: next }).then(
+      (result) => reportOpResult(op, result),
+    );
   };
 
   return (
     <Switch
       checked={domain.autoRenew}
       onCheckedChange={onToggle}
-      disabled={pending}
+      disabled={pending || reason !== null}
       aria-label="auto-renew"
-      title={`Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`}
+      title={
+        reason ??
+        `Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`
+      }
       className="data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80"
     />
   );
@@ -501,8 +470,9 @@ const COLUMNS: Column[] = [
     compact: true,
     detail: true,
     render: (d) => (
-      <StateIcon
-        value={d.privacy}
+      <FlagToggle
+        domain={d}
+        kind="privacy"
         on={EyeOff}
         off={Eye}
         onLabel="privacy on"
@@ -518,8 +488,9 @@ const COLUMNS: Column[] = [
     compact: true,
     detail: true,
     render: (d) => (
-      <StateIcon
-        value={d.locked}
+      <FlagToggle
+        domain={d}
+        kind="lock"
         on={Lock}
         off={LockOpen}
         onLabel="locked"
@@ -680,6 +651,18 @@ export default function Domains() {
       return next;
     });
   const clearSelection = () => setSelected(new Set());
+
+  // Per-row action dialogs (opened from the row's "⋯" menu).
+  const [authCodeFor, setAuthCodeFor] = useState<Domain | null>(null);
+  const [renewFor, setRenewFor] = useState<Domain | null>(null);
+  const hideDomain = (d: Domain) => {
+    void assignFolder(`${d.registrar}:${d.domainName}`, HIDDEN_FOLDER_ID).then(
+      () =>
+        toast.success(`Hid ${d.domainName}`, {
+          description: 'Pick “Hidden” in the Folder filter to see it again.',
+        }),
+    );
+  };
 
   // CSV export: an in-flight flag (dialog open + write) and a transient result
   // note ("Exported N rows to …" / an error) that clears itself after a moment.
@@ -1336,6 +1319,8 @@ export default function Domains() {
                     </Fragment>
                   );
                 })}
+                {/* Row actions ("⋯") — no header label. */}
+                <TableHead className="w-0 px-1.5" aria-label="Actions" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1398,13 +1383,21 @@ export default function Domains() {
                         )}
                       </Fragment>
                     ))}
+                    <TableCell className="w-0 px-1.5">
+                      <RowActionsMenu
+                        domain={d}
+                        onAuthCode={() => setAuthCodeFor(d)}
+                        onRenew={() => setRenewFor(d)}
+                        onHide={() => hideDomain(d)}
+                      />
+                    </TableCell>
                   </TableRow>
                 );
               })}
               {visible.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell
-                    colSpan={COLUMNS.length + 4}
+                    colSpan={COLUMNS.length + 5}
                     className="h-40 text-center text-muted-foreground"
                   >
                     {noneConfigured ? (
@@ -1517,6 +1510,20 @@ export default function Domains() {
           </div>
         </div>
       </>
+
+      {authCodeFor && (
+        <AuthCodeDialog
+          domain={authCodeFor}
+          onClose={() => setAuthCodeFor(null)}
+        />
+      )}
+      {renewFor && (
+        <RenewDialog
+          domain={renewFor}
+          pricing={pricing[`${renewFor.registrar}:${renewFor.domainName}`]}
+          onClose={() => setRenewFor(null)}
+        />
+      )}
     </div>
   );
 }

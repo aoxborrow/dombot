@@ -1,0 +1,130 @@
+import { useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import type { Domain, DomainOp } from '../../../shared/ipc';
+import { useAppStore } from '../../store/app';
+import {
+  reportOpResult,
+  targetOf,
+  useOpUnsupportedReason,
+} from '../../lib/domain-ops';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+
+/**
+ * A clickable on/off cell for the Privacy and Locked columns. Shows the `on`
+ * icon (emphasized) when enabled, the muted `off` icon otherwise, and flips
+ * the value at the registrar on click — optimistically, rolling back if the
+ * registrar rejects. Disabled (with the reason as its tooltip) when the
+ * registrar can't change the flag, and while a write is in flight.
+ *
+ * Unlocking is the one transition that enables a transfer-out, so it asks
+ * first in a small popover anchored to the cell; everything else is one click.
+ */
+export function FlagToggle({
+  domain,
+  kind,
+  on: On,
+  off: Off,
+  onLabel,
+  offLabel,
+}: {
+  domain: Domain;
+  kind: 'privacy' | 'lock';
+  on: LucideIcon;
+  off: LucideIcon;
+  onLabel: string;
+  offLabel: string;
+}) {
+  const applyDomainOp = useAppStore((s) => s.applyDomainOp);
+  const key = `${domain.registrar}:${domain.domainName}`;
+  const pending = useAppStore((s) => s.mutating[key] ?? false);
+  const [confirming, setConfirming] = useState(false);
+
+  const value = kind === 'privacy' ? domain.privacy : domain.locked;
+  const next = !value;
+  const op: DomainOp =
+    kind === 'privacy'
+      ? { kind: 'privacy', enabled: next }
+      : { kind: 'lock', locked: next };
+  const optimistic: Partial<Domain> =
+    kind === 'privacy' ? { privacy: next } : { locked: next };
+  const reason = useOpUnsupportedReason(domain.registrar, op);
+
+  const apply = () => {
+    setConfirming(false);
+    void applyDomainOp(targetOf(domain), op, optimistic).then((result) =>
+      reportOpResult(op, result),
+    );
+  };
+
+  const Icon = value ? On : Off;
+  const label = value ? onLabel : offLabel;
+  const title = reason
+    ? reason
+    : `${label[0].toUpperCase()}${label.slice(1)} — click to ${
+        kind === 'privacy'
+          ? next
+            ? 'enable privacy'
+            : 'disable privacy'
+          : next
+            ? 'lock'
+            : 'unlock'
+      }`;
+
+  const button = (
+    <button
+      type="button"
+      disabled={pending || reason !== null}
+      title={title}
+      aria-label={label}
+      aria-pressed={value}
+      onClick={kind === 'lock' && value ? undefined : apply}
+      className={cn(
+        'mx-auto flex size-6 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-muted disabled:cursor-default disabled:hover:bg-transparent',
+        pending && 'animate-pulse',
+        reason !== null && 'opacity-40',
+      )}
+    >
+      <Icon
+        className={cn(
+          'size-4',
+          value ? 'text-[#7ac28d]/85' : 'text-muted-foreground/50',
+        )}
+      />
+    </button>
+  );
+
+  // Locked → unlocking: confirm in place.
+  if (kind === 'lock' && value) {
+    return (
+      <Popover open={confirming} onOpenChange={setConfirming}>
+        <PopoverTrigger asChild>{button}</PopoverTrigger>
+        <PopoverContent align="center" className="w-64 p-3">
+          <p className="text-sm font-medium">Unlock {domain.domainName}?</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            An unlocked domain can be transferred to another registrar.
+          </p>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirming(false)}
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={apply}>
+              Unlock
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  return button;
+}

@@ -28,13 +28,8 @@ const api: DombotApi = {
       domainName,
       refresh,
     ),
-  setAutoRenew: (registrar, domainName, enabled) =>
-    ipcRenderer.invoke(
-      IpcChannels.setAutoRenew,
-      registrar,
-      domainName,
-      enabled,
-    ),
+  applyDomainOp: (target, op) =>
+    ipcRenderer.invoke(IpcChannels.applyDomainOp, target, op),
   listPortfolio: (refresh) =>
     ipcRenderer.invoke(IpcChannels.listPortfolio, refresh),
   syncRegistrar: (name) => ipcRenderer.invoke(IpcChannels.syncRegistrar, name),
