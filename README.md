@@ -142,9 +142,12 @@ third _adapter_ over the same `services/` core the UI uses — see
   auto-launched — start the app first.
 - **Tools.** Named by scope, so a caller can tell at a glance what a tool acts
   on: `portfolio_*` take no scope params, `registrar_*` require a `registrar`
-  id, and `domain_*` require `registrar` + `domain`. `registrar` is always
-  required (never resolved from state), so a client can act on a freshly
-  registered name that isn't in the cached portfolio yet.
+  id, and `domain_*` take a `domain`. For `domain_*` tools the `registrar` is
+  optional — DomBot resolves it from the cached portfolio (you own the domain,
+  so it knows who holds it), so an agent can act on a name without first looking
+  up its registrar. Pass `registrar` to skip the lookup, or to act on a name not
+  yet in the cache; if the cache can't resolve it, the tool says so and points
+  at `portfolio_sync`.
   - _Portfolio:_ `registrar_list`, `portfolio_query`, and `portfolio_sync`.
     `portfolio_query` is the primary way to read the portfolio: list, search,
     filter, sort, and page the cached portfolio (by registrar, TLD, folder,

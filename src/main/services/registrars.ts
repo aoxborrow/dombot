@@ -202,6 +202,25 @@ export function getCachedPortfolio(): Portfolio | null {
   return anySynced ? assemblePortfolio() : null;
 }
 
+/**
+ * Distinct registrars that hold `domainName` in the cached portfolio
+ * (case-insensitive). Backs the MCP tools' automatic registrar resolution, so a
+ * caller can act on a domain it owns without knowing which registrar holds it.
+ * Normally one; empty when the domain isn't cached (never synced, or added
+ * since the last sync), and more than one only if a stale cache still lists a
+ * transferred-away domain at its old registrar too.
+ */
+export function findRegistrarsForDomain(domainName: string): RegistrarName[] {
+  const target = domainName.trim().toLowerCase();
+  const found = new Set<RegistrarName>();
+  for (const d of getCachedPortfolio()?.domains ?? []) {
+    if (d.domainName.toLowerCase() === target) {
+      found.add(d.registrar as RegistrarName);
+    }
+  }
+  return [...found];
+}
+
 /** All cached per-domain detail partials, keyed `registrar:domain` (revived). */
 export function getCachedDetail(): Record<string, Partial<Domain>> {
   const all = readAll<Partial<Domain>>('detail');
