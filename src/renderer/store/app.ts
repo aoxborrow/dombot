@@ -176,6 +176,8 @@ interface AppState {
   /** Set the background auto-sync interval in minutes (0 = off); applied live in
    * main. */
   setAutoSyncInterval: (minutes: number) => Promise<void>;
+  /** Push a just-saved nameserver set to the front of the recent presets. */
+  rememberNameservers: (nameservers: string[]) => Promise<void>;
 }
 
 /** Global renderer store. Kept intentionally small — grow it as needed. */
@@ -573,6 +575,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     const settings = await window.api.updateSettings({
       autoSyncIntervalMinutes: minutes,
     });
+    set({ settings });
+  },
+  rememberNameservers: async (nameservers) => {
+    const key = (set: string[]) => [...set].sort().join('\n');
+    const current = get().settings?.recentNameservers ?? [];
+    const recentNameservers = [
+      nameservers,
+      ...current.filter((s) => key(s) !== key(nameservers)),
+    ].slice(0, 3);
+    const settings = await window.api.updateSettings({ recentNameservers });
     set({ settings });
   },
 }));

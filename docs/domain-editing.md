@@ -620,7 +620,7 @@ Each phase is a PR: `npm run typecheck`, `npm run lint`, `npm test` clean.
 2. ✅ **Inline toggles + row menu.** Privacy and Lock toggles (with the unlock
    popover), the `⋯` row menu with *Get auth code…*, *Renew…*, and *Hide*
    (`AuthCodeDialog`, `RenewDialog`).
-3. **Nameservers.** `NameserversEditor` + `validateNameservers` tests, the
+3. ✅ **Nameservers.** `NameserversEditor` + `validateNameservers` tests, the
    cell popover, `recentNameservers` setting.
 4. **Forwarding dialogs.** `UrlForwardingEditor`, `EmailForwardingEditor`,
    the two per-row dialogs, `applyDomainOp` support for `skipIfExisting`.

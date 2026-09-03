@@ -105,6 +105,11 @@ export interface AppSettings {
    * when set, overrides this (a dev/testing escape hatch).
    */
   autoSyncIntervalMinutes: number;
+  /**
+   * The last few nameserver sets the user saved from the editor (most recent
+   * first, at most 3), offered as presets. Each entry is a full set.
+   */
+  recentNameservers: string[][];
 }
 
 /** One input in a registrar's credential form. */

@@ -10,7 +10,11 @@ import type { AppSettings } from '../../shared/ipc';
 
 const DEFAULTS: AppSettings = {
   autoSyncIntervalMinutes: 24 * 60, // 24 hours
+  recentNameservers: [],
 };
+
+/** How many recent nameserver sets to keep. */
+const MAX_RECENT_NAMESERVERS = 3;
 
 let store: AppSettings | null = null;
 
@@ -22,11 +26,22 @@ function storeFile(): string {
  *  hand-edited or partial file. */
 function normalize(raw: Partial<AppSettings>): AppSettings {
   const minutes = Number(raw.autoSyncIntervalMinutes);
+  const recent = Array.isArray(raw.recentNameservers)
+    ? raw.recentNameservers
+        .filter(
+          (set): set is string[] =>
+            Array.isArray(set) &&
+            set.length > 0 &&
+            set.every((h) => typeof h === 'string'),
+        )
+        .slice(0, MAX_RECENT_NAMESERVERS)
+    : DEFAULTS.recentNameservers;
   return {
     autoSyncIntervalMinutes:
       Number.isFinite(minutes) && minutes >= 0
         ? Math.floor(minutes)
         : DEFAULTS.autoSyncIntervalMinutes,
+    recentNameservers: recent,
   };
 }
 

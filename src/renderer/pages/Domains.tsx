@@ -42,6 +42,7 @@ import {
 import { FolderIcon } from '../components/icons/FolderIcon';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
+import { NameserversCell } from '../components/domains/NameserversCell';
 import { AuthCodeDialog } from '../components/domains/AuthCodeDialog';
 import { RenewDialog } from '../components/domains/RenewDialog';
 import { cn } from '@/lib/utils';
@@ -511,20 +512,7 @@ const COLUMNS: Column[] = [
     key: 'nameservers',
     label: 'Nameservers',
     detail: true,
-    render: (d) =>
-      d.nameservers.length === 0 ? (
-        <span className="text-muted-foreground/50">—</span>
-      ) : (
-        <span
-          className="inline-flex max-w-[260px] items-baseline gap-1.5 font-mono text-[13px] text-foreground/70"
-          title={d.nameservers.join('\n')}
-        >
-          <span className="truncate">{d.nameservers[0]}</span>
-          {d.nameservers.length > 1 && (
-            <span className="opacity-60">+{d.nameservers.length - 1}</span>
-          )}
-        </span>
-      ),
+    render: (d) => <NameserversCell domain={d} />,
     sortValue: (d) => d.nameservers[0]?.toLowerCase() ?? '',
   },
 ];
