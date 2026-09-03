@@ -451,6 +451,15 @@ the store was its only caller and now uses the generic `applyDomainOp`.
 6. **Disable Sync while a job runs** (`SyncControl` reads `bulk?.status`). A
    sync mid-job would race the per-item cache patches for no benefit.
 
+### Shared confirmations (`components/`)
+
+- `ConfirmPopover` — the in-place "are you sure?" anchored to a cell (unlock,
+  privacy either way, future cell edits). Title, body, action label,
+  destructive variant; owns its open state.
+- `ConfirmDialog` — the modal counterpart: title, description, caller content,
+  optional type-to-confirm word, Cancel + action footer, `busy` lock. Renew
+  uses it; the bulk dialog's confirm stage reuses it.
+
 ### Shared editors (`components/domains/`)
 
 - `NameserversEditor` — one textarea, one host per line (paste-friendly),

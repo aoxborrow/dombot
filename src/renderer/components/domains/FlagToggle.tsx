@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { Domain, DomainOp } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
@@ -8,12 +7,7 @@ import {
   useOpUnsupportedReason,
 } from '../../lib/domain-ops';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { ConfirmPopover } from '../ConfirmPopover';
 
 /**
  * A clickable on/off cell for the Privacy and Locked columns. Shows the `on`
@@ -46,7 +40,6 @@ export function FlagToggle({
   const applyDomainOp = useAppStore((s) => s.applyDomainOp);
   const key = `${domain.registrar}:${domain.domainName}`;
   const pending = useAppStore((s) => s.mutating[key] ?? false);
-  const [confirming, setConfirming] = useState(false);
 
   const value = kind === 'privacy' ? domain.privacy : domain.locked;
   const next = !value;
@@ -59,7 +52,6 @@ export function FlagToggle({
   const reason = useOpUnsupportedReason(domain.registrar, op);
 
   const apply = () => {
-    setConfirming(false);
     void applyDomainOp(targetOf(domain), op, optimistic).then((result) =>
       reportOpResult(op, result),
     );
@@ -126,24 +118,15 @@ export function FlagToggle({
   if (!needsConfirm) return button;
 
   return (
-    <Popover open={confirming} onOpenChange={setConfirming}>
-      <PopoverTrigger asChild>{button}</PopoverTrigger>
-      <PopoverContent align="center" className="w-72 p-3">
-        <p className="text-sm font-medium">{confirm.title}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{confirm.body}</p>
-        <div className="mt-3 flex justify-end gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setConfirming(false)}
-          >
-            Cancel
-          </Button>
-          <Button size="sm" onClick={apply}>
-            {confirm.action}
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <ConfirmPopover
+      title={confirm.title}
+      body={confirm.body}
+      actionLabel={confirm.action}
+      destructive={kind === 'lock' || !next}
+      disabled={pending || reason !== null}
+      onConfirm={apply}
+    >
+      {button}
+    </ConfirmPopover>
   );
 }
