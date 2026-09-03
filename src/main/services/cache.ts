@@ -4,8 +4,8 @@ import { app } from 'electron';
 import { STALE_AFTER_MS as SHARED_STALE_AFTER_MS } from '../../shared/ipc';
 
 // Generic, timestamped, on-disk cache for domain data (portfolio, per-domain
-// detail, aftermarket). Every entry carries a `fetchedAt` so the UI can show
-// when data was last refreshed and flag anything past the staleness threshold.
+// detail). Every entry carries a `fetchedAt` so the UI can show when data was
+// last refreshed and flag anything past the staleness threshold.
 //
 // One JSON file per namespace under `userData` (cross-platform: Electron
 // resolves that per-OS), mirroring the existing pricing-cache convention. Files
@@ -15,7 +15,7 @@ import { STALE_AFTER_MS as SHARED_STALE_AFTER_MS } from '../../shared/ipc';
 // Callers that hold Date fields (domains) revive them on read; see registrars.ts.
 
 /** Cache namespaces. `clearAll` iterates these, so keep the list complete. */
-export const CACHE_NAMESPACES = ['portfolio', 'detail', 'market'] as const;
+export const CACHE_NAMESPACES = ['portfolio', 'detail'] as const;
 export type CacheNamespace = (typeof CACHE_NAMESPACES)[number];
 
 /** A cached value plus when it was fetched (ms epoch). */

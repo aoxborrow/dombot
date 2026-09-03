@@ -14,8 +14,6 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.saveCsv, content, suggestedName),
   hydrateFromCache: () => ipcRenderer.invoke(IpcChannels.hydrateFromCache),
   clearAllCaches: () => ipcRenderer.invoke(IpcChannels.clearAllCaches),
-  getAftermarket: (domain, refresh) =>
-    ipcRenderer.invoke(IpcChannels.getAftermarket, domain, refresh),
   getRenewalPrice: (registrar, domain) =>
     ipcRenderer.invoke(IpcChannels.getRenewalPrice, registrar, domain),
   setManualPrice: (registrar, domain, price) =>

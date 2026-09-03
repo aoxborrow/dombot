@@ -30,8 +30,8 @@ export default function App() {
   const loadFolders = useAppStore((s) => s.loadFolders);
   const navigate = useNavigate();
 
-  // Restore the last-cached portfolio, detail, aftermarket, and pricing on
-  // launch so the app opens fully populated with no network calls. The user
+  // Restore the last-cached portfolio, detail, and pricing on launch so the app
+  // opens fully populated with no network calls. The user
   // refreshes manually; we never auto-refresh, even when the data is stale.
   useEffect(() => {
     void hydrateFromCache();

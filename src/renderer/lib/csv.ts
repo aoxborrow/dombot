@@ -3,16 +3,12 @@
 
 import {
   HIDDEN_FOLDER_ID,
-  type Aftermarket,
   type Domain,
   type Folder,
-  type MarketListing,
 } from '../../shared/ipc';
 
 /** id → nicely capitalized registrar name, e.g. dynadot → "Dynadot". */
 type RegistrarLabels = Record<string, string>;
-
-const AFTERNIC = 'afternic';
 
 /** Everything after the first dot, e.g. "example.co.uk" → "co.uk". */
 function tldOf(domainName: string): string {
@@ -41,24 +37,6 @@ function daysUntil(date: Date | null): string {
   return String(Math.round((t - Date.now()) / 86_400_000));
 }
 
-/** The Afternic listing for a domain, if any. */
-function afternicListing(
-  info: Aftermarket | null | undefined,
-): MarketListing | null {
-  return (
-    info?.listings.find((l) => l.platform.toLowerCase() === AFTERNIC) ?? null
-  );
-}
-
-/** Bare numeric price (no symbol/commas so it stays a number in a spreadsheet),
- *  "Offer" for offer-only listings, or empty when there's no Afternic listing. */
-function afternicPrice(info: Aftermarket | null | undefined): string {
-  const listing = afternicListing(info);
-  if (!listing) return '';
-  if (listing.price != null) return String(listing.price);
-  return listing.canMakeOffer ? 'Offer' : '';
-}
-
 /** Quote a field per RFC 4180: wrap in quotes and double any embedded quote when
  *  the value contains a comma, quote, or newline. */
 function csvField(value: string): string {
@@ -70,7 +48,6 @@ interface CsvColumn {
   value: (
     d: Domain,
     labels: RegistrarLabels,
-    aftermarket: Record<string, Aftermarket | null>,
     folderName: (d: Domain) => string,
   ) => string;
 }
@@ -85,7 +62,7 @@ const CSV_COLUMNS: CsvColumn[] = [
   },
   {
     header: 'Folder',
-    value: (d, _labels, _aftermarket, folderName) => folderName(d),
+    value: (d, _labels, folderName) => folderName(d),
   },
   { header: 'Status', value: (d) => d.status },
   { header: 'Created', value: (d) => isoDate(d.createdDate) },
@@ -96,23 +73,17 @@ const CSV_COLUMNS: CsvColumn[] = [
   { header: 'Locked', value: (d) => (d.locked ? 'Yes' : 'No') },
   { header: 'Privacy', value: (d) => (d.privacy ? 'Yes' : 'No') },
   { header: 'Nameservers', value: (d) => d.nameservers.join('; ') },
-  {
-    header: 'Afternic Price (USD)',
-    value: (d, _labels, aftermarket) =>
-      afternicPrice(aftermarket[d.domainName]),
-  },
   { header: 'Last Synced', value: (d) => isoDate(d.syncedAt) },
 ];
 
 /**
  * Serializes the given domains (already filtered + sorted by the caller) to a
- * CSV string, pulling Afternic pricing from the aftermarket map. Uses CRLF line
- * endings per RFC 4180 for the widest spreadsheet compatibility.
+ * CSV string. Uses CRLF line endings per RFC 4180 for the widest spreadsheet
+ * compatibility.
  */
 export function domainsToCsv(
   domains: Domain[],
   labels: RegistrarLabels,
-  aftermarket: Record<string, Aftermarket | null>,
   folders: Folder[],
   assignments: Record<string, string>,
 ): string {
@@ -128,9 +99,7 @@ export function domainsToCsv(
   const rows: string[] = [CSV_COLUMNS.map((c) => csvField(c.header)).join(',')];
   for (const d of domains) {
     rows.push(
-      CSV_COLUMNS.map((c) =>
-        csvField(c.value(d, labels, aftermarket, folderName)),
-      ).join(','),
+      CSV_COLUMNS.map((c) => csvField(c.value(d, labels, folderName))).join(','),
     );
   }
   return rows.join('\r\n');

@@ -11,7 +11,6 @@ import {
 } from '@aoxborrow/registrar-client';
 import { promises as dnsPromises } from 'node:dns';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
-import { getDevEnvVar } from './dev-env';
 import {
   clearEntry,
   isStale,
@@ -232,6 +231,32 @@ export function getCachedDetail(): Record<string, Partial<Domain>> {
   return out;
 }
 
+// The registrar-client library lists its config fields in an order that puts a
+// couple of registrars' account/ID field after the secret it identifies, which
+// reads backwards in the form. Override the display order so the identifier
+// comes first; registrars not listed keep the library's order. Any field names
+// not mentioned here are appended in their original order, so this stays correct
+// if the library adds fields later.
+const FIELD_ORDER: Partial<Record<RegistrarName, string[]>> = {
+  cloudflare: ['accountId', 'apiToken'],
+  godaddy: ['customerId', 'apiToken', 'apiKey', 'apiSecret'],
+};
+
+function orderConfigFields<T extends { name: string }>(
+  name: RegistrarName,
+  fields: T[],
+): T[] {
+  const order = FIELD_ORDER[name];
+  if (!order) return fields;
+  return fields
+    .slice()
+    .sort(
+      (a, b) =>
+        (order.indexOf(a.name) + 1 || Infinity) -
+        (order.indexOf(b.name) + 1 || Infinity),
+    );
+}
+
 /** Metadata that drives the Settings > Registrars form (no secret values). */
 export function getRegistrarMetadata(): RegistrarMeta[] {
   return registrarNames.map((name) => {
@@ -248,7 +273,7 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
         lastError: sync?.lastError ?? null,
         domainCount: sync?.domains.length ?? 0,
       },
-      configFields: R.configFields.map((f) => ({
+      configFields: orderConfigFields(name, R.configFields).map((f) => ({
         name: f.name,
         label: f.label,
         type: f.type,
@@ -559,17 +584,11 @@ async function lookupNameservers(domainName: string): Promise<string[]> {
 
 // ── internals ────────────────────────────────────────────────────────────────
 
-// Maps a provider's configField (camelCase) to its env var, per the .env
-// convention <PROVIDER>_<FIELD_UPPER_SNAKE>, e.g. apiKey -> DYNADOT_API_KEY.
-function envKey(name: RegistrarName, field: string): string {
-  const snake = field.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase();
-  return `${name.toUpperCase()}_${snake}`;
-}
-
-// Resolve a field: user-saved value first, then the dev-only .env fallback.
-// Never reads process.env — ambient vars from other tools must not shadow creds.
+// Resolve a field to the value the user saved in Settings (encrypted via
+// safeStorage). Credentials come only from the GUI store now — no .env or
+// process.env fallback, so ambient vars from other tools can't shadow creds.
 function resolveField(name: RegistrarName, field: string): string | undefined {
-  return getStoredCredentials(name)[field] ?? getDevEnvVar(envKey(name, field));
+  return getStoredCredentials(name)[field];
 }
 
 function isConfigured(name: RegistrarName): boolean {

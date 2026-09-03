@@ -16,7 +16,6 @@ export const IpcChannels = {
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
   setAutoRenew: 'registrar:setAutoRenew',
-  getAftermarket: 'market:getAftermarket',
   getRenewalPrice: 'pricing:getRenewalPrice',
   setManualPrice: 'pricing:setManualPrice',
   clearPricingCache: 'pricing:clearCache',
@@ -163,29 +162,6 @@ export interface McpClient {
   pairedAt: number;
 }
 
-/** A single marketplace listing for a domain (from DomDB). */
-export interface MarketListing {
-  /** Display name, e.g. "Afternic", "Sedo". */
-  platform: string;
-  /** Buy-it-now price in `currency`, or null for offer-only listings. */
-  price: number | null;
-  currency: string;
-  /** e.g. "buy_it_now", "make_offer". */
-  serviceType: string;
-  canMakeOffer: boolean;
-}
-
-/** Aftermarket data for a domain (from DomDB). */
-export interface Aftermarket {
-  domain: string;
-  /** "aftermarket" | "unavailable" | "unregistered" | "untracked" | "unknown". */
-  availability: string;
-  /** Listings across marketplaces, lowest priced first (offer-only last). */
-  listings: MarketListing[];
-  /** DomDB detail page, e.g. https://domdb.com/example.com */
-  detailUrl: string;
-}
-
 /**
  * Where a domain's renewal price came from:
  *  - `api`         a direct, name-accurate quote from the registrar (captures
@@ -239,8 +215,8 @@ export interface Portfolio {
 
 /**
  * Everything the renderer can restore from the on-disk cache on launch, so the
- * UI paints a full portfolio (domains, per-domain detail, aftermarket, pricing)
- * with no network calls. `portfolio.fetchedAt` is the headline "last refreshed"
+ * UI paints a full portfolio (domains, per-domain detail, pricing) with no
+ * network calls. `portfolio.fetchedAt` is the headline "last refreshed"
  * timestamp shown to the user.
  */
 export interface CachedSnapshot {
@@ -248,8 +224,6 @@ export interface CachedSnapshot {
   portfolio: Portfolio | null;
   /** Per-domain detail (nameservers/privacy/lock/created), keyed `registrar:domain`. */
   detail: Record<string, Partial<Domain>>;
-  /** Aftermarket data keyed by domain name; null = fetched-but-untracked. */
-  aftermarket: Record<string, Aftermarket | null>;
   /** Renewal pricing keyed `registrar:domain`, computed from cache (no network). */
   pricing: Record<string, RenewalPricing>;
 }
@@ -357,21 +331,11 @@ export interface DombotApi {
    */
   saveCsv: (content: string, suggestedName: string) => Promise<SaveResult>;
 
-  /** Restore the full cached portfolio + detail + aftermarket + pricing from
-   * disk with no network calls, for instant paint on launch. */
+  /** Restore the full cached portfolio + detail + pricing from disk with no
+   * network calls, for instant paint on launch. */
   hydrateFromCache: () => Promise<CachedSnapshot>;
-  /** Drop every on-disk data cache (portfolio, detail, market, pricing). */
+  /** Drop every on-disk data cache (portfolio, detail, pricing). */
   clearAllCaches: () => Promise<void>;
-
-  /**
-   * Aftermarket pricing for a domain (DomDB), or null if unavailable. With
-   * `refresh` false, a fresh-enough cached value is returned without a network
-   * call; otherwise it re-fetches and updates the cache.
-   */
-  getAftermarket: (
-    domain: string,
-    refresh?: boolean,
-  ) => Promise<Aftermarket | null>;
 
   /** Annual renewal price for a domain, cached and manual-override aware. */
   getRenewalPrice: (

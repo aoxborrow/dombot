@@ -22,9 +22,9 @@ const INTERVAL_OPTIONS: { label: string; minutes: number }[] = [
 ];
 
 /**
- * Data & cache settings. DomBot caches your portfolio, per-domain detail,
- * aftermarket, and renewal prices on disk (timestamped) so the app opens fully
- * populated with no network calls. This tab also controls the background sync
+ * Data & cache settings. DomBot caches your portfolio, per-domain detail, and
+ * renewal prices on disk (timestamped) so the app opens fully populated with no
+ * network calls. This tab also controls the background sync
  * that keeps that cache fresh, and clearing the cache.
  */
 export default function DataSettings() {

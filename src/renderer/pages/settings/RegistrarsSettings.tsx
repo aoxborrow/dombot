@@ -125,7 +125,10 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
               onClick={() => void runSync()}
               disabled={busy}
               title="Sync this registrar’s domains now"
-              className="text-muted-foreground hover:text-foreground"
+              // Absorb the button's height into the row's vertical padding so a
+              // configured row (which shows this button) stays the same slim
+              // height as an unconfigured one, rather than growing to fit it.
+              className="-my-1 text-muted-foreground hover:text-foreground"
             >
               <RefreshCw className={cn(syncing && 'animate-spin')} />
               {syncing ? 'Syncing…' : 'Sync'}

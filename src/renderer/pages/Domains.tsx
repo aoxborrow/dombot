@@ -16,7 +16,6 @@ import {
   Download,
   Eye,
   EyeOff,
-  ExternalLink,
   FileSpreadsheet,
   Globe,
   Lock,
@@ -25,16 +24,13 @@ import {
   RefreshCw,
   Search,
   Server,
-  Tag,
   TriangleAlert,
   X,
   type LucideIcon,
 } from 'lucide-react';
 import type {
-  Aftermarket,
   Domain,
   Folder,
-  MarketListing,
   RegistrarName,
   RenewalPricing,
 } from '../../shared/ipc';
@@ -52,11 +48,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from '@/components/ui/input-group';
-import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -64,11 +55,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Select,
@@ -86,6 +72,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+
+// Which `refreshTick` the detail fetch has already force-refreshed. Module-level
+// so it PERSISTS across Domains remounts (switching to another tab and back): a
+// per-component ref would reset to 0 on every remount, making `force` true again
+// whenever refreshTick is non-zero (i.e. after any live sync) and needlessly
+// re-fetching every visible row's detail — which blanks the nameserver cells and
+// reloads them on each tab revisit. A live refresh still forces once, because it
+// bumps refreshTick past this.
+let forcedDetailTick = 0;
 
 // ── Column model ────────────────────────────────────────────────────────────
 
@@ -154,95 +149,10 @@ function CellSkeleton({ align }: { align?: 'left' | 'right' | 'center' }) {
   );
 }
 
-/** Formats a listing's price, e.g. "$11,231", or "Offer" for offer-only. */
-function fmtPrice(l: MarketListing): string {
-  if (l.price == null) return l.canMakeOffer ? 'Offer' : '—';
-  return `$${l.price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-}
-
-const AFTERNIC = 'afternic';
-
 /** Sort sentinel for the injected Folder column (folders aren't a Domain field). */
 const FOLDER = 'folder';
 /** Filter value matching domains with no folder assigned. */
 const UNASSIGNED = '__unassigned__';
-
-/** The Afternic listing for a domain, if any. */
-function afternicListing(
-  info: Aftermarket | null | undefined,
-): MarketListing | null {
-  return (
-    info?.listings.find((l) => l.platform.toLowerCase() === AFTERNIC) ?? null
-  );
-}
-
-/**
- * The numeric Afternic buy-it-now price for a domain, or null when there's no
- * listing or it's offer-only (no fixed price). Used by the price filter, which
- * compares against a numeric range — so offer-only and unlisted both count as
- * "no price".
- */
-function afternicPriceOf(info: Aftermarket | null | undefined): number | null {
-  return afternicListing(info)?.price ?? null;
-}
-
-/**
- * Parses a price-filter input. Empty → no bound (null value, no error). A valid
- * non-negative number → that value. Anything else → an error message and null
- * value so the bound is ignored until corrected.
- */
-function parsePriceInput(raw: string): {
-  value: number | null;
-  error: string | null;
-} {
-  const s = raw.trim();
-  if (s === '') return { value: null, error: null };
-  if (!/^\d*\.?\d+$/.test(s)) return { value: null, error: 'Numbers only' };
-  const n = Number(s);
-  if (!Number.isFinite(n)) return { value: null, error: 'Numbers only' };
-  return { value: n, error: null };
-}
-
-/** Afternic price cell, linking to the DomDB detail page. */
-function AfternicCell({
-  info,
-  loading,
-  onOpen,
-}: {
-  info: Aftermarket | null | undefined;
-  loading: boolean;
-  onOpen: (url: string) => void;
-}) {
-  if (loading && info === undefined) return <CellSkeleton align="right" />;
-  const listing = afternicListing(info);
-  if (!listing || !info || (listing.price == null && !listing.canMakeOffer)) {
-    return <span className="text-muted-foreground/50">—</span>;
-  }
-  // Offer-only listings show a muted "Offer" label so they don't read as a
-  // price; listings with a buy-it-now price show the tabular figure.
-  const offerOnly = listing.price == null;
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(info.detailUrl)}
-      // Don't let the click bubble to the row trigger (which opens the row menu).
-      onPointerDown={(e) => e.stopPropagation()}
-      title={`Afternic: ${fmtPrice(listing)}`}
-      className="group inline-flex items-baseline gap-1 hover:underline"
-    >
-      {/* Icon leads so the price/offer stays flush to the cell's right edge,
-          aligned with the "—" shown for unlisted domains. */}
-      <ExternalLink className="size-3 self-center text-muted-foreground/60 opacity-0 group-hover:opacity-100" />
-      {offerOnly ? (
-        <span className="text-xs font-normal tracking-wide text-muted-foreground uppercase">
-          Offer
-        </span>
-      ) : (
-        <span className="font-medium tabular-nums">{fmtPrice(listing)}</span>
-      )}
-    </button>
-  );
-}
 
 const RENEWAL = 'renewal';
 
@@ -701,11 +611,6 @@ function toggleValue(selected: string[], value: string): string[] {
 // underlying state and handlers are kept so it can be switched back on later.
 const BULK_SELECT_ENABLED = false;
 
-// The Afternic aftermarket column and its price-range filter are hidden for
-// now; the fetch/sort/filter logic stays wired up so they can return later.
-const AFTERNIC_COLUMN_ENABLED = false;
-const PRICE_FILTER_ENABLED = false;
-
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function Domains() {
@@ -723,10 +628,6 @@ export default function Domains() {
     enriching,
     enrichVisible,
     loadAllDetail,
-    aftermarket,
-    marketLoading,
-    loadAftermarketVisible,
-    loadAllMarket,
     pricing,
     pricingLoading,
     loadPricingAll,
@@ -736,7 +637,6 @@ export default function Domains() {
   } = useAppStore();
 
   const navigate = useNavigate();
-  const openExternal = (url: string) => void window.api.openExternal(url);
 
   // Whether any registrar has credentials configured (shared store state, so the
   // header/status bar/empty state agree). Drives the in-table empty prompt: with
@@ -762,8 +662,6 @@ export default function Domains() {
   const [expiry, setExpiry] = useState<string[]>([]);
   const [ns, setNs] = useState<string[]>([]);
   const [folder, setFolder] = useState<string[]>([]);
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
   const [sortKey, setSortKey] = useState('domainName');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [pageSize, setPageSize] = useState(50);
@@ -901,19 +799,6 @@ export default function Domains() {
 
   // Validate the price inputs, then derive the bounds actually applied. A field
   // error (or min > max) leaves the range unapplied until it's corrected.
-  const minParsed = parsePriceInput(minPrice);
-  const maxParsed = parsePriceInput(maxPrice);
-  const rangeError =
-    minParsed.value !== null &&
-    maxParsed.value !== null &&
-    minParsed.value > maxParsed.value
-      ? 'Min must be ≤ max'
-      : null;
-  const priceError = minParsed.error ?? maxParsed.error ?? rangeError;
-  const minValue = priceError ? null : minParsed.value;
-  const maxValue = priceError ? null : maxParsed.value;
-  const priceFilterActive = minValue !== null || maxValue !== null;
-
   // Whether any search/filter is narrowing the list — drives the "Reset filters"
   // affordance and clearing them all at once.
   const hasActiveFilters =
@@ -922,8 +807,7 @@ export default function Domains() {
     registrar.length > 0 ||
     expiry.length > 0 ||
     ns.length > 0 ||
-    folder.length > 0 ||
-    priceFilterActive;
+    folder.length > 0;
 
   function resetFilters() {
     setSearch('');
@@ -932,8 +816,6 @@ export default function Domains() {
     setExpiry([]);
     setNs([]);
     setFolder([]);
-    setMinPrice('');
-    setMaxPrice('');
     setPage(0);
   }
 
@@ -974,24 +856,13 @@ export default function Domains() {
           return false;
         }
       }
-      // Afternic price range. With any bound set, unlisted/offer-only domains
-      // (no numeric price) are excluded.
-      if (priceFilterActive) {
-        const price = afternicPriceOf(aftermarket[d.domainName]);
-        if (price === null) return false;
-        if (minValue !== null && price < minValue) return false;
-        if (maxValue !== null && price > maxValue) return false;
-      }
       return true;
     });
 
     const col = COLUMNS.find((c) => c.key === sortKey) ?? COLUMNS[0];
     const dir = sortDir === 'asc' ? 1 : -1;
-    // Afternic and Renewal aren't Domain fields — sort them from their maps.
+    // Renewal isn't a Domain field — sort it from the pricing map.
     const valueOf = (d: Domain): SortValue | null => {
-      if (sortKey === AFTERNIC) {
-        return afternicListing(aftermarket[d.domainName])?.price ?? null;
-      }
       if (sortKey === RENEWAL) {
         return pricing[`${d.registrar}:${d.domainName}`]?.renewal ?? null;
       }
@@ -1026,12 +897,8 @@ export default function Domains() {
     folder,
     folders,
     folderAssignments,
-    priceFilterActive,
-    minValue,
-    maxValue,
     sortKey,
     sortDir,
-    aftermarket,
     pricing,
   ]);
 
@@ -1070,36 +937,25 @@ export default function Domains() {
     .join('|');
 
   // After a live refresh (refreshTick bumps), force one re-fetch of the visible
-  // rows' detail/market — bypassing the caches — then fall back to cache-first
-  // for later paging. Refs remember which tick each concern already forced.
-  const forcedDetailTick = useRef(0);
-  const forcedMarketTick = useRef(0);
-
+  // rows' detail — bypassing the caches — then fall back to cache-first for later
+  // paging. The already-forced tick lives at module scope (see above) so a tab
+  // switch back here doesn't re-force a fetch that blanks the cells.
   useEffect(() => {
-    const force = refreshTick !== forcedDetailTick.current;
-    forcedDetailTick.current = refreshTick;
+    const force = refreshTick !== forcedDetailTick;
+    forcedDetailTick = refreshTick;
     void enrichVisible(visible, force);
     // visibleKey encodes the identity of the current page's rows.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleKey, refreshTick, enrichVisible]);
 
-  // Aftermarket pricing for the visible rows (rate-limited server-side).
-  useEffect(() => {
-    const force = refreshTick !== forcedMarketTick.current;
-    forcedMarketTick.current = refreshTick;
-    void loadAftermarketVisible(visible, force);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleKey, refreshTick, loadAftermarketVisible]);
-
-  // Eagerly load detail (nameservers) and Afternic pricing for the WHOLE
-  // portfolio once it's loaded, so the Nameservers and Price filters see every
-  // domain — not just on-screen rows. Both loaders dedupe against the visible
-  // fetches and are cached on disk; the loading flags drive the filter spinners.
-  // Keyed on the portfolio identity + refreshTick so it runs once per load.
+  // Eagerly load detail (nameservers) and renewal pricing for the WHOLE
+  // portfolio once it's loaded, so the Nameservers filter sees every domain —
+  // not just on-screen rows. Both loaders dedupe against the visible fetches and
+  // are cached on disk; the loading flags drive the filter spinners. Keyed on the
+  // portfolio identity + refreshTick so it runs once per load.
   useEffect(() => {
     if (portfolio.length === 0) return;
     void loadAllDetail(portfolio);
-    void loadAllMarket(portfolio);
     void loadPricingAll(portfolio);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolio, refreshTick]);
@@ -1127,7 +983,6 @@ export default function Domains() {
       const csv = domainsToCsv(
         filtered,
         portfolioRegistrarLabels,
-        aftermarket,
         folders,
         folderAssignments,
       );
@@ -1267,27 +1122,6 @@ export default function Domains() {
                 setFolder(next);
                 setPage(0);
               }}
-            />
-          )}
-
-          {/* Afternic price range — a dropdown holding the min/max inputs */}
-          {PRICE_FILTER_ENABLED && (
-            <PriceRangeFilter
-              min={minPrice}
-              max={maxPrice}
-              onMinChange={(v) => {
-                setMinPrice(v);
-                setPage(0);
-              }}
-              onMaxChange={(v) => {
-                setMaxPrice(v);
-                setPage(0);
-              }}
-              minInvalid={Boolean(minParsed.error) || Boolean(rangeError)}
-              maxInvalid={Boolean(maxParsed.error) || Boolean(rangeError)}
-              minValue={minValue}
-              maxValue={maxValue}
-              error={priceError}
             />
           )}
 
@@ -1451,31 +1285,7 @@ export default function Domains() {
                           <Icon className="size-3.5 opacity-70" />
                         </button>
                       </TableHead>
-                      {/* Afternic sits right after the domain name. */}
-                      {i === 0 && AFTERNIC_COLUMN_ENABLED && (
-                        <TableHead className="text-right">
-                          <button
-                            type="button"
-                            onClick={() => toggleSort(AFTERNIC)}
-                            className={cn(
-                              'inline-flex select-none items-center gap-1 hover:text-foreground',
-                              sortKey === AFTERNIC && 'text-foreground',
-                            )}
-                          >
-                            Afternic
-                            {(() => {
-                              const AfIcon =
-                                sortKey !== AFTERNIC
-                                  ? ChevronsUpDown
-                                  : sortDir === 'asc'
-                                    ? ArrowUp
-                                    : ArrowDown;
-                              return <AfIcon className="size-3.5 opacity-70" />;
-                            })()}
-                          </button>
-                        </TableHead>
-                      )}
-                      {/* Folder sits right after Afternic, before Registrar. */}
+                      {/* Folder sits right after the domain name, before Registrar. */}
                       {i === 0 && (
                         <TableHead className="pl-3">
                           <button
@@ -1567,15 +1377,6 @@ export default function Domains() {
                             col.render(d, portfolioRegistrarLabels)
                           )}
                         </TableCell>
-                        {i === 0 && AFTERNIC_COLUMN_ENABLED && (
-                          <TableCell className="text-right">
-                            <AfternicCell
-                              info={aftermarket[d.domainName]}
-                              loading={marketLoading[d.domainName] === true}
-                              onOpen={openExternal}
-                            />
-                          </TableCell>
-                        )}
                         {i === 0 && (
                           <TableCell className="p-0">
                             <FolderCell
@@ -1717,123 +1518,6 @@ export default function Domains() {
         </div>
       </>
     </div>
-  );
-}
-
-/** Numeric price field with a "$" prefix and no spinner buttons (type=text). */
-/** One "$"-prefixed price field with a tiny, right-aligned unit label inside. */
-function PriceField({
-  value,
-  onChange,
-  label,
-  ariaLabel,
-  invalid,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  label: string;
-  ariaLabel: string;
-  invalid: boolean;
-}) {
-  return (
-    <InputGroup className="w-[105px]">
-      <InputGroupAddon className="pl-1.5">$</InputGroupAddon>
-      <InputGroupInput
-        type="text"
-        inputMode="decimal"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={ariaLabel}
-        aria-invalid={invalid || undefined}
-        className="flex-1 pl-1 tabular-nums"
-      />
-      <InputGroupAddon className="pr-2 text-xs">{label}</InputGroupAddon>
-    </InputGroup>
-  );
-}
-
-/** Compact whole-dollar label for the trigger badge, e.g. "$1,200". */
-function fmtBound(n: number): string {
-  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-}
-
-/** A short label for the active Afternic price range, or null when none is set. */
-function priceSummary(min: number | null, max: number | null): string | null {
-  if (min !== null && max !== null) return `${fmtBound(min)}–${fmtBound(max)}`;
-  if (min !== null) return `≥ ${fmtBound(min)}`;
-  if (max !== null) return `≤ ${fmtBound(max)}`;
-  return null;
-}
-
-/**
- * Afternic price filter: a filter button (matching the multi-selects) that opens
- * a popover holding the min/max inputs. The button reflects the active range as
- * a badge.
- */
-function PriceRangeFilter({
-  min,
-  max,
-  onMinChange,
-  onMaxChange,
-  minInvalid,
-  maxInvalid,
-  minValue,
-  maxValue,
-  error,
-}: {
-  min: string;
-  max: string;
-  onMinChange: (value: string) => void;
-  onMaxChange: (value: string) => void;
-  minInvalid: boolean;
-  maxInvalid: boolean;
-  /** Applied numeric bounds (null when unset/invalid) — drives the badge. */
-  minValue: number | null;
-  maxValue: number | null;
-  /** Validation message shown inside the popover, or null. */
-  error: string | null;
-}) {
-  const summary = priceSummary(minValue, maxValue);
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" aria-label="Price" className="gap-1.5">
-          <Tag className="size-4 text-muted-foreground" />
-          Price
-          {summary && (
-            <Badge
-              variant="secondary"
-              className="px-1.5 py-0 text-xs tabular-nums"
-            >
-              {summary}
-            </Badge>
-          )}
-          <ChevronDown className="size-4 text-muted-foreground" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-auto p-3">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <PriceField
-              value={min}
-              onChange={onMinChange}
-              label="min"
-              ariaLabel="Minimum Afternic price"
-              invalid={minInvalid}
-            />
-            <span className="text-muted-foreground">–</span>
-            <PriceField
-              value={max}
-              onChange={onMaxChange}
-              label="max"
-              ariaLabel="Maximum Afternic price"
-              invalid={maxInvalid}
-            />
-          </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 }
 

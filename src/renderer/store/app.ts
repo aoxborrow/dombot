@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type {
-  Aftermarket,
   AppInfo,
   AppSettings,
   Domain,
@@ -46,17 +45,12 @@ function withSyncTimeout<T>(p: Promise<T>): Promise<T> {
 const enrichInFlight = new Set<string>();
 const enrichFailed = new Set<string>();
 
-// Same idea for aftermarket lookups, keyed by domain name (DomDB is per-domain).
-const marketInFlight = new Set<string>();
-const marketDone = new Set<string>();
-
 // Renewal-price lookups in flight, keyed by `${registrar}:${domainName}`.
 const pricingInFlight = new Set<string>();
 
-// Guards so the eager whole-portfolio loads don't overlap themselves (which
-// would toggle their loading flag off while a pass is still running).
+// Guard so the eager whole-portfolio detail load doesn't overlap itself (which
+// would toggle its loading flag off while a pass is still running).
 let detailAllInFlight = false;
-let marketAllInFlight = false;
 
 interface AppState {
   appInfo: AppInfo | null;
@@ -96,7 +90,7 @@ interface AppState {
   /** Sync one registrar's domains (e.g. after saving its credentials), merge the
    * result into the portfolio, refresh `registrars`, and return its sync state. */
   syncRegistrar: (name: RegistrarName) => Promise<RegistrarSync>;
-  /** Restore portfolio + detail + aftermarket + pricing from the on-disk cache
+  /** Restore portfolio + detail + pricing from the on-disk cache
    * with no network calls. Call once on app launch. */
   hydrateFromCache: () => Promise<void>;
   /** Re-read the portfolio + detail cache after an out-of-band write (an MCP
@@ -138,20 +132,6 @@ interface AppState {
     domainName: string,
     enabled: boolean,
   ) => Promise<void>;
-
-  // Aftermarket pricing (DomDB), keyed by domain name. `null` = fetched but
-  // untracked/unavailable. `marketLoading` drives the Market cell's spinner.
-  aftermarket: Record<string, Aftermarket | null>;
-  marketLoading: Record<string, boolean>;
-  /** Fetch aftermarket data for on-screen rows. `force` bypasses the on-disk
-   * cache in main and re-fetches (used after a live refresh). */
-  loadAftermarketVisible: (domains: Domain[], force?: boolean) => Promise<void>;
-  /** True while a whole-portfolio aftermarket load runs, so the Price filter
-   * can show that not every domain is priced yet. */
-  marketAllLoading: boolean;
-  /** Fetch aftermarket for every domain still missing it — the eager
-   * whole-portfolio load that backs the Price filter. */
-  loadAllMarket: (domains: Domain[]) => Promise<void>;
 
   // Annual renewal pricing, keyed by `${registrar}:${domainName}`. Backs the
   // Renewals dashboard; fetched for the whole portfolio at once (cached in main).
@@ -264,15 +244,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Don't overwrite a live load that landed while this was awaiting.
     if (get().portfolioSource !== null) return;
 
-    const { portfolio, detail, aftermarket, pricing } = snapshot;
+    const { portfolio, detail, pricing } = snapshot;
     // Merge cached detail over its summary domain, matching enrichVisible's shape.
     const enriched: Record<string, Domain> = {};
     for (const d of portfolio.domains) {
       const key = domainKey(d);
       if (detail[key]) enriched[key] = { ...d, ...detail[key] };
     }
-    // Mark cached aftermarket domains as done so we don't re-fetch them on view.
-    for (const name of Object.keys(aftermarket)) marketDone.add(name);
 
     set({
       portfolio: portfolio.domains,
@@ -282,7 +260,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       portfolioLoadedAt: portfolio.fetchedAt,
       portfolioSource: 'cache',
       enriched,
-      aftermarket,
       pricing,
       pricingLoadedAt: portfolio.fetchedAt,
     });
@@ -323,11 +300,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     await window.api.clearAllCaches();
     enrichInFlight.clear();
     enrichFailed.clear();
-    marketInFlight.clear();
-    marketDone.clear();
     pricingInFlight.clear();
     detailAllInFlight = false;
-    marketAllInFlight = false;
     set({
       portfolio: [],
       portfolioErrors: [],
@@ -338,13 +312,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       portfolioError: null,
       enriched: {},
       enriching: {},
-      aftermarket: {},
-      marketLoading: {},
       pricing: {},
       pricingLoading: false,
       pricingLoadedAt: null,
       detailAllLoading: false,
-      marketAllLoading: false,
     });
   },
 
@@ -355,11 +326,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Fresh summary data invalidates any prior per-domain detail.
       enrichInFlight.clear();
       enrichFailed.clear();
-      marketInFlight.clear();
-      marketDone.clear();
       pricingInFlight.clear();
       detailAllInFlight = false;
-      marketAllInFlight = false;
       set((state) => ({
         portfolio: result.domains,
         portfolioErrors: result.errors,
@@ -371,13 +339,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         refreshTick: state.refreshTick + 1,
         enriched: {},
         enriching: {},
-        aftermarket: {},
-        marketLoading: {},
         pricing: {},
         pricingLoading: false,
         pricingLoadedAt: null,
         detailAllLoading: false,
-        marketAllLoading: false,
       }));
       // Per-registrar sync statuses changed — refresh the shared metadata.
       void get().loadRegistrars();
@@ -505,65 +470,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     } finally {
       detailAllInFlight = false;
       set({ detailAllLoading: false });
-    }
-  },
-
-  aftermarket: {},
-  marketLoading: {},
-  loadAftermarketVisible: async (domains, force = false) => {
-    const todo = domains.filter((d) =>
-      force
-        ? !marketInFlight.has(d.domainName)
-        : !marketDone.has(d.domainName) && !marketInFlight.has(d.domainName),
-    );
-    if (todo.length === 0) return;
-
-    todo.forEach((d) => marketInFlight.add(d.domainName));
-    set((state) => {
-      const marketLoading = { ...state.marketLoading };
-      for (const d of todo) marketLoading[d.domainName] = true;
-      return { marketLoading };
-    });
-
-    const clearLoading = (key: string) =>
-      set((state) => {
-        const marketLoading = { ...state.marketLoading };
-        delete marketLoading[key];
-        return { marketLoading };
-      });
-
-    // Fire all visible; the main-process service serializes them to respect
-    // DomDB's rate limit, so each resolves ~1s apart and its cell fills in.
-    await Promise.all(
-      todo.map(async (d) => {
-        const key = d.domainName;
-        try {
-          const info = await window.api.getAftermarket(key, force);
-          set((state) => ({
-            aftermarket: { ...state.aftermarket, [key]: info },
-          }));
-        } catch {
-          // leave it unset; treated as "no data"
-        } finally {
-          marketDone.add(key);
-          marketInFlight.delete(key);
-          clearLoading(key);
-        }
-      }),
-    );
-  },
-
-  marketAllLoading: false,
-  loadAllMarket: async (domains) => {
-    if (marketAllInFlight) return;
-    marketAllInFlight = true;
-    set({ marketAllLoading: true });
-    try {
-      // Loads aftermarket for every domain not already fetched (deduped).
-      await get().loadAftermarketVisible(domains);
-    } finally {
-      marketAllInFlight = false;
-      set({ marketAllLoading: false });
     }
   },
 
