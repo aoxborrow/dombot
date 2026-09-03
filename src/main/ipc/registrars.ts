@@ -15,6 +15,7 @@ import {
   getRegistrarMetadata,
   saveRegistrarCredentials,
   setDomainAutoRenew,
+  setRegistrarEnabledCached,
   syncRegistrar,
 } from '../services/registrars';
 
@@ -74,6 +75,12 @@ export function registerRegistrarIpc(): void {
     async (_e, name: RegistrarName, creds: CredentialValues): Promise<void> => {
       saveRegistrarCredentials(name, creds);
     },
+  );
+
+  ipcMain.handle(
+    IpcChannels.setRegistrarEnabled,
+    async (_e, name: RegistrarName, enabled: boolean): Promise<Portfolio> =>
+      setRegistrarEnabledCached(name, enabled),
   );
 
   ipcMain.handle(

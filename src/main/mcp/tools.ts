@@ -6,6 +6,7 @@ import type {
 } from '@aoxborrow/registrar-client';
 import {
   findRegistrarsForDomain,
+  getActiveRegistrars,
   getConfiguredRegistrars,
   getDomainDetail,
   getMergedPortfolio,
@@ -341,7 +342,7 @@ function runQuery(args: QueryArgs): QueryResult {
  *  freshness. Derives the per-registrar counts from the cache metadata. */
 function syncSummary(portfolio: Portfolio) {
   const meta = getRegistrarMetadata();
-  const registrars = getConfiguredRegistrars().map((name) => {
+  const registrars = getActiveRegistrars().map((name) => {
     const sync = meta.find((r) => r.name === name)?.sync;
     return {
       registrar: name,
@@ -372,7 +373,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'List registrars',
       description:
-        'List every built-in registrar id and which ones have credentials configured.',
+        'List every built-in registrar id, which have credentials configured, and which are active (configured and enabled). A disabled registrar keeps its credentials but does not sync or contribute domains.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -380,6 +381,7 @@ export function registerTools(server: McpServer): void {
       json({
         all: registrarNames,
         configured: getConfiguredRegistrars(),
+        active: getActiveRegistrars(),
       }),
   );
 

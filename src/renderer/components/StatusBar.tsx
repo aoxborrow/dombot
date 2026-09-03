@@ -45,10 +45,12 @@ export default function StatusBar() {
     ? mcpInfo.url.replace(/^\w+:\/\//, '').replace(/\/.*$/, '')
     : null;
 
-  // Sync status per the shared registrar metadata. A registrar counts as synced
-  // when it's configured and its last sync succeeded (lastSyncedAt set, no
+  // Sync status per the shared registrar metadata. Only active registrars
+  // (configured AND enabled) count here — a disabled one keeps its credentials
+  // but never syncs, so it shouldn't drag the pill to "not synced". A registrar
+  // counts as synced when its last sync succeeded (lastSyncedAt set, no
   // lastError). `null` = metadata not yet known.
-  const configured = registrars?.filter((r) => r.configured) ?? [];
+  const configured = registrars?.filter((r) => r.configured && r.enabled) ?? [];
   const configuredCount = configured.length;
   const syncedCount = configured.filter(
     (r) => r.sync.lastSyncedAt != null && r.sync.lastError == null,
