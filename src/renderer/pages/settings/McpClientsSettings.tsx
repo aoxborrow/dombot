@@ -48,6 +48,10 @@ export default function McpClientsSettings() {
             label="Claude Code"
             value={`claude mcp add dombot --transport http ${info.url}`}
           />
+          <CopyField
+            label="stdio command"
+            value={shellQuote([info.stdioCommand, ...info.stdioArgs])}
+          />
         </SettingsCard>
       )}
 
@@ -109,7 +113,10 @@ function CopyField({ label, value }: { label: string; value: string }) {
         {label}
       </span>
       <div className="flex items-center gap-2 rounded-md border bg-muted/40 py-1.5 pr-1.5 pl-3">
-        <code className="min-w-0 flex-1 overflow-x-auto font-mono text-xs whitespace-nowrap text-foreground">
+        <code
+          className="min-w-0 flex-1 truncate font-mono text-xs text-foreground"
+          title={value}
+        >
           {value}
         </code>
         <Button
@@ -127,6 +134,11 @@ function CopyField({ label, value }: { label: string; value: string }) {
       </div>
     </div>
   );
+}
+
+/** Joins a command line, quoting any part with spaces (e.g. "Application Support"). */
+function shellQuote(parts: string[]): string {
+  return parts.map((p) => (/[\s"]/.test(p) ? `"${p}"` : p)).join(' ');
 }
 
 function formatDate(ms: number): string {

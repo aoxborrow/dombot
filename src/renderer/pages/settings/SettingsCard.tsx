@@ -19,7 +19,7 @@ export function SettingsCard({
   contentClassName?: string;
 }) {
   return (
-    <Card className={cn('gap-0 py-[13px]', className)}>
+    <Card className={cn('gap-0 pt-[13px] pb-[19px]', className)}>
       <CardHeader className="border-b pb-[7px]!">
         <CardTitle className="text-sm font-semibold tracking-wide text-muted-foreground/80 uppercase">
           {title}
