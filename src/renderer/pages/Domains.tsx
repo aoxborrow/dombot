@@ -218,12 +218,16 @@ function FolderCell({
         <button
           type="button"
           title="Assign folder"
-          className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground"
+          className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:bg-accent/60 hover:text-foreground"
         >
           {hidden ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
               <EyeOff className="size-4 shrink-0" />
               Hidden
+              <ChevronDown
+                className="ml-auto size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                aria-hidden
+              />
             </span>
           ) : current ? (
             <span className="inline-flex h-4 max-w-full items-center gap-2 leading-none text-foreground">
@@ -234,6 +238,10 @@ function FolderCell({
                 )}
               />
               <span className="truncate">{current.name}</span>
+              <ChevronDown
+                className="ml-auto size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                aria-hidden
+              />
             </span>
           ) : (
             // Fixed h-4 wrapper (the icon's own height) so every state is the
@@ -255,8 +263,8 @@ function FolderCell({
 
 /**
  * The folder-assignment menu, opened directly from the Folder cell. A flat list
- * of the user's folders followed by "None" (clear) and the built-in "Hidden"
- * folder, which drops the domain from the table.
+ * of the user's folders followed by "Hide" (assign to the built-in Hidden
+ * folder, which drops the domain from the table) and "None" (clear).
  */
 function FolderMenuContent({
   folders,
@@ -296,7 +304,7 @@ function FolderMenuContent({
         onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
       >
         <EyeOff className="size-4 shrink-0" aria-hidden />
-        <span className="flex-1">Hidden</span>
+        <span className="flex-1">Hide</span>
         {folderId === HIDDEN_FOLDER_ID && (
           <Check className="size-3.5 shrink-0 text-muted-foreground" />
         )}

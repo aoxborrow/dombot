@@ -101,7 +101,8 @@ export function FlagToggle({
       aria-pressed={value}
       onClick={needsConfirm ? undefined : apply}
       className={cn(
-        'mx-auto flex size-6 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-muted disabled:cursor-default disabled:hover:bg-transparent',
+        // Same footprint and hover as the row's "⋯" ghost icon button.
+        'mx-auto flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent',
         pending && 'animate-pulse',
         reason !== null && 'opacity-40',
       )}
