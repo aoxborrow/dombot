@@ -218,7 +218,7 @@ function FolderCell({
         <button
           type="button"
           title="Assign folder"
-          className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:bg-accent/60 hover:text-foreground"
+          className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground"
         >
           {hidden ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
