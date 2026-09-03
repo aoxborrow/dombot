@@ -179,7 +179,7 @@ third _adapter_ over the same `services/` core the UI uses — see
     `fetchedAt`; an agent refreshes explicitly with `portfolio_sync` /
     `registrar_sync`. The app also runs a periodic background sync so the cache
     stays warm for MCP-only use (no window ever opened) —
-    `DOMBOT_SYNC_INTERVAL_MINUTES` (default `720`, i.e. 12h; `0` disables).
+    `DOMBOT_SYNC_INTERVAL_MINUTES` (default `1440`, i.e. 24h; `0` disables).
 - **Credentials.** Resolved the same way as the UI (see
   [Credentials in development](#credentials-in-development)); a registrar is
   "configured" when all of its required fields are present.

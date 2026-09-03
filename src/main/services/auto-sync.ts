@@ -8,11 +8,13 @@ import { broadcastPortfolioChanged } from '../events';
 // while the app runs, and broadcasts portfolioChanged so an open Domains table
 // reflects each refresh too.
 //
-// Interval is DOMBOT_SYNC_INTERVAL_MINUTES (default 12h); set it to 0 to
+// Interval is DOMBOT_SYNC_INTERVAL_MINUTES (default 24h); set it to 0 to
 // disable. Conservative by design — one pass across every configured registrar
-// is real API traffic, and the staleness threshold is 14 days.
+// is real API traffic. (Distinct from STALE_AFTER_MS, the 14-day threshold that
+// flags data as stale and TTLs the per-domain detail cache; a daily refresh
+// keeps the cache comfortably inside that window.)
 
-const DEFAULT_INTERVAL_MINUTES = 12 * 60;
+const DEFAULT_INTERVAL_MINUTES = 24 * 60;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let inFlight = false;
