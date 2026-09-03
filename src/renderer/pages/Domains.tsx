@@ -1218,7 +1218,7 @@ export default function Domains() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem disabled>
                   <EyeOff />
-                  Hide
+                  Hidden
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
