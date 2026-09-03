@@ -2,6 +2,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/aoxborrow/dombot?label=release)](https://github.com/aoxborrow/dombot/releases/latest)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/aoxborrow)
 
 **All your domains, from every registrar, in one app + MCP.**
 
