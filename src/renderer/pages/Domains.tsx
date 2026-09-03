@@ -651,6 +651,13 @@ export default function Domains() {
   // Per-row action dialogs (opened from the row's "⋯" menu).
   const [authCodeFor, setAuthCodeFor] = useState<Domain | null>(null);
   const [renewFor, setRenewFor] = useState<Domain | null>(null);
+  // Re-fetch one row's full record from its registrar (bypassing the detail
+  // cache) — the row's detail cells show skeletons while it's in flight.
+  const refreshDomain = (d: Domain) => {
+    void enrichVisible([d], true).then(() =>
+      toast.success(`Refreshed ${d.domainName}`),
+    );
+  };
   const hideDomain = (d: Domain) => {
     void assignFolder(`${d.registrar}:${d.domainName}`, HIDDEN_FOLDER_ID).then(
       () =>
@@ -1382,6 +1389,7 @@ export default function Domains() {
                     <TableCell className="w-0 px-1.5">
                       <RowActionsMenu
                         domain={d}
+                        onRefresh={() => refreshDomain(d)}
                         onAuthCode={() => setAuthCodeFor(d)}
                         onRenew={() => setRenewFor(d)}
                         onHide={() => hideDomain(d)}

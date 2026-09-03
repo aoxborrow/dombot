@@ -1,4 +1,10 @@
-import { CalendarPlus, Ellipsis, EyeOff, KeyRound } from 'lucide-react';
+import {
+  CalendarPlus,
+  Ellipsis,
+  EyeOff,
+  KeyRound,
+  RefreshCw,
+} from 'lucide-react';
 import type { Domain } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { useOpUnsupportedReason } from '../../lib/domain-ops';
@@ -12,18 +18,20 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 /**
- * The trailing "⋯" menu on each row: the per-domain actions that aren't a
- * column (auth code, renew) plus moving it to the Hidden folder. Registrar-backed items the registrar
+ * The trailing "⋯" menu on each row: a per-domain refresh, the actions that
+ * aren't a column (auth code, renew), and moving it to the Hidden folder. Registrar-backed items the registrar
  * can't do are disabled with the reason as their tooltip. Disabled outright
  * while a write for this row is in flight.
  */
 export function RowActionsMenu({
   domain,
+  onRefresh,
   onAuthCode,
   onRenew,
   onHide,
 }: {
   domain: Domain;
+  onRefresh: () => void;
   onAuthCode: () => void;
   onRenew: () => void;
   onHide: () => void;
@@ -53,6 +61,11 @@ export function RowActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem onSelect={onRefresh}>
+          <RefreshCw className="text-muted-foreground" />
+          Refresh
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={authReason !== null}
           title={authReason ?? undefined}
