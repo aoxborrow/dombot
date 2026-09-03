@@ -145,14 +145,18 @@ third _adapter_ over the same `services/` core the UI uses — see
   id, and `domain_*` require `registrar` + `domain`. `registrar` is always
   required (never resolved from state), so a client can act on a freshly
   registered name that isn't in the cached portfolio yet.
-  - _Portfolio:_ `registrar_list`, and `portfolio_query` — the primary way to
-    read the portfolio: list, search, filter, sort, and page the cached
-    portfolio (by registrar, TLD, folder, name, nameserver,
-    auto-renew/lock/privacy, status, and expiry), returning only the fields an
-    agent needs plus sync health (`total`, `stale`, and per-registrar
-    `errors`). With no filters it returns everything (paged), so it doubles as a
-    plain list. Reads the local cache; `refresh` re-syncs first.
-  - _Registrar reads:_ `registrar_test`, `registrar_domains`,
+  - _Portfolio:_ `registrar_list`, `portfolio_query`, and `portfolio_sync`.
+    `portfolio_query` is the primary way to read the portfolio: list, search,
+    filter, sort, and page the cached portfolio (by registrar, TLD, folder,
+    name, nameserver, auto-renew/lock/privacy, status, and expiry), returning
+    only the fields an agent needs plus sync health (`total`, `stale`, and
+    per-registrar `errors`). With no filters it returns everything (paged), so
+    it doubles as a plain list. It's a pure cache read (no registrar calls);
+    `portfolio_sync` runs the live cross-registrar pass that refreshes the
+    cache, returning a per-registrar summary. An agent syncs once (or when
+    `portfolio_query` reports `stale`/empty), then reads cheaply.
+  - _Registrar reads:_ `registrar_test`, `registrar_domains`, `registrar_sync`
+    (targeted single-registrar refresh of the cache),
     `registrar_check_availability`, `registrar_pricing`.
   - _Domain reads:_ `domain_get`, `domain_contacts_get`,
     `domain_nameservers_get`, `domain_dns_get`, `domain_email_forwarding_get`,

@@ -7,6 +7,7 @@ import {
   getMergedPortfolio,
   getPortfolio,
   getRegistrarClient,
+  getRegistrarMetadata,
   registerDomainCached,
   registrarNames,
   renewDomainCached,
@@ -14,13 +15,16 @@ import {
   setLockCached,
   setNameserversCached,
   setPrivacyCached,
+  syncRegistrar,
 } from '../services/registrars';
 import { getFolders } from '../services/folders';
 import { getRenewalPrice } from '../services/pricing';
 import { broadcastPortfolioChanged } from '../events';
+import type { Portfolio } from '../../shared/ipc';
 import {
   DEFAULT_LIMIT,
   MAX_LIMIT,
+  isStaleAt,
   queryPortfolio,
   type QueryArgs,
   type QueryResult,
@@ -280,12 +284,6 @@ const queryShape = {
     .nonnegative()
     .optional()
     .describe('Rows to skip, for paging (default 0).'),
-  refresh: z
-    .boolean()
-    .optional()
-    .describe(
-      'Re-sync every configured registrar before querying (a network pass). Default false — serve from cache.',
-    ),
 };
 
 /** Gathers the cache reads and runs the pure query logic (filter/sort/page). */
@@ -299,6 +297,29 @@ function runQuery(args: QueryArgs): QueryResult {
     { fetchedAt, registrars, errors },
     args,
   );
+}
+
+/** Compact per-registrar sync status for the sync tools: what synced, how many
+ *  domains it holds, when, and any per-registrar error, plus the aggregate
+ *  freshness. Derives the per-registrar counts from the cache metadata. */
+function syncSummary(portfolio: Portfolio) {
+  const meta = getRegistrarMetadata();
+  const registrars = getConfiguredRegistrars().map((name) => {
+    const sync = meta.find((r) => r.name === name)?.sync;
+    return {
+      registrar: name,
+      domainCount: sync?.domainCount ?? 0,
+      lastSyncedAt: sync?.lastSyncedAt ?? null,
+      lastError: sync?.lastError ?? null,
+    };
+  });
+  return {
+    total: portfolio.domains.length,
+    fetchedAt: portfolio.fetchedAt,
+    stale: isStaleAt(portfolio.fetchedAt),
+    registrars,
+    errors: portfolio.errors,
+  };
 }
 
 /**
@@ -330,13 +351,26 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Query portfolio',
       description:
-        'List, search, and filter your whole portfolio across every configured registrar — the primary way to read the portfolio. Filter by registrar, TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort and page the results. With no filters it returns everything (paged), so use it as a plain list too. Reads the local cache (no registrar calls) unless `refresh` re-syncs first. Returns { total, fetchedAt, stale, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete. Rows carry only the fields you need — call domain_get for a single domain’s full record.',
+        'List, search, and filter your whole portfolio across every configured registrar — the primary way to read the portfolio. Filter by registrar, TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort and page the results. With no filters it returns everything (paged), so use it as a plain list too. Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete. Rows carry only the fields you need — call domain_get for a single domain’s full record.',
       inputSchema: queryShape,
       annotations: { readOnlyHint: true },
     },
-    async (args) => {
-      if (args.refresh) await getPortfolio(true);
-      return json(runQuery(args));
+    async (args) => json(runQuery(args)),
+  );
+
+  server.registerTool(
+    'portfolio_sync',
+    {
+      title: 'Sync portfolio',
+      description:
+        'Re-sync every configured registrar and refresh the local cache that portfolio_query and the domain_* reads serve from. A live network pass across all registrars — call it to pull fresh data (e.g. on first use, or when portfolio_query reports stale:true or comes back empty), then read with portfolio_query. Returns a per-registrar summary: domain counts, last-synced times, and any sync errors.',
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      const portfolio = await getPortfolio(true);
+      broadcastPortfolioChanged();
+      return json(syncSummary(portfolio));
     },
   );
 
@@ -365,6 +399,22 @@ export function registerTools(server: McpServer): void {
     },
     async ({ registrar }) =>
       json(await getRegistrarClient(registrar).listDomains()),
+  );
+
+  server.registerTool(
+    'registrar_sync',
+    {
+      title: 'Sync a registrar',
+      description:
+        'Re-sync one registrar’s domains into the local cache — a targeted refresh (e.g. after registering a domain, or when just one registrar is stale) that avoids a full portfolio_sync. Returns the same per-registrar summary as portfolio_sync.',
+      inputSchema: { registrar },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ registrar }) => {
+      const portfolio = await syncRegistrar(registrar);
+      broadcastPortfolioChanged();
+      return json(syncSummary(portfolio));
+    },
   );
 
   server.registerTool(
