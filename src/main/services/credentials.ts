@@ -7,12 +7,25 @@ import type {
 } from '@aoxborrow/registrar-client';
 
 // Persistent, OS-encrypted store for registrar credentials entered in Settings.
-// This is the end-user replacement for .env: keys configured once here are used
-// by both the UI and the MCP server. On macOS/Windows the blob is encrypted via
-// Electron safeStorage (Keychain/DPAPI); if encryption is unavailable it falls
-// back to plaintext on disk (dev only) with a warning.
+// Keys configured once here are used by both the UI and the MCP server. On
+// macOS/Windows the blob is encrypted via Electron safeStorage (Keychain/DPAPI);
+// on Linux via the system keyring (libsecret/kwallet).
+//
+// If OS encryption is unavailable (e.g. a headless Linux box with no keyring),
+// we refuse to save rather than silently writing API keys as plaintext to disk.
+// Setting DOMBOT_ALLOW_PLAINTEXT_CREDENTIALS=1 opts into a plaintext fallback
+// for those environments — a deliberate, logged choice, never the default. The
+// file is written 0600 (owner-only) whichever path is taken.
 
 type CredentialStore = Partial<Record<RegistrarName, RegistrarCredentials>>;
+
+/** Owner-only perms: no other local user can read the credential file. */
+const FILE_MODE = 0o600;
+
+/** Explicit opt-in to storing credentials unencrypted (no OS keyring). */
+function plaintextAllowed(): boolean {
+  return process.env.DOMBOT_ALLOW_PLAINTEXT_CREDENTIALS === '1';
+}
 
 let cache: CredentialStore | null = null;
 
@@ -34,17 +47,41 @@ function load(): CredentialStore {
   return cache;
 }
 
+// Write the store file 0600, tightening perms even when overwriting an existing
+// file (writeFileSync's `mode` only applies when creating one).
+function writeStoreFile(data: string | Buffer): void {
+  const file = storeFile();
+  fs.writeFileSync(file, data, { mode: FILE_MODE });
+  try {
+    fs.chmodSync(file, FILE_MODE);
+  } catch {
+    // Best effort — e.g. filesystems without POSIX perms (Windows).
+  }
+}
+
 function persist(store: CredentialStore): void {
   cache = store;
   const json = JSON.stringify(store);
   if (safeStorage.isEncryptionAvailable()) {
-    fs.writeFileSync(storeFile(), safeStorage.encryptString(json));
-  } else {
-    console.warn(
-      '[credentials] safeStorage unavailable — storing in plaintext',
-    );
-    fs.writeFileSync(storeFile(), json, 'utf8');
+    writeStoreFile(safeStorage.encryptString(json));
+    return;
   }
+  if (!plaintextAllowed()) {
+    // Fail loudly instead of quietly writing API keys as plaintext. The throw
+    // propagates to the Settings save (IPC), so the user sees the save fail.
+    throw new Error(
+      'OS credential encryption is unavailable, so registrar API keys cannot ' +
+        'be stored securely. On Linux, install/unlock a system keyring ' +
+        '(libsecret/gnome-keyring or kwallet). To store credentials ' +
+        'unencrypted anyway, set DOMBOT_ALLOW_PLAINTEXT_CREDENTIALS=1.',
+    );
+  }
+  console.warn(
+    '[credentials] safeStorage unavailable and ' +
+      'DOMBOT_ALLOW_PLAINTEXT_CREDENTIALS=1 — writing credentials UNENCRYPTED ' +
+      `to ${storeFile()}`,
+  );
+  writeStoreFile(json);
 }
 
 /** Credentials the user has saved for a registrar (empty object if none). */

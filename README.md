@@ -48,7 +48,8 @@ Namecheap, Porkbun, Gandi, and NameBright**, with more on the way.
 Add each registrar in **Settings → Registrars** with an API key from that
 provider's account — DomBot shows where to find each one. Credentials are stored
 encrypted on your device via your OS keychain (Electron `safeStorage`) and are
-never sent anywhere but the registrar's own API.
+never sent anywhere but the registrar's own API. See [SECURITY.md](SECURITY.md)
+for the full trust model and how to verify it yourself.
 
 ## Connecting an AI agent
 
@@ -107,15 +108,16 @@ the repo, `npm install`, and `npm start` to run the app with hot reload.
 | `npm run typecheck`  | Type-check without emitting                        |
 | `npm run site:build` | Minify the landing page (`site/src` → `site/dist`) |
 
-## Credentials in development
+## Credentials
 
-In production, registrar credentials are entered in **Settings → Registrars**
-and stored encrypted via Electron `safeStorage` — see
-[`src/main/services/credentials.ts`](src/main/services/credentials.ts). For
-local dev, `.env` (git-ignored, loaded via `dotenv`) is used as a fallback: the
-resolver prefers a saved value and falls back to `<PROVIDER>_<FIELD>` from the
-environment (see [`.env.example`](.env.example)). Either way the same
-credentials feed both the UI and the MCP server.
+Registrar credentials are entered in **Settings → Registrars** and stored
+encrypted via Electron `safeStorage` — in development and production alike. There
+is **no `.env`/environment-variable fallback**: credentials come only from the
+GUI store, so ambient vars from other tools can't silently shadow them (see
+[`resolveField`](src/main/services/registrars.ts) and
+[`src/main/services/credentials.ts`](src/main/services/credentials.ts)). The same
+saved credentials feed both the UI and the MCP server. For the full trust model
+and how to verify it, see [SECURITY.md](SECURITY.md).
 
 ## Embedded MCP server
 
@@ -188,8 +190,8 @@ third _adapter_ over the same `services/` core the UI uses — see
     `DOMBOT_SYNC_INTERVAL_MINUTES` overrides the setting for dev/testing (`0`
     disables).
 - **Credentials.** Resolved the same way as the UI (see
-  [Credentials in development](#credentials-in-development)); a registrar is
-  "configured" when all of its required fields are present.
+  [Credentials](#credentials)); a registrar is "configured" when all of its
+  required fields are present.
 
 ## License
 

@@ -26,6 +26,8 @@ on:
 permissions:
   contents: write # create tags/releases and upload assets
   actions: write # dispatch the deploy-pages workflow after publishing
+  id-token: write # mint the OIDC token that signs build provenance
+  attestations: write # record build-provenance attestations for the artifacts
 
 concurrency:
   group: release-${{ github.ref }}
@@ -207,6 +209,16 @@ jobs:
           for f in dist/*.deb; do [ -e "$f" ] && mv "$f" "dist/dombot-linux-amd64-$V.deb"; done
           for f in dist/*.rpm; do [ -e "$f" ] && mv "$f" "dist/dombot-linux-x86_64-$V.rpm"; done
           echo "Collected:" && ls -la dist
+
+      # Cryptographically attest that these exact artifacts were built from this
+      # commit by this workflow. Anyone can later verify the source→binary chain
+      # with `gh attestation verify <file> --repo aoxborrow/dombot` — the proof
+      # doesn't depend on trusting the author. Released builds only.
+      - name: Attest build provenance
+        if: needs.setup.outputs.releasing == 'true'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'dist/*'
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
