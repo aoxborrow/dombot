@@ -127,11 +127,11 @@ export interface RegistrarSync {
   domainCount: number;
 }
 
-/** Metadata that drives the Settings > Registrars form. */
+/** Metadata that drives the Settings > Registrars form. Help copy is not
+ *  carried here — the renderer reads it from `registrar-help.ts`. */
 export interface RegistrarMeta {
   name: RegistrarName;
   displayName: string;
-  helpText: string;
   supportsSandbox: boolean;
   configured: boolean;
   /** Whether the registrar is enabled (default). Disabled = credentials kept but
