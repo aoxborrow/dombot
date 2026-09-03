@@ -147,10 +147,6 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
         label: 'API Management',
         url: 'https://my.namebright.com/my-account/api-management',
       },
-      {
-        label: 'API client examples',
-        url: 'https://github.com/NameBright/DomainApiClientExamples',
-      },
     ],
     fields: {
       clientId: {
