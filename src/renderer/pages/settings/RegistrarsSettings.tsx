@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, CircleX, RefreshCw } from 'lucide-react';
+import { ChevronDown, CircleX, ExternalLink, RefreshCw } from 'lucide-react';
 import type {
   CredentialValues,
   RegistrarMeta,
   RegistrarName,
 } from '../../../shared/ipc';
+import {
+  REGISTRAR_HELP,
+  type HelpLink as HelpLinkData,
+} from '../../../shared/registrar-help';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
 import { timeAgo } from '../../lib/time';
@@ -17,7 +21,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -119,6 +128,7 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
 
   const busy = saving || syncing || toggling;
   const { configured, enabled, sync } = meta;
+  const help = REGISTRAR_HELP[meta.name];
 
   return (
     <Card className="gap-0 overflow-hidden rounded-md py-0">
@@ -194,15 +204,25 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
         </div>
 
         <CollapsibleContent className="border-t px-5 py-4">
-          {meta.helpText && (
-            <p className="mb-3 text-[13px] leading-relaxed text-muted-foreground">
-              {meta.helpText}
+          {/* Where the credentials come from, with real links to the pages
+              (opened in the system browser via the window-open handler). */}
+          <div className="mb-4 flex flex-col gap-2">
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              {help.summary}
             </p>
-          )}
+            {help.links.length > 0 && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                {help.links.map((link) => (
+                  <HelpLink key={link.url} link={link} />
+                ))}
+              </div>
+            )}
+          </div>
 
           <FieldGroup className="gap-4">
             {meta.configFields.map((field) => {
               const id = `${meta.name}-${field.name}`;
+              const fieldHelp = help.fields[field.name];
               return (
                 <Field key={field.name} className="gap-1.5">
                   <FieldLabel htmlFor={id}>
@@ -211,6 +231,13 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
                       <span className="text-destructive"> *</span>
                     )}
                   </FieldLabel>
+                  {/* Only fields that need disambiguating carry a description;
+                      it sits under the label, ahead of the input. */}
+                  {fieldHelp && (
+                    <FieldDescription className="text-[13px]">
+                      {fieldHelp}
+                    </FieldDescription>
+                  )}
                   {field.type === 'select' ? (
                     <Select
                       value={values[field.name] ?? ''}
@@ -268,6 +295,25 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
   );
 }
 
+/**
+ * A real external link in the help copy. `target="_blank"` hands the URL to the
+ * main process's window-open handler, which opens it in the system browser and
+ * denies the in-app window.
+ */
+function HelpLink({ link }: { link: HelpLinkData }) {
+  return (
+    <a
+      href={link.url}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 text-[13px] font-medium text-primary underline-offset-4 hover:underline"
+    >
+      {link.label}
+      <ExternalLink className="size-3 shrink-0" aria-hidden />
+    </a>
+  );
+}
+
 // Brand SVGs live with the marketing site (site/src/assets/logos); share that
 // one folder so adding a registrar is just dropping in `<name>.svg` — the glob
 // picks it up here, no import to edit. Keyed by filename, which matches the
@@ -279,7 +325,10 @@ const LOGO_RAW = import.meta.glob('../../../../site/src/assets/logos/*.svg', {
 }) as Record<string, string>;
 const LOGOS: Record<string, string> = Object.fromEntries(
   Object.entries(LOGO_RAW).map(([path, svg]) => [
-    path.split('/').pop()!.replace(/\.svg$/, ''),
+    path
+      .split('/')
+      .pop()!
+      .replace(/\.svg$/, ''),
     svg,
   ]),
 );
@@ -290,24 +339,32 @@ const LOGOS: Record<string, string> = Object.fromEntries(
  * Drops width/height too so the size comes from CSS.
  */
 function monochrome(svg: string): string {
-  return svg
-    // Drop the XML prolog and comments some exports carry (e.g. dynadot).
-    .replace(/<\?xml[\s\S]*?\?>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    // Drop <style> blocks (e.g. dynadot colors its paths via a `.st0` class).
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/\s(?:width|height|fill)="[^"]*"/g, '')
-    // Neutralize any inline `fill:#…` left in style attributes.
-    .replace(/fill:\s*#[0-9a-fA-F]{3,8}/g, 'fill:currentColor')
-    .replace('<svg', '<svg fill="currentColor"')
-    .trim();
+  return (
+    svg
+      // Drop the XML prolog and comments some exports carry (e.g. dynadot).
+      .replace(/<\?xml[\s\S]*?\?>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      // Drop <style> blocks (e.g. dynadot colors its paths via a `.st0` class).
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/\s(?:width|height|fill)="[^"]*"/g, '')
+      // Neutralize any inline `fill:#…` left in style attributes.
+      .replace(/fill:\s*#[0-9a-fA-F]{3,8}/g, 'fill:currentColor')
+      .replace('<svg', '<svg fill="currentColor"')
+      .trim()
+  );
 }
 
 /**
  * The registrar's logo, shown as a small grey mark before the name. Reuses the
  * marketing site's brand SVGs, flattened to `currentColor` for a uniform tint.
  */
-function RegistrarLogo({ name, label }: { name: RegistrarName; label: string }) {
+function RegistrarLogo({
+  name,
+  label,
+}: {
+  name: RegistrarName;
+  label: string;
+}) {
   const svg = LOGOS[name];
   if (!svg) return null;
   return (

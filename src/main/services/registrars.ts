@@ -428,7 +428,6 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
     return {
       name,
       displayName: R.displayName,
-      helpText: R.helpText,
       supportsSandbox: R.supportsSandbox,
       configured: isConfigured(name),
       enabled: isRegistrarEnabled(name),
