@@ -57,20 +57,15 @@ export default function DataSettings() {
       <div>
         <h2 className="text-xl font-bold">Cache</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          DomBot caches your portfolio, domain detail, marketplace listings, and
-          renewal prices on disk so it opens instantly. It re-syncs in the
-          background on the schedule below; you can also refresh any time from
-          the Domains or Renewals page.
+          DomBot caches your portfolio info to avoid slow or too-frequent API
+          calls.
         </p>
       </div>
 
       <SettingsCard title="Auto-sync" contentClassName="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
-          How often DomBot re-syncs your whole portfolio from every configured
-          registrar in the background, so the app — and any connected AI agent —
-          keeps fresh data without a manual Sync. Larger portfolios may prefer a
-          longer interval or Off; data older than the interval (24 hours by
-          default) is flagged as stale.
+          How often DomBot re-syncs your whole portfolio in the background.
+          Larger portfolios may prefer a longer interval or Off.
         </p>
         <div className="flex items-center gap-3">
           <Select
