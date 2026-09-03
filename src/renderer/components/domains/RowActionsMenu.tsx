@@ -13,7 +13,7 @@ import {
 
 /**
  * The trailing "⋯" menu on each row: the per-domain actions that aren't a
- * column (auth code, renew) plus Hide. Registrar-backed items the registrar
+ * column (auth code, renew) plus moving it to the Hidden folder. Registrar-backed items the registrar
  * can't do are disabled with the reason as their tooltip. Disabled outright
  * while a write for this row is in flight.
  */
@@ -72,7 +72,7 @@ export function RowActionsMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onHide}>
           <EyeOff className="text-muted-foreground" />
-          Hide
+          Hidden
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

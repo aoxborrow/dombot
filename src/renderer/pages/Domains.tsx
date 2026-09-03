@@ -263,8 +263,8 @@ function FolderCell({
 
 /**
  * The folder-assignment menu, opened directly from the Folder cell. A flat list
- * of the user's folders followed by "Hide" (assign to the built-in Hidden
- * folder, which drops the domain from the table) and "None" (clear).
+ * of the user's folders followed by "Hidden" (the built-in folder that drops
+ * the domain from the table) and "None" (clear).
  */
 function FolderMenuContent({
   folders,
@@ -304,7 +304,7 @@ function FolderMenuContent({
         onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
       >
         <EyeOff className="size-4 shrink-0" aria-hidden />
-        <span className="flex-1">Hide</span>
+        <span className="flex-1">Hidden</span>
         {folderId === HIDDEN_FOLDER_ID && (
           <Check className="size-3.5 shrink-0 text-muted-foreground" />
         )}
