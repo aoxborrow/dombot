@@ -4,6 +4,7 @@ import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { startMcpServer, stopMcpServer } from './mcp/server';
 import { isStdioShimMode, runStdioShim } from './mcp/stdio';
+import { startAutoSync, stopAutoSync } from './services/auto-sync';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -73,9 +74,14 @@ function runApp(): void {
         .then((mcp) => console.log(`[mcp] listening on ${mcp.url}`))
         .catch((err) => console.error('[mcp] failed to start', err));
     }
+
+    // Keep the cache the MCP tools serve warm without a manual Sync
+    // (DOMBOT_SYNC_INTERVAL_MINUTES=0 disables).
+    startAutoSync();
   });
 
   app.on('will-quit', () => {
+    stopAutoSync();
     void stopMcpServer();
   });
 

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   Aftermarket,
   AppInfo,
+  AppSettings,
   Domain,
   Folder,
   FolderInput,
@@ -98,6 +99,11 @@ interface AppState {
   /** Restore portfolio + detail + aftermarket + pricing from the on-disk cache
    * with no network calls. Call once on app launch. */
   hydrateFromCache: () => Promise<void>;
+  /** Re-read the portfolio + detail cache after an out-of-band write (an MCP
+   * tool) and overlay the changes onto the current view, so an open Domains
+   * table reflects them without a manual Sync. Unlike hydrateFromCache, this
+   * runs regardless of `portfolioSource` and never blanks a live portfolio. */
+  applyPortfolioCacheUpdate: () => Promise<void>;
   /** Drop every on-disk cache and reset the in-memory portfolio to empty, so
    * the app returns to its unloaded state and the next Load re-fetches fresh. */
   clearAllCaches: () => Promise<void>;
@@ -173,6 +179,15 @@ interface AppState {
   deleteFolder: (id: string) => Promise<void>;
   /** Assign a domain to a folder, or unassign it with a null folderId. */
   assignFolder: (domainKey: string, folderId: string | null) => Promise<void>;
+
+  // User-adjustable app settings (e.g. the background-sync interval). `null`
+  // until first loaded.
+  settings: AppSettings | null;
+  /** Load app settings from disk. Called once on launch. */
+  loadSettings: () => Promise<void>;
+  /** Set the background auto-sync interval in minutes (0 = off); applied live in
+   * main. */
+  setAutoSyncInterval: (minutes: number) => Promise<void>;
 }
 
 /** Global renderer store. Kept intentionally small — grow it as needed. */
@@ -270,6 +285,37 @@ export const useAppStore = create<AppState>((set, get) => ({
       aftermarket,
       pricing,
       pricingLoadedAt: portfolio.fetchedAt,
+    });
+  },
+
+  applyPortfolioCacheUpdate: async () => {
+    // Before the first load there's nothing in view to overlay; the launch
+    // hydrate path covers a fresh start.
+    if (get().portfolioSource === null) return;
+    const snapshot = await window.api.hydrateFromCache();
+    const portfolio = snapshot.portfolio;
+    if (!portfolio) return;
+    set((state) => {
+      // Overlay the freshly-cached summary + detail onto any existing enriched
+      // entry so a patched field (auto-renew, lock, privacy, nameservers, …)
+      // wins while previously-fetched detail is preserved.
+      const enriched = { ...state.enriched };
+      for (const d of portfolio.domains) {
+        const key = domainKey(d);
+        const detail = snapshot.detail[key];
+        const existing = enriched[key];
+        if (existing || detail) {
+          enriched[key] = { ...(existing ?? {}), ...d, ...(detail ?? {}) };
+        }
+      }
+      return {
+        portfolio: portfolio.domains,
+        portfolioErrors: portfolio.errors,
+        portfolioRegistrars: portfolio.registrars,
+        portfolioRegistrarLabels: portfolio.registrarLabels,
+        portfolioLoadedAt: portfolio.fetchedAt,
+        enriched,
+      };
     });
   },
 
@@ -616,5 +662,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       else folderAssignments[domainKey] = folderId;
       return { folderAssignments };
     });
+  },
+
+  settings: null,
+  loadSettings: async () => {
+    set({ settings: await window.api.getSettings() });
+  },
+  setAutoSyncInterval: async (minutes) => {
+    const settings = await window.api.updateSettings({
+      autoSyncIntervalMinutes: minutes,
+    });
+    set({ settings });
   },
 }));

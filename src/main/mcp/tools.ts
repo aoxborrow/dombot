@@ -1,13 +1,38 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { listPortfolio } from '@aoxborrow/registrar-client';
+import type {
+  OperationResult,
+  RegistrarName,
+} from '@aoxborrow/registrar-client';
 import {
+  findRegistrarsForDomain,
   getConfiguredRegistrars,
-  getPortfolioSources,
+  getDomainDetail,
+  getMergedPortfolio,
+  getPortfolio,
   getRegistrarClient,
+  getRegistrarMetadata,
+  registerDomainCached,
   registrarNames,
+  renewDomainCached,
+  setAutoRenewCached,
+  setLockCached,
+  setNameserversCached,
+  setPrivacyCached,
+  syncRegistrar,
 } from '../services/registrars';
+import { getFolders } from '../services/folders';
 import { getRenewalPrice } from '../services/pricing';
+import { broadcastPortfolioChanged } from '../events';
+import type { Portfolio } from '../../shared/ipc';
+import {
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+  isStaleAt,
+  queryPortfolio,
+  type QueryArgs,
+  type QueryResult,
+} from './portfolio-query';
 
 // Serialize a service result as a pretty-printed JSON text block — the simplest
 // MCP tool payload. (Dates become ISO strings via JSON.stringify.)
@@ -17,20 +42,70 @@ function json(data: unknown) {
   };
 }
 
+// Runs a cache-backed write (via a service fn that patches the portfolio/detail
+// caches on success) and, when the registrar reports success, notifies open
+// windows so an open Domains table reflects the change without a manual Sync.
+// The raw OperationResult is returned so the caller sees the provider's message.
+async function cachedWrite(op: () => Promise<OperationResult>) {
+  const result = await op();
+  if (result.success) broadcastPortfolioChanged();
+  return json(result);
+}
+
+// Resolves the registrar for a domain-scoped call. Returns `registrar` verbatim
+// when given; otherwise looks the domain up in the cached portfolio. Throws a
+// guiding error when the cache can't resolve it — unknown (so the caller can
+// sync or pass it explicitly) or ambiguous (a stale cache listing it twice).
+function resolveRegistrar(
+  domainName: string,
+  registrar?: RegistrarName,
+): RegistrarName {
+  if (registrar) return registrar;
+  const matches = findRegistrarsForDomain(domainName);
+  if (matches.length === 1) return matches[0];
+  if (matches.length === 0) {
+    throw new Error(
+      `"${domainName}" isn't in the cached portfolio, so its registrar can't be resolved automatically. Pass "registrar" explicitly, or run portfolio_sync if the domain was added recently.`,
+    );
+  }
+  throw new Error(
+    `"${domainName}" appears under multiple registrars in the cache (${matches.join(', ')}). Pass "registrar" to disambiguate; if it was transferred, run portfolio_sync to refresh.`,
+  );
+}
+
 // ── shared parameter schemas ─────────────────────────────────────────────────
 //
-// Scope is encoded in the required-parameter signature and the tool name prefix:
+// Scope is encoded in the tool name prefix and its parameters:
 //   portfolio_* → ()                    global / cross-registrar aggregate
-//   registrar_* → (registrar)           one provider
-//   domain_*    → (registrar, domain)   one domain you own
-// `registrar` is always required and never resolved from state, so a caller can
-// act on a freshly-registered name that isn't in the cached portfolio yet.
+//   registrar_* → (registrar)           one provider (registrar required)
+//   domain_*    → (domain[, registrar]) one domain you own
+// For domain_* tools the registrar is optional: omitted, it's resolved from the
+// cached portfolio (you own the domain, so DomBot knows who holds it); pass it
+// to skip the lookup, or to act on a name not yet in the cache. registrar_*
+// tools still require it — there's no owned domain to resolve from.
 
 const registrar = z
   .enum(registrarNames)
   .describe('Registrar id, e.g. "dynadot" or "godaddy".');
 
+// For domain-scoped tools: the registrar is optional and resolved from the
+// cached portfolio when omitted (you own the domain, so DomBot already knows who
+// holds it). Pass it to skip the lookup, or for a domain not yet in the cache.
+const optionalRegistrar = z
+  .enum(registrarNames)
+  .optional()
+  .describe(
+    'Registrar id holding this domain. Optional — resolved from your cached portfolio when omitted. Pass it to skip the lookup, or for a domain not yet synced into the cache.',
+  );
+
 const domain = z.string().describe('The domain name, e.g. example.com');
+
+// Read tools that are cache-backed accept this to bypass the cache: fetch live
+// and write the result through, so the next read is fresh.
+const refreshParam = z
+  .boolean()
+  .optional()
+  .describe('Bypass the cache: fetch live and refresh the cached value.');
 
 // A registrant/admin/tech/billing contact (mirrors registrar-client's Contact).
 const contact = z.object({
@@ -160,6 +235,130 @@ const transferInput = z.object({
   autoRenew: z.boolean().optional().describe('Enable auto-renew on transfer.'),
 });
 
+// ── portfolio_query ──────────────────────────────────────────────────────────
+//
+// Reads the *cached* portfolio (assembled from the per-registrar sync slices,
+// merged with any cached per-domain detail) rather than hitting every registrar
+// live — the whole portfolio can be 10k+ domains. `refresh` re-syncs first for a
+// caller that needs fresh data.
+
+const querySort = z
+  .enum(['domainName', 'registrar', 'expirationDate', 'createdDate'])
+  .describe('Field to sort by (default expirationDate).');
+
+// Shared filter/sort/page params for portfolio_query. Every filter is optional
+// and ANDed together; an omitted filter doesn't constrain the results.
+const queryShape = {
+  registrar: registrar.optional().describe('Only this registrar.'),
+  tld: z
+    .string()
+    .optional()
+    .describe('Only this TLD, e.g. "com" or ".com" (no leading dot needed).'),
+  folder: z
+    .string()
+    .optional()
+    .describe(
+      'Only domains in this folder — a folder name or id, or "Hidden" for the built-in hidden group. Unknown folder → no rows.',
+    ),
+  nameContains: z
+    .string()
+    .optional()
+    .describe(
+      'Only domains whose name contains this substring (case-insensitive).',
+    ),
+  nameserverContains: z
+    .string()
+    .optional()
+    .describe(
+      'Only domains with a nameserver containing this substring (case-insensitive). Needs the domain enriched with detail; un-enriched domains without list nameservers are excluded.',
+    ),
+  autoRenew: z.boolean().optional().describe('Filter by auto-renew on/off.'),
+  locked: z.boolean().optional().describe('Filter by transfer lock on/off.'),
+  privacy: z.boolean().optional().describe('Filter by WHOIS privacy on/off.'),
+  status: z
+    .string()
+    .optional()
+    .describe(
+      'Only domains whose status contains this text (case-insensitive), e.g. "expired".',
+    ),
+  expiresBefore: z
+    .string()
+    .optional()
+    .describe(
+      'Only domains expiring before this date (ISO 8601). Excludes domains with no known expiry.',
+    ),
+  expiresAfter: z
+    .string()
+    .optional()
+    .describe(
+      'Only domains expiring on/after this date (ISO 8601). Excludes domains with no known expiry.',
+    ),
+  expiringWithinDays: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Only domains expiring within this many days from now (includes already-expired). Excludes domains with no known expiry.',
+    ),
+  sort: querySort.optional(),
+  order: z
+    .enum(['asc', 'desc'])
+    .optional()
+    .describe('Sort direction (default asc). Null dates always sort last.'),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_LIMIT)
+    .optional()
+    .describe(
+      `Max rows to return (default ${DEFAULT_LIMIT}, max ${MAX_LIMIT}).`,
+    ),
+  offset: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('Rows to skip, for paging (default 0).'),
+};
+
+/** Gathers the cache reads and runs the pure query logic (filter/sort/page). */
+function runQuery(args: QueryArgs): QueryResult {
+  const { domains, fetchedAt, registrars, errors } = getMergedPortfolio();
+  const { folders, assignments } = getFolders();
+  return queryPortfolio(
+    domains,
+    folders,
+    assignments,
+    { fetchedAt, registrars, errors },
+    args,
+  );
+}
+
+/** Compact per-registrar sync status for the sync tools: what synced, how many
+ *  domains it holds, when, and any per-registrar error, plus the aggregate
+ *  freshness. Derives the per-registrar counts from the cache metadata. */
+function syncSummary(portfolio: Portfolio) {
+  const meta = getRegistrarMetadata();
+  const registrars = getConfiguredRegistrars().map((name) => {
+    const sync = meta.find((r) => r.name === name)?.sync;
+    return {
+      registrar: name,
+      domainCount: sync?.domainCount ?? 0,
+      lastSyncedAt: sync?.lastSyncedAt ?? null,
+      lastError: sync?.lastError ?? null,
+    };
+  });
+  return {
+    total: portfolio.domains.length,
+    fetchedAt: portfolio.fetchedAt,
+    stale: isStaleAt(portfolio.fetchedAt),
+    registrars,
+    errors: portfolio.errors,
+  };
+}
+
 /**
  * Registers the MCP portfolio tools. Each calls into the shared `services/`
  * layer — the same lower-level core the UI's IPC handlers use — and shapes its
@@ -185,15 +384,31 @@ export function registerTools(server: McpServer): void {
   );
 
   server.registerTool(
-    'portfolio_list',
+    'portfolio_query',
     {
-      title: 'List portfolio',
+      title: 'Query portfolio',
       description:
-        'Across all configured registrars: list every domain you own (aggregated). Returns per-registrar errors alongside the combined domains.',
+        'List, search, and filter your whole portfolio across every configured registrar — the primary way to read the portfolio. Filter by registrar, TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort and page the results. With no filters it returns everything (paged), so use it as a plain list too. Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete. Rows carry only the fields you need — call domain_get for a single domain’s full record.',
+      inputSchema: queryShape,
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => json(runQuery(args)),
+  );
+
+  server.registerTool(
+    'portfolio_sync',
+    {
+      title: 'Sync portfolio',
+      description:
+        'Re-sync every configured registrar and refresh the local cache that portfolio_query and the domain_* reads serve from. A live network pass across all registrars — call it to pull fresh data (e.g. on first use, or when portfolio_query reports stale:true or comes back empty), then read with portfolio_query. Returns a per-registrar summary: domain counts, last-synced times, and any sync errors.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
-    async () => json(await listPortfolio(getPortfolioSources())),
+    async () => {
+      const portfolio = await getPortfolio(true);
+      broadcastPortfolioChanged();
+      return json(syncSummary(portfolio));
+    },
   );
 
   // ── Registrar-level (registrar required) ───────────────────────────────────
@@ -221,6 +436,22 @@ export function registerTools(server: McpServer): void {
     },
     async ({ registrar }) =>
       json(await getRegistrarClient(registrar).listDomains()),
+  );
+
+  server.registerTool(
+    'registrar_sync',
+    {
+      title: 'Sync a registrar',
+      description:
+        'Re-sync one registrar’s domains into the local cache — a targeted refresh (e.g. after registering a domain, or when just one registrar is stale) that avoids a full portfolio_sync. Returns the same per-registrar summary as portfolio_sync.',
+      inputSchema: { registrar },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ registrar }) => {
+      const portfolio = await syncRegistrar(registrar);
+      broadcastPortfolioChanged();
+      return json(syncSummary(portfolio));
+    },
   );
 
   server.registerTool(
@@ -276,7 +507,7 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ registrar, domain, input }) =>
-      json(await getRegistrarClient(registrar).registerDomain(domain, input)),
+      cachedWrite(() => registerDomainCached(registrar, domain, input)),
   );
 
   server.registerTool(
@@ -296,19 +527,29 @@ export function registerTools(server: McpServer): void {
       json(await getRegistrarClient(registrar).transferIn(domain, input)),
   );
 
-  // ── Domain-level (registrar + domain required) ─────────────────────────────
+  // ── Domain-level (domain required; registrar auto-resolved from cache) ──────
 
   server.registerTool(
     'domain_get',
     {
       title: 'Get domain',
       description:
-        'For a single domain: fetch its full record — status, creation/expiration dates, auto-renew, transfer lock, WHOIS privacy, and nameservers.',
-      inputSchema: { registrar, domain },
+        'For a single domain: its full record — status, creation/expiration dates, auto-renew, transfer lock, WHOIS privacy, and nameservers. Served from the local detail cache when fresh; otherwise fetched live and written through. Pass `refresh` to force a live fetch.',
+      inputSchema: {
+        registrar: optionalRegistrar,
+        domain,
+        refresh: refreshParam,
+      },
       annotations: { readOnlyHint: true },
     },
-    async ({ registrar, domain }) =>
-      json(await getRegistrarClient(registrar).getDomain(domain)),
+    async ({ registrar, domain, refresh }) => {
+      const r = resolveRegistrar(domain, registrar);
+      const detail = await getDomainDetail(r, domain, refresh ?? false);
+      // getDomainDetail returns null only when neither the registrar nor the
+      // registry could resolve anything — fall back to a live getDomain so the
+      // error (or record) still comes from the provider.
+      return json(detail ?? (await getRegistrarClient(r).getDomain(domain)));
+    },
   );
 
   server.registerTool(
@@ -317,11 +558,13 @@ export function registerTools(server: McpServer): void {
       title: 'Get domain contacts',
       description:
         'For a single domain: read its registrant, admin, tech, and billing contacts.',
-      inputSchema: { registrar, domain },
+      inputSchema: { registrar: optionalRegistrar, domain },
       annotations: { readOnlyHint: true },
     },
-    async ({ registrar, domain }) =>
-      json(await getRegistrarClient(registrar).getContacts(domain)),
+    async ({ registrar, domain }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return json(await getRegistrarClient(r).getContacts(domain));
+    },
   );
 
   server.registerTool(
@@ -331,7 +574,7 @@ export function registerTools(server: McpServer): void {
       description:
         'For a single domain: renew it (extend its registration). This costs money.',
       inputSchema: {
-        registrar,
+        registrar: optionalRegistrar,
         domain,
         years: z
           .number()
@@ -346,20 +589,33 @@ export function registerTools(server: McpServer): void {
         idempotentHint: false,
       },
     },
-    async ({ registrar, domain, years }) =>
-      json(await getRegistrarClient(registrar).renewDomain(domain, years)),
+    async ({ registrar, domain, years }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return cachedWrite(() => renewDomainCached(r, domain, years));
+    },
   );
 
   server.registerTool(
     'domain_nameservers_get',
     {
       title: 'Get nameservers',
-      description: 'For a single domain: read its nameservers.',
-      inputSchema: { registrar, domain },
+      description:
+        'For a single domain: its nameservers. Served from the local detail cache when fresh; otherwise fetched live (registrar, then the public registry) and written through. Pass `refresh` to force a live fetch.',
+      inputSchema: {
+        registrar: optionalRegistrar,
+        domain,
+        refresh: refreshParam,
+      },
       annotations: { readOnlyHint: true },
     },
-    async ({ registrar, domain }) =>
-      json(await getRegistrarClient(registrar).getNameservers(domain)),
+    async ({ registrar, domain, refresh }) => {
+      const r = resolveRegistrar(domain, registrar);
+      const detail = await getDomainDetail(r, domain, refresh ?? false);
+      return json(
+        detail?.nameservers ??
+          (await getRegistrarClient(r).getNameservers(domain)),
+      );
+    },
   );
 
   server.registerTool(
@@ -369,7 +625,7 @@ export function registerTools(server: McpServer): void {
       description:
         'For a single domain: replace its nameservers with the full set given.',
       inputSchema: {
-        registrar,
+        registrar: optionalRegistrar,
         domain,
         nameservers: z
           .array(z.string())
@@ -384,13 +640,10 @@ export function registerTools(server: McpServer): void {
         idempotentHint: true,
       },
     },
-    async ({ registrar, domain, nameservers }) =>
-      json(
-        await getRegistrarClient(registrar).updateNameservers(
-          domain,
-          nameservers,
-        ),
-      ),
+    async ({ registrar, domain, nameservers }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return cachedWrite(() => setNameserversCached(r, domain, nameservers));
+    },
   );
 
   server.registerTool(
@@ -398,11 +651,13 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Get DNS records',
       description: 'For a single domain: read its DNS records.',
-      inputSchema: { registrar, domain },
+      inputSchema: { registrar: optionalRegistrar, domain },
       annotations: { readOnlyHint: true },
     },
-    async ({ registrar, domain }) =>
-      json(await getRegistrarClient(registrar).getDnsRecords(domain)),
+    async ({ registrar, domain }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return json(await getRegistrarClient(r).getDnsRecords(domain));
+    },
   );
 
   server.registerTool(
@@ -412,7 +667,7 @@ export function registerTools(server: McpServer): void {
       description:
         'For a single domain: replace its DNS records with the full set given. This is a full replace — any record you omit is removed, and an empty array clears the zone.',
       inputSchema: {
-        registrar,
+        registrar: optionalRegistrar,
         domain,
         records: z
           .array(dnsRecord)
@@ -424,8 +679,15 @@ export function registerTools(server: McpServer): void {
         idempotentHint: true,
       },
     },
-    async ({ registrar, domain, records }) =>
-      json(await getRegistrarClient(registrar).setDnsRecords(domain, records)),
+    // DNS records aren't part of the portfolio/detail cache (nothing in the
+    // Domains table shows them), so there's no cached field to patch — but we
+    // still emit the change event for consistency with the other writes.
+    async ({ registrar, domain, records }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return cachedWrite(() =>
+        getRegistrarClient(r).setDnsRecords(domain, records),
+      );
+    },
   );
 
   server.registerTool(
@@ -434,13 +696,21 @@ export function registerTools(server: McpServer): void {
       title: 'Set domain contacts',
       description:
         'For a single domain: update its contacts. Provide only the roles you want to change (registrant, admin, tech, billing).',
-      inputSchema: { registrar, domain, contacts: contactSet },
+      inputSchema: {
+        registrar: optionalRegistrar,
+        domain,
+        contacts: contactSet,
+      },
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
-    async ({ registrar, domain, contacts }) =>
-      json(
-        await getRegistrarClient(registrar).updateContacts(domain, contacts),
-      ),
+    // Contacts aren't part of the portfolio/detail cache; emit the event for
+    // consistency (see domain_dns_set).
+    async ({ registrar, domain, contacts }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return cachedWrite(() =>
+        getRegistrarClient(r).updateContacts(domain, contacts),
+      );
+    },
   );
 
   server.registerTool(
@@ -449,7 +719,7 @@ export function registerTools(server: McpServer): void {
       title: 'Set WHOIS privacy',
       description: 'For a single domain: enable or disable WHOIS privacy.',
       inputSchema: {
-        registrar,
+        registrar: optionalRegistrar,
         domain,
         enabled: z
           .boolean()
@@ -457,8 +727,10 @@ export function registerTools(server: McpServer): void {
       },
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
-    async ({ registrar, domain, enabled }) =>
-      json(await getRegistrarClient(registrar).setPrivacy(domain, enabled)),
+    async ({ registrar, domain, enabled }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return cachedWrite(() => setPrivacyCached(r, domain, enabled));
+    },
   );
 
   server.registerTool(
@@ -467,7 +739,7 @@ export function registerTools(server: McpServer): void {
       title: 'Set auto-renew',
       description: 'For a single domain: enable or disable auto-renew.',
       inputSchema: {
-        registrar,
+        registrar: optionalRegistrar,
         domain,
         enabled: z
           .boolean()
@@ -475,8 +747,10 @@ export function registerTools(server: McpServer): void {
       },
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
-    async ({ registrar, domain, enabled }) =>
-      json(await getRegistrarClient(registrar).setAutoRenew(domain, enabled)),
+    async ({ registrar, domain, enabled }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return cachedWrite(() => setAutoRenewCached(r, domain, enabled));
+    },
   );
 
   server.registerTool(
@@ -486,19 +760,15 @@ export function registerTools(server: McpServer): void {
       description:
         'For a single domain: lock or unlock it (registrar transfer lock).',
       inputSchema: {
-        registrar,
+        registrar: optionalRegistrar,
         domain,
         locked: z.boolean().describe('true to lock, false to unlock'),
       },
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
     async ({ registrar, domain, locked }) => {
-      const client = getRegistrarClient(registrar);
-      return json(
-        await (locked
-          ? client.lockDomain(domain)
-          : client.unlockDomain(domain)),
-      );
+      const r = resolveRegistrar(domain, registrar);
+      return cachedWrite(() => setLockCached(r, domain, locked));
     },
   );
 
@@ -508,11 +778,13 @@ export function registerTools(server: McpServer): void {
       title: 'Get email forwarding',
       description:
         'For a single domain: read its alias-style email forwarding rules (mail sent to an alias at the domain redirects to a destination address). Not supported by every registrar.',
-      inputSchema: { registrar, domain },
+      inputSchema: { registrar: optionalRegistrar, domain },
       annotations: { readOnlyHint: true },
     },
-    async ({ registrar, domain }) =>
-      json(await getRegistrarClient(registrar).getEmailForwarding(domain)),
+    async ({ registrar, domain }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return json(await getRegistrarClient(r).getEmailForwarding(domain));
+    },
   );
 
   server.registerTool(
@@ -522,7 +794,7 @@ export function registerTools(server: McpServer): void {
       description:
         'For a single domain: replace its email forwarding rules with the full set given. This is a full replace — any alias you omit is removed, and an empty array clears all email forwarding. Not supported by every registrar.',
       inputSchema: {
-        registrar,
+        registrar: optionalRegistrar,
         domain,
         forwards: z
           .array(emailForward)
@@ -534,13 +806,14 @@ export function registerTools(server: McpServer): void {
         idempotentHint: true,
       },
     },
-    async ({ registrar, domain, forwards }) =>
-      json(
-        await getRegistrarClient(registrar).setEmailForwarding(
-          domain,
-          forwards,
-        ),
-      ),
+    // Email forwarding isn't part of the portfolio/detail cache; emit the event
+    // for consistency (see domain_dns_set).
+    async ({ registrar, domain, forwards }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return cachedWrite(() =>
+        getRegistrarClient(r).setEmailForwarding(domain, forwards),
+      );
+    },
   );
 
   server.registerTool(
@@ -549,11 +822,13 @@ export function registerTools(server: McpServer): void {
       title: 'Get URL forwarding',
       description:
         'For a single domain: read its URL forwarding rules (HTTP redirects from a host at the domain to a destination URL). A rule may report a read-only "masked" type; the set tool cannot create one. Not supported by every registrar.',
-      inputSchema: { registrar, domain },
+      inputSchema: { registrar: optionalRegistrar, domain },
       annotations: { readOnlyHint: true },
     },
-    async ({ registrar, domain }) =>
-      json(await getRegistrarClient(registrar).getDomainForwarding(domain)),
+    async ({ registrar, domain }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return json(await getRegistrarClient(r).getDomainForwarding(domain));
+    },
   );
 
   server.registerTool(
@@ -563,7 +838,7 @@ export function registerTools(server: McpServer): void {
       description:
         'For a single domain: replace its URL forwarding rules with the full set given. This is a full replace — any rule you omit is removed, and an empty array clears all URL forwarding. Only "temporary"/"permanent" redirects can be set. Not supported by every registrar.',
       inputSchema: {
-        registrar,
+        registrar: optionalRegistrar,
         domain,
         forwards: z
           .array(domainForward)
@@ -575,13 +850,14 @@ export function registerTools(server: McpServer): void {
         idempotentHint: true,
       },
     },
-    async ({ registrar, domain, forwards }) =>
-      json(
-        await getRegistrarClient(registrar).setDomainForwarding(
-          domain,
-          forwards,
-        ),
-      ),
+    // URL forwarding isn't part of the portfolio/detail cache; emit the event
+    // for consistency (see domain_dns_set).
+    async ({ registrar, domain, forwards }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return cachedWrite(() =>
+        getRegistrarClient(r).setDomainForwarding(domain, forwards),
+      );
+    },
   );
 
   server.registerTool(
@@ -590,10 +866,12 @@ export function registerTools(server: McpServer): void {
       title: 'Estimate renewal price',
       description:
         'For a single domain: DomBot’s estimated annual renewal price, with provenance — a manual override, else a per-name registrar quote where supported, else the base per-TLD database. Distinct from registrar_pricing, which is the registrar’s own live quote.',
-      inputSchema: { registrar, domain },
+      inputSchema: { registrar: optionalRegistrar, domain },
       annotations: { readOnlyHint: true },
     },
-    async ({ registrar, domain }) =>
-      json(await getRenewalPrice(registrar, domain)),
+    async ({ registrar, domain }) => {
+      const r = resolveRegistrar(domain, registrar);
+      return json(await getRenewalPrice(r, domain));
+    },
   );
 }

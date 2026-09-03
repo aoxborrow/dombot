@@ -5,9 +5,11 @@ import {
   registrars,
   type Domain,
   type OperationResult,
+  type RegisterDomainInput,
   type RegistrarCredentials,
   type RegistrarName,
 } from '@aoxborrow/registrar-client';
+import { promises as dnsPromises } from 'node:dns';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { getDevEnvVar } from './dev-env';
 import {
@@ -77,12 +79,6 @@ export function getRegistrarClient(name: RegistrarName): RegistrarClient {
 /** Registrars whose required credentials are all present (stored or in env). */
 export function getConfiguredRegistrars(): RegistrarName[] {
   return registrarNames.filter((name) => isConfigured(name));
-}
-
-/** Clients for every configured registrar — the sources for a live aggregate
- * (e.g. the MCP `portfolio_list` tool, which reads through without caching). */
-export function getPortfolioSources(): RegistrarClient[] {
-  return getConfiguredRegistrars().map(getRegistrarClient);
 }
 
 /** One registrar's cached slice (dates revived), or null when never synced. */
@@ -207,6 +203,25 @@ export function getCachedPortfolio(): Portfolio | null {
   return anySynced ? assemblePortfolio() : null;
 }
 
+/**
+ * Distinct registrars that hold `domainName` in the cached portfolio
+ * (case-insensitive). Backs the MCP tools' automatic registrar resolution, so a
+ * caller can act on a domain it owns without knowing which registrar holds it.
+ * Normally one; empty when the domain isn't cached (never synced, or added
+ * since the last sync), and more than one only if a stale cache still lists a
+ * transferred-away domain at its old registrar too.
+ */
+export function findRegistrarsForDomain(domainName: string): RegistrarName[] {
+  const target = domainName.trim().toLowerCase();
+  const found = new Set<RegistrarName>();
+  for (const d of getCachedPortfolio()?.domains ?? []) {
+    if (d.domainName.toLowerCase() === target) {
+      found.add(d.registrar as RegistrarName);
+    }
+  }
+  return [...found];
+}
+
 /** All cached per-domain detail partials, keyed `registrar:domain` (revived). */
 export function getCachedDetail(): Record<string, Partial<Domain>> {
   const all = readAll<Partial<Domain>>('detail');
@@ -265,11 +280,14 @@ export function saveRegistrarCredentials(
  * Returns a partial that the caller merges over the list summary:
  *  - `getDomain` for the full record (privacy/lock/dates/nameservers), then
  *  - a `getNameservers` fallback for providers whose detail omits them, then
- *  - a dns.tools WHOIS/RDAP lookup for the registry's nameservers and, when the
- *    registrar doesn't expose one, the creation date (e.g. NameBright).
- * The registry fallbacks run even when `getDomain` fails (e.g. Dynadot's detail
- * API rejects some TLDs its list still returns). Returns null only when nothing
- * could be resolved.
+ *  - a live DNS `NS` query for the rest — the source of truth for domains whose
+ *    registrar can't report nameservers (a Cloudflare domain not added as a zone,
+ *    or one on the registrar's own DNS, e.g. Dynadot's `ns*.dyna-ns.net`). It
+ *    runs even when `getDomain` fails (e.g. Dynadot's detail API rejects some
+ *    TLDs its list still returns).
+ * Creation date is taken only from the registrar; providers that don't report
+ * one (e.g. NameBright) leave it blank rather than triggering an extra lookup.
+ * Returns null only when nothing could be resolved.
  */
 export async function getDomainDetail(
   name: RegistrarName,
@@ -302,16 +320,14 @@ export async function getDomainDetail(
     }
   }
 
-  let createdDate = domain?.createdDate ?? null;
+  const createdDate = domain?.createdDate ?? null;
 
-  // Fall back to the public registry (via dns.tools, RDAP/WHOIS per TLD) for
-  // whatever the registrar couldn't supply: nameservers (e.g. a domain on the
-  // registrar's default DNS) and/or the creation date (e.g. NameBright, whose
-  // API returns no registration date at all).
-  if (nameservers.length === 0 || createdDate === null) {
-    const registry = await lookupRegistry(domainName);
-    if (nameservers.length === 0) nameservers = registry.nameservers;
-    if (createdDate === null) createdDate = registry.createdDate;
+  // Fall back to a live DNS query only for nameservers the registrar can't
+  // report (a Cloudflare domain not added as a zone, or one on the registrar's
+  // own DNS). Creation date is left to the registrar — providers that omit it
+  // (e.g. NameBright) stay blank rather than triggering an extra lookup.
+  if (nameservers.length === 0) {
+    nameservers = await lookupNameservers(domainName);
   }
 
   if (domain) {
@@ -334,14 +350,70 @@ export async function getDomainDetail(
 }
 
 /**
- * Toggles auto-renew for a domain at its registrar. Some providers report a soft
- * failure via `OperationResult.success` rather than throwing (e.g. Namecheap),
- * so a false `success` is normalized to a thrown error — callers only have to
- * handle one failure mode. On success, the change is written into the portfolio
- * and per-domain detail caches (fetchedAt preserved) so a relaunch reflects the
- * new value without waiting for the next full refresh.
+ * Portfolio domains merged with any cached per-domain detail (nameservers,
+ * privacy, lock, creation date), plus sync health: the headline `fetchedAt`, the
+ * registrars that have synced, and any per-registrar sync `errors` (so a caller
+ * knows the result is incomplete). A pure cache read — no network — mirroring
+ * the renderer's `enriched` overlay so filters on detail-only fields work when a
+ * domain has been enriched. Backs the MCP `portfolio_query` tool.
  */
-export async function setDomainAutoRenew(
+export function getMergedPortfolio(): {
+  domains: Domain[];
+  fetchedAt: number | null;
+  registrars: string[];
+  errors: PortfolioErrorInfo[];
+} {
+  const portfolio = getCachedPortfolio();
+  if (!portfolio)
+    return { domains: [], fetchedAt: null, registrars: [], errors: [] };
+  const detail = getCachedDetail();
+  const domains = portfolio.domains.map((d) => {
+    const extra = detail[detailKey(d.registrar as RegistrarName, d.domainName)];
+    return extra ? { ...d, ...extra } : d;
+  });
+  return {
+    domains,
+    fetchedAt: portfolio.fetchedAt,
+    registrars: portfolio.registrars,
+    errors: portfolio.errors,
+  };
+}
+
+/**
+ * Applies a known field change to both the portfolio slice and the per-domain
+ * detail cache (each entry's `fetchedAt` preserved), so a relaunch — and an open
+ * Domains table (via the `portfolioChanged` event) — reflect the new value
+ * without waiting for the next full sync. No-op for entries that don't exist.
+ */
+function patchDomainInCaches(
+  name: RegistrarName,
+  domainName: string,
+  patch: Partial<Domain>,
+): void {
+  patchEntryData<RegistrarPortfolioEntry>('portfolio', name, (e) => ({
+    ...e,
+    domains: e.domains.map((d) =>
+      d.domainName === domainName ? { ...d, ...patch } : d,
+    ),
+  }));
+  patchEntryData<Partial<Domain>>(
+    'detail',
+    detailKey(name, domainName),
+    (d) => ({
+      ...d,
+      ...patch,
+    }),
+  );
+}
+
+/**
+ * Sets auto-renew and, on success, writes the new value into the portfolio and
+ * detail caches. Returns the raw `OperationResult` (some providers report a soft
+ * failure via `success: false` rather than throwing) without throwing, so an MCP
+ * caller sees the provider's own message. The UI-facing `setDomainAutoRenew`
+ * wraps this and normalizes a soft failure to a throw for its optimistic toggle.
+ */
+export async function setAutoRenewCached(
   name: RegistrarName,
   domainName: string,
   enabled: boolean,
@@ -350,68 +422,138 @@ export async function setDomainAutoRenew(
     domainName,
     enabled,
   );
+  if (result.success)
+    patchDomainInCaches(name, domainName, { autoRenew: enabled });
+  return result;
+}
+
+/** Sets the transfer lock and, on success, patches the caches. Returns the raw
+ * result (no throw). */
+export async function setLockCached(
+  name: RegistrarName,
+  domainName: string,
+  locked: boolean,
+): Promise<OperationResult> {
+  const client = getRegistrarClient(name);
+  const result = await (locked
+    ? client.lockDomain(domainName)
+    : client.unlockDomain(domainName));
+  if (result.success) patchDomainInCaches(name, domainName, { locked });
+  return result;
+}
+
+/** Sets WHOIS privacy and, on success, patches the caches. Returns the raw
+ * result (no throw). */
+export async function setPrivacyCached(
+  name: RegistrarName,
+  domainName: string,
+  enabled: boolean,
+): Promise<OperationResult> {
+  const result = await getRegistrarClient(name).setPrivacy(domainName, enabled);
+  if (result.success)
+    patchDomainInCaches(name, domainName, { privacy: enabled });
+  return result;
+}
+
+/** Replaces the nameservers and, on success, patches the caches. Returns the raw
+ * result (no throw). */
+export async function setNameserversCached(
+  name: RegistrarName,
+  domainName: string,
+  nameservers: string[],
+): Promise<OperationResult> {
+  const result = await getRegistrarClient(name).updateNameservers(
+    domainName,
+    nameservers,
+  );
+  if (result.success) patchDomainInCaches(name, domainName, { nameservers });
+  return result;
+}
+
+/**
+ * Renews a domain. The registrar's `OperationResult` doesn't carry the new
+ * expiry, so on success we re-fetch the domain's detail (which writes through the
+ * detail cache) and patch the fresh expiration/renewal/status into the portfolio
+ * slice too. A re-fetch failure is swallowed — the renewal still succeeded and
+ * the next Sync corrects the date. Returns the raw result (no throw).
+ */
+export async function renewDomainCached(
+  name: RegistrarName,
+  domainName: string,
+  years?: number,
+): Promise<OperationResult> {
+  const result = await getRegistrarClient(name).renewDomain(domainName, years);
+  if (result.success) {
+    try {
+      const detail = await getDomainDetail(name, domainName, true);
+      const patch: Partial<Domain> = {};
+      if (detail?.expirationDate != null)
+        patch.expirationDate = detail.expirationDate;
+      if (detail?.renewalDate != null) patch.renewalDate = detail.renewalDate;
+      if (detail?.status != null) patch.status = detail.status;
+      if (Object.keys(patch).length > 0)
+        patchDomainInCaches(name, domainName, patch);
+    } catch {
+      // Renewal succeeded; leave the cached expiry for the next Sync to correct.
+    }
+  }
+  return result;
+}
+
+/**
+ * Registers a new domain and, on success, syncs that registrar's slice so the
+ * new name enters the portfolio cache (the registrar's `OperationResult` doesn't
+ * return a full `Domain` to append). Returns the raw result (no throw).
+ */
+export async function registerDomainCached(
+  name: RegistrarName,
+  domainName: string,
+  input: RegisterDomainInput,
+): Promise<OperationResult> {
+  const result = await getRegistrarClient(name).registerDomain(
+    domainName,
+    input,
+  );
+  if (result.success) await syncRegistrarInto(name);
+  return result;
+}
+
+/**
+ * UI-facing auto-renew toggle. Wraps `setAutoRenewCached` and normalizes a soft
+ * failure (`success: false`, e.g. Namecheap) to a thrown error so the renderer's
+ * optimistic toggle can roll back on a single failure mode.
+ */
+export async function setDomainAutoRenew(
+  name: RegistrarName,
+  domainName: string,
+  enabled: boolean,
+): Promise<OperationResult> {
+  const result = await setAutoRenewCached(name, domainName, enabled);
   if (!result.success) {
     throw new Error(
       result.message || `Failed to update auto-renew for ${domainName}`,
     );
   }
-
-  patchEntryData<RegistrarPortfolioEntry>('portfolio', name, (e) => ({
-    ...e,
-    domains: e.domains.map((d) =>
-      d.domainName === domainName ? { ...d, autoRenew: enabled } : d,
-    ),
-  }));
-  patchEntryData<Partial<Domain>>(
-    'detail',
-    detailKey(name, domainName),
-    (d) => ({
-      ...d,
-      autoRenew: enabled,
-    }),
-  );
-
   return result;
 }
 
 /**
- * Reads a domain's nameservers and creation date from the public registry via
- * the dns.tools domain API, which picks RDAP or WHOIS per TLD. Fields are empty
- * on any failure. Set DNS_TOOLS_API_KEY to raise rate limits; the free tier
- * needs no auth.
+ * Reads a domain's live nameservers via a DNS `NS` query — the delegation the
+ * domain actually uses, and the only way to see nameservers a registrar won't
+ * report (a Cloudflare domain not added as a zone, or one on the registrar's own
+ * DNS, e.g. Dynadot's `ns*.dyna-ns.net`). Fast (a UDP round-trip), but capped
+ * with a short timeout; empty on any failure, timeout, or undelegated domain.
  */
-async function lookupRegistry(
-  domainName: string,
-): Promise<{ nameservers: string[]; createdDate: Date | null }> {
-  const empty = { nameservers: [] as string[], createdDate: null };
+async function lookupNameservers(domainName: string): Promise<string[]> {
   try {
-    const apiKey = process.env.DNS_TOOLS_API_KEY;
-    const res = await fetch(
-      `https://api.dns.tools/v1/domain/${encodeURIComponent(domainName)}`,
-      {
-        headers: {
-          accept: 'application/json',
-          ...(apiKey ? { 'x-api-key': apiKey } : {}),
-        },
-        signal: AbortSignal.timeout(15_000),
-      },
-    );
-    if (!res.ok) return empty;
-    const data = (await res.json()) as {
-      results?: { nameservers?: string[]; creation_date?: string }[];
-    };
-    const result = data.results?.[0];
-    const nameservers = (result?.nameservers ?? [])
-      .map((ns) => ns.toLowerCase())
-      .filter(Boolean);
-    let createdDate: Date | null = null;
-    if (result?.creation_date) {
-      const parsed = new Date(result.creation_date);
-      if (!Number.isNaN(parsed.getTime())) createdDate = parsed;
-    }
-    return { nameservers, createdDate };
+    const ns = await Promise.race([
+      dnsPromises.resolveNs(domainName),
+      new Promise<string[]>((resolve) => setTimeout(() => resolve([]), 5_000)),
+    ]);
+    return ns.map((n) => n.toLowerCase().replace(/\.$/, '')).filter(Boolean);
   } catch {
-    return empty;
+    // NXDOMAIN, SERVFAIL, no NS records, etc. — nothing to add.
+    return [];
   }
 }
 

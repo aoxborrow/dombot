@@ -63,6 +63,12 @@ const api: DombotApi = {
     return () =>
       ipcRenderer.removeListener(IpcEvents.approvalsChanged, listener);
   },
+  onPortfolioChanged: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on(IpcEvents.portfolioChanged, listener);
+    return () =>
+      ipcRenderer.removeListener(IpcEvents.portfolioChanged, listener);
+  },
 
   // Folders
   getFolders: () => ipcRenderer.invoke(IpcChannels.foldersList),
@@ -72,6 +78,11 @@ const api: DombotApi = {
   deleteFolder: (id) => ipcRenderer.invoke(IpcChannels.foldersDelete, id),
   assignFolder: (domainKey, folderId) =>
     ipcRenderer.invoke(IpcChannels.foldersAssign, domainKey, folderId),
+
+  // Settings
+  getSettings: () => ipcRenderer.invoke(IpcChannels.getSettings),
+  updateSettings: (patch) =>
+    ipcRenderer.invoke(IpcChannels.updateSettings, patch),
 };
 
 contextBridge.exposeInMainWorld('api', api);

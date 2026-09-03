@@ -38,20 +38,32 @@ export const IpcChannels = {
   foldersUpdate: 'folders:update',
   foldersDelete: 'folders:delete',
   foldersAssign: 'folders:assign',
+  getSettings: 'settings:get',
+  updateSettings: 'settings:update',
 } as const;
 
-/** Event (main → renderer) fired when the pending-approval set changes. */
+/** Events (main → renderer). */
 export const IpcEvents = {
+  /** Fired when the pending-approval set changes. */
   approvalsChanged: 'mcp:approvalsChanged',
+  /**
+   * Fired when an out-of-band write (an MCP tool) mutates the on-disk portfolio
+   * or detail cache, so an open Domains table can re-read the cache and reflect
+   * the change live — without a manual Sync. UI-initiated writes update the
+   * store directly and don't rely on this.
+   */
+  portfolioChanged: 'portfolio:changed',
 } as const;
 
 /**
  * Cached data at or beyond this age is considered stale. Shared by the main
- * cache layer (as its default TTL) and the renderer (to highlight a stale
- * "last refreshed" timestamp). We never auto-refresh on staleness — the UI just
- * flags it so the user can choose to refresh.
+ * cache layer (as its default TTL for per-domain detail) and the renderer (to
+ * highlight a stale "last synced" timestamp). Set to match the default
+ * background-sync interval (24h — see services/auto-sync.ts), so a user on the
+ * default cadence effectively never sees the stale state; only disabling
+ * auto-sync or choosing a longer interval surfaces it.
  */
-export const STALE_AFTER_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+export const STALE_AFTER_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export interface AppInfo {
   name: string;
@@ -78,6 +90,19 @@ export interface McpInfo {
 
 /** Credential values keyed by config-field name. */
 export type CredentialValues = Record<string, string>;
+
+/**
+ * User-adjustable app settings, persisted under `userData/settings.json`.
+ * Distinct from the caches and credentials; kept across "Clear cache".
+ */
+export interface AppSettings {
+  /**
+   * Background portfolio-sync interval in minutes; `0` disables auto-sync.
+   * Applied live when changed. See services/auto-sync.ts. `DOMBOT_SYNC_INTERVAL_MINUTES`,
+   * when set, overrides this (a dev/testing escape hatch).
+   */
+  autoSyncIntervalMinutes: number;
+}
 
 /** One input in a registrar's credential form. */
 export interface RegistrarConfigField {
@@ -412,6 +437,9 @@ export interface DombotApi {
   revokeMcpClient: (clientId: string) => Promise<void>;
   /** Subscribe to pending-approval changes. Returns an unsubscribe function. */
   onApprovalsChanged: (callback: () => void) => () => void;
+  /** Subscribe to out-of-band portfolio/detail cache changes (from MCP writes).
+   * Returns an unsubscribe function. */
+  onPortfolioChanged: (callback: () => void) => () => void;
 
   // Folders
   /** The folder definitions plus the domain→folder map, read from disk. */
@@ -424,4 +452,11 @@ export interface DombotApi {
   deleteFolder: (id: string) => Promise<void>;
   /** Assign a domain to a folder, or unassign it with a null folderId. */
   assignFolder: (domainKey: string, folderId: string | null) => Promise<void>;
+
+  // Settings
+  /** Read the user-adjustable app settings. */
+  getSettings: () => Promise<AppSettings>;
+  /** Patch app settings; applied live (e.g. reschedules the background sync).
+   * Returns the updated settings. */
+  updateSettings: (patch: Partial<AppSettings>) => Promise<AppSettings>;
 }
