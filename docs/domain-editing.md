@@ -144,7 +144,8 @@ the Done panel offers "Export results CSV" for a record.
 
 | Action | Inline | Bulk |
 | --- | --- | --- |
-| Auto-renew on/off, privacy on/off, lock | one click, no confirm | dialog Start is the confirm |
+| Auto-renew on/off, lock | one click, no confirm | dialog Start is the confirm |
+| **Privacy on/off** | inline confirm popover on the cell (off exposes WHOIS; on can be a purchase) | dialog Start is the confirm |
 | **Unlock** | inline confirm popover on the cell | dialog with an explicit "enables transfer-out" warning |
 | Nameservers | popover editor; Save is the confirm | dialog shows the set + "replaces on N domains" |
 | URL / email forwarding | dialog; loads current rules; Save warns if it removes any | dialog warns full-replace; option to skip domains that already have rules |
@@ -523,7 +524,7 @@ Each entry: inline behavior · bulk behavior · backend · cache effect · cavea
 optimistic patch. Bulk: On / Off; skip rows already in state. Backend
 `setAutoRenewCached`. Cache: `autoRenew`. Caveats: Cloudflare unsupported.
 
-**Privacy** — icon button toggle, optimistic. Bulk: On / Off. Backend
+**Privacy** — icon button; confirms in a popover either way, then optimistic. Bulk: On / Off. Backend
 `setPrivacyCached`. Cache: `privacy`. Caveats: Porkbun unsupported; GoDaddy
 on → unsupported, off → may return a soft failure for free DBP (surfaces as
 `failed` with GoDaddy's message); Gandi off → no-op for individuals (we can't

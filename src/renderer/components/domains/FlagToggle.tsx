@@ -22,8 +22,11 @@ import {
  * registrar rejects. Disabled (with the reason as its tooltip) when the
  * registrar can't change the flag, and while a write is in flight.
  *
- * Unlocking is the one transition that enables a transfer-out, so it asks
- * first in a small popover anchored to the cell; everything else is one click.
+ * Privacy changes (either direction — turning it off exposes the WHOIS
+ * contact, turning it on can be a purchase at some registrars) and unlocking
+ * (enables a transfer-out) ask first in a small popover anchored to the cell.
+ * Locking is the one transition that's plain one-click: it only ever makes
+ * the domain safer.
  */
 export function FlagToggle({
   domain,
@@ -62,6 +65,27 @@ export function FlagToggle({
     );
   };
 
+  // Lock → one click. Everything else confirms in place.
+  const needsConfirm = !(kind === 'lock' && !value);
+  const confirm =
+    kind === 'lock'
+      ? {
+          title: `Unlock ${domain.domainName}?`,
+          body: 'An unlocked domain can be transferred to another registrar.',
+          action: 'Unlock',
+        }
+      : next
+        ? {
+            title: `Enable privacy for ${domain.domainName}?`,
+            body: 'Hides the registrant contact from public WHOIS. Some registrars charge for this.',
+            action: 'Enable',
+          }
+        : {
+            title: `Disable privacy for ${domain.domainName}?`,
+            body: 'Exposes the registrant name, address, email, and phone in public WHOIS.',
+            action: 'Disable',
+          };
+
   const Icon = value ? On : Off;
   const label = value ? onLabel : offLabel;
   const title = reason
@@ -83,7 +107,7 @@ export function FlagToggle({
       title={title}
       aria-label={label}
       aria-pressed={value}
-      onClick={kind === 'lock' && value ? undefined : apply}
+      onClick={needsConfirm ? undefined : apply}
       className={cn(
         'mx-auto flex size-6 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-muted disabled:cursor-default disabled:hover:bg-transparent',
         pending && 'animate-pulse',
@@ -99,32 +123,27 @@ export function FlagToggle({
     </button>
   );
 
-  // Locked → unlocking: confirm in place.
-  if (kind === 'lock' && value) {
-    return (
-      <Popover open={confirming} onOpenChange={setConfirming}>
-        <PopoverTrigger asChild>{button}</PopoverTrigger>
-        <PopoverContent align="center" className="w-64 p-3">
-          <p className="text-sm font-medium">Unlock {domain.domainName}?</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            An unlocked domain can be transferred to another registrar.
-          </p>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setConfirming(false)}
-            >
-              Cancel
-            </Button>
-            <Button size="sm" onClick={apply}>
-              Unlock
-            </Button>
-          </div>
-        </PopoverContent>
-      </Popover>
-    );
-  }
+  if (!needsConfirm) return button;
 
-  return button;
+  return (
+    <Popover open={confirming} onOpenChange={setConfirming}>
+      <PopoverTrigger asChild>{button}</PopoverTrigger>
+      <PopoverContent align="center" className="w-72 p-3">
+        <p className="text-sm font-medium">{confirm.title}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{confirm.body}</p>
+        <div className="mt-3 flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirming(false)}
+          >
+            Cancel
+          </Button>
+          <Button size="sm" onClick={apply}>
+            {confirm.action}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
