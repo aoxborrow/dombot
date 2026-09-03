@@ -54,9 +54,8 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
 
   dynadot: {
     summary:
-      'An API key and secret from Tools › API in your account. Use the ' +
-      'Production pair, not the Sandbox one; the account must be unlocked ' +
-      'with API access enabled before they are shown.',
+      'An API key and secret from Tools › API in your account. The account ' +
+      'must be unlocked with API access enabled before they are shown.',
     links: [
       {
         label: 'Where to find your API key',
