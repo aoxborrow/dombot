@@ -213,6 +213,7 @@ pre .a { color: var(--accent-ink); font-weight: 500; }
 .mcp-install + .mcp-install { margin-top: 18px; }
 .mcp-install-label { color: var(--faint); font-family: "IBM Plex Mono", monospace; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 8px; }
 .mcp-install pre { margin: 0; padding-right: 46px; }
+.snippet-plain pre { padding-right: 14px; } /* no copy button to make room for */
 .snippet { position: relative; display: inline-block; max-width: 100%; vertical-align: top; }
 .copy-btn { position: absolute; top: 7px; right: 7px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); cursor: pointer; transition: color .15s ease, border-color .15s ease, background .15s ease; }
 .copy-btn:hover { color: var(--ink); border-color: var(--line-strong); background: var(--surface-2); }
