@@ -11,6 +11,7 @@ import { timeAgo } from '../../lib/time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import {
   Collapsible,
   CollapsibleContent,
@@ -67,10 +68,12 @@ export default function RegistrarsSettings() {
 
 function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
   const syncRegistrar = useAppStore((s) => s.syncRegistrar);
+  const setRegistrarEnabled = useAppStore((s) => s.setRegistrarEnabled);
   const [values, setValues] = useState<CredentialValues>({});
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -102,8 +105,20 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
     }
   };
 
-  const busy = saving || syncing;
-  const { configured, sync } = meta;
+  // Enable/disable this registrar. Disabling keeps its credentials but drops its
+  // cached data and stops syncs; enabling re-syncs it. The store updates the
+  // portfolio, pricing, and metadata, so every surface reflects it.
+  const toggleEnabled = async (next: boolean) => {
+    setToggling(true);
+    try {
+      await setRegistrarEnabled(meta.name, next);
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const busy = saving || syncing || toggling;
+  const { configured, enabled, sync } = meta;
 
   return (
     <Card className="gap-0 overflow-hidden rounded-md py-0">
@@ -112,13 +127,21 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
             sits outside the triggers so it works even while collapsed. */}
         <div className="flex items-center gap-3 px-5 py-[13px]">
           <CollapsibleTrigger className="flex flex-1 items-center gap-[18px] text-left">
-            <span className="flex items-center gap-2.5 font-medium">
+            <span
+              className={cn(
+                'flex items-center gap-2.5 font-medium',
+                // Dim the name for a configured-but-disabled registrar so the
+                // off state reads at a glance.
+                configured && !enabled && 'opacity-50',
+              )}
+            >
               <RegistrarLogo name={meta.name} label={meta.displayName} />
               {meta.displayName}
             </span>
             <SyncStatus meta={meta} syncing={syncing} />
           </CollapsibleTrigger>
-          {configured && (
+          {/* Sync only makes sense for an enabled registrar. */}
+          {configured && enabled && (
             <Button
               variant="ghost"
               size="sm"
@@ -133,6 +156,22 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
               <RefreshCw className={cn(syncing && 'animate-spin')} />
               {syncing ? 'Syncing…' : 'Sync'}
             </Button>
+          )}
+          {/* Enable/disable toggle. Only shown once configured — there's nothing
+              to enable without credentials. */}
+          {configured && (
+            <Switch
+              checked={enabled}
+              onCheckedChange={(v) => void toggleEnabled(v)}
+              disabled={busy}
+              aria-label={`${enabled ? 'Disable' : 'Enable'} ${meta.displayName}`}
+              title={
+                enabled
+                  ? 'Disable this registrar (keeps credentials, drops its data)'
+                  : 'Enable and sync this registrar'
+              }
+              className="-my-1"
+            />
           )}
           <CollapsibleTrigger
             className="shrink-0"
@@ -277,6 +316,7 @@ function RegistrarLogo({ name, label }: { name: RegistrarName; label: string }) 
 /**
  * The registrar's sync state, shown in the card header:
  *  - not configured → "Not set" badge
+ *  - configured but disabled → "Disabled" badge
  *  - configured + last sync ok → green "Last synced <ago> · N domains"
  *  - configured + last sync errored → amber "Sync failed" (error in tooltip)
  *  - configured + never synced → amber "Not synced yet"
@@ -296,6 +336,13 @@ function SyncStatus({
     return (
       <Badge variant="outline" className="text-muted-foreground">
         Not set
+      </Badge>
+    );
+  }
+  if (!meta.enabled) {
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        Disabled
       </Badge>
     );
   }

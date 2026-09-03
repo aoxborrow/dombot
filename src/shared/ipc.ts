@@ -23,6 +23,7 @@ export const IpcChannels = {
   getRegistrarMetadata: 'registrar:getMetadata',
   getRegistrarCredentials: 'registrar:getCredentials',
   saveRegistrarCredentials: 'registrar:saveCredentials',
+  setRegistrarEnabled: 'registrar:setEnabled',
   syncRegistrar: 'registrar:sync',
   getMcpInfo: 'mcp:getInfo',
   listPendingApprovals: 'mcp:listPendingApprovals',
@@ -133,6 +134,9 @@ export interface RegistrarMeta {
   helpText: string;
   supportsSandbox: boolean;
   configured: boolean;
+  /** Whether the registrar is enabled (default). Disabled = credentials kept but
+   *  no syncs and no cached data; only meaningful when `configured`. */
+  enabled: boolean;
   /** Sync state (from cache), present regardless of whether it's configured. */
   sync: RegistrarSync;
   configFields: RegistrarConfigField[];
@@ -387,6 +391,12 @@ export interface DombotApi {
     name: RegistrarName,
     creds: CredentialValues,
   ) => Promise<void>;
+  /** Enable/disable a registrar (keeps credentials). Disabling drops its cached
+   *  data and stops syncs; enabling re-syncs it. Returns the updated portfolio. */
+  setRegistrarEnabled: (
+    name: RegistrarName,
+    enabled: boolean,
+  ) => Promise<Portfolio>;
 
   // MCP server
   getMcpInfo: () => Promise<McpInfo>;

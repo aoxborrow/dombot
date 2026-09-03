@@ -44,6 +44,8 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.getRegistrarCredentials, name),
   saveRegistrarCredentials: (name, creds) =>
     ipcRenderer.invoke(IpcChannels.saveRegistrarCredentials, name, creds),
+  setRegistrarEnabled: (name, enabled) =>
+    ipcRenderer.invoke(IpcChannels.setRegistrarEnabled, name, enabled),
 
   // MCP server
   getMcpInfo: () => ipcRenderer.invoke(IpcChannels.getMcpInfo),

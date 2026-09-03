@@ -11,6 +11,7 @@ import {
 } from '@aoxborrow/registrar-client';
 import { promises as dnsPromises } from 'node:dns';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
+import { isRegistrarEnabled, setRegistrarEnabled } from './registrar-state';
 import {
   clearEntry,
   isStale,
@@ -96,9 +97,20 @@ export function getRegistrarClient(name: RegistrarName): RegistrarClient {
   return client;
 }
 
-/** Registrars whose required credentials are all present (stored or in env). */
+/** Registrars whose required credentials are all present. */
 export function getConfiguredRegistrars(): RegistrarName[] {
   return registrarNames.filter((name) => isConfigured(name));
+}
+
+/**
+ * Registrars that are both configured AND enabled — the set that actually syncs
+ * and contributes domains. A disabled registrar keeps its credentials but is
+ * skipped here, so it neither syncs nor shows up in the portfolio.
+ */
+export function getActiveRegistrars(): RegistrarName[] {
+  return registrarNames.filter(
+    (name) => isConfigured(name) && isRegistrarEnabled(name),
+  );
 }
 
 /** One registrar's cached slice (dates revived), or null when never synced. */
@@ -133,7 +145,7 @@ function assemblePortfolio(): Portfolio {
   const registrarIds: string[] = [];
   let fetchedAt: number | null = null;
 
-  for (const name of getConfiguredRegistrars()) {
+  for (const name of getActiveRegistrars()) {
     const entry = readRegistrarEntry(name);
     if (!entry) continue;
     domains.push(...entry.domains);
@@ -250,7 +262,9 @@ async function syncRenewalQuotes(
  */
 export async function getPortfolio(refresh = true): Promise<Portfolio> {
   if (refresh) {
-    await Promise.all(getConfiguredRegistrars().map(syncRegistrarInto));
+    // Only sync enabled registrars — a disabled one keeps its credentials but is
+    // deliberately skipped.
+    await Promise.all(getActiveRegistrars().map(syncRegistrarInto));
   }
   return assemblePortfolio();
 }
@@ -261,19 +275,47 @@ export async function getPortfolio(refresh = true): Promise<Portfolio> {
  * cached slice.
  */
 export async function syncRegistrar(name: RegistrarName): Promise<Portfolio> {
-  if (isConfigured(name)) {
+  if (isConfigured(name) && isRegistrarEnabled(name)) {
     await syncRegistrarInto(name);
   } else {
-    // Credentials were cleared — drop the registrar's slice so its domains don't
-    // linger (or resurface if it's reconfigured before the next sync).
+    // Credentials cleared, or the registrar is disabled — drop its slice so its
+    // domains don't linger (or resurface if it's reconfigured/re-enabled before
+    // the next sync).
     clearEntry('portfolio', name);
   }
   return assemblePortfolio();
 }
 
+/**
+ * Enable or disable a registrar without touching its credentials. Disabling drops
+ * its cached portfolio + detail data and stops future syncs; enabling re-syncs it
+ * so its domains come back. Returns the reassembled portfolio either way.
+ */
+export async function setRegistrarEnabledCached(
+  name: RegistrarName,
+  enabled: boolean,
+): Promise<Portfolio> {
+  setRegistrarEnabled(name, enabled);
+  if (enabled) {
+    if (isConfigured(name)) await syncRegistrarInto(name);
+  } else {
+    clearRegistrarData(name);
+  }
+  return assemblePortfolio();
+}
+
+/** Drops a registrar's cached portfolio slice and every one of its detail entries. */
+function clearRegistrarData(name: RegistrarName): void {
+  clearEntry('portfolio', name);
+  const prefix = `${name}:`;
+  for (const key of Object.keys(readAll<DetailRecord>('detail'))) {
+    if (key.startsWith(prefix)) clearEntry('detail', key);
+  }
+}
+
 /** The cached portfolio (revived), or null when nothing has ever synced. */
 export function getCachedPortfolio(): Portfolio | null {
-  const anySynced = getConfiguredRegistrars().some((name) =>
+  const anySynced = getActiveRegistrars().some((name) =>
     readEntry('portfolio', name),
   );
   return anySynced ? assemblePortfolio() : null;
@@ -383,6 +425,7 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
       helpText: R.helpText,
       supportsSandbox: R.supportsSandbox,
       configured: isConfigured(name),
+      enabled: isRegistrarEnabled(name),
       sync: {
         lastSyncedAt: sync?.lastSyncedAt ?? null,
         lastError: sync?.lastError ?? null,

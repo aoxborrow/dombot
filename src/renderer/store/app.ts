@@ -87,6 +87,13 @@ interface AppState {
   /** Sync one registrar's domains (e.g. after saving its credentials), merge the
    * result into the portfolio, refresh `registrars`, and return its sync state. */
   syncRegistrar: (name: RegistrarName) => Promise<RegistrarSync>;
+  /** Enable/disable a registrar (keeps its credentials). Disabling drops its
+   * cached data and stops syncs; enabling re-syncs it. Updates the portfolio,
+   * pricing, and registrar metadata to match. */
+  setRegistrarEnabled: (
+    name: RegistrarName,
+    enabled: boolean,
+  ) => Promise<void>;
   /** Restore portfolio + detail + pricing from the on-disk cache
    * with no network calls. Call once on app launch. */
   hydrateFromCache: () => Promise<void>;
@@ -234,6 +241,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     return (
       meta?.sync ?? { lastSyncedAt: null, lastError: null, domainCount: 0 }
     );
+  },
+
+  setRegistrarEnabled: async (name, enabled) => {
+    // Main flips the flag, then either re-syncs (enable) or drops the registrar's
+    // cached data (disable), and returns the reassembled portfolio.
+    const result = await withSyncTimeout(
+      window.api.setRegistrarEnabled(name, enabled),
+    );
+    set((state) => ({
+      portfolio: result.domains,
+      portfolioErrors: result.errors,
+      portfolioRegistrars: result.registrars,
+      portfolioRegistrarLabels: result.registrarLabels,
+      portfolioLoadedAt: result.fetchedAt ?? state.portfolioLoadedAt ?? Date.now(),
+      portfolioSource: state.portfolioSource ?? 'live',
+    }));
+    // Reflect the enabled flag + any new sync status in the Settings cards and
+    // status bar, and re-read pricing for the updated portfolio.
+    await get().loadRegistrars();
+    await get().loadPricing();
   },
 
   hydrateFromCache: async () => {

@@ -1,4 +1,4 @@
-import { getConfiguredRegistrars, getPortfolio } from './registrars';
+import { getActiveRegistrars, getPortfolio } from './registrars';
 import { getSettings } from './settings';
 import { broadcastPortfolioChanged } from '../events';
 
@@ -33,7 +33,7 @@ function intervalMs(): number {
  *  Skips when nothing is configured, and won't stack onto a still-running pass. */
 async function syncNow(): Promise<void> {
   if (inFlight) return;
-  if (getConfiguredRegistrars().length === 0) return;
+  if (getActiveRegistrars().length === 0) return;
   inFlight = true;
   try {
     await getPortfolio(true);
