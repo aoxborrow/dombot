@@ -60,20 +60,23 @@ interface Slice {
   color: string;
 }
 
-// Categorical palette — deliberately desaturated so the charts sit calmly on
-// the muted cards instead of reading as bright primaries. Plus a neutral
-// "Other" gray.
+// Categorical palette — a full spread of hues around the wheel at a shared,
+// slightly muted depth so no single slice reads brighter than the rest. Ordered
+// most-common-first with adjacent slices set to contrast; royal blue anchors
+// the largest slice. The dark brand green is kept out of the charts (it read as
+// a heavy anchor) in favor of a brighter grass green. Plus a neutral gray
+// "Other" for the folded tail.
 const DONUT_PALETTE = [
-  '#6690bf', // muted blue
-  '#5fa387', // muted green
-  '#c2a05f', // muted gold
-  '#8f88bf', // muted periwinkle
-  '#bf8fa8', // muted mauve
-  '#5f9e9e', // muted teal
-  '#bf8477', // muted terracotta
-  '#7f89b8', // muted indigo
+  '#35509e', // royal blue
+  '#b39a3c', // ochre gold
+  '#3f9e57', // green
+  '#b0603a', // terracotta
+  '#2e8f96', // teal
+  '#b0505f', // dusty rose
+  '#6b5b9a', // muted violet
+  '#5a7a92', // slate blue
 ];
-const OTHER_COLOR = '#8a94a3';
+const OTHER_COLOR = '#8a8f88';
 
 /** Rank groups by `value`, keep the top N as their own slices, and fold the
  * long tail into a single "Other" slice so the donut stays legible. */
@@ -339,10 +342,9 @@ function StatCard({
 
 // ── Monthly bar chart ────────────────────────────────────────────────────────
 
-// A calm subset of the donut palette for the bars — the cool/gold tones only,
-// dropping the mauve/periwinkle/terracotta/indigo so 12 bars don't read as a
-// rainbow.
-const BAR_PALETTE = ['#6690bf', '#5fa387', '#c2a05f', '#5f9e9e'];
+// The bars are all a single flat blue — the month labels already tell them
+// apart, so per-bar hues just added noise.
+const BAR_COLOR = '#35509e';
 
 function MonthlyBarChart({ months }: { months: MonthBucket[] }) {
   const max = Math.max(1, ...months.map((m) => m.yearly));
@@ -358,17 +360,14 @@ function MonthlyBarChart({ months }: { months: MonthBucket[] }) {
         </span>
       </div>
       <div className="flex items-end gap-1.5 pt-2">
-        {months.map((m, i) => {
+        {months.map((m) => {
           const pct = (m.yearly / max) * 100;
-          // Cycle the calm palette so adjacent months stay distinct without the
-          // rainbow effect.
-          const color = BAR_PALETTE[i % BAR_PALETTE.length];
           return (
             <div
               key={m.key}
               className="flex min-w-0 flex-1 flex-col items-center gap-1.5"
             >
-              <div className="relative h-48 w-full">
+              <div className="relative h-[154px] w-full">
                 {/* Faint full-height track so the chart keeps a readable grid
                     even where a month is empty or very short. */}
                 <div
@@ -379,9 +378,7 @@ function MonthlyBarChart({ months }: { months: MonthBucket[] }) {
                   className="absolute inset-x-0 bottom-0 rounded-t-[5px] rounded-b-[3px] transition-[filter] hover:brightness-110"
                   style={{
                     height: `${pct}%`,
-                    // Subtle top-lit gradient (a touch lighter at the top) for
-                    // depth rather than a flat fill.
-                    backgroundImage: `linear-gradient(180deg, color-mix(in srgb, ${color} 80%, white), ${color})`,
+                    backgroundColor: BAR_COLOR,
                   }}
                   title={`${m.label}: ${usd(m.yearly)} · ${m.count} domain${
                     m.count === 1 ? '' : 's'
