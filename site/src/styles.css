@@ -126,6 +126,9 @@ section { padding: 56px 0; border-top: 1px solid var(--line); }
 .sec-head { max-width: 600px; }
 .sec-head h2 { margin-top: 10px; }
 .sec-head p { margin-top: 10px; color: var(--muted); font-size: .95rem; }
+/* Logo-cloud variant: a single centered title, no eyebrow or lede. */
+.sec-head-center { max-width: none; text-align: center; }
+.sec-head-center h2 { margin-top: 0; }
 
 /* ── features (two-column bullet list) ── */
 .features { margin-top: 30px; display: grid; grid-template-columns: 1fr; gap: 20px 44px; }
@@ -170,19 +173,29 @@ pre .a { color: var(--accent-ink); font-weight: 500; }
 .faq-item p { margin-top: 7px; color: var(--muted); font-size: .88rem; }
 .faq-item a { font-weight: 500; }
 
-/* ── registrar logo strip ── */
-.logos { margin-top: 28px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-@media (min-width: 520px) { .logos { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 820px) { .logos { grid-template-columns: repeat(5, 1fr); } }
-.logo { display: flex; align-items: center; gap: 11px; padding: 8px 4px; }
-.logo-mark { flex-shrink: 0; width: 35px; height: 35px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); display: grid; place-items: center; font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: .85rem; color: var(--faint); }
+/* ── registrar logo cloud: centered, wraps to natural widths ── */
+.logos { margin-top: 28px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 36px; }
+/* Phones: a centered two-column grid so the ten entries pair up cleanly instead of
+   stranding odd items alone on a row. */
+@media (max-width: 519px) { .logos { display: grid; grid-template-columns: repeat(2, auto); justify-content: center; column-gap: 24px; } }
+.logo { display: flex; align-items: center; gap: 10px; padding: 8px 4px; }
+.logo-mark { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); display: grid; place-items: center; font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: .85rem; color: var(--faint); }
 /* Real brand mark: flat light-grey at rest (grayscale() would let dark logos vanish
    on the near-black ground), true brand color on hover. Needs transparent SVGs. */
-.logo-img { flex-shrink: 0; width: 33px; height: 33px; object-fit: contain; filter: brightness(0) invert(.68); opacity: .9; transition: filter .15s ease, opacity .15s ease; }
+.logo-img { flex-shrink: 0; width: 28px; height: 28px; object-fit: contain; filter: brightness(0) invert(.6); opacity: .9; transition: filter .15s ease, opacity .15s ease; }
 .logo:hover .logo-img { filter: none; opacity: 1; }
-.logo-name { font-weight: 500; font-size: 1.15rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.more-plus { flex-shrink: 0; width: 35px; height: 35px; display: grid; place-items: center; color: var(--accent-ink); }
-.more-plus svg { width: 24px; height: 24px; display: block; }
+.logo:not(.logo-more):hover .logo-name { color: var(--ink); }
+.logo-name { font-weight: 500; font-size: 1.05rem; color: var(--muted); transition: color .15s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.more-plus { flex-shrink: 0; width: 30px; height: 30px; display: grid; place-items: center; color: var(--accent-ink); }
+.more-plus svg { width: 20px; height: 20px; display: block; }
+/* Phones: tighter marks and type so the two-column cloud stays compact. */
+@media (max-width: 519px) {
+  .logo { gap: 9px; padding: 6px 4px; }
+  .logo-img, .logo-mark { width: 24px; height: 24px; }
+  .logo-name { font-size: .95rem; }
+  .more-plus { width: 26px; height: 26px; }
+  .more-plus svg { width: 18px; height: 18px; }
+}
 .logo-more .logo-name { color: var(--accent-ink); font-weight: 400; }
 .logos-foot { margin-top: 20px; font-size: .86rem; color: var(--muted); }
 .logos-foot b { color: var(--ink); font-weight: 500; }
@@ -205,8 +218,8 @@ pre .a { color: var(--accent-ink); font-weight: 500; }
 .chat .window-bar { border: none; border-bottom: 1px solid var(--line); border-radius: 0; }
 .chat-body { padding: 18px; display: flex; flex-direction: column; gap: 10px; font-size: .86rem; line-height: 1.5; }
 .msg { max-width: 86%; padding: 9px 13px; border-radius: 14px; }
-.msg.user { align-self: flex-end; color: var(--ink); background: var(--accent-wash); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-bottom-right-radius: 4px; }
-.msg.bot { align-self: flex-start; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.msg.user { align-self: flex-end; color: #fff; background: var(--accent-fill); border: 1px solid color-mix(in srgb, var(--accent-ink) 45%, var(--accent-fill)); border-bottom-right-radius: 4px; }
+.msg.bot { align-self: flex-start; color: var(--muted); background: #2a2a2e; border: 1px solid var(--line-strong); border-bottom-left-radius: 4px; }
 .msg.bot b { color: var(--ink); font-weight: 500; }
 
 .mcp-install { margin-top: 30px; }
