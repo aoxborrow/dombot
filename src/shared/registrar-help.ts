@@ -123,10 +123,6 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
         label: 'API Access settings',
         url: 'https://ap.www.namecheap.com/settings/tools/apiaccess/',
       },
-      {
-        label: 'API documentation',
-        url: 'https://www.namecheap.com/support/api/intro/',
-      },
     ],
     fields: {
       clientIp:
@@ -148,16 +144,8 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
   },
 
   porkbun: {
-    summary:
-      'An API key and secret from the API Access page. API access must also ' +
-      'be turned on per domain, in each domain’s Details.',
-    links: [
-      { label: 'API Access', url: 'https://porkbun.com/account/api' },
-      {
-        label: 'API documentation',
-        url: 'https://porkbun.com/api/json/v3/documentation',
-      },
-    ],
+    summary: 'An API key and secret from the API Access page.',
+    links: [{ label: 'API Access', url: 'https://porkbun.com/account/api' }],
     fields: {
       apiKey: 'Starts with pk1_.',
       secretApiKey: 'Starts with sk1_.',
@@ -165,14 +153,12 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
   },
 
   spaceship: {
-    summary:
-      'An API key and secret created in the API Manager with New API key.',
+    summary: 'An API key and secret from the API Manager.',
     links: [
       {
         label: 'API Manager',
         url: 'https://www.spaceship.com/application/api-manager/',
       },
-      { label: 'API documentation', url: 'https://docs.spaceship.dev/' },
     ],
     fields: {},
   },
