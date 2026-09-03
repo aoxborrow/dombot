@@ -39,8 +39,29 @@ describe('nameserverGroup', () => {
     });
   });
 
+  it('pairs multi-digit Afternic nsN labels', () => {
+    expect(nameserverGroup('ns10.afternic.com')).toEqual({
+      key: 'afternic.com#5',
+      label: 'afternic.com (ns9/ns10)',
+    });
+  });
+
+  it('does not treat a non-boundary "ns" (e.g. dns1) as a pair label', () => {
+    expect(nameserverGroup('dns1.afternic.com')).toEqual({
+      key: 'afternic.com',
+      label: 'afternic.com',
+    });
+  });
+
   it('falls back to the base domain when Afternic host lacks an nsN label', () => {
     expect(nameserverGroup('mail.afternic.com')).toEqual({
+      key: 'afternic.com',
+      label: 'afternic.com',
+    });
+  });
+
+  it('falls back to the base domain for a bare Afternic host with no subdomain', () => {
+    expect(nameserverGroup('afternic.com')).toEqual({
       key: 'afternic.com',
       label: 'afternic.com',
     });
