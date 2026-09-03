@@ -27,25 +27,25 @@ export default function Settings() {
         <TabsList className="flex h-auto w-full flex-col gap-1 bg-transparent p-0 [&_button]:text-[15px]">
           <TabsTrigger
             value="registrars"
-            className="w-full justify-start data-[state=active]:bg-muted"
+            className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
           >
             Registrars
           </TabsTrigger>
           <TabsTrigger
             value="folders"
-            className="w-full justify-start data-[state=active]:bg-muted"
+            className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
           >
             Folders
           </TabsTrigger>
           <TabsTrigger
             value="mcp"
-            className="w-full justify-start data-[state=active]:bg-muted"
+            className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
           >
             MCP
           </TabsTrigger>
           <TabsTrigger
             value="data"
-            className="w-full justify-start data-[state=active]:bg-muted"
+            className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
           >
             Cache
           </TabsTrigger>

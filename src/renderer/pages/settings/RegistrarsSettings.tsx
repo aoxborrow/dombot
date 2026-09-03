@@ -102,7 +102,7 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
   const { configured, sync } = meta;
 
   return (
-    <Card className="gap-0 overflow-hidden py-0">
+    <Card className="gap-0 overflow-hidden rounded-md py-0">
       <Collapsible open={open} onOpenChange={setOpen}>
         {/* Header row: the name + sync status expand the card; the Sync button
             sits outside the triggers so it works even while collapsed. */}

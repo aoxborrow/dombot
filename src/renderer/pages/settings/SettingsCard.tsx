@@ -19,13 +19,13 @@ export function SettingsCard({
   contentClassName?: string;
 }) {
   return (
-    <Card className={cn('gap-0 pt-[13px] pb-[19px]', className)}>
-      <CardHeader className="border-b pb-[7px]!">
+    <Card className={cn('gap-0 overflow-hidden rounded-md py-0', className)}>
+      <CardHeader className="flex items-center bg-muted py-2!">
         <CardTitle className="text-sm font-semibold tracking-wide text-muted-foreground/80 uppercase">
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className={cn('pt-4', contentClassName)}>
+      <CardContent className={cn('pt-4 pb-[19px]', contentClassName)}>
         {children}
       </CardContent>
     </Card>

@@ -70,7 +70,7 @@ export default function FoldersSettings() {
       </div>
 
       {folders.length === 0 ? (
-        <Empty className="rounded-lg border border-dashed">
+        <Empty className="rounded-md border border-dashed">
           <EmptyHeader>
             <EmptyTitle>No folders yet</EmptyTitle>
             <EmptyDescription>
@@ -79,7 +79,7 @@ export default function FoldersSettings() {
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {folders.map((f) => (
             <FolderRow
               key={f.id}
@@ -132,7 +132,7 @@ function FolderRow({
 }) {
   const style = folderColorStyle(folder.color);
   return (
-    <Card className="flex-row items-center gap-3 px-4 py-3">
+    <Card className="flex-row items-start gap-3 rounded-md px-4 py-2">
       <FolderIcon className={cn('size-7 shrink-0', style.text)} aria-hidden />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -141,9 +141,13 @@ function FolderRow({
             {count} domain{count === 1 ? '' : 's'}
           </span>
         </div>
-        {folder.description && (
+        {folder.description ? (
           <p className="truncate text-sm text-muted-foreground">
             {folder.description}
+          </p>
+        ) : (
+          <p className="truncate text-sm italic text-muted-foreground/60">
+            No description
           </p>
         )}
       </div>
@@ -152,6 +156,7 @@ function FolderRow({
         size="icon-sm"
         onClick={onEdit}
         aria-label={`Edit ${folder.name}`}
+        className="self-center"
       >
         <Pencil />
       </Button>
@@ -160,6 +165,7 @@ function FolderRow({
         size="icon-sm"
         onClick={onDelete}
         aria-label={`Delete ${folder.name}`}
+        className="self-center"
       >
         <Trash2 />
       </Button>

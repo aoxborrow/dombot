@@ -16,9 +16,9 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     // inline-flex + items-center + leading-none centers the icon/label as one
     // box, so the active pill's fill is vertically symmetric (plain line-height
     // left a few extra px on top).
-    'inline-flex h-9 items-center gap-2 rounded-md px-[15px] text-base font-medium leading-none transition-colors',
+    'inline-flex h-9 items-center gap-2 rounded-md border border-transparent px-[15px] text-base font-medium leading-none transition-colors',
     isActive
-      ? 'bg-primary text-primary-foreground'
+      ? 'bg-primary text-primary-foreground dark:border-input'
       : 'text-muted-foreground hover:bg-muted hover:text-foreground',
   );
 
