@@ -76,6 +76,11 @@ interface AppState {
   /** Restore portfolio + detail + aftermarket + pricing from the on-disk cache
    * with no network calls. Call once on app launch. */
   hydrateFromCache: () => Promise<void>;
+  /** Re-read the portfolio + detail cache after an out-of-band write (an MCP
+   * tool) and overlay the changes onto the current view, so an open Domains
+   * table reflects them without a manual Sync. Unlike hydrateFromCache, this
+   * runs regardless of `portfolioSource` and never blanks a live portfolio. */
+  applyPortfolioCacheUpdate: () => Promise<void>;
   /** Drop every on-disk cache and reset the in-memory portfolio to empty, so
    * the app returns to its unloaded state and the next Load re-fetches fresh. */
   clearAllCaches: () => Promise<void>;
@@ -248,6 +253,37 @@ export const useAppStore = create<AppState>((set, get) => ({
       aftermarket,
       pricing,
       pricingLoadedAt: portfolio.fetchedAt,
+    });
+  },
+
+  applyPortfolioCacheUpdate: async () => {
+    // Before the first load there's nothing in view to overlay; the launch
+    // hydrate path covers a fresh start.
+    if (get().portfolioSource === null) return;
+    const snapshot = await window.api.hydrateFromCache();
+    const portfolio = snapshot.portfolio;
+    if (!portfolio) return;
+    set((state) => {
+      // Overlay the freshly-cached summary + detail onto any existing enriched
+      // entry so a patched field (auto-renew, lock, privacy, nameservers, …)
+      // wins while previously-fetched detail is preserved.
+      const enriched = { ...state.enriched };
+      for (const d of portfolio.domains) {
+        const key = domainKey(d);
+        const detail = snapshot.detail[key];
+        const existing = enriched[key];
+        if (existing || detail) {
+          enriched[key] = { ...(existing ?? {}), ...d, ...(detail ?? {}) };
+        }
+      }
+      return {
+        portfolio: portfolio.domains,
+        portfolioErrors: portfolio.errors,
+        portfolioRegistrars: portfolio.registrars,
+        portfolioRegistrarLabels: portfolio.registrarLabels,
+        portfolioLoadedAt: portfolio.fetchedAt,
+        enriched,
+      };
     });
   },
 

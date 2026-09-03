@@ -24,6 +24,9 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 
 export default function App() {
   const hydrateFromCache = useAppStore((s) => s.hydrateFromCache);
+  const applyPortfolioCacheUpdate = useAppStore(
+    (s) => s.applyPortfolioCacheUpdate,
+  );
   const loadFolders = useAppStore((s) => s.loadFolders);
 
   // Restore the last-cached portfolio, detail, aftermarket, and pricing on
@@ -38,6 +41,15 @@ export default function App() {
   useEffect(() => {
     void loadFolders();
   }, [loadFolders]);
+
+  // An MCP tool write mutates the on-disk cache out of band; re-read it and
+  // overlay the change so an open Domains table updates live, without a Sync.
+  useEffect(() => {
+    const off = window.api.onPortfolioChanged(
+      () => void applyPortfolioCacheUpdate(),
+    );
+    return off;
+  }, [applyPortfolioCacheUpdate]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">

@@ -145,14 +145,20 @@ third _adapter_ over the same `services/` core the UI uses — see
   id, and `domain_*` require `registrar` + `domain`. `registrar` is always
   required (never resolved from state), so a client can act on a freshly
   registered name that isn't in the cached portfolio yet.
-  - _Portfolio:_ `registrar_list`, `portfolio_list` (aggregated across
-    configured registrars).
+  - _Portfolio:_ `registrar_list`, `portfolio_query` (search/filter/sort/page
+    the cached portfolio — by registrar, TLD, folder, name, nameserver,
+    auto-renew/lock/privacy, status, and expiry — returning only the fields an
+    agent needs), `portfolio_list` (a raw cached dump, capped by `limit`). Both
+    read the local cache and take `refresh` to re-sync first; prefer
+    `portfolio_query` for anything but a full dump.
   - _Registrar reads:_ `registrar_test`, `registrar_domains`,
     `registrar_check_availability`, `registrar_pricing`.
   - _Domain reads:_ `domain_get`, `domain_contacts_get`,
     `domain_nameservers_get`, `domain_dns_get`, `domain_email_forwarding_get`,
     `domain_url_forwarding_get`, `domain_renewal_price` (DomBot's own estimate,
-    distinct from `registrar_pricing`).
+    distinct from `registrar_pricing`). `domain_get` and
+    `domain_nameservers_get` serve from the detail cache when fresh, fetch live
+    and write through otherwise, and take `refresh` to force a live fetch.
   - _Writes (non-money):_ `domain_nameservers_set`, `domain_dns_set`,
     `domain_contacts_set`, `domain_email_forwarding_set`,
     `domain_url_forwarding_set`, `domain_set_autorenew`, `domain_set_lock`,
@@ -161,6 +167,9 @@ third _adapter_ over the same `services/` core the UI uses — see
   - _Writes (money):_ `registrar_register_domain`, `registrar_transfer_domain`,
     `domain_renew`. Not gated behind extra per-call approval — the
     connection-level OAuth approval is the gate — and annotated non-idempotent.
+  - _Cache write-through._ A successful write patches the local cache (the same
+    cache the desktop UI reads) and pushes an update to any open window, so the
+    Domains table reflects the change live — no manual Sync needed.
 - **Credentials.** Resolved the same way as the UI (see
   [Credentials in development](#credentials-in-development)); a registrar is
   "configured" when all of its required fields are present.

@@ -40,9 +40,17 @@ export const IpcChannels = {
   foldersAssign: 'folders:assign',
 } as const;
 
-/** Event (main → renderer) fired when the pending-approval set changes. */
+/** Events (main → renderer). */
 export const IpcEvents = {
+  /** Fired when the pending-approval set changes. */
   approvalsChanged: 'mcp:approvalsChanged',
+  /**
+   * Fired when an out-of-band write (an MCP tool) mutates the on-disk portfolio
+   * or detail cache, so an open Domains table can re-read the cache and reflect
+   * the change live — without a manual Sync. UI-initiated writes update the
+   * store directly and don't rely on this.
+   */
+  portfolioChanged: 'portfolio:changed',
 } as const;
 
 /**
@@ -412,6 +420,9 @@ export interface DombotApi {
   revokeMcpClient: (clientId: string) => Promise<void>;
   /** Subscribe to pending-approval changes. Returns an unsubscribe function. */
   onApprovalsChanged: (callback: () => void) => () => void;
+  /** Subscribe to out-of-band portfolio/detail cache changes (from MCP writes).
+   * Returns an unsubscribe function. */
+  onPortfolioChanged: (callback: () => void) => () => void;
 
   // Folders
   /** The folder definitions plus the domain→folder map, read from disk. */

@@ -5,6 +5,7 @@ import {
   registrars,
   type Domain,
   type OperationResult,
+  type RegisterDomainInput,
   type RegistrarCredentials,
   type RegistrarName,
 } from '@aoxborrow/registrar-client';
@@ -77,12 +78,6 @@ export function getRegistrarClient(name: RegistrarName): RegistrarClient {
 /** Registrars whose required credentials are all present (stored or in env). */
 export function getConfiguredRegistrars(): RegistrarName[] {
   return registrarNames.filter((name) => isConfigured(name));
-}
-
-/** Clients for every configured registrar — the sources for a live aggregate
- * (e.g. the MCP `portfolio_list` tool, which reads through without caching). */
-export function getPortfolioSources(): RegistrarClient[] {
-  return getConfiguredRegistrars().map(getRegistrarClient);
 }
 
 /** One registrar's cached slice (dates revived), or null when never synced. */
@@ -334,14 +329,61 @@ export async function getDomainDetail(
 }
 
 /**
- * Toggles auto-renew for a domain at its registrar. Some providers report a soft
- * failure via `OperationResult.success` rather than throwing (e.g. Namecheap),
- * so a false `success` is normalized to a thrown error — callers only have to
- * handle one failure mode. On success, the change is written into the portfolio
- * and per-domain detail caches (fetchedAt preserved) so a relaunch reflects the
- * new value without waiting for the next full refresh.
+ * Portfolio domains merged with any cached per-domain detail (nameservers,
+ * privacy, lock, creation date), plus the headline `fetchedAt`. A pure cache
+ * read — no network — mirroring the renderer's `enriched` overlay so filters on
+ * detail-only fields work when a domain has been enriched. Backs the MCP
+ * `portfolio_query`/`portfolio_list` tools.
  */
-export async function setDomainAutoRenew(
+export function getMergedPortfolio(): {
+  domains: Domain[];
+  fetchedAt: number | null;
+} {
+  const portfolio = getCachedPortfolio();
+  if (!portfolio) return { domains: [], fetchedAt: null };
+  const detail = getCachedDetail();
+  const domains = portfolio.domains.map((d) => {
+    const extra = detail[detailKey(d.registrar as RegistrarName, d.domainName)];
+    return extra ? { ...d, ...extra } : d;
+  });
+  return { domains, fetchedAt: portfolio.fetchedAt };
+}
+
+/**
+ * Applies a known field change to both the portfolio slice and the per-domain
+ * detail cache (each entry's `fetchedAt` preserved), so a relaunch — and an open
+ * Domains table (via the `portfolioChanged` event) — reflect the new value
+ * without waiting for the next full sync. No-op for entries that don't exist.
+ */
+function patchDomainInCaches(
+  name: RegistrarName,
+  domainName: string,
+  patch: Partial<Domain>,
+): void {
+  patchEntryData<RegistrarPortfolioEntry>('portfolio', name, (e) => ({
+    ...e,
+    domains: e.domains.map((d) =>
+      d.domainName === domainName ? { ...d, ...patch } : d,
+    ),
+  }));
+  patchEntryData<Partial<Domain>>(
+    'detail',
+    detailKey(name, domainName),
+    (d) => ({
+      ...d,
+      ...patch,
+    }),
+  );
+}
+
+/**
+ * Sets auto-renew and, on success, writes the new value into the portfolio and
+ * detail caches. Returns the raw `OperationResult` (some providers report a soft
+ * failure via `success: false` rather than throwing) without throwing, so an MCP
+ * caller sees the provider's own message. The UI-facing `setDomainAutoRenew`
+ * wraps this and normalizes a soft failure to a throw for its optimistic toggle.
+ */
+export async function setAutoRenewCached(
   name: RegistrarName,
   domainName: string,
   enabled: boolean,
@@ -350,27 +392,118 @@ export async function setDomainAutoRenew(
     domainName,
     enabled,
   );
+  if (result.success)
+    patchDomainInCaches(name, domainName, { autoRenew: enabled });
+  return result;
+}
+
+/** Sets the transfer lock and, on success, patches the caches. Returns the raw
+ * result (no throw). */
+export async function setLockCached(
+  name: RegistrarName,
+  domainName: string,
+  locked: boolean,
+): Promise<OperationResult> {
+  const client = getRegistrarClient(name);
+  const result = await (locked
+    ? client.lockDomain(domainName)
+    : client.unlockDomain(domainName));
+  if (result.success) patchDomainInCaches(name, domainName, { locked });
+  return result;
+}
+
+/** Sets WHOIS privacy and, on success, patches the caches. Returns the raw
+ * result (no throw). */
+export async function setPrivacyCached(
+  name: RegistrarName,
+  domainName: string,
+  enabled: boolean,
+): Promise<OperationResult> {
+  const result = await getRegistrarClient(name).setPrivacy(domainName, enabled);
+  if (result.success)
+    patchDomainInCaches(name, domainName, { privacy: enabled });
+  return result;
+}
+
+/** Replaces the nameservers and, on success, patches the caches. Returns the raw
+ * result (no throw). */
+export async function setNameserversCached(
+  name: RegistrarName,
+  domainName: string,
+  nameservers: string[],
+): Promise<OperationResult> {
+  const result = await getRegistrarClient(name).updateNameservers(
+    domainName,
+    nameservers,
+  );
+  if (result.success) patchDomainInCaches(name, domainName, { nameservers });
+  return result;
+}
+
+/**
+ * Renews a domain. The registrar's `OperationResult` doesn't carry the new
+ * expiry, so on success we re-fetch the domain's detail (which writes through the
+ * detail cache) and patch the fresh expiration/renewal/status into the portfolio
+ * slice too. A re-fetch failure is swallowed — the renewal still succeeded and
+ * the next Sync corrects the date. Returns the raw result (no throw).
+ */
+export async function renewDomainCached(
+  name: RegistrarName,
+  domainName: string,
+  years?: number,
+): Promise<OperationResult> {
+  const result = await getRegistrarClient(name).renewDomain(domainName, years);
+  if (result.success) {
+    try {
+      const detail = await getDomainDetail(name, domainName, true);
+      const patch: Partial<Domain> = {};
+      if (detail?.expirationDate != null)
+        patch.expirationDate = detail.expirationDate;
+      if (detail?.renewalDate != null) patch.renewalDate = detail.renewalDate;
+      if (detail?.status != null) patch.status = detail.status;
+      if (Object.keys(patch).length > 0)
+        patchDomainInCaches(name, domainName, patch);
+    } catch {
+      // Renewal succeeded; leave the cached expiry for the next Sync to correct.
+    }
+  }
+  return result;
+}
+
+/**
+ * Registers a new domain and, on success, syncs that registrar's slice so the
+ * new name enters the portfolio cache (the registrar's `OperationResult` doesn't
+ * return a full `Domain` to append). Returns the raw result (no throw).
+ */
+export async function registerDomainCached(
+  name: RegistrarName,
+  domainName: string,
+  input: RegisterDomainInput,
+): Promise<OperationResult> {
+  const result = await getRegistrarClient(name).registerDomain(
+    domainName,
+    input,
+  );
+  if (result.success) await syncRegistrarInto(name);
+  return result;
+}
+
+/**
+ * UI-facing auto-renew toggle. Wraps `setAutoRenewCached` and normalizes a soft
+ * failure (`success: false`, e.g. Namecheap) to a thrown error so the renderer's
+ * optimistic toggle can roll back on a single failure mode.
+ */
+export async function setDomainAutoRenew(
+  name: RegistrarName,
+  domainName: string,
+  enabled: boolean,
+): Promise<OperationResult> {
+  const result = await setAutoRenewCached(name, domainName, enabled);
   if (!result.success) {
     throw new Error(
       result.message || `Failed to update auto-renew for ${domainName}`,
     );
   }
-
-  patchEntryData<RegistrarPortfolioEntry>('portfolio', name, (e) => ({
-    ...e,
-    domains: e.domains.map((d) =>
-      d.domainName === domainName ? { ...d, autoRenew: enabled } : d,
-    ),
-  }));
-  patchEntryData<Partial<Domain>>(
-    'detail',
-    detailKey(name, domainName),
-    (d) => ({
-      ...d,
-      autoRenew: enabled,
-    }),
-  );
-
   return result;
 }
 
