@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   Aftermarket,
   AppInfo,
+  AppSettings,
   Domain,
   Folder,
   FolderInput,
@@ -156,6 +157,15 @@ interface AppState {
   deleteFolder: (id: string) => Promise<void>;
   /** Assign a domain to a folder, or unassign it with a null folderId. */
   assignFolder: (domainKey: string, folderId: string | null) => Promise<void>;
+
+  // User-adjustable app settings (e.g. the background-sync interval). `null`
+  // until first loaded.
+  settings: AppSettings | null;
+  /** Load app settings from disk. Called once on launch. */
+  loadSettings: () => Promise<void>;
+  /** Set the background auto-sync interval in minutes (0 = off); applied live in
+   * main. */
+  setAutoSyncInterval: (minutes: number) => Promise<void>;
 }
 
 /** Global renderer store. Kept intentionally small — grow it as needed. */
@@ -630,5 +640,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       else folderAssignments[domainKey] = folderId;
       return { folderAssignments };
     });
+  },
+
+  settings: null,
+  loadSettings: async () => {
+    set({ settings: await window.api.getSettings() });
+  },
+  setAutoSyncInterval: async (minutes) => {
+    const settings = await window.api.updateSettings({
+      autoSyncIntervalMinutes: minutes,
+    });
+    set({ settings });
   },
 }));

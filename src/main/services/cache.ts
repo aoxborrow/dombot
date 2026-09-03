@@ -27,7 +27,8 @@ export interface CacheEntry<T> {
 /**
  * Data older than this is considered stale. We still show stale data (hydration
  * never blocks on the network); the UI just highlights its age so the user can
- * choose to refresh. 14 days matches the renewal-price cache's TTL.
+ * choose to refresh. Matches the default background-sync interval (see
+ * services/auto-sync.ts) — see shared/ipc for the value and rationale.
  */
 export const STALE_AFTER_MS = SHARED_STALE_AFTER_MS;
 

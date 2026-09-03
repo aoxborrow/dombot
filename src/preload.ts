@@ -78,6 +78,11 @@ const api: DombotApi = {
   deleteFolder: (id) => ipcRenderer.invoke(IpcChannels.foldersDelete, id),
   assignFolder: (domainKey, folderId) =>
     ipcRenderer.invoke(IpcChannels.foldersAssign, domainKey, folderId),
+
+  // Settings
+  getSettings: () => ipcRenderer.invoke(IpcChannels.getSettings),
+  updateSettings: (patch) =>
+    ipcRenderer.invoke(IpcChannels.updateSettings, patch),
 };
 
 contextBridge.exposeInMainWorld('api', api);

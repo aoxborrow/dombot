@@ -178,8 +178,11 @@ third _adapter_ over the same `services/` core the UI uses — see
   - _Cache freshness._ Reads serve the local cache and report `stale` /
     `fetchedAt`; an agent refreshes explicitly with `portfolio_sync` /
     `registrar_sync`. The app also runs a periodic background sync so the cache
-    stays warm for MCP-only use (no window ever opened) —
-    `DOMBOT_SYNC_INTERVAL_MINUTES` (default `1440`, i.e. 24h; `0` disables).
+    stays warm for MCP-only use (no window ever opened). The interval is set in
+    **Settings → Cache** (Every hour … 7 days, or Off; default 24h, applied
+    live); large portfolios may prefer a longer interval or Off.
+    `DOMBOT_SYNC_INTERVAL_MINUTES` overrides the setting for dev/testing (`0`
+    disables).
 - **Credentials.** Resolved the same way as the UI (see
   [Credentials in development](#credentials-in-development)); a registrar is
   "configured" when all of its required fields are present.
