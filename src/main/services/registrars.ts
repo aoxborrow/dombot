@@ -9,6 +9,7 @@ import {
   type RegistrarCredentials,
   type RegistrarName,
 } from '@aoxborrow/registrar-client';
+import { promises as dnsPromises } from 'node:dns';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { getDevEnvVar } from './dev-env';
 import {
@@ -279,11 +280,14 @@ export function saveRegistrarCredentials(
  * Returns a partial that the caller merges over the list summary:
  *  - `getDomain` for the full record (privacy/lock/dates/nameservers), then
  *  - a `getNameservers` fallback for providers whose detail omits them, then
- *  - a dns.tools WHOIS/RDAP lookup for the registry's nameservers and, when the
- *    registrar doesn't expose one, the creation date (e.g. NameBright).
- * The registry fallbacks run even when `getDomain` fails (e.g. Dynadot's detail
- * API rejects some TLDs its list still returns). Returns null only when nothing
- * could be resolved.
+ *  - a live DNS `NS` query for the rest — the source of truth for domains whose
+ *    registrar can't report nameservers (a Cloudflare domain not added as a zone,
+ *    or one on the registrar's own DNS, e.g. Dynadot's `ns*.dyna-ns.net`). It
+ *    runs even when `getDomain` fails (e.g. Dynadot's detail API rejects some
+ *    TLDs its list still returns).
+ * Creation date is taken only from the registrar; providers that don't report
+ * one (e.g. NameBright) leave it blank rather than triggering an extra lookup.
+ * Returns null only when nothing could be resolved.
  */
 export async function getDomainDetail(
   name: RegistrarName,
@@ -316,16 +320,14 @@ export async function getDomainDetail(
     }
   }
 
-  let createdDate = domain?.createdDate ?? null;
+  const createdDate = domain?.createdDate ?? null;
 
-  // Fall back to the public registry (via dns.tools, RDAP/WHOIS per TLD) for
-  // whatever the registrar couldn't supply: nameservers (e.g. a domain on the
-  // registrar's default DNS) and/or the creation date (e.g. NameBright, whose
-  // API returns no registration date at all).
-  if (nameservers.length === 0 || createdDate === null) {
-    const registry = await lookupRegistry(domainName);
-    if (nameservers.length === 0) nameservers = registry.nameservers;
-    if (createdDate === null) createdDate = registry.createdDate;
+  // Fall back to a live DNS query only for nameservers the registrar can't
+  // report (a Cloudflare domain not added as a zone, or one on the registrar's
+  // own DNS). Creation date is left to the registrar — providers that omit it
+  // (e.g. NameBright) stay blank rather than triggering an extra lookup.
+  if (nameservers.length === 0) {
+    nameservers = await lookupNameservers(domainName);
   }
 
   if (domain) {
@@ -536,43 +538,22 @@ export async function setDomainAutoRenew(
 }
 
 /**
- * Reads a domain's nameservers and creation date from the public registry via
- * the dns.tools domain API, which picks RDAP or WHOIS per TLD. Fields are empty
- * on any failure. Set DNS_TOOLS_API_KEY to raise rate limits; the free tier
- * needs no auth.
+ * Reads a domain's live nameservers via a DNS `NS` query — the delegation the
+ * domain actually uses, and the only way to see nameservers a registrar won't
+ * report (a Cloudflare domain not added as a zone, or one on the registrar's own
+ * DNS, e.g. Dynadot's `ns*.dyna-ns.net`). Fast (a UDP round-trip), but capped
+ * with a short timeout; empty on any failure, timeout, or undelegated domain.
  */
-async function lookupRegistry(
-  domainName: string,
-): Promise<{ nameservers: string[]; createdDate: Date | null }> {
-  const empty = { nameservers: [] as string[], createdDate: null };
+async function lookupNameservers(domainName: string): Promise<string[]> {
   try {
-    const apiKey = process.env.DNS_TOOLS_API_KEY;
-    const res = await fetch(
-      `https://api.dns.tools/v1/domain/${encodeURIComponent(domainName)}`,
-      {
-        headers: {
-          accept: 'application/json',
-          ...(apiKey ? { 'x-api-key': apiKey } : {}),
-        },
-        signal: AbortSignal.timeout(15_000),
-      },
-    );
-    if (!res.ok) return empty;
-    const data = (await res.json()) as {
-      results?: { nameservers?: string[]; creation_date?: string }[];
-    };
-    const result = data.results?.[0];
-    const nameservers = (result?.nameservers ?? [])
-      .map((ns) => ns.toLowerCase())
-      .filter(Boolean);
-    let createdDate: Date | null = null;
-    if (result?.creation_date) {
-      const parsed = new Date(result.creation_date);
-      if (!Number.isNaN(parsed.getTime())) createdDate = parsed;
-    }
-    return { nameservers, createdDate };
+    const ns = await Promise.race([
+      dnsPromises.resolveNs(domainName),
+      new Promise<string[]>((resolve) => setTimeout(() => resolve([]), 5_000)),
+    ]);
+    return ns.map((n) => n.toLowerCase().replace(/\.$/, '')).filter(Boolean);
   } catch {
-    return empty;
+    // NXDOMAIN, SERVFAIL, no NS records, etc. — nothing to add.
+    return [];
   }
 }
 
