@@ -3,7 +3,11 @@ import { Copy, Eye, EyeOff, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Domain } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
-import { targetOf } from '../../lib/domain-ops';
+import { reportOpResult, targetOf } from '../../lib/domain-ops';
+import {
+  friendlyError,
+  isApiUnsupportedMessage,
+} from '../../../shared/domain-ops';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -34,10 +38,17 @@ export function AuthCodeDialog({
 
   useEffect(() => {
     let cancelled = false;
-    void applyDomainOp(targetOf(domain), { kind: 'authCode' }).then((r) => {
+    const op = { kind: 'authCode' as const };
+    void applyDomainOp(targetOf(domain), op).then((r) => {
       if (cancelled) return;
-      if (r.status === 'ok' && r.data?.authCode) setCode(r.data.authCode);
-      else setError(r.message || 'No auth code was returned.');
+      if (r.status === 'ok' && r.data?.authCode) {
+        setCode(r.data.authCode);
+        return;
+      }
+      // Same toast every other control gives, plus the reason inline so it
+      // stays readable after the toast fades.
+      reportOpResult(op, r);
+      setError(friendlyError(r.message) || 'No auth code was returned.');
     });
     return () => {
       cancelled = true;
@@ -78,7 +89,15 @@ export function AuthCodeDialog({
 
         <div className="flex flex-col gap-3">
           {error ? (
-            <p className="text-sm text-destructive">{error}</p>
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm text-destructive">{error}</p>
+              {isApiUnsupportedMessage(error) && (
+                <p className="text-xs text-muted-foreground">
+                  The registrar doesn’t offer this through its API for this
+                  domain — get the code from the registrar’s own dashboard.
+                </p>
+              )}
+            </div>
           ) : (
             <div className="flex items-center gap-2">
               <div

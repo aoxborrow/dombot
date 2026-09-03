@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
-import { opSummary, unsupportedReason } from './domain-ops';
+import {
+  friendlyError,
+  isApiUnsupportedMessage,
+  opSummary,
+  unsupportedReason,
+} from './domain-ops';
 import type { DomainOp, RegistrarName } from './ipc';
 
 // A provider with every extended feature, and one with none.
@@ -98,5 +103,50 @@ describe('opSummary', () => {
     expect(opSummary(ops.url)).toBe('URL forwarding cleared');
     expect(opSummary(ops.renew)).toBe('Renewed for 1 year');
     expect(opSummary({ kind: 'renew', years: 3 })).toBe('Renewed for 3 years');
+  });
+});
+
+describe('friendlyError', () => {
+  const wrapped = (body: string) =>
+    `Request to 'https://api.example.com/x' failed with 400 Bad Request: ${body}`;
+
+  it('digs the description out of a nested JSON error body', () => {
+    expect(
+      friendlyError(
+        wrapped(
+          '{"code":400,"message":"Bad Request","error":{"description":"This TLD isn\'t supported via the API."}}',
+        ),
+      ),
+    ).toBe("This TLD isn't supported via the API.");
+  });
+
+  it('falls back to a top-level message', () => {
+    expect(friendlyError(wrapped('{"message":"Domain not found"}'))).toBe(
+      'Domain not found',
+    );
+  });
+
+  it('returns a non-JSON body as-is', () => {
+    expect(friendlyError(wrapped('Forbidden for this account'))).toBe(
+      'Forbidden for this account',
+    );
+  });
+
+  it('leaves messages that are not HTTP wrappers untouched', () => {
+    expect(friendlyError('namecheap: example.com has no WhoisGuard')).toBe(
+      'namecheap: example.com has no WhoisGuard',
+    );
+  });
+});
+
+describe('isApiUnsupportedMessage', () => {
+  it('recognizes the registrar wording', () => {
+    expect(
+      isApiUnsupportedMessage("This TLD isn't supported via the API."),
+    ).toBe(true);
+    expect(isApiUnsupportedMessage('renewals are not yet in the API')).toBe(
+      false,
+    );
+    expect(isApiUnsupportedMessage('Domain not found')).toBe(false);
   });
 });

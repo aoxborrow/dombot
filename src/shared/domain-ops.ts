@@ -97,3 +97,54 @@ export function opSummary(op: DomainOp): string {
       return `Renewed for ${op.years} year${op.years === 1 ? '' : 's'}`;
   }
 }
+
+/**
+ * The human sentence inside a registrar error. The library wraps HTTP failures
+ * as "Request to '<url>' failed with 400 Bad Request: <body>", and the body is
+ * usually JSON with the real explanation buried a level or two down. Returns
+ * that explanation when it can find one, the raw body otherwise, and the
+ * message unchanged when it isn't in that shape.
+ */
+export function friendlyError(message: string): string {
+  const m = /failed with \d{3}[^:]*:\s*([\s\S]+)$/.exec(message);
+  if (!m) return message;
+  const body = m[1].trim();
+  try {
+    const parsed: unknown = JSON.parse(body);
+    const found = findDescription(parsed);
+    if (found) return found;
+  } catch {
+    // not JSON — the body is the message
+  }
+  return body;
+}
+
+// Depth-first search for the first descriptive string in a registrar error
+// body, preferring the keys registrars use for the human explanation.
+const DESCRIPTION_KEYS = ['description', 'detail', 'message', 'error'];
+function findDescription(value: unknown, depth = 0): string | null {
+  if (typeof value === 'string') return value.trim() || null;
+  if (!value || typeof value !== 'object' || depth > 3) return null;
+  const obj = value as Record<string, unknown>;
+  // Nested objects first (e.g. { message: "Bad Request", error: { description } })
+  // so a generic top-level status text doesn't win over the real reason.
+  for (const key of DESCRIPTION_KEYS) {
+    if (obj[key] && typeof obj[key] === 'object') {
+      const nested = findDescription(obj[key], depth + 1);
+      if (nested) return nested;
+    }
+  }
+  for (const key of DESCRIPTION_KEYS) {
+    if (typeof obj[key] === 'string' && (obj[key] as string).trim())
+      return (obj[key] as string).trim();
+  }
+  return null;
+}
+
+/** True when a registrar says the operation (or TLD) isn't offered via its
+ *  API — the user has to do it in the registrar's own dashboard. */
+export function isApiUnsupportedMessage(message: string): boolean {
+  return /not (?:yet )?(?:supported|available) (?:via|through|in) (?:the |this )?api|isn['’]t supported via the api/i.test(
+    message,
+  );
+}

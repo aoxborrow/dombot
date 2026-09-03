@@ -13,6 +13,7 @@ import type {
 } from '../../shared/ipc';
 import {
   OP_LABEL,
+  friendlyError,
   opSummary,
   unsupportedReason,
 } from '../../shared/domain-ops';
@@ -59,13 +60,16 @@ export function reportOpResult(op: DomainOp, result: DomainOpResult): boolean {
       return false;
     case 'unsupported':
       toast.warning(`Can’t change ${OP_LABEL[op.kind]} for ${domainName}`, {
-        description: result.message,
+        description: friendlyError(result.message),
       });
       return false;
     default:
-      toast.error(`Couldn’t update ${OP_LABEL[op.kind]} for ${domainName}`, {
-        description: result.message,
-      });
+      toast.error(
+        op.kind === 'authCode'
+          ? `Couldn’t get the auth code for ${domainName}`
+          : `Couldn’t update ${OP_LABEL[op.kind]} for ${domainName}`,
+        { description: friendlyError(result.message) },
+      );
       return false;
   }
 }
