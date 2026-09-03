@@ -144,8 +144,12 @@ section { padding: 56px 0; border-top: 1px solid var(--line); }
 /* Same framed-window treatment as the hero. The halo would otherwise bleed
    past the viewport edge. */
 #features { overflow-x: clip; }
-/* Full Renewals window capture, so its own ratio. */
-.shot-renewals { aspect-ratio: 2804 / 1778; }
+/* The frame shows the left two-thirds of the full 2804×1778 Renewals capture
+   (heading, the first two stat cards, most of the month chart), so the frame
+   is taller than the wide capture would be. The image itself isn't cropped:
+   it's scaled to 150% of the frame and the frame's overflow clips the rest. */
+.shot-renewals { aspect-ratio: 1869.33 / 1778; /* (2804 ÷ 1.5) / 1778 */ }
+.shot-renewals img { width: 150%; max-width: none; }
 
 /* ── download ── */
 .dl-grid { margin-top: 34px; display: grid; gap: 14px; }
