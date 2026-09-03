@@ -194,12 +194,12 @@ const transferInput = z.object({
   autoRenew: z.boolean().optional().describe('Enable auto-renew on transfer.'),
 });
 
-// ── portfolio_query / portfolio_list ─────────────────────────────────────────
+// ── portfolio_query ──────────────────────────────────────────────────────────
 //
-// Both read the *cached* portfolio (assembled from the per-registrar sync
-// slices, merged with any cached per-domain detail) rather than hitting every
-// registrar live — the whole portfolio can be 10k+ domains. `refresh` re-syncs
-// first for a caller that needs fresh data.
+// Reads the *cached* portfolio (assembled from the per-registrar sync slices,
+// merged with any cached per-domain detail) rather than hitting every registrar
+// live — the whole portfolio can be 10k+ domains. `refresh` re-syncs first for a
+// caller that needs fresh data.
 
 const querySort = z
   .enum(['domainName', 'registrar', 'expirationDate', 'createdDate'])
@@ -290,9 +290,15 @@ const queryShape = {
 
 /** Gathers the cache reads and runs the pure query logic (filter/sort/page). */
 function runQuery(args: QueryArgs): QueryResult {
-  const { domains, fetchedAt } = getMergedPortfolio();
+  const { domains, fetchedAt, registrars, errors } = getMergedPortfolio();
   const { folders, assignments } = getFolders();
-  return queryPortfolio(domains, folders, assignments, fetchedAt, args);
+  return queryPortfolio(
+    domains,
+    folders,
+    assignments,
+    { fetchedAt, registrars, errors },
+    args,
+  );
 }
 
 /**
@@ -324,51 +330,13 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Query portfolio',
       description:
-        'Search and filter your cached portfolio across every configured registrar — by registrar, TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days) — sorted and paged. Reads the local cache (no registrar calls) unless `refresh` is set. Prefer this over portfolio_list for anything but a raw dump: it returns only the fields you need. Returns { total, fetchedAt, stale, rows } — `total` is the full match count before paging; page with `limit`/`offset`.',
+        'List, search, and filter your whole portfolio across every configured registrar — the primary way to read the portfolio. Filter by registrar, TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort and page the results. With no filters it returns everything (paged), so use it as a plain list too. Reads the local cache (no registrar calls) unless `refresh` re-syncs first. Returns { total, fetchedAt, stale, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete. Rows carry only the fields you need — call domain_get for a single domain’s full record.',
       inputSchema: queryShape,
       annotations: { readOnlyHint: true },
     },
     async (args) => {
       if (args.refresh) await getPortfolio(true);
       return json(runQuery(args));
-    },
-  );
-
-  server.registerTool(
-    'portfolio_list',
-    {
-      title: 'List portfolio',
-      description:
-        'Across all configured registrars: the aggregated portfolio from the local cache (no registrar calls unless `refresh` is set). A raw dump — capped by `limit` (the whole portfolio can be thousands of domains). To search or filter, or to get back only the fields you need, use portfolio_query instead. Returns the cached portfolio plus `total` (full domain count) and `returned` (rows in this response).',
-      inputSchema: {
-        limit: z
-          .number()
-          .int()
-          .positive()
-          .max(MAX_LIMIT)
-          .optional()
-          .describe(
-            `Max domains to return (default ${DEFAULT_LIMIT}, max ${MAX_LIMIT}).`,
-          ),
-        refresh: z
-          .boolean()
-          .optional()
-          .describe(
-            'Re-sync every configured registrar first (a network pass). Default false — serve from cache.',
-          ),
-      },
-      annotations: { readOnlyHint: true },
-    },
-    async ({ limit, refresh }) => {
-      const portfolio = await getPortfolio(refresh ?? false);
-      const cap = limit ?? DEFAULT_LIMIT;
-      const domains = portfolio.domains.slice(0, cap);
-      return json({
-        ...portfolio,
-        total: portfolio.domains.length,
-        returned: domains.length,
-        domains,
-      });
     },
   );
 

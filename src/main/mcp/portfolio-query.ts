@@ -49,11 +49,26 @@ export interface QueryRow {
   folder: string | null;
 }
 
-export interface QueryResult {
-  /** Total matches before paging. */
-  total: number;
+/** A per-registrar sync failure — a registrar whose last sync errored. */
+export interface SyncError {
+  registrar: string;
+  message: string;
+}
+
+/** Sync health for the cache being queried, so a caller can tell the result is
+ *  complete (or which registrar is missing/stale). */
+export interface QueryMeta {
   /** Headline "last synced" (ms epoch), or null when nothing has synced. */
   fetchedAt: number | null;
+  /** Registrar ids whose last sync succeeded (their domains are in the result). */
+  registrars: string[];
+  /** Registrars whose last sync errored — their domains may be missing/stale. */
+  errors: SyncError[];
+}
+
+export interface QueryResult extends QueryMeta {
+  /** Total matches before paging. */
+  total: number;
   /** True when the data is missing or past the staleness threshold. */
   stale: boolean;
   rows: QueryRow[];
@@ -99,7 +114,7 @@ export function queryPortfolio(
   domains: Domain[],
   folders: FolderRef[],
   assignments: Record<string, string>,
-  fetchedAt: number | null,
+  meta: QueryMeta,
   args: QueryArgs,
 ): QueryResult {
   const folderNameFor = (d: Domain): string | null => {
@@ -200,5 +215,12 @@ export function queryPortfolio(
     folder: folderNameFor(d),
   }));
 
-  return { total, fetchedAt, stale: isStaleAt(fetchedAt), rows };
+  return {
+    total,
+    fetchedAt: meta.fetchedAt,
+    registrars: meta.registrars,
+    errors: meta.errors,
+    stale: isStaleAt(meta.fetchedAt),
+    rows,
+  };
 }

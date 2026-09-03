@@ -330,23 +330,32 @@ export async function getDomainDetail(
 
 /**
  * Portfolio domains merged with any cached per-domain detail (nameservers,
- * privacy, lock, creation date), plus the headline `fetchedAt`. A pure cache
- * read — no network — mirroring the renderer's `enriched` overlay so filters on
- * detail-only fields work when a domain has been enriched. Backs the MCP
- * `portfolio_query`/`portfolio_list` tools.
+ * privacy, lock, creation date), plus sync health: the headline `fetchedAt`, the
+ * registrars that have synced, and any per-registrar sync `errors` (so a caller
+ * knows the result is incomplete). A pure cache read — no network — mirroring
+ * the renderer's `enriched` overlay so filters on detail-only fields work when a
+ * domain has been enriched. Backs the MCP `portfolio_query` tool.
  */
 export function getMergedPortfolio(): {
   domains: Domain[];
   fetchedAt: number | null;
+  registrars: string[];
+  errors: PortfolioErrorInfo[];
 } {
   const portfolio = getCachedPortfolio();
-  if (!portfolio) return { domains: [], fetchedAt: null };
+  if (!portfolio)
+    return { domains: [], fetchedAt: null, registrars: [], errors: [] };
   const detail = getCachedDetail();
   const domains = portfolio.domains.map((d) => {
     const extra = detail[detailKey(d.registrar as RegistrarName, d.domainName)];
     return extra ? { ...d, ...extra } : d;
   });
-  return { domains, fetchedAt: portfolio.fetchedAt };
+  return {
+    domains,
+    fetchedAt: portfolio.fetchedAt,
+    registrars: portfolio.registrars,
+    errors: portfolio.errors,
+  };
 }
 
 /**

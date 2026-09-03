@@ -145,12 +145,13 @@ third _adapter_ over the same `services/` core the UI uses — see
   id, and `domain_*` require `registrar` + `domain`. `registrar` is always
   required (never resolved from state), so a client can act on a freshly
   registered name that isn't in the cached portfolio yet.
-  - _Portfolio:_ `registrar_list`, `portfolio_query` (search/filter/sort/page
-    the cached portfolio — by registrar, TLD, folder, name, nameserver,
-    auto-renew/lock/privacy, status, and expiry — returning only the fields an
-    agent needs), `portfolio_list` (a raw cached dump, capped by `limit`). Both
-    read the local cache and take `refresh` to re-sync first; prefer
-    `portfolio_query` for anything but a full dump.
+  - _Portfolio:_ `registrar_list`, and `portfolio_query` — the primary way to
+    read the portfolio: list, search, filter, sort, and page the cached
+    portfolio (by registrar, TLD, folder, name, nameserver,
+    auto-renew/lock/privacy, status, and expiry), returning only the fields an
+    agent needs plus sync health (`total`, `stale`, and per-registrar
+    `errors`). With no filters it returns everything (paged), so it doubles as a
+    plain list. Reads the local cache; `refresh` re-syncs first.
   - _Registrar reads:_ `registrar_test`, `registrar_domains`,
     `registrar_check_availability`, `registrar_pricing`.
   - _Domain reads:_ `domain_get`, `domain_contacts_get`,
