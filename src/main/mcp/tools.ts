@@ -861,6 +861,43 @@ export function registerTools(server: McpServer): void {
   );
 
   server.registerTool(
+    'domain_auth_code_get',
+    {
+      title: 'Get auth code',
+      description:
+        'For a single domain: read its authorization code (also called the EPP code or transfer secret) — the token the gaining registrar needs to transfer the domain away. Treat it as a secret. Not supported by every registrar.',
+      inputSchema: { registrar: optionalRegistrar, domain },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ registrar, domain }) => {
+      const r = resolveRegistrar(domain, registrar);
+      // The RegistrarClient wrapper doesn't re-expose this extended method;
+      // reach through to the underlying provider.
+      return json({
+        domain,
+        authCode: await getRegistrarClient(r).provider.getAuthCode(domain),
+      });
+    },
+  );
+
+  server.registerTool(
+    'domain_dnssec_get',
+    {
+      title: 'Get DNSSEC status',
+      description:
+        'For a single domain: read whether DNSSEC is enabled and, if so, its DS records (keyTag, algorithm, digestType, digest). Not supported by every registrar.',
+      inputSchema: { registrar: optionalRegistrar, domain },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ registrar, domain }) => {
+      const r = resolveRegistrar(domain, registrar);
+      // The RegistrarClient wrapper doesn't re-expose this extended method;
+      // reach through to the underlying provider.
+      return json(await getRegistrarClient(r).provider.getDnssec(domain));
+    },
+  );
+
+  server.registerTool(
     'domain_renewal_price',
     {
       title: 'Estimate renewal price',
