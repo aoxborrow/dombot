@@ -54,7 +54,7 @@
   <div class="wrap hero-grid">
     <div>
       <span class="eyebrow">Desktop app + MCP server</span>
-      <h1>All your domains, from every registrar, in one app + MCP.</h1>
+      <h1>All your domains,<br>from all your registrars,<br>in one app + MCP.</h1>
       <p class="lede"><strong>DomBot pulls your whole domain portfolio</strong> — scattered across GoDaddy, Dynadot, Cloudflare, and more — into one desktop app, and serves the same portfolio to your AI agents through a built-in MCP server. <strong class="nowrap">Free and open source.</strong></p>
       <div class="hero-cta">
         <a class="btn btn-primary" id="hero-dl" href="#download">
@@ -109,7 +109,7 @@
       <div class="sec-head">
         <span class="eyebrow">Connect with MCP</span>
         <h2>Manage your domains with AI</h2>
-        <p>DomBot runs a local <a href="https://modelcontextprotocol.io">MCP</a> server, securely bound to your machine. Connect with any AI model and manage your domains in plain English, including registrations, renewals, transfers and DNS.</p>
+        <p>DomBot runs a local <a href="https://modelcontextprotocol.io">MCP</a> server that is securely bound to your machine. Connect any agent and manage your domains in plain English, including registrations, renewals, transfers and DNS.</p>
       </div>
 
       <div class="mcp-connect">
@@ -124,20 +124,9 @@
           </div>
         </div>
 
-        <div class="mcp-install">
-          <p class="mcp-install-label">Add to Claude Code</p>
-          <div class="snippet">
-            <pre>claude mcp add --transport http dombot <span class="a">http://127.0.0.1:4123/mcp</span></pre>
-            <button class="copy-btn" type="button" aria-label="Copy command" data-copy="claude mcp add --transport http dombot http://127.0.0.1:4123/mcp">
-              <svg class="ic-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              <svg class="ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
-            </button>
-          </div>
-        </div>
-
         <!-- stdio, for Claude Desktop and other launch-a-command clients. The executable name is swapped per detected OS in main.js; the gist only — the app's Settings → MCP has the full path. -->
         <div class="mcp-install">
-          <p class="mcp-install-label">stdio command</p>
+          <p class="mcp-install-label">MCP stdio command</p>
           <div class="snippet snippet-plain">
             <pre><span class="a" data-stdio-exe>DomBot.app</span> --mcp-stdio</pre>
           </div>
@@ -149,9 +138,9 @@
     <div class="chat" aria-label="Example conversation with an agent connected to DomBot">
       <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
       <div class="chat-body">
-        <div class="msg user">which of my domains have auto-renew disabled and are expiring soon</div>
+        <div class="msg user">which of my domains are expiring soon and don’t have auto-renew</div>
         <div class="msg bot">Three in the next 60 days:<br><b>mailer.io</b> (Spaceship) — Sep 7<br><b>ranker.io</b> (Namecheap) — Oct 22<br><b>brander.io</b> (GoDaddy) — Oct 30</div>
-        <div class="msg user">turn it on for Mailer.io</div>
+        <div class="msg user">turn on auto-renew for Mailer.io</div>
         <div class="msg bot">Done — auto-renew is now enabled for Mailer.io. It&nbsp;will renew before Sep 7 at <b>$53.50</b>.</div>
       </div>
     </div>
@@ -261,7 +250,11 @@
     <div class="faq">
       <div class="faq-item">
         <h3>Is DomBot really free?</h3>
-        <p>Yes. The desktop app is free and open source (AGPL-3.0) and stays that way. Optional paid data feeds may arrive later as a separate add-on service — the app itself stays free.</p>
+        <p>Yes. The desktop app is free and open source (AGPL-3.0). Optional paid add-ons may come later, but the core management app stays free.</p>
+      </div>
+      <div class="faq-item">
+        <h3>How do I add a registrar?</h3>
+        <p>Create an API key in that registrar’s account, then paste it into <b>Settings → Registrars</b> and hit <b>Test</b>. DomBot shows exactly where to find each provider’s key. See the <a href="#registrars">supported registrars</a>.</p>
       </div>
       <div class="faq-item">
         <h3>Where do my keys and data live?</h3>
@@ -272,8 +265,8 @@
         <p>Yes. You approve each MCP client inside DomBot before it can connect, and you can revoke any client anytime in Settings → MCP Clients.</p>
       </div>
       <div class="faq-item">
-        <h3>How do I add a registrar?</h3>
-        <p>Create an API key in that registrar’s account, then paste it into <b>Settings → Registrars</b> and hit <b>Test</b>. DomBot shows exactly where to find each provider’s key. See the <a href="#registrars">supported registrars</a>.</p>
+        <h3>Do you take suggestions? How do I contribute?</h3>
+        <p>Yes, please. Issues and pull requests are accepted at <a href="https://github.com/aoxborrow/dombot">github.com/aoxborrow/dombot</a>.</p>
       </div>
     </div>
   </div>
@@ -291,11 +284,6 @@
       <span class="brand-name"><span class="brand-dom">Dom</span><span class="brand-bot">Bot</span></span>
     </a>
     <div class="foot-links">
-      <a href="#registrars">Registrars</a>
-      <a href="#mcp">MCP</a>
-      <a href="#features">Features</a>
-      <a href="#download">Download</a>
-      <a href="#faq">FAQ</a>
       <a href="https://github.com/aoxborrow/dombot">GitHub</a>
     </div>
     <span class="foot-note">built by <a href="https://x.com/aoxborrow" target="_blank" rel="noopener">@aoxborrow</a></span>

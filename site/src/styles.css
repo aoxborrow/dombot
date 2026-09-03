@@ -179,8 +179,7 @@ pre .c { color: var(--faint); }
 pre .a { color: var(--accent-ink); font-weight: 500; }
 
 /* ── faq ── */
-.faq { margin-top: 30px; display: grid; grid-template-columns: 1fr; gap: 24px 44px; }
-@media (min-width: 700px) { .faq { grid-template-columns: 1fr 1fr; } }
+.faq { margin-top: 30px; display: grid; gap: 24px; max-width: 600px; /* same measure as .sec-head */ }
 .faq-item h3 { font-size: .92rem; }
 .faq-item p { margin-top: 7px; color: var(--muted); font-size: .88rem; }
 .faq-item a { font-weight: 500; }
