@@ -231,6 +231,13 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
                       <span className="text-destructive"> *</span>
                     )}
                   </FieldLabel>
+                  {/* Only fields that need disambiguating carry a description;
+                      it sits under the label, ahead of the input. */}
+                  {fieldHelp && (
+                    <FieldDescription className="text-[13px]">
+                      {fieldHelp}
+                    </FieldDescription>
+                  )}
                   {field.type === 'select' ? (
                     <Select
                       value={values[field.name] ?? ''}
@@ -266,17 +273,6 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
                       }
                     />
                   )}
-                  {fieldHelp && (
-                    <FieldDescription className="text-[13px]">
-                      {fieldHelp.text}
-                      {fieldHelp.link && (
-                        <>
-                          {' '}
-                          <HelpLink link={fieldHelp.link} inline />
-                        </>
-                      )}
-                    </FieldDescription>
-                  )}
                 </Field>
               );
             })}
@@ -302,28 +298,18 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
 /**
  * A real external link in the help copy. `target="_blank"` hands the URL to the
  * main process's window-open handler, which opens it in the system browser and
- * denies the in-app window. `inline` drops the icon so it sits naturally at the
- * end of a field description sentence.
+ * denies the in-app window.
  */
-function HelpLink({
-  link,
-  inline = false,
-}: {
-  link: HelpLinkData;
-  inline?: boolean;
-}) {
+function HelpLink({ link }: { link: HelpLinkData }) {
   return (
     <a
       href={link.url}
       target="_blank"
       rel="noreferrer"
-      className={cn(
-        'inline-flex items-center gap-1 underline-offset-4 hover:underline',
-        inline ? 'text-inherit' : 'text-[13px] font-medium text-primary',
-      )}
+      className="inline-flex items-center gap-1 text-[13px] font-medium text-primary underline-offset-4 hover:underline"
     >
       {link.label}
-      {!inline && <ExternalLink className="size-3 shrink-0" aria-hidden />}
+      <ExternalLink className="size-3 shrink-0" aria-hidden />
     </a>
   );
 }
