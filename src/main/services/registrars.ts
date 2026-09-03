@@ -394,9 +394,15 @@ export async function getRenewalPriceLive(
 // comes first; registrars not listed keep the library's order. Any field names
 // not mentioned here are appended in their original order, so this stays correct
 // if the library adds fields later.
+//
+// GoDaddy is deliberately absent: it now exposes a single credential, the PAT
+// (`apiToken`), so there is nothing to reorder. The library still carries the
+// legacy sso-key (`apiKey`/`apiSecret`) and `customerId` handling internally,
+// but those are no longer configurable — which means GoDaddy domain forwarding
+// (which needs `customerId`, plus an sso-key to resolve a numeric shopper ID) is
+// unavailable through the app. GoDaddy deprecates sso-key in 2026 regardless.
 const FIELD_ORDER: Partial<Record<RegistrarName, string[]>> = {
   cloudflare: ['accountId', 'apiToken'],
-  godaddy: ['customerId', 'apiToken', 'apiKey', 'apiSecret'],
 };
 
 function orderConfigFields<T extends { name: string }>(
@@ -766,11 +772,11 @@ function isConfigured(name: RegistrarName): boolean {
   );
   if (!requiredOk) return false;
   // Some registrars mark every credential field optional because they accept
-  // one of several auth shapes (e.g. GoDaddy: a PAT, or a key + secret pair).
-  // There "all required fields present" is vacuously true even with nothing
-  // entered, which would make the registrar look configured on a fresh install
-  // and then 401 on the first query. So when nothing is required, also demand
-  // at least one credential value before treating the registrar as configured.
+  // one of several auth shapes. There "all required fields present" is vacuously
+  // true even with nothing entered, which would make the registrar look
+  // configured on a fresh install and then 401 on the first query. So when
+  // nothing is required, also demand at least one credential value before
+  // treating the registrar as configured.
   if (fields.some((field) => field.required)) return true;
   return fields.some((field) => Boolean(resolveField(name, field.name)));
 }
