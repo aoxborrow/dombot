@@ -22,9 +22,6 @@
     document.querySelectorAll('[data-stdio-exe]').forEach(function (el) {
       el.textContent = exe[os];
     });
-    document.querySelectorAll('[data-stdio-copy]').forEach(function (el) {
-      el.setAttribute('data-copy', exe[os] + ' --mcp-stdio');
-    });
   }
 })();
 
