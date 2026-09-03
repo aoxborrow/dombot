@@ -19,14 +19,35 @@ import {
   readEntry,
   writeEntry,
 } from './cache';
+import {
+  resolvePricing,
+  tldOf,
+  usesPerNameQuote,
+  type RenewalQuote,
+} from './pricing';
 import type {
   Portfolio,
   PortfolioErrorInfo,
   RegistrarMeta,
+  RenewalPricing,
 } from '../../shared/ipc';
 
 const detailKey = (name: RegistrarName, domain: string): string =>
   `${name}:${domain}`;
+
+// A cached per-domain detail record: the domain's detail fields (nameservers,
+// privacy, lock, creation date) plus an optional per-name renewal quote captured
+// during Sync for the registrars that can price a specific owned domain. Keeping
+// the quote here means one cache for all domain data — refreshed and cleared with
+// the detail, never on a separate pricing schedule.
+type DetailRecord = Partial<Domain> & { renewalQuote?: RenewalQuote };
+
+/** A detail record without its renewal quote — the domain-only view callers get. */
+function withoutQuote(record: DetailRecord): Partial<Domain> {
+  const rest = { ...record };
+  delete rest.renewalQuote;
+  return rest;
+}
 
 /**
  * One registrar's slice of the portfolio, cached under the 'portfolio' namespace
@@ -161,6 +182,62 @@ async function syncRegistrarInto(name: RegistrarName): Promise<void> {
     };
   }
   writeEntry('portfolio', name, entry);
+  // Refresh per-name renewal quotes as part of the sync. Only registrars that
+  // can price a specific owned domain, and only on premium-capable TLDs, make an
+  // API call here; every other domain resolves from the bundled base rates with
+  // no network. Quotes land in each domain's detail cache (see syncRenewalQuotes).
+  await syncRenewalQuotes(name, entry.domains);
+}
+
+/**
+ * Fetch a fresh per-name renewal quote for a domain (the premium-accurate price
+ * a registrar reports for a domain you own), or null on any failure. Only called
+ * for `usesPerNameQuote` registrars, so `getPricing` is always supported here.
+ */
+async function fetchRenewalQuote(
+  name: RegistrarName,
+  domain: string,
+): Promise<RenewalQuote | null> {
+  try {
+    const pricing = await getRegistrarClient(name).getPricing(domain);
+    return {
+      renewal: typeof pricing.renewal === 'number' ? pricing.renewal : null,
+      currency: pricing.currency ?? 'USD',
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * During a sync, fetch fresh per-name renewal quotes for the registrar's
+ * premium-capable domains and merge each into that domain's detail cache entry.
+ * Bounded concurrency keeps us well under any registrar's rate limit. A no-op for
+ * registrars that don't price per name — those domains always take the base rate.
+ */
+async function syncRenewalQuotes(
+  name: RegistrarName,
+  domains: Domain[],
+): Promise<void> {
+  const todo = domains.filter((d) => usesPerNameQuote(name, tldOf(d.domainName)));
+  if (todo.length === 0) return;
+
+  const CONCURRENCY = 4;
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < todo.length) {
+      const d = todo[next++];
+      const quote = await fetchRenewalQuote(name, d.domainName);
+      if (!quote) continue;
+      // Merge onto any existing detail so nameservers/privacy/lock are preserved.
+      const key = detailKey(name, d.domainName);
+      const existing = readEntry<DetailRecord>('detail', key)?.data ?? {};
+      writeEntry('detail', key, { ...existing, renewalQuote: quote });
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, todo.length) }, worker),
+  );
 }
 
 /**
@@ -221,14 +298,52 @@ export function findRegistrarsForDomain(domainName: string): RegistrarName[] {
   return [...found];
 }
 
-/** All cached per-domain detail partials, keyed `registrar:domain` (revived). */
+/** All cached per-domain detail partials, keyed `registrar:domain` (revived).
+ *  The stored renewal quote is dropped — it feeds pricing, not the detail overlay. */
 export function getCachedDetail(): Record<string, Partial<Domain>> {
-  const all = readAll<Partial<Domain>>('detail');
+  const all = readAll<DetailRecord>('detail');
   const out: Record<string, Partial<Domain>> = {};
   for (const [key, entry] of Object.entries(all)) {
-    out[key] = reviveDomainDates(entry.data);
+    out[key] = reviveDomainDates(withoutQuote(entry.data));
   }
   return out;
+}
+
+/**
+ * Renewal pricing for every cached portfolio domain, computed from local data
+ * only (manual override → the quote captured at Sync → the bundled base rate).
+ * No network — backs the launch snapshot and the store's post-sync refresh.
+ */
+export function getPortfolioPricing(): Record<string, RenewalPricing> {
+  const portfolio = getCachedPortfolio();
+  if (!portfolio) return {};
+  const quotes = readAll<DetailRecord>('detail');
+  const out: Record<string, RenewalPricing> = {};
+  for (const d of portfolio.domains) {
+    const registrar = d.registrar as RegistrarName;
+    const key = detailKey(registrar, d.domainName);
+    out[`${d.registrar}:${d.domainName}`] = resolvePricing(
+      registrar,
+      d.domainName,
+      quotes[key]?.data.renewalQuote,
+    );
+  }
+  return out;
+}
+
+/**
+ * A single domain's renewal price with a fresh per-name quote when the registrar
+ * supports one — the live, premium-accurate lookup for the MCP tool. The UI never
+ * uses this; it reads the Sync-populated `getPortfolioPricing` instead.
+ */
+export async function getRenewalPriceLive(
+  name: RegistrarName,
+  domain: string,
+): Promise<RenewalPricing> {
+  const quote = usesPerNameQuote(name, tldOf(domain))
+    ? ((await fetchRenewalQuote(name, domain)) ?? undefined)
+    : undefined;
+  return resolvePricing(name, domain, quote);
 }
 
 // The registrar-client library lists its config fields in an order that puts a
@@ -320,10 +435,17 @@ export async function getDomainDetail(
   refresh = false,
 ): Promise<Partial<Domain> | null> {
   const key = detailKey(name, domainName);
+  // Preserve any renewal quote captured at Sync when we rewrite this entry below,
+  // so refreshing detail doesn't drop the domain's price.
+  const priorQuote = readEntry<DetailRecord>('detail', key)?.data.renewalQuote;
+  const withQuote = <T extends object>(record: T): T & DetailRecord =>
+    priorQuote ? { ...record, renewalQuote: priorQuote } : record;
   if (!refresh) {
-    const cached = readEntry<Partial<Domain>>('detail', key);
+    const cached = readEntry<DetailRecord>('detail', key);
     // Serve a fresh-enough cached partial without any network calls.
-    if (cached && !isStale(cached)) return reviveDomainDates(cached.data);
+    if (cached && !isStale(cached)) {
+      return reviveDomainDates(withoutQuote(cached.data));
+    }
   }
 
   const client = getRegistrarClient(name);
@@ -361,16 +483,18 @@ export async function getDomainDetail(
       nameservers,
       ...(createdDate ? { createdDate } : {}),
     };
-    writeEntry('detail', key, result);
+    writeEntry('detail', key, withQuote(result));
     return result;
   }
   const partial: Partial<Domain> = {};
   if (nameservers.length > 0) partial.nameservers = nameservers;
   if (createdDate) partial.createdDate = createdDate;
-  // Only cache a partial that actually resolved something; a null result stays
-  // uncached so a later refresh retries it.
-  if (Object.keys(partial).length === 0) return null;
-  writeEntry('detail', key, partial);
+  // Nothing resolved this round: don't drop a previously-stored quote — keep the
+  // entry alive if one exists, else stay uncached so a later refresh retries.
+  if (Object.keys(partial).length === 0) {
+    return priorQuote ? {} : null;
+  }
+  writeEntry('detail', key, withQuote(partial));
   return partial;
 }
 

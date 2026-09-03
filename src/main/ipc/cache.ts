@@ -1,17 +1,12 @@
 import { ipcMain } from 'electron';
-import {
-  IpcChannels,
-  type CachedSnapshot,
-  type RegistrarName,
-  type RenewalPricing,
-} from '../../shared/ipc';
+import { IpcChannels, type CachedSnapshot } from '../../shared/ipc';
 import { clearAll } from '../services/cache';
 import {
   getCachedDetail,
   getCachedPortfolio,
   getConfiguredRegistrars,
+  getPortfolioPricing,
 } from '../services/registrars';
-import { clearPricingCache, getCachedRenewalPrice } from '../services/pricing';
 
 /**
  * Cache IPC: launch hydration and a cache reset. Hydration reads only from disk
@@ -30,32 +25,19 @@ export function registerCacheIpc(): void {
       // reflects the true unconfigured state.
       if (getConfiguredRegistrars().length === 0) {
         clearAll();
-        clearPricingCache();
         return { portfolio: null, detail: {}, pricing: {} };
       }
 
-      const portfolio = getCachedPortfolio();
-
-      // Compute pricing for every cached domain from local data only.
-      const pricing: Record<string, RenewalPricing> = {};
-      for (const d of portfolio?.domains ?? []) {
-        const registrar = d.registrar as RegistrarName;
-        pricing[`${d.registrar}:${d.domainName}`] = getCachedRenewalPrice(
-          registrar,
-          d.domainName,
-        );
-      }
-
       return {
-        portfolio,
+        portfolio: getCachedPortfolio(),
         detail: getCachedDetail(),
-        pricing,
+        // Renewal prices for every cached domain, computed locally (no network).
+        pricing: getPortfolioPricing(),
       };
     },
   );
 
   ipcMain.handle(IpcChannels.clearAllCaches, async (): Promise<void> => {
     clearAll();
-    clearPricingCache();
   });
 }

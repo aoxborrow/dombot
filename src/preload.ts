@@ -14,11 +14,10 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.saveCsv, content, suggestedName),
   hydrateFromCache: () => ipcRenderer.invoke(IpcChannels.hydrateFromCache),
   clearAllCaches: () => ipcRenderer.invoke(IpcChannels.clearAllCaches),
-  getRenewalPrice: (registrar, domain) =>
-    ipcRenderer.invoke(IpcChannels.getRenewalPrice, registrar, domain),
+  getPortfolioPricing: () =>
+    ipcRenderer.invoke(IpcChannels.getPortfolioPricing),
   setManualPrice: (registrar, domain, price) =>
     ipcRenderer.invoke(IpcChannels.setManualPrice, registrar, domain, price),
-  clearPricingCache: () => ipcRenderer.invoke(IpcChannels.clearPricingCache),
 
   // Registrars
   listDynadotDomains: () => ipcRenderer.invoke(IpcChannels.listDynadotDomains),

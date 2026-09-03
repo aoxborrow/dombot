@@ -16,9 +16,8 @@ export const IpcChannels = {
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
   setAutoRenew: 'registrar:setAutoRenew',
-  getRenewalPrice: 'pricing:getRenewalPrice',
+  getPortfolioPricing: 'pricing:getPortfolio',
   setManualPrice: 'pricing:setManualPrice',
-  clearPricingCache: 'pricing:clearCache',
   openExternal: 'app:openExternal',
   saveCsv: 'app:saveCsv',
   getRegistrarMetadata: 'registrar:getMetadata',
@@ -337,19 +336,15 @@ export interface DombotApi {
   /** Drop every on-disk data cache (portfolio, detail, pricing). */
   clearAllCaches: () => Promise<void>;
 
-  /** Annual renewal price for a domain, cached and manual-override aware. */
-  getRenewalPrice: (
-    registrar: RegistrarName,
-    domain: string,
-  ) => Promise<RenewalPricing>;
+  /** Renewal prices for the whole cached portfolio, keyed `registrar:domain`.
+   *  Computed locally (base rates + Sync-captured quotes + manual overrides). */
+  getPortfolioPricing: () => Promise<Record<string, RenewalPricing>>;
   /** Set (or clear, with null) a manual annual renewal price for a domain. */
   setManualPrice: (
     registrar: RegistrarName,
     domain: string,
     price: number | null,
   ) => Promise<void>;
-  /** Drop the on-disk pricing cache so the next lookups re-fetch (keeps manual overrides). */
-  clearPricingCache: () => Promise<void>;
 
   // Registrars
   listDynadotDomains: () => Promise<Domain[]>;

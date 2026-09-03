@@ -1,14 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   CalendarClock,
   CircleDollarSign,
   Globe,
-  RefreshCw,
   type LucideIcon,
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
-import { timeAgo } from '../lib/time';
 import {
   dueWithin,
   groupBy,
@@ -116,24 +114,14 @@ export default function Renewals() {
     portfolioLoadedAt,
     portfolioRegistrarLabels,
     pricing,
-    pricingLoading,
-    pricingLoadedAt,
-    loadPricingAll,
-    refreshPricing,
     setManualPrice,
   } = useAppStore();
 
   const hasPortfolio = portfolioLoadedAt !== null && portfolio.length > 0;
   const hasPricing = Object.keys(pricing).length > 0;
-
-  // Auto-load pricing the first time the portfolio is available and nothing's
-  // been fetched yet; the numbers fill in progressively as quotes arrive.
-  useEffect(() => {
-    if (hasPortfolio && !hasPricing && !pricingLoading) {
-      void loadPricingAll(portfolio);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasPortfolio]);
+  // Pricing is computed locally in main and arrives with the portfolio (and is
+  // re-read after each Sync), so "loading" is just the brief gap before it lands.
+  const pricingLoading = hasPortfolio && !hasPricing;
 
   const summary = useMemo(
     () => summarize(portfolio, pricing),
@@ -194,12 +182,7 @@ export default function Renewals() {
   if (!hasPortfolio) {
     return (
       <div className="mx-auto max-w-[1400px]">
-        <PageHeader
-          loading={pricingLoading}
-          onLoad={undefined}
-          onRefresh={undefined}
-          summary={summary}
-        />
+        <PageHeader loading={pricingLoading} summary={summary} />
         <Empty className="mt-6 rounded-lg border border-dashed">
           <EmptyHeader>
             <EmptyTitle>No portfolio loaded</EmptyTitle>
@@ -217,13 +200,7 @@ export default function Renewals() {
 
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-6">
-      <PageHeader
-        loading={pricingLoading}
-        onLoad={hasPricing ? undefined : () => void loadPricingAll(portfolio)}
-        onRefresh={hasPricing ? () => void refreshPricing() : undefined}
-        refreshedAt={pricingLoadedAt}
-        summary={summary}
-      />
+      <PageHeader loading={pricingLoading} summary={summary} />
 
       {/* Totals */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -300,15 +277,9 @@ export default function Renewals() {
 
 function PageHeader({
   loading,
-  onLoad,
-  onRefresh,
-  refreshedAt,
   summary,
 }: {
   loading: boolean;
-  onLoad?: () => void;
-  onRefresh?: () => void;
-  refreshedAt?: number | null;
   summary: ReturnType<typeof summarize>;
 }) {
   return (
@@ -319,37 +290,10 @@ function PageHeader({
           {loading
             ? `Pricing… ${summary.priced}/${summary.total}`
             : summary.priced > 0
-              ? `Forward-looking renewal costs from current registrar quotes · ${summary.priced}/${summary.total} priced`
+              ? `Forward-looking renewal costs · ${summary.priced}/${summary.total} priced · refresh with Sync on the Domains tab`
               : 'Annual renewal costs across your whole portfolio.'}
         </p>
       </div>
-      {onLoad && (
-        <Button onClick={onLoad} disabled={loading}>
-          {loading ? 'Loading…' : 'Load pricing'}
-        </Button>
-      )}
-      {onRefresh && (
-        <div className="flex flex-col items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRefresh}
-            disabled={loading}
-            className="border-border/40 text-muted-foreground hover:text-foreground"
-          >
-            <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
-            Refresh prices
-          </Button>
-          {refreshedAt != null && (
-            <span
-              className="text-[11px] text-muted-foreground/60"
-              title={`Refreshed ${new Date(refreshedAt).toLocaleString()}`}
-            >
-              Refreshed {timeAgo(refreshedAt)}
-            </span>
-          )}
-        </div>
-      )}
     </div>
   );
 }

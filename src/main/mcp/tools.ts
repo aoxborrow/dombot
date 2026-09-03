@@ -17,12 +17,12 @@ import {
   renewDomainCached,
   setAutoRenewCached,
   setLockCached,
+  getRenewalPriceLive,
   setNameserversCached,
   setPrivacyCached,
   syncRegistrar,
 } from '../services/registrars';
 import { getFolders } from '../services/folders';
-import { getRenewalPrice } from '../services/pricing';
 import { broadcastPortfolioChanged } from '../events';
 import type { Portfolio } from '../../shared/ipc';
 import {
@@ -871,7 +871,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ registrar, domain }) => {
       const r = resolveRegistrar(domain, registrar);
-      return json(await getRenewalPrice(r, domain));
+      return json(await getRenewalPriceLive(r, domain));
     },
   );
 }

@@ -629,14 +629,16 @@ export default function Domains() {
     enrichVisible,
     loadAllDetail,
     pricing,
-    pricingLoading,
-    loadPricingAll,
     folders,
     folderAssignments,
     assignFolder,
   } = useAppStore();
 
   const navigate = useNavigate();
+  // Pricing is computed locally in main and arrives with the portfolio; the only
+  // gap is the brief moment after a live Sync resets it before it's re-read.
+  const pricingLoading =
+    portfolio.length > 0 && Object.keys(pricing).length === 0;
 
   // Whether any registrar has credentials configured (shared store state, so the
   // header/status bar/empty state agree). Drives the in-table empty prompt: with
@@ -948,15 +950,13 @@ export default function Domains() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleKey, refreshTick, enrichVisible]);
 
-  // Eagerly load detail (nameservers) and renewal pricing for the WHOLE
-  // portfolio once it's loaded, so the Nameservers filter sees every domain —
-  // not just on-screen rows. Both loaders dedupe against the visible fetches and
-  // are cached on disk; the loading flags drive the filter spinners. Keyed on the
-  // portfolio identity + refreshTick so it runs once per load.
+  // Eagerly load detail (nameservers) for the WHOLE portfolio once it's loaded,
+  // so the Nameservers filter sees every domain — not just on-screen rows. Dedupes
+  // against the visible fetches and is cached on disk. Renewal pricing isn't
+  // fetched here: it's computed in main and loaded with the portfolio / after Sync.
   useEffect(() => {
     if (portfolio.length === 0) return;
     void loadAllDetail(portfolio);
-    void loadPricingAll(portfolio);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolio, refreshTick]);
 

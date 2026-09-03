@@ -45,9 +45,6 @@ function withSyncTimeout<T>(p: Promise<T>): Promise<T> {
 const enrichInFlight = new Set<string>();
 const enrichFailed = new Set<string>();
 
-// Renewal-price lookups in flight, keyed by `${registrar}:${domainName}`.
-const pricingInFlight = new Set<string>();
-
 // Guard so the eager whole-portfolio detail load doesn't overlap itself (which
 // would toggle its loading flag off while a pass is still running).
 let detailAllInFlight = false;
@@ -134,17 +131,18 @@ interface AppState {
   ) => Promise<void>;
 
   // Annual renewal pricing, keyed by `${registrar}:${domainName}`. Backs the
-  // Renewals dashboard; fetched for the whole portfolio at once (cached in main).
+  // Renewals dashboard and the Domains renewal column. Computed in main from
+  // local data (base rates + Sync-captured quotes + manual overrides); it arrives
+  // with the launch snapshot and is refreshed after each Sync — there's no
+  // separate pricing fetch or refresh.
   pricing: Record<string, RenewalPricing>;
-  pricingLoading: boolean;
-  pricingLoadedAt: number | null;
-  loadPricingAll: (domains: Domain[]) => Promise<void>;
+  /** Re-read the whole-portfolio pricing map from main (local, no network). */
+  loadPricing: () => Promise<void>;
   setManualPrice: (
     registrar: string,
     domain: string,
     price: number | null,
   ) => Promise<void>;
-  refreshPricing: () => Promise<void>;
 
   // User-defined folders for organizing domains, plus the domain→folder map
   // (keyed `${registrar}:${domainName}`, the same key as `pricing`/`enriched`).
@@ -228,8 +226,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       portfolioSource: state.portfolioSource ?? 'live',
     }));
     // Refresh sync statuses (this registrar's lastSyncedAt/lastError) for the
-    // Settings cards and the status-bar pill.
+    // Settings cards and the status-bar pill, and the pricing map so this
+    // registrar's just-synced renewal prices show (local, no network).
     await get().loadRegistrars();
+    await get().loadPricing();
     const meta = get().registrars?.find((r) => r.name === name);
     return (
       meta?.sync ?? { lastSyncedAt: null, lastError: null, domainCount: 0 }
@@ -261,7 +261,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       portfolioSource: 'cache',
       enriched,
       pricing,
-      pricingLoadedAt: portfolio.fetchedAt,
     });
   },
 
@@ -300,7 +299,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     await window.api.clearAllCaches();
     enrichInFlight.clear();
     enrichFailed.clear();
-    pricingInFlight.clear();
     detailAllInFlight = false;
     set({
       portfolio: [],
@@ -313,8 +311,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       enriched: {},
       enriching: {},
       pricing: {},
-      pricingLoading: false,
-      pricingLoadedAt: null,
       detailAllLoading: false,
     });
   },
@@ -326,7 +322,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Fresh summary data invalidates any prior per-domain detail.
       enrichInFlight.clear();
       enrichFailed.clear();
-      pricingInFlight.clear();
       detailAllInFlight = false;
       set((state) => ({
         portfolio: result.domains,
@@ -340,12 +335,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         enriched: {},
         enriching: {},
         pricing: {},
-        pricingLoading: false,
-        pricingLoadedAt: null,
         detailAllLoading: false,
       }));
-      // Per-registrar sync statuses changed — refresh the shared metadata.
+      // Per-registrar sync statuses changed — refresh the shared metadata, and
+      // re-read the pricing map: the sync just refreshed renewal quotes and the
+      // prices are computed locally in main (no network).
       void get().loadRegistrars();
+      void get().loadPricing();
     } catch (err) {
       set({
         portfolioLoading: false,
@@ -474,59 +470,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   pricing: {},
-  pricingLoading: false,
-  pricingLoadedAt: null,
-  loadPricingAll: async (domains) => {
-    const todo = domains.filter((d) => {
-      const key = domainKey(d);
-      return !get().pricing[key] && !pricingInFlight.has(key);
-    });
-    if (todo.length === 0) return;
-
-    todo.forEach((d) => pricingInFlight.add(domainKey(d)));
-    set({ pricingLoading: true });
-
-    // Bounded concurrency: the main-process service caches and dedupes per-TLD
-    // lookups, so a modest pool keeps us well under any registrar's rate limit.
-    const CONCURRENCY = 5;
-    let next = 0;
-    const worker = async (): Promise<void> => {
-      while (next < todo.length) {
-        const d = todo[next++];
-        const key = domainKey(d);
-        try {
-          const info = await window.api.getRenewalPrice(
-            d.registrar as RegistrarName,
-            d.domainName,
-          );
-          set((state) => ({ pricing: { ...state.pricing, [key]: info } }));
-        } catch {
-          // Leave unset — treated as "not yet priced".
-        } finally {
-          pricingInFlight.delete(key);
-        }
-      }
-    };
-    await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, todo.length) }, worker),
-    );
-    set({ pricingLoading: false, pricingLoadedAt: Date.now() });
+  loadPricing: async () => {
+    const pricing = await window.api.getPortfolioPricing();
+    set({ pricing });
   },
   setManualPrice: async (registrar, domain, price) => {
     await window.api.setManualPrice(registrar as RegistrarName, domain, price);
-    const info = await window.api.getRenewalPrice(
-      registrar as RegistrarName,
-      domain,
-    );
-    set((state) => ({
-      pricing: { ...state.pricing, [`${registrar}:${domain}`]: info },
-    }));
-  },
-  refreshPricing: async () => {
-    await window.api.clearPricingCache();
-    pricingInFlight.clear();
-    set({ pricing: {} });
-    await get().loadPricingAll(get().portfolio);
+    // The override changes one domain's price; re-read the whole map (local, no
+    // network) so the dashboard totals and the row both reflect it.
+    await get().loadPricing();
   },
 
   folders: [],

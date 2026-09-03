@@ -4,21 +4,14 @@ import {
   type RegistrarName,
   type RenewalPricing,
 } from '../../shared/ipc';
-import {
-  clearPricingCache,
-  getRenewalPrice,
-  setManualPrice,
-} from '../services/pricing';
+import { getPortfolioPricing } from '../services/registrars';
+import { setManualPrice } from '../services/pricing';
 
-/** Renewal-pricing IPC (backs the Renewals dashboard). */
+/** Renewal-pricing IPC (backs the Renewals dashboard and the Domains column). */
 export function registerPricingIpc(): void {
   ipcMain.handle(
-    IpcChannels.getRenewalPrice,
-    async (
-      _e,
-      registrar: RegistrarName,
-      domain: string,
-    ): Promise<RenewalPricing> => getRenewalPrice(registrar, domain),
+    IpcChannels.getPortfolioPricing,
+    async (): Promise<Record<string, RenewalPricing>> => getPortfolioPricing(),
   );
 
   ipcMain.handle(
@@ -32,8 +25,4 @@ export function registerPricingIpc(): void {
       setManualPrice(registrar, domain, price);
     },
   );
-
-  ipcMain.handle(IpcChannels.clearPricingCache, async (): Promise<void> => {
-    clearPricingCache();
-  });
 }
