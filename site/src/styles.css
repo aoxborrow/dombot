@@ -128,15 +128,29 @@ section { padding: 56px 0; border-top: 1px solid var(--line); }
 .sec-head-center { max-width: none; text-align: center; }
 .sec-head-center h2 { margin-top: 0; }
 
-/* ── features (two-column bullet list) ── */
-.features { margin-top: 30px; display: grid; grid-template-columns: 1fr; gap: 20px 44px; }
-@media (min-width: 620px) { .features { grid-template-columns: 1fr 1fr; } }
+/* ── features: a single-column list beside the Renewals screenshot ── */
+/* Stacked on narrow screens (list first, then the screenshot); side by side
+   from 880px with the screenshot on the left, mirroring the hero. */
+.features-grid { margin-top: 30px; display: grid; gap: 36px; align-items: center; }
+@media (min-width: 880px) { .features-grid { grid-template-columns: 1fr 1fr; gap: 48px; } .features-grid .window-features { order: -1; } }
+.features-grid > * { min-width: 0; }
+.features { display: grid; grid-template-columns: 1fr; gap: 20px; }
 .feature { display: flex; align-items: flex-start; gap: 12px; }
 .feature .ic { flex-shrink: 0; width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; background: var(--accent-wash); border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line)); color: var(--accent-ink); }
 .feature .ic svg { width: 16px; height: 16px; }
 .feature .txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .feature h3 { margin: 1px 0 0; }
 .feature p { color: var(--muted); font-size: .85rem; line-height: 1.5; }
+/* Same framed-window treatment as the hero. The halo would otherwise bleed
+   past the viewport edge. */
+#features { overflow-x: clip; }
+/* The frame shows the left two-thirds of the full 2804×1778 Renewals capture
+   (heading, the first two stat cards, most of the month chart) and trims the
+   status bar off the bottom, so the frame is taller than the wide capture
+   would be. The image itself isn't cropped: it's scaled to 150% of the frame
+   and the frame's overflow clips the rest. */
+.shot-renewals { aspect-ratio: 1869.33 / 1700; /* (2804 ÷ 1.5) / (1778 − 78) */ }
+.shot-renewals img { width: 150%; max-width: none; }
 
 /* ── download ── */
 .dl-grid { margin-top: 34px; display: grid; gap: 14px; }
