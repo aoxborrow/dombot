@@ -126,6 +126,29 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
         {/* Header row: the name + sync status expand the card; the Sync button
             sits outside the triggers so it works even while collapsed. */}
         <div className="flex items-center gap-3 px-5 py-[13px]">
+          {/* Enable/disable toggle, kept to the far left and outside the expand
+              triggers so it reads as a row-level on/off (not a sync switch) and
+              isn't hit when expanding the card. Always shown so every logo lines
+              up; read-only (off) until the registrar has credentials. */}
+          <div className="flex w-9 shrink-0 justify-center">
+            <Switch
+              checked={configured && enabled}
+              onCheckedChange={(v) => void toggleEnabled(v)}
+              disabled={busy || !configured}
+              aria-label={
+                configured
+                  ? `${enabled ? 'Disable' : 'Enable'} ${meta.displayName}`
+                  : `${meta.displayName} — add credentials to enable`
+              }
+              title={
+                !configured
+                  ? 'Add credentials to enable this registrar'
+                  : enabled
+                    ? 'Disable this registrar (keeps credentials, drops its data)'
+                    : 'Enable and sync this registrar'
+              }
+            />
+          </div>
           <CollapsibleTrigger className="flex flex-1 items-center gap-[18px] text-left">
             <span
               className={cn(
@@ -156,22 +179,6 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
               <RefreshCw className={cn(syncing && 'animate-spin')} />
               {syncing ? 'Syncing…' : 'Sync'}
             </Button>
-          )}
-          {/* Enable/disable toggle. Only shown once configured — there's nothing
-              to enable without credentials. */}
-          {configured && (
-            <Switch
-              checked={enabled}
-              onCheckedChange={(v) => void toggleEnabled(v)}
-              disabled={busy}
-              aria-label={`${enabled ? 'Disable' : 'Enable'} ${meta.displayName}`}
-              title={
-                enabled
-                  ? 'Disable this registrar (keeps credentials, drops its data)'
-                  : 'Enable and sync this registrar'
-              }
-              className="-my-1"
-            />
           )}
           <CollapsibleTrigger
             className="shrink-0"
