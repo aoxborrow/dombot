@@ -54,6 +54,16 @@ const createWindow = () => {
 /** The desktop app proper: window, IPC, and the embedded MCP server. */
 function runApp(): void {
   app.on('ready', () => {
+    // Populate the native "About DomBot" panel (the app menu on macOS, and the
+    // GTK about dialog on Linux). `website` is honored on Linux only, so the URL
+    // is also placed in `credits`, where it shows on macOS's panel too.
+    app.setAboutPanelOptions({
+      applicationName: 'DomBot',
+      applicationVersion: app.getVersion(),
+      website: 'https://dombot.ai',
+      credits: 'https://dombot.ai',
+    });
+
     registerIpcHandlers();
     createWindow();
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { NavLink, Route, Routes } from 'react-router-dom';
+import { NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import { CalendarClock, Globe, Settings as SettingsIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from './store/app';
@@ -25,6 +25,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 export default function App() {
   const hydrateFromCache = useAppStore((s) => s.hydrateFromCache);
   const loadFolders = useAppStore((s) => s.loadFolders);
+  const navigate = useNavigate();
 
   // Restore the last-cached portfolio, detail, aftermarket, and pricing on
   // launch so the app opens fully populated with no network calls. The user
@@ -45,8 +46,8 @@ export default function App() {
         <div className="flex flex-1 items-center">
           <button
             type="button"
-            onClick={() => void window.api.openExternal('https://dombot.ai')}
-            aria-label="DomBot — open dombot.ai"
+            onClick={() => navigate('/')}
+            aria-label="DomBot — go to Domains"
             className="group ml-[2px] flex items-center gap-2"
           >
             <svg

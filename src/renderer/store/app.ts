@@ -17,6 +17,28 @@ import type {
 /** Stable per-domain key across registrars. */
 const domainKey = (d: Domain): string => `${d.registrar}:${d.domainName}`;
 
+/** Hard ceiling on any sync — if the main-process fetch hangs (a registrar API
+ * that never responds), reject so the "Syncing…" state can't stick forever. */
+const SYNC_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+function withSyncTimeout<T>(p: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error('Sync timed out after 5 minutes')),
+      SYNC_TIMEOUT_MS,
+    );
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 // Tracks detail fetches in flight so concurrent enrich calls don't duplicate
 // work, and ones that failed / have no detail so we don't retry them on every
 // page revisit. Kept outside the store so they don't trigger re-renders.
@@ -197,7 +219,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   syncRegistrar: async (name) => {
-    const result = await window.api.syncRegistrar(name);
+    const result = await withSyncTimeout(window.api.syncRegistrar(name));
     // Merge the updated aggregate into the portfolio without disturbing other
     // registrars' lazily-loaded detail/pricing (those maps stay keyed by
     // registrar:domain and remain valid). A full "Sync domains" is what clears
@@ -283,7 +305,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadPortfolio: async () => {
     set({ portfolioLoading: true, portfolioError: null });
     try {
-      const result = await window.api.listPortfolio(true);
+      const result = await withSyncTimeout(window.api.listPortfolio(true));
       // Fresh summary data invalidates any prior per-domain detail.
       enrichInFlight.clear();
       enrichFailed.clear();

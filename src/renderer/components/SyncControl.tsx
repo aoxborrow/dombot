@@ -4,15 +4,19 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
-import { STALE_AFTER_MS } from '../../shared/ipc';
 
 /** Minimum gap between manual syncs — the button is disabled during it so a fresh
  * pull can't be hammered (every sync re-queries every registrar). */
 const SYNC_COOLDOWN_MS = 60 * 1000; // 1 minute
 
+/** How old the portfolio can get before the Sync button turns amber to nudge a
+ * refresh. Separate from the cache TTL (shared STALE_AFTER_MS) — this is purely
+ * the UI cue and shouldn't affect how long cached data is kept. */
+const SYNC_STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 /** At/past the staleness threshold — highlight the control to nudge a manual sync. */
 function isStale(fetchedAt: number): boolean {
-  return Date.now() - fetchedAt >= STALE_AFTER_MS;
+  return Date.now() - fetchedAt >= SYNC_STALE_AFTER_MS;
 }
 /** Still within the cooldown window after the last sync. */
 function onCooldown(fetchedAt: number): boolean {
@@ -56,7 +60,10 @@ export default function SyncControl() {
     <div className="flex items-center gap-2.5">
       {portfolioLoadedAt !== null && (
         <span
-          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60"
+          className={cn(
+            'inline-flex items-center gap-1 text-[11px] text-muted-foreground/60',
+            stale && 'text-amber-600 dark:text-amber-400',
+          )}
           title={`Last synced ${new Date(portfolioLoadedAt).toLocaleString()}`}
         >
           <Clock className="size-3" aria-hidden />
@@ -82,17 +89,10 @@ export default function SyncControl() {
               : 'Click to sync your portfolio'
         }
         className={cn(
-          'border-border/40 text-muted-foreground hover:text-foreground',
           stale &&
             'border-amber-500/50 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/60 dark:hover:text-amber-300',
         )}
       >
-        {stale && !portfolioLoading && (
-          <span
-            className="size-2 rounded-full bg-amber-500 dark:bg-amber-400"
-            aria-hidden
-          />
-        )}
         <RefreshCw className={cn(portfolioLoading && 'animate-spin')} />
         {portfolioLoading ? 'Syncing…' : 'Sync'}
       </Button>
