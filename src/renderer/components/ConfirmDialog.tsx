@@ -30,6 +30,7 @@ export function ConfirmDialog({
   disabled = false,
   destructive = false,
   typeToConfirm,
+  wide = false,
   onConfirm,
   onClose,
 }: {
@@ -45,6 +46,8 @@ export function ConfirmDialog({
   destructive?: boolean;
   /** Require typing this word (case-insensitive) before the action enables. */
   typeToConfirm?: string;
+  /** A wider modal for row-list editors (forwarding rules). */
+  wide?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -62,7 +65,7 @@ export function ConfirmDialog({
         if (!open && !busy) onClose();
       }}
     >
-      <DialogContent>
+      <DialogContent className={wide ? 'sm:max-w-2xl' : undefined}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}

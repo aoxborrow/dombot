@@ -152,6 +152,7 @@ export function UrlForwardingDialog({
       actionLabel={rows.length === 0 ? 'Remove all forwarding' : 'Save'}
       busyLabel="Saving…"
       busy={busy}
+      wide
       disabled={!canSave}
       destructive={rows.length === 0 && initial.length > 0}
       onConfirm={() => void save()}
@@ -254,6 +255,7 @@ export function EmailForwardingDialog({
       actionLabel={rows.length === 0 ? 'Remove all forwarding' : 'Save'}
       busyLabel="Saving…"
       busy={busy}
+      wide
       disabled={!canSave}
       destructive={rows.length === 0 && initial.length > 0}
       onConfirm={() => void save()}
