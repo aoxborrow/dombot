@@ -34,7 +34,7 @@ export function EmailForwardingEditor({
   return (
     <div className="flex flex-col gap-3">
       {rows.length > 0 && (
-        <div className="grid grid-cols-[1fr_1fr_auto] items-center gap-2 text-xs text-muted-foreground">
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem] items-center gap-2 text-xs text-muted-foreground">
           <span>Alias</span>
           <span>Forward to</span>
           <span />
@@ -43,7 +43,7 @@ export function EmailForwardingEditor({
       {rows.map((r, i) => (
         <div
           key={i}
-          className="grid grid-cols-[1fr_1fr_auto] items-center gap-2"
+          className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem] items-center gap-2"
         >
           <div className="flex items-center gap-1">
             <Input

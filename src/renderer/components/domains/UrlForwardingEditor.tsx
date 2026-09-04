@@ -65,7 +65,7 @@ export function UrlForwardingEditor({
       )}
 
       {rows.length > 0 && (
-        <div className="grid grid-cols-[7rem_1fr_8rem_auto] items-center gap-2 text-xs text-muted-foreground">
+        <div className="grid grid-cols-[6rem_minmax(0,1fr)_9.5rem_2rem] items-center gap-2 text-xs text-muted-foreground">
           <span>Host</span>
           <span>Destination URL</span>
           <span>Redirect</span>
@@ -75,7 +75,7 @@ export function UrlForwardingEditor({
       {rows.map((r, i) => (
         <div
           key={i}
-          className="grid grid-cols-[7rem_1fr_8rem_auto] items-center gap-2"
+          className="grid grid-cols-[6rem_minmax(0,1fr)_9.5rem_2rem] items-center gap-2"
         >
           <Input
             value={r.host}
@@ -100,7 +100,11 @@ export function UrlForwardingEditor({
               update(i, { type: v as UrlForwardInput['type'] })
             }
           >
-            <SelectTrigger size="sm" aria-label="Redirect type">
+            <SelectTrigger
+              size="sm"
+              aria-label="Redirect type"
+              className="w-full"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
