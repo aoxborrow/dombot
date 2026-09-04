@@ -1215,7 +1215,9 @@ export default function Domains() {
           <Table>
             <TableHeader>
               <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
-                <TableHead className="w-9 pl-3">
+                {/* Checkbox column reads as part of the Domain column: no
+                    divider between them (the wrapper draws td/th borders). */}
+                <TableHead className="w-9 border-r-0! pl-3">
                   <Checkbox
                     checked={
                       allFilteredSelected
@@ -1243,7 +1245,7 @@ export default function Domains() {
                           col.align === 'center' && 'text-center',
                           col.compact && 'w-0 px-1.5',
                           col.key === 'autoRenew' && 'pl-[8px]',
-                          col.key === 'domainName' && 'pl-3',
+                          col.key === 'domainName' && 'border-l-0! pl-3',
                         )}
                       >
                         <button
@@ -1327,7 +1329,7 @@ export default function Domains() {
                     className={cn(selected.has(key) && 'bg-muted/50')}
                   >
                     {/* Selection checkbox. */}
-                    <TableCell className="w-9 pl-3">
+                    <TableCell className="w-9 border-r-0! pl-3">
                       <Checkbox
                         checked={selected.has(key)}
                         onCheckedChange={() => toggleSelected(key)}
@@ -1342,7 +1344,7 @@ export default function Domains() {
                             col.align === 'center' && 'text-center',
                             col.compact && 'w-0 px-1.5',
                             col.key === 'autoRenew' && 'pl-[6px]',
-                            col.key === 'domainName' && 'pl-3',
+                            col.key === 'domainName' && 'border-l-0! pl-3',
                           )}
                         >
                           {col.detail && loadingDetail ? (
