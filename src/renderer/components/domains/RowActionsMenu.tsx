@@ -3,6 +3,8 @@ import {
   Ellipsis,
   EyeOff,
   KeyRound,
+  Link2,
+  Mail,
   RefreshCw,
 } from 'lucide-react';
 import type { Domain } from '../../../shared/ipc';
@@ -19,25 +21,38 @@ import {
 
 /**
  * The trailing "⋯" menu on each row: a per-domain refresh, the actions that
- * aren't a column (auth code, renew), and moving it to the Hidden folder. Registrar-backed items the registrar
+ * aren't a column (forwarding, auth code, renew), and moving it to the Hidden
+ * folder. Registrar-backed items the registrar
  * can't do are disabled with the reason as their tooltip. Disabled outright
  * while a write for this row is in flight.
  */
 export function RowActionsMenu({
   domain,
   onRefresh,
+  onUrlForwarding,
+  onEmailForwarding,
   onAuthCode,
   onRenew,
   onHide,
 }: {
   domain: Domain;
   onRefresh: () => void;
+  onUrlForwarding: () => void;
+  onEmailForwarding: () => void;
   onAuthCode: () => void;
   onRenew: () => void;
   onHide: () => void;
 }) {
   const key = `${domain.registrar}:${domain.domainName}`;
   const pending = useAppStore((s) => s.mutating[key] ?? false);
+  const urlReason = useOpUnsupportedReason(domain.registrar, {
+    kind: 'urlForwarding',
+    forwards: [],
+  });
+  const emailReason = useOpUnsupportedReason(domain.registrar, {
+    kind: 'emailForwarding',
+    forwards: [],
+  });
   const authReason = useOpUnsupportedReason(domain.registrar, {
     kind: 'authCode',
   });
@@ -64,6 +79,23 @@ export function RowActionsMenu({
         <DropdownMenuItem onSelect={onRefresh}>
           <RefreshCw className="text-muted-foreground" />
           Refresh
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={urlReason !== null}
+          title={urlReason ?? undefined}
+          onSelect={onUrlForwarding}
+        >
+          <Link2 className="text-muted-foreground" />
+          URL forwarding…
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={emailReason !== null}
+          title={emailReason ?? undefined}
+          onSelect={onEmailForwarding}
+        >
+          <Mail className="text-muted-foreground" />
+          Email forwarding…
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

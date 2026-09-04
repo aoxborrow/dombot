@@ -30,6 +30,10 @@ const api: DombotApi = {
     ),
   applyDomainOp: (target, op) =>
     ipcRenderer.invoke(IpcChannels.applyDomainOp, target, op),
+  getUrlForwarding: (target) =>
+    ipcRenderer.invoke(IpcChannels.getUrlForwarding, target),
+  getEmailForwarding: (target) =>
+    ipcRenderer.invoke(IpcChannels.getEmailForwarding, target),
   listPortfolio: (refresh) =>
     ipcRenderer.invoke(IpcChannels.listPortfolio, refresh),
   syncRegistrar: (name) => ipcRenderer.invoke(IpcChannels.syncRegistrar, name),

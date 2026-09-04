@@ -8,6 +8,7 @@
 // the library — only tsc uses it (via the tsconfig `paths` alias to source).
 import type {
   Domain,
+  DomainForward,
   EmailForward,
   RegistrarName,
 } from '@aoxborrow/registrar-client';
@@ -20,6 +21,8 @@ export const IpcChannels = {
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
   applyDomainOp: 'domain:apply',
+  getUrlForwarding: 'domain:getUrlForwarding',
+  getEmailForwarding: 'domain:getEmailForwarding',
   getPortfolioPricing: 'pricing:getPortfolio',
   setManualPrice: 'pricing:setManualPrice',
   openExternal: 'app:openExternal',
@@ -274,7 +277,7 @@ export interface DomainOpResult {
 }
 
 /** Re-exported so the renderer can type data without importing the lib. */
-export type { Domain, EmailForward, RegistrarName };
+export type { Domain, DomainForward, EmailForward, RegistrarName };
 
 /** A per-registrar failure from a portfolio fetch, flattened for IPC transport. */
 export interface PortfolioErrorInfo {
@@ -469,6 +472,11 @@ export interface DombotApi {
     target: DomainTarget,
     op: DomainOp,
   ) => Promise<DomainOpResult>;
+  /** A domain's current URL forwarding rules, read live (not cached). Rejects
+   *  when the registrar can't report them. */
+  getUrlForwarding: (target: DomainTarget) => Promise<DomainForward[]>;
+  /** A domain's current email forwarding rules, read live (not cached). */
+  getEmailForwarding: (target: DomainTarget) => Promise<EmailForward[]>;
   getRegistrarMetadata: () => Promise<RegistrarMeta[]>;
   getRegistrarCredentials: (name: RegistrarName) => Promise<CredentialValues>;
   saveRegistrarCredentials: (

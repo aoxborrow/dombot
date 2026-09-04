@@ -45,6 +45,10 @@ import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { NameserversCell } from '../components/domains/NameserversCell';
 import { AuthCodeDialog } from '../components/domains/AuthCodeDialog';
 import { RenewDialog } from '../components/domains/RenewDialog';
+import {
+  EmailForwardingDialog,
+  UrlForwardingDialog,
+} from '../components/domains/ForwardingDialogs';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -651,6 +655,10 @@ export default function Domains() {
   // Per-row action dialogs (opened from the row's "⋯" menu).
   const [authCodeFor, setAuthCodeFor] = useState<Domain | null>(null);
   const [renewFor, setRenewFor] = useState<Domain | null>(null);
+  const [urlForwardingFor, setUrlForwardingFor] = useState<Domain | null>(null);
+  const [emailForwardingFor, setEmailForwardingFor] = useState<Domain | null>(
+    null,
+  );
   // Re-fetch one row's full record from its registrar (bypassing the detail
   // cache) — the row's detail cells show skeletons while it's in flight.
   const refreshDomain = (d: Domain) => {
@@ -1390,6 +1398,8 @@ export default function Domains() {
                       <RowActionsMenu
                         domain={d}
                         onRefresh={() => refreshDomain(d)}
+                        onUrlForwarding={() => setUrlForwardingFor(d)}
+                        onEmailForwarding={() => setEmailForwardingFor(d)}
                         onAuthCode={() => setAuthCodeFor(d)}
                         onRenew={() => setRenewFor(d)}
                         onHide={() => hideDomain(d)}
@@ -1519,6 +1529,18 @@ export default function Domains() {
         <AuthCodeDialog
           domain={authCodeFor}
           onClose={() => setAuthCodeFor(null)}
+        />
+      )}
+      {urlForwardingFor && (
+        <UrlForwardingDialog
+          domain={urlForwardingFor}
+          onClose={() => setUrlForwardingFor(null)}
+        />
+      )}
+      {emailForwardingFor && (
+        <EmailForwardingDialog
+          domain={emailForwardingFor}
+          onClose={() => setEmailForwardingFor(null)}
         />
       )}
       {renewFor && (

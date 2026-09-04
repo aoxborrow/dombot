@@ -1,11 +1,24 @@
 import { ipcMain } from 'electron';
 import {
   IpcChannels,
+  type DomainForward,
   type DomainOp,
   type DomainOpResult,
   type DomainTarget,
+  type EmailForward,
 } from '../../shared/ipc';
 import { applyDomainOp } from '../services/domain-ops';
+import {
+  getRegistrarClient,
+  getRegistrarFeatures,
+} from '../services/registrars';
+
+/** Throws a plain message when the registrar lacks an extended read feature. */
+function requireFeature(target: DomainTarget, feature: string, what: string) {
+  if (!getRegistrarFeatures(target.registrar).includes(feature)) {
+    throw new Error(`This registrar doesn’t offer ${what} through its API.`);
+  }
+}
 
 /**
  * Domain-operation IPC: one channel for every per-domain write the table can
@@ -18,5 +31,27 @@ export function registerDomainsIpc(): void {
     IpcChannels.applyDomainOp,
     async (_e, target: DomainTarget, op: DomainOp): Promise<DomainOpResult> =>
       applyDomainOp(target, op),
+  );
+
+  // Forwarding reads back the per-row dialogs. Live — forwarding isn't part of
+  // the portfolio/detail cache.
+  ipcMain.handle(
+    IpcChannels.getUrlForwarding,
+    async (_e, target: DomainTarget): Promise<DomainForward[]> => {
+      requireFeature(target, 'getDomainForwarding', 'URL forwarding');
+      return getRegistrarClient(target.registrar).getDomainForwarding(
+        target.domainName,
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.getEmailForwarding,
+    async (_e, target: DomainTarget): Promise<EmailForward[]> => {
+      requireFeature(target, 'getEmailForwarding', 'email forwarding');
+      return getRegistrarClient(target.registrar).getEmailForwarding(
+        target.domainName,
+      );
+    },
   );
 }
