@@ -1,6 +1,7 @@
 import { getActiveRegistrars, getPortfolio } from './registrars';
 import { getSettings } from './settings';
 import { broadcastPortfolioChanged } from '../events';
+import { isBulkRunning } from './bulk-jobs';
 
 // Periodic background portfolio sync. The UI never auto-refreshes on staleness
 // (the user hits Sync), but an MCP-only user may never open the window, so the
@@ -34,6 +35,8 @@ function intervalMs(): number {
 async function syncNow(): Promise<void> {
   if (inFlight) return;
   if (getActiveRegistrars().length === 0) return;
+  // Don't race a bulk job's per-item cache patches; the next tick retries.
+  if (isBulkRunning()) return;
   inFlight = true;
   try {
     await getPortfolio(true);

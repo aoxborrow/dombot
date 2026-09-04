@@ -1,5 +1,5 @@
 import { BrowserWindow } from 'electron';
-import { IpcEvents } from '../shared/ipc';
+import { IpcEvents, type BulkJob, type BulkProgress } from '../shared/ipc';
 
 /**
  * Tells every open window that the on-disk portfolio/detail cache changed out of
@@ -10,5 +10,19 @@ import { IpcEvents } from '../shared/ipc';
 export function broadcastPortfolioChanged(): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send(IpcEvents.portfolioChanged);
+  }
+}
+
+/** One bulk-job item finished: the renderer overlays its patch on the row. */
+export function broadcastBulkProgress(progress: BulkProgress): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send(IpcEvents.bulkProgress, progress);
+  }
+}
+
+/** A bulk job ended (done or cancelled) — the final snapshot. */
+export function broadcastBulkFinished(job: BulkJob): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send(IpcEvents.bulkFinished, job);
   }
 }

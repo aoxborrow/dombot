@@ -23,6 +23,9 @@ export const IpcChannels = {
   applyDomainOp: 'domain:apply',
   getUrlForwarding: 'domain:getUrlForwarding',
   getEmailForwarding: 'domain:getEmailForwarding',
+  bulkStart: 'bulk:start',
+  bulkCancel: 'bulk:cancel',
+  bulkGet: 'bulk:get',
   getPortfolioPricing: 'pricing:getPortfolio',
   setManualPrice: 'pricing:setManualPrice',
   openExternal: 'app:openExternal',
@@ -59,6 +62,10 @@ export const IpcEvents = {
    * store directly and don't rely on this.
    */
   portfolioChanged: 'portfolio:changed',
+  /** One bulk-job item finished (payload: BulkProgress). */
+  bulkProgress: 'bulk:progress',
+  /** A bulk job ended — done or cancelled (payload: the final BulkJob). */
+  bulkFinished: 'bulk:finished',
 } as const;
 
 /**
@@ -276,6 +283,31 @@ export interface DomainOpResult {
   data?: { authCode?: string };
 }
 
+/**
+ * A bulk job: one `DomainOp` applied to many targets by the main-process
+ * runner (services/bulk-jobs.ts). Lives in main memory only — one at a time.
+ * The renderer mirrors it from `bulkStart`'s return plus the progress events.
+ */
+export interface BulkJob {
+  id: string;
+  op: DomainOp;
+  status: 'running' | 'done' | 'cancelled';
+  total: number;
+  /** Results so far, in completion order. */
+  results: DomainOpResult[];
+  counts: Record<DomainOpStatus, number>;
+  startedAt: number;
+  finishedAt: number | null;
+}
+
+/** Streamed to windows as each bulk item completes. */
+export interface BulkProgress {
+  jobId: string;
+  result: DomainOpResult;
+  done: number;
+  total: number;
+}
+
 /** Re-exported so the renderer can type data without importing the lib. */
 export type { Domain, DomainForward, EmailForward, RegistrarName };
 
@@ -477,6 +509,17 @@ export interface DombotApi {
   getUrlForwarding: (target: DomainTarget) => Promise<DomainForward[]>;
   /** A domain's current email forwarding rules, read live (not cached). */
   getEmailForwarding: (target: DomainTarget) => Promise<EmailForward[]>;
+
+  // Bulk jobs
+  /** Start applying `op` to every target. Rejects if a job is already running.
+   *  Returns the job's initial snapshot; progress arrives via onBulkProgress. */
+  startBulk: (targets: DomainTarget[], op: DomainOp) => Promise<BulkJob>;
+  /** Abort the running job; queued items are recorded as cancelled. */
+  cancelBulk: (jobId: string) => Promise<void>;
+  /** The current or last job, for re-attaching after navigation / relaunch. */
+  getBulkJob: () => Promise<BulkJob | null>;
+  onBulkProgress: (callback: (p: BulkProgress) => void) => () => void;
+  onBulkFinished: (callback: (job: BulkJob) => void) => () => void;
   getRegistrarMetadata: () => Promise<RegistrarMeta[]>;
   getRegistrarCredentials: (name: RegistrarName) => Promise<CredentialValues>;
   saveRegistrarCredentials: (

@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import {
   IpcChannels,
+  type BulkJob,
   type DomainForward,
   type DomainOp,
   type DomainOpResult,
@@ -8,6 +9,7 @@ import {
   type EmailForward,
 } from '../../shared/ipc';
 import { applyDomainOp } from '../services/domain-ops';
+import { cancelBulk, getBulkJob, startBulk } from '../services/bulk-jobs';
 import {
   getRegistrarClient,
   getRegistrarFeatures,
@@ -53,5 +55,21 @@ export function registerDomainsIpc(): void {
         target.domainName,
       );
     },
+  );
+
+  // Bulk jobs (services/bulk-jobs.ts). Progress streams back as events.
+  ipcMain.handle(
+    IpcChannels.bulkStart,
+    async (_e, targets: DomainTarget[], op: DomainOp): Promise<BulkJob> =>
+      startBulk(targets, op),
+  );
+  ipcMain.handle(
+    IpcChannels.bulkCancel,
+    async (_e, jobId: string): Promise<void> => {
+      cancelBulk(jobId);
+    },
+  );
+  ipcMain.handle(IpcChannels.bulkGet, async (): Promise<BulkJob | null> =>
+    getBulkJob(),
   );
 }

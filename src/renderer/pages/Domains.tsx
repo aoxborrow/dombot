@@ -21,13 +21,17 @@ import {
   Lock,
   LockOpen,
   Plug,
-  RefreshCw,
   Search,
   Server,
   TriangleAlert,
   X,
 } from 'lucide-react';
-import type { Domain, Folder, RenewalPricing } from '../../shared/ipc';
+import type {
+  Domain,
+  DomainOp,
+  Folder,
+  RenewalPricing,
+} from '../../shared/ipc';
 import { toast } from 'sonner';
 import { HIDDEN_FOLDER_ID } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
@@ -49,6 +53,8 @@ import {
   EmailForwardingDialog,
   UrlForwardingDialog,
 } from '../components/domains/ForwardingDialogs';
+import { BulkBar } from '../components/domains/BulkBar';
+import { BulkActionDialog } from '../components/domains/BulkActionDialog';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -578,10 +584,6 @@ function toggleValue(selected: string[], value: string): string[] {
     : [...selected, value];
 }
 
-// Bulk row-selection (checkboxes + bulk action bar) is hidden for now; the
-// underlying state and handlers are kept so it can be switched back on later.
-const BULK_SELECT_ENABLED = false;
-
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function Domains() {
@@ -603,6 +605,11 @@ export default function Domains() {
     folders,
     folderAssignments,
     assignFolder,
+    selected,
+    toggleSelected,
+    setSelectedMany,
+    clearSelection,
+    bulk,
   } = useAppStore();
 
   const navigate = useNavigate();
@@ -640,17 +647,12 @@ export default function Domains() {
   const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(0);
 
-  // Row selection for bulk actions, keyed by `${registrar}:${domainName}`.
-  // UI only for now — the actions themselves aren't wired up yet.
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const toggleSelected = (key: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  const clearSelection = () => setSelected(new Set());
+  // The bulk dialog: an op to configure for the current selection, or a
+  // running/finished job to view (the bar's progress pill).
+  const [bulkDialog, setBulkDialog] = useState<{
+    op: DomainOp;
+    jobId?: string;
+  } | null>(null);
 
   // Per-row action dialogs (opened from the row's "⋯" menu).
   const [authCodeFor, setAuthCodeFor] = useState<Domain | null>(null);
@@ -909,7 +911,6 @@ export default function Domains() {
 
   // Header checkbox reflects the whole filtered set (across pages): fully checked
   // when every filtered row is selected, indeterminate when only some are.
-  const selectedCount = selected.size;
   const allFilteredSelected =
     filtered.length > 0 &&
     filtered.every((d) => selected.has(`${d.registrar}:${d.domainName}`));
@@ -917,13 +918,29 @@ export default function Domains() {
     !allFilteredSelected &&
     filtered.some((d) => selected.has(`${d.registrar}:${d.domainName}`));
   const toggleSelectAll = () =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      const keys = filtered.map((d) => `${d.registrar}:${d.domainName}`);
-      if (allFilteredSelected) keys.forEach((k) => next.delete(k));
-      else keys.forEach((k) => next.add(k));
-      return next;
-    });
+    setSelectedMany(
+      filtered.map((d) => `${d.registrar}:${d.domainName}`),
+      !allFilteredSelected,
+    );
+  // The selected domains as merged rows, for the bulk bar and dialog.
+  const selectedDomains = useMemo(
+    () => merged.filter((d) => selected.has(`${d.registrar}:${d.domainName}`)),
+    [merged, selected],
+  );
+  const bulkAssignFolder = (folderId: string | null) => {
+    const keys = selectedDomains.map((d) => `${d.registrar}:${d.domainName}`);
+    void Promise.all(keys.map((k) => assignFolder(k, folderId))).then(() =>
+      toast.success(
+        folderId === HIDDEN_FOLDER_ID
+          ? `Hid ${keys.length} domain${keys.length === 1 ? '' : 's'}`
+          : folderId
+            ? `Moved ${keys.length} domain${keys.length === 1 ? '' : 's'} to ${
+                folders.find((f) => f.id === folderId)?.name ?? 'folder'
+              }`
+            : `Removed ${keys.length} domain${keys.length === 1 ? '' : 's'} from their folders`,
+      ),
+    );
+  };
 
   // Lazily fetch full detail for the rows actually on screen. Keyed on the
   // visible domains' identities so it re-runs on page/sort/filter changes;
@@ -969,13 +986,14 @@ export default function Domains() {
     exportNoteTimer.current = setTimeout(() => setExportNote(null), 6000);
   }
 
-  // Export the full filtered + sorted result set (every column we have, not just
-  // the current page) via the native save dialog in main.
-  async function exportCsv() {
+  // Export a row set (the full filtered + sorted result by default — every
+  // column we have, not just the current page; or the selection) via the
+  // native save dialog in main.
+  async function exportCsv(rows: Domain[] = filtered) {
     setExporting(true);
     try {
       const csv = domainsToCsv(
-        filtered,
+        rows,
         portfolioRegistrarLabels,
         folders,
         folderAssignments,
@@ -983,7 +1001,7 @@ export default function Domains() {
       const result = await window.api.saveCsv(csv, csvFilename());
       if (!result.saved) return; // user cancelled the dialog
       const name = result.path?.split(/[/\\]/).pop() ?? 'file';
-      const n = filtered.length;
+      const n = rows.length;
       flashExportNote(
         `Exported ${n} row${n === 1 ? '' : 's'} to ${name}`,
         false,
@@ -1178,76 +1196,38 @@ export default function Domains() {
           </div>
         </div>
 
-        {/* Bulk action bar — contextual, appears once any row is selected.
-              Actions are UI-only stubs for now. */}
-        {BULK_SELECT_ENABLED && selectedCount > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium">{selectedCount} selected</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 px-2 text-muted-foreground"
-                onClick={clearSelection}
-              >
-                <X />
-                Clear
-              </Button>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Bulk actions
-                  <ChevronDown className="text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem disabled>
-                  <FolderIcon />
-                  Assign to folder…
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled>
-                  <RefreshCw />
-                  Set auto-renew…
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled>
-                  <Lock />
-                  Set lock…
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled>
-                  <FileSpreadsheet />
-                  Export selected
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem disabled>
-                  <EyeOff />
-                  Hidden
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
+        {/* Bulk action bar — contextual: appears once any row is selected, or
+            while a bulk job is running (as a progress pill). */}
+        <BulkBar
+          domains={selectedDomains}
+          folders={folders}
+          onClear={clearSelection}
+          onExport={() => void exportCsv(selectedDomains)}
+          onAssignFolder={bulkAssignFolder}
+          onOp={(op) => setBulkDialog({ op })}
+          onViewJob={() => {
+            if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });
+          }}
+        />
 
         {/* Table */}
         <div className="overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50">
           <Table>
             <TableHeader>
               <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
-                {BULK_SELECT_ENABLED && (
-                  <TableHead className="w-9 pl-3">
-                    <Checkbox
-                      checked={
-                        allFilteredSelected
-                          ? true
-                          : someFilteredSelected
-                            ? 'indeterminate'
-                            : false
-                      }
-                      onCheckedChange={toggleSelectAll}
-                      aria-label="Select all domains"
-                    />
-                  </TableHead>
-                )}
+                <TableHead className="w-9 pl-3">
+                  <Checkbox
+                    checked={
+                      allFilteredSelected
+                        ? true
+                        : someFilteredSelected
+                          ? 'indeterminate'
+                          : false
+                    }
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all domains"
+                  />
+                </TableHead>
                 {COLUMNS.map((col, i) => {
                   const active = col.key === sortKey;
                   const Icon = !active
@@ -1347,15 +1327,13 @@ export default function Domains() {
                     className={cn(selected.has(key) && 'bg-muted/50')}
                   >
                     {/* Selection checkbox. */}
-                    {BULK_SELECT_ENABLED && (
-                      <TableCell className="w-9 pl-3">
-                        <Checkbox
-                          checked={selected.has(key)}
-                          onCheckedChange={() => toggleSelected(key)}
-                          aria-label={`Select ${d.domainName}`}
-                        />
-                      </TableCell>
-                    )}
+                    <TableCell className="w-9 pl-3">
+                      <Checkbox
+                        checked={selected.has(key)}
+                        onCheckedChange={() => toggleSelected(key)}
+                        aria-label={`Select ${d.domainName}`}
+                      />
+                    </TableCell>
                     {COLUMNS.map((col, i) => (
                       <Fragment key={col.key}>
                         <TableCell
@@ -1411,7 +1389,7 @@ export default function Domains() {
               {visible.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell
-                    colSpan={COLUMNS.length + 5}
+                    colSpan={COLUMNS.length + 6}
                     className="h-40 text-center text-muted-foreground"
                   >
                     {noneConfigured ? (
@@ -1541,6 +1519,14 @@ export default function Domains() {
         <EmailForwardingDialog
           domain={emailForwardingFor}
           onClose={() => setEmailForwardingFor(null)}
+        />
+      )}
+      {bulkDialog && (
+        <BulkActionDialog
+          op={bulkDialog.op}
+          domains={selectedDomains}
+          jobId={bulkDialog.jobId}
+          onClose={() => setBulkDialog(null)}
         />
       )}
       {renewFor && (

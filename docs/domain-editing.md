@@ -624,7 +624,7 @@ Each phase is a PR: `npm run typecheck`, `npm run lint`, `npm test` clean.
    cell popover, `recentNameservers` setting.
 4. ✅ **Forwarding dialogs.** `UrlForwardingEditor`, `EmailForwardingEditor`,
    the two per-row dialogs, `applyDomainOp` support for `skipIfExisting`.
-5. **Bulk runner.** `services/bulk-jobs.ts`, lane policy, IPC + events,
+5. ✅ **Bulk runner.** `services/bulk-jobs.ts`, lane policy, IPC + events,
    store `bulk` slice, selection moved into the store, `BulkBar`,
    `BulkActionDialog` with the toggles, folder assign, hide, export selected.
    Sync disabled during jobs.
