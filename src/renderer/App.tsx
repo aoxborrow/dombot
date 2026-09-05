@@ -28,6 +28,9 @@ export default function App() {
     (s) => s.applyPortfolioCacheUpdate,
   );
   const loadFolders = useAppStore((s) => s.loadFolders);
+  const attachBulk = useAppStore((s) => s.attachBulk);
+  const applyBulkProgress = useAppStore((s) => s.applyBulkProgress);
+  const applyBulkFinished = useAppStore((s) => s.applyBulkFinished);
   const navigate = useNavigate();
 
   // Restore the last-cached portfolio, detail, and pricing on launch so the app
@@ -51,6 +54,18 @@ export default function App() {
     );
     return off;
   }, [applyPortfolioCacheUpdate]);
+
+  // Mirror the main-process bulk job: pick up one already running (or the last
+  // finished one) on launch, then stream item results onto the rows.
+  useEffect(() => {
+    void attachBulk();
+    const offProgress = window.api.onBulkProgress(applyBulkProgress);
+    const offFinished = window.api.onBulkFinished(applyBulkFinished);
+    return () => {
+      offProgress();
+      offFinished();
+    };
+  }, [attachBulk, applyBulkProgress, applyBulkFinished]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">

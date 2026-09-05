@@ -34,6 +34,8 @@ export default function SyncControl() {
   const portfolioLoadedAt = useAppStore((s) => s.portfolioLoadedAt);
   const registrars = useAppStore((s) => s.registrars);
   const loadPortfolio = useAppStore((s) => s.loadPortfolio);
+  // A sync mid-job would race the job's per-row cache patches for no benefit.
+  const bulkRunning = useAppStore((s) => s.bulk?.status === 'running');
 
   const noneConfigured =
     registrars !== null && registrars.every((r) => !r.configured);
@@ -74,19 +76,21 @@ export default function SyncControl() {
         variant="outline"
         size="sm"
         onClick={() => void loadPortfolio()}
-        disabled={portfolioLoading || tooSoon || noneConfigured}
+        disabled={portfolioLoading || tooSoon || noneConfigured || bulkRunning}
         title={
-          noneConfigured
-            ? 'Configure a registrar in Settings first'
-            : portfolioLoadedAt !== null
-              ? `Last synced ${new Date(portfolioLoadedAt).toLocaleString()}${
-                  tooSoon
-                    ? ' — just synced, try again in a minute'
-                    : stale
-                      ? ' — data may be stale, click to sync'
-                      : ' — click to sync'
-                }`
-              : 'Click to sync your portfolio'
+          bulkRunning
+            ? 'A bulk action is running — sync when it finishes'
+            : noneConfigured
+              ? 'Configure a registrar in Settings first'
+              : portfolioLoadedAt !== null
+                ? `Last synced ${new Date(portfolioLoadedAt).toLocaleString()}${
+                    tooSoon
+                      ? ' — just synced, try again in a minute'
+                      : stale
+                        ? ' — data may be stale, click to sync'
+                        : ' — click to sync'
+                  }`
+                : 'Click to sync your portfolio'
         }
         className={cn(
           stale &&

@@ -21,17 +21,15 @@ import {
   Lock,
   LockOpen,
   Plug,
-  RefreshCw,
   Search,
   Server,
   TriangleAlert,
   X,
-  type LucideIcon,
 } from 'lucide-react';
 import type {
   Domain,
+  DomainOp,
   Folder,
-  RegistrarName,
   RenewalPricing,
 } from '../../shared/ipc';
 import { toast } from 'sonner';
@@ -40,7 +38,24 @@ import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
 import { folderColorStyle } from '../lib/folders';
+import {
+  reportOpResult,
+  targetOf,
+  useOpUnsupportedReason,
+} from '../lib/domain-ops';
 import { FolderIcon } from '../components/icons/FolderIcon';
+import { FlagToggle } from '../components/domains/FlagToggle';
+import { RowActionsMenu } from '../components/domains/RowActionsMenu';
+import { NameserversCell } from '../components/domains/NameserversCell';
+import { AuthCodeDialog } from '../components/domains/AuthCodeDialog';
+import { RenewDialog } from '../components/domains/RenewDialog';
+import {
+  EmailForwardingDialog,
+  UrlForwardingDialog,
+} from '../components/domains/ForwardingDialogs';
+import { BulkBar } from '../components/domains/BulkBar';
+import { BulkActionDialog } from '../components/domains/BulkActionDialog';
+import { defaultBulkOp } from '../lib/bulk';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -215,12 +230,16 @@ function FolderCell({
         <button
           type="button"
           title="Assign folder"
-          className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground"
+          className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground"
         >
           {hidden ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
               <EyeOff className="size-4 shrink-0" />
               Hidden
+              <ChevronDown
+                className="ml-auto size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                aria-hidden
+              />
             </span>
           ) : current ? (
             <span className="inline-flex h-4 max-w-full items-center gap-2 leading-none text-foreground">
@@ -231,6 +250,10 @@ function FolderCell({
                 )}
               />
               <span className="truncate">{current.name}</span>
+              <ChevronDown
+                className="ml-auto size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                aria-hidden
+              />
             </span>
           ) : (
             // Fixed h-4 wrapper (the icon's own height) so every state is the
@@ -252,8 +275,8 @@ function FolderCell({
 
 /**
  * The folder-assignment menu, opened directly from the Folder cell. A flat list
- * of the user's folders followed by "None" (clear) and the built-in "Hidden"
- * folder, which drops the domain from the table.
+ * of the user's folders followed by "Hidden" (the built-in folder that drops
+ * the domain from the table) and "None" (clear).
  */
 function FolderMenuContent({
   folders,
@@ -310,41 +333,6 @@ function FolderMenuContent({
   );
 }
 
-/**
- * On/off state shown with column-appropriate icons: the `on` icon (emphasized)
- * when enabled, its muted `off` counterpart when disabled.
- */
-function StateIcon({
-  value,
-  on: On,
-  off: Off,
-  onLabel,
-  offLabel,
-  align = 'center',
-}: {
-  value: boolean;
-  on: LucideIcon;
-  off: LucideIcon;
-  onLabel: string;
-  offLabel: string;
-  /** Horizontal placement within the cell. Default centers; 'left' hugs the
-   * left edge (used by Auto-Renew so it snugs up to the renewal price). */
-  align?: 'center' | 'left';
-}) {
-  const place = align === 'left' ? 'mr-auto' : 'mx-auto';
-  const Icon = value ? On : Off;
-  return (
-    <Icon
-      className={cn(
-        'size-4',
-        place,
-        value ? 'text-[#7ac28d]/85' : 'text-muted-foreground/50',
-      )}
-      aria-label={value ? onLabel : offLabel}
-    />
-  );
-}
-
 type LifecycleTone = 'redemption' | 'expired' | 'grace' | 'hold';
 
 /**
@@ -398,38 +386,39 @@ function LifecycleBadge({ status }: { status: string }) {
 }
 
 /**
- * Auto-renew toggle: writes through to the registrar. The store applies the new
- * value optimistically (so the switch flips immediately) and rolls back if the
- * registrar rejects — some can't toggle it post-registration (e.g. Cloudflare).
- * Outcome is surfaced as a toast; the switch is disabled while in flight. Brand
+ * Auto-renew toggle: writes through to the registrar via the shared domain-op
+ * path. The store applies the new value optimistically (so the switch flips
+ * immediately) and rolls back if the registrar rejects. Disabled, with the
+ * reason as its tooltip, where the registrar can't toggle it post-registration
+ * (Cloudflare), and while the write is in flight. Outcome is a toast. Brand
  * green when on, a muted red when off.
  */
 function AutoRenewSwitch({ domain }: { domain: Domain }) {
-  const setAutoRenew = useAppStore((s) => s.setAutoRenew);
+  const applyDomainOp = useAppStore((s) => s.applyDomainOp);
   const key = `${domain.registrar}:${domain.domainName}`;
   const pending = useAppStore((s) => s.mutating[key] ?? false);
+  const reason = useOpUnsupportedReason(domain.registrar, {
+    kind: 'autoRenew',
+    enabled: !domain.autoRenew,
+  });
 
   const onToggle = (next: boolean) => {
-    setAutoRenew(domain.registrar as RegistrarName, domain.domainName, next)
-      .then(() =>
-        toast.success(
-          `Auto-renew ${next ? 'enabled' : 'disabled'} for ${domain.domainName}`,
-        ),
-      )
-      .catch((err: unknown) =>
-        toast.error(`Couldn’t update auto-renew for ${domain.domainName}`, {
-          description: err instanceof Error ? err.message : String(err),
-        }),
-      );
+    const op = { kind: 'autoRenew' as const, enabled: next };
+    void applyDomainOp(targetOf(domain), op, { autoRenew: next }).then(
+      (result) => reportOpResult(op, result),
+    );
   };
 
   return (
     <Switch
       checked={domain.autoRenew}
       onCheckedChange={onToggle}
-      disabled={pending}
+      disabled={pending || reason !== null}
       aria-label="auto-renew"
-      title={`Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`}
+      title={
+        reason ??
+        `Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`
+      }
       className="data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80"
     />
   );
@@ -501,8 +490,9 @@ const COLUMNS: Column[] = [
     compact: true,
     detail: true,
     render: (d) => (
-      <StateIcon
-        value={d.privacy}
+      <FlagToggle
+        domain={d}
+        kind="privacy"
         on={EyeOff}
         off={Eye}
         onLabel="privacy on"
@@ -518,8 +508,9 @@ const COLUMNS: Column[] = [
     compact: true,
     detail: true,
     render: (d) => (
-      <StateIcon
-        value={d.locked}
+      <FlagToggle
+        domain={d}
+        kind="lock"
         on={Lock}
         off={LockOpen}
         onLabel="locked"
@@ -532,20 +523,7 @@ const COLUMNS: Column[] = [
     key: 'nameservers',
     label: 'Nameservers',
     detail: true,
-    render: (d) =>
-      d.nameservers.length === 0 ? (
-        <span className="text-muted-foreground/50">—</span>
-      ) : (
-        <span
-          className="inline-flex max-w-[260px] items-baseline gap-1.5 font-mono text-[13px] text-foreground/70"
-          title={d.nameservers.join('\n')}
-        >
-          <span className="truncate">{d.nameservers[0]}</span>
-          {d.nameservers.length > 1 && (
-            <span className="opacity-60">+{d.nameservers.length - 1}</span>
-          )}
-        </span>
-      ),
+    render: (d) => <NameserversCell domain={d} />,
     sortValue: (d) => d.nameservers[0]?.toLowerCase() ?? '',
   },
 ];
@@ -607,10 +585,6 @@ function toggleValue(selected: string[], value: string): string[] {
     : [...selected, value];
 }
 
-// Bulk row-selection (checkboxes + bulk action bar) is hidden for now; the
-// underlying state and handlers are kept so it can be switched back on later.
-const BULK_SELECT_ENABLED = false;
-
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function Domains() {
@@ -632,6 +606,11 @@ export default function Domains() {
     folders,
     folderAssignments,
     assignFolder,
+    selected,
+    toggleSelected,
+    setSelectedMany,
+    clearSelection,
+    bulk,
   } = useAppStore();
 
   const navigate = useNavigate();
@@ -669,17 +648,35 @@ export default function Domains() {
   const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(0);
 
-  // Row selection for bulk actions, keyed by `${registrar}:${domainName}`.
-  // UI only for now — the actions themselves aren't wired up yet.
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const toggleSelected = (key: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  const clearSelection = () => setSelected(new Set());
+  // The bulk dialog: an op to configure for the current selection, or a
+  // running/finished job to view (the bar's progress pill).
+  const [bulkDialog, setBulkDialog] = useState<{
+    op: DomainOp;
+    jobId?: string;
+  } | null>(null);
+
+  // Per-row action dialogs (opened from the row's "⋯" menu).
+  const [authCodeFor, setAuthCodeFor] = useState<Domain | null>(null);
+  const [renewFor, setRenewFor] = useState<Domain | null>(null);
+  const [urlForwardingFor, setUrlForwardingFor] = useState<Domain | null>(null);
+  const [emailForwardingFor, setEmailForwardingFor] = useState<Domain | null>(
+    null,
+  );
+  // Re-fetch one row's full record from its registrar (bypassing the detail
+  // cache) — the row's detail cells show skeletons while it's in flight.
+  const refreshDomain = (d: Domain) => {
+    void enrichVisible([d], true).then(() =>
+      toast.success(`Refreshed ${d.domainName}`),
+    );
+  };
+  const hideDomain = (d: Domain) => {
+    void assignFolder(`${d.registrar}:${d.domainName}`, HIDDEN_FOLDER_ID).then(
+      () =>
+        toast.success(`Hid ${d.domainName}`, {
+          description: 'Pick “Hidden” in the Folder filter to see it again.',
+        }),
+    );
+  };
 
   // CSV export: an in-flight flag (dialog open + write) and a transient result
   // note ("Exported N rows to …" / an error) that clears itself after a moment.
@@ -915,7 +912,6 @@ export default function Domains() {
 
   // Header checkbox reflects the whole filtered set (across pages): fully checked
   // when every filtered row is selected, indeterminate when only some are.
-  const selectedCount = selected.size;
   const allFilteredSelected =
     filtered.length > 0 &&
     filtered.every((d) => selected.has(`${d.registrar}:${d.domainName}`));
@@ -923,13 +919,29 @@ export default function Domains() {
     !allFilteredSelected &&
     filtered.some((d) => selected.has(`${d.registrar}:${d.domainName}`));
   const toggleSelectAll = () =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      const keys = filtered.map((d) => `${d.registrar}:${d.domainName}`);
-      if (allFilteredSelected) keys.forEach((k) => next.delete(k));
-      else keys.forEach((k) => next.add(k));
-      return next;
-    });
+    setSelectedMany(
+      filtered.map((d) => `${d.registrar}:${d.domainName}`),
+      !allFilteredSelected,
+    );
+  // The selected domains as merged rows, for the bulk bar and dialog.
+  const selectedDomains = useMemo(
+    () => merged.filter((d) => selected.has(`${d.registrar}:${d.domainName}`)),
+    [merged, selected],
+  );
+  const bulkAssignFolder = (folderId: string | null) => {
+    const keys = selectedDomains.map((d) => `${d.registrar}:${d.domainName}`);
+    void Promise.all(keys.map((k) => assignFolder(k, folderId))).then(() =>
+      toast.success(
+        folderId === HIDDEN_FOLDER_ID
+          ? `Hid ${keys.length} domain${keys.length === 1 ? '' : 's'}`
+          : folderId
+            ? `Moved ${keys.length} domain${keys.length === 1 ? '' : 's'} to ${
+                folders.find((f) => f.id === folderId)?.name ?? 'folder'
+              }`
+            : `Removed ${keys.length} domain${keys.length === 1 ? '' : 's'} from their folders`,
+      ),
+    );
+  };
 
   // Lazily fetch full detail for the rows actually on screen. Keyed on the
   // visible domains' identities so it re-runs on page/sort/filter changes;
@@ -975,13 +987,14 @@ export default function Domains() {
     exportNoteTimer.current = setTimeout(() => setExportNote(null), 6000);
   }
 
-  // Export the full filtered + sorted result set (every column we have, not just
-  // the current page) via the native save dialog in main.
-  async function exportCsv() {
+  // Export a row set (the full filtered + sorted result by default — every
+  // column we have, not just the current page; or the selection) via the
+  // native save dialog in main.
+  async function exportCsv(rows: Domain[] = filtered) {
     setExporting(true);
     try {
       const csv = domainsToCsv(
-        filtered,
+        rows,
         portfolioRegistrarLabels,
         folders,
         folderAssignments,
@@ -989,7 +1002,7 @@ export default function Domains() {
       const result = await window.api.saveCsv(csv, csvFilename());
       if (!result.saved) return; // user cancelled the dialog
       const name = result.path?.split(/[/\\]/).pop() ?? 'file';
-      const n = filtered.length;
+      const n = rows.length;
       flashExportNote(
         `Exported ${n} row${n === 1 ? '' : 's'} to ${name}`,
         false,
@@ -1184,76 +1197,42 @@ export default function Domains() {
           </div>
         </div>
 
-        {/* Bulk action bar — contextual, appears once any row is selected.
-              Actions are UI-only stubs for now. */}
-        {BULK_SELECT_ENABLED && selectedCount > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium">{selectedCount} selected</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 px-2 text-muted-foreground"
-                onClick={clearSelection}
-              >
-                <X />
-                Clear
-              </Button>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Bulk actions
-                  <ChevronDown className="text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem disabled>
-                  <FolderIcon />
-                  Assign to folder…
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled>
-                  <RefreshCw />
-                  Set auto-renew…
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled>
-                  <Lock />
-                  Set lock…
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled>
-                  <FileSpreadsheet />
-                  Export selected
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem disabled>
-                  <EyeOff />
-                  Hide
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
+        {/* Bulk action bar — contextual: appears once any row is selected, or
+            while a bulk job is running (as a progress pill). */}
+        <BulkBar
+          domains={selectedDomains}
+          folders={folders}
+          onClear={clearSelection}
+          onExport={() => void exportCsv(selectedDomains)}
+          onAssignFolder={bulkAssignFolder}
+          onKind={(kind) =>
+            setBulkDialog({ op: defaultBulkOp(kind, selectedDomains) })
+          }
+          onViewJob={() => {
+            if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });
+          }}
+        />
 
         {/* Table */}
         <div className="overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50">
           <Table>
             <TableHeader>
               <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
-                {BULK_SELECT_ENABLED && (
-                  <TableHead className="w-9 pl-3">
-                    <Checkbox
-                      checked={
-                        allFilteredSelected
-                          ? true
-                          : someFilteredSelected
-                            ? 'indeterminate'
-                            : false
-                      }
-                      onCheckedChange={toggleSelectAll}
-                      aria-label="Select all domains"
-                    />
-                  </TableHead>
-                )}
+                {/* Checkbox column reads as part of the Domain column: no
+                    divider between them (the wrapper draws td/th borders). */}
+                <TableHead className="w-9 border-r-0! pl-3">
+                  <Checkbox
+                    checked={
+                      allFilteredSelected
+                        ? true
+                        : someFilteredSelected
+                          ? 'indeterminate'
+                          : false
+                    }
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all domains"
+                  />
+                </TableHead>
                 {COLUMNS.map((col, i) => {
                   const active = col.key === sortKey;
                   const Icon = !active
@@ -1269,7 +1248,7 @@ export default function Domains() {
                           col.align === 'center' && 'text-center',
                           col.compact && 'w-0 px-1.5',
                           col.key === 'autoRenew' && 'pl-[8px]',
-                          col.key === 'domainName' && 'pl-3',
+                          col.key === 'domainName' && 'border-l-0! pl-3',
                         )}
                       >
                         <button
@@ -1336,6 +1315,8 @@ export default function Domains() {
                     </Fragment>
                   );
                 })}
+                {/* Row actions ("⋯") — no header label. */}
+                <TableHead className="w-0 px-1.5" aria-label="Actions" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1351,15 +1332,13 @@ export default function Domains() {
                     className={cn(selected.has(key) && 'bg-muted/50')}
                   >
                     {/* Selection checkbox. */}
-                    {BULK_SELECT_ENABLED && (
-                      <TableCell className="w-9 pl-3">
-                        <Checkbox
-                          checked={selected.has(key)}
-                          onCheckedChange={() => toggleSelected(key)}
-                          aria-label={`Select ${d.domainName}`}
-                        />
-                      </TableCell>
-                    )}
+                    <TableCell className="w-9 border-r-0! pl-3">
+                      <Checkbox
+                        checked={selected.has(key)}
+                        onCheckedChange={() => toggleSelected(key)}
+                        aria-label={`Select ${d.domainName}`}
+                      />
+                    </TableCell>
                     {COLUMNS.map((col, i) => (
                       <Fragment key={col.key}>
                         <TableCell
@@ -1368,7 +1347,7 @@ export default function Domains() {
                             col.align === 'center' && 'text-center',
                             col.compact && 'w-0 px-1.5',
                             col.key === 'autoRenew' && 'pl-[6px]',
-                            col.key === 'domainName' && 'pl-3',
+                            col.key === 'domainName' && 'border-l-0! pl-3',
                           )}
                         >
                           {col.detail && loadingDetail ? (
@@ -1398,13 +1377,24 @@ export default function Domains() {
                         )}
                       </Fragment>
                     ))}
+                    <TableCell className="w-0 px-1.5">
+                      <RowActionsMenu
+                        domain={d}
+                        onRefresh={() => refreshDomain(d)}
+                        onUrlForwarding={() => setUrlForwardingFor(d)}
+                        onEmailForwarding={() => setEmailForwardingFor(d)}
+                        onAuthCode={() => setAuthCodeFor(d)}
+                        onRenew={() => setRenewFor(d)}
+                        onHide={() => hideDomain(d)}
+                      />
+                    </TableCell>
                   </TableRow>
                 );
               })}
               {visible.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell
-                    colSpan={COLUMNS.length + 4}
+                    colSpan={COLUMNS.length + 6}
                     className="h-40 text-center text-muted-foreground"
                   >
                     {noneConfigured ? (
@@ -1517,6 +1507,40 @@ export default function Domains() {
           </div>
         </div>
       </>
+
+      {authCodeFor && (
+        <AuthCodeDialog
+          domain={authCodeFor}
+          onClose={() => setAuthCodeFor(null)}
+        />
+      )}
+      {urlForwardingFor && (
+        <UrlForwardingDialog
+          domain={urlForwardingFor}
+          onClose={() => setUrlForwardingFor(null)}
+        />
+      )}
+      {emailForwardingFor && (
+        <EmailForwardingDialog
+          domain={emailForwardingFor}
+          onClose={() => setEmailForwardingFor(null)}
+        />
+      )}
+      {bulkDialog && (
+        <BulkActionDialog
+          initialOp={bulkDialog.op}
+          domains={selectedDomains}
+          jobId={bulkDialog.jobId}
+          onClose={() => setBulkDialog(null)}
+        />
+      )}
+      {renewFor && (
+        <RenewDialog
+          domain={renewFor}
+          pricing={pricing[`${renewFor.registrar}:${renewFor.domainName}`]}
+          onClose={() => setRenewFor(null)}
+        />
+      )}
     </div>
   );
 }

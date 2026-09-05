@@ -6,7 +6,12 @@
 
 // Type-only import: erased at build time, so the renderer bundle never resolves
 // the library — only tsc uses it (via the tsconfig `paths` alias to source).
-import type { Domain, RegistrarName } from '@aoxborrow/registrar-client';
+import type {
+  Domain,
+  DomainForward,
+  EmailForward,
+  RegistrarName,
+} from '@aoxborrow/registrar-client';
 
 /** Channel identifiers for `ipcRenderer.invoke` / `ipcMain.handle`. */
 export const IpcChannels = {
@@ -15,7 +20,12 @@ export const IpcChannels = {
   listDynadotDomains: 'registrar:listDynadotDomains',
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
-  setAutoRenew: 'registrar:setAutoRenew',
+  applyDomainOp: 'domain:apply',
+  getUrlForwarding: 'domain:getUrlForwarding',
+  getEmailForwarding: 'domain:getEmailForwarding',
+  bulkStart: 'bulk:start',
+  bulkCancel: 'bulk:cancel',
+  bulkGet: 'bulk:get',
   getPortfolioPricing: 'pricing:getPortfolio',
   setManualPrice: 'pricing:setManualPrice',
   openExternal: 'app:openExternal',
@@ -52,6 +62,10 @@ export const IpcEvents = {
    * store directly and don't rely on this.
    */
   portfolioChanged: 'portfolio:changed',
+  /** One bulk-job item finished (payload: BulkProgress). */
+  bulkProgress: 'bulk:progress',
+  /** A bulk job ended — done or cancelled (payload: the final BulkJob). */
+  bulkFinished: 'bulk:finished',
 } as const;
 
 /**
@@ -101,6 +115,11 @@ export interface AppSettings {
    * when set, overrides this (a dev/testing escape hatch).
    */
   autoSyncIntervalMinutes: number;
+  /**
+   * The last few nameserver sets the user saved from the editor (most recent
+   * first, at most 3), offered as presets. Each entry is a full set.
+   */
+  recentNameservers: string[][];
 }
 
 /** One input in a registrar's credential form. */
@@ -140,6 +159,12 @@ export interface RegistrarMeta {
   /** Sync state (from cache), present regardless of whether it's configured. */
   sync: RegistrarSync;
   configFields: RegistrarConfigField[];
+  /**
+   * The library's capability list for this provider (registrar-client `Feature`
+   * ids, e.g. "getAuthCode", "setEmailForwarding"). Drives which domain edits
+   * the UI offers — see shared/domain-ops.ts.
+   */
+  features: string[];
 }
 
 /** Outcome of a native "save file" dialog. */
@@ -189,8 +214,102 @@ export interface RenewalPricing {
   source: PriceSource;
 }
 
+// ── Domain operations ───────────────────────────────────────────────────────
+//
+// A domain-scoped write (or secret read) is one `DomainOp`, applied to one
+// `DomainTarget`. The same unit backs a row control in the table, a bulk job,
+// and the MCP `domain_*` tools, so every caller shares one code path in main
+// (services/domain-ops.ts): capability gating, cache patching, error
+// classification. See docs/domain-editing.md.
+
+/** `masked` is read-only in the library; the UI can only write these two. */
+export interface UrlForwardInput {
+  /** Source host relative to the apex: "@", "www", or a subdomain label. */
+  host: string;
+  /** Destination URL. */
+  url: string;
+  type: 'temporary' | 'permanent';
+}
+
+export type DomainOp =
+  | { kind: 'autoRenew'; enabled: boolean }
+  | { kind: 'privacy'; enabled: boolean }
+  | { kind: 'lock'; locked: boolean }
+  | { kind: 'nameservers'; nameservers: string[] }
+  | {
+      kind: 'urlForwarding';
+      forwards: UrlForwardInput[];
+      /** Read the current rules first and skip the domain if it has any
+       *  (the set is a full replace). */
+      skipIfExisting?: boolean;
+    }
+  | {
+      kind: 'emailForwarding';
+      forwards: EmailForward[];
+      skipIfExisting?: boolean;
+    }
+  | { kind: 'authCode' }
+  | { kind: 'renew'; years: number };
+
+export type DomainOpKind = DomainOp['kind'];
+
+export interface DomainTarget {
+  registrar: RegistrarName;
+  domainName: string;
+}
+
+export type DomainOpStatus =
+  /** Applied; `patch` carries the new field values where there are any. */
+  | 'ok'
+  /** The registrar rejected it — `message` says why. */
+  | 'failed'
+  /** The registrar can't do this op (gated up front, or NotImplementedError). */
+  | 'unsupported'
+  /** Nothing to do — already in the target state, or had existing rules. */
+  | 'skipped'
+  /** Still rate-limited after the client's own retries. */
+  | 'rate-limited'
+  /** Aborted via the caller's signal. */
+  | 'cancelled';
+
+export interface DomainOpResult {
+  target: DomainTarget;
+  status: DomainOpStatus;
+  message: string;
+  /** Fields the caller can overlay on the row: autoRenew/privacy/locked/
+   *  nameservers, or expirationDate/renewalDate/status after a renew. */
+  patch?: Partial<Domain>;
+  /** Op-specific payload — the auth code. Never persisted by main. */
+  data?: { authCode?: string };
+}
+
+/**
+ * A bulk job: one `DomainOp` applied to many targets by the main-process
+ * runner (services/bulk-jobs.ts). Lives in main memory only — one at a time.
+ * The renderer mirrors it from `bulkStart`'s return plus the progress events.
+ */
+export interface BulkJob {
+  id: string;
+  op: DomainOp;
+  status: 'running' | 'done' | 'cancelled';
+  total: number;
+  /** Results so far, in completion order. */
+  results: DomainOpResult[];
+  counts: Record<DomainOpStatus, number>;
+  startedAt: number;
+  finishedAt: number | null;
+}
+
+/** Streamed to windows as each bulk item completes. */
+export interface BulkProgress {
+  jobId: string;
+  result: DomainOpResult;
+  done: number;
+  total: number;
+}
+
 /** Re-exported so the renderer can type data without importing the lib. */
-export type { Domain, RegistrarName };
+export type { Domain, DomainForward, EmailForward, RegistrarName };
 
 /** A per-registrar failure from a portfolio fetch, flattened for IPC transport. */
 export interface PortfolioErrorInfo {
@@ -376,15 +495,31 @@ export interface DombotApi {
     refresh?: boolean,
   ) => Promise<Partial<Domain> | null>;
   /**
-   * Toggle auto-renew for a domain at its registrar. Resolves on success;
-   * rejects if the registrar reports a failure or doesn't support the operation
-   * (e.g. Cloudflare has no post-registration auto-renew endpoint).
+   * Apply one domain operation (toggle a flag, replace nameservers/forwarding,
+   * renew, or fetch the auth code) at the domain's registrar. Never rejects for
+   * a registrar-side outcome — the result's `status` says what happened; only a
+   * transport failure rejects.
    */
-  setAutoRenew: (
-    registrar: RegistrarName,
-    domainName: string,
-    enabled: boolean,
-  ) => Promise<void>;
+  applyDomainOp: (
+    target: DomainTarget,
+    op: DomainOp,
+  ) => Promise<DomainOpResult>;
+  /** A domain's current URL forwarding rules, read live (not cached). Rejects
+   *  when the registrar can't report them. */
+  getUrlForwarding: (target: DomainTarget) => Promise<DomainForward[]>;
+  /** A domain's current email forwarding rules, read live (not cached). */
+  getEmailForwarding: (target: DomainTarget) => Promise<EmailForward[]>;
+
+  // Bulk jobs
+  /** Start applying `op` to every target. Rejects if a job is already running.
+   *  Returns the job's initial snapshot; progress arrives via onBulkProgress. */
+  startBulk: (targets: DomainTarget[], op: DomainOp) => Promise<BulkJob>;
+  /** Abort the running job; queued items are recorded as cancelled. */
+  cancelBulk: (jobId: string) => Promise<void>;
+  /** The current or last job, for re-attaching after navigation / relaunch. */
+  getBulkJob: () => Promise<BulkJob | null>;
+  onBulkProgress: (callback: (p: BulkProgress) => void) => () => void;
+  onBulkFinished: (callback: (job: BulkJob) => void) => () => void;
   getRegistrarMetadata: () => Promise<RegistrarMeta[]>;
   getRegistrarCredentials: (name: RegistrarName) => Promise<CredentialValues>;
   saveRegistrarCredentials: (

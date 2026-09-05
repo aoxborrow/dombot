@@ -4,7 +4,13 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
 import { contextBridge, ipcRenderer } from 'electron';
-import { IpcChannels, IpcEvents, type DombotApi } from './shared/ipc';
+import {
+  IpcChannels,
+  IpcEvents,
+  type BulkJob,
+  type BulkProgress,
+  type DombotApi,
+} from './shared/ipc';
 
 const api: DombotApi = {
   ping: () => ipcRenderer.invoke(IpcChannels.ping),
@@ -28,13 +34,26 @@ const api: DombotApi = {
       domainName,
       refresh,
     ),
-  setAutoRenew: (registrar, domainName, enabled) =>
-    ipcRenderer.invoke(
-      IpcChannels.setAutoRenew,
-      registrar,
-      domainName,
-      enabled,
-    ),
+  applyDomainOp: (target, op) =>
+    ipcRenderer.invoke(IpcChannels.applyDomainOp, target, op),
+  getUrlForwarding: (target) =>
+    ipcRenderer.invoke(IpcChannels.getUrlForwarding, target),
+  getEmailForwarding: (target) =>
+    ipcRenderer.invoke(IpcChannels.getEmailForwarding, target),
+  startBulk: (targets, op) =>
+    ipcRenderer.invoke(IpcChannels.bulkStart, targets, op),
+  cancelBulk: (jobId) => ipcRenderer.invoke(IpcChannels.bulkCancel, jobId),
+  getBulkJob: () => ipcRenderer.invoke(IpcChannels.bulkGet),
+  onBulkProgress: (callback) => {
+    const listener = (_e: unknown, p: BulkProgress) => callback(p);
+    ipcRenderer.on(IpcEvents.bulkProgress, listener);
+    return () => ipcRenderer.removeListener(IpcEvents.bulkProgress, listener);
+  },
+  onBulkFinished: (callback) => {
+    const listener = (_e: unknown, job: BulkJob) => callback(job);
+    ipcRenderer.on(IpcEvents.bulkFinished, listener);
+    return () => ipcRenderer.removeListener(IpcEvents.bulkFinished, listener);
+  },
   listPortfolio: (refresh) =>
     ipcRenderer.invoke(IpcChannels.listPortfolio, refresh),
   syncRegistrar: (name) => ipcRenderer.invoke(IpcChannels.syncRegistrar, name),
