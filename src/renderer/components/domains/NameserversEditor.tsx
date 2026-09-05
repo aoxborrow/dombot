@@ -101,14 +101,20 @@ export function NameserversEditor({
           <SelectTrigger size="sm" className="w-full">
             <SelectValue placeholder="Presets…" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[420px]">
+            {/* Each preset lists its actual hosts — several providers (e.g.
+                Cloudflare) hand out different host pairs per account, so the
+                provider name alone would look like duplicates. */}
             {presets.map((p) => (
-              <SelectItem
-                key={p.key}
-                value={p.key}
-                title={p.nameservers.join('\n')}
-              >
-                {p.label}
+              <SelectItem key={p.key} value={p.key} className="items-start">
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-xs text-muted-foreground">
+                    {p.label}
+                  </span>
+                  <span className="truncate font-mono text-[12px]">
+                    {p.nameservers.join(', ')}
+                  </span>
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
