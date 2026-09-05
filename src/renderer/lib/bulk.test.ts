@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
-import { bucketSelection, bulkOpTitle, resultsToCsv } from './bulk';
+import {
+  bucketSelection,
+  bulkOpTitle,
+  defaultFlagOp,
+  resultsToCsv,
+} from './bulk';
 import type { BulkJob, Domain, RegistrarMeta } from '../../shared/ipc';
 
 function domain(partial: Partial<Domain> & { domainName: string }): Domain {
@@ -123,5 +128,34 @@ describe('resultsToCsv', () => {
         'b.com,gandi,Failed,"Bad, ""quoted"", reason"',
       ].join('\r\n'),
     );
+  });
+});
+
+describe('defaultFlagOp', () => {
+  const on = domain({ domainName: 'on.com', autoRenew: true });
+  const off = domain({ domainName: 'off.com', autoRenew: false });
+
+  it('preselects the value that flips the majority', () => {
+    expect(defaultFlagOp('autoRenew', [on, on, off])).toEqual({
+      kind: 'autoRenew',
+      enabled: false,
+    });
+    expect(defaultFlagOp('autoRenew', [on, off, off])).toEqual({
+      kind: 'autoRenew',
+      enabled: true,
+    });
+  });
+
+  it('turns on for a tie and uses the lock field for locks', () => {
+    expect(defaultFlagOp('autoRenew', [on, off])).toEqual({
+      kind: 'autoRenew',
+      enabled: true,
+    });
+    expect(
+      defaultFlagOp('lock', [domain({ domainName: 'l.com', locked: true })]),
+    ).toEqual({
+      kind: 'lock',
+      locked: false,
+    });
   });
 });

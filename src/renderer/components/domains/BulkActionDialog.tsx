@@ -14,11 +14,15 @@ import { useAppStore } from '../../store/app';
 import {
   bucketSelection,
   bulkOpTitle,
+  flagOf,
+  flagOp,
+  flagTarget,
   isRetryable,
   isRiskyOp,
   resultsCsvFilename,
   resultsToCsv,
   STATUS_LABEL,
+  type FlagKind,
 } from '../../lib/bulk';
 import { cn } from '@/lib/utils';
 import { ConfirmDialog } from '../ConfirmDialog';
@@ -39,8 +43,9 @@ import {
 
 /**
  * The three-stage bulk dialog every bulk op uses:
- *  1. Configure — the eligibility summary (what will change, what's skipped,
- *     what the registrar can't do) and Start.
+ *  1. Configure — choose the value (on/off for the flag kinds; a payload
+ *     editor for the rest), see the eligibility summary (what will change,
+ *     what's already there, what the registrar can't do), and Start.
  *  2. Running — progress, the live results list, Cancel. Closing the dialog
  *     doesn't stop the job; the bar keeps a progress pill.
  *  3. Done — counts, the failures, Retry failed, Export results CSV.
@@ -49,12 +54,13 @@ import {
  * bar's View button).
  */
 export function BulkActionDialog({
-  op,
+  initialOp,
   domains,
   jobId: initialJobId = null,
   onClose,
 }: {
-  op: DomainOp;
+  /** The op to open with; the Configure stage may change its value. */
+  initialOp: DomainOp;
   /** The selected domains (merged rows). */
   domains: Domain[];
   jobId?: string | null;
@@ -66,6 +72,7 @@ export function BulkActionDialog({
   const startBulk = useAppStore((s) => s.startBulk);
   const cancelBulk = useAppStore((s) => s.cancelBulk);
 
+  const [op, setOp] = useState<DomainOp>(initialOp);
   const [jobId, setJobId] = useState<string | null>(initialJobId);
   // After "Retry failed": only these targets are offered in Configure.
   const [retryOf, setRetryOf] = useState<Set<string> | null>(null);
@@ -162,6 +169,14 @@ export function BulkActionDialog({
         onConfirm={() => void start()}
         onClose={onClose}
       >
+        {flagTarget(op) !== null && (
+          <FlagChooser
+            kind={op.kind as FlagKind}
+            value={flagTarget(op)!}
+            domains={candidates}
+            onChange={(on) => setOp(flagOp(op.kind as FlagKind, on))}
+          />
+        )}
         <Buckets buckets={buckets} />
       </ConfirmDialog>
     );
@@ -268,6 +283,65 @@ export function BulkActionDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const FLAG_WORDS: Record<FlagKind, [on: string, off: string]> = {
+  autoRenew: ['On', 'Off'],
+  privacy: ['On', 'Off'],
+  lock: ['Locked', 'Unlocked'],
+};
+
+/**
+ * The on/off choice for a flag kind, with the selection's current split so
+ * the number sits next to the state it describes ("7 on · 3 off").
+ */
+function FlagChooser({
+  kind,
+  value,
+  domains,
+  onChange,
+}: {
+  kind: FlagKind;
+  value: boolean;
+  domains: Domain[];
+  onChange: (on: boolean) => void;
+}) {
+  const on = domains.filter((d) => flagOf(d, kind)).length;
+  const off = domains.length - on;
+  const [onWord, offWord] = FLAG_WORDS[kind];
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-muted-foreground">
+        Currently <span className="tabular-nums text-foreground">{on}</span>{' '}
+        {onWord.toLowerCase()} ·{' '}
+        <span className="tabular-nums text-foreground">{off}</span>{' '}
+        {offWord.toLowerCase()}
+      </p>
+      <div
+        role="radiogroup"
+        aria-label="Target value"
+        className="inline-flex w-fit rounded-md border p-0.5"
+      >
+        {([true, false] as const).map((v) => (
+          <button
+            key={String(v)}
+            type="button"
+            role="radio"
+            aria-checked={value === v}
+            onClick={() => onChange(v)}
+            className={cn(
+              'rounded-[5px] px-3 py-1 text-sm transition-colors',
+              value === v
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {v ? onWord : offWord}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -1,19 +1,16 @@
-import { useMemo } from 'react';
 import {
-  Check,
   ChevronDown,
   EyeOff,
   FileSpreadsheet,
   Loader2,
   Lock,
-  LockOpen,
   RefreshCw,
   X,
 } from 'lucide-react';
 import { HIDDEN_FOLDER_ID } from '../../../shared/ipc';
-import type { Domain, DomainOp, Folder } from '../../../shared/ipc';
+import type { Domain, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
-import { bucketSelection, bulkOpTitle } from '../../lib/bulk';
+import { bulkOpTitle, type FlagKind } from '../../lib/bulk';
 import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
 import { Button } from '@/components/ui/button';
@@ -30,10 +27,12 @@ import {
 
 /**
  * The contextual bar above the table once rows are selected: the selection
- * summary, Clear, and the Bulk actions menu. Registrar-backed items show how
- * many of the selected domains they'd actually touch and disable when none
- * would (or while a job is running). While a job runs the bar also shows a
- * compact progress pill with a View button, even with nothing selected.
+ * summary, Clear, and the Bulk actions menu. The menu is a flat list of the
+ * things you can change; the dialog it opens is where you pick the value
+ * (on/off, a nameserver set, …) and see what the selection's current state
+ * is. Registrar-backed items disable while a job is running. While a job
+ * runs the bar also shows a compact progress pill with a View button, even
+ * with nothing selected.
  */
 export function BulkBar({
   domains,
@@ -41,7 +40,7 @@ export function BulkBar({
   onClear,
   onExport,
   onAssignFolder,
-  onOp,
+  onKind,
   onViewJob,
 }: {
   /** The selected domains (merged rows). */
@@ -50,53 +49,14 @@ export function BulkBar({
   onClear: () => void;
   onExport: () => void;
   onAssignFolder: (folderId: string | null) => void;
-  onOp: (op: DomainOp) => void;
+  /** Open the bulk dialog for a flag kind (the value is chosen there). */
+  onKind: (kind: FlagKind) => void;
   onViewJob: () => void;
 }) {
   const bulk = useAppStore((s) => s.bulk);
-  const registrars = useAppStore((s) => s.registrars);
-  const enriched = useAppStore((s) => s.enriched);
   const running = bulk?.status === 'running';
 
   const registrarCount = new Set(domains.map((d) => d.registrar)).size;
-  const isEnriched = (d: Domain) =>
-    `${d.registrar}:${d.domainName}` in enriched;
-
-  // Eligible counts per op, for the menu labels and disabling.
-  const ops = useMemo(() => {
-    const list: DomainOp[] = [
-      { kind: 'autoRenew', enabled: true },
-      { kind: 'autoRenew', enabled: false },
-      { kind: 'privacy', enabled: true },
-      { kind: 'privacy', enabled: false },
-      { kind: 'lock', locked: true },
-      { kind: 'lock', locked: false },
-    ];
-    return list.map((op) => ({
-      op,
-      eligible: bucketSelection(domains, op, registrars, isEnriched).eligible
-        .length,
-    }));
-    // enriched only affects "already in state", so it's folded into isEnriched.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [domains, registrars, enriched]);
-
-  const item = (op: DomainOp, icon: React.ReactNode, label: string) => {
-    const eligible = ops.find((o) => o.op === op)?.eligible ?? 0;
-    return (
-      <DropdownMenuItem
-        disabled={running || eligible === 0}
-        onSelect={() => onOp(op)}
-      >
-        {icon}
-        <span className="flex-1">{label}</span>
-        <span className="ml-3 text-xs tabular-nums text-muted-foreground">
-          {eligible}
-        </span>
-      </DropdownMenuItem>
-    );
-  };
-  const opOf = (i: number) => ops[i]?.op ?? ({ kind: 'authCode' } as DomainOp);
 
   if (domains.length === 0 && !running) return null;
 
@@ -188,52 +148,27 @@ export function BulkBar({
               Hidden
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <RefreshCw className="text-muted-foreground" />
-                Auto-renew
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-44">
-                {item(
-                  opOf(0),
-                  <Check className="text-muted-foreground" />,
-                  'On',
-                )}
-                {item(opOf(1), <X className="text-muted-foreground" />, 'Off')}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <EyeOff className="text-muted-foreground" />
-                WHOIS privacy
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-44">
-                {item(
-                  opOf(2),
-                  <Check className="text-muted-foreground" />,
-                  'On',
-                )}
-                {item(opOf(3), <X className="text-muted-foreground" />, 'Off')}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <Lock className="text-muted-foreground" />
-                Transfer lock
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-44">
-                {item(
-                  opOf(4),
-                  <Lock className="text-muted-foreground" />,
-                  'Lock',
-                )}
-                {item(
-                  opOf(5),
-                  <LockOpen className="text-muted-foreground" />,
-                  'Unlock',
-                )}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+            <DropdownMenuItem
+              disabled={running}
+              onSelect={() => onKind('autoRenew')}
+            >
+              <RefreshCw className="text-muted-foreground" />
+              Auto-renew…
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={running}
+              onSelect={() => onKind('privacy')}
+            >
+              <EyeOff className="text-muted-foreground" />
+              WHOIS privacy…
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={running}
+              onSelect={() => onKind('lock')}
+            >
+              <Lock className="text-muted-foreground" />
+              Transfer lock…
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onExport}>
               <FileSpreadsheet className="text-muted-foreground" />

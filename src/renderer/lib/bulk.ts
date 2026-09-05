@@ -146,3 +146,43 @@ export function resultsCsvFilename(job: BulkJob): string {
   const date = new Date(job.startedAt).toISOString().slice(0, 10);
   return `dombot-bulk-${label}-${date}.csv`;
 }
+
+/** The boolean ops: the ones whose bulk dialog offers an on/off choice. */
+export type FlagKind = 'autoRenew' | 'privacy' | 'lock';
+
+/** A domain's current value for a flag kind. */
+export function flagOf(d: Domain, kind: FlagKind): boolean {
+  return kind === 'autoRenew'
+    ? d.autoRenew
+    : kind === 'privacy'
+      ? d.privacy
+      : d.locked;
+}
+
+/** The op for a flag kind and a target value. */
+export function flagOp(kind: FlagKind, on: boolean): DomainOp {
+  return kind === 'lock' ? { kind, locked: on } : { kind, enabled: on };
+}
+
+/** The target value an op sets, for the boolean kinds. */
+export function flagTarget(op: DomainOp): boolean | null {
+  return op.kind === 'lock'
+    ? op.locked
+    : op.kind === 'autoRenew' || op.kind === 'privacy'
+      ? op.enabled
+      : null;
+}
+
+/**
+ * The op the bulk dialog opens with for a flag kind: the value that flips the
+ * majority of the selection (ties turn it on), so the most likely intent is
+ * preselected and the rows already there show as skipped.
+ */
+export function defaultFlagOp(
+  kind: FlagKind,
+  domains: readonly Domain[],
+): DomainOp {
+  const on = domains.filter((d) => flagOf(d, kind)).length;
+  const majorityOn = on > domains.length / 2;
+  return flagOp(kind, !majorityOn);
+}
