@@ -628,7 +628,7 @@ Each phase is a PR: `npm run typecheck`, `npm run lint`, `npm test` clean.
    store `bulk` slice, selection moved into the store, `BulkBar`,
    `BulkActionDialog` with the toggles, folder assign, hide, export selected.
    Sync disabled during jobs.
-6. **Bulk payload ops.** Nameservers, URL/email forwarding (with the
+6. ✅ **Bulk payload ops.** Nameservers, URL/email forwarding (with the
    `{domain}` token and skip-if-existing), auth codes (results table +
    export), renew (cost summary, typed confirm, lane = 1, no retries).
 7. **Polish.** Progress pill when the dialog is closed, Retry failed, results

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { TriangleAlert } from 'lucide-react';
 import {
   sameNameservers,
@@ -30,6 +30,8 @@ export function NameserversEditor({
   note,
   saving = false,
   saveLabel = 'Save',
+  showActions = true,
+  onChange,
   onSave,
   onCancel,
 }: {
@@ -40,8 +42,12 @@ export function NameserversEditor({
   note?: string;
   saving?: boolean;
   saveLabel?: string;
-  onSave: (nameservers: string[]) => void;
-  onCancel: () => void;
+  /** Hide the Cancel/Save row (a host dialog supplies its own). */
+  showActions?: boolean;
+  /** Fires on every edit with the parsed set, or null while invalid. */
+  onChange?: (nameservers: string[] | null) => void;
+  onSave?: (nameservers: string[]) => void;
+  onCancel?: () => void;
 }) {
   const [text, setText] = useState(initial.join('\n'));
   const parsed = useMemo(() => validateNameservers(text), [text]);
@@ -50,8 +56,18 @@ export function NameserversEditor({
   const canSave = parsed.errors.length === 0 && !unchanged && !saving;
 
   const save = () => {
-    if (canSave) onSave(parsed.nameservers);
+    if (canSave) onSave?.(parsed.nameservers);
   };
+
+  useEffect(() => {
+    onChange?.(
+      parsed.errors.length === 0 && parsed.nameservers.length > 0
+        ? parsed.nameservers
+        : null,
+    );
+    // Report only when the parse result changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsed]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -121,19 +137,21 @@ export function NameserversEditor({
         </p>
       )}
 
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onCancel}
-          disabled={saving}
-        >
-          Cancel
-        </Button>
-        <Button size="sm" onClick={save} disabled={!canSave}>
-          {saving ? 'Saving…' : saveLabel}
-        </Button>
-      </div>
+      {showActions && (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCancel}
+            disabled={saving}
+          >
+            Cancel
+          </Button>
+          <Button size="sm" onClick={save} disabled={!canSave}>
+            {saving ? 'Saving…' : saveLabel}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

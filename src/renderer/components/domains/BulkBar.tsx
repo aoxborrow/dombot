@@ -1,16 +1,21 @@
 import {
+  CalendarPlus,
   ChevronDown,
   EyeOff,
   FileSpreadsheet,
+  KeyRound,
+  Link2,
   Loader2,
   Lock,
+  Mail,
   RefreshCw,
+  Server,
   X,
 } from 'lucide-react';
 import { HIDDEN_FOLDER_ID } from '../../../shared/ipc';
-import type { Domain, Folder } from '../../../shared/ipc';
+import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
-import { bulkOpTitle, type FlagKind } from '../../lib/bulk';
+import { bulkOpTitle } from '../../lib/bulk';
 import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
 import { Button } from '@/components/ui/button';
@@ -49,8 +54,8 @@ export function BulkBar({
   onClear: () => void;
   onExport: () => void;
   onAssignFolder: (folderId: string | null) => void;
-  /** Open the bulk dialog for a flag kind (the value is chosen there). */
-  onKind: (kind: FlagKind) => void;
+  /** Open the bulk dialog for an op kind (its value is chosen there). */
+  onKind: (kind: DomainOpKind) => void;
   onViewJob: () => void;
 }) {
   const bulk = useAppStore((s) => s.bulk);
@@ -168,6 +173,42 @@ export function BulkBar({
             >
               <Lock className="text-muted-foreground" />
               Transfer lock…
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={running}
+              onSelect={() => onKind('nameservers')}
+            >
+              <Server className="text-muted-foreground" />
+              Nameservers…
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={running}
+              onSelect={() => onKind('urlForwarding')}
+            >
+              <Link2 className="text-muted-foreground" />
+              URL forwarding…
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={running}
+              onSelect={() => onKind('emailForwarding')}
+            >
+              <Mail className="text-muted-foreground" />
+              Email forwarding…
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={running}
+              onSelect={() => onKind('authCode')}
+            >
+              <KeyRound className="text-muted-foreground" />
+              Get auth codes…
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={running}
+              onSelect={() => onKind('renew')}
+            >
+              <CalendarPlus className="text-muted-foreground" />
+              Renew…
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onExport}>

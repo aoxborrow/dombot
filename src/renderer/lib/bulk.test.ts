@@ -3,9 +3,12 @@ import { describe, it, expect } from 'vitest';
 import {
   bucketSelection,
   bulkOpTitle,
+  defaultBulkOp,
   defaultFlagOp,
+  registrarRuleConflicts,
   resultsToCsv,
 } from './bulk';
+import { validateUrlForwards } from './forwarding-input';
 import type { BulkJob, Domain, RegistrarMeta } from '../../shared/ipc';
 
 function domain(partial: Partial<Domain> & { domainName: string }): Domain {
@@ -157,5 +160,41 @@ describe('defaultFlagOp', () => {
       kind: 'lock',
       locked: false,
     });
+  });
+});
+
+describe('defaultBulkOp', () => {
+  it('gives each kind a sensible starting op', () => {
+    expect(defaultBulkOp('nameservers', [])).toEqual({
+      kind: 'nameservers',
+      nameservers: [],
+    });
+    expect(defaultBulkOp('urlForwarding', [])).toEqual({
+      kind: 'urlForwarding',
+      forwards: [],
+      skipIfExisting: true,
+    });
+    expect(defaultBulkOp('renew', [])).toEqual({ kind: 'renew', years: 1 });
+    expect(defaultBulkOp('authCode', [])).toEqual({ kind: 'authCode' });
+  });
+});
+
+describe('registrarRuleConflicts', () => {
+  it('isolates registrar-specific rule errors from generic ones', () => {
+    const rows = [
+      { host: '@', url: 'https://a.com', type: 'permanent' as const },
+      { host: 'www', url: 'not a url', type: 'permanent' as const },
+    ];
+    const generic = validateUrlForwards(rows).errors;
+    const conflicts = registrarRuleConflicts(
+      [
+        domain({ domainName: 'g.com', registrar: 'gandi' }),
+        domain({ domainName: 'd.com', registrar: 'dynadot' }),
+      ],
+      (r) => validateUrlForwards(rows, r),
+      generic,
+    );
+    expect([...conflicts.keys()]).toEqual(['gandi']);
+    expect(conflicts.get('gandi')![0]).toMatch(/Gandi/);
   });
 });

@@ -2,6 +2,9 @@
 // `{domain}` template expansion the bulk dialog uses. No React, no IPC.
 
 import type { EmailForward, UrlForwardInput } from '../../shared/ipc';
+import { expandTemplate } from '../../shared/domain-ops';
+
+export { expandTemplate };
 
 /** A DNS label sequence relative to the apex ("www", "shop.eu"), or "@". */
 const HOST =
@@ -134,11 +137,6 @@ export function validateEmailForwards(
     warnings.push('Saving with no rules removes all email forwarding.');
   }
   return { errors, warnings };
-}
-
-/** Replaces every `{domain}` (any case) in `text` with `domainName`. */
-export function expandTemplate(text: string, domainName: string): string {
-  return text.replace(/\{domain\}/gi, domainName);
 }
 
 /** Order-insensitive equality of two URL rule sets (normalized). */

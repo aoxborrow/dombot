@@ -5,6 +5,7 @@ import type {
   BulkJob,
   Domain,
   DomainOp,
+  DomainOpKind,
   DomainOpStatus,
   RegistrarMeta,
 } from '../../shared/ipc';
@@ -128,13 +129,19 @@ function csvField(value: string): string {
 
 /** The results report: one row per target with its status and message. */
 export function resultsToCsv(job: BulkJob): string {
+  const withCodes = hasAuthCodes(job);
   const header = ['Domain', 'Registrar', 'Status', 'Message'];
-  const rows = job.results.map((r) => [
-    r.target.domainName,
-    r.target.registrar,
-    STATUS_LABEL[r.status],
-    r.message,
-  ]);
+  if (withCodes) header.push('Auth code');
+  const rows = job.results.map((r) => {
+    const row = [
+      r.target.domainName,
+      r.target.registrar,
+      STATUS_LABEL[r.status],
+      r.message,
+    ];
+    if (withCodes) row.push(r.data?.authCode ?? '');
+    return row;
+  });
   return [header, ...rows]
     .map((row) => row.map(csvField).join(','))
     .join('\r\n');
@@ -185,4 +192,54 @@ export function defaultFlagOp(
   const on = domains.filter((d) => flagOf(d, kind)).length;
   const majorityOn = on > domains.length / 2;
   return flagOp(kind, !majorityOn);
+}
+
+/** The op a bulk dialog opens with for a kind chosen from the menu. */
+export function defaultBulkOp(
+  kind: DomainOpKind,
+  domains: readonly Domain[],
+): DomainOp {
+  switch (kind) {
+    case 'autoRenew':
+    case 'privacy':
+    case 'lock':
+      return defaultFlagOp(kind, domains);
+    case 'nameservers':
+      return { kind, nameservers: [] };
+    case 'urlForwarding':
+      return { kind, forwards: [], skipIfExisting: true };
+    case 'emailForwarding':
+      return { kind, forwards: [], skipIfExisting: true };
+    case 'authCode':
+      return { kind };
+    case 'renew':
+      return { kind, years: 1 };
+  }
+}
+
+/**
+ * For a forwarding op over a mixed selection: the registrars whose own rules
+ * reject the rule set (Gandi: no apex; NameSilo: one apex rule), each with the
+ * reasons. Domains at those registrars are held back from the job. `validate`
+ * is the per-registrar validator; `generic` its registrar-agnostic errors,
+ * which are subtracted so only the registrar-specific ones remain.
+ */
+export function registrarRuleConflicts(
+  domains: readonly Domain[],
+  validate: (registrar: string) => { errors: string[] },
+  generic: readonly string[],
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const registrar of new Set(domains.map((d) => d.registrar))) {
+    const specific = validate(registrar).errors.filter(
+      (e) => !generic.includes(e),
+    );
+    if (specific.length > 0) out.set(registrar, specific);
+  }
+  return out;
+}
+
+/** Whether any result carries an auth code (the results CSV adds a column). */
+export function hasAuthCodes(job: BulkJob): boolean {
+  return job.results.some((r) => r.data?.authCode);
 }

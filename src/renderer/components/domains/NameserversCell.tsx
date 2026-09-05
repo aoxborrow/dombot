@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ChevronDown, Loader2 } from 'lucide-react';
 import type { Domain, DomainOp } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
@@ -7,7 +7,7 @@ import {
   targetOf,
   useOpUnsupportedReason,
 } from '../../lib/domain-ops';
-import { nameserverPresets } from '../../lib/nameserver-input';
+import { useNameserverPresets } from './useNameserverPresets';
 import { cn } from '@/lib/utils';
 import {
   Popover,
@@ -109,22 +109,7 @@ function EditorWithPresets({
   onSave: (nameservers: string[]) => void;
   onCancel: () => void;
 }) {
-  const portfolio = useAppStore((s) => s.portfolio);
-  const enriched = useAppStore((s) => s.enriched);
-  const settings = useAppStore((s) => s.settings);
-  const loadSettings = useAppStore((s) => s.loadSettings);
-  useEffect(() => {
-    if (settings === null) void loadSettings();
-  }, [settings, loadSettings]);
-
-  const presets = useMemo(
-    () =>
-      nameserverPresets(
-        portfolio.map((d) => enriched[`${d.registrar}:${d.domainName}`] ?? d),
-        settings?.recentNameservers ?? [],
-      ),
-    [portfolio, enriched, settings],
-  );
+  const presets = useNameserverPresets();
 
   return (
     <div className="flex flex-col gap-2">

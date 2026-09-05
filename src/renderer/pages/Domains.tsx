@@ -55,7 +55,7 @@ import {
 } from '../components/domains/ForwardingDialogs';
 import { BulkBar } from '../components/domains/BulkBar';
 import { BulkActionDialog } from '../components/domains/BulkActionDialog';
-import { defaultFlagOp } from '../lib/bulk';
+import { defaultBulkOp } from '../lib/bulk';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1206,7 +1206,7 @@ export default function Domains() {
           onExport={() => void exportCsv(selectedDomains)}
           onAssignFolder={bulkAssignFolder}
           onKind={(kind) =>
-            setBulkDialog({ op: defaultFlagOp(kind, selectedDomains) })
+            setBulkDialog({ op: defaultBulkOp(kind, selectedDomains) })
           }
           onViewJob={() => {
             if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });

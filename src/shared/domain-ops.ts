@@ -148,3 +148,12 @@ export function isApiUnsupportedMessage(message: string): boolean {
     message,
   );
 }
+
+/**
+ * Replaces every `{domain}` (any case) in `text` with `domainName`. Bulk
+ * forwarding ops carry one rule set for many targets; main expands the
+ * template per target right before the write.
+ */
+export function expandTemplate(text: string, domainName: string): string {
+  return text.replace(/\{domain\}/gi, domainName);
+}

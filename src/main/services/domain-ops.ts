@@ -12,7 +12,11 @@ import type {
   DomainOpStatus,
   DomainTarget,
 } from '../../shared/ipc';
-import { opSummary, unsupportedReason } from '../../shared/domain-ops';
+import {
+  expandTemplate,
+  opSummary,
+  unsupportedReason,
+} from '../../shared/domain-ops';
 import { broadcastPortfolioChanged } from '../events';
 import {
   getRegistrarClient,
@@ -145,8 +149,13 @@ async function dispatch(
         }
       }
       // URL forwarding isn't a cached field, so there's no patch to return.
+      // A bulk op carries one rule set for many targets: expand `{domain}`.
+      const forwards = op.forwards.map((f) => ({
+        ...f,
+        url: expandTemplate(f.url, domainName),
+      }));
       return fromResult(
-        await client.setDomainForwarding(domainName, op.forwards, request),
+        await client.setDomainForwarding(domainName, forwards, request),
       );
     }
     case 'emailForwarding': {
@@ -160,8 +169,12 @@ async function dispatch(
           );
         }
       }
+      const forwards = op.forwards.map((f) => ({
+        ...f,
+        forwardTo: expandTemplate(f.forwardTo, domainName),
+      }));
       return fromResult(
-        await client.setEmailForwarding(domainName, op.forwards, request),
+        await client.setEmailForwarding(domainName, forwards, request),
       );
     }
     case 'authCode': {
