@@ -15,7 +15,7 @@ import { isBulkRunning } from './bulk-jobs';
 // Domains table reflects each refresh too.
 //
 // The interval is the `autoSyncIntervalMinutes` setting (default 24h; 0
-// disables), adjustable live in Settings → Cache. DOMBOT_SYNC_INTERVAL_MINUTES,
+// disables), adjustable live in Settings → Sync. DOMBOT_SYNC_INTERVAL_MINUTES,
 // when set, overrides the setting (a dev/testing escape hatch). Conservative by
 // design — one pass across every configured registrar is real API traffic.
 

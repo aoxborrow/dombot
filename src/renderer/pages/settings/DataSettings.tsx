@@ -63,10 +63,11 @@ export default function DataSettings() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-xl font-bold">Cache</h2>
+        <h2 className="text-xl font-bold">Sync</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          DomBot caches your portfolio info to avoid slow or too-frequent API
-          calls.
+          DomBot keeps a local copy of your portfolio and refreshes it from the
+          registrars on a schedule, so the app opens instantly and registrar
+          APIs aren&apos;t hit more often than needed.
         </p>
       </div>
 

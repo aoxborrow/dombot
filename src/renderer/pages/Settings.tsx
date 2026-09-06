@@ -47,7 +47,7 @@ export default function Settings() {
               value="data"
               className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
             >
-              Cache
+              Sync
             </TabsTrigger>
           </TabsList>
         </div>

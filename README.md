@@ -185,7 +185,7 @@ third _adapter_ over the same `services/` core the UI uses — see
     `fetchedAt`; an agent refreshes explicitly with `portfolio_sync` /
     `registrar_sync`. The app also runs a periodic background sync so the cache
     stays warm for MCP-only use (no window ever opened). The interval is set in
-    **Settings → Cache** (Every hour … 7 days, or Off; default 24h, applied
+    **Settings → Sync** (Every hour … 7 days, or Off; default 24h, applied
     live); large portfolios may prefer a longer interval or Off.
     `DOMBOT_SYNC_INTERVAL_MINUTES` overrides the setting for dev/testing (`0`
     disables).

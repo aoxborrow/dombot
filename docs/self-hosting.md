@@ -46,7 +46,7 @@ Open the URL it prints and sign in.
 ## Day to day
 
 - **Sync** runs from an hourly cron. It only does work when the cache is
-  older than the interval in Settings → Cache, so that setting is what
+  older than the interval in Settings → Sync, so that setting is what
   decides the real cadence. "Off" disables it.
 - **Forgot the password?** Rotate it; every session is signed out:
 

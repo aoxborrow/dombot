@@ -152,7 +152,7 @@ function SessionStatus() {
     return (
       <span className="inline-flex items-center gap-1.5">
         {dot}
-        Signed in via Cloudflare Access ·{' '}
+        Cloudflare Access ·{' '}
         {link('Sign out', () => {
           window.location.assign('/cdn-cgi/access/logout');
         })}
@@ -173,7 +173,7 @@ function SessionStatus() {
   return (
     <span className="inline-flex items-center gap-1.5">
       {dot}
-      Signed in · {link('Sign out', () => void signOut())}
+      {link('Sign out', () => void signOut())}
     </span>
   );
 }
