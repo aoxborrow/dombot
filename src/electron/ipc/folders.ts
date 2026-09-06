@@ -12,7 +12,7 @@ import {
   deleteFolder,
   getFolders,
   updateFolder,
-} from '../services/folders';
+} from '../../core/services/folders';
 
 /** Folder IPC: read the snapshot on launch, plus CRUD and per-domain assignment. */
 export function registerFoldersIpc(): void {

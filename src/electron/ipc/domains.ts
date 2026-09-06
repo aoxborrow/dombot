@@ -8,12 +8,16 @@ import {
   type DomainTarget,
   type EmailForward,
 } from '../../shared/ipc';
-import { applyDomainOp } from '../services/domain-ops';
-import { cancelBulk, getBulkJob, startBulk } from '../services/bulk-jobs';
+import { applyDomainOp } from '../../core/services/domain-ops';
+import {
+  cancelBulk,
+  getBulkJob,
+  startBulk,
+} from '../../core/services/bulk-jobs';
 import {
   getRegistrarClient,
   getRegistrarFeatures,
-} from '../services/registrars';
+} from '../../core/services/registrars';
 
 /** Throws a plain message when the registrar lacks an extended read feature. */
 function requireFeature(target: DomainTarget, feature: string, what: string) {

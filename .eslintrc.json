@@ -33,5 +33,29 @@
     "import/no-unresolved": "off",
     "react-hooks/set-state-in-effect": "off"
   },
-  "ignorePatterns": [".vite", "out", "dist", "node_modules"]
+  "ignorePatterns": [".vite", "out", "dist", "node_modules"],
+  "overrides": [
+    {
+      "files": ["src/core/**/*.ts", "src/shared/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "electron",
+                "message": "src/core is host-agnostic: no Electron. Put host code in src/electron."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["node:*"],
+                "message": "src/core must also run on Cloudflare Workers: no Node built-ins. Use web APIs (fetch, crypto, TextEncoder)."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

@@ -1,15 +1,13 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { app } from 'electron';
 import { STALE_AFTER_MS as SHARED_STALE_AFTER_MS } from '../../shared/ipc';
+import { Namespace } from '../storage/namespace';
 
-// Generic, timestamped, on-disk cache for domain data (portfolio, per-domain
-// detail). Every entry carries a `fetchedAt` so the UI can show when data was
-// last refreshed and flag anything past the staleness threshold.
+// Generic, timestamped cache for domain data (portfolio, per-domain detail).
+// Every entry carries a `fetchedAt` so the UI can show when data was last
+// refreshed and flag anything past the staleness threshold.
 //
-// One JSON file per namespace under `userData` (cross-platform: Electron
-// resolves that per-OS), mirroring the existing pricing-cache convention. Files
-// are small and human-inspectable; the dataset is at most a few hundred domains.
+// One storage namespace per cache (`cache-portfolio`, `cache-detail`), each a
+// map of key → entry. The dataset is at most a few hundred domains, so the
+// whole namespace lives in memory (see storage/namespace.ts).
 //
 // This layer is deliberately type-agnostic — it stores and returns plain JSON.
 // Callers that hold Date fields (domains) revive them on read; see registrars.ts.
@@ -32,49 +30,22 @@ export interface CacheEntry<T> {
  */
 export const STALE_AFTER_MS = SHARED_STALE_AFTER_MS;
 
-type Store = Record<string, CacheEntry<unknown>>;
-
-// Lazily-loaded in-memory copy per namespace, so repeated reads don't touch disk.
-const memory = new Map<CacheNamespace, Store>();
-
-function fileFor(ns: CacheNamespace): string {
-  return path.join(app.getPath('userData'), `cache-${ns}.json`);
-}
-
-function load(ns: CacheNamespace): Store {
-  const cached = memory.get(ns);
-  if (cached) return cached;
-  let store: Store;
-  try {
-    store = JSON.parse(fs.readFileSync(fileFor(ns), 'utf8')) as Store;
-  } catch {
-    // Missing or corrupt file — start empty, exactly like the other caches.
-    store = {};
-  }
-  memory.set(ns, store);
-  return store;
-}
-
-function persist(ns: CacheNamespace, store: Store): void {
-  memory.set(ns, store);
-  try {
-    fs.writeFileSync(fileFor(ns), JSON.stringify(store), 'utf8');
-  } catch {
-    // A failed write just means the next launch re-fetches; not fatal.
-  }
-}
+const stores: Record<CacheNamespace, Namespace<CacheEntry<unknown>>> = {
+  portfolio: new Namespace('cache-portfolio'),
+  detail: new Namespace('cache-detail'),
+};
 
 /** The cached entry for `key`, or null when absent. Age is not considered. */
 export function readEntry<T>(
   ns: CacheNamespace,
   key: string,
 ): CacheEntry<T> | null {
-  return (load(ns)[key] as CacheEntry<T> | undefined) ?? null;
+  return (stores[ns].get(key) as CacheEntry<T> | undefined) ?? null;
 }
 
 /** Every cached entry in a namespace, keyed as stored. */
 export function readAll<T>(ns: CacheNamespace): Record<string, CacheEntry<T>> {
-  return load(ns) as Record<string, CacheEntry<T>>;
+  return stores[ns].all() as Record<string, CacheEntry<T>>;
 }
 
 /** Stores `data` for `key`, stamped now, and returns the written entry. */
@@ -84,8 +55,7 @@ export function writeEntry<T>(
   data: T,
 ): CacheEntry<T> {
   const entry: CacheEntry<T> = { data, fetchedAt: Date.now() };
-  const store = { ...load(ns), [key]: entry };
-  persist(ns, store);
+  void stores[ns].set(key, entry);
   return entry;
 }
 
@@ -100,10 +70,9 @@ export function patchEntryData<T>(
   key: string,
   update: (data: T) => T,
 ): void {
-  const store = load(ns);
-  const entry = store[key] as CacheEntry<T> | undefined;
+  const entry = stores[ns].get(key) as CacheEntry<T> | undefined;
   if (!entry) return;
-  persist(ns, { ...store, [key]: { ...entry, data: update(entry.data) } });
+  void stores[ns].set(key, { ...entry, data: update(entry.data) });
 }
 
 /** Age of an entry in ms, or Infinity when there is none. */
@@ -119,23 +88,14 @@ export function isStale(
   return ageOf(entry) >= ttl;
 }
 
-/** Drops a single entry from a namespace (memory + disk). No-op if absent. */
+/** Drops a single entry from a namespace. No-op if absent. */
 export function clearEntry(ns: CacheNamespace, key: string): void {
-  const store = load(ns);
-  if (!(key in store)) return;
-  const next = { ...store };
-  delete next[key];
-  persist(ns, next);
+  void stores[ns].delete(key);
 }
 
-/** Drops one namespace's cache (memory + disk). */
+/** Drops one namespace's cache. */
 export function clearNamespace(ns: CacheNamespace): void {
-  memory.set(ns, {});
-  try {
-    fs.rmSync(fileFor(ns), { force: true });
-  } catch {
-    // Nothing to remove.
-  }
+  void stores[ns].clear();
 }
 
 /** Drops every namespace's cache. */

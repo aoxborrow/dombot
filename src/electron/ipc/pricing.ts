@@ -4,8 +4,8 @@ import {
   type RegistrarName,
   type RenewalPricing,
 } from '../../shared/ipc';
-import { getPortfolioPricing } from '../services/registrars';
-import { setManualPrice } from '../services/pricing';
+import { getPortfolioPricing } from '../../core/services/registrars';
+import { setManualPrice } from '../../core/services/pricing';
 
 /** Renewal-pricing IPC (backs the Renewals dashboard and the Domains column). */
 export function registerPricingIpc(): void {

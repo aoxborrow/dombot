@@ -10,8 +10,8 @@ import {
   type RegistrarName,
   type RequestOptions,
 } from '@aoxborrow/registrar-client';
-import { promises as dnsPromises } from 'node:dns';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
+import { resolveNameservers } from '../dns';
 import { isRegistrarEnabled, setRegistrarEnabled } from './registrar-state';
 import {
   clearEntry,
@@ -464,11 +464,11 @@ export function getRegistrarCredentialValues(
 }
 
 /** Saves credentials and invalidates the cached client so the next call rebuilds. */
-export function saveRegistrarCredentials(
+export async function saveRegistrarCredentials(
   name: RegistrarName,
   creds: RegistrarCredentials,
-): void {
-  setStoredCredentials(name, creds);
+): Promise<void> {
+  await setStoredCredentials(name, creds);
   clients.delete(name);
 }
 
@@ -747,26 +747,18 @@ export async function registerDomainCached(
  * Reads a domain's live nameservers via a DNS `NS` query — the delegation the
  * domain actually uses, and the only way to see nameservers a registrar won't
  * report (a Cloudflare domain not added as a zone, or one on the registrar's own
- * DNS, e.g. Dynadot's `ns*.dyna-ns.net`). Fast (a UDP round-trip), but capped
- * with a short timeout; empty on any failure, timeout, or undelegated domain.
+ * DNS, e.g. Dynadot's `ns*.dyna-ns.net`). Goes over DNS-over-HTTPS so it works
+ * on every host (see core/dns.ts); empty on any failure, timeout, or undelegated
+ * domain.
  */
 async function lookupNameservers(domainName: string): Promise<string[]> {
-  try {
-    const ns = await Promise.race([
-      dnsPromises.resolveNs(domainName),
-      new Promise<string[]>((resolve) => setTimeout(() => resolve([]), 5_000)),
-    ]);
-    return ns.map((n) => n.toLowerCase().replace(/\.$/, '')).filter(Boolean);
-  } catch {
-    // NXDOMAIN, SERVFAIL, no NS records, etc. — nothing to add.
-    return [];
-  }
+  return resolveNameservers(domainName);
 }
 
 // ── internals ────────────────────────────────────────────────────────────────
 
-// Resolve a field to the value the user saved in Settings (encrypted via
-// safeStorage). Credentials come only from the GUI store now — no .env or
+// Resolve a field to the value the user saved in Settings (encrypted at rest
+// by the host). Credentials come only from the GUI store now — no .env or
 // process.env fallback, so ambient vars from other tools can't shadow creds.
 function resolveField(name: RegistrarName, field: string): string | undefined {
   return getStoredCredentials(name)[field];

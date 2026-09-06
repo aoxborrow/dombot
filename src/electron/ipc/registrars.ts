@@ -16,7 +16,7 @@ import {
   saveRegistrarCredentials,
   setRegistrarEnabledCached,
   syncRegistrar,
-} from '../services/registrars';
+} from '../../core/services/registrars';
 
 /**
  * Registrar IPC. Handlers stay thin: parse input, call a service, return the
@@ -60,7 +60,7 @@ export function registerRegistrarIpc(): void {
   ipcMain.handle(
     IpcChannels.saveRegistrarCredentials,
     async (_e, name: RegistrarName, creds: CredentialValues): Promise<void> => {
-      saveRegistrarCredentials(name, creds);
+      await saveRegistrarCredentials(name, creds);
     },
   );
 

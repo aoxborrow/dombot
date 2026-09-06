@@ -114,8 +114,8 @@ Registrar credentials are entered in **Settings → Registrars** and stored
 encrypted via Electron `safeStorage` — in development and production alike. There
 is **no `.env`/environment-variable fallback**: credentials come only from the
 GUI store, so ambient vars from other tools can't silently shadow them (see
-[`resolveField`](src/main/services/registrars.ts) and
-[`src/main/services/credentials.ts`](src/main/services/credentials.ts)). The same
+[`resolveField`](src/core/services/registrars.ts) and
+[`src/core/services/credentials.ts`](src/core/services/credentials.ts)). The same
 saved credentials feed both the UI and the MCP server. For the full trust model
 and how to verify it, see [SECURITY.md](SECURITY.md).
 
@@ -123,7 +123,7 @@ and how to verify it, see [SECURITY.md](SECURITY.md).
 
 The MCP server (see [Connecting an AI agent](#connecting-an-ai-agent)) is a
 third _adapter_ over the same `services/` core the UI uses — see
-[`src/main/mcp/`](src/main/mcp).
+[`src/electron/mcp/`](src/electron/mcp).
 
 - **Transport:** Streamable HTTP, bound to `127.0.0.1` only. Never exposed off
   the machine.
@@ -134,14 +134,14 @@ third _adapter_ over the same `services/` core the UI uses — see
   `DOMBOT_MCP_ENABLED=0` to disable, `DOMBOT_MCP_AUTOAPPROVE=1` to skip the
   approval prompt (dev/testing), `DOMBOT_MCP_TOKEN` for a static bearer token
   escape hatch (dev/testing). See
-  [`src/main/mcp/oauth.ts`](src/main/mcp/oauth.ts).
+  [`src/electron/mcp/oauth.ts`](src/electron/mcp/oauth.ts).
 - **stdio shim.** `DomBot --mcp-stdio` runs the same binary headless as a
   stdin/stdout bridge to the HTTP server, for clients that can't dial a URL
   (Claude Desktop). It authenticates with a per-install token the app writes to
   `userData/mcp-stdio.json`, launches the app if it isn't running, and
   re-initializes its session transparently if the app restarts. stdout is the
   JSON-RPC channel, so all logging in that mode goes to stderr. See
-  [`src/main/mcp/stdio.ts`](src/main/mcp/stdio.ts). Dev builds aren't
+  [`src/electron/mcp/stdio.ts`](src/electron/mcp/stdio.ts). Dev builds aren't
   auto-launched — start the app first.
 - **Tools.** Named by scope, so a caller can tell at a glance what a tool acts
   on: `portfolio_*` take no scope params, `registrar_*` require a `registrar`

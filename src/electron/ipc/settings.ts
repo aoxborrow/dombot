@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 import { IpcChannels, type AppSettings } from '../../shared/ipc';
-import { getSettings, updateSettings } from '../services/settings';
-import { restartAutoSync } from '../services/auto-sync';
+import { getSettings, updateSettings } from '../../core/services/settings';
+import { restartAutoSync } from '../../core/services/auto-sync';
 
 /** Settings IPC: read and patch user-adjustable app settings. A patch is applied
  *  live — changing the sync interval reschedules the background sync. */

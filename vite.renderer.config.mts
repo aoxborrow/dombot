@@ -11,7 +11,7 @@ export default defineConfig({
     // is dead weight — and, more importantly, Vite injects it as an inline
     // <script> that a strict `script-src 'self'` CSP would block. Dropping it
     // keeps the renderer's scripts fully external and same-origin (see the CSP
-    // in src/main/index.ts).
+    // in src/electron/index.ts).
     modulePreload: { polyfill: false },
   },
   resolve: {

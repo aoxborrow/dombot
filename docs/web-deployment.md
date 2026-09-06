@@ -160,8 +160,8 @@ Single user, no external identity provider, no auth state in the database.
    Failed attempts are recorded in `auth/attempts` with exponential backoff.
 2. **Session** → `dombot_session` cookie: HttpOnly, Secure, SameSite=Strict,
    HMAC-SHA256-signed `{ issuedAt, expiresAt }`, 30-day expiry. The signing
-   key is HKDF-derived from `DOMBOT_SECRET` *mixed with a hash of
-   `DOMBOT_PASSWORD`*, so rotating the password invalidates every session
+   key is HKDF-derived from `DOMBOT_SECRET` _mixed with a hash of
+   `DOMBOT_PASSWORD`_, so rotating the password invalidates every session
    automatically — no generation counter, no "sign out everywhere" feature.
 3. **Mutations** additionally require an `Origin` header matching the request
    host (belt-and-braces with SameSite).
@@ -213,16 +213,16 @@ Modes layer: `password` behind Access or behind Vercel protection is fine for
 anyone who wants two doors. The mode only decides what DomBot itself checks.
 
 **MCP behind a gate — a documented limitation.** MCP clients can't complete
-an Access login or a Vercel password prompt. With Access, the operator *can*
+an Access login or a Vercel password prompt. With Access, the operator _can_
 scope the Access application to the UI and `/api/*` and leave `/mcp`,
 `/authorize`, `/token`, `/register`, `/revoke`, `/oauth/status`, and
 `/.well-known/*` outside it, in which case DomBot's own OAuth handles MCP as
 usual (the approval still happens inside the protected UI); the setup guide
 lists those paths. With Vercel protection there are no path exclusions, so
 MCP simply doesn't work. Either way the MCP settings page in
-`cloudflare-access` / `external` mode says so plainly: *"Your deployment is
+`cloudflare-access` / `external` mode says so plainly: _"Your deployment is
 behind an external gate. MCP clients can't pass it; use `password` mode or
-exclude the MCP paths from the gate."* No bypass-token tricks.
+exclude the MCP paths from the gate."_ No bypass-token tricks.
 
 ### API: one contract, two transports
 
@@ -327,7 +327,7 @@ Deliberately small:
 ### Build and deploy (Cloudflare)
 
 - `wrangler.jsonc`: `main: src/worker/index.ts`, `assets: { directory:
-  dist/renderer, not_found_handling: single-page-application }`, one D1
+dist/renderer, not_found_handling: single-page-application }`, one D1
   binding, `triggers.crons`, `compatibility_flags: ["nodejs_compat"]` (for
   `fast-xml-parser`'s Buffer touchpoints; verify in phase 0 whether it's
   even needed).
@@ -352,22 +352,24 @@ min). Phase 0 measures this.
 
 ### Desktop migration
 
-On first launch of the new version, `migrateStorage()` runs before anything
-reads a store, guarded by `meta/storage-version`:
+Smaller than it sounds: the FsDocStore names its files after the namespaces
+(`cache-portfolio.json`, `folders.json`, `settings.json`,
+`registrar-state.json`, `pricing-overrides.json`) and every one of those was
+already a `{ key: value }` map, so they load unchanged. The only real
+migration is credentials, which used to be one safeStorage-encrypted blob:
 
-1. If `meta/storage-version` is `1`, done.
-2. Otherwise read each legacy file with its old shape and `put` it into the
-   `DocStore` under the new namespace/key layout (`folders.json` →
-   `folders/folders` + `folders/assignments`; `settings.json` →
-   `settings/settings`; and so on). Cache files are already the target shape,
-   so they're renamed, not rewritten. `credentials.dat` is decrypted with
-   safeStorage and re-sealed through the same decorator, so it stays
-   encrypted throughout.
-3. Rename legacy files to `*.pre-v1.bak` (kept for one release, then
-   deleted) and write `meta/storage-version = 1`.
+1. On first launch, before hydration, `migrateLegacyCredentials()` looks for
+   `credentials.dat`. Absent → done.
+2. It parses the blob (plaintext first, for the opt-in fallback; else
+   safeStorage decrypt) and `put`s each registrar into the `credentials`
+   namespace through the encrypting store, so each entry is re-sealed
+   individually and stays encrypted throughout.
+3. The legacy file is renamed `credentials.dat.pre-v1.bak` (kept for one
+   release). If the blob can't be decrypted right now (no keyring available),
+   it's left in place and retried next launch — nothing is lost.
 
-Idempotent; a crash midway just reruns. Covered by a test that seeds every
-legacy file and asserts the migrated store.
+Idempotent, and covered by tests that seed a plaintext blob, an encrypted
+blob, and an unreadable one.
 
 **Desktop → web transfer** (nice-to-have, phase 6): Settings → Export data
 produces a JSON bundle of every namespace, optionally passphrase-encrypted;
@@ -378,14 +380,14 @@ move to their own instance without re-entering keys or redoing folders.
 
 What another host has to supply, and nothing more:
 
-| Seam | Cloudflare | Vercel (later) | Electron |
-| --- | --- | --- | --- |
-| `DocStore` | D1 | Neon/Postgres or Upstash (same `docs` table) | JSON files |
-| Secrets | `DOMBOT_SECRET` + `DOMBOT_PASSWORD` bindings | env vars | safeStorage (no root key, no login) |
-| Auth gate | `password`, or `cloudflare-access` (JWT verified) | `password`, or `external` (Vercel protection) | none (local user) |
-| HTTP | Hono `fetch` handler + static assets | Hono on Vercel Functions + static | `@hono/node-server` (MCP only) |
-| Scheduler | Cron Trigger → `syncAll()` | `vercel.json` cron → `/api/cron/sync` with `CRON_SECRET` | `setInterval` |
-| Bulk steps | client-driven + `waitUntil` | client-driven | self-driven loop |
+| Seam       | Cloudflare                                        | Vercel (later)                                           | Electron                            |
+| ---------- | ------------------------------------------------- | -------------------------------------------------------- | ----------------------------------- |
+| `DocStore` | D1                                                | Neon/Postgres or Upstash (same `docs` table)             | JSON files                          |
+| Secrets    | `DOMBOT_SECRET` + `DOMBOT_PASSWORD` bindings      | env vars                                                 | safeStorage (no root key, no login) |
+| Auth gate  | `password`, or `cloudflare-access` (JWT verified) | `password`, or `external` (Vercel protection)            | none (local user)                   |
+| HTTP       | Hono `fetch` handler + static assets              | Hono on Vercel Functions + static                        | `@hono/node-server` (MCP only)      |
+| Scheduler  | Cron Trigger → `syncAll()`                        | `vercel.json` cron → `/api/cron/sync` with `CRON_SECRET` | `setInterval`                       |
+| Bulk steps | client-driven + `waitUntil`                       | client-driven                                            | self-driven loop                    |
 
 The Worker host is ~300 lines. A Vercel host is the same file with a
 different storage import and a cron route.

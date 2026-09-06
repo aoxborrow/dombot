@@ -1,6 +1,6 @@
 # MCP tools — scope-based structure
 
-Plan for restructuring the MCP tool surface in [`src/main/mcp/tools.ts`](../src/main/mcp/tools.ts)
+Plan for restructuring the MCP tool surface in [`src/core/mcp/tools.ts`](../src/core/mcp/tools.ts)
 so that every tool's **scope is obvious** (portfolio / registrar / domain), the
 naming is consistent, and the full capability of
 `@aoxborrow/registrar-client` is exposed. Writes are **not** gated behind extra
@@ -21,11 +21,11 @@ per-call approval — the connection-level OAuth approval is the gate.
 Scope is defined by the **required parameter signature**, and encoded in the name
 prefix:
 
-| Scope | Required params | Name prefix | Meaning |
-|---|---|---|---|
-| **Portfolio / account** | *(none)* | `portfolio_`, `registrar_list` | Global or cross-registrar aggregate |
-| **Registrar** | `registrar` | `registrar_` | A provider, or a domain not yet owned there (register / transfer-in) |
-| **Domain** | `registrar` + `domain` | `domain_` | One domain you own |
+| Scope                   | Required params        | Name prefix                    | Meaning                                                              |
+| ----------------------- | ---------------------- | ------------------------------ | -------------------------------------------------------------------- |
+| **Portfolio / account** | _(none)_               | `portfolio_`, `registrar_list` | Global or cross-registrar aggregate                                  |
+| **Registrar**           | `registrar`            | `registrar_`                   | A provider, or a domain not yet owned there (register / transfer-in) |
+| **Domain**              | `registrar` + `domain` | `domain_`                      | One domain you own                                                   |
 
 Naming pattern: **`<scope>_<resource>_<action>`**, dropping `<resource>` when the
 scope already is the resource. `snake_case` throughout.
@@ -46,7 +46,7 @@ exactly the case that matters: someone connects after not opening the app for a
 while and wants to manage a domain that isn't in the (stale) portfolio cache. A
 resolver would have nothing to match against — refreshing the whole portfolio on
 every miss is slow and still misses freshly-registered names or domains at a
-registrar without saved credentials, and routing a *write* through a best-effort
+registrar without saved credentials, and routing a _write_ through a best-effort
 cache lookup is fragile. Requiring `registrar` makes that case trivial (the
 caller names the registrar and it just works) with no hidden state.
 
@@ -61,21 +61,21 @@ which wraps `RegistrarClient`. `R.method` = `RegistrarClient` method.
 
 ### Portfolio / account
 
-| Tool | Backing | Params | Annotations | Status |
-|---|---|---|---|---|
-| `registrar_list` | `getConfiguredRegistrars` + metadata | — | readOnly | **rename** of `list_registrars` |
-| `portfolio_list` | `listPortfolio` | `refresh?` | readOnly | **rename** of `list_portfolio` |
+| Tool             | Backing                              | Params     | Annotations | Status                          |
+| ---------------- | ------------------------------------ | ---------- | ----------- | ------------------------------- |
+| `registrar_list` | `getConfiguredRegistrars` + metadata | —          | readOnly    | **rename** of `list_registrars` |
+| `portfolio_list` | `listPortfolio`                      | `refresh?` | readOnly    | **rename** of `list_portfolio`  |
 
 ### Registrar-level (`registrar` required)
 
-| Tool | Backing | Params | Annotations | Status |
-|---|---|---|---|---|
-| `registrar_test` | `R.testConnection` | `registrar` | readOnly | **new** |
-| `registrar_domains` | `R.listDomains` | `registrar` | readOnly | **rename** of `list_domains` |
-| `registrar_check_availability` | `R.checkAvailability` | `registrar`, `domains[]` | readOnly | **rename** of `check_availability` |
-| `registrar_pricing` | `R.getPricing` | `registrar`, `tld` | readOnly | **new** |
-| `registrar_register_domain` | `R.registerDomain` | `registrar`, `domain`, `input`¹ | write · not idempotent (creates, costs money) | **new** |
-| `registrar_transfer_domain` | `R.transferIn` | `registrar`, `domain`, `input`² | write · not idempotent (costs money) | **new** |
+| Tool                           | Backing               | Params                          | Annotations                                   | Status                             |
+| ------------------------------ | --------------------- | ------------------------------- | --------------------------------------------- | ---------------------------------- |
+| `registrar_test`               | `R.testConnection`    | `registrar`                     | readOnly                                      | **new**                            |
+| `registrar_domains`            | `R.listDomains`       | `registrar`                     | readOnly                                      | **rename** of `list_domains`       |
+| `registrar_check_availability` | `R.checkAvailability` | `registrar`, `domains[]`        | readOnly                                      | **rename** of `check_availability` |
+| `registrar_pricing`            | `R.getPricing`        | `registrar`, `tld`              | readOnly                                      | **new**                            |
+| `registrar_register_domain`    | `R.registerDomain`    | `registrar`, `domain`, `input`¹ | write · not idempotent (creates, costs money) | **new**                            |
+| `registrar_transfer_domain`    | `R.transferIn`        | `registrar`, `domain`, `input`² | write · not idempotent (costs money)          | **new**                            |
 
 ¹ `RegisterDomainInput`: `contacts` (ContactSet, registrant required), `years?`,
 `nameservers?`, `privacy?`, `autoRenew?`, `consent?`.
@@ -84,19 +84,19 @@ which wraps `RegistrarClient`. `R.method` = `RegistrarClient` method.
 
 ### Domain-level (`registrar` + `domain` required)
 
-| Tool | Backing | Params | Annotations | Status |
-|---|---|---|---|---|
-| `domain_get` | `R.getDomain` | `registrar`, `domain` | readOnly | **new** |
-| `domain_renew` | `R.renewDomain` | `registrar`, `domain`, `years?` | write · not idempotent (costs money) | **new** |
-| `domain_set_autorenew` | `R.setAutoRenew` | `registrar`, `domain`, `enabled` | write · idempotent | **rename** of `set_auto_renew` |
-| `domain_set_lock` | `R.lockDomain` / `unlockDomain` | `registrar`, `domain`, `locked` | write · idempotent | **rename** of `set_lock` |
-| `domain_set_privacy` | `R.setPrivacy` | `registrar`, `domain`, `enabled` | write · idempotent | **new** |
-| `domain_nameservers_get` | `R.getNameservers` | `registrar`, `domain` | readOnly | **rename** of `get_nameservers` |
-| `domain_nameservers_set` | `R.updateNameservers` | `registrar`, `domain`, `nameservers[]` | write · destructive · idempotent | **rename** of `set_nameservers` |
-| `domain_dns_get` | `R.getDnsRecords` | `registrar`, `domain` | readOnly | **rename** of `get_dns_records` |
-| `domain_dns_set` | `R.setDnsRecords` | `registrar`, `domain`, `records[]`³ | write · destructive · idempotent | **new** |
-| `domain_contacts_get` | `R.getContacts` | `registrar`, `domain` | readOnly | **new** |
-| `domain_contacts_set` | `R.updateContacts` | `registrar`, `domain`, `contacts`⁴ | write · idempotent | **new** |
+| Tool                     | Backing                         | Params                                 | Annotations                          | Status                          |
+| ------------------------ | ------------------------------- | -------------------------------------- | ------------------------------------ | ------------------------------- |
+| `domain_get`             | `R.getDomain`                   | `registrar`, `domain`                  | readOnly                             | **new**                         |
+| `domain_renew`           | `R.renewDomain`                 | `registrar`, `domain`, `years?`        | write · not idempotent (costs money) | **new**                         |
+| `domain_set_autorenew`   | `R.setAutoRenew`                | `registrar`, `domain`, `enabled`       | write · idempotent                   | **rename** of `set_auto_renew`  |
+| `domain_set_lock`        | `R.lockDomain` / `unlockDomain` | `registrar`, `domain`, `locked`        | write · idempotent                   | **rename** of `set_lock`        |
+| `domain_set_privacy`     | `R.setPrivacy`                  | `registrar`, `domain`, `enabled`       | write · idempotent                   | **new**                         |
+| `domain_nameservers_get` | `R.getNameservers`              | `registrar`, `domain`                  | readOnly                             | **rename** of `get_nameservers` |
+| `domain_nameservers_set` | `R.updateNameservers`           | `registrar`, `domain`, `nameservers[]` | write · destructive · idempotent     | **rename** of `set_nameservers` |
+| `domain_dns_get`         | `R.getDnsRecords`               | `registrar`, `domain`                  | readOnly                             | **rename** of `get_dns_records` |
+| `domain_dns_set`         | `R.setDnsRecords`               | `registrar`, `domain`, `records[]`³    | write · destructive · idempotent     | **new**                         |
+| `domain_contacts_get`    | `R.getContacts`                 | `registrar`, `domain`                  | readOnly                             | **new**                         |
+| `domain_contacts_set`    | `R.updateContacts`              | `registrar`, `domain`, `contacts`⁴     | write · idempotent                   | **new**                         |
 
 ³ `DnsRecord[]`: `{ type, name, value, ttl?, priority?, weight?, port? }`. `_set`
 replaces the full record set — mirror the client's replace semantics in the
@@ -105,9 +105,9 @@ description.
 
 ### Domain-level, dombot-specific
 
-| Tool | Backing | Params | Annotations | Status |
-|---|---|---|---|---|
-| `domain_renewal_price` | `services/pricing.ts` → `getRenewalPrice` | `registrar`, `domain` | readOnly | **new** |
+| Tool                   | Backing                                   | Params                | Annotations | Status  |
+| ---------------------- | ----------------------------------------- | --------------------- | ----------- | ------- |
+| `domain_renewal_price` | `services/pricing.ts` → `getRenewalPrice` | `registrar`, `domain` | readOnly    | **new** |
 
 Dombot-specific estimate (manual override → per-name registrar quote where
 supported → base per-TLD database), **not** a registrar call. Distinct from
@@ -120,12 +120,12 @@ separate tools** — not one shared `domain_forwarding_*`. "Domain forwarding" i
 registrar jargon for URL redirects, and sitting it next to email forwarding
 invites confusion; name each tool for what it actually does.
 
-| Tool | Backing | Params | Annotations | Status |
-|---|---|---|---|---|
-| `domain_email_forwarding_get` | `R.getEmailForwarding` | `registrar`, `domain` | readOnly | **new** |
-| `domain_email_forwarding_set` | `R.setEmailForwarding` | `registrar`, `domain`, `forwards[]`¹ | write · destructive · idempotent | **new** |
-| `domain_url_forwarding_get` | `R.getDomainForwarding` | `registrar`, `domain` | readOnly | **new** |
-| `domain_url_forwarding_set` | `R.setDomainForwarding` | `registrar`, `domain`, `forwards[]`² | write · destructive · idempotent | **new** |
+| Tool                          | Backing                 | Params                               | Annotations                      | Status  |
+| ----------------------------- | ----------------------- | ------------------------------------ | -------------------------------- | ------- |
+| `domain_email_forwarding_get` | `R.getEmailForwarding`  | `registrar`, `domain`                | readOnly                         | **new** |
+| `domain_email_forwarding_set` | `R.setEmailForwarding`  | `registrar`, `domain`, `forwards[]`¹ | write · destructive · idempotent | **new** |
+| `domain_url_forwarding_get`   | `R.getDomainForwarding` | `registrar`, `domain`                | readOnly                         | **new** |
+| `domain_url_forwarding_set`   | `R.setDomainForwarding` | `registrar`, `domain`, `forwards[]`² | write · destructive · idempotent | **new** |
 
 ¹ `EmailForward[]`: `{ alias, forwardTo }` — alias-style email redirects
 (`hello@example.com` → a destination address).

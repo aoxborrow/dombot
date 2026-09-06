@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import type {
   BulkJob,
   DomainOp,
@@ -94,7 +93,7 @@ export function startBulk(targets: DomainTarget[], op: DomainOp): BulkJob {
   if (targets.length === 0) throw new Error('No domains selected.');
 
   const job: BulkJob = {
-    id: randomUUID(),
+    id: crypto.randomUUID(),
     op,
     status: 'running',
     total: targets.length,
