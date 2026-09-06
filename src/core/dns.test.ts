@@ -20,9 +20,16 @@ describe('nameserversFromDnsJson', () => {
     ).toEqual(['ns1.example.com', 'ns2.example.com']);
   });
 
-  it('is empty for NXDOMAIN or a missing answer', () => {
+  it('is an authoritative empty answer for NXDOMAIN or no NS records', () => {
     expect(nameserversFromDnsJson({ Status: 3 })).toEqual([]);
     expect(nameserversFromDnsJson({ Status: 0 })).toEqual([]);
+    expect(nameserversFromDnsJson({ Status: 0, Answer: [] })).toEqual([]);
+  });
+
+  it('is null (ask another resolver) for SERVFAIL, REFUSED, or a bad body', () => {
+    expect(nameserversFromDnsJson({ Status: 2 })).toBeNull();
+    expect(nameserversFromDnsJson({ Status: 5 })).toBeNull();
+    expect(nameserversFromDnsJson({})).toBeNull();
   });
 });
 
@@ -65,6 +72,18 @@ describe('resolveNameservers', () => {
     }) as typeof fetch;
     expect(await resolveNameservers('nope.invalid', fetchImpl)).toEqual([]);
     expect(n).toBe(1);
+  });
+
+  it('falls through to the next resolver on SERVFAIL', async () => {
+    let n = 0;
+    const fetchImpl = (async () => {
+      n += 1;
+      return respond(n === 1 ? { Status: 2 } : answer(['b.ns']));
+    }) as typeof fetch;
+    expect(await resolveNameservers('example.com', fetchImpl)).toEqual([
+      'b.ns',
+    ]);
+    expect(n).toBe(2);
   });
 
   it('returns [] when every resolver fails', async () => {

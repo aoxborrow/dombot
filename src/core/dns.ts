@@ -17,9 +17,23 @@ interface DnsJson {
   Answer?: { type: number; data: string }[];
 }
 
-/** Parses a DNS JSON response into lowercase, dot-stripped NS hostnames. */
-export function nameserversFromDnsJson(json: DnsJson): string[] {
-  if (json.Status !== 0 || !Array.isArray(json.Answer)) return [];
+// RCODEs that are a definitive answer about the name, as opposed to a problem
+// with the resolver we asked. NOERROR with no NS records and NXDOMAIN both
+// mean "this domain has no delegation"; SERVFAIL, REFUSED, etc. mean "ask
+// someone else".
+const RCODE_NOERROR = 0;
+const RCODE_NXDOMAIN = 3;
+
+/**
+ * Parses a DNS JSON response into lowercase, dot-stripped NS hostnames.
+ * Returns `null` when the response is a resolver error (SERVFAIL, REFUSED, a
+ * malformed body) rather than an answer, so the caller can try another
+ * resolver; an authoritative "no records" is `[]`.
+ */
+export function nameserversFromDnsJson(json: DnsJson): string[] | null {
+  if (json.Status === RCODE_NXDOMAIN) return [];
+  if (json.Status !== RCODE_NOERROR) return null;
+  if (!Array.isArray(json.Answer)) return [];
   return json.Answer.filter((a) => a.type === TYPE_NS)
     .map((a) => a.data.toLowerCase().replace(/\.$/, ''))
     .filter(Boolean);
@@ -42,9 +56,9 @@ export async function resolveNameservers(
       });
       if (!res.ok) continue;
       const ns = nameserversFromDnsJson((await res.json()) as DnsJson);
-      if (ns.length > 0) return ns;
-      // A clean "no NS records" answer is authoritative — don't ask again.
-      return [];
+      // null = the resolver itself failed; try the next one. A real answer,
+      // including an authoritative "no NS records", is final.
+      if (ns !== null) return ns;
     } catch {
       // Network/timeout/parse failure: try the next resolver.
     }

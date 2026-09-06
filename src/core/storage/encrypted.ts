@@ -10,6 +10,13 @@ import type { DocStore } from './doc-store';
 // treats like any other value. Reads pass unsealed values through untouched, so
 // a namespace can be switched to encryption without a rewrite (and a legacy
 // plaintext value still loads).
+//
+// An envelope that can't be opened — a locked or missing keyring, a corrupt
+// value — is skipped with a warning rather than thrown: `get` returns null and
+// `list` omits it. A single bad credential must not keep the app from starting
+// (the pre-DocStore loader behaved the same way, starting with empty
+// credentials); the inner value is left untouched so it can be read again once
+// the keyring is available, or overwritten when the user re-saves.
 
 export interface Cipher {
   /** Short identifier stored in the envelope, e.g. "aes-gcm" or "safeStorage". */
@@ -49,14 +56,28 @@ export class EncryptedDocStore implements DocStore {
     return this.namespaces ? this.namespaces.has(ns) : true;
   }
 
-  private async open(value: unknown): Promise<unknown> {
+  /** Opens an envelope; `undefined` when it can't be opened right now. */
+  private async open(
+    ns: string,
+    key: string,
+    value: unknown,
+  ): Promise<unknown> {
     if (!isEnvelope(value)) return value;
-    return JSON.parse(await this.cipher.open(value.ct)) as unknown;
+    try {
+      return JSON.parse(await this.cipher.open(value.ct)) as unknown;
+    } catch (err) {
+      console.warn(
+        `[storage] can't open sealed value ${ns}/${key}; skipping it`,
+        err instanceof Error ? err.message : err,
+      );
+      return undefined;
+    }
   }
 
   async get(ns: string, key: string): Promise<unknown | null> {
     const raw = await this.inner.get(ns, key);
-    return raw === null ? null : this.open(raw);
+    if (raw === null) return null;
+    return (await this.open(ns, key, raw)) ?? null;
   }
 
   async put(ns: string, key: string, value: unknown): Promise<void> {
@@ -77,7 +98,8 @@ export class EncryptedDocStore implements DocStore {
     const raw = await this.inner.list(ns);
     const out: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(raw)) {
-      out[key] = await this.open(value);
+      const opened = await this.open(ns, key, value);
+      if (opened !== undefined) out[key] = opened;
     }
     return out;
   }

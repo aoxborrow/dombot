@@ -71,6 +71,27 @@ describe('EncryptedDocStore', () => {
     expect(await store.get('creds', 'old')).toEqual({ apiKey: 'legacy' });
   });
 
+  it('skips a sealed value it cannot open instead of throwing', async () => {
+    const inner = new MemoryDocStore();
+    const good = await aesGcmCipher(key());
+    await new EncryptedDocStore(inner, good).put('creds', 'ok', { k: 1 });
+    await inner.put('creds', 'corrupt', {
+      __sealed: 1,
+      alg: 'aes-gcm',
+      ct: 'AAAA',
+    });
+    // A different key: the "locked keyring" case — nothing opens.
+    const locked = new EncryptedDocStore(inner, await aesGcmCipher(key()));
+    expect(await locked.get('creds', 'ok')).toBeNull();
+    expect(await locked.list('creds')).toEqual({});
+    // The right key still reads the good entry and only drops the corrupt one.
+    const store = new EncryptedDocStore(inner, good);
+    expect(await store.list('creds')).toEqual({ ok: { k: 1 } });
+    expect(await store.get('creds', 'corrupt')).toBeNull();
+    // The unreadable value is left in place, not deleted.
+    expect(await inner.get('creds', 'corrupt')).not.toBeNull();
+  });
+
   it('propagates a cipher failure from put', async () => {
     const refusing: Cipher = {
       alg: 'none',
