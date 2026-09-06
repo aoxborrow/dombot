@@ -11,7 +11,10 @@ interface Entry {
   data: unknown;
   fetchedAt: number;
 }
-const store: Record<string, Record<string, Entry>> = { portfolio: {}, detail: {} };
+const store: Record<string, Record<string, Entry>> = {
+  portfolio: {},
+  detail: {},
+};
 const readEntry = (ns: string, key: string) => store[ns][key] ?? null;
 const readAll = (ns: string) => store[ns];
 const writeEntry = (ns: string, key: string, data: unknown) => {
@@ -19,7 +22,11 @@ const writeEntry = (ns: string, key: string, data: unknown) => {
   store[ns][key] = entry;
   return entry;
 };
-const patchEntryData = (ns: string, key: string, update: (d: unknown) => unknown) => {
+const patchEntryData = (
+  ns: string,
+  key: string,
+  update: (d: unknown) => unknown,
+) => {
   const entry = store[ns][key];
   if (!entry) return;
   store[ns][key] = { ...entry, data: update(entry.data) };
@@ -30,7 +37,8 @@ const clearEntry = (ns: string, key: string) => {
 vi.mock('./cache', () => ({
   readEntry: (ns: string, key: string) => readEntry(ns, key),
   readAll: (ns: string) => readAll(ns),
-  writeEntry: (ns: string, key: string, data: unknown) => writeEntry(ns, key, data),
+  writeEntry: (ns: string, key: string, data: unknown) =>
+    writeEntry(ns, key, data),
   patchEntryData: (ns: string, key: string, u: (d: unknown) => unknown) =>
     patchEntryData(ns, key, u),
   clearEntry: (ns: string, key: string) => clearEntry(ns, key),
@@ -61,9 +69,21 @@ vi.mock('@aoxborrow/registrar-client', () => {
     createRegistrar: vi.fn(() => ({})),
     listPortfolio: (...a: unknown[]) => listPortfolio(...a),
     registrars: {
-      dynadot: { displayName: 'Dynadot', features: [], configFields: [{ name: 'apiKey', required: true }] },
-      porkbun: { displayName: 'Porkbun', features: [], configFields: [{ name: 'apiKey', required: true }] },
-      cloudflare: { displayName: 'Cloudflare', features: [], configFields: [{ name: 'apiKey', required: true }] },
+      dynadot: {
+        displayName: 'Dynadot',
+        features: [],
+        configFields: [{ name: 'apiKey', required: true }],
+      },
+      porkbun: {
+        displayName: 'Porkbun',
+        features: [],
+        configFields: [{ name: 'apiKey', required: true }],
+      },
+      cloudflare: {
+        displayName: 'Cloudflare',
+        features: [],
+        configFields: [{ name: 'apiKey', required: true }],
+      },
     },
   };
 });
@@ -89,7 +109,9 @@ vi.mock('./pricing', () => ({
 }));
 
 const resolveNs = vi.fn<(d: string) => Promise<string[]>>();
-vi.mock('node:dns', () => ({ promises: { resolveNs: (d: string) => resolveNs(d) } }));
+vi.mock('../dns', () => ({
+  resolveNameservers: (d: string) => resolveNs(d),
+}));
 
 import {
   findRegistrarsForDomain,
@@ -107,7 +129,9 @@ import {
 } from './registrars';
 import type { Domain } from '@aoxborrow/registrar-client';
 
-function domain(partial: Partial<Domain> & { domainName: string; registrar: string }): Domain {
+function domain(
+  partial: Partial<Domain> & { domainName: string; registrar: string },
+): Domain {
   return {
     status: 'active',
     createdDate: null,
@@ -154,19 +178,30 @@ beforeEach(() => {
 
 describe('findRegistrarsForDomain', () => {
   it('finds the single holding registrar, case-insensitively', () => {
-    seedSlice('dynadot', [domain({ domainName: 'Example.com', registrar: 'dynadot' })]);
+    seedSlice('dynadot', [
+      domain({ domainName: 'Example.com', registrar: 'dynadot' }),
+    ]);
     expect(findRegistrarsForDomain('example.COM')).toEqual(['dynadot']);
   });
 
   it('returns empty when the domain is not cached', () => {
-    seedSlice('dynadot', [domain({ domainName: 'a.com', registrar: 'dynadot' })]);
+    seedSlice('dynadot', [
+      domain({ domainName: 'a.com', registrar: 'dynadot' }),
+    ]);
     expect(findRegistrarsForDomain('ghost.com')).toEqual([]);
   });
 
   it('returns multiple when a stale cache lists it twice', () => {
-    seedSlice('dynadot', [domain({ domainName: 'dup.com', registrar: 'dynadot' })]);
-    seedSlice('porkbun', [domain({ domainName: 'dup.com', registrar: 'porkbun' })]);
-    expect(findRegistrarsForDomain('dup.com').sort()).toEqual(['dynadot', 'porkbun']);
+    seedSlice('dynadot', [
+      domain({ domainName: 'dup.com', registrar: 'dynadot' }),
+    ]);
+    seedSlice('porkbun', [
+      domain({ domainName: 'dup.com', registrar: 'porkbun' }),
+    ]);
+    expect(findRegistrarsForDomain('dup.com').sort()).toEqual([
+      'dynadot',
+      'porkbun',
+    ]);
   });
 });
 
@@ -176,23 +211,38 @@ describe('getCachedPortfolio / assemblePortfolio', () => {
   });
 
   it('aggregates active registrars, taking the max fetchedAt', () => {
-    seedSlice('dynadot', [domain({ domainName: 'a.com', registrar: 'dynadot' })], {
-      lastSyncedAt: 1000,
-    });
-    seedSlice('porkbun', [domain({ domainName: 'b.com', registrar: 'porkbun' })], {
-      lastSyncedAt: 2000,
-    });
+    seedSlice(
+      'dynadot',
+      [domain({ domainName: 'a.com', registrar: 'dynadot' })],
+      {
+        lastSyncedAt: 1000,
+      },
+    );
+    seedSlice(
+      'porkbun',
+      [domain({ domainName: 'b.com', registrar: 'porkbun' })],
+      {
+        lastSyncedAt: 2000,
+      },
+    );
     const p = getCachedPortfolio()!;
-    expect(p.domains.map((d) => d.domainName).sort()).toEqual(['a.com', 'b.com']);
+    expect(p.domains.map((d) => d.domainName).sort()).toEqual([
+      'a.com',
+      'b.com',
+    ]);
     expect(p.registrars.sort()).toEqual(['dynadot', 'porkbun']);
     expect(p.fetchedAt).toBe(2000);
     expect(p.registrarLabels.dynadot).toBe('Dynadot');
   });
 
   it('records an error-only registrar in errors but not in registrars', () => {
-    seedSlice('dynadot', [domain({ domainName: 'a.com', registrar: 'dynadot' })], {
-      lastSyncedAt: 1000,
-    });
+    seedSlice(
+      'dynadot',
+      [domain({ domainName: 'a.com', registrar: 'dynadot' })],
+      {
+        lastSyncedAt: 1000,
+      },
+    );
     // porkbun errored and never synced: domains empty, lastSyncedAt null, lastError set.
     seedSlice('porkbun', [], { lastSyncedAt: null, lastError: 'boom' });
     const p = getCachedPortfolio()!;
@@ -204,7 +254,11 @@ describe('getCachedPortfolio / assemblePortfolio', () => {
 describe('getMergedPortfolio', () => {
   it('overlays cached detail onto the portfolio row', () => {
     seedSlice('dynadot', [
-      domain({ domainName: 'a.com', registrar: 'dynadot', nameservers: ['old.ns'] }),
+      domain({
+        domainName: 'a.com',
+        registrar: 'dynadot',
+        nameservers: ['old.ns'],
+      }),
     ]);
     store.detail['dynadot:a.com'] = {
       data: { nameservers: ['new.ns'], privacy: true },
@@ -216,7 +270,9 @@ describe('getMergedPortfolio', () => {
   });
 
   it('leaves rows without detail untouched', () => {
-    seedSlice('dynadot', [domain({ domainName: 'a.com', registrar: 'dynadot' })]);
+    seedSlice('dynadot', [
+      domain({ domainName: 'a.com', registrar: 'dynadot' }),
+    ]);
     expect(getMergedPortfolio().domains[0].nameservers).toEqual([]);
   });
 
@@ -235,7 +291,10 @@ describe('syncRegistrarInto — last-good on error (via getPortfolio)', () => {
     seedSlice('dynadot', [], { lastSyncedAt: 1, lastError: 'old' });
     listPortfolio.mockImplementation(async (clients: unknown[]) => {
       void clients;
-      return { domains: [domain({ domainName: 'fresh.com', registrar: 'dynadot' })], errors: [] };
+      return {
+        domains: [domain({ domainName: 'fresh.com', registrar: 'dynadot' })],
+        errors: [],
+      };
     });
     // Only sync dynadot: disable porkbun so it's skipped.
     enabled.porkbun = false;
@@ -243,13 +302,19 @@ describe('syncRegistrarInto — last-good on error (via getPortfolio)', () => {
     const p = await getPortfolio(true);
     expect(p.domains.map((d) => d.domainName)).toEqual(['fresh.com']);
     expect(p.errors).toEqual([]);
-    expect((store.portfolio.dynadot.data as { lastError: string | null }).lastError).toBeNull();
+    expect(
+      (store.portfolio.dynadot.data as { lastError: string | null }).lastError,
+    ).toBeNull();
   });
 
   it('keeps last-good domains and lastSyncedAt when the list reports an error', async () => {
-    seedSlice('dynadot', [domain({ domainName: 'kept.com', registrar: 'dynadot' })], {
-      lastSyncedAt: 4242,
-    });
+    seedSlice(
+      'dynadot',
+      [domain({ domainName: 'kept.com', registrar: 'dynadot' })],
+      {
+        lastSyncedAt: 4242,
+      },
+    );
     enabled.porkbun = false;
     listPortfolio.mockResolvedValue({
       domains: [],
@@ -265,27 +330,35 @@ describe('syncRegistrarInto — last-good on error (via getPortfolio)', () => {
     };
     expect(slice.lastSyncedAt).toBe(4242);
     expect(slice.lastError).toBe('rate limited');
-    expect(p.errors).toEqual([{ registrar: 'dynadot', message: 'rate limited' }]);
+    expect(p.errors).toEqual([
+      { registrar: 'dynadot', message: 'rate limited' },
+    ]);
   });
 
   it('keeps last-good domains when listPortfolio throws', async () => {
-    seedSlice('dynadot', [domain({ domainName: 'kept.com', registrar: 'dynadot' })], {
-      lastSyncedAt: 99,
-    });
+    seedSlice(
+      'dynadot',
+      [domain({ domainName: 'kept.com', registrar: 'dynadot' })],
+      {
+        lastSyncedAt: 99,
+      },
+    );
     enabled.porkbun = false;
     listPortfolio.mockRejectedValue(new Error('network down'));
 
     const p = await getPortfolio(true);
     expect(p.domains.map((d) => d.domainName)).toEqual(['kept.com']);
-    expect((store.portfolio.dynadot.data as { lastError: string | null }).lastError).toBe(
-      'network down',
-    );
+    expect(
+      (store.portfolio.dynadot.data as { lastError: string | null }).lastError,
+    ).toBe('network down');
   });
 });
 
 describe('syncRegistrar — drops the slice when unconfigured/disabled', () => {
   it('clears a registrar that is no longer configured', async () => {
-    seedSlice('cloudflare', [domain({ domainName: 'c.com', registrar: 'cloudflare' })]);
+    seedSlice('cloudflare', [
+      domain({ domainName: 'c.com', registrar: 'cloudflare' }),
+    ]);
     // cloudflare has no stored credentials → not configured.
     await syncRegistrar('cloudflare');
     expect(store.portfolio.cloudflare).toBeUndefined();
@@ -294,25 +367,46 @@ describe('syncRegistrar — drops the slice when unconfigured/disabled', () => {
 
 describe('cache patching via setAutoRenewCached', () => {
   it('patches both caches on success', async () => {
-    seedSlice('dynadot', [domain({ domainName: 'a.com', registrar: 'dynadot', autoRenew: false })]);
-    store.detail['dynadot:a.com'] = { data: { autoRenew: false }, fetchedAt: 111 };
-    clientMethods.setAutoRenew.mockResolvedValue({ success: true, message: 'ok' });
+    seedSlice('dynadot', [
+      domain({ domainName: 'a.com', registrar: 'dynadot', autoRenew: false }),
+    ]);
+    store.detail['dynadot:a.com'] = {
+      data: { autoRenew: false },
+      fetchedAt: 111,
+    };
+    clientMethods.setAutoRenew.mockResolvedValue({
+      success: true,
+      message: 'ok',
+    });
 
     const r = await setAutoRenewCached('dynadot', 'a.com', true);
     expect(r.success).toBe(true);
-    expect((store.portfolio.dynadot.data as { domains: Domain[] }).domains[0].autoRenew).toBe(true);
-    expect((store.detail['dynadot:a.com'].data as Partial<Domain>).autoRenew).toBe(true);
+    expect(
+      (store.portfolio.dynadot.data as { domains: Domain[] }).domains[0]
+        .autoRenew,
+    ).toBe(true);
+    expect(
+      (store.detail['dynadot:a.com'].data as Partial<Domain>).autoRenew,
+    ).toBe(true);
     // patchEntryData preserves fetchedAt.
     expect(store.detail['dynadot:a.com'].fetchedAt).toBe(111);
   });
 
   it('does not patch on a soft failure', async () => {
-    seedSlice('dynadot', [domain({ domainName: 'a.com', registrar: 'dynadot', autoRenew: false })]);
-    clientMethods.setAutoRenew.mockResolvedValue({ success: false, message: 'nope' });
+    seedSlice('dynadot', [
+      domain({ domainName: 'a.com', registrar: 'dynadot', autoRenew: false }),
+    ]);
+    clientMethods.setAutoRenew.mockResolvedValue({
+      success: false,
+      message: 'nope',
+    });
 
     const r = await setAutoRenewCached('dynadot', 'a.com', true);
     expect(r.success).toBe(false);
-    expect((store.portfolio.dynadot.data as { domains: Domain[] }).domains[0].autoRenew).toBe(false);
+    expect(
+      (store.portfolio.dynadot.data as { domains: Domain[] }).domains[0]
+        .autoRenew,
+    ).toBe(false);
   });
 });
 
@@ -321,7 +415,9 @@ const sliceDomain = (name = 'dynadot') =>
 
 describe('setLockCached / setPrivacyCached / setNameserversCached', () => {
   beforeEach(() =>
-    seedSlice('dynadot', [domain({ domainName: 'a.com', registrar: 'dynadot' })]),
+    seedSlice('dynadot', [
+      domain({ domainName: 'a.com', registrar: 'dynadot' }),
+    ]),
   );
 
   it('lock calls lockDomain and patches on success', async () => {
@@ -333,7 +429,10 @@ describe('setLockCached / setPrivacyCached / setNameserversCached', () => {
   });
 
   it('unlock calls unlockDomain', async () => {
-    clientMethods.unlockDomain.mockResolvedValue({ success: true, message: '' });
+    clientMethods.unlockDomain.mockResolvedValue({
+      success: true,
+      message: '',
+    });
     await setLockCached('dynadot', 'a.com', false);
     expect(clientMethods.unlockDomain).toHaveBeenCalled();
     expect(sliceDomain().locked).toBe(false);
@@ -346,11 +445,17 @@ describe('setLockCached / setPrivacyCached / setNameserversCached', () => {
   });
 
   it('nameservers patches on success and not on failure', async () => {
-    clientMethods.updateNameservers.mockResolvedValue({ success: true, message: '' });
+    clientMethods.updateNameservers.mockResolvedValue({
+      success: true,
+      message: '',
+    });
     await setNameserversCached('dynadot', 'a.com', ['ns1.x', 'ns2.x']);
     expect(sliceDomain().nameservers).toEqual(['ns1.x', 'ns2.x']);
 
-    clientMethods.updateNameservers.mockResolvedValue({ success: false, message: 'no' });
+    clientMethods.updateNameservers.mockResolvedValue({
+      success: false,
+      message: 'no',
+    });
     await setNameserversCached('dynadot', 'a.com', ['ns3.x']);
     expect(sliceDomain().nameservers).toEqual(['ns1.x', 'ns2.x']); // unchanged
   });
@@ -359,12 +464,19 @@ describe('setLockCached / setPrivacyCached / setNameserversCached', () => {
 describe('renewDomainCached', () => {
   beforeEach(() =>
     seedSlice('dynadot', [
-      domain({ domainName: 'a.com', registrar: 'dynadot', expirationDate: new Date('2026-01-01') }),
+      domain({
+        domainName: 'a.com',
+        registrar: 'dynadot',
+        expirationDate: new Date('2026-01-01'),
+      }),
     ]),
   );
 
   it('re-fetches detail and returns + patches the fresh expiry on success', async () => {
-    clientMethods.renewDomain.mockResolvedValue({ success: true, message: 'Renewed' });
+    clientMethods.renewDomain.mockResolvedValue({
+      success: true,
+      message: 'Renewed',
+    });
     // getDomainDetail(refresh:true) → client.getDomain returns the new record.
     clientMethods.getDomain.mockResolvedValue(
       domain({
@@ -384,7 +496,10 @@ describe('renewDomainCached', () => {
   });
 
   it('returns an empty patch and swallows a re-fetch failure', async () => {
-    clientMethods.renewDomain.mockResolvedValue({ success: true, message: 'Renewed' });
+    clientMethods.renewDomain.mockResolvedValue({
+      success: true,
+      message: 'Renewed',
+    });
     clientMethods.getDomain.mockRejectedValue(new Error('detail down'));
     clientMethods.getNameservers.mockRejectedValue(new Error('no ns'));
 
@@ -396,7 +511,10 @@ describe('renewDomainCached', () => {
   });
 
   it('does not re-fetch on a soft failure', async () => {
-    clientMethods.renewDomain.mockResolvedValue({ success: false, message: 'declined' });
+    clientMethods.renewDomain.mockResolvedValue({
+      success: false,
+      message: 'declined',
+    });
     const { result, patch } = await renewDomainCached('dynadot', 'a.com', 1);
     expect(result.success).toBe(false);
     expect(patch).toEqual({});
@@ -406,7 +524,10 @@ describe('renewDomainCached', () => {
 
 describe('registerDomainCached', () => {
   it('syncs the registrar slice on success so the new name enters the cache', async () => {
-    clientMethods.registerDomain.mockResolvedValue({ success: true, message: 'Registered' });
+    clientMethods.registerDomain.mockResolvedValue({
+      success: true,
+      message: 'Registered',
+    });
     listPortfolio.mockResolvedValue({
       domains: [domain({ domainName: 'new.com', registrar: 'dynadot' })],
       errors: [],
@@ -415,13 +536,17 @@ describe('registerDomainCached', () => {
     const r = await registerDomainCached('dynadot', 'new.com', {} as never);
     expect(r.success).toBe(true);
     expect(listPortfolio).toHaveBeenCalledTimes(1);
-    expect((store.portfolio.dynadot.data as { domains: Domain[] }).domains[0].domainName).toBe(
-      'new.com',
-    );
+    expect(
+      (store.portfolio.dynadot.data as { domains: Domain[] }).domains[0]
+        .domainName,
+    ).toBe('new.com');
   });
 
   it('does not sync on a failed registration', async () => {
-    clientMethods.registerDomain.mockResolvedValue({ success: false, message: 'taken' });
+    clientMethods.registerDomain.mockResolvedValue({
+      success: false,
+      message: 'taken',
+    });
     const r = await registerDomainCached('dynadot', 'new.com', {} as never);
     expect(r.success).toBe(false);
     expect(listPortfolio).not.toHaveBeenCalled();
@@ -448,14 +573,19 @@ describe('getDomainDetail — nameserver resolution', () => {
     expect(detail?.nameservers).toEqual(['reg.ns1', 'reg.ns2']);
   });
 
-  it('falls back to a live DNS query and normalizes trailing dots/case', async () => {
+  // Normalization (case, trailing dot) is the DNS module's job — see
+  // core/dns.test.ts. Here the resolver already returns clean names.
+  it('falls back to a live DNS query', async () => {
     clientMethods.getDomain.mockResolvedValue(
       domain({ domainName: 'a.com', registrar: 'dynadot', nameservers: [] }),
     );
     clientMethods.getNameservers.mockResolvedValue([]);
-    resolveNs.mockResolvedValue(['NS1.Cloudflare.com.', 'ns2.cloudflare.com']);
+    resolveNs.mockResolvedValue(['ns1.cloudflare.com', 'ns2.cloudflare.com']);
     const detail = await getDomainDetail('dynadot', 'a.com', true);
-    expect(detail?.nameservers).toEqual(['ns1.cloudflare.com', 'ns2.cloudflare.com']);
+    expect(detail?.nameservers).toEqual([
+      'ns1.cloudflare.com',
+      'ns2.cloudflare.com',
+    ]);
   });
 
   it('returns null when nothing resolves and there is no prior entry', async () => {

@@ -752,7 +752,12 @@ export async function registerDomainCached(
  * domain.
  */
 async function lookupNameservers(domainName: string): Promise<string[]> {
-  return resolveNameservers(domainName);
+  try {
+    return await resolveNameservers(domainName);
+  } catch {
+    // resolveNameservers already swallows failures; this is belt-and-braces.
+    return [];
+  }
 }
 
 // ── internals ────────────────────────────────────────────────────────────────
