@@ -276,4 +276,16 @@ Worth an explicit, dedicated test since it's security-relevant. In
   set/clear/NaN), mocking `electron`/`node:fs`/`./base-pricing` with a
   per-test module reset.
 
-Tier 3 not started. Tick items off as their test files land.
+**Tier 3 complete** (2026-09-06) — 191 tests total:
+
+- `src/main/services/registrars.test.ts` — 15 tests (`findRegistrarsForDomain`
+  one/zero/multiple/case-insensitive; `getCachedPortfolio`/`assemblePortfolio`
+  aggregation, max `fetchedAt`, error-only registrars; `getMergedPortfolio`
+  detail overlay; `syncRegistrarInto` last-good-on-error for both the reported
+  and thrown paths; `syncRegistrar` dropping an unconfigured slice; cache
+  patching via `setAutoRenewCached` on success and soft failure). Uses a faithful
+  in-memory `./cache` mock plus mocked `@aoxborrow/registrar-client`,
+  `./credentials`, `./registrar-state`, `./pricing`, and `node:dns`.
+
+Item 10 (trivial data/formatting helpers) intentionally skipped. All planned
+tiers landed — tick further items off here as they're added.
