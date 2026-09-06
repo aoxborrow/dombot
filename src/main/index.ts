@@ -86,8 +86,12 @@ function isAllowedNavigation(target: string): boolean {
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 720,
+    width: 1240,
+    height: 760,
+    // Keep the window wide enough that the filter toolbar stays on one row
+    // rather than wrapping the Reset button under the filters.
+    minWidth: 1040,
+    minHeight: 560,
     // Paint the window with the app's dark background from the first frame so
     // there's no white flash before the renderer loads. The UI is forced to
     // dark (see renderer theme-provider), and this matches its `--background`
