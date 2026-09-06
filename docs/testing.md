@@ -261,4 +261,19 @@ Worth an explicit, dedicated test since it's security-relevant. In
   accounting, mixed statuses, portfolioChanged gating, cancellation, rate-limit
   pause, lane spacing, snapshot isolation) using `vi.useFakeTimers()`.
 
-Tier 2 and Tier 3 not started. Tick items off as their test files land.
+**Tier 2 complete** (2026-09-06) — 176 tests total:
+
+- `src/renderer/lib/renewals.test.ts` — 14 tests (`summarize`, `groupBy`,
+  `upcomingByMonth`, `dueWithin`, `tldOf`), fake timers for the date math.
+- `src/renderer/lib/csv.test.ts` — 7 tests (column order, date/blank handling,
+  Yes/No, nameserver join, folder resolution incl. Hidden, RFC-4180 quoting,
+  filename).
+- `src/renderer/lib/bulk.gaps.test.ts` — 13 tests (`isRiskyOp`, `isRetryable`,
+  `flagOf`/`flagOp`/`flagTarget` round-trips, `hasAuthCodes`, `resultsToCsv`
+  with/without the auth-code column, `resultsCsvFilename`).
+- `src/main/services/pricing.test.ts` — 11 tests (`usesPerNameQuote`,
+  `resolvePricing` manual > api > base > unavailable precedence, `setManualPrice`
+  set/clear/NaN), mocking `electron`/`node:fs`/`./base-pricing` with a
+  per-test module reset.
+
+Tier 3 not started. Tick items off as their test files land.
