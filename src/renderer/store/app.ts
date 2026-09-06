@@ -2,7 +2,12 @@ import { create } from 'zustand';
 import type {
   AppInfo,
   AppSettings,
+  BulkJob,
+  BulkProgress,
   Domain,
+  DomainOp,
+  DomainOpResult,
+  DomainTarget,
   Folder,
   FolderInput,
   FolderPatch,
@@ -90,10 +95,7 @@ interface AppState {
   /** Enable/disable a registrar (keeps its credentials). Disabling drops its
    * cached data and stops syncs; enabling re-syncs it. Updates the portfolio,
    * pricing, and registrar metadata to match. */
-  setRegistrarEnabled: (
-    name: RegistrarName,
-    enabled: boolean,
-  ) => Promise<void>;
+  setRegistrarEnabled: (name: RegistrarName, enabled: boolean) => Promise<void>;
   /** Restore portfolio + detail + pricing from the on-disk cache
    * with no network calls. Call once on app launch. */
   hydrateFromCache: () => Promise<void>;
@@ -127,15 +129,18 @@ interface AppState {
   // so a toggled cell can disable itself until the round trip settles.
   mutating: Record<string, boolean>;
   /**
-   * Toggle a domain's auto-renew at its registrar. Optimistically updates the
-   * merged view (via `enriched`), then rolls back and rethrows if the registrar
-   * rejects — the caller surfaces the error.
+   * Apply one domain operation at its registrar (see shared/ipc `DomainOp`).
+   * With `optimistic`, the merged row reflects those fields immediately and
+   * reverts if the outcome isn't `ok`; without it the row only updates from the
+   * result's patch. The row is marked `mutating` for the round trip. Never
+   * throws — a transport failure comes back as a `failed` result too, so
+   * callers render one shape.
    */
-  setAutoRenew: (
-    registrar: RegistrarName,
-    domainName: string,
-    enabled: boolean,
-  ) => Promise<void>;
+  applyDomainOp: (
+    target: DomainTarget,
+    op: DomainOp,
+    optimistic?: Partial<Domain>,
+  ) => Promise<DomainOpResult>;
 
   // Annual renewal pricing, keyed by `${registrar}:${domainName}`. Backs the
   // Renewals dashboard and the Domains renewal column. Computed in main from
@@ -173,6 +178,28 @@ interface AppState {
   /** Set the background auto-sync interval in minutes (0 = off); applied live in
    * main. */
   setAutoSyncInterval: (minutes: number) => Promise<void>;
+  /** Push a just-saved nameserver set to the front of the recent presets. */
+  rememberNameservers: (nameservers: string[]) => Promise<void>;
+
+  // Row selection for bulk actions, keyed `${registrar}:${domainName}`. Lives
+  // here (not in the page) so it survives tab switches; pruned when the
+  // portfolio is replaced so vanished domains don't linger.
+  selected: Set<string>;
+  toggleSelected: (key: string) => void;
+  /** Add or remove many keys at once (the header checkbox). */
+  setSelectedMany: (keys: string[], on: boolean) => void;
+  clearSelection: () => void;
+
+  // The bulk job (main owns it; this mirrors it). One at a time.
+  bulk: BulkJob | null;
+  /** Start a job; rows in it read as `mutating` until their item lands. */
+  startBulk: (targets: DomainTarget[], op: DomainOp) => Promise<BulkJob>;
+  cancelBulk: () => Promise<void>;
+  /** Re-read the current/last job from main (launch, or after navigating). */
+  attachBulk: () => Promise<void>;
+  /** Event handlers wired once in App: overlay each item's patch on its row. */
+  applyBulkProgress: (p: BulkProgress) => void;
+  applyBulkFinished: (job: BulkJob) => void;
 }
 
 /** Global renderer store. Kept intentionally small — grow it as needed. */
@@ -254,7 +281,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       portfolioErrors: result.errors,
       portfolioRegistrars: result.registrars,
       portfolioRegistrarLabels: result.registrarLabels,
-      portfolioLoadedAt: result.fetchedAt ?? state.portfolioLoadedAt ?? Date.now(),
+      portfolioLoadedAt:
+        result.fetchedAt ?? state.portfolioLoadedAt ?? Date.now(),
       portfolioSource: state.portfolioSource ?? 'live',
     }));
     // Reflect the enabled flag + any new sync status in the Settings cards and
@@ -339,6 +367,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       enriching: {},
       pricing: {},
       detailAllLoading: false,
+      selected: new Set(),
     });
   },
 
@@ -350,6 +379,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       enrichInFlight.clear();
       enrichFailed.clear();
       detailAllInFlight = false;
+      const keys = new Set(result.domains.map(domainKey));
       set((state) => ({
         portfolio: result.domains,
         portfolioErrors: result.errors,
@@ -363,6 +393,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         enriching: {},
         pricing: {},
         detailAllLoading: false,
+        selected: new Set([...state.selected].filter((k) => keys.has(k))),
       }));
       // Per-registrar sync statuses changed — refresh the shared metadata, and
       // re-read the pricing map: the sync just refreshed renewal quotes and the
@@ -380,29 +411,41 @@ export const useAppStore = create<AppState>((set, get) => ({
   enriched: {},
   enriching: {},
   mutating: {},
-  setAutoRenew: async (registrar, domainName, enabled) => {
-    const key = `${registrar}:${domainName}`;
+  applyDomainOp: async (target, op, optimistic) => {
+    const key = `${target.registrar}:${target.domainName}`;
     const state = get();
     // Base to merge onto: the already-enriched full domain if present, else the
-    // portfolio summary. Bail if we can't find it (nothing to update).
+    // portfolio summary. Absent (a domain not in view) → no row to update, but
+    // the op still runs.
     const base =
       state.enriched[key] ?? state.portfolio.find((d) => domainKey(d) === key);
-    if (!base) return;
+    const overlay = (patch: Partial<Domain>) =>
+      set((s) => {
+        const current = s.enriched[key] ?? base;
+        if (!current) return {};
+        return { enriched: { ...s.enriched, [key]: { ...current, ...patch } } };
+      });
+    const rollback = () => {
+      if (base) set((s) => ({ enriched: { ...s.enriched, [key]: base } }));
+    };
 
-    // Optimistically reflect the new value and mark the cell in flight.
-    set((s) => ({
-      enriched: { ...s.enriched, [key]: { ...base, autoRenew: enabled } },
-      mutating: { ...s.mutating, [key]: true },
-    }));
-
+    if (optimistic) overlay(optimistic);
+    set((s) => ({ mutating: { ...s.mutating, [key]: true } }));
     try {
-      await window.api.setAutoRenew(registrar, domainName, enabled);
+      const result = await window.api.applyDomainOp(target, op);
+      if (result.status === 'ok') {
+        if (result.patch) overlay(result.patch);
+      } else if (optimistic) {
+        rollback();
+      }
+      return result;
     } catch (err) {
-      // Roll back to the pre-toggle value on any registrar-side failure.
-      set((s) => ({
-        enriched: { ...s.enriched, [key]: base },
-      }));
-      throw err;
+      if (optimistic) rollback();
+      return {
+        target,
+        status: 'failed',
+        message: err instanceof Error ? err.message : String(err),
+      };
     } finally {
       set((s) => {
         const mutating = { ...s.mutating };
@@ -557,6 +600,103 @@ export const useAppStore = create<AppState>((set, get) => ({
     const settings = await window.api.updateSettings({
       autoSyncIntervalMinutes: minutes,
     });
+    set({ settings });
+  },
+  selected: new Set(),
+  toggleSelected: (key) =>
+    set((state) => {
+      const selected = new Set(state.selected);
+      if (selected.has(key)) selected.delete(key);
+      else selected.add(key);
+      return { selected };
+    }),
+  setSelectedMany: (keys, on) =>
+    set((state) => {
+      const selected = new Set(state.selected);
+      for (const k of keys) {
+        if (on) selected.add(k);
+        else selected.delete(k);
+      }
+      return { selected };
+    }),
+  clearSelection: () => set({ selected: new Set() }),
+
+  bulk: null,
+  startBulk: async (targets, op) => {
+    const job = await window.api.startBulk(targets, op);
+    set((state) => {
+      const mutating = { ...state.mutating };
+      for (const t of targets)
+        mutating[`${t.registrar}:${t.domainName}`] = true;
+      return { bulk: job, mutating };
+    });
+    return job;
+  },
+  cancelBulk: async () => {
+    const job = get().bulk;
+    if (job && job.status === 'running') await window.api.cancelBulk(job.id);
+  },
+  attachBulk: async () => {
+    const job = await window.api.getBulkJob();
+    set((state) => {
+      // Rows a still-running job hasn't reached yet read as mutating.
+      if (!job || job.status !== 'running') return { bulk: job };
+      const mutating = { ...state.mutating };
+      const done = new Set(
+        job.results.map((r) => `${r.target.registrar}:${r.target.domainName}`),
+      );
+      for (const d of state.portfolio) {
+        const key = domainKey(d);
+        if (!done.has(key)) mutating[key] = true;
+      }
+      return { bulk: job, mutating };
+    });
+  },
+  applyBulkProgress: ({ jobId, result }) =>
+    set((state) => {
+      const key = `${result.target.registrar}:${result.target.domainName}`;
+      const mutating = { ...state.mutating };
+      delete mutating[key];
+      const next: Partial<AppState> = { mutating };
+      if (result.status === 'ok' && result.patch) {
+        const base =
+          state.enriched[key] ??
+          state.portfolio.find((d) => domainKey(d) === key);
+        if (base) {
+          next.enriched = {
+            ...state.enriched,
+            [key]: { ...base, ...result.patch },
+          };
+        }
+      }
+      if (state.bulk && state.bulk.id === jobId) {
+        const counts = { ...state.bulk.counts };
+        counts[result.status] += 1;
+        next.bulk = {
+          ...state.bulk,
+          results: [...state.bulk.results, result],
+          counts,
+        };
+      }
+      return next;
+    }),
+  applyBulkFinished: (job) =>
+    set((state) => {
+      // Anything still marked from this job (cancelled before it ran) clears.
+      const mutating = { ...state.mutating };
+      for (const r of job.results) {
+        delete mutating[`${r.target.registrar}:${r.target.domainName}`];
+      }
+      return { bulk: job, mutating };
+    }),
+  rememberNameservers: async (nameservers) => {
+    const key = (set: string[]) => [...set].sort().join('\n');
+    const current = get().settings?.recentNameservers ?? [];
+    const recentNameservers = [
+      nameservers,
+      ...current.filter((s) => key(s) !== key(nameservers)),
+    ].slice(0, 3);
+    const settings = await window.api.updateSettings({ recentNameservers });
     set({ settings });
   },
 }));

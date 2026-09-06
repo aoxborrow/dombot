@@ -1,5 +1,6 @@
 import { registerAppIpc } from './app';
 import { registerRegistrarIpc } from './registrars';
+import { registerDomainsIpc } from './domains';
 import { registerPricingIpc } from './pricing';
 import { registerMcpIpc } from './mcp';
 import { registerCacheIpc } from './cache';
@@ -13,6 +14,7 @@ import { registerSettingsIpc } from './settings';
 export function registerIpcHandlers(): void {
   registerAppIpc();
   registerRegistrarIpc();
+  registerDomainsIpc();
   registerPricingIpc();
   registerMcpIpc();
   registerCacheIpc();

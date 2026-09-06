@@ -15,17 +15,13 @@ import {
   getRegistrarMetadata,
   registerDomainCached,
   registrarNames,
-  renewDomainCached,
-  setAutoRenewCached,
-  setLockCached,
   getRenewalPriceLive,
-  setNameserversCached,
-  setPrivacyCached,
   syncRegistrar,
 } from '../services/registrars';
+import { applyDomainOp } from '../services/domain-ops';
 import { getFolders } from '../services/folders';
 import { broadcastPortfolioChanged } from '../events';
-import type { Portfolio } from '../../shared/ipc';
+import type { DomainOp, Portfolio } from '../../shared/ipc';
 import {
   DEFAULT_LIMIT,
   MAX_LIMIT,
@@ -51,6 +47,24 @@ async function cachedWrite(op: () => Promise<OperationResult>) {
   const result = await op();
   if (result.success) broadcastPortfolioChanged();
   return json(result);
+}
+
+// Runs a per-domain op through the shared dispatcher (services/domain-ops.ts) —
+// the exact path the table's row controls use — so capability gating, cache
+// patching, and the window notification are identical. Returns the provider's
+// message plus the classified `status` (ok / failed / unsupported / …); `success`
+// is kept for callers that only check a boolean.
+async function domainOp(
+  registrar: RegistrarName,
+  domain: string,
+  op: DomainOp,
+) {
+  const r = await applyDomainOp({ registrar, domainName: domain }, op);
+  return json({
+    success: r.status === 'ok',
+    status: r.status,
+    message: r.message,
+  });
 }
 
 // Resolves the registrar for a domain-scoped call. Returns `registrar` verbatim
@@ -593,7 +607,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ registrar, domain, years }) => {
       const r = resolveRegistrar(domain, registrar);
-      return cachedWrite(() => renewDomainCached(r, domain, years));
+      return domainOp(r, domain, { kind: 'renew', years: years ?? 1 });
     },
   );
 
@@ -644,7 +658,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ registrar, domain, nameservers }) => {
       const r = resolveRegistrar(domain, registrar);
-      return cachedWrite(() => setNameserversCached(r, domain, nameservers));
+      return domainOp(r, domain, { kind: 'nameservers', nameservers });
     },
   );
 
@@ -731,7 +745,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ registrar, domain, enabled }) => {
       const r = resolveRegistrar(domain, registrar);
-      return cachedWrite(() => setPrivacyCached(r, domain, enabled));
+      return domainOp(r, domain, { kind: 'privacy', enabled });
     },
   );
 
@@ -751,7 +765,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ registrar, domain, enabled }) => {
       const r = resolveRegistrar(domain, registrar);
-      return cachedWrite(() => setAutoRenewCached(r, domain, enabled));
+      return domainOp(r, domain, { kind: 'autoRenew', enabled });
     },
   );
 
@@ -770,7 +784,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ registrar, domain, locked }) => {
       const r = resolveRegistrar(domain, registrar);
-      return cachedWrite(() => setLockCached(r, domain, locked));
+      return domainOp(r, domain, { kind: 'lock', locked });
     },
   );
 
@@ -808,13 +822,9 @@ export function registerTools(server: McpServer): void {
         idempotentHint: true,
       },
     },
-    // Email forwarding isn't part of the portfolio/detail cache; emit the event
-    // for consistency (see domain_dns_set).
     async ({ registrar, domain, forwards }) => {
       const r = resolveRegistrar(domain, registrar);
-      return cachedWrite(() =>
-        getRegistrarClient(r).setEmailForwarding(domain, forwards),
-      );
+      return domainOp(r, domain, { kind: 'emailForwarding', forwards });
     },
   );
 
@@ -852,13 +862,9 @@ export function registerTools(server: McpServer): void {
         idempotentHint: true,
       },
     },
-    // URL forwarding isn't part of the portfolio/detail cache; emit the event
-    // for consistency (see domain_dns_set).
     async ({ registrar, domain, forwards }) => {
       const r = resolveRegistrar(domain, registrar);
-      return cachedWrite(() =>
-        getRegistrarClient(r).setDomainForwarding(domain, forwards),
-      );
+      return domainOp(r, domain, { kind: 'urlForwarding', forwards });
     },
   );
 
@@ -873,12 +879,13 @@ export function registerTools(server: McpServer): void {
     },
     async ({ registrar, domain }) => {
       const r = resolveRegistrar(domain, registrar);
-      // The RegistrarClient wrapper doesn't re-expose this extended method;
-      // reach through to the underlying provider.
-      return json({
-        domain,
-        authCode: await getRegistrarClient(r).provider.getAuthCode(domain),
-      });
+      const result = await applyDomainOp(
+        { registrar: r, domainName: domain },
+        { kind: 'authCode' },
+      );
+      // A read: surface a non-ok outcome as the tool's error, as before.
+      if (result.status !== 'ok') throw new Error(result.message);
+      return json({ domain, authCode: result.data?.authCode });
     },
   );
 
