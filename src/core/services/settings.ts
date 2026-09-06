@@ -73,6 +73,16 @@ export function updateSettings(patch: Partial<AppSettings>): AppSettings {
   for (const [key, value] of Object.entries(next)) {
     void store.set(key, value);
   }
+  notifySettingsChanged(next, prev);
+  return next;
+}
+
+/** Tells listeners settings moved from `prev` to `next` — for changes that
+ *  bypass `updateSettings` (a data import replacing the store). */
+export function notifySettingsChanged(
+  next: AppSettings,
+  prev: AppSettings,
+): void {
   for (const l of listeners) {
     try {
       l(next, prev);
@@ -80,5 +90,4 @@ export function updateSettings(patch: Partial<AppSettings>): AppSettings {
       console.error('[settings] listener threw', err);
     }
   }
-  return next;
 }

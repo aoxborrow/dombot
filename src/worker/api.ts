@@ -9,7 +9,7 @@ import { getSettings } from '../core/services/settings';
 
 // The web host's half of the API table (the desktop's is src/electron/api.ts).
 // Methods that are host-specific get web answers; the ones the browser does
-// natively (`openExternal`, `saveCsv`) are handled client-side in
+// natively (`openExternal`, `saveTextFile`) are handled client-side in
 // src/renderer/api/http.ts and never reach here, but the table must still be
 // complete so `ApiTable` type-checks.
 //
@@ -38,7 +38,7 @@ const webMethods: Omit<ApiTable, CoreMethodName> = {
   openExternal: method(z.tuple([z.string()]), async () => {
     // Handled in the browser (window.open); nothing to do server-side.
   }),
-  saveCsv: method(z.tuple([z.string(), z.string()]), async () => ({
+  saveTextFile: method(z.tuple([z.string(), z.string()]), async () => ({
     saved: false,
   })),
 

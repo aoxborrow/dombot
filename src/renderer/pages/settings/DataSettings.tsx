@@ -1,5 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -100,6 +111,8 @@ export default function DataSettings() {
         </div>
       </SettingsCard>
 
+      <DataBundleCard />
+
       <SettingsCard title="Cached data" contentClassName="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
           Clear the cached portfolio and start over. Your saved registrar
@@ -122,5 +135,188 @@ export default function DataSettings() {
         </div>
       </SettingsCard>
     </div>
+  );
+}
+
+/**
+ * Export / import of the whole store as one JSON file: the backup for a
+ * self-hosted instance (its data is unreadable without the root secret), the
+ * way to move from the desktop app to a web instance, and what secret
+ * rotation round-trips through. Optionally sealed with a passphrase, since
+ * the file holds registrar API keys.
+ */
+function DataBundleCard() {
+  const [exportPass, setExportPass] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [pending, setPending] = useState<{
+    name: string;
+    text: string;
+    sealed: boolean;
+  } | null>(null);
+  const [importPass, setImportPass] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const onExport = async () => {
+    setExporting(true);
+    try {
+      const text = await window.api.exportData(exportPass || undefined);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const result = await window.api.saveTextFile(
+        text,
+        `dombot-data-${stamp}.json`,
+      );
+      if (result.saved) toast.success('Data exported');
+    } catch (err) {
+      toast.error('Export failed', {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const onPick = async (file: File | undefined) => {
+    if (!file) return;
+    const text = await file.text();
+    let sealed = false;
+    try {
+      sealed = Boolean((JSON.parse(text) as { encrypted?: unknown }).encrypted);
+    } catch {
+      // importData reports the real problem
+    }
+    setImportPass('');
+    setImportError(null);
+    setPending({ name: file.name, text, sealed });
+  };
+
+  const onImport = async () => {
+    if (!pending) return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      const { namespaces, entries } = await window.api.importData(
+        pending.text,
+        importPass || undefined,
+      );
+      toast.success(
+        `Imported ${entries} item${entries === 1 ? '' : 's'} across ${namespaces} section${namespaces === 1 ? '' : 's'}`,
+      );
+      setPending(null);
+      // Every screen holds derived state; a reload is the honest refresh.
+      setTimeout(() => window.location.reload(), 600);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <SettingsCard
+      title="Export &amp; import"
+      contentClassName="flex flex-col gap-5"
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-muted-foreground">
+          Export everything — registrar keys, portfolio, folders, prices,
+          settings, and MCP pairings — as one JSON file. Use it as a backup or
+          to move to another DomBot. The file contains your API keys, so
+          consider a passphrase.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="export-pass" className="text-xs">
+              Passphrase (optional)
+            </Label>
+            <Input
+              id="export-pass"
+              type="password"
+              autoComplete="new-password"
+              className="w-56"
+              value={exportPass}
+              onChange={(e) => setExportPass(e.target.value)}
+            />
+          </div>
+          <Button onClick={() => void onExport()} disabled={exporting}>
+            {exporting ? 'Exporting…' : 'Export data'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 border-t pt-5">
+        <p className="text-sm text-muted-foreground">
+          Import a DomBot data file. This <b>replaces</b> everything stored here
+          with the file&apos;s contents.
+        </p>
+        <div>
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={(e) => {
+              void onPick(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+          <Button variant="outline" onClick={() => fileInput.current?.click()}>
+            Import data…
+          </Button>
+        </div>
+      </div>
+
+      <Dialog
+        open={pending !== null}
+        onOpenChange={(o) => !o && setPending(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Replace all data?</DialogTitle>
+            <DialogDescription>
+              Everything currently stored — registrar keys, portfolio, folders,
+              prices, settings, MCP pairings — will be replaced with the
+              contents of <span className="font-mono">{pending?.name}</span>.
+              This can&apos;t be undone; export first if you want a copy.
+            </DialogDescription>
+          </DialogHeader>
+          {pending?.sealed && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="import-pass" className="text-xs">
+                Passphrase
+              </Label>
+              <Input
+                id="import-pass"
+                type="password"
+                autoComplete="off"
+                value={importPass}
+                onChange={(e) => setImportPass(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && void onImport()}
+              />
+            </div>
+          )}
+          {importError && (
+            <p className="text-sm text-destructive">{importError}</p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPending(null)}
+              disabled={importing}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void onImport()}
+              disabled={importing || (pending?.sealed && !importPass)}
+            >
+              {importing ? 'Importing…' : 'Replace and import'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </SettingsCard>
   );
 }

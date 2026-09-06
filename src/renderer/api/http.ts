@@ -18,7 +18,7 @@ import type {
 //    refetches exactly as it does when Electron pushes.
 //  - Bulk jobs. A Worker can't hold a loop, so this client drives a running
 //    job by calling `stepBulk` until it finishes (see driveBulk).
-//  - Browser-native bits: `openExternal` is window.open, `saveCsv` is a
+//  - Browser-native bits: `openExternal` is window.open, `saveTextFile` is a
 //    download, `getAppInfo` comes from the server with platform 'web'.
 //  - Dates. Domains cross the wire as JSON, so ISO strings are revived here
 //    (the Electron bridge's structured clone did that implicitly).
@@ -232,9 +232,10 @@ export function createHttpApi(): DombotApi {
     openExternal: async (url) => {
       window.open(url, '_blank', 'noopener,noreferrer');
     },
-    saveCsv: async (content, suggestedName) => {
-      const blob = new Blob(['﻿' + content], {
-        type: 'text/csv;charset=utf-8',
+    saveTextFile: async (content, suggestedName) => {
+      const csv = /\.csv$/i.test(suggestedName);
+      const blob = new Blob([csv ? '﻿' + content : content], {
+        type: csv ? 'text/csv;charset=utf-8' : 'application/json',
       });
       const href = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -259,6 +260,8 @@ export function createHttpApi(): DombotApi {
       };
     },
     clearAllCaches: m('clearAllCaches'),
+    exportData: m('exportData'),
+    importData: m('importData'),
     getPortfolioPricing: m('getPortfolioPricing'),
     setManualPrice: m('setManualPrice'),
 

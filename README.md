@@ -85,6 +85,22 @@ into `claude_desktop_config.json`; it looks like:
 No approval prompt is needed for this route — it runs as you, on your machine —
 and if DomBot isn't open when the client starts, it launches automatically.
 
+## Self-hosting in the browser
+
+The same app runs as a private web app on your own Cloudflare account — a
+Worker plus one D1 database, encrypted under a key only you hold, with the MCP
+server reachable at `https://<your-host>/mcp`.
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/aoxborrow/dombot)
+
+The button forks the repo, creates the database, and asks for the two secrets
+(the deploy page tells you how to generate them). Then open the URL and sign
+in. Prefer the CLI, want to redeploy from GitHub Actions, or need to put it
+behind Cloudflare Access? See [docs/self-hosting.md](docs/self-hosting.md).
+
+Moving from the desktop app: **Settings → Sync → Export data**, then import
+the file on your instance.
+
 ---
 
 # Development
@@ -107,6 +123,8 @@ the repo, `npm install`, and `npm start` to run the app with hot reload.
 | `npm run format`     | Format the codebase with Prettier                  |
 | `npm run typecheck`  | Type-check without emitting                        |
 | `npm run site:build` | Minify the landing page (`site/src` → `site/dist`) |
+| `npm run web:dev`    | Run the self-hosted web app locally (wrangler dev) |
+| `npm run web:deploy` | Build and deploy the web app to Cloudflare         |
 
 ## Credentials
 

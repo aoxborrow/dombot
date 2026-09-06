@@ -1,10 +1,20 @@
 {
   "name": "dombot",
   "productName": "DomBot",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Cross-platform desktop app built with Electron, React, TypeScript, and Vite.",
   "main": ".vite/build/index.js",
   "private": true,
+  "cloudflare": {
+    "bindings": {
+      "DOMBOT_SECRET": {
+        "description": "Root key that encrypts everything in your database. Generate one with `openssl rand -base64 32` and keep it in your password manager — if it's lost, the instance's data is unreadable."
+      },
+      "DOMBOT_PASSWORD": {
+        "description": "The password you'll sign in with. Generate one with `openssl rand -base64 32` (or choose your own long one). Rotate later with `npm run web:rotate-password`."
+      }
+    }
+  },
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
@@ -22,8 +32,12 @@
     "web:types": "wrangler types",
     "web:build": "vite build -c vite.web.config.mts",
     "web:dev": "npm run web:build && wrangler dev --test-scheduled",
-    "web:deploy": "npm run web:build && wrangler d1 migrations apply dombot --remote && wrangler deploy",
-    "web:migrate:local": "wrangler d1 migrations apply dombot --local",
+    "web:deploy": "npm run build && npm run deploy",
+    "web:migrate": "wrangler d1 migrations apply DB --remote",
+    "web:migrate:local": "wrangler d1 migrations apply DB --local",
+    "build": "npm run web:build",
+    "deploy": "npm run web:migrate && wrangler deploy",
+    "web:rotate-secret": "node scripts/web-rotate-secret.mjs",
     "web:secrets": "node scripts/web-secrets.mjs",
     "web:rotate-password": "node scripts/web-secrets.mjs --password"
   },

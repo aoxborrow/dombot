@@ -1,0 +1,9 @@
+# Secrets for a DomBot instance. For local dev, copy to `.dev.vars` (gitignored);
+# for a deployment, `npm run web:secrets` generates and applies both — or the
+# Deploy to Cloudflare button prompts for them.
+#
+# Root key: encrypts everything in the database. `openssl rand -base64 32`.
+# Lose it and the instance's data is unreadable.
+DOMBOT_SECRET=
+# Your login password. `openssl rand -base64 32`, or a long one of your own.
+DOMBOT_PASSWORD=

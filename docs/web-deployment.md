@@ -499,12 +499,18 @@ allowlist story. No code lands.
 
 ### Phase 6 — Deploy experience
 
-- Deploy-to-Cloudflare button, `deploy-worker.yml`, "Self-host" page on the
-  site, README section, `web:secrets` / `web:rotate-password` /
-  `rotate-secret` scripts.
-- Export / import data bundle.
+- Deploy-to-Cloudflare button (secrets prompted via `.dev.vars.example` +
+  `package.json` `cloudflare.bindings` descriptions; `build` / `deploy`
+  scripts, migrations by binding name), `deploy-worker.yml` (no-op until the
+  fork has Cloudflare secrets), CI dry-run bundle of the Worker, "Self-host"
+  section on the site, README section, `web:secrets` / `web:rotate-password`
+  / `web:rotate-secret` scripts.
+- Export / import data bundle (`src/core/storage/bundle.ts`): every namespace
+  but `auth` and `meta`, optionally PBKDF2 + AES-GCM sealed; Settings → Sync
+  on both hosts. Secret rotation round-trips through it.
 - Release: desktop 1.2.0 (with the storage migration) and the first
-  web-deployable tag together, since they share the storage layout.
+  web-deployable tag together, since they share the storage layout —
+  `package.json` is bumped; cutting the release is a manual Actions run.
 
 ### Later
 

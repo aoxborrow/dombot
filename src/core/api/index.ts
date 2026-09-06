@@ -34,6 +34,9 @@ import {
 import { getSettings, updateSettings } from '../services/settings';
 import { restartAutoSync } from '../services/auto-sync';
 import { getRevisions, trackRevisions } from '../revision';
+import { getAppIdentity } from '../app-info';
+import { exportBundle, importBundle } from '../storage/bundle';
+import { flushWrites } from '../storage/namespace';
 import {
   listMcpClients,
   listPendingApprovals,
@@ -50,7 +53,7 @@ import * as s from './schemas';
 // host wires those itself.
 //
 // `coreMethods` covers everything host-agnostic. A host supplies the rest
-// (`getAppInfo`, `saveCsv`, the MCP approval methods…) as its own table and
+// (`getAppInfo`, `saveTextFile`, the MCP server status…) as its own table and
 // merges the two; `ApiTable` makes the compiler check the union is complete.
 
 /** The request/response methods of DombotApi (everything but `onX`). */
@@ -128,7 +131,7 @@ const none = z.tuple([]);
 
 export type CoreMethodName = Exclude<
   ApiMethodName,
-  'ping' | 'getAppInfo' | 'openExternal' | 'saveCsv' | 'getMcpInfo'
+  'ping' | 'getAppInfo' | 'openExternal' | 'saveTextFile' | 'getMcpInfo'
 >;
 
 export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
@@ -154,6 +157,22 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   clearAllCaches: method(none, async () => {
     clearAll();
   }),
+
+  // ── Data bundle (backup / move / secret rotation) ──────────────────────────
+  exportData: method(
+    z.tuple([z.string().max(1024).optional()]),
+    async (passphrase) =>
+      exportBundle(getAppIdentity(), passphrase || undefined),
+  ),
+  importData: method(
+    z.tuple([z.string(), z.string().max(1024).optional()]),
+    async (text, passphrase) => {
+      const result = await importBundle(text, passphrase || undefined);
+      // Durable before we say so: the caller reloads on the strength of it.
+      await flushWrites();
+      return result;
+    },
+  ),
 
   // ── Pricing ───────────────────────────────────────────────────────────────
   getPortfolioPricing: method(none, async () => getPortfolioPricing()),

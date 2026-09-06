@@ -16,8 +16,12 @@ const api: DombotApi = {
   ping: () => ipcRenderer.invoke(IpcChannels.ping),
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
   openExternal: (url) => ipcRenderer.invoke(IpcChannels.openExternal, url),
-  saveCsv: (content, suggestedName) =>
-    ipcRenderer.invoke(IpcChannels.saveCsv, content, suggestedName),
+  saveTextFile: (content, suggestedName) =>
+    ipcRenderer.invoke(IpcChannels.saveTextFile, content, suggestedName),
+  exportData: (passphrase) =>
+    ipcRenderer.invoke(IpcChannels.exportData, passphrase),
+  importData: (text, passphrase) =>
+    ipcRenderer.invoke(IpcChannels.importData, text, passphrase),
   hydrateFromCache: () => ipcRenderer.invoke(IpcChannels.hydrateFromCache),
   clearAllCaches: () => ipcRenderer.invoke(IpcChannels.clearAllCaches),
   getPortfolioPricing: () =>

@@ -5,14 +5,27 @@ build, served by a Cloudflare Worker with your data in a D1 database,
 encrypted under a key only you hold. Two Cloudflare products, two secrets,
 no other services. (Design notes: [web-deployment.md](web-deployment.md).)
 
-## Prerequisites
+## The one-click way
 
-- A Cloudflare account. The free plan runs the app; a full sync of a large
-  portfolio may need **Workers Paid** ($5/month) for the extra CPU time —
-  see [Limits](#limits).
-- Node 22+ and this repository cloned (or forked).
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/aoxborrow/dombot)
 
-## Deploy
+The button forks this repository into your GitHub account, creates the D1
+database, and prompts for the two secrets:
+
+- `DOMBOT_SECRET` — the root key. Everything in D1 is encrypted under it.
+  Generate it with `openssl rand -base64 32`. Lose it and the instance's data
+  is unreadable; there is no recovery, so keep it in your password manager.
+- `DOMBOT_PASSWORD` — your login password. Same command, or one of your own.
+
+It then builds and deploys. Open the URL it gives you and sign in. Your fork
+also gets a workflow (below) that redeploys on push once you add a Cloudflare
+API token to it, so updating is `git pull upstream main && git push`.
+
+## The CLI way
+
+You need a Cloudflare account (the free plan runs the app; a full sync of a
+large portfolio may need **Workers Paid**, $5/month, for the extra CPU time —
+see [Limits](#limits)), Node 22+, and this repository cloned or forked.
 
 ```bash
 npm ci
@@ -43,6 +56,15 @@ npm run web:deploy
 This builds the renderer, applies the D1 schema, and deploys the Worker.
 Open the URL it prints and sign in.
 
+## Redeploying from GitHub Actions
+
+`.github/workflows/deploy-worker.yml` deploys on every push to `main` of
+_your_ fork, once two repository secrets exist (Settings → Secrets and
+variables → Actions): `CLOUDFLARE_API_TOKEN` (an API token from the
+"Edit Cloudflare Workers" template with D1 edit permission added) and
+`CLOUDFLARE_ACCOUNT_ID`. Without them the workflow exits quietly. It never
+touches `DOMBOT_SECRET` / `DOMBOT_PASSWORD` — those stay Worker secrets.
+
 ## Day to day
 
 - **Sync** runs from an hourly cron. It only does work when the cache is
@@ -68,7 +90,19 @@ Open the URL it prints and sign in.
   rule](https://developers.cloudflare.com/waf/rate-limiting-rules/) on
   `POST /auth/login` (say, 5 requests per minute per IP) in the zone's
   WAF; it costs nothing on the free plan. And use a long password.
-- **Updating**: pull, then `npm run web:deploy` again.
+- **Updating**: pull, then `npm run web:deploy` again (or push, with the
+  workflow above).
+- **Backups and moving**: Settings → Sync → **Export data** writes everything
+  (registrar keys, portfolio, folders, prices, settings, MCP pairings) to one
+  JSON file, optionally sealed with a passphrase (in your browser, so the
+  passphrase never leaves it); **Import data** replaces the
+  instance's contents with a file. This is how you move from the desktop app
+  to your instance, and the only backup for data whose key you could lose.
+- **Rotating the root key**: `DOMBOT_SECRET` can't simply be replaced — the
+  data is encrypted under it. `DOMBOT_URL=https://<your-host> npm run
+web:rotate-secret` exports a sealed bundle to disk, sets a new secret, and
+  imports the bundle back (password login only; behind a gate, do the same
+  three steps by hand).
 - **Bulk jobs** are stepped by your browser tab. Closing the tab pauses a
   running job; reopening resumes it. A job interrupted mid-request shows
   those items as "outcome unknown" rather than re-running them.
