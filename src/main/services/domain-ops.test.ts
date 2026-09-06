@@ -23,13 +23,16 @@ const getDomainForwarding = vi.fn();
 const setDomainForwarding = vi.fn();
 const getEmailForwarding = vi.fn();
 const setEmailForwarding = vi.fn();
-const getRegistrarClient = vi.fn((_name: string) => ({
-  provider: { getAuthCode },
-  getDomainForwarding,
-  setDomainForwarding,
-  getEmailForwarding,
-  setEmailForwarding,
-}));
+const getRegistrarClient = vi.fn((name: string) => {
+  void name;
+  return {
+    provider: { getAuthCode },
+    getDomainForwarding,
+    setDomainForwarding,
+    getEmailForwarding,
+    setEmailForwarding,
+  };
+});
 
 vi.mock('./registrars', () => ({
   getRegistrarFeatures: (name: string) => getRegistrarFeatures(name),

@@ -10,7 +10,10 @@ const findRegistrarsForDomain = vi.fn<(d: string) => string[]>();
 const getConfiguredRegistrars = vi.fn(() => ['dynadot']);
 const getActiveRegistrars = vi.fn(() => ['dynadot']);
 const setDnsRecords = vi.fn();
-const getRegistrarClient = vi.fn((_name: string) => ({ setDnsRecords }));
+const getRegistrarClient = vi.fn((name: string) => {
+  void name;
+  return { setDnsRecords };
+});
 const registerDomainCached = vi.fn();
 
 vi.mock('../services/registrars', () => ({
