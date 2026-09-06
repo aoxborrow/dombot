@@ -60,9 +60,9 @@ export default function RegistrarsSettings() {
       <div>
         <h2 className="text-xl font-bold">Registrars</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Store API credentials for each registrar. They&apos;re encrypted on
-          this device and used by both the app and the MCP server. Saving syncs
-          that registrar&apos;s domains automatically.
+          Store API credentials for each registrar. They&apos;re encrypted at
+          rest and used by both the app and the MCP server. Saving syncs that
+          registrar&apos;s domains automatically.
         </p>
       </div>
 

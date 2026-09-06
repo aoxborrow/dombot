@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "site",
+      "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "site:dev"],
-      "port": 8794
+      "runtimeArgs": ["run", "web:dev"],
+      "port": 8787
     }
   ]
 }

@@ -4,6 +4,8 @@ import RegistrarsSettings from './settings/RegistrarsSettings';
 import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
 import FoldersSettings from './settings/FoldersSettings';
+import { Button } from '@/components/ui/button';
+import { isWeb, signOut, webAuthMode } from '@/lib/platform';
 
 const TAB_VALUES = ['registrars', 'folders', 'mcp', 'data'];
 
@@ -50,6 +52,18 @@ export default function Settings() {
               Cache
             </TabsTrigger>
           </TabsList>
+          {/* Self-hosted web build, built-in login: the one place to end the
+              session. Other auth modes sign out at their own gate. */}
+          {isWeb() && webAuthMode() === 'password' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-6 w-full"
+              onClick={() => void signOut()}
+            >
+              Sign out
+            </Button>
+          )}
         </div>
 
         <div className="min-w-0 flex-1">

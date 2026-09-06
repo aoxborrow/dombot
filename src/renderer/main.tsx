@@ -4,7 +4,8 @@ import { HashRouter } from 'react-router-dom';
 import App from './App';
 import Login from './pages/Login';
 import { ThemeProvider } from '@/components/theme-provider';
-import { createHttpApi } from './api/http';
+import { createHttpApi, setSessionActive } from './api/http';
+import { markWeb, type AuthMode } from './lib/platform';
 import './index.css';
 
 // HashRouter is used because the packaged app loads over the file:// protocol,
@@ -42,10 +43,15 @@ if (window.api) {
     const status = (await fetch('/auth/status', { credentials: 'same-origin' })
       .then((r) => r.json())
       .catch(() => ({ mode: 'password', authenticated: false }))) as {
-      mode: string;
+      mode: AuthMode;
       authenticated: boolean;
     };
-    if (status.authenticated) render(app);
-    else render(<Login onSuccess={() => render(app)} />);
+    markWeb(status.mode);
+    const start = () => {
+      setSessionActive(true);
+      render(app);
+    };
+    if (status.authenticated) start();
+    else render(<Login onSuccess={start} />);
   })();
 }

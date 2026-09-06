@@ -35,6 +35,14 @@ class HttpApiError extends Error {
   }
 }
 
+// Set by the bootstrap once the app is rendered behind a live session. Until
+// then a 401 is just "not signed in yet" and must not trigger a reload (the
+// login screen would loop).
+let sessionActive = false;
+export function setSessionActive(active: boolean): void {
+  sessionActive = active;
+}
+
 async function call<T>(method: string, args: unknown[] = []): Promise<T> {
   const res = await fetch(`/api/${method}`, {
     method: 'POST',
@@ -47,8 +55,9 @@ async function call<T>(method: string, args: unknown[] = []): Promise<T> {
     error?: string;
   };
   if (!res.ok) {
-    if (res.status === 401) {
+    if (res.status === 401 && sessionActive) {
       // Session expired (or password rotated): back to the login screen.
+      sessionActive = false;
       window.location.reload();
     }
     throw new HttpApiError(
@@ -118,6 +127,7 @@ class Poller {
   }
 
   async tick(): Promise<void> {
+    if (!this.hasListeners()) return;
     if (this.busy || document.visibilityState !== 'visible') {
       this.schedule();
       return;

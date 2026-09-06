@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { SettingsCard } from './SettingsCard';
+import { isWeb, webAuthMode } from '@/lib/platform';
 
 export default function McpClientsSettings() {
   const [info, setInfo] = useState<McpInfo | null>(null);
@@ -27,6 +28,37 @@ export default function McpClientsSettings() {
     await window.api.revokeMcpClient(clientId);
     await refresh();
   };
+
+  if (isWeb()) {
+    const gated = webAuthMode() !== 'password';
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h2 className="text-xl font-bold">MCP</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Agents connect to DomBot&apos;s MCP server to manage your portfolio.
+            New connections must be approved in the app.
+          </p>
+        </div>
+        <SettingsCard title="Not available on this instance yet">
+          <p className="text-sm text-muted-foreground">
+            The MCP server for self-hosted instances is on its way. Until it
+            ships, the desktop app&apos;s MCP server is the way to connect an
+            agent.
+            {gated && (
+              <>
+                {' '}
+                Note that this deployment sits behind an external gate
+                (Cloudflare Access or a platform login), which MCP clients
+                can&apos;t pass; once MCP is available here, the gate will need
+                to exclude the MCP paths for it to work.
+              </>
+            )}
+          </p>
+        </SettingsCard>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
