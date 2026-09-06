@@ -65,9 +65,9 @@ export default function DataSettings() {
       <div>
         <h2 className="text-xl font-bold">Sync</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          DomBot keeps a local copy of your portfolio and refreshes it from the
-          registrars on a schedule, so the app opens instantly and registrar
-          APIs aren&apos;t hit more often than needed.
+          DomBot keeps a copy of your portfolio and refreshes it from the
+          registrars on a schedule, so it opens instantly and registrar APIs
+          aren&apos;t hit more often than needed.
         </p>
       </div>
 
