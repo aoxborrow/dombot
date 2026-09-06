@@ -276,11 +276,16 @@ today's in-memory `AbortController`.
 **Auto-sync** becomes `syncAll()` in core, invoked by a host scheduler:
 
 - Electron: the existing `setInterval` honoring `autoSyncIntervalMinutes`.
-- Worker: a Cron Trigger (`"crons": ["0 */6 * * *"]`) → `scheduled()` →
-  `syncAll()`, which reads the setting and skips if the last sync is newer
-  than the interval. Cron handlers get 15 minutes of wall clock; a
-  full-portfolio sync across several registrars fits. Per-registrar sync
-  also runs in a request when the user hits Sync, as today.
+- Worker: an **hourly** Cron Trigger (`"crons": ["0 * * * *"]`) →
+  `scheduled()` → `syncAll()`, which reads `autoSyncIntervalMinutes` and
+  returns immediately unless the last sync is older than that interval. The
+  cron cadence is the *floor* — it matches the shortest option the Settings
+  control offers ("Every hour") — and the setting decides the actual
+  frequency, so the web host honors every interval the desktop does. A
+  no-op tick costs a few milliseconds. Cron handlers get 15 minutes of wall
+  clock; a full-portfolio sync across several registrars fits.
+  Per-registrar sync also runs in a request when the user hits Sync, as
+  today.
 
 **Nameserver lookup** moves from `node:dns` to DNS-over-HTTPS
 (`https://cloudflare-dns.com/dns-query?name=…&type=NS` with
