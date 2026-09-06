@@ -122,8 +122,8 @@ export default function McpClientsSettings() {
             </Label>
             <p className="mt-1 text-sm text-muted-foreground">
               {enabled
-                ? 'Listening on this machine only (loopback). Agents you approve can read and change your domains.'
-                : 'Nothing is listening. Turn it on to connect Claude or another MCP client.'}
+                ? 'Approved agents can read and change your domains. The server only accepts connections from this computer.'
+                : 'Enable this to let Claude or another MCP client manage your domains.'}
             </p>
           </div>
           <Switch
