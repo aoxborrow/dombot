@@ -78,6 +78,12 @@ export function loadGrantedTokens(): void {
   }
 }
 
+/** Whether any client has ever been paired (tokens on disk). Loads them. */
+export function hasPairedClients(): boolean {
+  loadGrantedTokens();
+  return grantedTokens.size > 0;
+}
+
 function saveGrantedTokens(): void {
   try {
     fs.writeFileSync(

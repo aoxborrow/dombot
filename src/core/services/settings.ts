@@ -8,6 +8,7 @@ import { Namespace } from '../storage/namespace';
 const DEFAULTS: AppSettings = {
   autoSyncIntervalMinutes: 24 * 60, // 24 hours
   recentNameservers: [],
+  mcpEnabled: false,
 };
 
 /** How many recent nameserver sets to keep. */
@@ -35,6 +36,28 @@ function normalize(raw: Partial<AppSettings>): AppSettings {
         ? Math.floor(minutes)
         : DEFAULTS.autoSyncIntervalMinutes,
     recentNameservers: recent,
+    mcpEnabled:
+      typeof raw.mcpEnabled === 'boolean'
+        ? raw.mcpEnabled
+        : DEFAULTS.mcpEnabled,
+  };
+}
+
+/** Whether a key has ever been written (vs. showing its default). Lets a host
+ *  pick a one-time default for an upgrade, e.g. keep MCP on for an install
+ *  that already has paired clients. */
+export function isSettingStored(key: keyof AppSettings): boolean {
+  return store.has(key);
+}
+
+type SettingsListener = (next: AppSettings, prev: AppSettings) => void;
+const listeners = new Set<SettingsListener>();
+
+/** Hosts subscribe to react to a change live (start/stop the MCP server). */
+export function onSettingsChanged(listener: SettingsListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
   };
 }
 
@@ -45,9 +68,17 @@ export function getSettings(): AppSettings {
 
 /** Patches settings (coercing to valid values) and returns the result. */
 export function updateSettings(patch: Partial<AppSettings>): AppSettings {
-  const next = normalize({ ...getSettings(), ...patch });
+  const prev = getSettings();
+  const next = normalize({ ...prev, ...patch });
   for (const [key, value] of Object.entries(next)) {
     void store.set(key, value);
+  }
+  for (const l of listeners) {
+    try {
+      l(next, prev);
+    } catch (err) {
+      console.error('[settings] listener threw', err);
+    }
   }
   return next;
 }

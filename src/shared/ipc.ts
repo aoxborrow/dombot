@@ -138,6 +138,12 @@ export interface AppSettings {
    * first, at most 3), offered as presets. Each entry is a full set.
    */
   recentNameservers: string[][];
+  /**
+   * Whether the embedded MCP server runs. Off by default on a fresh install
+   * (an upgrade with already-paired clients keeps it on); toggled live in
+   * Settings → MCP. `DOMBOT_MCP_ENABLED=0` forces it off regardless.
+   */
+  mcpEnabled: boolean;
 }
 
 /** One input in a registrar's credential form. */

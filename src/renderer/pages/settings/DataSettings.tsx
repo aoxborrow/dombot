@@ -102,9 +102,9 @@ export default function DataSettings() {
 
       <SettingsCard title="Cached data" contentClassName="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
-          Clear every on-disk cache and reset the loaded portfolio. Your saved
-          registrar credentials, manual prices, and folders are kept. The next
-          “Sync domains” re-fetches everything fresh.
+          Clear the cached portfolio and start over. Your saved registrar
+          credentials, manual prices, and folders are kept. The next “Sync
+          domains” re-fetches everything fresh.
         </p>
         <div className="flex items-center gap-3">
           <Button

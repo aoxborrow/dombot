@@ -41,9 +41,26 @@ interface Boot {
 }
 
 let boot: Promise<Boot> | null = null;
+let bootFor = '';
+
+/** The env values boot depends on. If they change under a live isolate
+ *  (wrangler dev reloading .dev.vars; a secret rotated in place), the cached
+ *  keys and auth config must not outlive them. */
+function bootFingerprint(env: Env): string {
+  return [
+    env.DOMBOT_SECRET,
+    env.DOMBOT_PASSWORD,
+    env.DOMBOT_AUTH,
+    env.CF_ACCESS_TEAM_DOMAIN,
+    env.CF_ACCESS_AUD,
+  ].join('\u0000');
+}
 
 function bootOnce(env: Env): Promise<Boot> {
-  boot ??= (async () => {
+  const fp = bootFingerprint(env);
+  if (boot && bootFor === fp) return boot;
+  bootFor = fp;
+  boot = (async () => {
     const root = parseRootSecret(env.DOMBOT_SECRET);
     const cipher = await aesGcmCipher(await deriveEncryptionKey(root));
     configureStore(new EncryptedDocStore(new D1DocStore(env.DB), cipher));

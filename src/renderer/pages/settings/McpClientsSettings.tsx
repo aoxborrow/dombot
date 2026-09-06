@@ -4,12 +4,23 @@ import type { McpClient, McpInfo } from '../../../shared/ipc';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { SettingsCard } from './SettingsCard';
 import { isWeb, webAuthMode } from '@/lib/platform';
+import { useAppStore } from '../../store/app';
 
 export default function McpClientsSettings() {
   const [info, setInfo] = useState<McpInfo | null>(null);
   const [clients, setClients] = useState<McpClient[]>([]);
+  const settings = useAppStore((s) => s.settings);
+  const loadSettings = useAppStore((s) => s.loadSettings);
+  const setMcpEnabled = useAppStore((s) => s.setMcpEnabled);
+  const [toggling, setToggling] = useState(false);
+
+  useEffect(() => {
+    if (settings === null) void loadSettings();
+  }, [settings, loadSettings]);
 
   const refresh = useCallback(async () => {
     const [mcpInfo, list] = await Promise.all([
@@ -28,6 +39,18 @@ export default function McpClientsSettings() {
     await window.api.revokeMcpClient(clientId);
     await refresh();
   };
+
+  const toggle = async (enabled: boolean) => {
+    setToggling(true);
+    try {
+      await setMcpEnabled(enabled);
+      await refresh();
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const enabled = settings?.mcpEnabled ?? false;
 
   if (isWeb()) {
     const gated = webAuthMode() !== 'password';
@@ -70,7 +93,28 @@ export default function McpClientsSettings() {
         </p>
       </div>
 
-      {info?.running && (
+      <SettingsCard title="MCP server">
+        <div className="flex items-center justify-between gap-6">
+          <div>
+            <Label htmlFor="mcp-enabled" className="text-sm font-medium">
+              {enabled ? 'On' : 'Off'}
+            </Label>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {enabled
+                ? 'Listening on this machine only (loopback). Agents you approve can read and change your domains.'
+                : 'Nothing is listening. Turn it on to connect Claude or another MCP client.'}
+            </p>
+          </div>
+          <Switch
+            id="mcp-enabled"
+            checked={enabled}
+            disabled={settings === null || toggling}
+            onCheckedChange={(v) => void toggle(v)}
+          />
+        </div>
+      </SettingsCard>
+
+      {enabled && info?.running && (
         <SettingsCard
           title="Connect a client"
           contentClassName="flex flex-col gap-4"

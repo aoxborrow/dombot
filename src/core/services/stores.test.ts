@@ -41,6 +41,7 @@ describe('settings', () => {
     expect(getSettings()).toEqual({
       autoSyncIntervalMinutes: 1440,
       recentNameservers: [],
+      mcpEnabled: false,
     });
     updateSettings({ autoSyncIntervalMinutes: -5 });
     expect(getSettings().autoSyncIntervalMinutes).toBe(1440);
@@ -51,11 +52,13 @@ describe('settings', () => {
     expect(getSettings()).toEqual({
       autoSyncIntervalMinutes: 30,
       recentNameservers: [['a', 'b'], ['c']],
+      mcpEnabled: false,
     });
     await flushWrites();
     expect(await store.list('settings')).toEqual({
       autoSyncIntervalMinutes: 30,
       recentNameservers: [['a', 'b'], ['c']],
+      mcpEnabled: false,
     });
   });
 });
@@ -136,5 +139,27 @@ describe('cache', () => {
     expect(readEntry('portfolio', 'dynadot')).toBeNull();
     await flushWrites();
     expect(await store.list('cache-portfolio')).toEqual({});
+  });
+});
+
+describe('settings: mcpEnabled + change listeners', () => {
+  it('defaults off, reports whether it was ever stored, and notifies on change', async () => {
+    const { isSettingStored, onSettingsChanged } = await import('./settings');
+    expect(getSettings().mcpEnabled).toBe(false);
+    expect(isSettingStored('mcpEnabled')).toBe(false);
+
+    const seen: [boolean, boolean][] = [];
+    const off = onSettingsChanged((next, prev) =>
+      seen.push([prev.mcpEnabled, next.mcpEnabled]),
+    );
+    updateSettings({ mcpEnabled: true });
+    expect(getSettings().mcpEnabled).toBe(true);
+    expect(isSettingStored('mcpEnabled')).toBe(true);
+    expect(seen).toEqual([[false, true]]);
+    off();
+    updateSettings({ mcpEnabled: false });
+    expect(seen).toHaveLength(1);
+    await flushWrites();
+    expect(await store.get('settings', 'mcpEnabled')).toBe(false);
   });
 });

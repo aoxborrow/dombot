@@ -80,6 +80,7 @@ export const appSettingsPatch = z
   .object({
     autoSyncIntervalMinutes: z.number(),
     recentNameservers: z.array(z.array(z.string())),
+    mcpEnabled: z.boolean(),
   })
   .partial()
   .strict();
