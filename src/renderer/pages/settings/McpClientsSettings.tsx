@@ -97,7 +97,11 @@ export default function McpClientsSettings() {
         <div className="flex items-center justify-between gap-6">
           <div>
             <Label htmlFor="mcp-enabled" className="text-sm font-medium">
-              {enabled ? 'On' : 'Off'}
+              {!enabled
+                ? 'Disabled'
+                : info?.running
+                  ? 'Enabled (running)'
+                  : 'Enabled (starting…)'}
             </Label>
             <p className="mt-1 text-sm text-muted-foreground">
               {enabled
