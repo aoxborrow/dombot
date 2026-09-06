@@ -292,6 +292,19 @@ describe('step-driven mode (no auto-drive)', () => {
     ]);
   });
 
+  it('clears inFlight in the store once a result is recorded (by value, not identity)', async () => {
+    applyDomainOp.mockImplementation(async (target: DomainTarget) =>
+      resultFor({ ...target }, 'ok'),
+    );
+    const job = startBulk(targets('dynadot', 'a.com'), AUTO_RENEW);
+    await stepBulk(job.id);
+    await flushWrites();
+    const stored = (await store.get('bulk-jobs', 'job')) as {
+      inFlight: unknown[];
+    };
+    expect(stored.inFlight).toEqual([]);
+  });
+
   it('persists the job and reloads it after a "restart"', async () => {
     const job = startBulk(targets('dynadot', 'a.com', 'b.com'), AUTO_RENEW);
     await stepBulk(job.id);
@@ -394,6 +407,48 @@ describe('abandonInterruptedBulk', () => {
     expect(() =>
       startBulk(targets('dynadot', 'z.com'), AUTO_RENEW),
     ).not.toThrow();
+  });
+
+  it('accounts for targets that were mid-request when the process died', async () => {
+    setBulkAutoDrive(false);
+    // The request never returns — the "process" dies with it in flight.
+    applyDomainOp.mockImplementation(() => new Promise(() => {}));
+    const job = startBulk(targets('dynadot', 'a.com', 'b.com'), AUTO_RENEW);
+    void stepBulk(job.id);
+    await flushWrites();
+    const stored = (await store.get('bulk-jobs', 'job')) as {
+      pending: unknown[];
+      inFlight: unknown[];
+    };
+    expect(stored.inFlight).toHaveLength(1);
+    expect(stored.pending).toHaveLength(1);
+
+    resetBulkForTests();
+    abandonInterruptedBulk();
+    const after = getBulkJob()!;
+    expect(after.results).toHaveLength(2); // every selected domain reported
+    expect(after.results.map((r) => [r.target.domainName, r.message])).toEqual([
+      ['a.com', expect.stringMatching(/outcome unknown/)],
+      ['b.com', expect.stringMatching(/before this item ran/)],
+    ]);
+    expect(after.counts.cancelled).toBe(2);
+  });
+
+  it('a stepping host (web) reconciles orphans before continuing', async () => {
+    setBulkAutoDrive(false);
+    applyDomainOp.mockImplementationOnce(() => new Promise(() => {}));
+    const job = startBulk(targets('dynadot', 'a.com', 'b.com'), AUTO_RENEW);
+    void stepBulk(job.id);
+    await flushWrites();
+    resetBulkForTests(); // new isolate: nothing in flight here
+    vi.setSystemTime(Date.now() + 1000);
+    const s = await stepBulk(job.id);
+    expect(s.job.results.map((r) => [r.target.domainName, r.status])).toEqual([
+      ['a.com', 'cancelled'],
+      ['b.com', 'ok'],
+    ]);
+    expect(s.job.status).toBe('done');
+    expect(applyDomainOp).toHaveBeenCalledTimes(2);
   });
 
   it('is a no-op with no job', () => {

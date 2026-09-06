@@ -81,11 +81,20 @@ const STATUSES: DomainOpStatus[] = [
 interface StoredJob extends BulkJob {
   /** Targets not yet attempted, in selection order. */
   pending: DomainTarget[];
+  /**
+   * Targets claimed by the slice in flight. Only ever non-empty in the store
+   * while a request is out; if a job is loaded with some still here, the
+   * process that claimed them died mid-request and their outcome is unknown.
+   */
+  inFlight: DomainTarget[];
   /** Set by cancelBulk; the next step records the rest as cancelled. */
   cancelRequested: boolean;
   /** Per-registrar lane: the earliest time its next request may start. */
   notBefore: Partial<Record<RegistrarName, number>>;
 }
+
+const sameTarget = (a: DomainTarget, b: DomainTarget): boolean =>
+  a.registrar === b.registrar && a.domainName === b.domainName;
 
 const JOB_KEY = 'job';
 const store = new Namespace<StoredJob>('bulk-jobs');
@@ -106,7 +115,7 @@ export function setBulkAutoDrive(enabled: boolean): void {
 function loadJob(): StoredJob | null {
   if (!job) {
     const stored = store.get(JOB_KEY);
-    job = stored ? { ...stored } : null;
+    job = stored ? { ...stored, inFlight: stored.inFlight ?? [] } : null;
   }
   return job;
 }
@@ -173,6 +182,7 @@ export function startBulk(targets: DomainTarget[], op: DomainOp): BulkJob {
     startedAt: Date.now(),
     finishedAt: null,
     pending: [...targets],
+    inFlight: [],
     cancelRequested: false,
     notBefore: {},
   };
@@ -194,6 +204,7 @@ export function cancelBulk(jobId?: string): void {
 }
 
 function record(j: StoredJob, result: DomainOpResult): void {
+  j.inFlight = j.inFlight.filter((t) => !sameTarget(t, result.target));
   j.results.push(result);
   j.counts[result.status] += 1;
   persist();
@@ -245,8 +256,34 @@ export function stepBulk(jobId?: string): Promise<BulkStep> {
   return inFlight;
 }
 
+const ORPHAN_MESSAGE =
+  'Interrupted mid-request — outcome unknown; check the domain at the registrar';
+const UNRUN_MESSAGE = 'Interrupted — the app was closed before this item ran';
+
+/**
+ * Targets that a previous process claimed but never recorded: it died with
+ * the request out. We can't know whether the registrar applied it, so it's
+ * recorded as cancelled with a message that says to check — never re-run
+ * (a renew could double-charge).
+ */
+function reconcileOrphans(j: StoredJob): void {
+  if (stepController !== null) return; // this process owns the slice
+  for (const target of j.inFlight) {
+    j.results.push({ target, status: 'cancelled', message: ORPHAN_MESSAGE });
+    j.counts.cancelled += 1;
+  }
+  if (j.inFlight.length > 0) {
+    console.warn(
+      `[bulk] ${j.inFlight.length} item(s) of job ${j.id} were in flight when a previous process died`,
+    );
+    j.inFlight = [];
+    persist();
+  }
+}
+
 async function runStep(j: StoredJob): Promise<BulkStep> {
   if (j.status !== 'running') return { job: snapshot(j)!, nextAt: null };
+  reconcileOrphans(j);
 
   if (j.cancelRequested) {
     for (const target of j.pending) {
@@ -275,8 +312,10 @@ async function runStep(j: StoredJob): Promise<BulkStep> {
     return { job: snapshot(j)!, nextAt: nextStartAt(j) };
   }
 
-  // Claim them, stamp each lane's next start, and run the slice in parallel.
+  // Claim them (pending → inFlight, so a crash mid-slice can't lose them),
+  // stamp each lane's next start, and run the slice in parallel.
   j.pending = j.pending.filter((t) => !slice.includes(t));
+  j.inFlight = slice;
   for (const registrar of perRegistrar.keys()) {
     j.notBefore[registrar] = now + policyFor(registrar, j.op.kind).spacingMs;
   }
@@ -345,18 +384,16 @@ function sleepUntilWoken(ms: number): Promise<void> {
 /**
  * Startup reconciliation: a job still marked running was interrupted by a
  * crash or quit. Nothing resumes on its own — a renew is money — so the
- * remaining targets are recorded as cancelled with a message that says why,
- * leaving an honest results report the user can retry from.
+ * remaining targets are recorded as cancelled: unrun ones with a message
+ * that says so, and any that were mid-request with one that says the outcome
+ * is unknown. The report then accounts for every selected domain.
  */
 export function abandonInterruptedBulk(): void {
   const j = loadJob();
   if (!j || j.status !== 'running') return;
+  reconcileOrphans(j);
   for (const target of j.pending) {
-    j.results.push({
-      target,
-      status: 'cancelled',
-      message: 'Interrupted — the app was closed before this item ran',
-    });
+    j.results.push({ target, status: 'cancelled', message: UNRUN_MESSAGE });
     j.counts.cancelled += 1;
   }
   j.pending = [];
