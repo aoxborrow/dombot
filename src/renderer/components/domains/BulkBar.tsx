@@ -43,6 +43,7 @@ export function BulkBar({
   domains,
   folders,
   onClear,
+  onRefresh,
   onExport,
   onAssignFolder,
   onKind,
@@ -52,6 +53,8 @@ export function BulkBar({
   domains: Domain[];
   folders: Folder[];
   onClear: () => void;
+  /** Re-fetch the selected domains' detail from their registrars. */
+  onRefresh: () => void;
   onExport: () => void;
   onAssignFolder: (folderId: string | null) => void;
   /** Open the bulk dialog for an op kind (its value is chosen there). */
@@ -114,10 +117,15 @@ export function BulkBar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuItem onSelect={onRefresh}>
+              <RefreshCw className="text-muted-foreground" />
+              Refresh
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <FolderIcon className="text-muted-foreground" />
-                Assign to folder
+                Folder
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="max-h-[320px] w-52 overflow-y-auto">
                 {folders.map((f) => (
@@ -139,6 +147,15 @@ export function BulkBar({
                   </div>
                 )}
                 <DropdownMenuSeparator />
+                {/* Hidden is a built-in folder: assigning drops the domains
+                    from the table until "Hidden" is picked in the Folder filter. */}
+                <DropdownMenuItem
+                  className="gap-2.5"
+                  onSelect={() => onAssignFolder(HIDDEN_FOLDER_ID)}
+                >
+                  <EyeOff className="size-4 shrink-0" aria-hidden />
+                  <span className="flex-1">Hidden</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="gap-2.5"
                   onSelect={() => onAssignFolder(null)}
@@ -148,72 +165,67 @@ export function BulkBar({
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
-            <DropdownMenuItem onSelect={() => onAssignFolder(HIDDEN_FOLDER_ID)}>
-              <EyeOff className="text-muted-foreground" />
-              Hidden
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               disabled={running}
               onSelect={() => onKind('autoRenew')}
             >
               <RefreshCw className="text-muted-foreground" />
-              Auto-renew…
+              Auto-renew<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={running}
               onSelect={() => onKind('privacy')}
             >
               <EyeOff className="text-muted-foreground" />
-              WHOIS privacy…
+              WHOIS privacy<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={running}
               onSelect={() => onKind('lock')}
             >
               <Lock className="text-muted-foreground" />
-              Transfer lock…
+              Transfer lock<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={running}
               onSelect={() => onKind('nameservers')}
             >
               <Server className="text-muted-foreground" />
-              Nameservers…
+              Nameservers<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={running}
               onSelect={() => onKind('urlForwarding')}
             >
               <Link2 className="text-muted-foreground" />
-              URL forwarding…
+              URL forwarding<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={running}
               onSelect={() => onKind('emailForwarding')}
             >
               <Mail className="text-muted-foreground" />
-              Email forwarding…
+              Email forwarding<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('authCode')}
-            >
-              <KeyRound className="text-muted-foreground" />
-              Get auth codes…
-            </DropdownMenuItem>
             <DropdownMenuItem
               disabled={running}
               onSelect={() => onKind('renew')}
             >
               <CalendarPlus className="text-muted-foreground" />
-              Renew…
+              Renew<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={running}
+              onSelect={() => onKind('authCode')}
+            >
+              <KeyRound className="text-muted-foreground" />
+              Get auth codes<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={onExport}>
               <FileSpreadsheet className="text-muted-foreground" />
-              Export selected CSV
+              Export CSV
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

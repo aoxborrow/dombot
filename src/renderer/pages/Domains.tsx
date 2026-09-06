@@ -669,14 +669,6 @@ export default function Domains() {
       toast.success(`Refreshed ${d.domainName}`),
     );
   };
-  const hideDomain = (d: Domain) => {
-    void assignFolder(`${d.registrar}:${d.domainName}`, HIDDEN_FOLDER_ID).then(
-      () =>
-        toast.success(`Hid ${d.domainName}`, {
-          description: 'Pick “Hidden” in the Folder filter to see it again.',
-        }),
-    );
-  };
 
   // CSV export: an in-flight flag (dialog open + write) and a transient result
   // note ("Exported N rows to …" / an error) that clears itself after a moment.
@@ -928,6 +920,14 @@ export default function Domains() {
     () => merged.filter((d) => selected.has(`${d.registrar}:${d.domainName}`)),
     [merged, selected],
   );
+  // Bulk: re-fetch every selected domain's detail from its registrar, bypassing
+  // the detail cache (their cells show skeletons while in flight).
+  const bulkRefresh = () => {
+    const n = selectedDomains.length;
+    void enrichVisible(selectedDomains, true).then(() =>
+      toast.success(`Refreshed ${n} domain${n === 1 ? '' : 's'}`),
+    );
+  };
   const bulkAssignFolder = (folderId: string | null) => {
     const keys = selectedDomains.map((d) => `${d.registrar}:${d.domainName}`);
     void Promise.all(keys.map((k) => assignFolder(k, folderId))).then(() =>
@@ -1203,6 +1203,7 @@ export default function Domains() {
           domains={selectedDomains}
           folders={folders}
           onClear={clearSelection}
+          onRefresh={bulkRefresh}
           onExport={() => void exportCsv(selectedDomains)}
           onAssignFolder={bulkAssignFolder}
           onKind={(kind) =>
@@ -1315,8 +1316,6 @@ export default function Domains() {
                     </Fragment>
                   );
                 })}
-                {/* Row actions ("⋯") — no header label. */}
-                <TableHead className="w-0 px-1.5" aria-label="Actions" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1350,7 +1349,28 @@ export default function Domains() {
                             col.key === 'domainName' && 'border-l-0! pl-3',
                           )}
                         >
-                          {col.detail && loadingDetail ? (
+                          {col.key === 'domainName' ? (
+                            // The row's "⋯" menu lives in the Domain cell,
+                            // pinned to its right edge.
+                            <div className="flex items-center justify-between gap-2">
+                              {col.render(d, portfolioRegistrarLabels)}
+                              <RowActionsMenu
+                                domain={d}
+                                folders={folders}
+                                folderId={folderAssignments[key]}
+                                onRefresh={() => refreshDomain(d)}
+                                onUrlForwarding={() => setUrlForwardingFor(d)}
+                                onEmailForwarding={() =>
+                                  setEmailForwardingFor(d)
+                                }
+                                onAuthCode={() => setAuthCodeFor(d)}
+                                onRenew={() => setRenewFor(d)}
+                                onAssignFolder={(folderId) =>
+                                  void assignFolder(key, folderId)
+                                }
+                              />
+                            </div>
+                          ) : col.detail && loadingDetail ? (
                             <CellSkeleton align={col.align} />
                           ) : (
                             col.render(d, portfolioRegistrarLabels)
@@ -1377,24 +1397,13 @@ export default function Domains() {
                         )}
                       </Fragment>
                     ))}
-                    <TableCell className="w-0 px-1.5">
-                      <RowActionsMenu
-                        domain={d}
-                        onRefresh={() => refreshDomain(d)}
-                        onUrlForwarding={() => setUrlForwardingFor(d)}
-                        onEmailForwarding={() => setEmailForwardingFor(d)}
-                        onAuthCode={() => setAuthCodeFor(d)}
-                        onRenew={() => setRenewFor(d)}
-                        onHide={() => hideDomain(d)}
-                      />
-                    </TableCell>
                   </TableRow>
                 );
               })}
               {visible.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell
-                    colSpan={COLUMNS.length + 6}
+                    colSpan={COLUMNS.length + 5}
                     className="h-40 text-center text-muted-foreground"
                   >
                     {noneConfigured ? (
