@@ -13,10 +13,8 @@ import {
   ChevronsRight,
   ChevronsUpDown,
   CircleCheck,
-  Download,
   Eye,
   EyeOff,
-  FileSpreadsheet,
   Globe,
   Lock,
   LockOpen,
@@ -672,7 +670,6 @@ export default function Domains() {
 
   // CSV export: an in-flight flag (dialog open + write) and a transient result
   // note ("Exported N rows to …" / an error) that clears itself after a moment.
-  const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<{
     text: string;
     error: boolean;
@@ -991,7 +988,6 @@ export default function Domains() {
   // column we have, not just the current page; or the selection) via the
   // native save dialog in main.
   async function exportCsv(rows: Domain[] = filtered) {
-    setExporting(true);
     try {
       const csv = domainsToCsv(
         rows,
@@ -1012,8 +1008,6 @@ export default function Domains() {
         err instanceof Error ? err.message : 'Export failed',
         true,
       );
-    } finally {
-      setExporting(false);
     }
   }
 
@@ -1065,11 +1059,11 @@ export default function Domains() {
           carries the contextual prompt (configure a registrar / refresh / no
           matches). */}
       <>
-        {/* Toolbar: search, filters, and export all flow inline and wrap
-              together as equal items. Extra top margin separates it from the
-              title/refresh row above. */}
+        {/* Toolbar: search and filters flow inline and wrap together as equal
+              items. Extra top margin separates it from the title/refresh row
+              above. */}
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[220px] flex-1">
+          <div className="relative min-w-[140px] flex-1">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
@@ -1159,42 +1153,20 @@ export default function Domains() {
             Reset
           </Button>
 
-          <div className="flex items-center gap-3">
-            {exportNote && (
-              <span
-                className={cn(
-                  'inline-flex items-center gap-1.5 text-sm',
-                  exportNote.error
-                    ? 'text-destructive'
-                    : 'text-[#31613b] dark:text-[#7ac28d]',
-                )}
-                role="status"
-              >
-                {!exportNote.error && <CircleCheck className="size-4" />}
-                {exportNote.text}
-              </span>
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  disabled={exporting || filtered.length === 0}
-                  title="Export the filtered domains"
-                  className="pr-[7px]!"
-                >
-                  <Download className="text-muted-foreground" />
-                  {exporting ? 'Exporting…' : 'Export'}
-                  <ChevronDown className="text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => void exportCsv()}>
-                  <FileSpreadsheet className="text-muted-foreground" />
-                  Export CSV
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {exportNote && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 text-sm',
+                exportNote.error
+                  ? 'text-destructive'
+                  : 'text-[#31613b] dark:text-[#7ac28d]',
+              )}
+              role="status"
+            >
+              {!exportNote.error && <CircleCheck className="size-4" />}
+              {exportNote.text}
+            </span>
+          )}
         </div>
 
         {/* Bulk action bar — contextual: appears once any row is selected, or
