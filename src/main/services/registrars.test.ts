@@ -44,6 +44,10 @@ const clientMethods = {
   unlockDomain: vi.fn(),
   setPrivacy: vi.fn(),
   updateNameservers: vi.fn(),
+  renewDomain: vi.fn(),
+  registerDomain: vi.fn(),
+  getDomain: vi.fn(),
+  getNameservers: vi.fn(),
 };
 const listPortfolio = vi.fn();
 vi.mock('@aoxborrow/registrar-client', () => {
@@ -84,14 +88,21 @@ vi.mock('./pricing', () => ({
   resolvePricing: vi.fn(),
 }));
 
-vi.mock('node:dns', () => ({ promises: { resolveNs: vi.fn(async () => []) } }));
+const resolveNs = vi.fn<(d: string) => Promise<string[]>>();
+vi.mock('node:dns', () => ({ promises: { resolveNs: (d: string) => resolveNs(d) } }));
 
 import {
   findRegistrarsForDomain,
   getCachedPortfolio,
+  getDomainDetail,
   getMergedPortfolio,
   getPortfolio,
+  registerDomainCached,
+  renewDomainCached,
   setAutoRenewCached,
+  setLockCached,
+  setNameserversCached,
+  setPrivacyCached,
   syncRegistrar,
 } from './registrars';
 import type { Domain } from '@aoxborrow/registrar-client';
@@ -138,6 +149,7 @@ beforeEach(() => {
   storedCredentials.dynadot = { apiKey: 'x' };
   storedCredentials.porkbun = { apiKey: 'y' };
   listPortfolio.mockResolvedValue({ domains: [], errors: [] });
+  resolveNs.mockResolvedValue([]);
 });
 
 describe('findRegistrarsForDomain', () => {
@@ -301,5 +313,156 @@ describe('cache patching via setAutoRenewCached', () => {
     const r = await setAutoRenewCached('dynadot', 'a.com', true);
     expect(r.success).toBe(false);
     expect((store.portfolio.dynadot.data as { domains: Domain[] }).domains[0].autoRenew).toBe(false);
+  });
+});
+
+const sliceDomain = (name = 'dynadot') =>
+  (store.portfolio[name].data as { domains: Domain[] }).domains[0];
+
+describe('setLockCached / setPrivacyCached / setNameserversCached', () => {
+  beforeEach(() =>
+    seedSlice('dynadot', [domain({ domainName: 'a.com', registrar: 'dynadot' })]),
+  );
+
+  it('lock calls lockDomain and patches on success', async () => {
+    clientMethods.lockDomain.mockResolvedValue({ success: true, message: '' });
+    await setLockCached('dynadot', 'a.com', true);
+    expect(clientMethods.lockDomain).toHaveBeenCalled();
+    expect(clientMethods.unlockDomain).not.toHaveBeenCalled();
+    expect(sliceDomain().locked).toBe(true);
+  });
+
+  it('unlock calls unlockDomain', async () => {
+    clientMethods.unlockDomain.mockResolvedValue({ success: true, message: '' });
+    await setLockCached('dynadot', 'a.com', false);
+    expect(clientMethods.unlockDomain).toHaveBeenCalled();
+    expect(sliceDomain().locked).toBe(false);
+  });
+
+  it('privacy patches on success', async () => {
+    clientMethods.setPrivacy.mockResolvedValue({ success: true, message: '' });
+    await setPrivacyCached('dynadot', 'a.com', true);
+    expect(sliceDomain().privacy).toBe(true);
+  });
+
+  it('nameservers patches on success and not on failure', async () => {
+    clientMethods.updateNameservers.mockResolvedValue({ success: true, message: '' });
+    await setNameserversCached('dynadot', 'a.com', ['ns1.x', 'ns2.x']);
+    expect(sliceDomain().nameservers).toEqual(['ns1.x', 'ns2.x']);
+
+    clientMethods.updateNameservers.mockResolvedValue({ success: false, message: 'no' });
+    await setNameserversCached('dynadot', 'a.com', ['ns3.x']);
+    expect(sliceDomain().nameservers).toEqual(['ns1.x', 'ns2.x']); // unchanged
+  });
+});
+
+describe('renewDomainCached', () => {
+  beforeEach(() =>
+    seedSlice('dynadot', [
+      domain({ domainName: 'a.com', registrar: 'dynadot', expirationDate: new Date('2026-01-01') }),
+    ]),
+  );
+
+  it('re-fetches detail and returns + patches the fresh expiry on success', async () => {
+    clientMethods.renewDomain.mockResolvedValue({ success: true, message: 'Renewed' });
+    // getDomainDetail(refresh:true) → client.getDomain returns the new record.
+    clientMethods.getDomain.mockResolvedValue(
+      domain({
+        domainName: 'a.com',
+        registrar: 'dynadot',
+        expirationDate: new Date('2027-01-01'),
+        status: 'active',
+        nameservers: ['ns1.x'],
+      }),
+    );
+
+    const { result, patch } = await renewDomainCached('dynadot', 'a.com', 1);
+    expect(result.success).toBe(true);
+    expect(patch.expirationDate).toEqual(new Date('2027-01-01'));
+    // Portfolio slice patched with the new expiry too.
+    expect(sliceDomain().expirationDate).toEqual(new Date('2027-01-01'));
+  });
+
+  it('returns an empty patch and swallows a re-fetch failure', async () => {
+    clientMethods.renewDomain.mockResolvedValue({ success: true, message: 'Renewed' });
+    clientMethods.getDomain.mockRejectedValue(new Error('detail down'));
+    clientMethods.getNameservers.mockRejectedValue(new Error('no ns'));
+
+    const { result, patch } = await renewDomainCached('dynadot', 'a.com', 1);
+    expect(result.success).toBe(true);
+    expect(patch).toEqual({});
+    // Original expiry untouched.
+    expect(sliceDomain().expirationDate).toEqual(new Date('2026-01-01'));
+  });
+
+  it('does not re-fetch on a soft failure', async () => {
+    clientMethods.renewDomain.mockResolvedValue({ success: false, message: 'declined' });
+    const { result, patch } = await renewDomainCached('dynadot', 'a.com', 1);
+    expect(result.success).toBe(false);
+    expect(patch).toEqual({});
+    expect(clientMethods.getDomain).not.toHaveBeenCalled();
+  });
+});
+
+describe('registerDomainCached', () => {
+  it('syncs the registrar slice on success so the new name enters the cache', async () => {
+    clientMethods.registerDomain.mockResolvedValue({ success: true, message: 'Registered' });
+    listPortfolio.mockResolvedValue({
+      domains: [domain({ domainName: 'new.com', registrar: 'dynadot' })],
+      errors: [],
+    });
+
+    const r = await registerDomainCached('dynadot', 'new.com', {} as never);
+    expect(r.success).toBe(true);
+    expect(listPortfolio).toHaveBeenCalledTimes(1);
+    expect((store.portfolio.dynadot.data as { domains: Domain[] }).domains[0].domainName).toBe(
+      'new.com',
+    );
+  });
+
+  it('does not sync on a failed registration', async () => {
+    clientMethods.registerDomain.mockResolvedValue({ success: false, message: 'taken' });
+    const r = await registerDomainCached('dynadot', 'new.com', {} as never);
+    expect(r.success).toBe(false);
+    expect(listPortfolio).not.toHaveBeenCalled();
+  });
+});
+
+describe('getDomainDetail — nameserver resolution', () => {
+  it('serves a fresh cached entry without a network call', async () => {
+    store.detail['dynadot:a.com'] = {
+      data: { nameservers: ['cached.ns'] },
+      fetchedAt: Date.now(),
+    };
+    const detail = await getDomainDetail('dynadot', 'a.com');
+    expect(detail).toEqual({ nameservers: ['cached.ns'] });
+    expect(clientMethods.getDomain).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the registrar nameserver endpoint when getDomain has none', async () => {
+    clientMethods.getDomain.mockResolvedValue(
+      domain({ domainName: 'a.com', registrar: 'dynadot', nameservers: [] }),
+    );
+    clientMethods.getNameservers.mockResolvedValue(['reg.ns1', 'reg.ns2']);
+    const detail = await getDomainDetail('dynadot', 'a.com', true);
+    expect(detail?.nameservers).toEqual(['reg.ns1', 'reg.ns2']);
+  });
+
+  it('falls back to a live DNS query and normalizes trailing dots/case', async () => {
+    clientMethods.getDomain.mockResolvedValue(
+      domain({ domainName: 'a.com', registrar: 'dynadot', nameservers: [] }),
+    );
+    clientMethods.getNameservers.mockResolvedValue([]);
+    resolveNs.mockResolvedValue(['NS1.Cloudflare.com.', 'ns2.cloudflare.com']);
+    const detail = await getDomainDetail('dynadot', 'a.com', true);
+    expect(detail?.nameservers).toEqual(['ns1.cloudflare.com', 'ns2.cloudflare.com']);
+  });
+
+  it('returns null when nothing resolves and there is no prior entry', async () => {
+    clientMethods.getDomain.mockRejectedValue(new Error('no detail'));
+    clientMethods.getNameservers.mockRejectedValue(new Error('no ns'));
+    resolveNs.mockRejectedValue(new Error('nxdomain'));
+    const detail = await getDomainDetail('dynadot', 'a.com', true);
+    expect(detail).toBeNull();
   });
 });

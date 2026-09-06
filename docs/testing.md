@@ -287,5 +287,24 @@ Worth an explicit, dedicated test since it's security-relevant. In
   in-memory `./cache` mock plus mocked `@aoxborrow/registrar-client`,
   `./credentials`, `./registrar-state`, `./pricing`, and `node:dns`.
 
-Item 10 (trivial data/formatting helpers) intentionally skipped. All planned
-tiers landed — tick further items off here as they're added.
+Item 10 (trivial data/formatting helpers) intentionally skipped.
+
+**Tier 4 complete** (2026-09-06) — 211 tests total. The flows the earlier tiers
+deferred:
+
+- `src/main/services/registrars.test.ts` (+13, now 28) — the remaining
+  cache-write flows: `setLockCached` (lock vs. unlock branch), `setPrivacyCached`,
+  `setNameserversCached` (patch on success, no patch on failure);
+  `renewDomainCached` (re-fetch + expiry patch on success, empty patch when the
+  re-fetch throws, no re-fetch on soft failure); `registerDomainCached` (syncs
+  the slice on success, no sync on failure); and `getDomainDetail`'s nameserver
+  resolution ladder (fresh cache hit → registrar endpoint → live DNS query with
+  trailing-dot/case normalization → null when nothing resolves).
+- `src/main/mcp/tools.test.ts` (+7, now 21) — end-to-end handler tests over the
+  mocked services: `portfolio_query` (merged portfolio + folders → query),
+  `domain_get` (cached detail vs. live `getDomain` fallback), `domain_renew`
+  (years passthrough + default), `domain_auth_code_get` (returns the code; throws
+  a non-ok outcome as the tool error).
+
+All planned tiers plus the deferred flows landed — tick further items off here as
+they're added.

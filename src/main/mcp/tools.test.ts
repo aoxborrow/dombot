@@ -10,11 +10,14 @@ const findRegistrarsForDomain = vi.fn<(d: string) => string[]>();
 const getConfiguredRegistrars = vi.fn(() => ['dynadot']);
 const getActiveRegistrars = vi.fn(() => ['dynadot']);
 const setDnsRecords = vi.fn();
+const getDomain = vi.fn();
 const getRegistrarClient = vi.fn((name: string) => {
   void name;
-  return { setDnsRecords };
+  return { setDnsRecords, getDomain };
 });
 const registerDomainCached = vi.fn();
+const getDomainDetail = vi.fn();
+const getMergedPortfolio = vi.fn();
 
 vi.mock('../services/registrars', () => ({
   registrarNames: ['dynadot', 'porkbun', 'godaddy'] as const,
@@ -23,9 +26,8 @@ vi.mock('../services/registrars', () => ({
   getActiveRegistrars: () => getActiveRegistrars(),
   getRegistrarClient: (n: string) => getRegistrarClient(n),
   registerDomainCached: (...a: unknown[]) => registerDomainCached(...a),
-  // Unused by the tools exercised here, but imported at module load.
-  getDomainDetail: vi.fn(),
-  getMergedPortfolio: vi.fn(),
+  getDomainDetail: (...a: unknown[]) => getDomainDetail(...a),
+  getMergedPortfolio: () => getMergedPortfolio(),
   getPortfolio: vi.fn(),
   getRegistrarMetadata: vi.fn(),
   getRenewalPriceLive: vi.fn(),
@@ -37,7 +39,8 @@ vi.mock('../services/domain-ops', () => ({
   applyDomainOp: (...a: unknown[]) => applyDomainOp(...a),
 }));
 
-vi.mock('../services/folders', () => ({ getFolders: vi.fn(() => []) }));
+const getFolders = vi.fn(() => ({ folders: [], assignments: {} }));
+vi.mock('../services/folders', () => ({ getFolders: () => getFolders() }));
 
 const broadcastPortfolioChanged = vi.fn();
 vi.mock('../events', () => ({
@@ -74,9 +77,10 @@ const schema = (name: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getRegistrarClient.mockReturnValue({ setDnsRecords });
+  getRegistrarClient.mockReturnValue({ setDnsRecords, getDomain });
   getConfiguredRegistrars.mockReturnValue(['dynadot']);
   getActiveRegistrars.mockReturnValue(['dynadot']);
+  getFolders.mockReturnValue({ folders: [], assignments: {} });
 });
 
 describe('json() payload shape', () => {
@@ -230,6 +234,83 @@ describe('input schemas', () => {
     ).toBe(false);
     // optional — omitting it is fine (resolved from cache at run time).
     expect(s.safeParse({ domain: 'a.com', enabled: true }).success).toBe(true);
+  });
+});
+
+describe('end-to-end handlers', () => {
+  it('portfolio_query runs the query over the merged portfolio + folders', async () => {
+    getMergedPortfolio.mockReturnValue({
+      domains: [
+        {
+          registrar: 'dynadot', domainName: 'a.com', status: 'active',
+          createdDate: null, expirationDate: null, renewalDate: null,
+          autoRenew: false, locked: false, privacy: false, nameservers: [],
+          syncedAt: new Date(0), deleted: false,
+        },
+      ],
+      fetchedAt: 1000,
+      registrars: ['dynadot'],
+      errors: [],
+    });
+    getFolders.mockReturnValue({ folders: [], assignments: {} });
+
+    const out = await call('portfolio_query', {});
+    expect(out.total).toBe(1);
+    expect((out.rows as { domainName: string }[])[0].domainName).toBe('a.com');
+    expect(out.registrars).toEqual(['dynadot']);
+  });
+
+  it('domain_get returns cached detail when present', async () => {
+    findRegistrarsForDomain.mockReturnValue(['dynadot']);
+    getDomainDetail.mockResolvedValue({ domainName: 'a.com', nameservers: ['ns.x'] });
+    const out = await call('domain_get', { domain: 'a.com' });
+    expect(out).toMatchObject({ domainName: 'a.com', nameservers: ['ns.x'] });
+    expect(getDomain).not.toHaveBeenCalled();
+  });
+
+  it('domain_get falls back to a live getDomain when detail is null', async () => {
+    findRegistrarsForDomain.mockReturnValue(['dynadot']);
+    getDomainDetail.mockResolvedValue(null);
+    getDomain.mockResolvedValue({ domainName: 'a.com', status: 'active' });
+    const out = await call('domain_get', { domain: 'a.com', refresh: true });
+    expect(out).toMatchObject({ domainName: 'a.com', status: 'active' });
+    expect(getDomain).toHaveBeenCalledWith('a.com');
+  });
+
+  it('domain_renew dispatches a renew op with the given years', async () => {
+    findRegistrarsForDomain.mockReturnValue(['dynadot']);
+    applyDomainOp.mockResolvedValue({ status: 'ok', message: 'Renewed' });
+    const out = await call('domain_renew', { domain: 'a.com', years: 3 });
+    expect(applyDomainOp).toHaveBeenCalledWith(
+      { registrar: 'dynadot', domainName: 'a.com' },
+      { kind: 'renew', years: 3 },
+    );
+    expect(out).toMatchObject({ success: true, status: 'ok' });
+  });
+
+  it('domain_renew defaults to 1 year', async () => {
+    findRegistrarsForDomain.mockReturnValue(['dynadot']);
+    applyDomainOp.mockResolvedValue({ status: 'ok', message: 'Renewed' });
+    await call('domain_renew', { domain: 'a.com' });
+    expect(applyDomainOp).toHaveBeenCalledWith(expect.anything(), {
+      kind: 'renew',
+      years: 1,
+    });
+  });
+
+  it('domain_auth_code_get returns the code on ok', async () => {
+    findRegistrarsForDomain.mockReturnValue(['dynadot']);
+    applyDomainOp.mockResolvedValue({ status: 'ok', message: '', data: { authCode: 'EPP-9' } });
+    const out = await call('domain_auth_code_get', { domain: 'a.com' });
+    expect(out).toEqual({ domain: 'a.com', authCode: 'EPP-9' });
+  });
+
+  it('domain_auth_code_get throws a non-ok outcome as the tool error', async () => {
+    findRegistrarsForDomain.mockReturnValue(['dynadot']);
+    applyDomainOp.mockResolvedValue({ status: 'unsupported', message: 'no api' });
+    await expect(call('domain_auth_code_get', { domain: 'a.com' })).rejects.toThrow(
+      'no api',
+    );
   });
 });
 
