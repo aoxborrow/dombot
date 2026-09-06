@@ -27,5 +27,6 @@
     "*.config.mts",
     "forge.config.ts",
     "forge.env.d.ts"
-  ]
+  ],
+  "exclude": ["src/worker", "worker-configuration.d.ts"]
 }

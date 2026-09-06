@@ -66,7 +66,11 @@ export class Namespace<T> {
 
   /** (Re)loads the namespace from the store. */
   async load(): Promise<void> {
-    const entries = await store.list(this.name);
+    this.replace(await store.list(this.name));
+  }
+
+  /** Installs a namespace's entries wholesale (used by hydrateStores). */
+  replace(entries: Record<string, unknown>): void {
     this.data = new Map(Object.entries(entries) as [string, T][]);
   }
 
@@ -123,5 +127,11 @@ export class Namespace<T> {
 /** Loads every namespace any service has declared. Hosts call this once
  *  after `configureStore`, before handling requests. Safe to call again. */
 export async function hydrateStores(): Promise<void> {
+  if (store.loadAll) {
+    // One round trip for everything (the web host does this per request).
+    const all = await store.loadAll();
+    for (const ns of registry) ns.replace(all[ns.name] ?? {});
+    return;
+  }
   await Promise.all([...registry].map((ns) => ns.load()));
 }

@@ -108,3 +108,9 @@ out/
 # extracted data/tld-renewal-pricing.json (built by scripts/build-base-pricing.mjs)
 # is committed.
 data/tld-pricing-[0-9]*.json
+dist/
+
+# Local Worker secrets for `wrangler dev` — never commit
+.dev.vars
+# Wrangler local state
+.wrangler/

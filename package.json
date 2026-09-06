@@ -12,13 +12,20 @@
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
     "format": "prettier --write .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.worker.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "pricing:build": "node scripts/build-base-pricing.mjs",
     "site:dev": "vite site",
     "site:build": "vite build site",
-    "site:preview": "vite preview site"
+    "site:preview": "vite preview site",
+    "web:types": "wrangler types",
+    "web:build": "vite build -c vite.web.config.mts",
+    "web:dev": "npm run web:build && wrangler dev --test-scheduled",
+    "web:deploy": "npm run web:build && wrangler d1 migrations apply dombot --remote && wrangler deploy",
+    "web:migrate:local": "wrangler d1 migrations apply dombot --local",
+    "web:secrets": "node scripts/web-secrets.mjs",
+    "web:rotate-password": "node scripts/web-secrets.mjs --password"
   },
   "keywords": [],
   "author": {
@@ -56,7 +63,8 @@
     "tw-animate-css": "^1.4.0",
     "typescript": "~5.6.3",
     "vite": "^5.4.21",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "wrangler": "^4.129.0"
   },
   "dependencies": {
     "@aoxborrow/registrar-client": "^0.5.0",
@@ -66,6 +74,8 @@
     "cors": "^2.8.6",
     "electron-squirrel-startup": "^1.0.1",
     "express": "^5.2.1",
+    "hono": "^4.13.7",
+    "jose": "^6.2.12",
     "lucide-react": "^1.37.0",
     "radix-ui": "^1.6.7",
     "react": "^19.2.8",

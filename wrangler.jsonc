@@ -1,0 +1,50 @@
+// Cloudflare Worker config for a self-hosted DomBot instance.
+// See docs/web-deployment.md and docs/self-hosting.md.
+//
+// Two products: Workers (this script + the built renderer as static assets +
+// an hourly cron) and one D1 database. Secrets are NOT here — set them with
+// `npm run web:secrets` (DOMBOT_SECRET, DOMBOT_PASSWORD).
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "dombot",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-09-06",
+  // fast-xml-parser (via @aoxborrow/registrar-client) touches Buffer.
+  "compatibility_flags": ["nodejs_compat"],
+
+  // The renderer build (npm run web:build → dist/web). The Worker runs first
+  // for everything so it can gate the HTML behind auth and set CSP headers;
+  // it falls through to the assets binding for the SPA itself.
+  "assets": {
+    "directory": "./dist/web",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true,
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dombot",
+      // Replaced by the Deploy button / `wrangler d1 create dombot`. Local
+      // dev (`wrangler dev`) ignores it and uses a local SQLite file.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+
+  // Hourly floor; `syncAll()` honors the longer interval from Settings.
+  "triggers": { "crons": ["0 * * * *"] },
+
+  // Plain (non-secret) settings. Override per deployment as needed.
+  "vars": {
+    // "password" (built-in login, default) | "cloudflare-access" | "external".
+    // See docs/web-deployment.md → Auth modes.
+    "DOMBOT_AUTH": "password",
+    // cloudflare-access mode only:
+    // "CF_ACCESS_TEAM_DOMAIN": "https://<team>.cloudflareaccess.com",
+    // "CF_ACCESS_AUD": "<application audience tag>"
+  },
+
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+}

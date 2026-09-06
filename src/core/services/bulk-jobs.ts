@@ -406,8 +406,10 @@ export function abandonInterruptedBulk(): void {
   );
 }
 
-/** Test hook: forget the in-memory job so the next read comes from the store. */
-export function resetBulkForTests(): void {
+/** Forgets the in-memory job so the next read comes from the store: tests,
+ *  and the web host at the start of each request (another isolate may have
+ *  advanced the job). */
+export function resetBulkMemory(): void {
   job = null;
   inFlight = null;
   stepController = null;

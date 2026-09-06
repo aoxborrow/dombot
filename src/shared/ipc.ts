@@ -86,7 +86,9 @@ export interface AppInfo {
   electron: string;
   chrome: string;
   node: string;
-  platform: NodeJS.Platform;
+  /** `process.platform` on desktop ('darwin', 'win32', 'linux', …); 'web'
+   *  for a self-hosted browser instance. */
+  platform: string;
 }
 
 /** Status of the embedded local MCP server. */

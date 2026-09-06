@@ -27,7 +27,7 @@ import {
   driveBulk,
   getBulkJob,
   isBulkRunning,
-  resetBulkForTests,
+  resetBulkMemory,
   setBulkAutoDrive,
   startBulk,
   stepBulk,
@@ -55,7 +55,7 @@ beforeEach(async () => {
   store = new MemoryDocStore();
   configureStore(store);
   await hydrateStores();
-  resetBulkForTests();
+  resetBulkMemory();
   // These tests exercise the self-driving (desktop) mode unless they say so.
   setBulkAutoDrive(true);
   vi.useFakeTimers();
@@ -310,7 +310,7 @@ describe('step-driven mode (no auto-drive)', () => {
     await stepBulk(job.id);
     await flushWrites();
 
-    resetBulkForTests(); // forget memory; the store is the truth now
+    resetBulkMemory(); // forget memory; the store is the truth now
     expect(getBulkJob()).toMatchObject({ id: job.id, status: 'running' });
     expect(isBulkRunning()).toBe(true);
     vi.setSystemTime(Date.now() + 1000);
@@ -392,7 +392,7 @@ describe('abandonInterruptedBulk', () => {
     );
     await stepBulk(job.id);
     await flushWrites();
-    resetBulkForTests();
+    resetBulkMemory();
 
     abandonInterruptedBulk();
     const after = getBulkJob()!;
@@ -423,7 +423,7 @@ describe('abandonInterruptedBulk', () => {
     expect(stored.inFlight).toHaveLength(1);
     expect(stored.pending).toHaveLength(1);
 
-    resetBulkForTests();
+    resetBulkMemory();
     abandonInterruptedBulk();
     const after = getBulkJob()!;
     expect(after.results).toHaveLength(2); // every selected domain reported
@@ -440,7 +440,7 @@ describe('abandonInterruptedBulk', () => {
     const job = startBulk(targets('dynadot', 'a.com', 'b.com'), AUTO_RENEW);
     void stepBulk(job.id);
     await flushWrites();
-    resetBulkForTests(); // new isolate: nothing in flight here
+    resetBulkMemory(); // new isolate: nothing in flight here
     vi.setSystemTime(Date.now() + 1000);
     const s = await stepBulk(job.id);
     expect(s.job.results.map((r) => [r.target.domainName, r.status])).toEqual([
