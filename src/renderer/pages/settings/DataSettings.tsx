@@ -21,11 +21,7 @@ const INTERVAL_OPTIONS: { label: string; minutes: number }[] = [
   { label: 'Off', minutes: 0 },
 ];
 
-/** "90 min", "2 h", "36 h" — for an interval that isn't a preset. */
-function formatMinutes(minutes: number): string {
-  if (minutes % 60 !== 0) return `${minutes} min`;
-  return `${minutes / 60} h`;
-}
+const DEFAULT_INTERVAL_MINUTES = 1440;
 
 /**
  * Data & cache settings. DomBot caches your portfolio, per-domain detail, and
@@ -56,16 +52,13 @@ export default function DataSettings() {
     }
   };
 
-  const interval = settings?.autoSyncIntervalMinutes ?? null;
-  // A value set outside the UI (the MCP tools, a hand-edited store) may not be
-  // one of the presets; show it as-is rather than an empty select.
-  const options =
-    interval != null && !INTERVAL_OPTIONS.some((o) => o.minutes === interval)
-      ? [
-          ...INTERVAL_OPTIONS,
-          { label: `Custom (${formatMinutes(interval)})`, minutes: interval },
-        ]
-      : INTERVAL_OPTIONS;
+  const stored = settings?.autoSyncIntervalMinutes ?? null;
+  // A value that isn't a preset (only reachable outside the UI) shows as the
+  // default rather than an empty select.
+  const interval =
+    stored != null && !INTERVAL_OPTIONS.some((o) => o.minutes === stored)
+      ? DEFAULT_INTERVAL_MINUTES
+      : stored;
 
   return (
     <div className="flex flex-col gap-6">
@@ -91,7 +84,7 @@ export default function DataSettings() {
               <SelectValue placeholder="Loading…" />
             </SelectTrigger>
             <SelectContent>
-              {options.map((opt) => (
+              {INTERVAL_OPTIONS.map((opt) => (
                 <SelectItem key={opt.minutes} value={String(opt.minutes)}>
                   {opt.label}
                 </SelectItem>
