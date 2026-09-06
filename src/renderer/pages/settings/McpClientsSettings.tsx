@@ -96,7 +96,24 @@ export default function McpClientsSettings() {
       <SettingsCard title="MCP server">
         <div className="flex items-center justify-between gap-6">
           <div>
-            <Label htmlFor="mcp-enabled" className="text-sm font-medium">
+            <Label
+              htmlFor="mcp-enabled"
+              className={cn(
+                'inline-flex items-center gap-1.5 text-sm font-medium',
+                enabled && info?.running && 'text-[#7ac28d]',
+              )}
+            >
+              <span
+                className={cn(
+                  'size-2 rounded-full',
+                  enabled && info?.running
+                    ? 'bg-[#7ac28d]'
+                    : enabled
+                      ? 'bg-amber-500'
+                      : 'bg-muted-foreground/30',
+                )}
+                aria-hidden
+              />
               {!enabled
                 ? 'Disabled'
                 : info?.running
