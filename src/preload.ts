@@ -41,9 +41,9 @@ const api: DombotApi = {
   getEmailForwarding: (target) =>
     ipcRenderer.invoke(IpcChannels.getEmailForwarding, target),
   startBulk: (targets, op) =>
-    ipcRenderer.invoke(IpcChannels.bulkStart, targets, op),
-  cancelBulk: (jobId) => ipcRenderer.invoke(IpcChannels.bulkCancel, jobId),
-  getBulkJob: () => ipcRenderer.invoke(IpcChannels.bulkGet),
+    ipcRenderer.invoke(IpcChannels.startBulk, targets, op),
+  cancelBulk: (jobId) => ipcRenderer.invoke(IpcChannels.cancelBulk, jobId),
+  getBulkJob: () => ipcRenderer.invoke(IpcChannels.getBulkJob),
   onBulkProgress: (callback) => {
     const listener = (_e: unknown, p: BulkProgress) => callback(p);
     ipcRenderer.on(IpcEvents.bulkProgress, listener);
@@ -89,18 +89,21 @@ const api: DombotApi = {
   },
 
   // Folders
-  getFolders: () => ipcRenderer.invoke(IpcChannels.foldersList),
-  createFolder: (input) => ipcRenderer.invoke(IpcChannels.foldersCreate, input),
+  getFolders: () => ipcRenderer.invoke(IpcChannels.getFolders),
+  createFolder: (input) => ipcRenderer.invoke(IpcChannels.createFolder, input),
   updateFolder: (id, patch) =>
-    ipcRenderer.invoke(IpcChannels.foldersUpdate, id, patch),
-  deleteFolder: (id) => ipcRenderer.invoke(IpcChannels.foldersDelete, id),
+    ipcRenderer.invoke(IpcChannels.updateFolder, id, patch),
+  deleteFolder: (id) => ipcRenderer.invoke(IpcChannels.deleteFolder, id),
   assignFolder: (domainKey, folderId) =>
-    ipcRenderer.invoke(IpcChannels.foldersAssign, domainKey, folderId),
+    ipcRenderer.invoke(IpcChannels.assignFolder, domainKey, folderId),
 
   // Settings
   getSettings: () => ipcRenderer.invoke(IpcChannels.getSettings),
   updateSettings: (patch) =>
     ipcRenderer.invoke(IpcChannels.updateSettings, patch),
+
+  // Events (polling)
+  getRevisions: () => ipcRenderer.invoke(IpcChannels.getRevisions),
 };
 
 contextBridge.exposeInMainWorld('api', api);

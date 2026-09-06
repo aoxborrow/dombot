@@ -17,6 +17,9 @@ import { isBulkRunning } from './bulk-jobs';
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let inFlight = false;
+// Only a host that called startAutoSync owns a timer; restartAutoSync is a
+// no-op elsewhere (the web host syncs from a cron trigger instead).
+let started = false;
 
 /** Effective interval in ms, or 0 when disabled. The env override wins when set;
  *  otherwise the persisted setting drives it. */
@@ -70,13 +73,14 @@ function schedule(): void {
 
 /** Starts the periodic sync (call once at app startup). */
 export function startAutoSync(): void {
+  started = true;
   schedule();
 }
 
 /** Re-reads the interval and reschedules — call after the setting changes so a
  *  new interval (or Off) takes effect without a relaunch. */
 export function restartAutoSync(): void {
-  schedule();
+  if (started) schedule();
 }
 
 /** Stops the periodic sync (for app teardown). */

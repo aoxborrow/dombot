@@ -23,9 +23,9 @@ export const IpcChannels = {
   applyDomainOp: 'domain:apply',
   getUrlForwarding: 'domain:getUrlForwarding',
   getEmailForwarding: 'domain:getEmailForwarding',
-  bulkStart: 'bulk:start',
-  bulkCancel: 'bulk:cancel',
-  bulkGet: 'bulk:get',
+  startBulk: 'bulk:start',
+  cancelBulk: 'bulk:cancel',
+  getBulkJob: 'bulk:get',
   getPortfolioPricing: 'pricing:getPortfolio',
   setManualPrice: 'pricing:setManualPrice',
   openExternal: 'app:openExternal',
@@ -42,13 +42,14 @@ export const IpcChannels = {
   revokeMcpClient: 'mcp:revokeClient',
   hydrateFromCache: 'cache:hydrate',
   clearAllCaches: 'cache:clearAll',
-  foldersList: 'folders:list',
-  foldersCreate: 'folders:create',
-  foldersUpdate: 'folders:update',
-  foldersDelete: 'folders:delete',
-  foldersAssign: 'folders:assign',
+  getFolders: 'folders:list',
+  createFolder: 'folders:create',
+  updateFolder: 'folders:update',
+  deleteFolder: 'folders:delete',
+  assignFolder: 'folders:assign',
   getSettings: 'settings:get',
   updateSettings: 'settings:update',
+  getRevisions: 'events:getRevisions',
 } as const;
 
 /** Events (main → renderer). */
@@ -99,6 +100,20 @@ export interface McpInfo {
    */
   stdioCommand: string;
   stdioArgs: string[];
+}
+
+/**
+ * Change counters for out-of-band updates, one per kind. A client that polls
+ * (the web host) remembers the last counters it saw and refetches whatever
+ * moved; the desktop host pushes the same changes as IpcEvents instead.
+ */
+export interface Revisions {
+  /** Portfolio/detail cache changed out of band (an MCP tool write). */
+  portfolio: number;
+  /** A bulk job made progress or finished. */
+  bulk: number;
+  /** The MCP pending-approval set changed. */
+  approvals: number;
 }
 
 /** Credential values keyed by config-field name. */
@@ -563,4 +578,8 @@ export interface DombotApi {
   /** Patch app settings; applied live (e.g. reschedules the background sync).
    * Returns the updated settings. */
   updateSettings: (patch: Partial<AppSettings>) => Promise<AppSettings>;
+
+  // Events (polling)
+  /** Current change counters — see `Revisions`. */
+  getRevisions: () => Promise<Revisions>;
 }
