@@ -8,12 +8,6 @@ import {
   type CoreMethodName,
 } from '../core/api';
 import { getMcpInfo } from './mcp/server';
-import {
-  listMcpClients,
-  listPendingApprovals,
-  resolvePending,
-  revokeMcpClient,
-} from './mcp/oauth';
 
 // The desktop host's half of the API table: methods that need Electron (a
 // native dialog, the OS browser, the local MCP server's status and approvals).
@@ -76,19 +70,8 @@ const electronMethods: Omit<ApiTable, CoreMethodName> = {
     },
   ),
 
-  // MCP server status, pending approvals, and paired clients.
+  // The local MCP server's status (pairing itself is in core).
   getMcpInfo: method(none, async () => getMcpInfo()),
-  listPendingApprovals: method(none, async () => listPendingApprovals()),
-  resolveApproval: method(
-    z.tuple([z.string(), z.boolean()]),
-    async (id, approve) => {
-      resolvePending(id, approve);
-    },
-  ),
-  listMcpClients: method(none, async () => listMcpClients()),
-  revokeMcpClient: method(z.tuple([z.string()]), async (clientId) => {
-    revokeMcpClient(clientId);
-  }),
 };
 
 /** The complete table the desktop host serves. */

@@ -22,8 +22,7 @@ const KEYS: Record<RevisionKind, string> = {
   approvals: 'rev:approvals',
 };
 
-/** Advances one counter. Hosts call this for changes core doesn't see itself
- *  (MCP approvals, until the OAuth provider moves into core). */
+/** Advances one counter. */
 export function bumpRevision(kind: RevisionKind): void {
   void store.set(KEYS[kind], (store.get(KEYS[kind]) ?? 0) + 1);
 }
@@ -46,4 +45,5 @@ export function trackRevisions(): void {
   onCoreEvent('portfolioChanged', () => bumpRevision('portfolio'));
   onCoreEvent('bulkProgress', () => bumpRevision('bulk'));
   onCoreEvent('bulkFinished', () => bumpRevision('bulk'));
+  onCoreEvent('approvalsChanged', () => bumpRevision('approvals'));
 }

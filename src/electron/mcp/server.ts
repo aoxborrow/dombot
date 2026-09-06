@@ -1,24 +1,17 @@
 import type { Server } from 'node:http';
-import { randomUUID } from 'node:crypto';
 import { app } from 'electron';
-import express, { type Request, type Response } from 'express';
-import cors from 'cors';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import {
-  getOAuthProtectedResourceMetadataUrl,
-  mcpAuthRouter,
-} from '@modelcontextprotocol/sdk/server/auth/router.js';
-import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
-import { registerTools } from '../../core/mcp/tools';
-import { getApprovalStatus, loadGrantedTokens, oauthProvider } from './oauth';
-import { writeStdioConfig } from './stdio-config';
+import { Hono } from 'hono';
+import { serve } from '@hono/node-server';
+import { createMcpRoutes } from '../../core/mcp/routes';
+import { getStdioToken, writeStdioConfig } from './stdio-config';
 import { stdioCommand } from './stdio';
 import type { McpInfo } from '../../shared/ipc';
 
-// Live sessions, keyed by the MCP session id issued at initialize.
-const transports = new Map<string, StreamableHTTPServerTransport>();
+// The desktop host's MCP server: the shared Hono routes (src/core/mcp/routes.ts)
+// served on loopback. Auth is OAuth 2.1 — clients register dynamically and the
+// human approves each new connection in the DomBot window — plus two static
+// tokens: the stdio shim's per-install token, and DOMBOT_MCP_TOKEN for
+// dev/testing.
 
 let httpServer: Server | null = null;
 let info: McpInfo | null = null;
@@ -28,60 +21,59 @@ export function getMcpInfo(): McpInfo {
   return info ?? { running: false, url: '', stdioCommand: '', stdioArgs: [] };
 }
 
-/** Builds a fresh MCP server instance with the portfolio tools registered. */
-function createMcpServer(): McpServer {
-  const server = new McpServer({ name: 'DomBot', version: app.getVersion() });
-  registerTools(server);
-  return server;
+const TOKEN_TTL_SEC = 365 * 24 * 60 * 60;
+
+/** Tokens the desktop accepts without the approval flow. */
+function verifyStaticToken(token: string) {
+  const expiresAt = Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC;
+  // Dev/testing escape hatch: a static token via env.
+  const staticToken = process.env.DOMBOT_MCP_TOKEN;
+  if (staticToken && token === staticToken) {
+    return { token, clientId: 'static', scopes: [], expiresAt };
+  }
+  // The stdio shim (`DomBot --mcp-stdio`) authenticates with a per-install
+  // token from userData — same user, same machine, so no approval prompt.
+  const stdioToken = getStdioToken();
+  if (stdioToken && token === stdioToken) {
+    return {
+      token,
+      clientId: 'stdio',
+      scopes: ['portfolio'],
+      expiresAt,
+      extra: { clientName: 'Local stdio' },
+    };
+  }
+  return null;
 }
 
 /**
- * Starts the local MCP server on loopback. Auth is OAuth 2.1: clients register
- * dynamically and the human approves each new connection on DomBot's approval
- * page. Idempotent. Port pinnable via DOMBOT_MCP_PORT.
+ * Starts the local MCP server on loopback. Idempotent. Port pinnable via
+ * DOMBOT_MCP_PORT.
  */
 export async function startMcpServer(): Promise<McpInfo> {
   if (info?.running) return info;
 
   const host = '127.0.0.1';
   const port = Number(process.env.DOMBOT_MCP_PORT) || 4123;
-  const baseUrl = new URL(`http://${host}:${port}`);
-  const mcpUrl = new URL('/mcp', baseUrl);
+  const mcpUrl = new URL('/mcp', `http://${host}:${port}`);
 
-  loadGrantedTokens();
-
-  const expressApp = express();
-  expressApp.use(cors({ exposedHeaders: ['Mcp-Session-Id'] }));
-
-  // OAuth endpoints: /authorize, /token, /register, /revoke, /.well-known/*
-  expressApp.use(
-    mcpAuthRouter({
-      provider: oauthProvider,
-      issuerUrl: baseUrl,
-      scopesSupported: ['portfolio'],
-      resourceName: 'DomBot',
-      resourceServerUrl: mcpUrl,
+  const hono = new Hono();
+  hono.route(
+    '/',
+    createMcpRoutes({
+      version: app.getVersion(),
+      verifyStaticToken,
+      autoApprove: process.env.DOMBOT_MCP_AUTOAPPROVE === '1',
     }),
   );
 
-  // The browser waiting page polls this until the user approves/denies in-app.
-  expressApp.get('/oauth/status', (req: Request, res: Response) => {
-    res.json(getApprovalStatus(String(req.query.id ?? '')));
-  });
-
-  // The MCP endpoint itself, protected by a valid bearer token.
-  const bearer = requireBearerAuth({
-    verifier: oauthProvider,
-    resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(mcpUrl),
-  });
-  expressApp.post('/mcp', bearer, express.json(), handleMcpPost);
-  expressApp.get('/mcp', bearer, handleMcpGet);
-  expressApp.delete('/mcp', bearer, handleMcpDelete);
-
   await new Promise<void>((resolve, reject) => {
     // Loopback only — never expose registrar control beyond this machine.
-    httpServer = expressApp.listen(port, host, () => resolve());
-    httpServer.once('error', reject);
+    const server = serve({ fetch: hono.fetch, port, hostname: host }, () =>
+      resolve(),
+    ) as Server;
+    server.once('error', reject);
+    httpServer = server;
   });
 
   // Tell stdio shims where we are (and mint their token on first run).
@@ -97,75 +89,12 @@ export async function startMcpServer(): Promise<McpInfo> {
   return info;
 }
 
-/** Stops the server and tears down any live sessions. */
+/** Stops the server. Requests are stateless, so there's nothing else to tear down. */
 export async function stopMcpServer(): Promise<void> {
-  for (const transport of transports.values()) {
-    await transport.close();
-  }
-  transports.clear();
   if (httpServer) {
-    await new Promise<void>((resolve) => httpServer!.close(() => resolve()));
+    const server = httpServer;
     httpServer = null;
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
   info = null;
-}
-
-async function handleMcpPost(req: Request, res: Response): Promise<void> {
-  const sessionId = req.headers['mcp-session-id'] as string | undefined;
-  let transport = sessionId ? transports.get(sessionId) : undefined;
-
-  if (!transport) {
-    // A stale/unknown session id (e.g. after an app restart cleared in-memory
-    // sessions) must return 404 so the client re-initializes, per the MCP
-    // Streamable HTTP spec — not 400, which clients treat as a hard error.
-    if (sessionId) {
-      res.status(404).json(jsonRpcError('Session not found; reinitialize.'));
-      return;
-    }
-    if (!isInitializeRequest(req.body)) {
-      res
-        .status(400)
-        .json(jsonRpcError('No valid session; send initialize first.'));
-      return;
-    }
-    transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-      enableJsonResponse: true,
-      onsessioninitialized: (sid) => {
-        transports.set(sid, transport!);
-      },
-    });
-    transport.onclose = () => {
-      if (transport!.sessionId) transports.delete(transport!.sessionId);
-    };
-    await createMcpServer().connect(transport);
-  }
-
-  await transport.handleRequest(req, res, req.body);
-}
-
-async function handleMcpGet(req: Request, res: Response): Promise<void> {
-  await handleSessionRequest(req, res);
-}
-
-async function handleMcpDelete(req: Request, res: Response): Promise<void> {
-  await handleSessionRequest(req, res);
-}
-
-async function handleSessionRequest(
-  req: Request,
-  res: Response,
-): Promise<void> {
-  const sessionId = req.headers['mcp-session-id'] as string | undefined;
-  const transport = sessionId ? transports.get(sessionId) : undefined;
-  if (!transport) {
-    // 404 signals the client to re-initialize (see handleMcpPost).
-    res.status(404).json(jsonRpcError('Session not found; reinitialize.'));
-    return;
-  }
-  await transport.handleRequest(req, res);
-}
-
-function jsonRpcError(message: string) {
-  return { jsonrpc: '2.0', error: { code: -32000, message }, id: null };
 }

@@ -5,7 +5,7 @@ import { registerIpcHandlers } from './ipc';
 import { forwardCoreEventsToWindows } from './events';
 import { initStorage } from './storage';
 import { startMcpServer, stopMcpServer } from './mcp/server';
-import { hasPairedClients } from './mcp/oauth';
+import { hasPairedClients } from '../core/mcp/oauth';
 import {
   getSettings,
   isSettingStored,

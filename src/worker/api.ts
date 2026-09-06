@@ -5,6 +5,7 @@ import {
   type ApiTable,
   type CoreMethodName,
 } from '../core/api';
+import { getSettings } from '../core/services/settings';
 
 // The web host's half of the API table (the desktop's is src/electron/api.ts).
 // Methods that are host-specific get web answers; the ones the browser does
@@ -12,7 +13,9 @@ import {
 // src/renderer/api/http.ts and never reach here, but the table must still be
 // complete so `ApiTable` type-checks.
 //
-// MCP on the web lands in phase 5; until then the status says so.
+// The MCP endpoint is mounted on this same origin (src/core/mcp/routes.ts);
+// `url` is relative because a handler doesn't know the public origin — the
+// renderer resolves it against its own.
 
 const none = z.tuple([]);
 
@@ -40,15 +43,11 @@ const webMethods: Omit<ApiTable, CoreMethodName> = {
   })),
 
   getMcpInfo: method(none, async () => ({
-    running: false,
-    url: '',
+    running: getSettings().mcpEnabled,
+    url: '/mcp',
     stdioCommand: '',
     stdioArgs: [],
   })),
-  listPendingApprovals: method(none, async () => []),
-  resolveApproval: method(z.tuple([z.string(), z.boolean()]), async () => {}),
-  listMcpClients: method(none, async () => []),
-  revokeMcpClient: method(z.tuple([z.string()]), async () => {}),
 };
 
 /** The complete table the web host serves. */

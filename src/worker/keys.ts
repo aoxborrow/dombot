@@ -6,7 +6,9 @@
 //   session  HMAC key signing login cookies — mixed with a hash of
 //            DOMBOT_PASSWORD, so rotating the password invalidates every
 //            session with no server-side state
-//   mcp      HMAC key for MCP access tokens (phase 5)
+//
+// (MCP access tokens need no key: they're random and stored by hash in the
+// encrypted `mcp` namespace — src/core/mcp/oauth.ts.)
 //
 // Everything is WebCrypto, so it runs identically on Workers and Node.
 
@@ -81,18 +83,6 @@ export async function deriveSessionKey(
   password: string,
 ): Promise<CryptoKey> {
   const raw = await hkdf(root, 'dombot/session/v1', await sha256(password));
-  return crypto.subtle.importKey(
-    'raw',
-    raw,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign', 'verify'],
-  );
-}
-
-/** HMAC key for MCP access tokens. */
-export async function deriveMcpKey(root: Uint8Array): Promise<CryptoKey> {
-  const raw = await hkdf(root, 'dombot/mcp/v1');
   return crypto.subtle.importKey(
     'raw',
     raw,

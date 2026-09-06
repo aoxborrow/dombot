@@ -1,9 +1,8 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { IpcChannels, IpcEvents } from '../shared/ipc';
 import { invoke, type ApiMethodName } from '../core/api';
-import { bumpRevision } from '../core/revision';
+import { onCoreEvent } from '../core/events';
 import { electronApi } from './api';
-import { setApprovalListener } from './mcp/oauth';
 
 /**
  * Registers every `ipcMain.handle` responder from the API table: one loop,
@@ -21,8 +20,7 @@ export function registerIpcHandlers(): void {
 
   // When a new MCP connection needs approval, surface the app window and tell
   // the renderer to refresh its pending list.
-  setApprovalListener(() => {
-    bumpRevision('approvals');
+  onCoreEvent('approvalsChanged', () => {
     const windows = BrowserWindow.getAllWindows();
     if (windows.length > 0) {
       const win = windows[0];
