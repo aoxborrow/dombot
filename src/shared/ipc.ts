@@ -26,6 +26,7 @@ export const IpcChannels = {
   startBulk: 'bulk:start',
   cancelBulk: 'bulk:cancel',
   getBulkJob: 'bulk:get',
+  stepBulk: 'bulk:step',
   getPortfolioPricing: 'pricing:getPortfolio',
   setManualPrice: 'pricing:setManualPrice',
   openExternal: 'app:openExternal',
@@ -299,9 +300,9 @@ export interface DomainOpResult {
 }
 
 /**
- * A bulk job: one `DomainOp` applied to many targets by the main-process
- * runner (services/bulk-jobs.ts). Lives in main memory only — one at a time.
- * The renderer mirrors it from `bulkStart`'s return plus the progress events.
+ * A bulk job: one `DomainOp` applied to many targets by the runner
+ * (core/services/bulk-jobs.ts). Persisted, one at a time; survives a restart.
+ * The renderer mirrors it from `startBulk`'s return plus the progress events.
  */
 export interface BulkJob {
   id: string;
@@ -313,6 +314,13 @@ export interface BulkJob {
   counts: Record<DomainOpStatus, number>;
   startedAt: number;
   finishedAt: number | null;
+}
+
+/** What one `stepBulk` call did: the job after the slice, and the earliest
+ *  time another slice can do work (null once the job has finished). */
+export interface BulkStep {
+  job: BulkJob;
+  nextAt: number | null;
 }
 
 /** Streamed to windows as each bulk item completes. */
@@ -533,6 +541,12 @@ export interface DombotApi {
   cancelBulk: (jobId: string) => Promise<void>;
   /** The current or last job, for re-attaching after navigation / relaunch. */
   getBulkJob: () => Promise<BulkJob | null>;
+  /**
+   * Advance the running job one slice (a host that can't hold a loop — the
+   * web — has the renderer call this until `nextAt` is null). On desktop the
+   * main process drives the job itself; calling this is harmless there.
+   */
+  stepBulk: (jobId: string) => Promise<BulkStep>;
   onBulkProgress: (callback: (p: BulkProgress) => void) => () => void;
   onBulkFinished: (callback: (job: BulkJob) => void) => () => void;
   getRegistrarMetadata: () => Promise<RegistrarMeta[]>;

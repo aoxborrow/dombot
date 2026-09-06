@@ -7,7 +7,11 @@ import { initStorage } from './storage';
 import { startMcpServer, stopMcpServer } from './mcp/server';
 import { isStdioShimMode, runStdioShim } from './mcp/stdio';
 import { startAutoSync, stopAutoSync } from '../core/services/auto-sync';
-import { cancelBulk } from '../core/services/bulk-jobs';
+import {
+  abandonInterruptedBulk,
+  cancelBulk,
+  setBulkAutoDrive,
+} from '../core/services/bulk-jobs';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -167,6 +171,10 @@ function runApp(): void {
     // every namespace must be hydrated before an IPC handler or the MCP server
     // can touch one. Also runs the one-time legacy-credentials migration.
     await initStorage();
+    // Bulk jobs: the desktop drives them in-process, and a job left running
+    // by a crash/quit is closed out (never silently resumed — renew is money).
+    setBulkAutoDrive(true);
+    abandonInterruptedBulk();
     forwardCoreEventsToWindows();
     registerIpcHandlers();
     createWindow();

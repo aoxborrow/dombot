@@ -1,5 +1,6 @@
 import type {
   BulkJob,
+  BulkStep,
   DomainOp,
   DomainOpKind,
   DomainOpResult,
@@ -12,14 +13,24 @@ import {
   broadcastBulkProgress,
   broadcastPortfolioChanged,
 } from '../events';
+import { Namespace } from '../storage/namespace';
 import { applyDomainOp } from './domain-ops';
 
-// The bulk-job runner: one `DomainOp` over many targets, owned by main so the
-// per-registrar rate limits can be respected (one lane per registrar, with a
-// concurrency and minimum spacing each), cancellation is a real abort, and the
-// job survives the renderer navigating away. One job at a time. Progress
-// streams to windows per item; the final snapshot is kept for re-attaching.
-// See docs/domain-editing.md.
+// The bulk-job runner: one `DomainOp` over many targets, respecting each
+// registrar's rate limits (one lane per registrar, with a concurrency and a
+// minimum spacing between request starts). One job at a time.
+//
+// The job is a persisted document, advanced in *steps*: `stepBulk()` runs one
+// slice — for every registrar whose lane is ready, up to its concurrency of
+// pending targets — records the results, and reports when the next slice may
+// start. Who calls `stepBulk` repeatedly depends on the host: the desktop
+// host drives itself in-process (`setBulkAutoDrive(true)`), while the web host
+// has the renderer call it, since a Worker can't hold a loop across requests.
+// Either way a job survives a process restart: its pending list and lane
+// timers are in the store, not in a closure. See docs/web-deployment.md.
+//
+// Auth codes (`result.data`) are never persisted: the in-memory job keeps
+// them for the session; the stored copy is redacted.
 
 interface LanePolicy {
   /** Concurrent requests to this registrar. */
@@ -66,33 +77,91 @@ const STATUSES: DomainOpStatus[] = [
   'cancelled',
 ];
 
-interface Running {
-  job: BulkJob;
-  controller: AbortController;
+/** The persisted job: the public snapshot plus the runner's own state. */
+interface StoredJob extends BulkJob {
+  /** Targets not yet attempted, in selection order. */
+  pending: DomainTarget[];
+  /** Set by cancelBulk; the next step records the rest as cancelled. */
+  cancelRequested: boolean;
+  /** Per-registrar lane: the earliest time its next request may start. */
+  notBefore: Partial<Record<RegistrarName, number>>;
 }
 
-let current: Running | null = null;
-let last: BulkJob | null = null;
+const JOB_KEY = 'job';
+const store = new Namespace<StoredJob>('bulk-jobs');
+
+// In-memory copy of the stored job (results keep their `data`), the abort
+// controller for the step in flight, and a wake-up for the driver's sleep.
+let job: StoredJob | null = null;
+let inFlight: Promise<BulkStep> | null = null;
+let stepController: AbortController | null = null;
+let wakeDriver: (() => void) | null = null;
+let autoDrive = false;
+
+/** Desktop host: drive every started job in-process. Off for the web host. */
+export function setBulkAutoDrive(enabled: boolean): void {
+  autoDrive = enabled;
+}
+
+function loadJob(): StoredJob | null {
+  if (!job) {
+    const stored = store.get(JOB_KEY);
+    job = stored ? { ...stored } : null;
+  }
+  return job;
+}
+
+function persist(): void {
+  if (!job) return;
+  void store.set(JOB_KEY, {
+    ...job,
+    results: job.results.map((r) =>
+      r.data
+        ? {
+            target: r.target,
+            status: r.status,
+            message: r.message,
+            patch: r.patch,
+          }
+        : r,
+    ),
+  });
+}
+
+/** A structured-clone-safe copy of the public fields. */
+function snapshot(j: StoredJob | null): BulkJob | null {
+  if (!j) return null;
+  return {
+    id: j.id,
+    op: j.op,
+    status: j.status,
+    total: j.total,
+    results: [...j.results],
+    counts: { ...j.counts },
+    startedAt: j.startedAt,
+    finishedAt: j.finishedAt,
+  };
+}
 
 /** The running job, else the most recent finished one, else null. */
 export function getBulkJob(): BulkJob | null {
-  return snapshot(current?.job ?? last);
+  return snapshot(loadJob());
 }
 
 export function isBulkRunning(): boolean {
-  return current !== null;
+  return loadJob()?.status === 'running';
 }
 
 /**
  * Starts a job. Throws if one is already running. Returns the initial
- * snapshot immediately; the work continues in the background and reports via
- * the bulk events.
+ * snapshot; on an auto-driving host the work then continues in the
+ * background and reports via the bulk events, otherwise the caller steps it.
  */
 export function startBulk(targets: DomainTarget[], op: DomainOp): BulkJob {
-  if (current) throw new Error('A bulk job is already running.');
+  if (isBulkRunning()) throw new Error('A bulk job is already running.');
   if (targets.length === 0) throw new Error('No domains selected.');
 
-  const job: BulkJob = {
+  job = {
     id: crypto.randomUUID(),
     op,
     status: 'running',
@@ -103,123 +172,207 @@ export function startBulk(targets: DomainTarget[], op: DomainOp): BulkJob {
     ) as BulkJob['counts'],
     startedAt: Date.now(),
     finishedAt: null,
+    pending: [...targets],
+    cancelRequested: false,
+    notBefore: {},
   };
-  const controller = new AbortController();
-  current = { job, controller };
-  void run(job, targets, controller);
+  persist();
+  if (autoDrive) void driveBulk(job.id);
   return snapshot(job)!;
 }
 
-/** Aborts the running job (any id, or the given one). No-op otherwise. */
+/** Requests cancellation of the running job (any id, or the given one). The
+ *  step in flight is aborted; the remainder is recorded as cancelled. */
 export function cancelBulk(jobId?: string): void {
-  if (!current) return;
-  if (jobId && current.job.id !== jobId) return;
-  current.controller.abort();
+  const j = loadJob();
+  if (!j || j.status !== 'running') return;
+  if (jobId && j.id !== jobId) return;
+  j.cancelRequested = true;
+  persist();
+  stepController?.abort();
+  wakeDriver?.();
 }
 
-async function run(
-  job: BulkJob,
-  targets: DomainTarget[],
-  controller: AbortController,
-): Promise<void> {
-  const byRegistrar = new Map<RegistrarName, DomainTarget[]>();
-  for (const t of targets) {
-    const list = byRegistrar.get(t.registrar) ?? [];
-    list.push(t);
-    byRegistrar.set(t.registrar, list);
-  }
+function record(j: StoredJob, result: DomainOpResult): void {
+  j.results.push(result);
+  j.counts[result.status] += 1;
+  persist();
+  broadcastBulkProgress({
+    jobId: j.id,
+    result,
+    done: j.results.length,
+    total: j.total,
+  });
+}
 
-  const record = (result: DomainOpResult) => {
-    job.results.push(result);
-    job.counts[result.status] += 1;
-    broadcastBulkProgress({
-      jobId: job.id,
-      result,
-      done: job.results.length,
-      total: job.total,
-    });
-  };
-
-  await Promise.all(
-    [...byRegistrar.entries()].map(([registrar, queue]) =>
-      runLane(registrar, queue, job.op, controller.signal, record),
-    ),
-  );
-
-  job.status = controller.signal.aborted ? 'cancelled' : 'done';
-  job.finishedAt = Date.now();
-  current = null;
-  last = job;
+function finish(j: StoredJob): void {
+  j.status = j.cancelRequested ? 'cancelled' : 'done';
+  j.finishedAt = Date.now();
+  j.pending = [];
+  persist();
   // Items were applied with `silent`, so reconcile any open window once.
-  if (job.counts.ok > 0) broadcastPortfolioChanged();
-  broadcastBulkFinished(snapshot(job)!);
+  if (j.counts.ok > 0) broadcastPortfolioChanged();
+  broadcastBulkFinished(snapshot(j)!);
+}
+
+/** Earliest time any registrar with pending work may start, or null. */
+function nextStartAt(j: StoredJob): number | null {
+  let earliest: number | null = null;
+  for (const registrar of new Set(j.pending.map((t) => t.registrar))) {
+    const at = j.notBefore[registrar] ?? 0;
+    earliest = earliest === null ? at : Math.min(earliest, at);
+  }
+  return earliest;
 }
 
 /**
- * One registrar's lane: `policy.lanes` workers pull from a shared queue, with
- * `spacingMs` between request starts across all of them. A rate-limited
- * result pauses the whole lane before the next pull. Once aborted, remaining
- * items are recorded as cancelled without a network call.
+ * Advances the job one slice: for each registrar whose lane is ready, runs up
+ * to its concurrency of pending targets (in parallel across registrars),
+ * records the results, and finishes the job when nothing is pending. Returns
+ * the snapshot plus `nextAt`, the earliest time another slice can do work
+ * (null once finished). Safe to call while a slice is in flight — it returns
+ * that slice's result rather than starting another.
  */
-async function runLane(
-  registrar: RegistrarName,
-  queue: DomainTarget[],
-  op: DomainOp,
-  signal: AbortSignal,
-  record: (r: DomainOpResult) => void,
-): Promise<void> {
-  const policy = policyFor(registrar, op.kind);
-  let next = 0;
-  let lastStart = 0;
-  let pausedUntil = 0;
-
-  const worker = async (): Promise<void> => {
-    while (next < queue.length) {
-      const target = queue[next++];
-      if (signal.aborted) {
-        record({ target, status: 'cancelled', message: 'Cancelled' });
-        continue;
-      }
-      // Pace: honor the lane pause and the minimum spacing between starts.
-      const wait = Math.max(
-        pausedUntil - Date.now(),
-        lastStart + policy.spacingMs - Date.now(),
-        0,
-      );
-      if (wait > 0) await sleep(wait, signal);
-      if (signal.aborted) {
-        record({ target, status: 'cancelled', message: 'Cancelled' });
-        continue;
-      }
-      lastStart = Date.now();
-      const result = await applyDomainOp(target, op, { signal, silent: true });
-      if (result.status === 'rate-limited') {
-        pausedUntil = Date.now() + RATE_LIMIT_PAUSE_MS;
-      }
-      record(result);
-    }
-  };
-
-  await Promise.all(
-    Array.from({ length: Math.min(policy.lanes, queue.length) }, worker),
-  );
+export function stepBulk(jobId?: string): Promise<BulkStep> {
+  const j = loadJob();
+  if (!j || (jobId && j.id !== jobId)) {
+    throw new Error('No such bulk job.');
+  }
+  if (inFlight) return inFlight;
+  inFlight = runStep(j).finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
 }
 
-/** Resolves after `ms`, or immediately when the signal aborts. */
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
+async function runStep(j: StoredJob): Promise<BulkStep> {
+  if (j.status !== 'running') return { job: snapshot(j)!, nextAt: null };
+
+  if (j.cancelRequested) {
+    for (const target of j.pending) {
+      record(j, { target, status: 'cancelled', message: 'Cancelled' });
+    }
+    j.pending = [];
+  }
+  if (j.pending.length === 0) {
+    finish(j);
+    return { job: snapshot(j)!, nextAt: null };
+  }
+
+  // Pick this slice: per ready registrar, up to `lanes` targets.
+  const now = Date.now();
+  const slice: DomainTarget[] = [];
+  const perRegistrar = new Map<RegistrarName, number>();
+  for (const target of j.pending) {
+    const policy = policyFor(target.registrar, j.op.kind);
+    if ((j.notBefore[target.registrar] ?? 0) > now) continue;
+    const taken = perRegistrar.get(target.registrar) ?? 0;
+    if (taken >= policy.lanes) continue;
+    perRegistrar.set(target.registrar, taken + 1);
+    slice.push(target);
+  }
+  if (slice.length === 0) {
+    return { job: snapshot(j)!, nextAt: nextStartAt(j) };
+  }
+
+  // Claim them, stamp each lane's next start, and run the slice in parallel.
+  j.pending = j.pending.filter((t) => !slice.includes(t));
+  for (const registrar of perRegistrar.keys()) {
+    j.notBefore[registrar] = now + policyFor(registrar, j.op.kind).spacingMs;
+  }
+  persist();
+
+  const controller = new AbortController();
+  stepController = controller;
+  try {
+    await Promise.all(
+      slice.map(async (target) => {
+        const result = controller.signal.aborted
+          ? { target, status: 'cancelled' as const, message: 'Cancelled' }
+          : await applyDomainOp(target, j.op, {
+              signal: controller.signal,
+              silent: true,
+            });
+        if (result.status === 'rate-limited') {
+          j.notBefore[target.registrar] = Date.now() + RATE_LIMIT_PAUSE_MS;
+        }
+        record(j, result);
+      }),
+    );
+  } finally {
+    stepController = null;
+  }
+
+  if (j.cancelRequested) {
+    for (const target of j.pending) {
+      record(j, { target, status: 'cancelled', message: 'Cancelled' });
+    }
+    j.pending = [];
+  }
+  if (j.pending.length === 0) {
+    finish(j);
+    return { job: snapshot(j)!, nextAt: null };
+  }
+  return { job: snapshot(j)!, nextAt: nextStartAt(j) };
+}
+
+/**
+ * Steps the job to completion, sleeping until each next start. The desktop
+ * host's driver; also usable by any host that can hold a loop. Cancellation
+ * wakes the sleep so the job closes out promptly.
+ */
+export async function driveBulk(jobId: string): Promise<void> {
+  for (;;) {
+    const { job: j, nextAt } = await stepBulk(jobId);
+    if (j.status !== 'running') return;
+    const wait = nextAt === null ? 0 : nextAt - Date.now();
+    if (wait > 0) await sleepUntilWoken(wait);
+  }
+}
+
+function sleepUntilWoken(ms: number): Promise<void> {
   return new Promise((resolve) => {
     const timer = setTimeout(done, ms);
     function done() {
       clearTimeout(timer);
-      signal.removeEventListener('abort', done);
+      wakeDriver = null;
       resolve();
     }
-    signal.addEventListener('abort', done, { once: true });
+    wakeDriver = done;
   });
 }
 
-/** A structured-clone-safe copy (results array included) for IPC. */
-function snapshot(job: BulkJob | null | undefined): BulkJob | null {
-  if (!job) return null;
-  return { ...job, results: [...job.results], counts: { ...job.counts } };
+/**
+ * Startup reconciliation: a job still marked running was interrupted by a
+ * crash or quit. Nothing resumes on its own — a renew is money — so the
+ * remaining targets are recorded as cancelled with a message that says why,
+ * leaving an honest results report the user can retry from.
+ */
+export function abandonInterruptedBulk(): void {
+  const j = loadJob();
+  if (!j || j.status !== 'running') return;
+  for (const target of j.pending) {
+    j.results.push({
+      target,
+      status: 'cancelled',
+      message: 'Interrupted — the app was closed before this item ran',
+    });
+    j.counts.cancelled += 1;
+  }
+  j.pending = [];
+  j.cancelRequested = true;
+  j.status = 'cancelled';
+  j.finishedAt = Date.now();
+  persist();
+  console.warn(
+    `[bulk] closed out interrupted job ${j.id}: ${j.counts.cancelled} item(s) not run`,
+  );
+}
+
+/** Test hook: forget the in-memory job so the next read comes from the store. */
+export function resetBulkForTests(): void {
+  job = null;
+  inFlight = null;
+  stepController = null;
+  wakeDriver = null;
 }

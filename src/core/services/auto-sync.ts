@@ -1,4 +1,8 @@
-import { getActiveRegistrars, getPortfolio } from './registrars';
+import {
+  getActiveRegistrars,
+  getCachedPortfolio,
+  getPortfolio,
+} from './registrars';
 import { getSettings } from './settings';
 import { broadcastPortfolioChanged } from '../events';
 import { isBulkRunning } from './bulk-jobs';
@@ -33,21 +37,33 @@ function intervalMs(): number {
   return minutes * 60_000;
 }
 
-/** One best-effort refresh: sync every configured registrar and notify windows.
- *  Skips when nothing is configured, and won't stack onto a still-running pass. */
-async function syncNow(): Promise<void> {
-  if (inFlight) return;
-  if (getActiveRegistrars().length === 0) return;
+/**
+ * One best-effort refresh of every configured registrar, then notify windows.
+ * Skips when nothing is configured, while a bulk job is patching caches, or
+ * (with `ifOlderThanMs`) when the cache is already fresher than that — which
+ * is how a fixed-cadence scheduler (the web host's hourly cron) honors a
+ * longer configured interval. Won't stack onto a still-running pass.
+ * Returns true when a sync actually ran.
+ */
+export async function syncAll(ifOlderThanMs?: number): Promise<boolean> {
+  if (inFlight) return false;
+  if (getActiveRegistrars().length === 0) return false;
   // Don't race a bulk job's per-item cache patches; the next tick retries.
-  if (isBulkRunning()) return;
+  if (isBulkRunning()) return false;
+  if (ifOlderThanMs !== undefined) {
+    const fetchedAt = getCachedPortfolio()?.fetchedAt ?? 0;
+    if (Date.now() - fetchedAt < ifOlderThanMs) return false;
+  }
   inFlight = true;
   try {
     await getPortfolio(true);
     broadcastPortfolioChanged();
     console.log('[auto-sync] portfolio refreshed');
+    return true;
   } catch (err) {
     // Best-effort — the next tick retries.
     console.error('[auto-sync] failed', err);
+    return false;
   } finally {
     inFlight = false;
   }
@@ -66,7 +82,7 @@ function schedule(): void {
     console.log('[auto-sync] disabled');
     return;
   }
-  timer = setInterval(() => void syncNow(), ms);
+  timer = setInterval(() => void syncAll(), ms);
   timer.unref();
   console.log(`[auto-sync] every ${Math.round(ms / 60_000)} min`);
 }

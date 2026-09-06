@@ -44,6 +44,7 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.startBulk, targets, op),
   cancelBulk: (jobId) => ipcRenderer.invoke(IpcChannels.cancelBulk, jobId),
   getBulkJob: () => ipcRenderer.invoke(IpcChannels.getBulkJob),
+  stepBulk: (jobId) => ipcRenderer.invoke(IpcChannels.stepBulk, jobId),
   onBulkProgress: (callback) => {
     const listener = (_e: unknown, p: BulkProgress) => callback(p);
     ipcRenderer.on(IpcEvents.bulkProgress, listener);
