@@ -60,6 +60,14 @@ Open the URL it prints and sign in.
   DOMBOT_PASSWORD='something-long' npm run web:rotate-password
   ```
 
+- **Brute-force protection**: after three wrong passwords each further
+  attempt waits twice as long (up to an hour). That counter is per
+  instance, not per client, and a burst spread across several of
+  Cloudflare's isolates can land a few extra guesses before it catches up.
+  For a public instance add a [rate limiting
+  rule](https://developers.cloudflare.com/waf/rate-limiting-rules/) on
+  `POST /auth/login` (say, 5 requests per minute per IP) in the zone's
+  WAF; it costs nothing on the free plan. And use a long password.
 - **Updating**: pull, then `npm run web:deploy` again.
 - **Bulk jobs** are stepped by your browser tab. Closing the tab pauses a
   running job; reopening resumes it. A job interrupted mid-request shows

@@ -24,6 +24,7 @@ import {
   type AuthConfig,
 } from './auth';
 import { deriveEncryptionKey, parseRootSecret } from './keys';
+import { withRequestLock } from './lock';
 import { D1DocStore } from './storage/d1-doc-store';
 
 // The Cloudflare Worker host: the same core (services, API table, storage
@@ -34,7 +35,9 @@ import { D1DocStore } from './storage/d1-doc-store';
 // are stable for an isolate's life). Per-request: every namespace is
 // re-hydrated from D1 — one query — so two isolates (or a cron and a request)
 // never serve each other stale memory, and writes are flushed before the
-// response goes out.
+// response goes out. Requests that touch state run one at a time within the
+// isolate (src/worker/lock.ts), so that cycle can't interleave with another
+// request's.
 
 interface Boot {
   auth: AuthConfig;
@@ -81,7 +84,7 @@ async function hydrate(): Promise<void> {
 type Vars = { auth: AuthConfig };
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
 
-// ── boot + hydrate on every request ─────────────────────────────────────────
+// ── boot on every request ───────────────────────────────────────────────────
 app.use('*', async (c, next) => {
   let b: Boot;
   try {
@@ -94,10 +97,31 @@ app.use('*', async (c, next) => {
     return c.text(`DomBot isn't configured yet.\n\n${message}\n`, 503);
   }
   c.set('auth', b.auth);
-  await hydrate();
   await next();
-  await flushWrites();
 });
+
+// ── hydrate → handle → flush, serialized, on every request that has state ──
+// Everything but the SPA's assets: auth (the login-attempt counter) and the
+// API. Under the lock a bulk step can't be re-hydrated out from under by a
+// poll, and a burst of logins counts every attempt.
+const STATEFUL_PATHS = ['/auth/*', '/api/*'];
+for (const path of STATEFUL_PATHS) {
+  app.use(path, (c, next) =>
+    withRequestLock(async () => {
+      await hydrate();
+      await next();
+      try {
+        await flushWrites();
+      } catch (err) {
+        // The handler already answered, but its data didn't land; the next
+        // hydrate will show the pre-request state. Say so instead of 200.
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[worker] persist failed:', message);
+        c.res = c.json({ error: `Could not save changes: ${message}` }, 500);
+      }
+    }),
+  );
+}
 
 // ── security headers ────────────────────────────────────────────────────────
 // Mirrors the desktop renderer's CSP (src/electron/index.ts): same-origin
@@ -135,6 +159,9 @@ app.post('/auth/login', async (c) => {
   if (auth.mode !== 'password')
     return c.json({ error: 'No login in this mode' }, 404);
   if (!sameOrigin(c.req.raw)) return c.json({ error: 'Bad origin' }, 403);
+  // Requests are serialized per isolate, so a burst of guesses counts every
+  // failure; across isolates the counter is last-write-wins (see
+  // docs/self-hosting.md for the rate-limit rule that closes that gap).
   const wait = loginLockRemaining();
   if (wait > 0) {
     return c.json(
@@ -219,18 +246,20 @@ export default {
 
   // Hourly cron (wrangler.jsonc). syncAll() runs only when the cache is older
   // than the configured interval, so the setting decides the real cadence.
-  async scheduled(_controller, env, ctx) {
+  async scheduled(_controller, env) {
     await bootOnce(env);
-    await hydrate();
-    const minutes = getSettings().autoSyncIntervalMinutes;
-    if (minutes <= 0) {
-      console.log('[cron] auto-sync disabled in settings');
-      return;
-    }
-    const ran = await syncAll(minutes * 60_000);
-    console.log(
-      ran ? '[cron] portfolio synced' : '[cron] cache fresh; skipped',
-    );
-    ctx.waitUntil(flushWrites());
+    await withRequestLock(async () => {
+      await hydrate();
+      const minutes = getSettings().autoSyncIntervalMinutes;
+      if (minutes <= 0) {
+        console.log('[cron] auto-sync disabled in settings');
+        return;
+      }
+      const ran = await syncAll(minutes * 60_000);
+      console.log(
+        ran ? '[cron] portfolio synced' : '[cron] cache fresh; skipped',
+      );
+      await flushWrites();
+    });
   },
 } satisfies ExportedHandler<Env>;

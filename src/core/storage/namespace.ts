@@ -34,20 +34,39 @@ export function getStore(): DocStore {
 // ── write queue ─────────────────────────────────────────────────────────────
 
 let tail: Promise<void> = Promise.resolve();
+/** The first write to fail since the last `flushWrites()` reported it. */
+let unreportedFailure: unknown = null;
+let failed = false;
 
 function enqueue(label: string, write: () => Promise<void>): Promise<void> {
   const p = tail.then(write);
   // Keep the queue alive past a failure, and mark the rejection handled so a
   // fire-and-forget caller doesn't trip an unhandled-rejection warning. An
-  // awaiting caller still receives the rejection from `p`.
-  tail = p.catch(() => undefined);
+  // awaiting caller still receives the rejection from `p`; everyone else
+  // learns of it from the next `flushWrites()`.
+  tail = p.catch((err) => {
+    if (!failed) {
+      failed = true;
+      unreportedFailure = err;
+    }
+  });
   p.catch((err) => console.error(`[storage] ${label} failed`, err));
   return p;
 }
 
-/** Resolves once every write issued so far has been persisted (or failed). */
-export function flushWrites(): Promise<void> {
-  return tail;
+/**
+ * Settles once every write issued so far has been persisted. Rejects with the
+ * first failure since the previous flush, so a host that answers "saved" only
+ * after the flush (a Worker request) never says so for data that isn't.
+ */
+export async function flushWrites(): Promise<void> {
+  await tail;
+  if (failed) {
+    const err = unreportedFailure;
+    failed = false;
+    unreportedFailure = null;
+    throw err;
+  }
 }
 
 // ── namespaces ──────────────────────────────────────────────────────────────
