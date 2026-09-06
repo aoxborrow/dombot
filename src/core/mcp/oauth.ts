@@ -23,6 +23,10 @@ const PENDING_TTL_MS = 10 * 60 * 1000;
 const UNPAIRED_CLIENT_TTL_MS = 60 * 60 * 1000;
 /** Cap on unpaired registrations kept at once (a public endpoint can be spammed). */
 const MAX_UNPAIRED_CLIENTS = 50;
+/** Cap on approvals waiting at once; /authorize is public too. A client gets
+ *  one — its newest request replaces the older — and past the cap the oldest
+ *  request is dropped, so an attacker can't crowd out or bury the real one. */
+const MAX_PENDING_APPROVALS = 10;
 // Access tokens are long-lived, but the bearer check requires an explicit
 // expiry, so we set a far-future one.
 const TOKEN_TTL_SEC = 365 * 24 * 60 * 60;
@@ -211,6 +215,19 @@ export function createPendingApproval(
   params: AuthorizationParams,
 ): PendingApproval {
   pruneStale();
+  const open = entries<PendingApproval>(PENDING).sort(
+    (a, b) => a[1].createdAt - b[1].createdAt,
+  );
+  for (const [id, existing] of open) {
+    if (existing.clientId === client.client_id) void store.delete(PENDING + id);
+  }
+  const remaining = open.filter(([, e]) => e.clientId !== client.client_id);
+  for (const [id] of remaining.slice(
+    0,
+    Math.max(0, remaining.length + 1 - MAX_PENDING_APPROVALS),
+  )) {
+    void store.delete(PENDING + id);
+  }
   const p: PendingApproval = {
     id: crypto.randomUUID(),
     clientId: client.client_id,

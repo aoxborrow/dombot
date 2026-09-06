@@ -1,6 +1,6 @@
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { ApiValidationError, invoke, type ApiMethodName } from '../core/api';
-import { createMcpRoutes } from '../core/mcp/routes';
+import { MCP_PUBLIC_PATHS, createMcpRoutes } from '../core/mcp/routes';
 import { syncAll } from '../core/services/auto-sync';
 import { resetBulkMemory } from '../core/services/bulk-jobs';
 import { getSettings } from '../core/services/settings';
@@ -124,6 +124,10 @@ const stateful: MiddlewareHandler<{ Bindings: Env; Variables: Vars }> = (
       c.res = c.json({ error: `Could not save changes: ${message}` }, 500);
     }
   });
+// The MCP surface is bearer-authenticated by its own routes, and the gate
+// (Settings → MCP) and OAuth state live in the store, so those paths hydrate
+// before their handlers run.
+for (const path of MCP_PUBLIC_PATHS) app.use(path, stateful);
 
 // ── security headers ────────────────────────────────────────────────────────
 // Mirrors the desktop renderer's CSP (src/electron/index.ts): same-origin

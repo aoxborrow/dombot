@@ -225,6 +225,32 @@ describe('approval → code → token', () => {
   });
 });
 
+describe('pending approvals are bounded', () => {
+  const params = (n: number) => ({
+    scopes: [],
+    redirectUri: REDIRECT,
+    codeChallenge: `c${n}`,
+  });
+
+  it('keeps one per client — the newest', () => {
+    const client = publicClient();
+    const first = createPendingApproval(client, params(1));
+    const second = createPendingApproval(client, params(2));
+    expect(listPendingApprovals().map((p) => p.id)).toEqual([second.id]);
+    expect(getApprovalStatus(first.id)).toEqual({ status: 'unknown' });
+  });
+
+  it('drops the oldest past the cap', () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      ids.push(createPendingApproval(publicClient(`c${i}`), params(i)).id);
+    }
+    const open = listPendingApprovals().map((p) => p.id);
+    expect(open).toHaveLength(10);
+    expect(open).toEqual(ids.slice(2));
+  });
+});
+
 describe('helpers', () => {
   it('verifies PKCE S256', async () => {
     expect(await verifyPkce('abc', await challengeFor('abc'))).toBe(true);
