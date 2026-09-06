@@ -390,8 +390,9 @@ Idempotent, and covered by tests that seed a plaintext blob, an encrypted
 blob, and an unreadable one.
 
 **Desktop → web transfer** (nice-to-have, phase 6): Settings → Export data
-produces a JSON bundle of every namespace, optionally passphrase-encrypted;
-the web instance imports it from Settings. Lets a desktop user
+produces a JSON bundle of every namespace, optionally passphrase-sealed in
+the browser (PBKDF2 is too heavy for a Worker's CPU budget); the web
+instance imports it from Settings. Lets a desktop user
 move to their own instance without re-entering keys or redoing folders.
 
 ### Cloud-agnostic seams
@@ -506,8 +507,10 @@ allowlist story. No code lands.
   section on the site, README section, `web:secrets` / `web:rotate-password`
   / `web:rotate-secret` scripts.
 - Export / import data bundle (`src/core/storage/bundle.ts`): every namespace
-  but `auth` and `meta`, optionally PBKDF2 + AES-GCM sealed; Settings → Sync
-  on both hosts. Secret rotation round-trips through it.
+  but `auth` and `meta`, in the clear over the API; the client seals/opens
+  it with PBKDF2 + AES-GCM (`src/shared/bundle-seal.ts`) so the key
+  stretching never runs on the Worker. Settings → Sync on both hosts.
+  Secret rotation round-trips through it.
 - Release: desktop 1.2.0 (with the storage migration) and the first
   web-deployable tag together, since they share the storage layout —
   `package.json` is bumped; cutting the release is a manual Actions run.

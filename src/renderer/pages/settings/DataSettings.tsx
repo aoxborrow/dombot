@@ -18,6 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  isSealedBundle,
+  openBundle,
+  sealBundle,
+} from '../../../shared/bundle-seal';
 import { useAppStore } from '../../store/app';
 import { SettingsCard } from './SettingsCard';
 
@@ -161,7 +166,8 @@ function DataBundleCard() {
   const onExport = async () => {
     setExporting(true);
     try {
-      const text = await window.api.exportData(exportPass || undefined);
+      let text = await window.api.exportData();
+      if (exportPass) text = await sealBundle(text, exportPass);
       const stamp = new Date().toISOString().slice(0, 10);
       const result = await window.api.saveTextFile(
         text,
@@ -180,15 +186,9 @@ function DataBundleCard() {
   const onPick = async (file: File | undefined) => {
     if (!file) return;
     const text = await file.text();
-    let sealed = false;
-    try {
-      sealed = Boolean((JSON.parse(text) as { encrypted?: unknown }).encrypted);
-    } catch {
-      // importData reports the real problem
-    }
     setImportPass('');
     setImportError(null);
-    setPending({ name: file.name, text, sealed });
+    setPending({ name: file.name, text, sealed: isSealedBundle(text) });
   };
 
   const onImport = async () => {
@@ -196,10 +196,10 @@ function DataBundleCard() {
     setImporting(true);
     setImportError(null);
     try {
-      const { namespaces, entries } = await window.api.importData(
-        pending.text,
-        importPass || undefined,
-      );
+      const text = pending.sealed
+        ? await openBundle(pending.text, importPass)
+        : pending.text;
+      const { namespaces, entries } = await window.api.importData(text);
       toast.success(
         `Imported ${entries} item${entries === 1 ? '' : 's'} across ${namespaces} section${namespaces === 1 ? '' : 's'}`,
       );
@@ -215,7 +215,7 @@ function DataBundleCard() {
 
   return (
     <SettingsCard
-      title="Export &amp; import"
+      title="Export & import"
       contentClassName="flex flex-col gap-5"
     >
       <div className="flex flex-col gap-3">

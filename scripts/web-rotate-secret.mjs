@@ -4,7 +4,9 @@
 // bundle:
 //
 //   1. sign in and export everything (the current secret can still open it)
-//   2. keep that bundle on disk, sealed with a passphrase you're asked for
+//   2. keep that bundle on disk, sealed here with a passphrase you're asked
+//      for (same envelope as the app's Settings → Export; see
+//      src/shared/bundle-seal.ts)
 //   3. `wrangler secret put DOMBOT_SECRET` with a fresh random key
 //   4. sign in again (sessions are derived from the secret, so it's a new one)
 //      and import the bundle, which rewrites every doc under the new key
@@ -17,11 +19,56 @@
 // Prompts for the login password (or reads DOMBOT_PASSWORD from env) and for
 // a passphrase to seal the on-disk bundle.
 
-import { randomBytes } from 'node:crypto';
+import { randomBytes, webcrypto } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
+
+/** Seals bundle text like src/shared/bundle-seal.ts does (kept in step). */
+async function sealBundle(text, passphrase) {
+  const subtle = webcrypto.subtle;
+  const head = JSON.parse(text);
+  const salt = webcrypto.getRandomValues(new Uint8Array(16));
+  const iv = webcrypto.getRandomValues(new Uint8Array(12));
+  const base = await subtle.importKey(
+    'raw',
+    new TextEncoder().encode(passphrase),
+    'PBKDF2',
+    false,
+    ['deriveKey'],
+  );
+  const key = await subtle.deriveKey(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 600_000 },
+    base,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt'],
+  );
+  const ct = await subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    new TextEncoder().encode(text),
+  );
+  const b64 = (bytes) => Buffer.from(bytes).toString('base64');
+  return JSON.stringify(
+    {
+      format: head.format,
+      version: head.version,
+      exportedAt: head.exportedAt,
+      encrypted: {
+        kdf: 'PBKDF2-SHA256',
+        iterations: 600_000,
+        salt: b64(salt),
+        alg: 'AES-256-GCM',
+        iv: b64(iv),
+        ct: b64(new Uint8Array(ct)),
+      },
+    },
+    null,
+    2,
+  );
+}
 
 const url = (process.env.DOMBOT_URL || '').replace(/\/+$/, '');
 if (!/^https?:\/\//.test(url)) {
@@ -95,9 +142,9 @@ if (!passphrase) {
   );
   process.exit(1);
 }
-const sealed = await api('exportData', [passphrase]);
+const plain = await api('exportData', []);
 const file = `dombot-data-${new Date().toISOString().slice(0, 10)}-pre-rotation.json`;
-writeFileSync(file, sealed, { mode: 0o600 });
+writeFileSync(file, await sealBundle(plain, passphrase), { mode: 0o600 });
 console.log(`Exported to ./${file} (sealed with your passphrase).`);
 
 // 3. New secret.
@@ -142,7 +189,7 @@ if (!live) {
   process.exit(1);
 }
 await login();
-const imported = await api('importData', [sealed, passphrase]);
+const imported = await api('importData', [plain]);
 console.log(
   `Imported ${imported.entries} item(s) across ${imported.namespaces} section(s).`,
 );

@@ -491,13 +491,14 @@ export interface DombotApi {
   saveTextFile: (content: string, suggestedName: string) => Promise<SaveResult>;
   /**
    * Everything the store holds as one JSON document (see
-   * src/core/storage/bundle.ts) — sealed with `passphrase` when given.
+   * src/core/storage/bundle.ts), in the clear. The caller seals it if the
+   * user wants a passphrase (src/shared/bundle-seal.ts).
    */
-  exportData: (passphrase?: string) => Promise<string>;
-  /** Replaces the store with an exported bundle. Returns what was written. */
+  exportData: () => Promise<string>;
+  /** Replaces the store with an exported (plain) bundle. Returns what was
+   *  written. A sealed file must be opened first. */
   importData: (
     text: string,
-    passphrase?: string,
   ) => Promise<{ namespaces: number; entries: number }>;
 
   /** Restore the full cached portfolio + detail + pricing from disk with no

@@ -159,20 +159,15 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   }),
 
   // ── Data bundle (backup / move / secret rotation) ──────────────────────────
-  exportData: method(
-    z.tuple([z.string().max(1024).optional()]),
-    async (passphrase) =>
-      exportBundle(getAppIdentity(), passphrase || undefined),
-  ),
-  importData: method(
-    z.tuple([z.string(), z.string().max(1024).optional()]),
-    async (text, passphrase) => {
-      const result = await importBundle(text, passphrase || undefined);
-      // Durable before we say so: the caller reloads on the strength of it.
-      await flushWrites();
-      return result;
-    },
-  ),
+  // Plain text both ways; the client seals/opens with the passphrase
+  // (src/shared/bundle-seal.ts) so the key stretching stays off the Worker.
+  exportData: method(none, async () => exportBundle(getAppIdentity())),
+  importData: method(z.tuple([z.string()]), async (text) => {
+    const result = await importBundle(text);
+    // Durable before we say so: the caller reloads on the strength of it.
+    await flushWrites();
+    return result;
+  }),
 
   // ── Pricing ───────────────────────────────────────────────────────────────
   getPortfolioPricing: method(none, async () => getPortfolioPricing()),

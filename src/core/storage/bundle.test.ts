@@ -16,6 +16,8 @@ import {
 } from '../services/settings';
 import { createFolder, getFolders } from '../services/folders';
 import { setStoredCredentials } from '../services/credentials';
+import { getRegistrarClient } from '../services/registrars';
+import { sealBundle } from '../../shared/bundle-seal';
 import { bumpRevision, getRevisions } from '../revision';
 import { onCoreEvent } from '../events';
 
@@ -29,7 +31,7 @@ beforeEach(async () => {
 });
 
 async function seed() {
-  await setStoredCredentials('godaddy', { apiKey: 'k', apiSecret: 's' });
+  await setStoredCredentials('godaddy', { apiToken: 'k' });
   createFolder({ name: 'Keepers', color: 'green', description: '' });
   updateSettings({ mcpEnabled: true, autoSyncIntervalMinutes: 60 });
   bumpRevision('portfolio');
@@ -47,24 +49,23 @@ describe('buildBundle', () => {
     );
     expect(b.namespaces.meta).toBeUndefined();
     expect(b.namespaces.auth).toBeUndefined();
-    expect(b.namespaces.credentials.godaddy).toEqual({
-      apiKey: 'k',
-      apiSecret: 's',
-    });
+    expect(b.namespaces.credentials.godaddy).toEqual({ apiToken: 'k' });
   });
 });
 
 describe('export → import', () => {
   it('round-trips in the clear and replaces the store', async () => {
     await seed();
-    const text = await exportBundle(APP);
-    expect(text).toContain('"apiKey": "k"');
+    const text = exportBundle(APP);
+    expect(text).toContain('"apiToken": "k"');
 
     // A fresh store with different content.
     configureStore(new MemoryDocStore());
     await hydrateStores();
     createFolder({ name: 'Old', color: 'red', description: '' });
     updateSettings({ mcpEnabled: false });
+    await setStoredCredentials('godaddy', { apiToken: 'old' });
+    const staleClient = getRegistrarClient('godaddy');
     const settingsChanged = vi.fn();
     onSettingsChanged(settingsChanged);
     const portfolioChanged = vi.fn();
@@ -83,6 +84,8 @@ describe('export → import', () => {
       expect.objectContaining({ mcpEnabled: false }),
     );
     expect(portfolioChanged).toHaveBeenCalled();
+    // The registrar client built from the old keys is gone.
+    expect(getRegistrarClient('godaddy')).not.toBe(staleClient);
     // Revision counters (meta) were not touched by the import.
     expect(getRevisions().portfolio).toBe(0);
 
@@ -92,33 +95,24 @@ describe('export → import', () => {
     expect(getFolders().folders.map((f) => f.name)).toEqual(['Keepers']);
   });
 
-  it('seals with a passphrase and refuses the wrong one', async () => {
+  it('refuses a sealed file until the client opens it', async () => {
     await seed();
-    const text = await exportBundle(APP, 'hunter2');
-    expect(text).not.toContain('apiKey');
-    expect(JSON.parse(text).encrypted.alg).toBe('AES-256-GCM');
-
-    await expect(parseBundle(text)).rejects.toThrow(/needs its passphrase/);
-    await expect(parseBundle(text, 'nope')).rejects.toThrow(/Wrong passphrase/);
-    const bundle = await parseBundle(text, 'hunter2');
-    expect(bundle.namespaces.credentials.godaddy).toEqual({
-      apiKey: 'k',
-      apiSecret: 's',
-    });
+    const sealed = await sealBundle(exportBundle(APP), 'hunter2');
+    expect(() => parseBundle(sealed)).toThrow(/sealed with a passphrase/);
   });
 
-  it('rejects things that are not bundles', async () => {
-    await expect(parseBundle('not json')).rejects.toBeInstanceOf(BundleError);
-    await expect(parseBundle('{"format":"x"}')).rejects.toThrow(
+  it('rejects things that are not bundles', () => {
+    expect(() => parseBundle('not json')).toThrow(BundleError);
+    expect(() => parseBundle('{"format":"x"}')).toThrow(
       /Not a DomBot data file/,
     );
-    await expect(
+    expect(() =>
       parseBundle(JSON.stringify({ format: BUNDLE_FORMAT, version: 99 })),
-    ).rejects.toThrow(/newer DomBot/);
-    await expect(
+    ).toThrow(/newer DomBot/);
+    expect(() =>
       parseBundle(JSON.stringify({ format: BUNDLE_FORMAT, version: 1 })),
-    ).rejects.toThrow(/no content/);
-    await expect(
+    ).toThrow(/no content/);
+    expect(() =>
       parseBundle(
         JSON.stringify({
           format: BUNDLE_FORMAT,
@@ -126,7 +120,7 @@ describe('export → import', () => {
           namespaces: { folders: [1] },
         }),
       ),
-    ).rejects.toThrow(/Malformed/);
+    ).toThrow(/Malformed/);
   });
 
   it('ignores namespaces this build does not know', async () => {

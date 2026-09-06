@@ -18,10 +18,8 @@ const api: DombotApi = {
   openExternal: (url) => ipcRenderer.invoke(IpcChannels.openExternal, url),
   saveTextFile: (content, suggestedName) =>
     ipcRenderer.invoke(IpcChannels.saveTextFile, content, suggestedName),
-  exportData: (passphrase) =>
-    ipcRenderer.invoke(IpcChannels.exportData, passphrase),
-  importData: (text, passphrase) =>
-    ipcRenderer.invoke(IpcChannels.importData, text, passphrase),
+  exportData: () => ipcRenderer.invoke(IpcChannels.exportData),
+  importData: (text) => ipcRenderer.invoke(IpcChannels.importData, text),
   hydrateFromCache: () => ipcRenderer.invoke(IpcChannels.hydrateFromCache),
   clearAllCaches: () => ipcRenderer.invoke(IpcChannels.clearAllCaches),
   getPortfolioPricing: () =>
