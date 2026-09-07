@@ -2,7 +2,12 @@ import { z } from 'zod';
 import type { DombotApi, DomainTarget } from '../../shared/ipc';
 import { clearAll } from '../services/cache';
 import { applyDomainOp } from '../services/domain-ops';
-import { cancelBulk, getBulkJob, startBulk } from '../services/bulk-jobs';
+import {
+  cancelBulk,
+  getBulkJob,
+  startBulk,
+  stepBulk,
+} from '../services/bulk-jobs';
 import {
   assignFolder,
   createFolder,
@@ -222,6 +227,7 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     cancelBulk(jobId);
   }),
   getBulkJob: method(none, async () => getBulkJob()),
+  stepBulk: method(z.tuple([z.string()]), async (jobId) => stepBulk(jobId)),
 
   // ── Folders ───────────────────────────────────────────────────────────────
   getFolders: method(none, async () => getFolders()),

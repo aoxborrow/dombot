@@ -449,9 +449,12 @@ allowlist story. No code lands.
 
 ### Phase 3 — Persisted bulk jobs + `syncAll()`
 
-- Job doc + `bulk.step()`; Electron loops it. Cancel via flag. Resume on
-  relaunch (a "Resume interrupted job?" toast — a small user-visible win).
-- `syncAll()` extracted from `auto-sync.ts`.
+- Job doc + `stepBulk()`; Electron loops it (`driveBulk`). Cancel via flag.
+  A job found still running at launch is closed out as cancelled with an
+  "interrupted" message rather than resumed — renew is money, so nothing
+  restarts on its own; the results report is the retry surface. (A "Resume
+  interrupted job?" prompt can come later.)
+- `syncAll(ifOlderThanMs?)` extracted from `auto-sync.ts`.
 
 ### Phase 4 — Worker host + web renderer
 
