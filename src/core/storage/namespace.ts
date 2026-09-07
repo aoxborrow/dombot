@@ -171,10 +171,13 @@ export function exportNamespaces(
 }
 
 /**
- * Replaces the listed namespaces wholesale — memory first, then a clear plus
+ * Replaces the store with `data` wholesale — memory first, then a clear plus
  * one put per entry through the write queue. A namespace this build doesn't
- * know is skipped (so a bundle from a newer DomBot can't leave stray docs);
- * a registered namespace missing from the bundle is left alone.
+ * know is skipped (so a bundle from a newer DomBot can't leave stray docs).
+ * A registered namespace missing from the bundle is *emptied*, not kept:
+ * "import" means the store becomes what the file says, so a crafted file
+ * can't swap in its own settings or pairings while leaving the existing
+ * credentials in place. Only `exclude` survives untouched.
  */
 export function importNamespaces(
   data: Record<string, Record<string, unknown>>,
@@ -183,8 +186,12 @@ export function importNamespaces(
   let namespaces = 0;
   let entries = 0;
   for (const ns of registry) {
+    if (exclude.has(ns.name)) continue;
     const incoming = data[ns.name];
-    if (!incoming || exclude.has(ns.name)) continue;
+    if (!incoming) {
+      if (ns.loaded && ns.size() > 0) void ns.clear();
+      continue;
+    }
     ns.replace(incoming);
     namespaces++;
     const items = Object.entries(incoming);

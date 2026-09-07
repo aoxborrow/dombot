@@ -123,6 +123,25 @@ describe('export → import', () => {
     ).toThrow(/Malformed/);
   });
 
+  it('empties namespaces the file leaves out (nothing survives but auth/meta)', async () => {
+    await seed();
+    const text = JSON.stringify({
+      format: BUNDLE_FORMAT,
+      version: 1,
+      exportedAt: 'x',
+      app: APP,
+      namespaces: { settings: { mcpEnabled: true } },
+    });
+    await importBundle(text);
+    await flushWrites();
+    expect(getFolders().folders).toEqual([]);
+    expect(await store.list('credentials')).toEqual({});
+    expect(await store.list('folders')).toEqual({});
+    expect(getSettings().mcpEnabled).toBe(true);
+    // Revision counters (meta) are still there.
+    expect(getRevisions().portfolio).toBe(1);
+  });
+
   it('ignores namespaces this build does not know', async () => {
     const text = JSON.stringify({
       format: BUNDLE_FORMAT,
