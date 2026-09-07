@@ -1,7 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { randomUUID } from 'node:crypto';
-import { app } from 'electron';
 import {
   HIDDEN_FOLDER_ID,
   type Folder,
@@ -9,15 +5,15 @@ import {
   type FolderPatch,
   type FoldersSnapshot,
 } from '../../shared/ipc';
+import { Namespace } from '../storage/namespace';
 
-// Folders are user data — the folder definitions and the domain→folder map. They
-// live beside the manual price overrides (pricing-overrides.json) under
-// `userData`, and follow the same pattern: one JSON file, lazily loaded into a
-// module cache, rewritten wholesale on each mutation. The dataset is a handful
-// of folders and at most a few hundred assignments, so a full rewrite is cheap.
+// Folders: user-defined groupings of domains, plus the per-domain assignment.
+// Persisted in the `folders` namespace under two keys — `folders` (the
+// definitions) and `assignments` (domainKey → folderId). The whole thing is a
+// handful of folders and a few hundred assignments, so a full rewrite is cheap.
 //
-// Unlike the caches in cache.ts, this file is never cleared by "Clear cache" —
-// it's user-authored, like credentials and manual prices.
+// Unlike the caches in cache.ts, this is never cleared by "Clear cache" — it's
+// user-authored, like credentials and manual prices.
 
 interface FoldersStore {
   folders: Folder[];
@@ -25,40 +21,24 @@ interface FoldersStore {
   assignments: Record<string, string>;
 }
 
-let store: FoldersStore | null = null;
-
-function storeFile(): string {
-  return path.join(app.getPath('userData'), 'folders.json');
-}
+const store = new Namespace<unknown>('folders');
 
 function load(): FoldersStore {
-  if (store) return store;
-  try {
-    const parsed = JSON.parse(
-      fs.readFileSync(storeFile(), 'utf8'),
-    ) as Partial<FoldersStore>;
-    // Defend against a hand-edited or partial file.
-    store = {
-      folders: Array.isArray(parsed.folders) ? parsed.folders : [],
-      assignments:
-        parsed.assignments && typeof parsed.assignments === 'object'
-          ? parsed.assignments
-          : {},
-    };
-  } catch {
-    // Missing or corrupt file — start empty, exactly like the other stores.
-    store = { folders: [], assignments: {} };
-  }
-  return store;
+  const folders = store.get('folders');
+  const assignments = store.get('assignments');
+  // Defend against a hand-edited or partial store.
+  return {
+    folders: Array.isArray(folders) ? (folders as Folder[]) : [],
+    assignments:
+      assignments && typeof assignments === 'object'
+        ? (assignments as Record<string, string>)
+        : {},
+  };
 }
 
 function persist(next: FoldersStore): void {
-  store = next;
-  try {
-    fs.writeFileSync(storeFile(), JSON.stringify(next), 'utf8');
-  } catch {
-    // A failed write just means the change won't survive a restart; not fatal.
-  }
+  void store.set('folders', next.folders);
+  void store.set('assignments', next.assignments);
 }
 
 /** The folder definitions plus the domain→folder map, for launch hydration. */
@@ -71,7 +51,7 @@ export function getFolders(): FoldersSnapshot {
 export function createFolder(input: FolderInput): Folder {
   const current = load();
   const folder: Folder = {
-    id: randomUUID(),
+    id: crypto.randomUUID(),
     name: input.name,
     description: input.description,
     color: input.color,

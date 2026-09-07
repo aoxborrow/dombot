@@ -1,8 +1,6 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { app } from 'electron';
 import type { RegistrarName } from '@aoxborrow/registrar-client';
 import { getBaseRenewal } from './base-pricing';
+import { Namespace } from '../storage/namespace';
 import type { RenewalPricing } from '../../shared/ipc';
 
 // Renewal-price resolver backing the Renewals dashboard and the Domains renewal
@@ -47,7 +45,10 @@ const NO_PREMIUM_TLDS = new Set<string>(['com', 'net', 'org', 'info', 'biz']);
  * carry premium names in the first place. Used by the sync to decide which
  * domains get a live quote; every other domain resolves from the base database.
  */
-export function usesPerNameQuote(registrar: RegistrarName, tld: string): boolean {
+export function usesPerNameQuote(
+  registrar: RegistrarName,
+  tld: string,
+): boolean {
   return (
     SPECIFIC_CAPABLE.has(registrar) && !NO_PREMIUM_TLDS.has(tld.toLowerCase())
   );
@@ -59,33 +60,8 @@ export interface RenewalQuote {
   currency: string;
 }
 
-let overrides: Record<string, number> | null = null;
-
-function overridesFile(): string {
-  return path.join(app.getPath('userData'), 'pricing-overrides.json');
-}
-
-function loadOverrides(): Record<string, number> {
-  if (overrides) return overrides;
-  try {
-    overrides = JSON.parse(fs.readFileSync(overridesFile(), 'utf8')) as Record<
-      string,
-      number
-    >;
-  } catch {
-    overrides = {};
-  }
-  return overrides;
-}
-
-function persistOverrides(store: Record<string, number>): void {
-  overrides = store;
-  try {
-    fs.writeFileSync(overridesFile(), JSON.stringify(store), 'utf8');
-  } catch {
-    // Non-fatal — the override just won't survive a restart.
-  }
-}
+// Manual per-domain renewal overrides, keyed `${registrar}:${domain}` (USD).
+const overrides = new Namespace<number>('pricing-overrides');
 
 /** Everything after the first dot, lowercased. "example.co.uk" → "co.uk". */
 export function tldOf(domain: string): string {
@@ -104,9 +80,15 @@ export function resolvePricing(
   domain: string,
   quote?: RenewalQuote,
 ): RenewalPricing {
-  const manual = loadOverrides()[`${registrar}:${domain}`];
+  const manual = overrides.get(`${registrar}:${domain}`);
   if (typeof manual === 'number') {
-    return { domain, registrar, renewal: manual, currency: 'USD', source: 'manual' };
+    return {
+      domain,
+      registrar,
+      renewal: manual,
+      currency: 'USD',
+      source: 'manual',
+    };
   }
 
   if (quote && quote.renewal !== null) {
@@ -121,10 +103,22 @@ export function resolvePricing(
 
   const base = getBaseRenewal(registrar, tldOf(domain));
   if (base !== null) {
-    return { domain, registrar, renewal: base, currency: 'USD', source: 'base' };
+    return {
+      domain,
+      registrar,
+      renewal: base,
+      currency: 'USD',
+      source: 'base',
+    };
   }
 
-  return { domain, registrar, renewal: null, currency: 'USD', source: 'unavailable' };
+  return {
+    domain,
+    registrar,
+    renewal: null,
+    currency: 'USD',
+    source: 'unavailable',
+  };
 }
 
 /** Sets (number) or clears (null) a manual annual renewal price for a domain. */
@@ -133,12 +127,10 @@ export function setManualPrice(
   domain: string,
   price: number | null,
 ): void {
-  const store = { ...loadOverrides() };
   const key = `${registrar}:${domain}`;
   if (price === null || Number.isNaN(price)) {
-    delete store[key];
+    void overrides.delete(key);
   } else {
-    store[key] = price;
+    void overrides.set(key, price);
   }
-  persistOverrides(store);
 }

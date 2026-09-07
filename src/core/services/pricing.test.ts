@@ -1,18 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RegistrarName } from '@aoxborrow/registrar-client';
 
-// Keep Electron and the filesystem out. loadOverrides reads a JSON file; make it
-// throw so overrides start empty, and let tests seed them via setManualPrice.
-vi.mock('electron', () => ({ app: { getPath: () => '/tmp/dombot-test' } }));
+import { MemoryDocStore } from '../storage/doc-store';
 
-const readFileSync = vi.fn<(...a: unknown[]) => string>();
-const writeFileSync = vi.fn<(...a: unknown[]) => void>();
-vi.mock('node:fs', () => ({
-  default: {
-    readFileSync: (...a: unknown[]) => readFileSync(...a),
-    writeFileSync: (...a: unknown[]) => writeFileSync(...a),
-  },
-}));
+// Overrides live in the `pricing-overrides` namespace; back it with a fresh
+// in-memory store per test so they start empty, and let tests seed them via
+// setManualPrice.
 
 const getBaseRenewal = vi.fn<(r: string, tld: string) => number | null>();
 vi.mock('./base-pricing', () => ({
@@ -22,15 +15,20 @@ vi.mock('./base-pricing', () => ({
 // Re-import fresh each test so the module-level overrides cache resets.
 type PricingModule = typeof import('./pricing');
 let pricing: PricingModule;
+let storage: typeof import('../storage/namespace');
+let store: MemoryDocStore;
 
 beforeEach(async () => {
   vi.clearAllMocks();
   vi.resetModules();
-  readFileSync.mockImplementation(() => {
-    throw new Error('ENOENT');
-  });
   getBaseRenewal.mockReturnValue(null);
+  // Import pricing first so its namespace registers with the (fresh) storage
+  // module, then point that module at an empty store and hydrate.
   pricing = await import('./pricing');
+  storage = await import('../storage/namespace');
+  store = new MemoryDocStore();
+  storage.configureStore(store);
+  await storage.hydrateStores();
 });
 
 const reg = (name: string) => name as RegistrarName;
@@ -99,10 +97,14 @@ describe('setManualPrice', () => {
   it('sets then clears an override (null deletes the key)', () => {
     getBaseRenewal.mockReturnValue(9.99);
     pricing.setManualPrice(reg('dynadot'), 'example.com', 25);
-    expect(pricing.resolvePricing(reg('dynadot'), 'example.com').source).toBe('manual');
+    expect(pricing.resolvePricing(reg('dynadot'), 'example.com').source).toBe(
+      'manual',
+    );
 
     pricing.setManualPrice(reg('dynadot'), 'example.com', null);
-    expect(pricing.resolvePricing(reg('dynadot'), 'example.com').source).toBe('base');
+    expect(pricing.resolvePricing(reg('dynadot'), 'example.com').source).toBe(
+      'base',
+    );
   });
 
   it('treats NaN as a clear', () => {
@@ -114,10 +116,11 @@ describe('setManualPrice', () => {
     );
   });
 
-  it('persists overrides to disk', () => {
+  it('persists overrides to the store', async () => {
     pricing.setManualPrice(reg('dynadot'), 'example.com', 25);
-    expect(writeFileSync).toHaveBeenCalledTimes(1);
-    const [, json] = writeFileSync.mock.calls[0];
-    expect(JSON.parse(json as string)).toEqual({ 'dynadot:example.com': 25 });
+    await storage.flushWrites();
+    expect(await store.list('pricing-overrides')).toEqual({
+      'dynadot:example.com': 25,
+    });
   });
 });

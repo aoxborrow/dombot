@@ -1,12 +1,9 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { app } from 'electron';
 import type { AppSettings } from '../../shared/ipc';
+import { Namespace } from '../storage/namespace';
 
-// User-adjustable settings, persisted as one JSON file under `userData` — the
-// same pattern as folders.ts and the pricing overrides: lazily loaded into a
-// module cache, rewritten wholesale on each change. Like those (and unlike the
-// caches in cache.ts), this is user data and is never cleared by "Clear cache".
+// User-adjustable settings, one storage key per setting in the `settings`
+// namespace. Like folders and the pricing overrides (and unlike the caches in
+// cache.ts), this is user data and is never cleared by "Clear cache".
 
 const DEFAULTS: AppSettings = {
   autoSyncIntervalMinutes: 24 * 60, // 24 hours
@@ -16,14 +13,10 @@ const DEFAULTS: AppSettings = {
 /** How many recent nameserver sets to keep. */
 const MAX_RECENT_NAMESERVERS = 3;
 
-let store: AppSettings | null = null;
-
-function storeFile(): string {
-  return path.join(app.getPath('userData'), 'settings.json');
-}
+const store = new Namespace<unknown>('settings');
 
 /** Merge over defaults and coerce to valid values, defending against a
- *  hand-edited or partial file. */
+ *  hand-edited or partial store. */
 function normalize(raw: Partial<AppSettings>): AppSettings {
   const minutes = Number(raw.autoSyncIntervalMinutes);
   const recent = Array.isArray(raw.recentNameservers)
@@ -45,36 +38,16 @@ function normalize(raw: Partial<AppSettings>): AppSettings {
   };
 }
 
-function load(): AppSettings {
-  if (store) return store;
-  try {
-    store = normalize(
-      JSON.parse(fs.readFileSync(storeFile(), 'utf8')) as Partial<AppSettings>,
-    );
-  } catch {
-    // Missing or corrupt file — start from defaults, like the other stores.
-    store = { ...DEFAULTS };
-  }
-  return store;
-}
-
-function persist(next: AppSettings): void {
-  store = next;
-  try {
-    fs.writeFileSync(storeFile(), JSON.stringify(next), 'utf8');
-  } catch {
-    // A failed write just means the change won't survive a restart; not fatal.
-  }
-}
-
 /** The current settings (defaults merged in). */
 export function getSettings(): AppSettings {
-  return { ...load() };
+  return normalize(store.all() as Partial<AppSettings>);
 }
 
 /** Patches settings (coercing to valid values) and returns the result. */
 export function updateSettings(patch: Partial<AppSettings>): AppSettings {
-  const next = normalize({ ...load(), ...patch });
-  persist(next);
+  const next = normalize({ ...getSettings(), ...patch });
+  for (const [key, value] of Object.entries(next)) {
+    void store.set(key, value);
+  }
   return next;
 }

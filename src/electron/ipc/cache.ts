@@ -1,12 +1,12 @@
 import { ipcMain } from 'electron';
 import { IpcChannels, type CachedSnapshot } from '../../shared/ipc';
-import { clearAll } from '../services/cache';
+import { clearAll } from '../../core/services/cache';
 import {
   getCachedDetail,
   getCachedPortfolio,
   getConfiguredRegistrars,
   getPortfolioPricing,
-} from '../services/registrars';
+} from '../../core/services/registrars';
 
 /**
  * Cache IPC: launch hydration and a cache reset. Hydration reads only from disk

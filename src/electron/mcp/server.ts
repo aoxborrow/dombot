@@ -11,7 +11,7 @@ import {
   mcpAuthRouter,
 } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
-import { registerTools } from './tools';
+import { registerTools } from '../../core/mcp/tools';
 import { getApprovalStatus, loadGrantedTokens, oauthProvider } from './oauth';
 import { writeStdioConfig } from './stdio-config';
 import { stdioCommand } from './stdio';

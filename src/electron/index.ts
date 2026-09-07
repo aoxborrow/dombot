@@ -2,10 +2,12 @@ import { app, BrowserWindow, session, shell } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
+import { forwardCoreEventsToWindows } from './events';
+import { initStorage } from './storage';
 import { startMcpServer, stopMcpServer } from './mcp/server';
 import { isStdioShimMode, runStdioShim } from './mcp/stdio';
-import { startAutoSync, stopAutoSync } from './services/auto-sync';
-import { cancelBulk } from './services/bulk-jobs';
+import { startAutoSync, stopAutoSync } from '../core/services/auto-sync';
+import { cancelBulk } from '../core/services/bulk-jobs';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -149,7 +151,7 @@ const createWindow = () => {
 
 /** The desktop app proper: window, IPC, and the embedded MCP server. */
 function runApp(): void {
-  app.on('ready', () => {
+  app.on('ready', async () => {
     // Populate the native "About DomBot" panel (the app menu on macOS, and the
     // GTK about dialog on Linux). `website` is honored on Linux only, so the URL
     // is also placed in `credits`, where it shows on macOS's panel too.
@@ -161,6 +163,11 @@ function runApp(): void {
     });
 
     hardenRenderer();
+    // Storage first: services read their in-memory copies synchronously, so
+    // every namespace must be hydrated before an IPC handler or the MCP server
+    // can touch one. Also runs the one-time legacy-credentials migration.
+    await initStorage();
+    forwardCoreEventsToWindows();
     registerIpcHandlers();
     createWindow();
 

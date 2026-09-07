@@ -43,7 +43,7 @@ registrar and Electron boundaries so tests run fast and offline.
 Already sufficient — **nothing new to install**:
 
 - `vitest.config.ts` runs `environment: 'node'` and includes
-  `src/**/*.{test,spec}.{ts,tsx}`, so backend tests under `src/main/**`
+  `src/**/*.{test,spec}.{ts,tsx}`, so backend tests under `src/electron/**`
   colocated as `*.test.ts` are picked up automatically. The `@` → `src/renderer`
   alias is configured.
 - `package.json`: `test` = `vitest run`, `test:watch` = `vitest`. Vitest
@@ -104,6 +104,7 @@ For `services/pricing.ts`, also `vi.mock('electron')` (`app.getPath`) and either
 ### Tier 1 — highest leverage, do first
 
 **1. `services/domain-ops.ts` — `applyDomainOp`** (the single write funnel)
+
 - Up-front unsupported gate: a gated op returns `status: 'unsupported'` and
   makes **no** call into the `*Cached`/client mocks.
 - Happy path per op kind: `autoRenew` / `privacy` / `lock` / `nameservers`
@@ -130,6 +131,7 @@ For `services/pricing.ts`, also `vi.mock('electron')` (`app.getPath`) and either
   cache-patching mocks are called.
 
 **2. `mcp/tools.ts` — helpers + schemas** (shares Tier 1 #1's mocks)
+
 - `resolveRegistrar(domain, registrar?)`:
   - explicit `registrar` → returned verbatim, no lookup;
   - one cache match → that registrar;
@@ -140,6 +142,7 @@ For `services/pricing.ts`, also `vi.mock('electron')` (`app.getPath`) and either
 
   Mock only `findRegistrarsForDomain`; assert return values **and** the exact
   guidance messages.
+
 - `json(data)` → pins the `{content:[{type:'text', text: JSON.stringify(...)}]}`
   shape.
 - `domainOp()` maps `applyDomainOp`'s result to
@@ -153,6 +156,7 @@ For `services/pricing.ts`, also `vi.mock('electron')` (`app.getPath`) and either
   fields.
 
 **3. `mcp/portfolio-query.ts` — `queryPortfolio`** (pure, no mocking)
+
 - Each filter in isolation and ANDed: `registrar`, `tld` (normalizes
   `com` / `.com` / `example.com`), `nameContains`, `nameserverContains`,
   `autoRenew` / `locked` / `privacy`, `status` substring,
@@ -170,6 +174,7 @@ For `services/pricing.ts`, also `vi.mock('electron')` (`app.getPath`) and either
 - Edge cases: empty portfolio, offset beyond length.
 
 **4. `services/bulk-jobs.ts` — the job runner** (fake timers)
+
 - Progress accounting: final `counts` sums correctly across all six statuses,
   `results.length === total`, `broadcastBulkProgress` fires once per item with a
   monotonic `done`.
@@ -249,15 +254,15 @@ Worth an explicit, dedicated test since it's security-relevant. In
 
 **Tier 1 complete** (2026-09-06) — 131 tests total, up from 50:
 
-- `src/main/services/domain-ops.test.ts` — 24 tests (gate, patches, silent,
+- `src/core/services/domain-ops.test.ts` — 24 tests (gate, patches, silent,
   soft failures, error classification, renew, forwarding skip/templating,
   auth-code non-persistence).
-- `src/main/mcp/tools.test.ts` — 14 tests (json shape, `resolveRegistrar` four
+- `src/core/mcp/tools.test.ts` — 14 tests (json shape, `resolveRegistrar` four
   branches, `domainOp`/`cachedWrite` mapping, input-schema validation) via a
   fake `McpServer` that captures the registered handlers.
-- `src/main/mcp/portfolio-query.test.ts` — 30 tests (every filter, folder
+- `src/core/mcp/portfolio-query.test.ts` — 30 tests (every filter, folder
   resolution, sorting/nulls-last, paging, staleness, edge cases).
-- `src/main/services/bulk-jobs.test.ts` — 13 tests (guards, progress
+- `src/core/services/bulk-jobs.test.ts` — 13 tests (guards, progress
   accounting, mixed statuses, portfolioChanged gating, cancellation, rate-limit
   pause, lane spacing, snapshot isolation) using `vi.useFakeTimers()`.
 
@@ -271,14 +276,14 @@ Worth an explicit, dedicated test since it's security-relevant. In
 - `src/renderer/lib/bulk.gaps.test.ts` — 13 tests (`isRiskyOp`, `isRetryable`,
   `flagOf`/`flagOp`/`flagTarget` round-trips, `hasAuthCodes`, `resultsToCsv`
   with/without the auth-code column, `resultsCsvFilename`).
-- `src/main/services/pricing.test.ts` — 11 tests (`usesPerNameQuote`,
+- `src/core/services/pricing.test.ts` — 11 tests (`usesPerNameQuote`,
   `resolvePricing` manual > api > base > unavailable precedence, `setManualPrice`
   set/clear/NaN), mocking `electron`/`node:fs`/`./base-pricing` with a
   per-test module reset.
 
 **Tier 3 complete** (2026-09-06) — 191 tests total:
 
-- `src/main/services/registrars.test.ts` — 15 tests (`findRegistrarsForDomain`
+- `src/core/services/registrars.test.ts` — 15 tests (`findRegistrarsForDomain`
   one/zero/multiple/case-insensitive; `getCachedPortfolio`/`assemblePortfolio`
   aggregation, max `fetchedAt`, error-only registrars; `getMergedPortfolio`
   detail overlay; `syncRegistrarInto` last-good-on-error for both the reported
@@ -292,7 +297,7 @@ Item 10 (trivial data/formatting helpers) intentionally skipped.
 **Tier 4 complete** (2026-09-06) — 211 tests total. The flows the earlier tiers
 deferred:
 
-- `src/main/services/registrars.test.ts` (+13, now 28) — the remaining
+- `src/core/services/registrars.test.ts` (+13, now 28) — the remaining
   cache-write flows: `setLockCached` (lock vs. unlock branch), `setPrivacyCached`,
   `setNameserversCached` (patch on success, no patch on failure);
   `renewDomainCached` (re-fetch + expiry patch on success, empty patch when the
@@ -300,7 +305,7 @@ deferred:
   the slice on success, no sync on failure); and `getDomainDetail`'s nameserver
   resolution ladder (fresh cache hit → registrar endpoint → live DNS query with
   trailing-dot/case normalization → null when nothing resolves).
-- `src/main/mcp/tools.test.ts` (+7, now 21) — end-to-end handler tests over the
+- `src/core/mcp/tools.test.ts` (+7, now 21) — end-to-end handler tests over the
   mocked services: `portfolio_query` (merged portfolio + folders → query),
   `domain_get` (cached detail vs. live `getDomain` fallback), `domain_renew`
   (years passthrough + default), `domain_auth_code_get` (returns the code; throws

@@ -21,7 +21,7 @@ word on; it's structurally absent, and you can watch the network to prove it.
   DPAPI on Windows, the system keyring (libsecret/kwallet) on Linux — via
   Electron [`safeStorage`](https://www.electronjs.org/docs/latest/api/safe-storage).
   The encrypted blob lives in a `0600` (owner-only) file in the app's user-data
-  directory. See [`src/main/services/credentials.ts`](src/main/services/credentials.ts).
+  directory. See [`src/core/services/credentials.ts`](src/core/services/credentials.ts).
   If the OS has no encryption available, DomBot **refuses to save** rather than
   writing plaintext keys to disk (a plaintext fallback exists only behind an
   explicit `DOMBOT_ALLOW_PLAINTEXT_CREDENTIALS=1` opt-in for headless setups).
@@ -39,7 +39,7 @@ word on; it's structurally absent, and you can watch the network to prove it.
 DomBot runs an MCP server so AI agents can manage your portfolio. It is bound to
 **`127.0.0.1` only** and never exposed off the machine, and pairing a client
 requires a one-time in-app **Approve/Deny** prompt with a matching code. See
-[`src/main/mcp/server.ts`](src/main/mcp/server.ts) and the README's
+[`src/electron/mcp/server.ts`](src/electron/mcp/server.ts) and the README's
 [Embedded MCP server](README.md#embedded-mcp-server) section.
 
 ## Verify it yourself
@@ -63,9 +63,9 @@ MCP). No DomBot-operated host appears, because there isn't one.
 
 The whole app is [AGPL-3.0](LICENSE) and open. The three things worth reading:
 
-- Credential storage — [`src/main/services/credentials.ts`](src/main/services/credentials.ts)
+- Credential storage — [`src/core/services/credentials.ts`](src/core/services/credentials.ts)
 - Where registrar credentials are resolved (GUI store only, no env fallback) —
-  [`src/main/services/registrars.ts`](src/main/services/registrars.ts) (`resolveField`)
+  [`src/core/services/registrars.ts`](src/core/services/registrars.ts) (`resolveField`)
 - The actual registrar HTTP calls —
   [`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client)
 
@@ -91,7 +91,7 @@ than the author, once the above is verifiable):
 
 - Renderer runs with `contextIsolation: true`, `nodeIntegration: false`, and
   `sandbox: true`; the UI reaches the main process only through a typed preload
-  bridge. ([`src/main/index.ts`](src/main/index.ts))
+  bridge. ([`src/electron/index.ts`](src/electron/index.ts))
 - A strict **Content-Security-Policy** keeps the renderer same-origin — no
   remote scripts, styles, images, or network connections can load.
 - The renderer can't navigate away from its own content, and external links open
