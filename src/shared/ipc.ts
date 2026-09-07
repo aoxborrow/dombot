@@ -202,7 +202,10 @@ export interface SaveResult {
 /** A connection awaiting the user's approval in the app window. */
 export interface McpPendingApproval {
   id: string;
+  /** Self-reported at registration; anyone can register a client. */
   clientName: string;
+  /** Where the authorization code will be sent — the part to actually check. */
+  redirectUri: string;
   code: string;
   createdAt: number;
 }

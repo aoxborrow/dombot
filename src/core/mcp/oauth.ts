@@ -252,6 +252,7 @@ export function listPendingApprovals(): McpPendingApproval[] {
     .map((p) => ({
       id: p.id,
       clientName: p.clientName,
+      redirectUri: p.params.redirectUri,
       code: p.displayCode,
       createdAt: p.createdAt,
     }));

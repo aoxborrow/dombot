@@ -108,7 +108,11 @@ describe('approval → code → token', () => {
     expect(changed).toHaveBeenCalledTimes(1);
     expect(p.displayCode).toMatch(/^[0-9A-F]{4}-[0-9A-F]{4}$/);
     expect(listPendingApprovals()).toEqual([
-      expect.objectContaining({ id: p.id, clientName: 'Test Client' }),
+      expect.objectContaining({
+        id: p.id,
+        clientName: 'Test Client',
+        redirectUri: REDIRECT,
+      }),
     ]);
     expect(getApprovalStatus(p.id)).toEqual({
       status: 'pending',

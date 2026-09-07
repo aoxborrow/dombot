@@ -384,6 +384,7 @@ function waitingPage(req: PendingApproval): string {
     <h1>Approve this connection in DomBot</h1>
     <p>Open DomBot and confirm this code matches:</p>
     <div class="code">${esc(req.displayCode)}</div>
+    <p>Access will be sent to <code>${esc(req.params.redirectUri)}</code></p>
     <div class="spin" id="spin"></div>
     <p id="status">Waiting for approval…</p>
   </div>
