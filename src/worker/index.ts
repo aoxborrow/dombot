@@ -1,4 +1,4 @@
-import { Hono, type Context } from 'hono';
+import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { ApiValidationError, invoke, type ApiMethodName } from '../core/api';
 import { syncAll } from '../core/services/auto-sync';
 import { resetBulkMemory } from '../core/services/bulk-jobs';
@@ -100,28 +100,29 @@ app.use('*', async (c, next) => {
   await next();
 });
 
-// ── hydrate → handle → flush, serialized, on every request that has state ──
-// Everything but the SPA's assets: auth (the login-attempt counter) and the
-// API. Under the lock a bulk step can't be re-hydrated out from under by a
-// poll, and a burst of logins counts every attempt.
-const STATEFUL_PATHS = ['/auth/*', '/api/*'];
-for (const path of STATEFUL_PATHS) {
-  app.use(path, (c, next) =>
-    withRequestLock(async () => {
-      await hydrate();
-      await next();
-      try {
-        await flushWrites();
-      } catch (err) {
-        // The handler already answered, but its data didn't land; the next
-        // hydrate will show the pre-request state. Say so instead of 200.
-        const message = err instanceof Error ? err.message : String(err);
-        console.error('[worker] persist failed:', message);
-        c.res = c.json({ error: `Could not save changes: ${message}` }, 500);
-      }
-    }),
-  );
-}
+// ── hydrate → handle → flush, serialized, for handlers that have state ─────
+// Applied per route, *after* the checks that need no store (session cookie,
+// origin, auth mode), so an unauthenticated request never costs a full
+// decrypt of D1 or a turn on the lock. Under the lock a bulk step can't be
+// re-hydrated out from under by a poll, and a burst of logins counts every
+// attempt.
+const stateful: MiddlewareHandler<{ Bindings: Env; Variables: Vars }> = (
+  c,
+  next,
+) =>
+  withRequestLock(async () => {
+    await hydrate();
+    await next();
+    try {
+      await flushWrites();
+    } catch (err) {
+      // The handler already answered, but its data didn't land; the next
+      // hydrate will show the pre-request state. Say so instead of 200.
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[worker] persist failed:', message);
+      c.res = c.json({ error: `Could not save changes: ${message}` }, 500);
+    }
+  });
 
 // ── security headers ────────────────────────────────────────────────────────
 // Mirrors the desktop renderer's CSP (src/electron/index.ts): same-origin
@@ -154,36 +155,48 @@ app.get('/auth/status', async (c) => {
   });
 });
 
-app.post('/auth/login', async (c) => {
-  const auth = c.get('auth');
-  if (auth.mode !== 'password')
-    return c.json({ error: 'No login in this mode' }, 404);
-  if (!sameOrigin(c.req.raw)) return c.json({ error: 'Bad origin' }, 403);
-  // Requests are serialized per isolate, so a burst of guesses counts every
-  // failure; across isolates the counter is last-write-wins (see
-  // docs/self-hosting.md for the rate-limit rule that closes that gap).
-  const wait = loginLockRemaining();
-  if (wait > 0) {
-    return c.json(
-      { error: `Too many attempts. Try again in ${Math.ceil(wait / 1000)}s.` },
-      429,
+app.post(
+  '/auth/login',
+  async (c, next) => {
+    const auth = c.get('auth');
+    if (auth.mode !== 'password')
+      return c.json({ error: 'No login in this mode' }, 404);
+    if (!sameOrigin(c.req.raw)) return c.json({ error: 'Bad origin' }, 403);
+    await next();
+  },
+  stateful, // the attempts counter lives in the store
+  async (c) => {
+    const auth = c.get('auth');
+    // Requests are serialized per isolate, so a burst of guesses counts every
+    // failure; across isolates the counter is last-write-wins (see
+    // docs/self-hosting.md for the rate-limit rule that closes that gap).
+    const wait = loginLockRemaining();
+    if (wait > 0) {
+      return c.json(
+        {
+          error: `Too many attempts. Try again in ${Math.ceil(wait / 1000)}s.`,
+        },
+        429,
+      );
+    }
+    const body = (await c.req.json().catch(() => ({}))) as {
+      password?: string;
+    };
+    if (
+      typeof body.password !== 'string' ||
+      !(await checkPassword(auth, body.password))
+    ) {
+      recordLoginFailure();
+      return c.json({ error: 'Wrong password' }, 401);
+    }
+    recordLoginSuccess();
+    c.header(
+      'Set-Cookie',
+      sessionCookie(await createSession(auth.sessionKey!), secure(c)),
     );
-  }
-  const body = (await c.req.json().catch(() => ({}))) as { password?: string };
-  if (
-    typeof body.password !== 'string' ||
-    !(await checkPassword(auth, body.password))
-  ) {
-    recordLoginFailure();
-    return c.json({ error: 'Wrong password' }, 401);
-  }
-  recordLoginSuccess();
-  c.header(
-    'Set-Cookie',
-    sessionCookie(await createSession(auth.sessionKey!), secure(c)),
-  );
-  return c.json({ ok: true });
-});
+    return c.json({ ok: true });
+  },
+);
 
 app.post('/auth/logout', (c) => {
   c.header('Set-Cookie', clearSessionCookie(secure(c)));
@@ -192,35 +205,42 @@ app.post('/auth/logout', (c) => {
 
 // ── the API: one route over the method table ────────────────────────────────
 
-app.post('/api/:method', async (c) => {
-  const auth = c.get('auth');
-  if (!(await isAuthenticated(auth, c.req.raw))) {
-    return c.json({ error: 'Not signed in' }, 401);
-  }
-  if (!sameOrigin(c.req.raw)) return c.json({ error: 'Bad origin' }, 403);
-
-  const name = c.req.param('method') as ApiMethodName;
-  const entry = Object.prototype.hasOwnProperty.call(webApi, name)
-    ? webApi[name]
-    : undefined;
-  if (!entry) return c.json({ error: `Unknown method ${name}` }, 404);
-
-  const body = (await c.req.json().catch(() => null)) as {
-    args?: unknown;
-  } | null;
-  const args = Array.isArray(body?.args) ? (body!.args as unknown[]) : [];
-  try {
-    const result = await invoke(name, entry, args);
-    return c.json({ result: result === undefined ? null : result });
-  } catch (err) {
-    if (err instanceof ApiValidationError) {
-      return c.json({ error: err.message }, 400);
+app.post(
+  '/api/:method',
+  async (c, next) => {
+    // Gate first — the session check needs only the derived key — so an
+    // unauthenticated call never hydrates.
+    if (!(await isAuthenticated(c.get('auth'), c.req.raw))) {
+      return c.json({ error: 'Not signed in' }, 401);
     }
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[api] ${name} failed:`, message);
-    return c.json({ error: message }, 500);
-  }
-});
+    if (!sameOrigin(c.req.raw)) return c.json({ error: 'Bad origin' }, 403);
+    await next();
+  },
+  stateful,
+  async (c) => {
+    const name = c.req.param('method') as ApiMethodName;
+    const entry = Object.prototype.hasOwnProperty.call(webApi, name)
+      ? webApi[name]
+      : undefined;
+    if (!entry) return c.json({ error: `Unknown method ${name}` }, 404);
+
+    const body = (await c.req.json().catch(() => null)) as {
+      args?: unknown;
+    } | null;
+    const args = Array.isArray(body?.args) ? (body!.args as unknown[]) : [];
+    try {
+      const result = await invoke(name, entry, args);
+      return c.json({ result: result === undefined ? null : result });
+    } catch (err) {
+      if (err instanceof ApiValidationError) {
+        return c.json({ error: err.message }, 400);
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[api] ${name} failed:`, message);
+      return c.json({ error: message }, 500);
+    }
+  },
+);
 
 app.all('/api/*', (c) => c.json({ error: 'Method not allowed' }, 405));
 

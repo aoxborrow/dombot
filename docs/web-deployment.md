@@ -125,8 +125,10 @@ Implementations:
   Cloudflare-only and adds a product.
 
 - **One request at a time per isolate.** The core keeps each namespace in
-  module memory and the Worker re-hydrates it at the start of every
-  stateful request (`/auth/*`, `/api/*`, the MCP paths; assets skip it).
+  module memory and the Worker re-hydrates it for every handler that has
+  state (login, an authenticated `/api/*` call, the MCP paths) — after the
+  checks that need no store, so an unauthenticated request never costs a
+  decrypt of D1; assets and `/auth/status` never hydrate.
   An isolate interleaves concurrent requests at each `await`, so those
   requests run through a per-isolate lock (`src/worker/lock.ts`): hydrate →
   handle → flush is atomic, a `getRevisions` poll can't reset the bulk
