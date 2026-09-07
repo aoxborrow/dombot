@@ -41,6 +41,7 @@
       <a href="#mcp">MCP</a>
       <a href="#features">Features</a>
       <a href="#download">Download</a>
+      <a href="#selfhost">Self-host</a>
       <a href="#faq">FAQ</a>
       <a href="https://github.com/aoxborrow/dombot">GitHub</a>
     </nav>
@@ -236,6 +237,30 @@
         </div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- ═══════════════ SELF-HOST ═══════════════ -->
+<section id="selfhost">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Self-host</span>
+      <h2>Or run it in your browser, on your own Cloudflare.</h2>
+      <p>The same app as a private web app on your account — one Worker and one D1 database, encrypted under a key only you hold, with the MCP server at <code>https://&lt;your-host&gt;/mcp</code>. Three steps, no other services.</p>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <b>Click deploy.</b> Cloudflare forks the repo, creates the database, and asks for two secrets — a root key and your login password — with the commands to generate them.
+        <div class="step-action">
+          <a class="btn btn-primary" href="https://deploy.workers.cloudflare.com/?url=https://github.com/aoxborrow/dombot">Deploy to Cloudflare</a>
+        </div>
+      </li>
+      <li><b>Open the URL and sign in</b> with the password you set.</li>
+      <li><b>Add your registrars</b> — or move your desktop setup over with <em>Settings → Sync → Export data</em> and import it there.</li>
+    </ol>
+
+    <p class="self-host-note">Prefer the terminal, want GitHub Actions to redeploy on push, or need Cloudflare Access in front? The <a href="https://github.com/aoxborrow/dombot/blob/main/docs/self-hosting.md">self-hosting guide</a> covers all of it.</p>
   </div>
 </section>
 

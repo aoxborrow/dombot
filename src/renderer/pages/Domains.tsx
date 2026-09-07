@@ -995,7 +995,7 @@ export default function Domains() {
         folders,
         folderAssignments,
       );
-      const result = await window.api.saveCsv(csv, csvFilename());
+      const result = await window.api.saveTextFile(csv, csvFilename());
       if (!result.saved) return; // user cancelled the dialog
       const name = result.path?.split(/[/\\]/).pop() ?? 'file';
       const n = rows.length;

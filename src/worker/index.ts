@@ -1,9 +1,11 @@
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { ApiValidationError, invoke, type ApiMethodName } from '../core/api';
 import { MCP_PUBLIC_PATHS, createMcpRoutes } from '../core/mcp/routes';
+import { setAppIdentity } from '../core/app-info';
 import { syncAll } from '../core/services/auto-sync';
 import { resetBulkMemory } from '../core/services/bulk-jobs';
 import { getSettings } from '../core/services/settings';
+import { BundleError } from '../core/storage/bundle';
 import { EncryptedDocStore, aesGcmCipher } from '../core/storage/encrypted';
 import {
   configureStore,
@@ -65,6 +67,7 @@ function bootOnce(env: Env): Promise<Boot> {
   if (boot && bootFor === fp) return boot;
   bootFor = fp;
   boot = (async () => {
+    setAppIdentity({ version: APP_VERSION, platform: 'web' });
     const root = parseRootSecret(env.DOMBOT_SECRET);
     const cipher = await aesGcmCipher(await deriveEncryptionKey(root));
     configureStore(new EncryptedDocStore(new D1DocStore(env.DB), cipher));
@@ -237,7 +240,7 @@ app.post(
       const result = await invoke(name, entry, args);
       return c.json({ result: result === undefined ? null : result });
     } catch (err) {
-      if (err instanceof ApiValidationError) {
+      if (err instanceof ApiValidationError || err instanceof BundleError) {
         return c.json({ error: err.message }, 400);
       }
       const message = err instanceof Error ? err.message : String(err);

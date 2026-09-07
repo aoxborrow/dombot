@@ -6,6 +6,7 @@ import { forwardCoreEventsToWindows } from './events';
 import { initStorage } from './storage';
 import { startMcpServer, stopMcpServer } from './mcp/server';
 import { hasPairedClients } from '../core/mcp/oauth';
+import { setAppIdentity } from '../core/app-info';
 import {
   getSettings,
   isSettingStored,
@@ -174,6 +175,7 @@ function runApp(): void {
     });
 
     hardenRenderer();
+    setAppIdentity({ version: app.getVersion(), platform: process.platform });
     // Storage first: services read their in-memory copies synchronously, so
     // every namespace must be hydrated before an IPC handler or the MCP server
     // can touch one. Also runs the one-time legacy-credentials migration.

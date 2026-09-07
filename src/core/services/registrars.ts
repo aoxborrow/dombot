@@ -463,6 +463,12 @@ export function getRegistrarCredentialValues(
   return getStoredCredentials(name);
 }
 
+/** Drops every cached client (credentials were replaced wholesale, e.g. by
+ *  a data import) so the next call rebuilds from what's stored now. */
+export function resetRegistrarClients(): void {
+  clients.clear();
+}
+
 /** Saves credentials and invalidates the cached client so the next call rebuilds. */
 export async function saveRegistrarCredentials(
   name: RegistrarName,

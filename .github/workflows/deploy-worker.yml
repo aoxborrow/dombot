@@ -1,0 +1,69 @@
+name: Deploy self-hosted DomBot
+
+# Deploys the Worker from THIS repository to YOUR Cloudflare account — for
+# people who forked DomBot to self-host and want pushes to main to redeploy.
+# It does nothing until two repository secrets exist (Settings → Secrets and
+# variables → Actions):
+#
+#   CLOUDFLARE_API_TOKEN   an API token with the "Edit Cloudflare Workers"
+#                          template plus D1 edit permissions
+#   CLOUDFLARE_ACCOUNT_ID  from the Cloudflare dashboard's Workers overview
+#
+# DOMBOT_SECRET / DOMBOT_PASSWORD are Worker secrets set once with
+# `npm run web:secrets` (or the Deploy button) — they are NOT GitHub secrets
+# and this workflow never touches them. See docs/self-hosting.md.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'site/**'
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for Cloudflare credentials
+        id: creds
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$ACCOUNT" ]; then
+            echo "CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set — nothing to deploy (this is fine on the upstream repo)."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Checkout
+        if: steps.creds.outputs.configured == 'true'
+        uses: actions/checkout@v7
+      - name: Set up Node
+        if: steps.creds.outputs.configured == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        if: steps.creds.outputs.configured == 'true'
+        run: |
+          npm ci --ignore-scripts
+          npm rebuild esbuild
+      - name: Build the web app
+        if: steps.creds.outputs.configured == 'true'
+        run: npm run build
+      - name: Apply D1 migrations and deploy
+        if: steps.creds.outputs.configured == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run deploy

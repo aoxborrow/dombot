@@ -34,6 +34,9 @@ import {
 import { getSettings, updateSettings } from '../services/settings';
 import { restartAutoSync } from '../services/auto-sync';
 import { getRevisions, trackRevisions } from '../revision';
+import { getAppIdentity } from '../app-info';
+import { exportBundle, importBundle } from '../storage/bundle';
+import { flushWrites } from '../storage/namespace';
 import {
   listMcpClients,
   listPendingApprovals,
@@ -50,7 +53,7 @@ import * as s from './schemas';
 // host wires those itself.
 //
 // `coreMethods` covers everything host-agnostic. A host supplies the rest
-// (`getAppInfo`, `saveCsv`, the MCP approval methods…) as its own table and
+// (`getAppInfo`, `saveTextFile`, the MCP server status…) as its own table and
 // merges the two; `ApiTable` makes the compiler check the union is complete.
 
 /** The request/response methods of DombotApi (everything but `onX`). */
@@ -128,7 +131,7 @@ const none = z.tuple([]);
 
 export type CoreMethodName = Exclude<
   ApiMethodName,
-  'ping' | 'getAppInfo' | 'openExternal' | 'saveCsv' | 'getMcpInfo'
+  'ping' | 'getAppInfo' | 'openExternal' | 'saveTextFile' | 'getMcpInfo'
 >;
 
 export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
@@ -153,6 +156,17 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   }),
   clearAllCaches: method(none, async () => {
     clearAll();
+  }),
+
+  // ── Data bundle (backup / move / secret rotation) ──────────────────────────
+  // Plain text both ways; the client seals/opens with the passphrase
+  // (src/shared/bundle-seal.ts) so the key stretching stays off the Worker.
+  exportData: method(none, async () => exportBundle(getAppIdentity())),
+  importData: method(z.tuple([z.string()]), async (text) => {
+    const result = await importBundle(text);
+    // Durable before we say so: the caller reloads on the strength of it.
+    await flushWrites();
+    return result;
   }),
 
   // ── Pricing ───────────────────────────────────────────────────────────────

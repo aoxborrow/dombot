@@ -30,7 +30,9 @@ export const IpcChannels = {
   getPortfolioPricing: 'pricing:getPortfolio',
   setManualPrice: 'pricing:setManualPrice',
   openExternal: 'app:openExternal',
-  saveCsv: 'app:saveCsv',
+  saveTextFile: 'app:saveTextFile',
+  exportData: 'data:export',
+  importData: 'data:import',
   getRegistrarMetadata: 'registrar:getMetadata',
   getRegistrarCredentials: 'registrar:getCredentials',
   saveRegistrarCredentials: 'registrar:saveCredentials',
@@ -481,11 +483,23 @@ export interface DombotApi {
   /** Open a URL in the user's default browser. */
   openExternal: (url: string) => Promise<void>;
   /**
-   * Prompt for a save location and write `content` there as a UTF-8 text file.
-   * `suggestedName` seeds the dialog's filename. Resolves with the chosen path,
-   * or `{ saved: false }` if the user cancels.
+   * Prompt for a save location and write `content` there as a UTF-8 text file
+   * (a .csv gets a BOM so Excel reads it). `suggestedName` seeds the dialog's
+   * filename. Resolves with the chosen path, or `{ saved: false }` if the user
+   * cancels. In the browser it's a download and always "saves".
    */
-  saveCsv: (content: string, suggestedName: string) => Promise<SaveResult>;
+  saveTextFile: (content: string, suggestedName: string) => Promise<SaveResult>;
+  /**
+   * Everything the store holds as one JSON document (see
+   * src/core/storage/bundle.ts), in the clear. The caller seals it if the
+   * user wants a passphrase (src/shared/bundle-seal.ts).
+   */
+  exportData: () => Promise<string>;
+  /** Replaces the store with an exported (plain) bundle. Returns what was
+   *  written. A sealed file must be opened first. */
+  importData: (
+    text: string,
+  ) => Promise<{ namespaces: number; entries: number }>;
 
   /** Restore the full cached portfolio + detail + pricing from disk with no
    * network calls, for instant paint on launch. */

@@ -227,7 +227,7 @@ export function BulkActionDialog({
 
   const exportResults = async (j: BulkJob) => {
     try {
-      const result = await window.api.saveCsv(
+      const result = await window.api.saveTextFile(
         resultsToCsv(j),
         resultsCsvFilename(j),
       );

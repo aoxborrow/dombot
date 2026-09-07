@@ -53,6 +53,9 @@ export default function McpClientsSettings() {
   };
 
   const enabled = settings?.mcpEnabled ?? false;
+  // Settings and server info arrive async; until both are here the toggle
+  // has no honest state to show (it would read "Disabled", then flip).
+  const loading = settings === null || info === null;
   const web = isWeb();
   const gated = web && webAuthMode() !== 'password';
 
@@ -73,32 +76,38 @@ export default function McpClientsSettings() {
               htmlFor="mcp-enabled"
               className={cn(
                 'inline-flex items-center gap-1.5 text-sm font-medium',
-                enabled && info?.running && 'text-[#7ac28d]',
+                !loading && enabled && info?.running && 'text-[#7ac28d]',
               )}
             >
               <span
                 className={cn(
                   'size-2 rounded-full',
-                  enabled && info?.running
-                    ? 'bg-[#7ac28d]'
-                    : enabled
-                      ? 'bg-amber-500'
-                      : 'bg-muted-foreground/30',
+                  loading
+                    ? 'bg-muted-foreground/30'
+                    : enabled && info?.running
+                      ? 'bg-[#7ac28d]'
+                      : enabled
+                        ? 'bg-amber-500'
+                        : 'bg-muted-foreground/30',
                 )}
                 aria-hidden
               />
-              {!enabled
-                ? 'Disabled'
-                : info?.running
-                  ? 'Enabled (running)'
-                  : 'Enabled (starting…)'}
+              {loading
+                ? 'Loading…'
+                : !enabled
+                  ? 'Disabled'
+                  : info?.running
+                    ? 'Enabled (running)'
+                    : 'Enabled (starting…)'}
             </Label>
             <p className="mt-1 text-sm text-muted-foreground">
-              {!enabled
-                ? 'Enable this to let Claude or another MCP client manage your domains.'
-                : web
-                  ? 'Approved agents can read and change your domains. Anyone who can reach this address can ask to connect, but only connections you approve here get in.'
-                  : 'Approved agents can read and change your domains. The server only accepts connections from this computer.'}
+              {loading
+                ? '\u00a0'
+                : !enabled
+                  ? 'Enable this to let Claude or another MCP client manage your domains.'
+                  : web
+                    ? 'Approved agents can read and change your domains. Anyone who can reach this address can ask to connect, but only connections you approve here get in.'
+                    : 'Approved agents can read and change your domains. The server only accepts connections from this computer.'}
             </p>
             {gated && (
               <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
@@ -111,8 +120,9 @@ export default function McpClientsSettings() {
           </div>
           <Switch
             id="mcp-enabled"
+            className={cn(loading && 'invisible')}
             checked={enabled}
-            disabled={settings === null || toggling}
+            disabled={loading || toggling}
             onCheckedChange={(v) => void toggle(v)}
           />
         </div>

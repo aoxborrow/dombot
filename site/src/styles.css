@@ -298,3 +298,13 @@ footer { border-top: 1px solid var(--line); padding: 36px 0 48px; }
 .mini-row span:not(:first-child) { color: var(--muted); }
 .mini-row .soon { color: var(--accent-ink); }
 .mini-head { color: var(--faint); text-transform: uppercase; letter-spacing: .06em; font-size: .62rem; }
+
+/* ── Self-host ────────────────────────────────────────────────────────── */
+#selfhost .sec-head code { font-family: "IBM Plex Mono", monospace; font-size: .9em; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 6px; padding: 1px 6px; }
+.steps { list-style: none; counter-reset: step; margin: 28px 0 0; padding: 0; display: grid; gap: 14px; max-width: 720px; }
+.steps li { counter-increment: step; position: relative; padding: 16px 18px 16px 58px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: .95rem; line-height: 1.55; }
+.steps li b, .steps li em { color: var(--ink); }
+.steps li em { font-style: normal; font-weight: 500; }
+.steps li::before { content: counter(step); position: absolute; left: 18px; top: 16px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-contrast, #fff); font-weight: 600; font-size: .85rem; }
+.step-action { margin-top: 12px; }
+.self-host-note { margin-top: 18px; color: var(--muted); font-size: .9rem; max-width: 720px; }

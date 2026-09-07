@@ -1,6 +1,7 @@
 name: CI
 
-# Runs typecheck, lint, and unit tests on every PR (and on pushes to main).
+# Runs typecheck, lint, and unit tests on every PR (and on pushes to main),
+# and proves the self-hosted Worker still builds and bundles.
 
 on:
   pull_request:
@@ -40,3 +41,24 @@ jobs:
         run: npm run lint
       - name: Unit tests
         run: npm test
+
+  worker:
+    name: Worker build (dry run)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm rebuild esbuild
+      - name: Build the web renderer
+        run: npm run web:build
+      - name: Bundle the Worker without deploying
+        # No account or token needed: --dry-run stops after bundling.
+        run: npx wrangler deploy --dry-run --outdir dist/worker

@@ -42,20 +42,23 @@ const electronMethods: Omit<ApiTable, CoreMethodName> = {
     },
   ),
 
-  // Write text (e.g. an exported CSV) to a user-chosen location via the native
-  // save dialog. The renderer is sandboxed and can't touch the filesystem, so
-  // it hands us the fully-built content and we prompt + write here.
-  saveCsv: method(
+  // Write text (an exported CSV, a data bundle) to a user-chosen location via
+  // the native save dialog. The renderer is sandboxed and can't touch the
+  // filesystem, so it hands us the fully-built content and we prompt + write.
+  saveTextFile: method(
     z.tuple([z.string(), z.string().min(1).max(255)]),
     async (content, suggestedName) => {
       const window =
         BrowserWindow.getFocusedWindow() ??
         BrowserWindow.getAllWindows()[0] ??
         undefined;
+      const csv = /\.csv$/i.test(suggestedName);
       const options = {
         defaultPath: suggestedName,
         filters: [
-          { name: 'CSV', extensions: ['csv'] },
+          csv
+            ? { name: 'CSV', extensions: ['csv'] }
+            : { name: 'JSON', extensions: ['json'] },
           { name: 'All Files', extensions: ['*'] },
         ],
       };
@@ -63,9 +66,9 @@ const electronMethods: Omit<ApiTable, CoreMethodName> = {
         ? await dialog.showSaveDialog(window, options)
         : await dialog.showSaveDialog(options);
       if (canceled || !filePath) return { saved: false };
-      // UTF-8 with a BOM so Excel detects the encoding and renders accents
-      // and other non-ASCII characters correctly.
-      await writeFile(filePath, '\uFEFF' + content, 'utf8');
+      // CSV gets a UTF-8 BOM so Excel detects the encoding and renders
+      // accents and other non-ASCII characters correctly.
+      await writeFile(filePath, (csv ? '\uFEFF' : '') + content, 'utf8');
       return { saved: true, path: filePath };
     },
   ),
