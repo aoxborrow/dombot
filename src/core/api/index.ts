@@ -34,6 +34,12 @@ import {
 import { getSettings, updateSettings } from '../services/settings';
 import { restartAutoSync } from '../services/auto-sync';
 import { getRevisions, trackRevisions } from '../revision';
+import {
+  listMcpClients,
+  listPendingApprovals,
+  resolvePending,
+  revokeMcpClient,
+} from '../mcp/oauth';
 import * as s from './schemas';
 
 // The API method table: one entry per request/response method of `DombotApi`,
@@ -122,15 +128,7 @@ const none = z.tuple([]);
 
 export type CoreMethodName = Exclude<
   ApiMethodName,
-  | 'ping'
-  | 'getAppInfo'
-  | 'openExternal'
-  | 'saveCsv'
-  | 'getMcpInfo'
-  | 'listPendingApprovals'
-  | 'resolveApproval'
-  | 'listMcpClients'
-  | 'revokeMcpClient'
+  'ping' | 'getAppInfo' | 'openExternal' | 'saveCsv' | 'getMcpInfo'
 >;
 
 export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
@@ -262,6 +260,21 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
 
   // ── Events (polling) ──────────────────────────────────────────────────────
   getRevisions: method(none, async () => getRevisions()),
+
+  // ── MCP pairing ───────────────────────────────────────────────────────────
+  // The OAuth state is in the store, so the approval UI works on both hosts;
+  // only the server's status (`getMcpInfo`) is host-specific.
+  listPendingApprovals: method(none, async () => listPendingApprovals()),
+  resolveApproval: method(
+    z.tuple([z.string(), z.boolean()]),
+    async (id, approve) => {
+      resolvePending(id, approve);
+    },
+  ),
+  listMcpClients: method(none, async () => listMcpClients()),
+  revokeMcpClient: method(z.tuple([z.string()]), async (clientId) => {
+    await revokeMcpClient(clientId);
+  }),
 };
 
 trackRevisions();

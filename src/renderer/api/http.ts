@@ -144,6 +144,11 @@ class Poller {
             for (const l of this.listeners[kind]) l();
           }
         }
+      } else {
+        // First baseline. It can come well after mount (a hidden tab doesn't
+        // poll), so an approval that arrived in between would otherwise sit
+        // unnoticed until the next change; re-checking is one small call.
+        for (const l of this.listeners.approvals) l();
       }
       this.last = rev;
     } catch {
@@ -335,7 +340,16 @@ export function createHttpApi(): DombotApi {
         ),
       ),
 
-    getMcpInfo: m('getMcpInfo'),
+    // The host reports a relative endpoint (it doesn't know its public
+    // origin); the browser does.
+    getMcpInfo: async () => {
+      const info =
+        await call<Awaited<ReturnType<DombotApi['getMcpInfo']>>>('getMcpInfo');
+      return {
+        ...info,
+        url: info.url ? new URL(info.url, window.location.href).href : '',
+      };
+    },
     listPendingApprovals: m('listPendingApprovals'),
     resolveApproval: m('resolveApproval'),
     listMcpClients: m('listMcpClients'),

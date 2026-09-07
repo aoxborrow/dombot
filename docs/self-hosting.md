@@ -91,7 +91,23 @@ MCP clients can't pass an Access login or a password prompt. Behind a gate,
 MCP works only if the gate excludes the MCP paths (`/mcp`, `/authorize`,
 `/token`, `/register`, `/revoke`, `/oauth/status`, `/.well-known/*`), which
 Cloudflare Access can do and platform password protection generally can't.
-(MCP on the web host is still being wired up; see the plan.)
+
+## Connecting an MCP client
+
+Your instance is a remote MCP server at `https://<your-host>/mcp`, off by
+default. Turn it on in **Settings → MCP**, then add it to a client, e.g.:
+
+```bash
+claude mcp add dombot --transport http https://<your-host>/mcp
+```
+
+The first connection opens a browser page showing a short code; the same
+code appears in DomBot (keep a tab open) — approve it there and the client
+is paired until you revoke it on the same settings page. Pairing uses OAuth
+2.1 with PKCE; the endpoint accepts nothing else, and nothing about a
+pairing is stored except a hash of its token. Claude Desktop, Claude Code,
+and other clients that speak remote MCP with OAuth work as-is; the desktop
+app's stdio bridge isn't needed (or available) here.
 
 ## Local development
 

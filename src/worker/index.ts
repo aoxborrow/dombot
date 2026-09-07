@@ -1,5 +1,6 @@
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { ApiValidationError, invoke, type ApiMethodName } from '../core/api';
+import { MCP_PUBLIC_PATHS, createMcpRoutes } from '../core/mcp/routes';
 import { syncAll } from '../core/services/auto-sync';
 import { resetBulkMemory } from '../core/services/bulk-jobs';
 import { getSettings } from '../core/services/settings';
@@ -123,6 +124,10 @@ const stateful: MiddlewareHandler<{ Bindings: Env; Variables: Vars }> = (
       c.res = c.json({ error: `Could not save changes: ${message}` }, 500);
     }
   });
+// The MCP surface is bearer-authenticated by its own routes, and the gate
+// (Settings → MCP) and OAuth state live in the store, so those paths hydrate
+// before their handlers run.
+for (const path of MCP_PUBLIC_PATHS) app.use(path, stateful);
 
 // ── security headers ────────────────────────────────────────────────────────
 // Mirrors the desktop renderer's CSP (src/electron/index.ts): same-origin
@@ -243,6 +248,13 @@ app.post(
 );
 
 app.all('/api/*', (c) => c.json({ error: 'Method not allowed' }, 405));
+
+// ── MCP + its OAuth server ──────────────────────────────────────────────────
+// Shared with the desktop (src/core/mcp/routes.ts). Bearer-authenticated on
+// its own, so it sits outside the session gate above; it answers 404 until
+// the user turns it on in Settings → MCP. Behind Cloudflare Access these
+// paths must be excluded from the Access policy (docs/self-hosting.md).
+app.route('/', createMcpRoutes({ version: APP_VERSION }));
 
 // ── the SPA ─────────────────────────────────────────────────────────────────
 // Everything else is the renderer, served from the assets binding. In

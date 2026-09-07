@@ -12,6 +12,9 @@ export interface CoreEvents {
   bulkProgress: (progress: BulkProgress) => void;
   /** A bulk job ended — done or cancelled. */
   bulkFinished: (job: BulkJob) => void;
+  /** MCP pairing state changed: an approval is pending or decided, a client
+   *  paired or was revoked. */
+  approvalsChanged: () => void;
 }
 
 type Listeners = { [K in keyof CoreEvents]: Set<CoreEvents[K]> };
@@ -20,6 +23,7 @@ const listeners: Listeners = {
   portfolioChanged: new Set(),
   bulkProgress: new Set(),
   bulkFinished: new Set(),
+  approvalsChanged: new Set(),
 };
 
 /** Subscribes; returns the unsubscribe function. */
@@ -56,4 +60,8 @@ export function broadcastBulkProgress(progress: BulkProgress): void {
 
 export function broadcastBulkFinished(job: BulkJob): void {
   emit('bulkFinished', job);
+}
+
+export function broadcastApprovalsChanged(): void {
+  emit('approvalsChanged');
 }

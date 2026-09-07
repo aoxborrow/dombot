@@ -50,7 +50,8 @@ export default function ApprovalModal() {
               <DialogTitle>Approve MCP connection</DialogTitle>
               <DialogDescription>
                 A client wants to connect to your DomBot portfolio. Approve only
-                if you started this connection.
+                if you started this connection. The name is whatever the client
+                claimed; the callback address is where its access will go.
               </DialogDescription>
             </DialogHeader>
 
@@ -58,6 +59,15 @@ export default function ApprovalModal() {
               <div className="flex justify-between border-b pb-2">
                 <dt className="text-muted-foreground">Client</dt>
                 <dd className="font-medium">{req.clientName}</dd>
+              </div>
+              <div className="flex justify-between gap-4 border-b pb-2">
+                <dt className="shrink-0 text-muted-foreground">Callback</dt>
+                <dd
+                  className="truncate font-mono text-xs"
+                  title={req.redirectUri}
+                >
+                  {req.redirectUri}
+                </dd>
               </div>
               <div className="flex justify-between border-b pb-2">
                 <dt className="text-muted-foreground">Confirm code</dt>

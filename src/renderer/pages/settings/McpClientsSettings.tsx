@@ -33,6 +33,8 @@ export default function McpClientsSettings() {
 
   useEffect(() => {
     void refresh();
+    // A client pairing (or being revoked) elsewhere updates the list live.
+    return window.api.onApprovalsChanged(() => void refresh());
   }, [refresh]);
 
   const revoke = async (clientId: string) => {
@@ -51,45 +53,16 @@ export default function McpClientsSettings() {
   };
 
   const enabled = settings?.mcpEnabled ?? false;
-
-  if (isWeb()) {
-    const gated = webAuthMode() !== 'password';
-    return (
-      <div className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-xl font-bold">MCP</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Agents connect to DomBot&apos;s MCP server to manage your portfolio.
-            New connections must be approved in the app.
-          </p>
-        </div>
-        <SettingsCard title="Not available on this instance yet">
-          <p className="text-sm text-muted-foreground">
-            The MCP server for self-hosted instances is on its way. Until it
-            ships, the desktop app&apos;s MCP server is the way to connect an
-            agent.
-            {gated && (
-              <>
-                {' '}
-                Note that this deployment sits behind an external gate
-                (Cloudflare Access or a platform login), which MCP clients
-                can&apos;t pass; once MCP is available here, the gate will need
-                to exclude the MCP paths for it to work.
-              </>
-            )}
-          </p>
-        </SettingsCard>
-      </div>
-    );
-  }
+  const web = isWeb();
+  const gated = web && webAuthMode() !== 'password';
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="text-xl font-bold">MCP</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Agents connect to DomBot&apos;s local MCP server to manage your
-          portfolio. New connections must be approved in the app.
+          Agents connect to DomBot&apos;s {web ? '' : 'local '}MCP server to
+          manage your portfolio. New connections must be approved here.
         </p>
       </div>
 
@@ -121,10 +94,20 @@ export default function McpClientsSettings() {
                   : 'Enabled (starting…)'}
             </Label>
             <p className="mt-1 text-sm text-muted-foreground">
-              {enabled
-                ? 'Approved agents can read and change your domains. The server only accepts connections from this computer.'
-                : 'Enable this to let Claude or another MCP client manage your domains.'}
+              {!enabled
+                ? 'Enable this to let Claude or another MCP client manage your domains.'
+                : web
+                  ? 'Approved agents can read and change your domains. Anyone who can reach this address can ask to connect, but only connections you approve here get in.'
+                  : 'Approved agents can read and change your domains. The server only accepts connections from this computer.'}
             </p>
+            {gated && (
+              <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+                This deployment sits behind an external gate (Cloudflare Access
+                or a platform login), which MCP clients can&apos;t pass. For MCP
+                to work, the gate must exclude the MCP paths — see the
+                self-hosting guide.
+              </p>
+            )}
           </div>
           <Switch
             id="mcp-enabled"
@@ -145,10 +128,12 @@ export default function McpClientsSettings() {
             label="Claude Code"
             value={`claude mcp add dombot --transport http ${info.url}`}
           />
-          <CopyField
-            label="stdio command"
-            value={shellQuote([info.stdioCommand, ...info.stdioArgs])}
-          />
+          {!web && (
+            <CopyField
+              label="stdio command"
+              value={shellQuote([info.stdioCommand, ...info.stdioArgs])}
+            />
+          )}
         </SettingsCard>
       )}
 

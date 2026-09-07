@@ -4,7 +4,7 @@ import { EncryptedDocStore } from '../../core/storage/encrypted';
 import { configureStore, hydrateStores } from '../../core/storage/namespace';
 import type { DocStore } from '../../core/storage/doc-store';
 import { FsDocStore } from './fs-doc-store';
-import { migrateLegacyCredentials } from './migrate';
+import { migrateLegacyCredentials, migrateLegacyMcpTokens } from './migrate';
 import {
   plaintextCredentialsAllowed,
   safeStorageCipher,
@@ -46,5 +46,6 @@ export async function initStorage(): Promise<void> {
       }
     },
   });
+  await migrateLegacyMcpTokens(app.getPath('userData'), store);
   await hydrateStores();
 }

@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { RegistrarCredentials } from '@aoxborrow/registrar-client';
 import type { DocStore } from '../../core/storage/doc-store';
+import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { CREDENTIALS_NAMESPACE } from '../../core/services/credentials';
+import { MCP_NAMESPACE, legacyTokenEntry } from '../../core/mcp/oauth';
 
 // One-time migration from the pre-DocStore layout. Every JSON store kept its
 // file name and shape under FsDocStore, so nothing needs rewriting except
@@ -79,4 +81,38 @@ export async function migrateLegacyCredentials(
       `set(s) from ${LEGACY_CREDENTIALS_FILE}`,
   );
   return true;
+}
+
+export const LEGACY_MCP_TOKENS_FILE = 'mcp-tokens.json';
+
+/**
+ * Migrates `userData/mcp-tokens.json` (the pre-DocStore MCP pairings, stored
+ * as raw bearer tokens) into the `mcp` namespace, where tokens are kept by
+ * hash. Idempotent: the trigger is the legacy file existing; on success it's
+ * renamed `.pre-v1.bak`. Returns the number of tokens migrated.
+ */
+export async function migrateLegacyMcpTokens(
+  userData: string,
+  store: DocStore,
+): Promise<number> {
+  const file = path.join(userData, LEGACY_MCP_TOKENS_FILE);
+  let list: AuthInfo[];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown;
+    list = Array.isArray(parsed) ? (parsed as AuthInfo[]) : [];
+  } catch {
+    return 0; // nothing to migrate (or unreadable — leave it)
+  }
+  let count = 0;
+  for (const info of list) {
+    if (!info || typeof info.token !== 'string' || !info.clientId) continue;
+    const { key, value } = await legacyTokenEntry(info);
+    await store.put(MCP_NAMESPACE, key, value);
+    count++;
+  }
+  fs.renameSync(file, `${file}.pre-v1.bak`);
+  console.log(
+    `[storage] migrated ${count} MCP pairing(s) from ${LEGACY_MCP_TOKENS_FILE}`,
+  );
+  return count;
 }

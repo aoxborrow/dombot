@@ -98,8 +98,8 @@ interface DocStore {
 ```
 
 Namespaces: `cache-portfolio`, `cache-detail`, `folders`, `settings`,
-`pricing-overrides`, `registrar-state`, `credentials`, `mcp-clients`,
-`mcp-tokens`, `bulk-jobs`, `auth`, `meta`. Services keep their in-memory
+`pricing-overrides`, `registrar-state`, `credentials`, `mcp`, `bulk-jobs`,
+`auth`, `meta`. Services keep their in-memory
 copies exactly as now; only `load`/`persist` change, and they become async
 (the IPC handlers are already async, so this is mechanical).
 
@@ -149,7 +149,7 @@ Both are generated, set once as Worker secrets, and never stored in D1:
 
 - **`DOMBOT_SECRET`** — 32 random bytes, base64. Root key for data. From it,
   HKDF (WebCrypto, identical code on every host) derives an AES-256-GCM key
-  for `EncryptedDocStore` and an HMAC key for MCP access tokens.
+  for `EncryptedDocStore` and the session-signing key.
 - **`DOMBOT_PASSWORD`** — 32 random bytes, base64. The login password. It is
   a secret binding, not a stored hash, so the database holds no
   authentication material at all and the instance is locked from its very
@@ -292,7 +292,7 @@ today's in-memory `AbortController`.
 - Worker: an **hourly** Cron Trigger (`"crons": ["0 * * * *"]`) →
   `scheduled()` → `syncAll()`, which reads `autoSyncIntervalMinutes` and
   returns immediately unless the last sync is older than that interval. The
-  cron cadence is the *floor* — it matches the shortest option the Settings
+  cron cadence is the _floor_ — it matches the shortest option the Settings
   control offers ("Every hour") — and the setting decides the actual
   frequency, so the web host honors every interval the desktop does. A
   no-op tick costs a few milliseconds. Cron handlers get 15 minutes of wall
@@ -310,18 +310,23 @@ code path for both hosts.
 - Transport: `WebStandardStreamableHTTPServerTransport` in **stateless** mode
   (no `sessionIdGenerator`), so no session map to lose between isolates. The
   tools in `mcp/tools.ts` are already stateless over the services.
-- OAuth provider: same logic, but `clients`, `authCodes`, `grantedTokens`, and
-  `pending` move into the `DocStore` (`mcp-clients`, `mcp-tokens`, short-TTL
-  docs for codes and pending approvals). Access tokens become HMAC-signed
-  (derived `mcp` key) so verification is a signature check plus a revocation
-  lookup.
+- OAuth provider (`src/core/mcp/oauth.ts`): same logic, but clients, auth
+  codes, tokens, and pending approvals all live in the `mcp` namespace of the
+  `DocStore`, so the authorize request, the in-app approval, and the token
+  exchange can each land on a different isolate. Access tokens are random and
+  stored by SHA-256 hash — the store never holds a usable bearer token —
+  which also makes revocation a plain delete. Registrations that never pair
+  are pruned (1 h TTL, capped at 50) since `/register` is public.
 - Approval flow: unchanged from the user's side. The `/authorize` waiting
   page is served by the Worker; the ApprovalModal in the web UI (logged in)
   approves it; the waiting page polls `/oauth/status`. Issuer URL is the
   request origin.
-- Hono replaces Express for the MCP routes in core, mounted by both hosts
-  (`@hono/node-server` on Electron). Express and `cors` are removed. The
-  stdio shim stays Electron-only; on the web, Claude Desktop and other
+- Hono replaces Express for the MCP routes in core (`src/core/mcp/routes.ts`),
+  mounted by both hosts (`@hono/node-server` on Electron). Express and `cors`
+  are removed; the SDK's Express-only auth router is replaced by ~150 lines of
+  equivalent Hono handlers (RFC 8414/9728 discovery, 7591 registration,
+  authorize with PKCE S256, token, 7009 revoke). The stdio shim stays
+  Electron-only; on the web, Claude Desktop and other
   clients connect to `https://<host>/mcp` as a remote MCP server with OAuth,
   which they support natively.
 
@@ -484,8 +489,9 @@ allowlist story. No code lands.
 ### Phase 5 — MCP on the web
 
 - Hono MCP routes in core; web-standard transport, stateless; OAuth state in
-  `DocStore`; HMAC tokens. Electron mounts the same routes via
-  `@hono/node-server`; Express removed.
+  `DocStore`; tokens stored by hash. Electron mounts the same routes via
+  `@hono/node-server`; Express removed. Desktop `mcp-tokens.json` migrates
+  into the `mcp` namespace on first launch.
 - Approval page + status endpoint on the Worker; MCP settings page shows the
   remote URL.
 - Exit: Claude Desktop / Claude Code connect to `https://<host>/mcp` with the
