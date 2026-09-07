@@ -83,6 +83,11 @@ describe('Namespace over a DocStore', () => {
     expect(puts).toEqual(['one', 'two']);
     // Memory still holds the value whose persist failed — the caller decides.
     expect(ns.get('bad')).toBe(2);
+    // The failure surfaces once to whoever flushes, then the slate is clean.
+    await expect(flushWrites()).rejects.toThrow('disk full');
+    await expect(flushWrites()).resolves.toBeUndefined();
+    await ns.set('three', 4);
+    await expect(flushWrites()).resolves.toBeUndefined();
   });
 
   it('configureStore drops in-memory copies until the next hydrate', async () => {

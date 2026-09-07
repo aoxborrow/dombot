@@ -15,7 +15,7 @@ import { isBulkRunning } from './bulk-jobs';
 // Domains table reflects each refresh too.
 //
 // The interval is the `autoSyncIntervalMinutes` setting (default 24h; 0
-// disables), adjustable live in Settings → Cache. DOMBOT_SYNC_INTERVAL_MINUTES,
+// disables), adjustable live in Settings → Sync. DOMBOT_SYNC_INTERVAL_MINUTES,
 // when set, overrides the setting (a dev/testing escape hatch). Conservative by
 // design — one pass across every configured registrar is real API traffic.
 
@@ -28,7 +28,10 @@ let started = false;
 /** Effective interval in ms, or 0 when disabled. The env override wins when set;
  *  otherwise the persisted setting drives it. */
 function intervalMs(): number {
-  const env = process.env.DOMBOT_SYNC_INTERVAL_MINUTES;
+  // Read defensively: core also runs where `process` doesn't exist (Workers).
+  const env = (
+    globalThis as { process?: { env?: Record<string, string | undefined> } }
+  ).process?.env?.DOMBOT_SYNC_INTERVAL_MINUTES;
   const minutes =
     env != null && env !== ''
       ? Number(env)
@@ -83,7 +86,8 @@ function schedule(): void {
     return;
   }
   timer = setInterval(() => void syncAll(), ms);
-  timer.unref();
+  // Node: don't let the timer keep the process alive on its own.
+  (timer as { unref?: () => void }).unref?.();
   console.log(`[auto-sync] every ${Math.round(ms / 60_000)} min`);
 }
 

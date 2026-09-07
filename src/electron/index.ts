@@ -5,6 +5,13 @@ import { registerIpcHandlers } from './ipc';
 import { forwardCoreEventsToWindows } from './events';
 import { initStorage } from './storage';
 import { startMcpServer, stopMcpServer } from './mcp/server';
+import { hasPairedClients } from './mcp/oauth';
+import {
+  getSettings,
+  isSettingStored,
+  onSettingsChanged,
+  updateSettings,
+} from '../core/services/settings';
 import { isStdioShimMode, runStdioShim } from './mcp/stdio';
 import { startAutoSync, stopAutoSync } from '../core/services/auto-sync';
 import {
@@ -179,12 +186,27 @@ function runApp(): void {
     registerIpcHandlers();
     createWindow();
 
-    // Start the local MCP server unless explicitly disabled (DOMBOT_MCP_ENABLED=0).
-    if (process.env.DOMBOT_MCP_ENABLED !== '0') {
+    // The MCP server runs only when the setting says so (Settings → MCP).
+    // Fresh installs default off; an upgrade that already has paired clients
+    // is switched on once so those agents keep working. DOMBOT_MCP_ENABLED=0
+    // forces it off regardless (a dev/testing escape hatch).
+    if (!isSettingStored('mcpEnabled') && hasPairedClients()) {
+      updateSettings({ mcpEnabled: true });
+      console.log('[mcp] paired clients found — MCP server enabled');
+    }
+    const mcpForcedOff = process.env.DOMBOT_MCP_ENABLED === '0';
+    const startMcp = () =>
       startMcpServer()
         .then((mcp) => console.log(`[mcp] listening on ${mcp.url}`))
         .catch((err) => console.error('[mcp] failed to start', err));
-    }
+    if (!mcpForcedOff && getSettings().mcpEnabled) void startMcp();
+    onSettingsChanged((next, prev) => {
+      if (next.mcpEnabled === prev.mcpEnabled || mcpForcedOff) return;
+      if (next.mcpEnabled) void startMcp();
+      else {
+        void stopMcpServer().then(() => console.log('[mcp] stopped'));
+      }
+    });
 
     // Keep the cache the MCP tools serve warm without a manual Sync
     // (DOMBOT_SYNC_INTERVAL_MINUTES=0 disables).

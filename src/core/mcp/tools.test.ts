@@ -57,7 +57,11 @@ type Tool = {
 };
 const tools = new Map<string, Tool>();
 const fakeServer = {
-  registerTool: (name: string, config: Tool['config'], handler: Tool['handler']) => {
+  registerTool: (
+    name: string,
+    config: Tool['config'],
+    handler: Tool['handler'],
+  ) => {
     tools.set(name, { config, handler });
   },
 } as unknown as McpServer;
@@ -72,8 +76,7 @@ async function call(name: string, args: unknown = {}) {
   return JSON.parse(res.content[0].text) as Record<string, unknown>;
 }
 
-const schema = (name: string) =>
-  z.object(tools.get(name)!.config.inputSchema);
+const schema = (name: string) => z.object(tools.get(name)!.config.inputSchema);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -98,7 +101,9 @@ describe('json() payload shape', () => {
 });
 
 describe('resolveRegistrar (via domain_set_autorenew)', () => {
-  beforeEach(() => applyDomainOp.mockResolvedValue({ status: 'ok', message: 'done' }));
+  beforeEach(() =>
+    applyDomainOp.mockResolvedValue({ status: 'ok', message: 'done' }),
+  );
 
   it('uses an explicit registrar without a cache lookup', async () => {
     await call('domain_set_autorenew', {
@@ -115,7 +120,10 @@ describe('resolveRegistrar (via domain_set_autorenew)', () => {
 
   it('resolves the registrar from the cache when omitted', async () => {
     findRegistrarsForDomain.mockReturnValue(['porkbun']);
-    await call('domain_set_autorenew', { domain: 'example.com', enabled: false });
+    await call('domain_set_autorenew', {
+      domain: 'example.com',
+      enabled: false,
+    });
     expect(applyDomainOp).toHaveBeenCalledWith(
       { registrar: 'porkbun', domainName: 'example.com' },
       { kind: 'autoRenew', enabled: false },
@@ -142,20 +150,43 @@ describe('domainOp() result mapping', () => {
   beforeEach(() => findRegistrarsForDomain.mockReturnValue(['dynadot']));
 
   it('maps status ok to success:true and preserves status + message', async () => {
-    applyDomainOp.mockResolvedValue({ status: 'ok', message: 'Auto-renew enabled' });
-    const out = await call('domain_set_autorenew', { domain: 'a.com', enabled: true });
-    expect(out).toEqual({ success: true, status: 'ok', message: 'Auto-renew enabled' });
+    applyDomainOp.mockResolvedValue({
+      status: 'ok',
+      message: 'Auto-renew enabled',
+    });
+    const out = await call('domain_set_autorenew', {
+      domain: 'a.com',
+      enabled: true,
+    });
+    expect(out).toEqual({
+      success: true,
+      status: 'ok',
+      message: 'Auto-renew enabled',
+    });
   });
 
   it('maps a non-ok status to success:false', async () => {
     applyDomainOp.mockResolvedValue({ status: 'failed', message: 'rejected' });
-    const out = await call('domain_set_autorenew', { domain: 'a.com', enabled: true });
-    expect(out).toEqual({ success: false, status: 'failed', message: 'rejected' });
+    const out = await call('domain_set_autorenew', {
+      domain: 'a.com',
+      enabled: true,
+    });
+    expect(out).toEqual({
+      success: false,
+      status: 'failed',
+      message: 'rejected',
+    });
   });
 
   it('unsupported maps to success:false too', async () => {
-    applyDomainOp.mockResolvedValue({ status: 'unsupported', message: 'no api' });
-    const out = await call('domain_set_autorenew', { domain: 'a.com', enabled: true });
+    applyDomainOp.mockResolvedValue({
+      status: 'unsupported',
+      message: 'no api',
+    });
+    const out = await call('domain_set_autorenew', {
+      domain: 'a.com',
+      enabled: true,
+    });
     expect(out.success).toBe(false);
     expect(out.status).toBe('unsupported');
   });
@@ -165,7 +196,10 @@ describe('cachedWrite() (via domain_dns_set)', () => {
   beforeEach(() => findRegistrarsForDomain.mockReturnValue(['dynadot']));
 
   it('broadcasts on success and returns the raw OperationResult', async () => {
-    setDnsRecords.mockResolvedValue({ success: true, message: 'Records written' });
+    setDnsRecords.mockResolvedValue({
+      success: true,
+      message: 'Records written',
+    });
     const out = await call('domain_dns_set', { domain: 'a.com', records: [] });
     expect(out).toEqual({ success: true, message: 'Records written' });
     expect(broadcastPortfolioChanged).toHaveBeenCalledTimes(1);
@@ -184,8 +218,11 @@ describe('input schemas', () => {
     const s = schema('registrar_register_domain');
     const contacts = { admin: fullContact() }; // no registrant
     expect(
-      s.safeParse({ registrar: 'dynadot', domain: 'a.com', input: { contacts } })
-        .success,
+      s.safeParse({
+        registrar: 'dynadot',
+        domain: 'a.com',
+        input: { contacts },
+      }).success,
     ).toBe(false);
     expect(
       s.safeParse({
@@ -242,10 +279,18 @@ describe('end-to-end handlers', () => {
     getMergedPortfolio.mockReturnValue({
       domains: [
         {
-          registrar: 'dynadot', domainName: 'a.com', status: 'active',
-          createdDate: null, expirationDate: null, renewalDate: null,
-          autoRenew: false, locked: false, privacy: false, nameservers: [],
-          syncedAt: new Date(0), deleted: false,
+          registrar: 'dynadot',
+          domainName: 'a.com',
+          status: 'active',
+          createdDate: null,
+          expirationDate: null,
+          renewalDate: null,
+          autoRenew: false,
+          locked: false,
+          privacy: false,
+          nameservers: [],
+          syncedAt: new Date(0),
+          deleted: false,
         },
       ],
       fetchedAt: 1000,
@@ -262,7 +307,10 @@ describe('end-to-end handlers', () => {
 
   it('domain_get returns cached detail when present', async () => {
     findRegistrarsForDomain.mockReturnValue(['dynadot']);
-    getDomainDetail.mockResolvedValue({ domainName: 'a.com', nameservers: ['ns.x'] });
+    getDomainDetail.mockResolvedValue({
+      domainName: 'a.com',
+      nameservers: ['ns.x'],
+    });
     const out = await call('domain_get', { domain: 'a.com' });
     expect(out).toMatchObject({ domainName: 'a.com', nameservers: ['ns.x'] });
     expect(getDomain).not.toHaveBeenCalled();
@@ -300,17 +348,24 @@ describe('end-to-end handlers', () => {
 
   it('domain_auth_code_get returns the code on ok', async () => {
     findRegistrarsForDomain.mockReturnValue(['dynadot']);
-    applyDomainOp.mockResolvedValue({ status: 'ok', message: '', data: { authCode: 'EPP-9' } });
+    applyDomainOp.mockResolvedValue({
+      status: 'ok',
+      message: '',
+      data: { authCode: 'EPP-9' },
+    });
     const out = await call('domain_auth_code_get', { domain: 'a.com' });
     expect(out).toEqual({ domain: 'a.com', authCode: 'EPP-9' });
   });
 
   it('domain_auth_code_get throws a non-ok outcome as the tool error', async () => {
     findRegistrarsForDomain.mockReturnValue(['dynadot']);
-    applyDomainOp.mockResolvedValue({ status: 'unsupported', message: 'no api' });
-    await expect(call('domain_auth_code_get', { domain: 'a.com' })).rejects.toThrow(
-      'no api',
-    );
+    applyDomainOp.mockResolvedValue({
+      status: 'unsupported',
+      message: 'no api',
+    });
+    await expect(
+      call('domain_auth_code_get', { domain: 'a.com' }),
+    ).rejects.toThrow('no api');
   });
 });
 

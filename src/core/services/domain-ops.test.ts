@@ -54,8 +54,15 @@ import { applyDomainOp } from './domain-ops';
 
 // dynadot has no entry in KNOWN_GAPS, so with a full feature list nothing is
 // gated up front — every op reaches the dispatcher.
-const ALL_FEATURES = ['getAuthCode', 'setDomainForwarding', 'setEmailForwarding'];
-const target: DomainTarget = { registrar: 'dynadot', domainName: 'example.com' };
+const ALL_FEATURES = [
+  'getAuthCode',
+  'setDomainForwarding',
+  'setEmailForwarding',
+];
+const target: DomainTarget = {
+  registrar: 'dynadot',
+  domainName: 'example.com',
+};
 
 const ok = (message = ''): OperationResult => ({ success: true, message });
 const fail = (message = ''): OperationResult => ({ success: false, message });
@@ -128,14 +135,20 @@ describe('applyDomainOp — happy paths and patches', () => {
   it('nameservers: ok with {nameservers} patch', async () => {
     setNameserversCached.mockResolvedValue(ok());
     const ns = ['ns1.example.net', 'ns2.example.net'];
-    const r = await applyDomainOp(target, { kind: 'nameservers', nameservers: ns });
+    const r = await applyDomainOp(target, {
+      kind: 'nameservers',
+      nameservers: ns,
+    });
     expect(r.status).toBe('ok');
     expect(r.patch).toEqual({ nameservers: ns });
   });
 
   it('falls back to opSummary when the provider message is empty', async () => {
     setAutoRenewCached.mockResolvedValue(ok(''));
-    const r = await applyDomainOp(target, { kind: 'autoRenew', enabled: false });
+    const r = await applyDomainOp(target, {
+      kind: 'autoRenew',
+      enabled: false,
+    });
     expect(r.message).toBe('Auto-renew disabled');
   });
 });
@@ -178,7 +191,10 @@ describe('applyDomainOp — soft failures', () => {
 describe('applyDomainOp — thrown error classification', () => {
   it('NotImplementedError → unsupported', async () => {
     setNameserversCached.mockRejectedValue(new NotImplementedError('nope'));
-    const r = await applyDomainOp(target, { kind: 'nameservers', nameservers: ['a'] });
+    const r = await applyDomainOp(target, {
+      kind: 'nameservers',
+      nameservers: ['a'],
+    });
     expect(r.status).toBe('unsupported');
     expect(r.message).toBe('nope');
   });
@@ -218,14 +234,22 @@ describe('applyDomainOp — renew', () => {
 
     expect(r.status).toBe('ok');
     expect(r.patch).toEqual(patch);
-    expect(renewDomainCached).toHaveBeenCalledWith('dynadot', 'example.com', 2, {
-      signal: undefined,
-      retries: 0,
-    });
+    expect(renewDomainCached).toHaveBeenCalledWith(
+      'dynadot',
+      'example.com',
+      2,
+      {
+        signal: undefined,
+        retries: 0,
+      },
+    );
   });
 
   it('soft-fails without applying the patch', async () => {
-    renewDomainCached.mockResolvedValue({ result: fail('Payment declined'), patch: {} });
+    renewDomainCached.mockResolvedValue({
+      result: fail('Payment declined'),
+      patch: {},
+    });
     const r = await applyDomainOp(target, { kind: 'renew', years: 1 });
     expect(r.status).toBe('failed');
     expect(r.message).toBe('Payment declined');
@@ -235,7 +259,9 @@ describe('applyDomainOp — renew', () => {
 
 describe('applyDomainOp — forwarding skipIfExisting and templating', () => {
   it('skips when URL rules already exist and does not call the setter', async () => {
-    getDomainForwarding.mockResolvedValue([{ host: '@', url: 'x', type: 'permanent' }]);
+    getDomainForwarding.mockResolvedValue([
+      { host: '@', url: 'x', type: 'permanent' },
+    ]);
     const r = await applyDomainOp(target, {
       kind: 'urlForwarding',
       forwards: [{ host: '@', url: 'https://a', type: 'permanent' }],
@@ -251,7 +277,9 @@ describe('applyDomainOp — forwarding skipIfExisting and templating', () => {
     setDomainForwarding.mockResolvedValue(ok());
     const r = await applyDomainOp(target, {
       kind: 'urlForwarding',
-      forwards: [{ host: '@', url: 'https://{domain}/landing', type: 'permanent' }],
+      forwards: [
+        { host: '@', url: 'https://{domain}/landing', type: 'permanent' },
+      ],
       skipIfExisting: true,
     });
     expect(r.status).toBe('ok');

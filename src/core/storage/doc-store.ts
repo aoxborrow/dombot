@@ -18,6 +18,11 @@ export interface DocStore {
   list(ns: string): Promise<Record<string, unknown>>;
   /** Removes every key in a namespace. */
   clear(ns: string): Promise<void>;
+  /**
+   * Optional: every namespace at once. A store that can do this in one round
+   * trip (a SQL table) should; `hydrateStores` uses it when present.
+   */
+  loadAll?(): Promise<Record<string, Record<string, unknown>>>;
 }
 
 /** In-memory store: tests, and the default before a host configures one. */
@@ -51,5 +56,12 @@ export class MemoryDocStore implements DocStore {
 
   async clear(ns: string): Promise<void> {
     this.data.delete(ns);
+  }
+
+  async loadAll(): Promise<Record<string, Record<string, unknown>>> {
+    const out: Record<string, Record<string, unknown>> = {};
+    for (const [ns, m] of this.data)
+      out[ns] = structuredClone(Object.fromEntries(m));
+    return out;
   }
 }

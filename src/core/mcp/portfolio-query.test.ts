@@ -64,7 +64,8 @@ describe('filters', () => {
     domain({ domainName: 'c.com', registrar: 'dynadot', autoRenew: true }),
   ];
 
-  it('registrar', () => expect(names(domains, { registrar: 'porkbun' })).toEqual(['b.net']));
+  it('registrar', () =>
+    expect(names(domains, { registrar: 'porkbun' })).toEqual(['b.net']));
 
   it('tld normalizes com and .com to the same suffix', () => {
     for (const tld of ['com', '.com']) {
@@ -85,7 +86,10 @@ describe('filters', () => {
 
   it('boolean flags', () => {
     expect(names(domains, { autoRenew: true })).toEqual(['c.com']);
-    expect(names(domains, { autoRenew: false }).sort()).toEqual(['a.com', 'b.net']);
+    expect(names(domains, { autoRenew: false }).sort()).toEqual([
+      'a.com',
+      'b.net',
+    ]);
   });
 
   it('status substring, case-insensitive', () => {
@@ -97,7 +101,9 @@ describe('filters', () => {
   });
 
   it('ANDs multiple filters', () =>
-    expect(names(domains, { registrar: 'dynadot', autoRenew: true })).toEqual(['c.com']));
+    expect(names(domains, { registrar: 'dynadot', autoRenew: true })).toEqual([
+      'c.com',
+    ]));
 });
 
 describe('date filters', () => {
@@ -121,7 +127,10 @@ describe('date filters', () => {
     ]));
 
   it('expiringWithinDays keeps everything up to now + N days (no lower bound)', () =>
-    expect(names(domains, { expiringWithinDays: 30 })).toEqual(['past.com', 'soon.com']));
+    expect(names(domains, { expiringWithinDays: 30 })).toEqual([
+      'past.com',
+      'soon.com',
+    ]));
 
   it('ignores an invalid expiresBefore date', () =>
     expect(names(domains, { expiresBefore: 'not-a-date' }).length).toBe(4));
@@ -140,18 +149,28 @@ describe('folder resolution', () => {
   };
 
   it('matches by folder id', () =>
-    expect(names(domains, { folder: 'f1' }, folders, assignments)).toEqual(['a.com']));
+    expect(names(domains, { folder: 'f1' }, folders, assignments)).toEqual([
+      'a.com',
+    ]));
 
   it('matches by case-insensitive name', () =>
-    expect(names(domains, { folder: 'clients' }, folders, assignments)).toEqual(['a.com']));
+    expect(names(domains, { folder: 'clients' }, folders, assignments)).toEqual(
+      ['a.com'],
+    ));
 
   it('matches Hidden by keyword and by id', () => {
-    expect(names(domains, { folder: 'Hidden' }, folders, assignments)).toEqual(['h.com']);
-    expect(names(domains, { folder: HIDDEN_FOLDER_ID }, folders, assignments)).toEqual(['h.com']);
+    expect(names(domains, { folder: 'Hidden' }, folders, assignments)).toEqual([
+      'h.com',
+    ]);
+    expect(
+      names(domains, { folder: HIDDEN_FOLDER_ID }, folders, assignments),
+    ).toEqual(['h.com']);
   });
 
   it('an unknown folder name returns zero rows', () =>
-    expect(names(domains, { folder: 'Nope' }, folders, assignments)).toEqual([]));
+    expect(names(domains, { folder: 'Nope' }, folders, assignments)).toEqual(
+      [],
+    ));
 
   it('resolves the folder name onto the row (incl. Hidden)', () => {
     const rows = run(domains, {}, folders, assignments).rows;
@@ -163,26 +182,40 @@ describe('folder resolution', () => {
 
 describe('sorting', () => {
   const domains = [
-    domain({ domainName: 'b.com', registrar: 'porkbun', expirationDate: new Date('2026-05-01') }),
+    domain({
+      domainName: 'b.com',
+      registrar: 'porkbun',
+      expirationDate: new Date('2026-05-01'),
+    }),
     domain({ domainName: 'A.com', registrar: 'dynadot', expirationDate: null }),
-    domain({ domainName: 'c.com', registrar: 'dynadot', expirationDate: new Date('2026-01-01') }),
+    domain({
+      domainName: 'c.com',
+      registrar: 'dynadot',
+      expirationDate: new Date('2026-01-01'),
+    }),
   ];
 
   it('defaults to expirationDate asc, nulls last', () =>
     expect(names(domains, {})).toEqual(['c.com', 'b.com', 'A.com']));
 
   it('expirationDate desc keeps nulls last', () =>
-    expect(names(domains, { order: 'desc' })).toEqual(['b.com', 'c.com', 'A.com']));
+    expect(names(domains, { order: 'desc' })).toEqual([
+      'b.com',
+      'c.com',
+      'A.com',
+    ]));
 
   it('sorts domainName case-insensitively', () =>
-    expect(names(domains, { sort: 'domainName' })).toEqual(['A.com', 'b.com', 'c.com']));
+    expect(names(domains, { sort: 'domainName' })).toEqual([
+      'A.com',
+      'b.com',
+      'c.com',
+    ]));
 
   it('sorts by registrar', () =>
-    expect(run(domains, { sort: 'registrar' }).rows.map((r) => r.registrar)).toEqual([
-      'dynadot',
-      'dynadot',
-      'porkbun',
-    ]));
+    expect(
+      run(domains, { sort: 'registrar' }).rows.map((r) => r.registrar),
+    ).toEqual(['dynadot', 'dynadot', 'porkbun']));
 });
 
 describe('paging and row shape', () => {
@@ -198,7 +231,10 @@ describe('paging and row shape', () => {
 
   it('defaults limit to DEFAULT_LIMIT', () => {
     const many = Array.from({ length: DEFAULT_LIMIT + 10 }, (_, i) =>
-      domain({ domainName: `x${i}.com`, expirationDate: new Date(2026, 0, i + 1) }),
+      domain({
+        domainName: `x${i}.com`,
+        expirationDate: new Date(2026, 0, i + 1),
+      }),
     );
     const res = run(many, {});
     expect(res.total).toBe(DEFAULT_LIMIT + 10);

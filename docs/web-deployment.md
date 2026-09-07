@@ -124,6 +124,19 @@ Implementations:
   Object with SQLite would also work well for a single tenant but is
   Cloudflare-only and adds a product.
 
+- **One request at a time per isolate.** The core keeps each namespace in
+  module memory and the Worker re-hydrates it for every handler that has
+  state (login, an authenticated `/api/*` call, the MCP paths) — after the
+  checks that need no store, so an unauthenticated request never costs a
+  decrypt of D1; assets and `/auth/status` never hydrate.
+  An isolate interleaves concurrent requests at each `await`, so those
+  requests run through a per-isolate lock (`src/worker/lock.ts`): hydrate →
+  handle → flush is atomic, a `getRevisions` poll can't reset the bulk
+  runner under a step in flight, and login attempts count one by one.
+  Isolates still run in parallel with each other; hydration keeps them
+  consistent with what's durable. `flushWrites()` rejects if a write
+  failed, and the request answers 500 rather than claiming the save.
+
 - **`EncryptedDocStore`** decorator: seals each value with AES-256-GCM before
   the inner `put`, opens on `get`/`list`. Envelope `{ v: 1, iv, ct }` base64.
   On the Worker every namespace goes through it; on Electron only

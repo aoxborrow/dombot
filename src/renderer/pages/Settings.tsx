@@ -5,7 +5,7 @@ import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
 import FoldersSettings from './settings/FoldersSettings';
 
-const TAB_VALUES = ['registrars', 'folders', 'mcp', 'data'];
+const TAB_VALUES = ['registrars', 'folders', 'data', 'mcp'];
 
 export default function Settings() {
   const [params, setParams] = useSearchParams();
@@ -38,16 +38,16 @@ export default function Settings() {
               Folders
             </TabsTrigger>
             <TabsTrigger
+              value="data"
+              className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
+            >
+              Sync
+            </TabsTrigger>
+            <TabsTrigger
               value="mcp"
               className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
             >
               MCP
-            </TabsTrigger>
-            <TabsTrigger
-              value="data"
-              className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
-            >
-              Cache
             </TabsTrigger>
           </TabsList>
         </div>

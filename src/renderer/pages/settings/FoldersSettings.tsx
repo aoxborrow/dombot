@@ -60,7 +60,8 @@ export default function FoldersSettings() {
           <h2 className="text-xl font-bold">Folders</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Organize your domains into named, colored groups. Assign a domain to
-            a folder from the Domains table. Folders are stored on this device.
+            a folder from the Domains table. Folders are saved with your other
+            DomBot settings.
           </p>
         </div>
         <Button className="shrink-0" onClick={() => setCreating(true)}>

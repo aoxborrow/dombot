@@ -180,6 +180,8 @@ interface AppState {
   setAutoSyncInterval: (minutes: number) => Promise<void>;
   /** Push a just-saved nameserver set to the front of the recent presets. */
   rememberNameservers: (nameservers: string[]) => Promise<void>;
+  /** Turn the embedded MCP server on or off; applied live in main. */
+  setMcpEnabled: (enabled: boolean) => Promise<void>;
 
   // Row selection for bulk actions, keyed `${registrar}:${domainName}`. Lives
   // here (not in the page) so it survives tab switches; pruned when the
@@ -601,6 +603,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       autoSyncIntervalMinutes: minutes,
     });
     set({ settings });
+  },
+  setMcpEnabled: async (enabled) => {
+    const settings = await window.api.updateSettings({ mcpEnabled: enabled });
+    // The server starts/stops asynchronously in main; re-read its status so
+    // the status bar and the MCP page reflect it.
+    const mcpInfo = await window.api.getMcpInfo();
+    set({ settings, mcpInfo });
   },
   selected: new Set(),
   toggleSelected: (key) =>

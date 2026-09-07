@@ -4,11 +4,23 @@ import type { McpClient, McpInfo } from '../../../shared/ipc';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { SettingsCard } from './SettingsCard';
+import { isWeb, webAuthMode } from '@/lib/platform';
+import { useAppStore } from '../../store/app';
 
 export default function McpClientsSettings() {
   const [info, setInfo] = useState<McpInfo | null>(null);
   const [clients, setClients] = useState<McpClient[]>([]);
+  const settings = useAppStore((s) => s.settings);
+  const loadSettings = useAppStore((s) => s.loadSettings);
+  const setMcpEnabled = useAppStore((s) => s.setMcpEnabled);
+  const [toggling, setToggling] = useState(false);
+
+  useEffect(() => {
+    if (settings === null) void loadSettings();
+  }, [settings, loadSettings]);
 
   const refresh = useCallback(async () => {
     const [mcpInfo, list] = await Promise.all([
@@ -28,6 +40,49 @@ export default function McpClientsSettings() {
     await refresh();
   };
 
+  const toggle = async (enabled: boolean) => {
+    setToggling(true);
+    try {
+      await setMcpEnabled(enabled);
+      await refresh();
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const enabled = settings?.mcpEnabled ?? false;
+
+  if (isWeb()) {
+    const gated = webAuthMode() !== 'password';
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h2 className="text-xl font-bold">MCP</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Agents connect to DomBot&apos;s MCP server to manage your portfolio.
+            New connections must be approved in the app.
+          </p>
+        </div>
+        <SettingsCard title="Not available on this instance yet">
+          <p className="text-sm text-muted-foreground">
+            The MCP server for self-hosted instances is on its way. Until it
+            ships, the desktop app&apos;s MCP server is the way to connect an
+            agent.
+            {gated && (
+              <>
+                {' '}
+                Note that this deployment sits behind an external gate
+                (Cloudflare Access or a platform login), which MCP clients
+                can&apos;t pass; once MCP is available here, the gate will need
+                to exclude the MCP paths for it to work.
+              </>
+            )}
+          </p>
+        </SettingsCard>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -38,7 +93,49 @@ export default function McpClientsSettings() {
         </p>
       </div>
 
-      {info?.running && (
+      <SettingsCard title="MCP server">
+        <div className="flex items-center justify-between gap-6">
+          <div>
+            <Label
+              htmlFor="mcp-enabled"
+              className={cn(
+                'inline-flex items-center gap-1.5 text-sm font-medium',
+                enabled && info?.running && 'text-[#7ac28d]',
+              )}
+            >
+              <span
+                className={cn(
+                  'size-2 rounded-full',
+                  enabled && info?.running
+                    ? 'bg-[#7ac28d]'
+                    : enabled
+                      ? 'bg-amber-500'
+                      : 'bg-muted-foreground/30',
+                )}
+                aria-hidden
+              />
+              {!enabled
+                ? 'Disabled'
+                : info?.running
+                  ? 'Enabled (running)'
+                  : 'Enabled (starting…)'}
+            </Label>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {enabled
+                ? 'Approved agents can read and change your domains. The server only accepts connections from this computer.'
+                : 'Enable this to let Claude or another MCP client manage your domains.'}
+            </p>
+          </div>
+          <Switch
+            id="mcp-enabled"
+            checked={enabled}
+            disabled={settings === null || toggling}
+            onCheckedChange={(v) => void toggle(v)}
+          />
+        </div>
+      </SettingsCard>
+
+      {enabled && info?.running && (
         <SettingsCard
           title="Connect a client"
           contentClassName="flex flex-col gap-4"

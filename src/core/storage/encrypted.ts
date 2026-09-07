@@ -50,7 +50,12 @@ export class EncryptedDocStore implements DocStore {
     private readonly inner: DocStore,
     private readonly cipher: Cipher,
     private readonly namespaces?: ReadonlySet<string>,
-  ) {}
+  ) {
+    // Advertise loadAll only when the inner store can do it.
+    if (inner.loadAll) this.loadAll = () => this.loadAllImpl();
+  }
+
+  loadAll?: () => Promise<Record<string, Record<string, unknown>>>;
 
   private sealed(ns: string): boolean {
     return this.namespaces ? this.namespaces.has(ns) : true;
@@ -106,6 +111,21 @@ export class EncryptedDocStore implements DocStore {
 
   clear(ns: string): Promise<void> {
     return this.inner.clear(ns);
+  }
+
+  private async loadAllImpl(): Promise<
+    Record<string, Record<string, unknown>>
+  > {
+    const raw = await this.inner.loadAll!();
+    const out: Record<string, Record<string, unknown>> = {};
+    for (const [ns, entries] of Object.entries(raw)) {
+      out[ns] = {};
+      for (const [key, value] of Object.entries(entries)) {
+        const opened = await this.open(ns, key, value);
+        if (opened !== undefined) out[ns][key] = opened;
+      }
+    }
+    return out;
   }
 }
 

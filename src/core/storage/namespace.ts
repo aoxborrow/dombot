@@ -34,20 +34,39 @@ export function getStore(): DocStore {
 // ── write queue ─────────────────────────────────────────────────────────────
 
 let tail: Promise<void> = Promise.resolve();
+/** The first write to fail since the last `flushWrites()` reported it. */
+let unreportedFailure: unknown = null;
+let failed = false;
 
 function enqueue(label: string, write: () => Promise<void>): Promise<void> {
   const p = tail.then(write);
   // Keep the queue alive past a failure, and mark the rejection handled so a
   // fire-and-forget caller doesn't trip an unhandled-rejection warning. An
-  // awaiting caller still receives the rejection from `p`.
-  tail = p.catch(() => undefined);
+  // awaiting caller still receives the rejection from `p`; everyone else
+  // learns of it from the next `flushWrites()`.
+  tail = p.catch((err) => {
+    if (!failed) {
+      failed = true;
+      unreportedFailure = err;
+    }
+  });
   p.catch((err) => console.error(`[storage] ${label} failed`, err));
   return p;
 }
 
-/** Resolves once every write issued so far has been persisted (or failed). */
-export function flushWrites(): Promise<void> {
-  return tail;
+/**
+ * Settles once every write issued so far has been persisted. Rejects with the
+ * first failure since the previous flush, so a host that answers "saved" only
+ * after the flush (a Worker request) never says so for data that isn't.
+ */
+export async function flushWrites(): Promise<void> {
+  await tail;
+  if (failed) {
+    const err = unreportedFailure;
+    failed = false;
+    unreportedFailure = null;
+    throw err;
+  }
 }
 
 // ── namespaces ──────────────────────────────────────────────────────────────
@@ -66,7 +85,11 @@ export class Namespace<T> {
 
   /** (Re)loads the namespace from the store. */
   async load(): Promise<void> {
-    const entries = await store.list(this.name);
+    this.replace(await store.list(this.name));
+  }
+
+  /** Installs a namespace's entries wholesale (used by hydrateStores). */
+  replace(entries: Record<string, unknown>): void {
     this.data = new Map(Object.entries(entries) as [string, T][]);
   }
 
@@ -123,5 +146,11 @@ export class Namespace<T> {
 /** Loads every namespace any service has declared. Hosts call this once
  *  after `configureStore`, before handling requests. Safe to call again. */
 export async function hydrateStores(): Promise<void> {
+  if (store.loadAll) {
+    // One round trip for everything (the web host does this per request).
+    const all = await store.loadAll();
+    for (const ns of registry) ns.replace(all[ns.name] ?? {});
+    return;
+  }
   await Promise.all([...registry].map((ns) => ns.load()));
 }

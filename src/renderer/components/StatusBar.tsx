@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
+import { isWeb, signOut, webAuthMode } from '../lib/platform';
 
 /**
  * App-wide bottom status bar (VS Code style): a thin bar fixed across the
  * viewport bottom, with page content scrolling underneath it. Surfaces the
- * embedded MCP server's status on the left (a link into MCP settings) and the
+ * embedded MCP server's status on the left (a link into MCP settings) — on the
+ * web build, preceded by the session status and a sign-out link — and the
  * last-synced time plus a Sync Domains link on the right. Shown on every route.
  */
 export default function StatusBar() {
@@ -65,25 +67,28 @@ export default function StatusBar() {
 
   return (
     <footer className="fixed inset-x-0 bottom-0 z-40 flex h-[29px] items-center justify-between gap-4 border-t bg-background px-4 text-xs text-muted-foreground select-none">
-      <button
-        type="button"
-        onClick={() => navigate('/settings?tab=mcp')}
-        className="inline-flex items-center gap-1.5 rounded-sm hover:text-foreground"
-        title={
-          mcpRunning
-            ? `MCP server listening at ${mcpInfo?.url} — open MCP settings`
-            : 'MCP server is not running — open MCP settings'
-        }
-      >
-        <span
-          className={cn(
-            'size-2 rounded-full',
-            mcpRunning ? 'bg-[#7ac28d]' : 'bg-muted-foreground/30',
-          )}
-          aria-hidden
-        />
-        {mcpRunning && mcpEndpoint ? `MCP ${mcpEndpoint}` : 'MCP off'}
-      </button>
+      <div className="flex items-center gap-4">
+        {isWeb() && <SessionStatus />}
+        <button
+          type="button"
+          onClick={() => navigate('/settings?tab=mcp')}
+          className="inline-flex items-center gap-1.5 rounded-sm hover:text-foreground"
+          title={
+            mcpRunning
+              ? `MCP server listening at ${mcpInfo?.url} — open MCP settings`
+              : 'MCP server is not running — open MCP settings'
+          }
+        >
+          <span
+            className={cn(
+              'size-2 rounded-full',
+              mcpRunning ? 'bg-[#7ac28d]' : 'bg-muted-foreground/30',
+            )}
+            aria-hidden
+          />
+          {mcpRunning && mcpEndpoint ? `MCP ${mcpEndpoint}` : 'MCP off'}
+        </button>
+      </div>
 
       {(showRefreshed || showSync) && (
         <div className="flex items-center gap-3">
@@ -123,5 +128,52 @@ export default function StatusBar() {
         </div>
       )}
     </footer>
+  );
+}
+
+/**
+ * Web build only: how this browser is signed in, and the way out. Password
+ * mode ends the session here; Cloudflare Access signs out at Access's own
+ * endpoint; an external gate has nothing to sign out of from inside the app.
+ */
+function SessionStatus() {
+  const mode = webAuthMode();
+  const dot = <span className="size-2 rounded-full bg-[#7ac28d]" aria-hidden />;
+  const link = (label: string, onClick: () => void) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-sm underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground"
+    >
+      {label}
+    </button>
+  );
+  if (mode === 'cloudflare-access') {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        {dot}
+        Cloudflare Access ·{' '}
+        {link('Sign out', () => {
+          window.location.assign('/cdn-cgi/access/logout');
+        })}
+      </span>
+    );
+  }
+  if (mode === 'external') {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5"
+        title="Access is controlled by a gate in front of this instance"
+      >
+        {dot}
+        Gated externally
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {dot}
+      {link('Sign out', () => void signOut())}
+    </span>
   );
 }

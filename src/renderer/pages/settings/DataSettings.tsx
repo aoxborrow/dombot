@@ -21,6 +21,8 @@ const INTERVAL_OPTIONS: { label: string; minutes: number }[] = [
   { label: 'Off', minutes: 0 },
 ];
 
+const DEFAULT_INTERVAL_MINUTES = 1440;
+
 /**
  * Data & cache settings. DomBot caches your portfolio, per-domain detail, and
  * renewal prices on disk (timestamped) so the app opens fully populated with no
@@ -50,15 +52,22 @@ export default function DataSettings() {
     }
   };
 
-  const interval = settings?.autoSyncIntervalMinutes ?? null;
+  const stored = settings?.autoSyncIntervalMinutes ?? null;
+  // A value that isn't a preset (only reachable outside the UI) shows as the
+  // default rather than an empty select.
+  const interval =
+    stored != null && !INTERVAL_OPTIONS.some((o) => o.minutes === stored)
+      ? DEFAULT_INTERVAL_MINUTES
+      : stored;
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-xl font-bold">Cache</h2>
+        <h2 className="text-xl font-bold">Sync</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          DomBot caches your portfolio info to avoid slow or too-frequent API
-          calls.
+          DomBot keeps a copy of your portfolio and refreshes it from the
+          registrars on a schedule, so it opens instantly and registrar APIs
+          aren&apos;t hit more often than needed.
         </p>
       </div>
 
@@ -93,9 +102,9 @@ export default function DataSettings() {
 
       <SettingsCard title="Cached data" contentClassName="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
-          Clear every on-disk cache and reset the loaded portfolio. Your saved
-          registrar credentials, manual prices, and folders are kept. The next
-          “Sync domains” re-fetches everything fresh.
+          Clear the cached portfolio and start over. Your saved registrar
+          credentials, manual prices, and folders are kept. The next “Sync
+          domains” re-fetches everything fresh.
         </p>
         <div className="flex items-center gap-3">
           <Button
