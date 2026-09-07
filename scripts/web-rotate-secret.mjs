@@ -17,7 +17,8 @@
 //   DOMBOT_URL=https://dombot.example.workers.dev npm run web:rotate-secret
 //
 // Prompts for the login password (or reads DOMBOT_PASSWORD from env) and for
-// a passphrase to seal the on-disk bundle.
+// a passphrase to seal the on-disk bundle (or DOMBOT_BACKUP_PASSPHRASE). With
+// both in the environment the script runs unattended.
 
 import { randomBytes, webcrypto } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -96,6 +97,19 @@ async function ask(q, { hidden = false } = {}) {
 const password =
   process.env.DOMBOT_PASSWORD ||
   (await ask('Login password: ', { hidden: true }));
+// Asked up front, before any network round trip: with stdin piped, the
+// answer arrives (and stdin closes) immediately, and readline can't be asked
+// after that.
+const passphrase =
+  process.env.DOMBOT_BACKUP_PASSPHRASE ||
+  (await ask('Passphrase to seal the backup file: ', { hidden: true }));
+if (!passphrase) {
+  console.error(
+    'A passphrase is required — the file holds your registrar keys.',
+  );
+  process.exit(1);
+}
+rl.close();
 
 let cookie = '';
 async function login() {
@@ -133,15 +147,6 @@ if (status.mode !== 'password') {
 
 // 1–2. Export, sealed, to disk.
 await login();
-const passphrase = await ask('Passphrase to seal the backup file: ', {
-  hidden: true,
-});
-if (!passphrase) {
-  console.error(
-    'A passphrase is required — the file holds your registrar keys.',
-  );
-  process.exit(1);
-}
 const plain = await api('exportData', []);
 const file = `dombot-data-${new Date().toISOString().slice(0, 10)}-pre-rotation.json`;
 writeFileSync(file, await sealBundle(plain, passphrase), { mode: 0o600 });
@@ -199,4 +204,3 @@ console.log(
     file +
     ' once you have confirmed the instance is healthy (or keep it as a backup).',
 );
-rl.close();
