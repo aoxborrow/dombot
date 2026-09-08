@@ -5,7 +5,11 @@ import type {
   RegistrarMeta,
   RegistrarName,
 } from '../../shared/ipc';
-import { multiAccountRegistrars, registrarGroups } from './registrar-accounts';
+import {
+  multiAccountRegistrars,
+  registrarGroups,
+  registrarSummary,
+} from './registrar-accounts';
 
 const provider = (name: RegistrarName): RegistrarDefinition => ({
   name,
@@ -29,6 +33,82 @@ const account = (
   ...overrides,
 });
 const catalog = [provider('dynadot'), provider('porkbun')];
+
+describe('registrar row totals', () => {
+  it('sums all accounts without exposing an account identity or overstating freshness', () => {
+    const accounts = [
+      account('dynadot', 'first', {
+        sync: { lastSyncedAt: 100, lastError: null, domainCount: 632 },
+      }),
+      account('dynadot', 'second', {
+        sync: { lastSyncedAt: 300, lastError: null, domainCount: 75 },
+      }),
+      account('dynadot', 'third', {
+        sync: { lastSyncedAt: 200, lastError: null, domainCount: 32 },
+      }),
+    ];
+    const summary = registrarSummary(catalog[0], accounts);
+    expect(summary.sync).toEqual({
+      lastSyncedAt: 100,
+      lastError: null,
+      domainCount: 739,
+    });
+    expect(summary.accountId).toBeUndefined();
+    expect(summary.accountLabel).toBeUndefined();
+    expect(registrarSummary(catalog[0], [...accounts].reverse())).toEqual(
+      summary,
+    );
+  });
+
+  it('does not hide an unsynced or failed sibling behind a successful account', () => {
+    const ready = account('dynadot', 'ready', {
+      sync: { lastSyncedAt: 100, lastError: null, domainCount: 10 },
+    });
+    const pending = account('dynadot', 'pending');
+    expect(
+      registrarSummary(catalog[0], [ready, pending]).sync.lastSyncedAt,
+    ).toBeNull();
+    const failed = account('dynadot', 'failed', {
+      sync: { lastSyncedAt: 50, lastError: 'bad key', domainCount: 4 },
+    });
+    expect(registrarSummary(catalog[0], [ready, failed]).sync).toEqual({
+      lastSyncedAt: 50,
+      lastError: '1 account failed to sync. Expand to view account details.',
+      domainCount: 14,
+    });
+  });
+
+  it('includes disabled account counts without treating their old errors as active failures', () => {
+    const disabled = account('dynadot', 'disabled', {
+      enabled: false,
+      sync: { lastSyncedAt: null, lastError: 'old error', domainCount: 5 },
+    });
+    const active = account('dynadot', 'active', {
+      sync: { lastSyncedAt: 100, lastError: null, domainCount: 10 },
+    });
+    expect(registrarSummary(catalog[0], [disabled, active])).toMatchObject({
+      configured: true,
+      enabled: true,
+      sync: { lastSyncedAt: 100, lastError: null, domainCount: 15 },
+    });
+    expect(registrarSummary(catalog[0], [disabled])).toMatchObject({
+      configured: true,
+      enabled: false,
+    });
+  });
+
+  it('keeps an empty registrar unconfigured and preserves a single account count', () => {
+    expect(registrarSummary(catalog[0], [])).toMatchObject({
+      configured: false,
+      enabled: false,
+      sync: { domainCount: 0 },
+    });
+    const single = account('dynadot', 'only', {
+      sync: { lastSyncedAt: 100, lastError: null, domainCount: 632 },
+    });
+    expect(registrarSummary(catalog[0], [single]).sync).toEqual(single.sync);
+  });
+});
 
 describe('progressive registrar account UI', () => {
   it('keeps the original empty registrar cards, without offering another account', () => {

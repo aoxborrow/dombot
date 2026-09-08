@@ -22,6 +22,37 @@ export function registrarGroups(
   });
 }
 
+/** The collapsed row describes the whole registrar, independently of selection.
+ * Counts include every saved account's cache. Freshness covers enabled accounts
+ * and uses the oldest sync so one recent account cannot hide stale siblings. */
+export function registrarSummary(
+  provider: RegistrarDefinition,
+  accounts: RegistrarMeta[],
+): RegistrarMeta {
+  const configured = accounts.filter((account) => account.configured);
+  const active = configured.filter((account) => account.enabled);
+  const failures = active.filter((account) => account.sync.lastError);
+  return {
+    ...provider,
+    configured: configured.length > 0,
+    enabled: active.length > 0,
+    sync: {
+      domainCount: accounts.reduce(
+        (sum, account) => sum + account.sync.domainCount,
+        0,
+      ),
+      lastSyncedAt:
+        active.length > 0 &&
+        active.every((account) => account.sync.lastSyncedAt != null)
+          ? Math.min(...active.map((account) => account.sync.lastSyncedAt!))
+          : null,
+      lastError: failures.length
+        ? `${failures.length} account${failures.length === 1 ? '' : 's'} failed to sync. Expand to view account details.`
+        : null,
+    },
+  };
+}
+
 /** Account UI is useful only when a provider has more than one saved account.
  * Include cached rows during initial hydration, before metadata has arrived. */
 export function multiAccountRegistrars(

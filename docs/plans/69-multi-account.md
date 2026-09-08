@@ -16,6 +16,8 @@ After credentials are saved, Add another account appends a separate form beneath
 
 Only registrars with multiple accounts gain a selector and rename/remove controls. Domains and Renewals expose account-specific UI only when needed. Exports and MCP retain account identity independently of presentation.
 
+Collapsed rows summarize the registrar, without the selected account name. Counts sum all saved accounts' cached domains, including disabled accounts. Freshness uses the oldest enabled account's sync time and preserves pending/failure indicators. Header Sync and enable controls apply across accounts; the expanded section holds the selected account's own count, status and controls. Switching accounts does not change the header total.
+
 ## Routing and consistency
 
 Domain operations resolve a unique cached owner or use an explicit account ID. Provider mismatches, cached ownership mismatches, disabled accounts and ambiguous selection fail before provider operations. Registrations and inbound transfers require a destination when multiple configured accounts exist. Legacy unambiguous calls continue to work.
@@ -30,6 +32,7 @@ A failed sync keeps that account's last-good slice and successful timestamp. Gen
 - Browser verification with synthetic providers: zero/one/multiple-account UI; first Save; separate new-account form; invalid credentials and cancellation; successful addition without switching away from the existing account; account filtering and reload.
 - Desktop verification with synthetic providers: production renderer/preload, real IPC and filesystem storage, OS-encrypted credentials, two-account portfolio, account-specific changes and process restart.
 - User-reported live validation: three Dynadot accounts connected successfully. This is distinct from automated/mock routing coverage; no paid registrar operations are required by the test plan.
+- Registrar summary follow-up: 357 tests passed (one opt-in test skipped), with TypeScript, ESLint and macOS packaging passing. Synthetic UI checks verified stable totals while switching accounts, registrar-wide sync/enable, and individual account actions. The user confirmed the installed update works.
 - Required checks: unit suite, TypeScript, ESLint, web renderer build, Worker deployment dry run, macOS package.
 
 ## Related desktop MCP correction

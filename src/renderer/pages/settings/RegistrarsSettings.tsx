@@ -1,4 +1,7 @@
-import { registrarGroups } from '../../lib/registrar-accounts';
+import {
+  registrarGroups,
+  registrarSummary,
+} from '../../lib/registrar-accounts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, CircleX, ExternalLink, RefreshCw } from 'lucide-react';
 import type {
@@ -124,6 +127,7 @@ function RegistrarCard({
   const [renaming, setRenaming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const multiple = accounts.length > 1;
+  const summary = registrarSummary(provider, accounts);
   // The draft for another account must never replace the selected account.
   const draft = !selected;
   const meta: RegistrarMeta = draft
@@ -176,14 +180,20 @@ function RegistrarCard({
     };
   }, [open, draft, currentId, currentLabel, provider.name]);
 
-  const runSync = async () => {
+  const runSync = async (allAccounts = false) => {
     if (!selected || draft) return;
     setSyncing(true);
     setError(null);
     try {
-      await syncRegistrar(provider.name, idOf(selected));
+      const targets = allAccounts
+        ? accounts.filter((account) => account.configured && account.enabled)
+        : [selected];
+      for (const account of targets) {
+        await syncRegistrar(provider.name, idOf(account));
+      }
     } catch (err) {
       setError(errorMessage(err));
+      if (allAccounts) setOpen(true);
     } finally {
       setSyncing(false);
     }
@@ -233,14 +243,22 @@ function RegistrarCard({
     }
   };
 
-  const toggleEnabled = async (next: boolean) => {
+  const toggleEnabled = async (next: boolean, allAccounts = false) => {
     if (!selected || draft) return;
     setToggling(true);
     setError(null);
     try {
-      await setRegistrarEnabled(provider.name, next, idOf(selected));
+      const targets = allAccounts
+        ? accounts.filter(
+            (account) => account.configured && account.enabled !== next,
+          )
+        : [selected];
+      for (const account of targets) {
+        await setRegistrarEnabled(provider.name, next, idOf(account));
+      }
     } catch (err) {
       setError(errorMessage(err));
+      if (allAccounts) setOpen(true);
     } finally {
       setToggling(false);
     }
@@ -314,54 +332,61 @@ function RegistrarCard({
               up; read-only (off) until the registrar has credentials. */}
           <div className="flex w-9 shrink-0 justify-center">
             <Switch
-              checked={configured && enabled}
-              onCheckedChange={(v) => void toggleEnabled(v)}
-              disabled={busy || !configured}
+              checked={summary.configured && summary.enabled}
+              onCheckedChange={(v) => void toggleEnabled(v, true)}
+              disabled={busy || !summary.configured}
               aria-label={
-                configured
-                  ? `${enabled ? 'Disable' : 'Enable'} ${meta.displayName}${multiple ? ` · ${currentLabel}` : ''}`
+                summary.configured
+                  ? `${summary.enabled ? 'Disable' : 'Enable'} ${meta.displayName}${multiple ? ' — all accounts' : ''}`
                   : `${meta.displayName} — add credentials to enable`
               }
               title={
-                !configured
+                !summary.configured
                   ? 'Add credentials to enable this registrar'
-                  : enabled
-                    ? 'Disable this account (keeps credentials and cached data)'
-                    : 'Enable and sync this registrar'
+                  : summary.enabled
+                    ? 'Disable this registrar’s accounts (keeps credentials and cached data)'
+                    : 'Enable and sync this registrar’s accounts'
               }
             />
           </div>
-          <CollapsibleTrigger className="flex flex-1 items-center gap-[18px] text-left">
+          <CollapsibleTrigger className="flex min-w-0 flex-1 flex-wrap items-center gap-x-[18px] gap-y-1 text-left">
             <span
               className={cn(
-                'flex items-center gap-2.5 font-medium',
+                'flex shrink-0 items-center gap-2.5 whitespace-nowrap font-medium',
                 // Dim the name for a configured-but-disabled registrar so the
                 // off state reads at a glance.
-                configured && !enabled && 'opacity-50',
+                summary.configured && !summary.enabled && 'opacity-50',
               )}
             >
               <RegistrarLogo name={meta.name} label={meta.displayName} />
               {meta.displayName}
-              {multiple && !draft && (
-                <span className="text-sm font-normal text-muted-foreground">
-                  · {currentLabel}
+            </span>
+            <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+              <SyncStatus
+                meta={multiple ? summary : meta}
+                syncing={syncing}
+                showCount={!multiple}
+              />
+              {multiple && (
+                <span className="whitespace-nowrap text-xs text-muted-foreground">
+                  · {summary.sync.domainCount} domain
+                  {summary.sync.domainCount === 1 ? '' : 's'}
                 </span>
               )}
             </span>
-            <SyncStatus meta={meta} syncing={syncing} />
           </CollapsibleTrigger>
           {/* Sync only makes sense for an enabled registrar. */}
-          {configured && enabled && (
+          {summary.configured && summary.enabled && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => void runSync()}
+              onClick={() => void runSync(true)}
               disabled={busy}
-              title="Sync this registrar’s domains now"
+              title="Sync all enabled accounts for this registrar"
               // Absorb the button's height into the row's vertical padding so a
               // configured row (which shows this button) stays the same slim
               // height as an unconfigured one, rather than growing to fit it.
-              className="-my-1 text-muted-foreground hover:text-foreground"
+              className="-my-1 shrink-0 text-muted-foreground hover:text-foreground"
             >
               <RefreshCw className={cn(syncing && 'animate-spin')} />
               {syncing ? 'Syncing…' : 'Sync'}
@@ -423,6 +448,33 @@ function RegistrarCard({
                   onClick={() => setRenaming(true)}
                 >
                   Rename
+                </Button>
+              )}
+            </div>
+          )}
+          {multiple && (
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <Switch
+                checked={configured && enabled}
+                onCheckedChange={(value) => void toggleEnabled(value)}
+                disabled={busy || !configured}
+                aria-label={`${enabled ? 'Disable' : 'Enable'} ${currentLabel}`}
+              />
+              <span className="text-sm">Account status</span>
+              <SyncStatus meta={meta} syncing={syncing} showCount={false} />
+              <span className="whitespace-nowrap text-xs text-muted-foreground">
+                · {meta.sync.domainCount} domain
+                {meta.sync.domainCount === 1 ? '' : 's'}
+              </span>
+              {configured && enabled && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void runSync()}
+                >
+                  <RefreshCw className={cn(syncing && 'animate-spin')} />
+                  Sync account
                 </Button>
               )}
             </div>
@@ -877,9 +929,11 @@ function RegistrarLogo({
 function SyncStatus({
   meta,
   syncing,
+  showCount = true,
 }: {
   meta: RegistrarMeta;
   syncing: boolean;
+  showCount?: boolean;
 }) {
   if (syncing) {
     return <span className="text-sm text-muted-foreground">Syncing…</span>;
@@ -923,14 +977,16 @@ function SyncStatus({
     );
   }
   return (
-    <span className="flex items-center gap-1.5">
+    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
       <span className="size-2 shrink-0 rounded-full bg-[#31613b] dark:bg-[#7ac28d]" />
-      <span className="text-[13px] font-medium text-[#31613b] dark:text-[#7ac28d]">
+      <span className="whitespace-nowrap text-[13px] font-medium text-[#31613b] dark:text-[#7ac28d]">
         Last synced {timeAgo(lastSyncedAt)}
       </span>
-      <span className="text-xs text-muted-foreground">
-        · {domainCount} domain{domainCount === 1 ? '' : 's'}
-      </span>
+      {showCount && (
+        <span className="whitespace-nowrap text-xs text-muted-foreground">
+          · {domainCount} domain{domainCount === 1 ? '' : 's'}
+        </span>
+      )}
     </span>
   );
 }
