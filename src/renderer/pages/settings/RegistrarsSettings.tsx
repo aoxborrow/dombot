@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, CircleX, ExternalLink, RefreshCw } from 'lucide-react';
 import type {
@@ -40,6 +41,22 @@ import {
 export default function RegistrarsSettings() {
   const registrars = useAppStore((s) => s.registrars);
   const loadRegistrars = useAppStore((s) => s.loadRegistrars);
+  const [adding, setAdding] = useState<RegistrarName | null>(null);
+  const [label, setLabel] = useState('');
+  const [creating, setCreating] = useState(false);
+  const add = async (name: RegistrarName) => {
+    setCreating(true);
+    try {
+      await window.api.createRegistrarAccount(name, label);
+      await loadRegistrars();
+      setAdding(null);
+      setLabel('');
+    } catch (err) {
+      toast.error(String(err));
+    } finally {
+      setCreating(false);
+    }
+  };
 
   // Shared store metadata is the source of truth (so the status bar and Domains
   // agree); load it once and let store actions (save/sync) keep it fresh.
@@ -60,15 +77,60 @@ export default function RegistrarsSettings() {
       <div>
         <h2 className="text-xl font-bold">Registrars</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Store API credentials for each registrar. They&apos;re encrypted at
-          rest and used by both the app and the MCP server. Saving syncs that
-          registrar&apos;s domains automatically.
+          Add named accounts for each registrar. Credentials are encrypted at
+          rest and shared by the app and MCP. Saving syncs only that account.
         </p>
       </div>
 
       <div className="flex flex-col gap-3">
-        {sorted.map((r) => (
-          <RegistrarCard key={r.name} meta={r} />
+        {(Object.keys(REGISTRAR_HELP) as RegistrarName[]).sort().map((name) => (
+          <section key={name} className="flex flex-col gap-3" aria-label={name}>
+            {sorted
+              .filter((r) => r.name === name)
+              .map((r) => (
+                <RegistrarCard key={r.accountId ?? r.name} meta={r} />
+              ))}
+            {adding === name ? (
+              <form
+                className="flex items-center gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void add(name);
+                }}
+              >
+                <Input
+                  aria-label="New account label"
+                  placeholder="Personal or Company"
+                  value={label}
+                  maxLength={100}
+                  onChange={(e) => setLabel(e.target.value)}
+                  autoFocus
+                />
+                <Button disabled={creating || !label.trim()} type="submit">
+                  Add
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setAdding(null)}
+                >
+                  Cancel
+                </Button>
+              </form>
+            ) : (
+              <Button
+                variant="outline"
+                className="self-start"
+                onClick={() => {
+                  setAdding(name);
+                  setLabel('');
+                }}
+              >
+                Add account to{' '}
+                {sorted.find((r) => r.name === name)?.displayName ?? name}
+              </Button>
+            )}
+          </section>
         ))}
       </div>
     </div>
@@ -78,6 +140,11 @@ export default function RegistrarsSettings() {
 function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
   const syncRegistrar = useAppStore((s) => s.syncRegistrar);
   const setRegistrarEnabled = useAppStore((s) => s.setRegistrarEnabled);
+  const [label, setLabel] = useState(meta.accountLabel ?? 'Default');
+  const [testing, setTesting] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const loadRegistrars = useAppStore((s) => s.loadRegistrars);
+  const refreshCache = useAppStore((s) => s.applyPortfolioCacheUpdate);
   const [values, setValues] = useState<CredentialValues>({});
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -86,9 +153,12 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
 
   useEffect(() => {
     if (open) {
-      void window.api.getRegistrarCredentials(meta.name).then(setValues);
+      void window.api
+        .getRegistrarCredentials(meta.name, meta.accountId)
+        .then(setValues)
+        .catch((err) => toast.error(String(err)));
     }
-  }, [open, meta.name]);
+  }, [open, meta.name, meta.accountId]);
 
   // Sync this registrar's domains. `syncRegistrar` updates the shared store
   // (portfolio + metadata), so this card's header status, the status bar, and
@@ -96,7 +166,9 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
   const runSync = async () => {
     setSyncing(true);
     try {
-      await syncRegistrar(meta.name);
+      await syncRegistrar(meta.name, meta.accountId);
+    } catch (err) {
+      toast.error(String(err));
     } finally {
       setSyncing(false);
     }
@@ -107,26 +179,56 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
   const save = async () => {
     setSaving(true);
     try {
-      await window.api.saveRegistrarCredentials(meta.name, values);
-      await runSync();
+      const stored = await window.api.getRegistrarCredentials(
+        meta.name,
+        meta.accountId,
+      );
+      const clean = Object.fromEntries(
+        Object.entries(values)
+          .map(([key, value]) => [key, value.trim()])
+          .filter(([, value]) => value),
+      );
+      const changed = Object.keys({ ...stored, ...clean }).some(
+        (key) => stored[key] !== clean[key],
+      );
+      if (changed)
+        await window.api.saveRegistrarCredentials(
+          meta.name,
+          clean,
+          meta.accountId,
+        );
+      setValues(clean);
+      await window.api.renameRegistrarAccount(
+        meta.accountId ?? meta.name,
+        label,
+      );
+      if (changed) await runSync();
+      else {
+        await loadRegistrars();
+        await refreshCache();
+      }
+    } catch (err) {
+      toast.error(String(err));
     } finally {
       setSaving(false);
     }
   };
 
-  // Enable/disable this registrar. Disabling keeps its credentials but drops its
+  // Enable/disable this registrar. Disabling keeps its credentials and
   // cached data and stops syncs; enabling re-syncs it. The store updates the
   // portfolio, pricing, and metadata, so every surface reflects it.
   const toggleEnabled = async (next: boolean) => {
     setToggling(true);
     try {
-      await setRegistrarEnabled(meta.name, next);
+      await setRegistrarEnabled(meta.name, next, meta.accountId);
+    } catch (err) {
+      toast.error(String(err));
     } finally {
       setToggling(false);
     }
   };
 
-  const busy = saving || syncing || toggling;
+  const busy = saving || syncing || toggling || testing;
   const { configured, enabled, sync } = meta;
   const help = REGISTRAR_HELP[meta.name];
 
@@ -147,14 +249,14 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
               disabled={busy || !configured}
               aria-label={
                 configured
-                  ? `${enabled ? 'Disable' : 'Enable'} ${meta.displayName}`
+                  ? `${enabled ? 'Disable' : 'Enable'} ${meta.displayName} · ${meta.accountLabel ?? 'Default'}`
                   : `${meta.displayName} — add credentials to enable`
               }
               title={
                 !configured
                   ? 'Add credentials to enable this registrar'
                   : enabled
-                    ? 'Disable this registrar (keeps credentials, drops its data)'
+                    ? 'Disable this account (keeps credentials and cached data)'
                     : 'Enable and sync this registrar'
               }
             />
@@ -169,7 +271,7 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
               )}
             >
               <RegistrarLogo name={meta.name} label={meta.displayName} />
-              {meta.displayName}
+              {meta.displayName} · {meta.accountLabel ?? 'Default'}
             </span>
             <SyncStatus meta={meta} syncing={syncing} />
           </CollapsibleTrigger>
@@ -220,8 +322,19 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
           </div>
 
           <FieldGroup className="gap-4">
+            <Field>
+              <FieldLabel htmlFor={`${meta.accountId}-label`}>
+                Account label
+              </FieldLabel>
+              <Input
+                id={`${meta.accountId}-label`}
+                value={label}
+                maxLength={100}
+                onChange={(e) => setLabel(e.target.value)}
+              />
+            </Field>
             {meta.configFields.map((field) => {
-              const id = `${meta.name}-${field.name}`;
+              const id = `${meta.accountId ?? meta.name}-${field.name}`;
               const fieldHelp = help.fields[field.name];
               return (
                 <Field key={field.name} className="gap-1.5">
@@ -262,6 +375,7 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
                     <Input
                       id={id}
                       value={values[field.name] ?? ''}
+                      type={field.type === 'password' ? 'password' : 'text'}
                       autoComplete="off"
                       spellCheck={false}
                       className="font-mono"
@@ -279,8 +393,41 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
           </FieldGroup>
 
           <div className="mt-4 flex items-center gap-3">
-            <Button onClick={() => void save()} disabled={busy}>
+            <Button
+              onClick={() => void save()}
+              disabled={busy || !label.trim()}
+            >
               {saving ? 'Saving…' : 'Save'}
+            </Button>
+            {configured && enabled && (
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={async () => {
+                  setTesting(true);
+                  try {
+                    const result = await window.api.testRegistrarAccount(
+                      meta.name,
+                      meta.accountId,
+                    );
+                    if (result.success) toast.success('Connection successful');
+                    else toast.error(result.message ?? 'Connection failed');
+                  } catch (err) {
+                    toast.error(String(err));
+                  } finally {
+                    setTesting(false);
+                  }
+                }}
+              >
+                {testing ? 'Testing…' : 'Test connection'}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setRemoving(!removing)}
+            >
+              Remove account
             </Button>
             {configured && !syncing && sync.lastError && (
               <span className="ml-auto flex items-center gap-1.5 text-sm text-destructive">
@@ -289,6 +436,34 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
               </span>
             )}
           </div>
+          {removing && (
+            <div className="mt-3 flex items-center gap-3 text-sm">
+              <span>Remove this account’s credentials and cached domains?</span>
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={async () => {
+                  setSaving(true);
+                  try {
+                    await window.api.removeRegistrarAccount(
+                      meta.accountId ?? meta.name,
+                    );
+                    await loadRegistrars();
+                    await refreshCache();
+                  } catch (err) {
+                    toast.error(String(err));
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              >
+                Remove
+              </Button>
+              <Button variant="ghost" onClick={() => setRemoving(false)}>
+                Cancel
+              </Button>
+            </div>
+          )}
         </CollapsibleContent>
       </Collapsible>
     </Card>

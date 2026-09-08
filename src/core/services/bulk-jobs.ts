@@ -1,3 +1,4 @@
+import { resolveDomainAccount } from './registrars';
 import type {
   BulkJob,
   BulkStep,
@@ -94,7 +95,9 @@ interface StoredJob extends BulkJob {
 }
 
 const sameTarget = (a: DomainTarget, b: DomainTarget): boolean =>
-  a.registrar === b.registrar && a.domainName === b.domainName;
+  a.registrar === b.registrar &&
+  (a.accountId ?? a.registrar) === (b.accountId ?? b.registrar) &&
+  a.domainName === b.domainName;
 
 const JOB_KEY = 'job';
 const store = new Namespace<StoredJob>('bulk-jobs');
@@ -115,7 +118,23 @@ export function setBulkAutoDrive(enabled: boolean): void {
 function loadJob(): StoredJob | null {
   if (!job) {
     const stored = store.get(JOB_KEY);
-    job = stored ? { ...stored, inFlight: stored.inFlight ?? [] } : null;
+    // Pre-account jobs were queued under the provider's legacy default account.
+    // Pin those targets to that ID; never infer a newly-added account on resume.
+    const migratedTarget = (target: DomainTarget): DomainTarget => ({
+      ...target,
+      accountId: target.accountId ?? target.registrar,
+    });
+    job = stored
+      ? {
+          ...stored,
+          pending: stored.pending.map(migratedTarget),
+          inFlight: (stored.inFlight ?? []).map(migratedTarget),
+          results: stored.results.map((r) => ({
+            ...r,
+            target: migratedTarget(r.target),
+          })),
+        }
+      : null;
   }
   return job;
 }
@@ -169,6 +188,10 @@ export function isBulkRunning(): boolean {
 export function startBulk(targets: DomainTarget[], op: DomainOp): BulkJob {
   if (isBulkRunning()) throw new Error('A bulk job is already running.');
   if (targets.length === 0) throw new Error('No domains selected.');
+  targets = targets.map((t) => ({
+    ...t,
+    accountId: resolveDomainAccount(t.registrar, t.domainName, t.accountId).id,
+  }));
 
   job = {
     id: crypto.randomUUID(),

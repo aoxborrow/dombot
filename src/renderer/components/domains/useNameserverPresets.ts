@@ -1,3 +1,4 @@
+import { domainKey } from '../../../shared/account-key';
 import { useEffect, useMemo } from 'react';
 import { useAppStore } from '../../store/app';
 import {
@@ -22,7 +23,7 @@ export function useNameserverPresets(): NameserverPreset[] {
   return useMemo(
     () =>
       nameserverPresets(
-        portfolio.map((d) => enriched[`${d.registrar}:${d.domainName}`] ?? d),
+        portfolio.map((d) => enriched[domainKey(d)] ?? d),
         settings?.recentNameservers ?? [],
       ),
     [portfolio, enriched, settings],

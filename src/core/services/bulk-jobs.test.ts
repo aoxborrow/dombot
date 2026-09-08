@@ -1,3 +1,10 @@
+vi.mock('./registrars', () => ({
+  resolveDomainAccount: (registrar: string, _domain: string, id?: string) => ({
+    registrar,
+    id: id ?? registrar,
+    label: 'Default',
+  }),
+}));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   DomainOp,
@@ -41,7 +48,7 @@ import {
 
 const AUTO_RENEW: DomainOp = { kind: 'autoRenew', enabled: true };
 const targets = (registrar: DomainTarget['registrar'], ...names: string[]) =>
-  names.map((domainName) => ({ registrar, domainName }));
+  names.map((domainName) => ({ registrar, domainName, accountId: registrar }));
 
 // A canned result for a target, defaulting to ok.
 const resultFor = (

@@ -7,11 +7,23 @@
 // Type-only import: erased at build time, so the renderer bundle never resolves
 // the library — only tsc uses it (via the tsconfig `paths` alias to source).
 import type {
-  Domain,
+  Domain as ProviderDomain,
+  ConnectionResult,
   DomainForward,
   EmailForward,
   RegistrarName,
 } from '@aoxborrow/registrar-client';
+
+/** Account identity is supplied by Dombot, never by a registrar response. */
+export interface RegistrarAccount {
+  id: string;
+  registrar: RegistrarName;
+  label: string;
+}
+export type Domain = ProviderDomain & {
+  accountId?: string;
+  accountLabel?: string;
+};
 
 /** Channel identifiers for `ipcRenderer.invoke` / `ipcMain.handle`. */
 export const IpcChannels = {
@@ -34,6 +46,10 @@ export const IpcChannels = {
   exportData: 'data:export',
   importData: 'data:import',
   getRegistrarMetadata: 'registrar:getMetadata',
+  createRegistrarAccount: 'registrar:createAccount',
+  renameRegistrarAccount: 'registrar:renameAccount',
+  removeRegistrarAccount: 'registrar:removeAccount',
+  testRegistrarAccount: 'registrar:testAccount',
   getRegistrarCredentials: 'registrar:getCredentials',
   saveRegistrarCredentials: 'registrar:saveCredentials',
   setRegistrarEnabled: 'registrar:setEnabled',
@@ -175,12 +191,14 @@ export interface RegistrarSync {
 /** Metadata that drives the Settings > Registrars form. Help copy is not
  *  carried here — the renderer reads it from `registrar-help.ts`. */
 export interface RegistrarMeta {
+  accountId?: string;
+  accountLabel?: string;
   name: RegistrarName;
   displayName: string;
   supportsSandbox: boolean;
   configured: boolean;
-  /** Whether the registrar is enabled (default). Disabled = credentials kept but
-   *  no syncs and no cached data; only meaningful when `configured`. */
+  /** Whether the registrar is enabled (default). Disabled = credentials and cached data kept but
+   *  excluded from syncs and portfolio; only meaningful when `configured`. */
   enabled: boolean;
   /** Sync state (from cache), present regardless of whether it's configured. */
   sync: RegistrarSync;
@@ -235,6 +253,7 @@ export type PriceSource = 'api' | 'base' | 'manual' | 'unavailable';
 
 /** A domain's annual renewal price (USD), with provenance. */
 export interface RenewalPricing {
+  accountId?: string;
   domain: string;
   registrar: string;
   /** Annual renewal price in USD, or null when unknown. */
@@ -283,6 +302,7 @@ export type DomainOp =
 export type DomainOpKind = DomainOp['kind'];
 
 export interface DomainTarget {
+  accountId?: string;
   registrar: RegistrarName;
   domainName: string;
 }
@@ -345,10 +365,12 @@ export interface BulkProgress {
 }
 
 /** Re-exported so the renderer can type data without importing the lib. */
-export type { Domain, DomainForward, EmailForward, RegistrarName };
+export type { DomainForward, EmailForward, RegistrarName };
 
 /** A per-registrar failure from a portfolio fetch, flattened for IPC transport. */
 export interface PortfolioErrorInfo {
+  accountId?: string;
+  accountLabel?: string;
   /** The registrar id that failed, e.g. "godaddy". */
   registrar: string;
   /** The error message (Error objects don't survive structured clone as-is). */
@@ -380,9 +402,9 @@ export interface Portfolio {
 export interface CachedSnapshot {
   /** Cached portfolio, or null when nothing has ever been fetched. */
   portfolio: Portfolio | null;
-  /** Per-domain detail (nameservers/privacy/lock/created), keyed `registrar:domain`. */
+  /** Per-domain detail (nameservers/privacy/lock/created), keyed `accountId:domain`. */
   detail: Record<string, Partial<Domain>>;
-  /** Renewal pricing keyed `registrar:domain`, computed from cache (no network). */
+  /** Renewal pricing keyed `accountId:domain`, computed from cache (no network). */
   pricing: Record<string, RenewalPricing>;
 }
 
@@ -464,7 +486,7 @@ export type FolderPatch = Partial<
 
 /**
  * Everything the renderer restores on launch: the folder definitions plus the
- * domain→folder map (keyed `${registrar}:${domainName}`). Mirrors the shape of
+ * domain→folder map (keyed `${accountId}:${domainName}`). Mirrors the shape of
  * CachedSnapshot. A domain absent from `assignments` is unassigned.
  */
 export interface FoldersSnapshot {
@@ -507,7 +529,7 @@ export interface DombotApi {
   /** Drop every on-disk data cache (portfolio, detail, pricing). */
   clearAllCaches: () => Promise<void>;
 
-  /** Renewal prices for the whole cached portfolio, keyed `registrar:domain`.
+  /** Renewal prices for the whole cached portfolio, keyed `accountId:domain`.
    *  Computed locally (base rates + Sync-captured quotes + manual overrides). */
   getPortfolioPricing: () => Promise<Record<string, RenewalPricing>>;
   /** Set (or clear, with null) a manual annual renewal price for a domain. */
@@ -515,6 +537,7 @@ export interface DombotApi {
     registrar: RegistrarName,
     domain: string,
     price: number | null,
+    accountId?: string,
   ) => Promise<void>;
 
   // Registrars
@@ -530,7 +553,10 @@ export interface DombotApi {
    * portfolio, and return the updated aggregate. Used right after saving that
    * registrar's credentials so its domains appear without a full re-sync.
    */
-  syncRegistrar: (name: RegistrarName) => Promise<Portfolio>;
+  syncRegistrar: (
+    name: RegistrarName,
+    accountId?: string,
+  ) => Promise<Portfolio>;
   /**
    * Best-available per-domain detail (nameservers/privacy/lock) to merge over
    * the list summary — a partial, or `null` when nothing could be resolved.
@@ -541,6 +567,7 @@ export interface DombotApi {
     registrar: RegistrarName,
     domainName: string,
     refresh?: boolean,
+    accountId?: string,
   ) => Promise<Partial<Domain> | null>;
   /**
    * Apply one domain operation (toggle a flag, replace nameservers/forwarding,
@@ -574,17 +601,32 @@ export interface DombotApi {
   stepBulk: (jobId: string) => Promise<BulkStep>;
   onBulkProgress: (callback: (p: BulkProgress) => void) => () => void;
   onBulkFinished: (callback: (job: BulkJob) => void) => () => void;
+  createRegistrarAccount: (
+    name: RegistrarName,
+    label: string,
+  ) => Promise<RegistrarAccount>;
+  renameRegistrarAccount: (accountId: string, label: string) => Promise<void>;
+  removeRegistrarAccount: (accountId: string) => Promise<void>;
+  testRegistrarAccount: (
+    name: RegistrarName,
+    accountId?: string,
+  ) => Promise<ConnectionResult>;
   getRegistrarMetadata: () => Promise<RegistrarMeta[]>;
-  getRegistrarCredentials: (name: RegistrarName) => Promise<CredentialValues>;
+  getRegistrarCredentials: (
+    name: RegistrarName,
+    accountId?: string,
+  ) => Promise<CredentialValues>;
   saveRegistrarCredentials: (
     name: RegistrarName,
     creds: CredentialValues,
+    accountId?: string,
   ) => Promise<void>;
-  /** Enable/disable a registrar (keeps credentials). Disabling drops its cached
+  /** Enable/disable a registrar (keeps credentials). Disabling keeps its cached
    *  data and stops syncs; enabling re-syncs it. Returns the updated portfolio. */
   setRegistrarEnabled: (
     name: RegistrarName,
     enabled: boolean,
+    accountId?: string,
   ) => Promise<Portfolio>;
 
   // MCP server

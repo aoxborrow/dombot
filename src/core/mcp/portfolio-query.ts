@@ -3,7 +3,8 @@
 // can be unit-tested in isolation; tools.ts owns the zod schema and feeds this
 // the cache reads (merged domains, folders, assignments).
 
-import type { Domain } from '@aoxborrow/registrar-client';
+import type { Domain } from '../../shared/ipc';
+import { domainKey } from '../../shared/account-key';
 import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
 
 export const DEFAULT_LIMIT = 50;
@@ -15,6 +16,7 @@ export type QuerySort =
 
 /** The filter/sort/page inputs, already parsed (all optional). */
 export interface QueryArgs {
+  accountId?: string;
   registrar?: string;
   tld?: string;
   folder?: string;
@@ -36,6 +38,8 @@ export interface QueryArgs {
 /** Only the fields an agent needs for a row — drops `syncedAt`/`deleted`, adds
  *  the domain's folder name (user-assigned grouping) when it has one. */
 export interface QueryRow {
+  accountId?: string;
+  accountLabel?: string;
   registrar: string;
   domainName: string;
   status: string;
@@ -118,7 +122,7 @@ export function queryPortfolio(
   args: QueryArgs,
 ): QueryResult {
   const folderNameFor = (d: Domain): string | null => {
-    const id = assignments[`${d.registrar}:${d.domainName}`];
+    const id = assignments[domainKey(d)];
     if (!id) return null;
     if (id === HIDDEN_FOLDER_ID) return 'Hidden';
     return folders.find((f) => f.id === id)?.name ?? null;
@@ -141,12 +145,13 @@ export function queryPortfolio(
       : undefined;
 
   const filtered = domains.filter((d) => {
+    if (args.accountId && (d.accountId ?? d.registrar) !== args.accountId)
+      return false;
     if (args.registrar != null && d.registrar !== args.registrar) return false;
     if (suffix != null && !d.domainName.toLowerCase().endsWith(suffix))
       return false;
     if (folderId !== undefined) {
-      if (assignments[`${d.registrar}:${d.domainName}`] !== folderId)
-        return false;
+      if (assignments[domainKey(d)] !== folderId) return false;
     }
     if (nameNeedle && !d.domainName.toLowerCase().includes(nameNeedle))
       return false;
@@ -203,6 +208,8 @@ export function queryPortfolio(
   const limit = args.limit ?? DEFAULT_LIMIT;
   const rows: QueryRow[] = filtered.slice(offset, offset + limit).map((d) => ({
     registrar: d.registrar,
+    accountId: d.accountId ?? d.registrar,
+    accountLabel: d.accountLabel ?? 'Default',
     domainName: d.domainName,
     status: d.status,
     createdDate: d.createdDate,

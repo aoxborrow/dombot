@@ -17,6 +17,8 @@ import {
 } from '../services/folders';
 import { setManualPrice } from '../services/pricing';
 import {
+  removeRegistrarAccount,
+  resolveDomainAccount,
   getCachedDetail,
   getCachedPortfolio,
   getConfiguredRegistrars,
@@ -44,6 +46,7 @@ import {
   revokeMcpClient,
 } from '../mcp/oauth';
 import * as s from './schemas';
+import { createAccount, renameAccount } from '../services/accounts';
 
 // The API method table: one entry per request/response method of `DombotApi`,
 // each with a zod schema for its arguments and the handler. Hosts generate
@@ -172,9 +175,19 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   // ── Pricing ───────────────────────────────────────────────────────────────
   getPortfolioPricing: method(none, async () => getPortfolioPricing()),
   setManualPrice: method(
-    z.tuple([s.registrarName, s.domainName, z.number().nullable()]),
-    async (registrar, domain, price) => {
-      setManualPrice(registrar, domain, price);
+    z.tuple([
+      s.registrarName,
+      s.domainName,
+      z.number().nullable(),
+      s.accountId,
+    ]),
+    async (registrar, domain, price, accountId) => {
+      setManualPrice(
+        registrar,
+        domain,
+        price,
+        resolveDomainAccount(registrar, domain, accountId).id,
+      );
     },
   ),
 
@@ -186,27 +199,49 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     z.tuple([z.boolean().optional()]),
     async (refresh = true) => getPortfolio(refresh),
   ),
-  syncRegistrar: method(z.tuple([s.registrarName]), async (name) =>
-    syncRegistrar(name),
+  syncRegistrar: method(
+    z.tuple([s.registrarName, s.accountId]),
+    async (name, accountId) => syncRegistrar(name, accountId),
   ),
   getDomainDetail: method(
-    z.tuple([s.registrarName, s.domainName, z.boolean().optional()]),
-    async (name, domainName, refresh = false) =>
-      getDomainDetail(name, domainName, refresh),
+    z.tuple([
+      s.registrarName,
+      s.domainName,
+      z.boolean().optional(),
+      s.accountId,
+    ]),
+    async (name, domainName, refresh = false, accountId) =>
+      getDomainDetail(name, domainName, refresh, accountId),
+  ),
+  createRegistrarAccount: method(
+    z.tuple([s.registrarName, z.string().trim().min(1).max(100)]),
+    createAccount,
+  ),
+  renameRegistrarAccount: method(
+    z.tuple([z.string(), z.string().trim().min(1).max(100)]),
+    renameAccount,
+  ),
+  removeRegistrarAccount: method(z.tuple([z.string()]), removeRegistrarAccount),
+  testRegistrarAccount: method(
+    z.tuple([s.registrarName, s.accountId]),
+    async (name, accountId) =>
+      getRegistrarClient(name, accountId).testConnection(),
   ),
   getRegistrarMetadata: method(none, async () => getRegistrarMetadata()),
-  getRegistrarCredentials: method(z.tuple([s.registrarName]), async (name) =>
-    getRegistrarCredentialValues(name),
+  getRegistrarCredentials: method(
+    z.tuple([s.registrarName, s.accountId]),
+    async (name, accountId) => getRegistrarCredentialValues(name, accountId),
   ),
   saveRegistrarCredentials: method(
-    z.tuple([s.registrarName, s.credentialValues]),
-    async (name, creds) => {
-      await saveRegistrarCredentials(name, creds);
+    z.tuple([s.registrarName, s.credentialValues, s.accountId]),
+    async (name, creds, accountId) => {
+      await saveRegistrarCredentials(name, creds, accountId);
     },
   ),
   setRegistrarEnabled: method(
-    z.tuple([s.registrarName, z.boolean()]),
-    async (name, enabled) => setRegistrarEnabledCached(name, enabled),
+    z.tuple([s.registrarName, z.boolean(), s.accountId]),
+    async (name, enabled, accountId) =>
+      setRegistrarEnabledCached(name, enabled, accountId),
   ),
 
   // ── Domain operations ─────────────────────────────────────────────────────
@@ -219,15 +254,25 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   // Forwarding reads back the per-row dialogs. Live — not part of the cache.
   getUrlForwarding: method(z.tuple([s.domainTarget]), async (target) => {
     requireFeature(target, 'getDomainForwarding', 'URL forwarding');
-    return getRegistrarClient(target.registrar).getDomainForwarding(
-      target.domainName,
-    );
+    return getRegistrarClient(
+      target.registrar,
+      resolveDomainAccount(
+        target.registrar,
+        target.domainName,
+        target.accountId,
+      ).id,
+    ).getDomainForwarding(target.domainName);
   }),
   getEmailForwarding: method(z.tuple([s.domainTarget]), async (target) => {
     requireFeature(target, 'getEmailForwarding', 'email forwarding');
-    return getRegistrarClient(target.registrar).getEmailForwarding(
-      target.domainName,
-    );
+    return getRegistrarClient(
+      target.registrar,
+      resolveDomainAccount(
+        target.registrar,
+        target.domainName,
+        target.accountId,
+      ).id,
+    ).getEmailForwarding(target.domainName);
   }),
 
   // ── Bulk jobs ─────────────────────────────────────────────────────────────

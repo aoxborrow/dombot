@@ -1,3 +1,4 @@
+import { domainKey } from '../../shared/account-key';
 // Pure aggregation over the portfolio + renewal pricing, for the Renewals
 // dashboard. No React, no IPC — just numbers in, numbers out. All money is USD.
 
@@ -5,7 +6,7 @@ import type { Domain, RenewalPricing } from '../../shared/ipc';
 
 /** Stable per-domain key, matching the store's `pricing` map keys. */
 export function priceKey(d: Domain): string {
-  return `${d.registrar}:${d.domainName}`;
+  return domainKey(d);
 }
 
 /** The pricing record for a domain, if fetched. */

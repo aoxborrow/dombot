@@ -1,3 +1,4 @@
+import { domainKey } from '../../../shared/account-key';
 import type { LucideIcon } from 'lucide-react';
 import type { Domain, DomainOp } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
@@ -38,7 +39,7 @@ export function FlagToggle({
   offLabel: string;
 }) {
   const applyDomainOp = useAppStore((s) => s.applyDomainOp);
-  const key = `${domain.registrar}:${domain.domainName}`;
+  const key = domainKey(domain);
   const pending = useAppStore((s) => s.mutating[key] ?? false);
 
   const value = kind === 'privacy' ? domain.privacy : domain.locked;

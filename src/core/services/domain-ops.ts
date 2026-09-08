@@ -19,6 +19,7 @@ import {
 } from '../../shared/domain-ops';
 import { broadcastPortfolioChanged } from '../events';
 import {
+  resolveDomainAccount,
   getRegistrarClient,
   getRegistrarFeatures,
   renewDomainCached,
@@ -72,6 +73,12 @@ export async function applyDomainOp(
 
   const request: RequestOptions = { signal: opts.signal };
   try {
+    const account = resolveDomainAccount(
+      target.registrar,
+      target.domainName,
+      target.accountId,
+    );
+    target = { ...target, accountId: account.id };
     const result = await dispatch(target, op, request, done);
     if (result.status === 'ok' && !opts.silent) broadcastPortfolioChanged();
     return result;
@@ -87,7 +94,7 @@ type Done = (
 ) => DomainOpResult;
 
 async function dispatch(
-  { registrar, domainName }: DomainTarget,
+  { registrar, domainName, accountId }: DomainTarget,
   op: DomainOp,
   request: RequestOptions,
   done: Done,
@@ -103,17 +110,35 @@ async function dispatch(
   switch (op.kind) {
     case 'autoRenew':
       return fromResult(
-        await setAutoRenewCached(registrar, domainName, op.enabled, request),
+        await setAutoRenewCached(
+          registrar,
+          domainName,
+          op.enabled,
+          request,
+          accountId,
+        ),
         { autoRenew: op.enabled },
       );
     case 'privacy':
       return fromResult(
-        await setPrivacyCached(registrar, domainName, op.enabled, request),
+        await setPrivacyCached(
+          registrar,
+          domainName,
+          op.enabled,
+          request,
+          accountId,
+        ),
         { privacy: op.enabled },
       );
     case 'lock':
       return fromResult(
-        await setLockCached(registrar, domainName, op.locked, request),
+        await setLockCached(
+          registrar,
+          domainName,
+          op.locked,
+          request,
+          accountId,
+        ),
         { locked: op.locked },
       );
     case 'nameservers':
@@ -123,6 +148,7 @@ async function dispatch(
           domainName,
           op.nameservers,
           request,
+          accountId,
         ),
         { nameservers: op.nameservers },
       );
@@ -134,11 +160,12 @@ async function dispatch(
         domainName,
         op.years,
         { ...request, retries: 0 },
+        accountId,
       );
       return fromResult(result, patch);
     }
     case 'urlForwarding': {
-      const client = getRegistrarClient(registrar);
+      const client = getRegistrarClient(registrar, accountId);
       if (op.skipIfExisting) {
         const current = await client.getDomainForwarding(domainName, request);
         if (current.length > 0) {
@@ -159,7 +186,7 @@ async function dispatch(
       );
     }
     case 'emailForwarding': {
-      const client = getRegistrarClient(registrar);
+      const client = getRegistrarClient(registrar, accountId);
       if (op.skipIfExisting) {
         const current = await client.getEmailForwarding(domainName, request);
         if (current.length > 0) {
@@ -180,10 +207,10 @@ async function dispatch(
     case 'authCode': {
       // The RegistrarClient facade doesn't re-expose this extended method;
       // reach through to the provider (as the MCP tool always has).
-      const authCode = await getRegistrarClient(registrar).provider.getAuthCode(
-        domainName,
-        request,
-      );
+      const authCode = await getRegistrarClient(
+        registrar,
+        accountId,
+      ).provider.getAuthCode(domainName, request);
       return done('ok', opSummary(op), { data: { authCode } });
     }
   }

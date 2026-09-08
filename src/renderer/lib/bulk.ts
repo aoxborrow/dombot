@@ -130,12 +130,13 @@ function csvField(value: string): string {
 /** The results report: one row per target with its status and message. */
 export function resultsToCsv(job: BulkJob): string {
   const withCodes = hasAuthCodes(job);
-  const header = ['Domain', 'Registrar', 'Status', 'Message'];
+  const header = ['Domain', 'Registrar', 'Account ID', 'Status', 'Message'];
   if (withCodes) header.push('Auth code');
   const rows = job.results.map((r) => {
     const row = [
       r.target.domainName,
       r.target.registrar,
+      r.target.accountId ?? r.target.registrar,
       STATUS_LABEL[r.status],
       r.message,
     ];

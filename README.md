@@ -51,6 +51,10 @@ encrypted on your device via your OS keychain (Electron `safeStorage`) and are
 never sent anywhere but the registrar's own API. See [SECURITY.md](SECURITY.md)
 for the full trust model and how to verify it yourself.
 
+Use **Add account** to connect several accounts at the same provider. Each has
+its own label, credentials, sync status, and portfolio data. See
+[multiple registrar accounts](docs/multi-account.md) for migration and MCP selection.
+
 ## Connecting an AI agent
 
 DomBot runs a local [MCP](https://modelcontextprotocol.io) server, bound to

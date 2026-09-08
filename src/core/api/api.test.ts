@@ -22,11 +22,9 @@ describe('invoke', () => {
     // listPortfolio(refresh?) with no args → refresh defaults to true inside
     // the handler; we only check the schema accepts the shorter call here.
     const entry = coreMethods.getDomainDetail;
-    expect(entry.args.parse(['dynadot', 'a.com', undefined])).toEqual([
-      'dynadot',
-      'a.com',
-      undefined,
-    ]);
+    expect(
+      entry.args.parse(['dynadot', 'a.com', undefined, undefined]),
+    ).toEqual(['dynadot', 'a.com', undefined, undefined]);
     // Through invoke: same call minus the optional arg. The registrar client
     // isn't configured, so the handler resolves null for an unknown domain.
     await expect(

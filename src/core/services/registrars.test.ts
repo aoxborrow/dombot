@@ -1,3 +1,5 @@
+import { configureStore, hydrateStores } from '../storage/namespace';
+import { MemoryDocStore } from '../storage/doc-store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ── Boundary mocks ───────────────────────────────────────────────────────────
@@ -163,7 +165,9 @@ function seedSlice(
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  configureStore(new MemoryDocStore());
+  await hydrateStores();
   vi.clearAllMocks();
   store.portfolio = {};
   store.detail = {};
@@ -247,7 +251,14 @@ describe('getCachedPortfolio / assemblePortfolio', () => {
     seedSlice('porkbun', [], { lastSyncedAt: null, lastError: 'boom' });
     const p = getCachedPortfolio()!;
     expect(p.registrars).toEqual(['dynadot']);
-    expect(p.errors).toEqual([{ registrar: 'porkbun', message: 'boom' }]);
+    expect(p.errors).toEqual([
+      {
+        registrar: 'porkbun',
+        accountId: 'porkbun',
+        accountLabel: 'Default',
+        message: 'boom',
+      },
+    ]);
   });
 });
 
@@ -331,7 +342,12 @@ describe('syncRegistrarInto — last-good on error (via getPortfolio)', () => {
     expect(slice.lastSyncedAt).toBe(4242);
     expect(slice.lastError).toBe('rate limited');
     expect(p.errors).toEqual([
-      { registrar: 'dynadot', message: 'rate limited' },
+      {
+        registrar: 'dynadot',
+        accountId: 'dynadot',
+        accountLabel: 'Default',
+        message: 'rate limited',
+      },
     ]);
   });
 
@@ -560,7 +576,12 @@ describe('getDomainDetail — nameserver resolution', () => {
       fetchedAt: Date.now(),
     };
     const detail = await getDomainDetail('dynadot', 'a.com');
-    expect(detail).toEqual({ nameservers: ['cached.ns'] });
+    expect(detail).toEqual({
+      nameservers: ['cached.ns'],
+      registrar: 'dynadot',
+      accountId: 'dynadot',
+      accountLabel: 'Default',
+    });
     expect(clientMethods.getDomain).not.toHaveBeenCalled();
   });
 

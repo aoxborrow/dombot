@@ -21,7 +21,11 @@ import { useAppStore } from '../store/app';
 
 /** The IPC target for a row. */
 export function targetOf(d: Domain): DomainTarget {
-  return { registrar: d.registrar as RegistrarName, domainName: d.domainName };
+  return {
+    registrar: d.registrar as RegistrarName,
+    domainName: d.domainName,
+    accountId: d.accountId,
+  };
 }
 
 /**

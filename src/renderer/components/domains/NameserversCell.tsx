@@ -1,3 +1,4 @@
+import { domainKey } from '../../../shared/account-key';
 import { useState } from 'react';
 import { ChevronDown, Loader2 } from 'lucide-react';
 import type { Domain, DomainOp } from '../../../shared/ipc';
@@ -32,7 +33,7 @@ const EDITOR_NOTE: Record<string, string> = {
 export function NameserversCell({ domain }: { domain: Domain }) {
   const applyDomainOp = useAppStore((s) => s.applyDomainOp);
   const rememberNameservers = useAppStore((s) => s.rememberNameservers);
-  const key = `${domain.registrar}:${domain.domainName}`;
+  const key = domainKey(domain);
   const pending = useAppStore((s) => s.mutating[key] ?? false);
   const [open, setOpen] = useState(false);
 

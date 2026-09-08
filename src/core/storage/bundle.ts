@@ -1,3 +1,4 @@
+import { validateAccountRecords } from '../services/accounts';
 import {
   broadcastApprovalsChanged,
   broadcastPortfolioChanged,
@@ -20,14 +21,14 @@ import { exportNamespaces, importNamespaces } from './namespace';
 // a Worker's CPU budget. This module only ever sees plain bundles.
 
 export const BUNDLE_FORMAT = 'dombot-data';
-export const BUNDLE_VERSION = 1;
+export const BUNDLE_VERSION = 2;
 
 /** Host-specific or transient namespaces that never travel. */
 const NEVER_EXPORTED: ReadonlySet<string> = new Set(['auth', 'meta']);
 
 export interface DataBundle {
   format: typeof BUNDLE_FORMAT;
-  version: typeof BUNDLE_VERSION;
+  version: 1 | typeof BUNDLE_VERSION;
   exportedAt: string;
   /** Which DomBot wrote it (informational). */
   app: { version: string; platform: string };
@@ -69,7 +70,7 @@ export function parseBundle(text: string): DataBundle {
   if (!head || head.format !== BUNDLE_FORMAT) {
     throw new BundleError('Not a DomBot data file.');
   }
-  if (head.version !== BUNDLE_VERSION) {
+  if (head.version !== 1 && head.version !== BUNDLE_VERSION) {
     throw new BundleError(
       `This file was made by a newer DomBot (format v${String(head.version)}). Update and try again.`,
     );
@@ -86,6 +87,11 @@ export function parseBundle(text: string): DataBundle {
     if (!entries || typeof entries !== 'object' || Array.isArray(entries)) {
       throw new BundleError(`Malformed namespace "${ns}" in this file.`);
     }
+  }
+  try {
+    validateAccountRecords(head.namespaces['registrar-accounts'] ?? {});
+  } catch (err) {
+    throw new BundleError(err instanceof Error ? err.message : String(err));
   }
   return head as DataBundle;
 }

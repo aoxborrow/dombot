@@ -41,7 +41,12 @@ function job(op: DomainOp, results: DomainOpResult[]): BulkJob {
     total: results.length,
     results,
     counts: {
-      ok: 0, failed: 0, unsupported: 0, skipped: 0, 'rate-limited': 0, cancelled: 0,
+      ok: 0,
+      failed: 0,
+      unsupported: 0,
+      skipped: 0,
+      'rate-limited': 0,
+      cancelled: 0,
     },
     startedAt: Date.parse('2026-09-04T00:00:00Z'),
     finishedAt: Date.parse('2026-09-04T00:01:00Z'),
@@ -88,7 +93,12 @@ describe('isRetryable', () => {
 
 describe('flag helpers', () => {
   it('flagOf reads the matching field', () => {
-    const d = domain({ domainName: 'a.com', autoRenew: true, privacy: false, locked: true });
+    const d = domain({
+      domainName: 'a.com',
+      autoRenew: true,
+      privacy: false,
+      locked: true,
+    });
     expect(flagOf(d, 'autoRenew')).toBe(true);
     expect(flagOf(d, 'privacy')).toBe(false);
     expect(flagOf(d, 'lock')).toBe(true);
@@ -96,7 +106,10 @@ describe('flag helpers', () => {
 
   it('flagOp builds the right op shape per kind', () => {
     expect(flagOp('lock', true)).toEqual({ kind: 'lock', locked: true });
-    expect(flagOp('autoRenew', false)).toEqual({ kind: 'autoRenew', enabled: false });
+    expect(flagOp('autoRenew', false)).toEqual({
+      kind: 'autoRenew',
+      enabled: false,
+    });
     expect(flagOp('privacy', true)).toEqual({ kind: 'privacy', enabled: true });
   });
 
@@ -135,7 +148,7 @@ describe('resultsToCsv', () => {
     ]);
     const csv = resultsToCsv(j);
     const header = csv.split('\r\n')[0];
-    expect(header).toBe('Domain,Registrar,Status,Message');
+    expect(header).toBe('Domain,Registrar,Account ID,Status,Message');
     expect(header).not.toContain('Auth code');
   });
 
@@ -145,7 +158,9 @@ describe('resultsToCsv', () => {
       result('b.com'), // no code → blank cell
     ]);
     const lines = resultsToCsv(j).split('\r\n');
-    expect(lines[0]).toBe('Domain,Registrar,Status,Message,Auth code');
+    expect(lines[0]).toBe(
+      'Domain,Registrar,Account ID,Status,Message,Auth code',
+    );
     expect(lines[1].endsWith(',EPP-1')).toBe(true);
     expect(lines[2].endsWith(',')).toBe(true); // blank auth-code cell
   });
@@ -153,9 +168,9 @@ describe('resultsToCsv', () => {
 
 describe('resultsCsvFilename', () => {
   it('is hyphenated, labeled by op, and dated from startedAt', () => {
-    expect(resultsCsvFilename(job({ kind: 'autoRenew', enabled: true }, []))).toBe(
-      'dombot-bulk-auto-renew-2026-09-04.csv',
-    );
+    expect(
+      resultsCsvFilename(job({ kind: 'autoRenew', enabled: true }, [])),
+    ).toBe('dombot-bulk-auto-renew-2026-09-04.csv');
     expect(resultsCsvFilename(job({ kind: 'authCode' }, []))).toBe(
       'dombot-bulk-auth-code-2026-09-04.csv',
     );

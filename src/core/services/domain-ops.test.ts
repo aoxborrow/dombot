@@ -35,6 +35,11 @@ const getRegistrarClient = vi.fn((name: string) => {
 });
 
 vi.mock('./registrars', () => ({
+  resolveDomainAccount: (registrar: string, _domain: string, id?: string) => ({
+    registrar,
+    id: id ?? registrar,
+    label: 'Default',
+  }),
   getRegistrarFeatures: (name: string) => getRegistrarFeatures(name),
   getRegistrarClient: (name: string) => getRegistrarClient(name),
   setAutoRenewCached: (...a: unknown[]) => setAutoRenewCached(...a),
@@ -61,6 +66,7 @@ const ALL_FEATURES = [
 ];
 const target: DomainTarget = {
   registrar: 'dynadot',
+  accountId: 'dynadot',
   domainName: 'example.com',
 };
 
@@ -114,6 +120,7 @@ describe('applyDomainOp — happy paths and patches', () => {
       'example.com',
       true,
       { signal: undefined },
+      'dynadot',
     );
     expect(broadcastPortfolioChanged).toHaveBeenCalledTimes(1);
   });
@@ -242,6 +249,7 @@ describe('applyDomainOp — renew', () => {
         signal: undefined,
         retries: 0,
       },
+      'dynadot',
     );
   });
 

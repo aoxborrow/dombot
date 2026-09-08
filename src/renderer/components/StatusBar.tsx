@@ -109,10 +109,10 @@ export default function StatusBar() {
               )}
               title={
                 noneConfigured
-                  ? 'No registrars configured — open registrar settings'
+                  ? 'No accounts configured — open registrar settings'
                   : allSynced
-                    ? 'All configured registrars synced — open registrar settings'
-                    : `${configuredCount - syncedCount} registrar(s) not synced — open registrar settings`
+                    ? 'All configured accounts synced — open registrar settings'
+                    : `${configuredCount - syncedCount} account(s) not synced — open registrar settings`
               }
             >
               <span
@@ -122,7 +122,7 @@ export default function StatusBar() {
                 )}
                 aria-hidden
               />
-              {syncedCount}/{configuredCount} registrars synced
+              {syncedCount}/{configuredCount} accounts synced
             </button>
           )}
         </div>

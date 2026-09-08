@@ -60,7 +60,7 @@ export interface RenewalQuote {
   currency: string;
 }
 
-// Manual per-domain renewal overrides, keyed `${registrar}:${domain}` (USD).
+// Manual per-domain renewal overrides, keyed `${accountId ?? registrar}:${domain}` (USD).
 const overrides = new Namespace<number>('pricing-overrides');
 
 /** Everything after the first dot, lowercased. "example.co.uk" → "co.uk". */
@@ -79,8 +79,9 @@ export function resolvePricing(
   registrar: RegistrarName,
   domain: string,
   quote?: RenewalQuote,
+  accountId?: string,
 ): RenewalPricing {
-  const manual = overrides.get(`${registrar}:${domain}`);
+  const manual = overrides.get(`${accountId ?? registrar}:${domain}`);
   if (typeof manual === 'number') {
     return {
       domain,
@@ -126,8 +127,9 @@ export function setManualPrice(
   registrar: RegistrarName,
   domain: string,
   price: number | null,
+  accountId?: string,
 ): void {
-  const key = `${registrar}:${domain}`;
+  const key = `${accountId ?? registrar}:${domain}`;
   if (price === null || Number.isNaN(price)) {
     void overrides.delete(key);
   } else {
