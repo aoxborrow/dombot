@@ -28,7 +28,7 @@ Manual macOS verification used the built renderer and preload, real IPC handlers
 
 Final checks: 335 automated tests passed (the opt-in browser harness is skipped in normal test runs); TypeScript, ESLint, web build, and the macOS arm64 package passed. No blocking findings remain in the account routing and migration review.
 
-## UX revision after local feedback
+## Earlier UX revision (superseded by original-flow restoration)
 
 The initial UI exposed an empty Default account and Add account under every provider, then made users create a label-only card before entering credentials. Replaced this with a saved-account list grouped once by registrar, one Connect account entry point, and one form for provider, credentials, and an optional label. The connection is checked before persistence. Secondary management actions are in one menu. The provider catalog remains available independently of account records, including after removing a provider's last account.
 
@@ -37,3 +37,9 @@ Browser verification covered empty state, failed connection, cancellation withou
 ## MCP broken-pipe correction
 
 The user reported an EPIPE in the installed app's SDK stdio send. Its bundled code matches the SDK stdout write without an error listener. A real SDK transport over a failing Writable reproduced an unhandled EPIPE. The shim now handles pipe errors and stdin EOF/close, consumes rejected sends, and drops late HTTP responses after disconnect. Regression tests exercise EPIPE, EOF, late errors, send rejection and normal backpressure. The fix is in the local build; it does not replace the user's installed release or MCP client configuration.
+
+## Original-flow restoration
+
+The user's direction is to preserve the original UI and add multiple accounts with minimal UX changes. Restored the original registrar cards, expansion, credential fields, Save, Sync, and enable controls. Empty registrars do not offer Add another account. That action appears inside a card only after its first account is saved with credentials. Adding reuses the inline form; the account selector, optional naming/rename, and removal appear only for multiple accounts. Single-account registrars show no Default label or account field. Domains, Renewals and the status bar expose account-specific UI only when a provider has multiple accounts. Backend account IDs, encrypted data, routing, and the EPIPE fix are retained.
+
+Verified the empty → first Save → second Save transition in the browser, including the absence of Account fields for one account, appearance of the selector only after adding another, and independent selection/sync. Regression tests cover one account at each of several registrars, unused migration placeholders, three accounts grouped into one registrar card, disabled accounts, and removal back to one account. 351 automated tests pass; the optional browser harness is skipped in normal test runs.

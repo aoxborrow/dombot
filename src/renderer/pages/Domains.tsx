@@ -1,3 +1,4 @@
+import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -618,6 +619,32 @@ export default function Domains() {
     bulk,
   } = useAppStore();
 
+  const multipleAccounts = useMemo(
+    () => multiAccountRegistrars(registrars, portfolio),
+    [registrars, portfolio],
+  );
+  const showAccountDetails = multipleAccounts.size > 0;
+  const columns = useMemo(
+    () =>
+      COLUMNS.filter((c) => c.key !== 'accountLabel' || showAccountDetails).map(
+        (c) =>
+          c.key === 'accountLabel'
+            ? {
+                ...c,
+                render: (d: Domain) =>
+                  multipleAccounts.has(d.registrar)
+                    ? (d.accountLabel ?? 'Default')
+                    : '—',
+                sortValue: (d: Domain) =>
+                  multipleAccounts.has(d.registrar)
+                    ? (d.accountLabel ?? 'Default').toLowerCase()
+                    : '',
+              }
+            : c,
+      ),
+    [showAccountDetails, multipleAccounts],
+  );
+
   const navigate = useNavigate();
   // Pricing is computed locally in main and arrives with the portfolio; the only
   // gap is the brief moment after a live Sync resets it before it's re-read.
@@ -659,7 +686,9 @@ export default function Domains() {
     .filter((r) => r.configured && r.enabled)
     .map((r) => ({
       value: r.accountId ?? r.name,
-      label: `${r.displayName} · ${r.accountLabel ?? 'Default'}`,
+      label: multipleAccounts.has(r.name)
+        ? `${r.displayName} · ${r.accountLabel ?? 'Default'}`
+        : r.displayName,
       count: portfolio.filter(
         (d) => (d.accountId ?? d.registrar) === (r.accountId ?? r.name),
       ).length,
@@ -819,7 +848,7 @@ export default function Domains() {
     search.trim() !== '' ||
     tld.length > 0 ||
     registrar.length > 0 ||
-    account.length > 0 ||
+    (showAccountDetails && account.length > 0) ||
     expiry.length > 0 ||
     ns.length > 0 ||
     folder.length > 0;
@@ -839,7 +868,11 @@ export default function Domains() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const rows = merged.filter((d) => {
-      if (account.length && !account.includes(d.accountId ?? d.registrar))
+      if (
+        showAccountDetails &&
+        account.length &&
+        !account.includes(d.accountId ?? d.registrar)
+      )
         return false;
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
       if (tld.length > 0 && !tld.includes(tldOf(d.domainName))) return false;
@@ -877,7 +910,7 @@ export default function Domains() {
       return true;
     });
 
-    const col = COLUMNS.find((c) => c.key === sortKey) ?? COLUMNS[0];
+    const col = columns.find((c) => c.key === sortKey) ?? columns[0];
     const dir = sortDir === 'asc' ? 1 : -1;
     // Renewal isn't a Domain field — sort it from the pricing map.
     const valueOf = (d: Domain): SortValue | null => {
@@ -905,6 +938,8 @@ export default function Domains() {
     });
   }, [
     merged,
+    columns,
+    showAccountDetails,
     portfolioRegistrarLabels,
     search,
     tld,
@@ -1063,16 +1098,20 @@ export default function Domains() {
         <Alert>
           <TriangleAlert />
           <AlertTitle>
-            {portfolioErrors.length} registrar
+            {portfolioErrors.length}{' '}
+            {showAccountDetails ? 'account' : 'registrar'}
             {portfolioErrors.length === 1 ? '' : 's'} failed to load
           </AlertTitle>
           <AlertDescription>
             <ul className="flex flex-col gap-0.5">
               {portfolioErrors.map((e) => (
-                <li key={e.registrar}>
+                <li key={e.accountId ?? e.registrar}>
                   <span className="font-medium text-foreground">
-                    {registrarLabel(e.registrar, portfolioRegistrarLabels)} ·{' '}
-                    {e.accountLabel ?? 'Default'}
+                    {registrarLabel(e.registrar, portfolioRegistrarLabels)}
+                    {multipleAccounts.has(e.registrar) ? ' · ' : ''}
+                    {multipleAccounts.has(e.registrar)
+                      ? (e.accountLabel ?? 'Default')
+                      : ''}
                   </span>
                   : {e.message}
                 </li>
@@ -1115,16 +1154,18 @@ export default function Domains() {
               setPage(0);
             }}
           />
-          <MultiSelectFilter
-            label="Account"
-            icon={Building2}
-            options={accountOptions}
-            selected={account}
-            onChange={(next) => {
-              setAccount(next);
-              setPage(0);
-            }}
-          />
+          {showAccountDetails && (
+            <MultiSelectFilter
+              label="Account"
+              icon={Building2}
+              options={accountOptions}
+              selected={account}
+              onChange={(next) => {
+                setAccount(next);
+                setPage(0);
+              }}
+            />
+          )}
           <MultiSelectFilter
             label="TLD"
             icon={Globe}
@@ -1244,7 +1285,7 @@ export default function Domains() {
                     aria-label="Select all domains"
                   />
                 </TableHead>
-                {COLUMNS.map((col, i) => {
+                {columns.map((col, i) => {
                   const active = col.key === sortKey;
                   const Icon = !active
                     ? ChevronsUpDown
@@ -1348,7 +1389,7 @@ export default function Domains() {
                         aria-label={`Select ${d.domainName}`}
                       />
                     </TableCell>
-                    {COLUMNS.map((col, i) => (
+                    {columns.map((col, i) => (
                       <Fragment key={col.key}>
                         <TableCell
                           className={cn(
@@ -1413,7 +1454,7 @@ export default function Domains() {
               {visible.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell
-                    colSpan={COLUMNS.length + 5}
+                    colSpan={columns.length + 5}
                     className="h-40 text-center text-muted-foreground"
                   >
                     {noneConfigured ? (

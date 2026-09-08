@@ -1,10 +1,12 @@
 # Multiple registrar accounts
 
-Settings → Registrars shows only your saved accounts, grouped under each provider. Use **Connect account** to choose a registrar and enter its credentials in one form. The label is optional. Dombot checks the connection before saving, then syncs its domains. Failed connection tests and cancelled forms leave no empty accounts, and credentials already connected cannot be added a second time.
+Settings → Registrars keeps the original one-card-per-registrar flow. Expand a card, enter its credentials, and click **Save**. A single-account registrar has no account selector, label field, or “Default” suffix. Empty registrars have no add-account action.
 
-Use an account's **Sync** button for a targeted refresh. Its **⋯** menu contains Edit account, Test connection, Pause/Resume syncing, and Remove account. Editing only the label preserves its client and cache; changing credentials syncs that account again when enabled.
+After the first account is saved with credentials, **Add another account** appears beside Save inside that card. It reuses the same inline credential form, with an optional label and Cancel. The new connection is validated before persistence, so cancellation and failed validation leave no empty account. Existing account credentials are not changed by an unsaved new-account form.
 
-Domains and Renewals combine all configured, enabled accounts. Use the **Account** filter to narrow either view. The Domains table shows an Account column. Domain CSV exports include the account label and stable account ID; bulk-result CSVs include the account ID. Row actions and bulk jobs retain that identity regardless of labels.
+Only a registrar with multiple saved accounts gains an **Account** selector. It selects the account whose credentials, sync status, Sync button, and enable toggle the card controls. Rename and Remove account are available in this mode. Removing extra accounts returns a single-account registrar to its original presentation while keeping the surviving ID and label in storage.
+
+Domains and Renewals combine enabled accounts. Their Account column/filter appears only if at least one registrar has multiple accounts. Registrars with only one account do not display a redundant default label, including in a mixed portfolio. Exports and MCP retain account identity for reliable routing regardless of which UI fields are visible.
 
 Disabling an account keeps its credentials and cache but removes it from the visible portfolio and future syncs. Enabling syncs it again. A failed sync keeps its last successful domains and timestamp and reports the error on that account. Removing an account clears its credentials, portfolio, and detail cache. It never removes another account's data.
 
@@ -41,4 +43,4 @@ npm run web:build
 DOMBOT_ACCOUNT_QA=1 npx vitest run src/core/services/accounts.test.ts -t 'browser QA server'
 ```
 
-Open `http://127.0.0.1:4173`, connect a Dynadot account with a synthetic API key and secret, then connect a second account with a different synthetic key. The synthetic key `invalid` exercises the form’s connection-error state. The harness returns one test domain per key and stops after ten minutes. It never calls a registrar. Check both account connection tests, combined Domains/Renewals, account filtering, a row action, and reload. Native desktop verification should use an isolated profile and the same synthetic-provider approach, retaining the real preload, IPC, and OS-encrypted storage.
+Open `http://127.0.0.1:4173`, expand Dynadot, enter a synthetic API key and secret, and Save. Then use Add another account with a different synthetic key. The synthetic key `invalid` exercises the form’s connection-error state. The harness returns one test domain per key and stops after ten minutes. It never calls a registrar. Check both account connection tests, combined Domains/Renewals, account filtering, a row action, and reload. Native desktop verification should use an isolated profile and the same synthetic-provider approach, retaining the real preload, IPC, and OS-encrypted storage.

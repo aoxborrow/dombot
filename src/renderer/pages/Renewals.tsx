@@ -1,3 +1,4 @@
+import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { useMemo, useState } from 'react';
 import {
@@ -123,14 +124,19 @@ export default function Renewals() {
 
   const [account, setAccount] = useState('all');
   const accounts = useAppStore((s) => s.registrars);
+  const multipleAccounts = useMemo(
+    () => multiAccountRegistrars(accounts, allDomains),
+    [accounts, allDomains],
+  );
+  const showAccountDetails = multipleAccounts.size > 0;
   const portfolio = useMemo(
     () =>
-      account === 'all'
+      !showAccountDetails || account === 'all'
         ? allDomains
         : allDomains.filter((d) => (d.accountId ?? d.registrar) === account),
-    [allDomains, account],
+    [allDomains, account, showAccountDetails],
   );
-  const accountFilter = (
+  const accountFilter = showAccountDetails && (
     <label className="flex items-center gap-3 text-sm">
       Account
       <select
@@ -144,7 +150,10 @@ export default function Renewals() {
           ?.filter((r) => r.configured && r.enabled)
           .map((r) => (
             <option key={r.accountId ?? r.name} value={r.accountId ?? r.name}>
-              {r.displayName} · {r.accountLabel ?? 'Default'}
+              {r.displayName}
+              {multipleAccounts.has(r.name)
+                ? ` · ${r.accountLabel ?? 'Default'}`
+                : ''}
             </option>
           ))}
       </select>
@@ -672,9 +681,7 @@ function PriceEditorRow({
   return (
     <TableRow>
       <TableCell className="font-mono">{domain.domainName}</TableCell>
-      <TableCell>
-        {label} · {domain.accountLabel ?? 'Default'}
-      </TableCell>
+      <TableCell>{label}</TableCell>
       <TableCell>
         {isManual ? (
           <Badge variant="secondary">manual</Badge>

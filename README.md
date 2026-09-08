@@ -51,8 +51,9 @@ encrypted on your device via your OS keychain (Electron `safeStorage`) and are
 never sent anywhere but the registrar's own API. See [SECURITY.md](SECURITY.md)
 for the full trust model and how to verify it yourself.
 
-Use **Connect account** to connect several accounts at the same provider. Each has
-its own label, credentials, sync status, and portfolio data. See
+After saving a registrar’s first account, use **Add another account** inside its
+card to connect more. An account selector appears only for registrars with multiple
+accounts; single-account registrars keep the original flow. See
 [multiple registrar accounts](docs/multi-account.md) for migration and MCP selection.
 
 ## Connecting an AI agent
