@@ -27,3 +27,13 @@ Manual web verification used two synthetic Dynadot accounts through the real API
 Manual macOS verification used the built renderer and preload, real IPC handlers, filesystem storage with OS `safeStorage` encryption, mocked providers, and an isolated `/tmp` profile. Both accounts saved/tested/synced and appeared together; credentials were confirmed sealed on disk. Full process restart restored both accounts and the Company-only auto-renew change. Renewals showed the combined two-account portfolio. No live registrar credentials or paid operations were used.
 
 Final checks: 335 automated tests passed (the opt-in browser harness is skipped in normal test runs); TypeScript, ESLint, web build, and the macOS arm64 package passed. No blocking findings remain in the account routing and migration review.
+
+## UX revision after local feedback
+
+The initial UI exposed an empty Default account and Add account under every provider, then made users create a label-only card before entering credentials. Replaced this with a saved-account list grouped once by registrar, one Connect account entry point, and one form for provider, credentials, and an optional label. The connection is checked before persistence. Secondary management actions are in one menu. The provider catalog remains available independently of account records, including after removing a provider's last account.
+
+Browser verification covered empty state, failed connection, cancellation without an empty record, first account with an automatic label, second account with Dynadot preselected, grouped rows, edit menu, and label-only changes surviving reload. The real-API test remains separate from these synthetic-provider checks.
+
+## MCP broken-pipe correction
+
+The user reported an EPIPE in the installed app's SDK stdio send. Its bundled code matches the SDK stdout write without an error listener. A real SDK transport over a failing Writable reproduced an unhandled EPIPE. The shim now handles pipe errors and stdin EOF/close, consumes rejected sends, and drops late HTTP responses after disconnect. Regression tests exercise EPIPE, EOF, late errors, send rejection and normal backpressure. The fix is in the local build; it does not replace the user's installed release or MCP client configuration.
