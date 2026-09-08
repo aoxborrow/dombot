@@ -2,7 +2,7 @@
 
 Settings → Registrars keeps the original one-card-per-registrar flow. Expand a card, enter its credentials, and click **Save**. A single-account registrar has no account selector, label field, or “Default” suffix. Empty registrars have no add-account action.
 
-After the first account is saved with credentials, **Add another account** appears beside Save inside that card. It reuses the same inline credential form, with an optional label and Cancel. The new connection is validated before persistence, so cancellation and failed validation leave no empty account. Existing account credentials are not changed by an unsaved new-account form.
+After the first account is saved with credentials, **Add another account** appears beside Save inside that card. It appends a separate inline credential form below the saved account, with an optional label and Cancel. The saved account’s form, selection, enabled state and sync status stay in place. Cancelling dismisses only the new form. After saving, the original account remains selected; View account explicitly switches to the newly added one. The new connection is validated before persistence, so cancellation and failed validation leave no empty account. Existing account credentials are not changed by an unsaved new-account form.
 
 Only a registrar with multiple saved accounts gains an **Account** selector. It selects the account whose credentials, sync status, Sync button, and enable toggle the card controls. Rename and Remove account are available in this mode. Removing extra accounts returns a single-account registrar to its original presentation while keeping the surviving ID and label in storage.
 
