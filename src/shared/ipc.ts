@@ -47,6 +47,8 @@ export const IpcChannels = {
   importData: 'data:import',
   getRegistrarMetadata: 'registrar:getMetadata',
   createRegistrarAccount: 'registrar:createAccount',
+  connectRegistrarAccount: 'registrar:connectAccount',
+  getRegistrarCatalog: 'registrar:getCatalog',
   renameRegistrarAccount: 'registrar:renameAccount',
   removeRegistrarAccount: 'registrar:removeAccount',
   testRegistrarAccount: 'registrar:testAccount',
@@ -190,7 +192,14 @@ export interface RegistrarSync {
 
 /** Metadata that drives the Settings > Registrars form. Help copy is not
  *  carried here — the renderer reads it from `registrar-help.ts`. */
+export type RegistrarDefinition = Pick<
+  RegistrarMeta,
+  'name' | 'displayName' | 'supportsSandbox' | 'configFields' | 'features'
+>;
+
 export interface RegistrarMeta {
+  /** An actual saved account, rather than an implicit migration placeholder. */
+  saved?: boolean;
   accountId?: string;
   accountLabel?: string;
   name: RegistrarName;
@@ -601,6 +610,12 @@ export interface DombotApi {
   stepBulk: (jobId: string) => Promise<BulkStep>;
   onBulkProgress: (callback: (p: BulkProgress) => void) => () => void;
   onBulkFinished: (callback: (job: BulkJob) => void) => () => void;
+  getRegistrarCatalog: () => Promise<RegistrarDefinition[]>;
+  connectRegistrarAccount: (
+    name: RegistrarName,
+    creds: CredentialValues,
+    label?: string,
+  ) => Promise<RegistrarAccount>;
   createRegistrarAccount: (
     name: RegistrarName,
     label: string,

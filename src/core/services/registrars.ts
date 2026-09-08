@@ -9,7 +9,13 @@ import {
   type RegistrarName,
   type RequestOptions,
 } from '@aoxborrow/registrar-client';
-import { accountById, listAccounts, removeAccountRecord } from './accounts';
+import {
+  accountById,
+  createAccount,
+  isSavedAccount,
+  listAccounts,
+  removeAccountRecord,
+} from './accounts';
 import { domainKey } from '../../shared/account-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { resolveNameservers } from '../dns';
@@ -31,6 +37,7 @@ import {
 import type {
   Domain,
   RegistrarAccount,
+  RegistrarDefinition,
   Portfolio,
   PortfolioErrorInfo,
   RegistrarMeta,
@@ -549,28 +556,14 @@ function orderConfigFields<T extends { name: string }>(
     );
 }
 
-/** Metadata that drives the Settings > Registrars form (no secret values). */
-export function getRegistrarMetadata(): RegistrarMeta[] {
-  return listAccounts().map((account) => {
-    const name = account.registrar;
+/** Provider catalog stays available even after its last account is removed. */
+export function getRegistrarCatalog(): RegistrarDefinition[] {
+  return registrarNames.map((name) => {
     const R = registrars[name];
-    const sync = readEntry<RegistrarPortfolioEntry>(
-      'portfolio',
-      account.id,
-    )?.data;
     return {
       name,
-      accountId: account.id,
-      accountLabel: account.label,
       displayName: R.displayName,
       supportsSandbox: R.supportsSandbox,
-      configured: isConfigured(name, account.id),
-      enabled: isRegistrarEnabled(account.id),
-      sync: {
-        lastSyncedAt: sync?.lastSyncedAt ?? null,
-        lastError: sync?.lastError ?? null,
-        domainCount: sync?.domains.length ?? 0,
-      },
       configFields: orderConfigFields(name, R.configFields).map((f) => ({
         name: f.name,
         label: f.label,
@@ -581,6 +574,82 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
       features: [...R.features],
     };
   });
+}
+
+/** Metadata for stored accounts and backward-compatible default placeholders. */
+export function getRegistrarMetadata(): RegistrarMeta[] {
+  const catalog = getRegistrarCatalog();
+  return listAccounts().map((account) => {
+    const sync = readEntry<RegistrarPortfolioEntry>(
+      'portfolio',
+      account.id,
+    )?.data;
+    return {
+      ...catalog.find((r) => r.name === account.registrar)!,
+      accountId: account.id,
+      accountLabel: account.label,
+      saved:
+        isSavedAccount(account.id) ||
+        Object.keys(getStoredCredentials(account.id)).length > 0,
+      configured: isConfigured(account.registrar, account.id),
+      enabled: isRegistrarEnabled(account.id),
+      sync: {
+        lastSyncedAt: sync?.lastSyncedAt ?? null,
+        lastError: sync?.lastError ?? null,
+        domainCount: sync?.domains.length ?? 0,
+      },
+    };
+  });
+}
+
+/** Check draft credentials without saving them, then publish a complete account. */
+export async function connectRegistrarAccount(
+  name: RegistrarName,
+  credentials: RegistrarCredentials,
+  label?: string,
+): Promise<RegistrarAccount> {
+  const provider = getRegistrarCatalog().find((r) => r.name === name);
+  if (!provider) throw new Error('Unknown registrar.');
+  const clean: RegistrarCredentials = {};
+  for (const field of provider.configFields) {
+    const value = credentials[field.name]?.trim();
+    if (value) clean[field.name] = value;
+    else if (field.required) throw new Error(`${field.label} is required.`);
+  }
+  if (!Object.keys(clean).length)
+    throw new Error('Enter your account credentials.');
+  if ((label?.trim().length ?? 0) > 100)
+    throw new Error('Account label must contain at most 100 characters.');
+  const duplicate = getRegistrarMetadata().find(
+    (account) =>
+      account.name === name &&
+      account.saved &&
+      provider.configFields.every(
+        (field) =>
+          (getStoredCredentials(account.accountId ?? name)[
+            field.name
+          ]?.trim() ?? '') === (clean[field.name] ?? ''),
+      ),
+  );
+  if (duplicate)
+    throw new Error(
+      `These credentials are already connected as "${duplicate.accountLabel}". Edit that account instead.`,
+    );
+  const client = new RegistrarClient(createRegistrar(name, clean));
+  const result = await client.testConnection();
+  if (!result.success)
+    throw new Error(
+      result.message ||
+        'Connection failed. Check your credentials and try again.',
+    );
+  const existing = getRegistrarMetadata().filter(
+    (a) => a.name === name && a.saved,
+  );
+  let number = existing.length + 1;
+  let suggested = existing.length ? `Account ${number}` : 'Main';
+  while (existing.some((a) => a.accountLabel === suggested))
+    suggested = `Account ${++number}`;
+  return createAccount(name, label?.trim() || suggested, clean);
 }
 
 /** The saved credential values for a registrar (for pre-filling the form). */

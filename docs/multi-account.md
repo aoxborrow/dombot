@@ -1,6 +1,8 @@
 # Multiple registrar accounts
 
-Settings → Registrars supports multiple named accounts for each provider. Expand an account to enter its credentials, rename it, test the saved connection, sync it, or remove it. **Add account** creates a separate account under that provider. Saving changed credentials syncs only that account; saving only its label preserves its client and cached data.
+Settings → Registrars shows only your saved accounts, grouped under each provider. Use **Connect account** to choose a registrar and enter its credentials in one form. The label is optional. Dombot checks the connection before saving, then syncs its domains. Failed connection tests and cancelled forms leave no empty accounts, and credentials already connected cannot be added a second time.
+
+Use an account's **Sync** button for a targeted refresh. Its **⋯** menu contains Edit account, Test connection, Pause/Resume syncing, and Remove account. Editing only the label preserves its client and cache; changing credentials syncs that account again when enabled.
 
 Domains and Renewals combine all configured, enabled accounts. Use the **Account** filter to narrow either view. The Domains table shows an Account column. Domain CSV exports include the account label and stable account ID; bulk-result CSVs include the account ID. Row actions and bulk jobs retain that identity regardless of labels.
 
@@ -39,4 +41,4 @@ npm run web:build
 DOMBOT_ACCOUNT_QA=1 npx vitest run src/core/services/accounts.test.ts -t 'browser QA server'
 ```
 
-Open `http://127.0.0.1:4173`, save the default Dynadot account with a synthetic API key and secret, and add a second named account with a different synthetic key. The harness returns one test domain per key and stops after ten minutes. It never calls a registrar. Check both account connection tests, combined Domains/Renewals, account filtering, a row action, and reload. Native desktop verification should use an isolated profile and the same synthetic-provider approach, retaining the real preload, IPC, and OS-encrypted storage.
+Open `http://127.0.0.1:4173`, connect a Dynadot account with a synthetic API key and secret, then connect a second account with a different synthetic key. The synthetic key `invalid` exercises the form’s connection-error state. The harness returns one test domain per key and stops after ten minutes. It never calls a registrar. Check both account connection tests, combined Domains/Renewals, account filtering, a row action, and reload. Native desktop verification should use an isolated profile and the same synthetic-provider approach, retaining the real preload, IPC, and OS-encrypted storage.

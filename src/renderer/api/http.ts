@@ -338,6 +338,8 @@ export function createHttpApi(): DombotApi {
       };
     },
 
+    getRegistrarCatalog: m('getRegistrarCatalog'),
+    connectRegistrarAccount: m('connectRegistrarAccount'),
     createRegistrarAccount: m('createRegistrarAccount'),
     renameRegistrarAccount: m('renameRegistrarAccount'),
     removeRegistrarAccount: m('removeRegistrarAccount'),

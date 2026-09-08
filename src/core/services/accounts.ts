@@ -1,6 +1,11 @@
-import { registrars, type RegistrarName } from '@aoxborrow/registrar-client';
+import {
+  registrars,
+  type RegistrarName,
+  type RegistrarCredentials,
+} from '@aoxborrow/registrar-client';
 import type { RegistrarAccount } from '../../shared/ipc';
 import { Namespace } from '../storage/namespace';
+import { setStoredCredentials } from './credentials';
 
 // Default IDs deliberately equal legacy storage keys: no credential rewrite or
 // loss of cached domains, folders, manual prices, or disabled state on upgrade.
@@ -37,6 +42,7 @@ function cleanLabel(label: string): string {
 export async function createAccount(
   registrar: RegistrarName,
   label: string,
+  credentials?: RegistrarCredentials,
 ): Promise<RegistrarAccount> {
   if (!Object.hasOwn(registrars, registrar))
     throw new Error('Unknown registrar.');
@@ -45,7 +51,17 @@ export async function createAccount(
     registrar,
     label: cleanLabel(label),
   };
-  await store.set(account.id, account);
+  // Persist secrets first. A failed test/save never exposes an empty account.
+  if (credentials) await setStoredCredentials(account.id, credentials);
+  try {
+    await store.set(account.id, account);
+  } catch (err) {
+    const all = store.all();
+    delete all[account.id];
+    store.replace(all);
+    if (credentials) await setStoredCredentials(account.id, {});
+    throw err;
+  }
   return account;
 }
 
@@ -83,4 +99,8 @@ export function validateAccountRecords(records: Record<string, unknown>): void {
       throw new Error(`Invalid account metadata for "${key}".`);
     }
   }
+}
+
+export function isSavedAccount(id: string): boolean {
+  return store.has(id);
 }

@@ -17,6 +17,8 @@ import {
 } from '../services/folders';
 import { setManualPrice } from '../services/pricing';
 import {
+  getRegistrarCatalog,
+  connectRegistrarAccount,
   removeRegistrarAccount,
   resolveDomainAccount,
   getCachedDetail,
@@ -212,6 +214,15 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     ]),
     async (name, domainName, refresh = false, accountId) =>
       getDomainDetail(name, domainName, refresh, accountId),
+  ),
+  getRegistrarCatalog: method(none, getRegistrarCatalog),
+  connectRegistrarAccount: method(
+    z.tuple([
+      s.registrarName,
+      s.credentialValues,
+      z.string().trim().max(100).optional(),
+    ]),
+    connectRegistrarAccount,
   ),
   createRegistrarAccount: method(
     z.tuple([s.registrarName, z.string().trim().min(1).max(100)]),

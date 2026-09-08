@@ -68,6 +68,10 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.listPortfolio, refresh),
   syncRegistrar: (name, accountId) =>
     ipcRenderer.invoke(IpcChannels.syncRegistrar, name, accountId),
+  getRegistrarCatalog: () =>
+    ipcRenderer.invoke(IpcChannels.getRegistrarCatalog),
+  connectRegistrarAccount: (...args) =>
+    ipcRenderer.invoke(IpcChannels.connectRegistrarAccount, ...args),
   createRegistrarAccount: (...args) =>
     ipcRenderer.invoke(IpcChannels.createRegistrarAccount, ...args),
   renameRegistrarAccount: (...args) =>

@@ -69,7 +69,15 @@ vi.mock('@aoxborrow/registrar-client', async (original) => {
         provider.listDomains.mockResolvedValue([]);
         provider.getDomain.mockResolvedValue(null);
         provider.getNameservers.mockResolvedValue([]);
-        provider.testConnection.mockResolvedValue({ success: true });
+        provider.testConnection.mockResolvedValue(
+          process.env.DOMBOT_ACCOUNT_QA && creds.apiKey === 'invalid'
+            ? {
+                success: false,
+                message:
+                  'Invalid API key. Check your credentials and try again.',
+              }
+            : { success: true },
+        );
         for (const name of [
           'setAutoRenew',
           'renewDomain',
@@ -674,6 +682,131 @@ describe('multi-account storage, routing and portable migration', () => {
       target: { accountId: 'dynadot' },
     });
     expect(fakes.providers.get('company')!.renewDomain).not.toHaveBeenCalled();
+  });
+
+  it('connects in one submission and gives unnamed accounts distinct useful labels', async () => {
+    const first = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'first', apiSecret: 'secret' }],
+    );
+    const second = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'second', apiSecret: 'secret' }],
+    );
+    expect(first.label).toBe('Main');
+    expect(second.label).toBe('Account 2');
+    expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(2);
+    expect(fakes.providers.get('first')!.testConnection).toHaveBeenCalledOnce();
+    await flushWrites();
+    await hydrateStores();
+    expect(getStoredCredentials(second.id).apiKey).toBe('second');
+    await expect(
+      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+        'dynadot',
+        { apiKey: 'first', apiSecret: 'secret' },
+      ]),
+    ).rejects.toThrow(/already connected/);
+    expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(2);
+  });
+
+  it('a rejected connection never creates an empty account or saves its credentials', async () => {
+    const { createRegistrar } = await import('@aoxborrow/registrar-client');
+    createRegistrar('dynadot', { apiKey: 'bad', apiSecret: 'secret' });
+    fakes.providers.get('bad')!.testConnection.mockResolvedValue({
+      success: false,
+      message: 'Invalid API key',
+    });
+    await expect(
+      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+        'dynadot',
+        { apiKey: 'bad', apiSecret: 'secret' },
+        'Company',
+      ]),
+    ).rejects.toThrow(/Invalid API key/);
+    expect(getRegistrarMetadata().filter((a) => a.saved)).toEqual([]);
+    expect(await disk.list('credentials')).toEqual({});
+    expect(await disk.list('registrar-accounts')).toEqual({});
+    fakes.providers
+      .get('bad')!
+      .testConnection.mockResolvedValue({ success: true });
+    await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'bad', apiSecret: 'secret' }, 'Company'],
+    );
+    expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(1);
+  });
+
+  it('keeps the provider catalog after every saved/default account is removed', async () => {
+    await removeRegistrarAccount('dynadot');
+    const catalog = await invoke(
+      'getRegistrarCatalog',
+      coreMethods.getRegistrarCatalog,
+      [],
+    );
+    expect(
+      catalog
+        .find((p) => p.name === 'dynadot')!
+        .configFields.map((f) => f.name),
+    ).toContain('apiKey');
+    const account = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'new', apiSecret: 'secret' }],
+    );
+    expect(account.id).not.toBe('dynadot');
+  });
+
+  it('connection form validation and storage failure leave no incomplete accounts', async () => {
+    await expect(
+      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+        'dynadot',
+        { apiKey: 'incomplete' },
+      ]),
+    ).rejects.toThrow(/API Secret is required/);
+    expect(fakes.providers.size).toBe(0);
+    configureStore(
+      new EncryptedDocStore(
+        new MemoryDocStore(),
+        {
+          alg: 'unavailable',
+          seal: async () => {
+            throw new Error('keyring unavailable');
+          },
+          open: async () => '',
+        },
+        new Set(['credentials']),
+      ),
+    );
+    await hydrateStores();
+    await expect(
+      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+        'dynadot',
+        { apiKey: 'unsaved', apiSecret: 'secret' },
+      ]),
+    ).rejects.toThrow(/keyring unavailable/);
+    expect(getRegistrarMetadata().filter((a) => a.saved)).toEqual([]);
+    await expect(flushWrites()).rejects.toThrow(/keyring unavailable/);
+  });
+
+  it('rolls back a new account when publishing its metadata fails', async () => {
+    const put = disk.put.bind(disk);
+    vi.spyOn(disk, 'put').mockImplementation(async (namespace, key, value) => {
+      if (namespace === 'registrar-accounts')
+        throw new Error('metadata write failed');
+      return put(namespace, key, value);
+    });
+    await expect(
+      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+        'dynadot',
+        { apiKey: 'first', apiSecret: 'secret' },
+      ]),
+    ).rejects.toThrow(/metadata write failed/);
+    expect(getRegistrarMetadata().filter((a) => a.saved)).toEqual([]);
+    expect(await disk.list('credentials')).toEqual({});
+    await expect(flushWrites()).rejects.toThrow(/metadata write failed/);
   });
 
   it('rebuilds cached clients when another host changes persisted credentials', async () => {
