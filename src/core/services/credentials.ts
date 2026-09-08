@@ -1,7 +1,8 @@
 import type { RegistrarCredentials } from '@aoxborrow/registrar-client';
 import { Namespace } from '../storage/namespace';
+import { serialByKey } from './serial-by-key';
 
-// Registrar credentials entered in Settings, one entry per registrar. Keys
+// Registrar credentials entered in Settings, one entry per account. Keys
 // configured once here are used by both the UI and the MCP server.
 //
 // Encryption at rest is the host's job, not this module's: the host wraps its
@@ -14,6 +15,7 @@ import { Namespace } from '../storage/namespace';
 export const CREDENTIALS_NAMESPACE = 'credentials';
 
 const store = new Namespace<RegistrarCredentials>(CREDENTIALS_NAMESPACE);
+const saveInOrder = serialByKey();
 
 /** Credentials the user has saved for a registrar (empty object if none). */
 export function getStoredCredentials(name: string): RegistrarCredentials {
@@ -33,20 +35,22 @@ export async function setStoredCredentials(
   for (const [key, value] of Object.entries(creds)) {
     if (typeof value === 'string' && value.trim()) clean[key] = value.trim();
   }
-  const previous = store.get(name);
-  const next = Object.keys(clean).length > 0 ? clean : undefined;
-  try {
-    if (next) await store.set(name, next);
-    else await store.delete(name);
-  } catch (err) {
-    // A failed encrypted write must not leave unsaved credentials usable in
-    // memory. Do not undo a newer concurrent save or another account's edit.
-    if (store.get(name) === next) {
-      const all = store.all();
-      if (previous) all[name] = previous;
-      else delete all[name];
-      store.replace(all);
+  return saveInOrder(name, async () => {
+    const previous = store.get(name);
+    const next = Object.keys(clean).length > 0 ? clean : undefined;
+    try {
+      if (next) await store.set(name, next);
+      else await store.delete(name);
+    } catch (err) {
+      // A failed encrypted write must not leave unsaved credentials usable in
+      // memory. Do not undo a newer concurrent save or another account's edit.
+      if (store.get(name) === next) {
+        const all = store.all();
+        if (previous) all[name] = previous;
+        else delete all[name];
+        store.replace(all);
+      }
+      throw err;
     }
-    throw err;
-  }
+  });
 }

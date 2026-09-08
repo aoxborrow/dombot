@@ -20,8 +20,6 @@ import type {
   RenewalPricing,
 } from '../../shared/ipc';
 
-/** Stable per-domain key across registrars. */
-
 /** Hard ceiling on any sync — if the main-process fetch hangs (a registrar API
  * that never responds), reject so the "Syncing…" state can't stick forever. */
 const SYNC_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
@@ -95,8 +93,8 @@ interface AppState {
     name: RegistrarName,
     accountId?: string,
   ) => Promise<RegistrarSync>;
-  /** Enable/disable a registrar (keeps its credentials). Disabling drops its
-   * cached data and stops syncs; enabling re-syncs it. Updates the portfolio,
+  /** Enable/disable an account (keeps credentials and cached data). Disabling hides its
+   * domains and stops syncs; enabling re-syncs it. Updates the portfolio,
    * pricing, and registrar metadata to match. */
   setRegistrarEnabled: (
     name: RegistrarName,

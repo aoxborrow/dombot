@@ -17,6 +17,7 @@ import {
   removeAccountRecord,
 } from './accounts';
 import { domainKey } from '../../shared/account-key';
+import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { resolveNameservers } from '../dns';
 import { isRegistrarEnabled, setRegistrarEnabled } from './registrar-state';
@@ -85,7 +86,7 @@ function reviveDomainDates<T extends Partial<Domain>>(d: T): T {
   return out as T;
 }
 
-// Cache one client per registrar so we don't rebuild it on every call.
+// Cache one client per account so we don't rebuild it on every call.
 const clients = new Map<string, RegistrarClient>();
 const clientCredentials = new Map<string, string>();
 const generations = new Map<string, number>();
@@ -602,6 +603,8 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
   });
 }
 
+const publishConnection = serialByKey();
+
 /** Check draft credentials without saving them, then publish a complete account. */
 export async function connectRegistrarAccount(
   name: RegistrarName,
@@ -620,21 +623,24 @@ export async function connectRegistrarAccount(
     throw new Error('Enter your account credentials.');
   if ((label?.trim().length ?? 0) > 100)
     throw new Error('Account label must contain at most 100 characters.');
-  const duplicate = getRegistrarMetadata().find(
-    (account) =>
-      account.name === name &&
-      account.saved &&
-      provider.configFields.every(
-        (field) =>
-          (getStoredCredentials(account.accountId ?? name)[
-            field.name
-          ]?.trim() ?? '') === (clean[field.name] ?? ''),
-      ),
-  );
-  if (duplicate)
-    throw new Error(
-      `These credentials are already connected as "${duplicate.accountLabel}". Edit that account instead.`,
+  const assertNotDuplicate = () => {
+    const duplicate = getRegistrarMetadata().find(
+      (account) =>
+        account.name === name &&
+        account.saved &&
+        provider.configFields.every(
+          (field) =>
+            (getStoredCredentials(account.accountId ?? name)[
+              field.name
+            ]?.trim() ?? '') === (clean[field.name] ?? ''),
+        ),
     );
+    if (duplicate)
+      throw new Error(
+        `These credentials are already connected as "${duplicate.accountLabel}". Edit that account instead.`,
+      );
+  };
+  assertNotDuplicate();
   const client = new RegistrarClient(createRegistrar(name, clean));
   const result = await client.testConnection();
   if (!result.success)
@@ -642,14 +648,19 @@ export async function connectRegistrarAccount(
       result.message ||
         'Connection failed. Check your credentials and try again.',
     );
-  const existing = getRegistrarMetadata().filter(
-    (a) => a.name === name && a.saved,
-  );
-  let number = existing.length + 1;
-  let suggested = existing.length ? `Account ${number}` : 'Main';
-  while (existing.some((a) => a.accountLabel === suggested))
-    suggested = `Account ${++number}`;
-  return createAccount(name, label?.trim() || suggested, clean);
+  // Concurrent tests may both pass before either account exists. Recheck and
+  // publish serially, while keeping network tests outside this short queue.
+  return publishConnection(name, async () => {
+    assertNotDuplicate();
+    const existing = getRegistrarMetadata().filter(
+      (a) => a.name === name && a.saved,
+    );
+    let number = existing.length + 1;
+    let suggested = existing.length ? `Account ${number}` : 'Main';
+    while (existing.some((a) => a.accountLabel === suggested))
+      suggested = `Account ${++number}`;
+    return createAccount(name, label?.trim() || suggested, clean);
+  });
 }
 
 /** The saved credential values for a registrar (for pre-filling the form). */

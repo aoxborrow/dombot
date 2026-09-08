@@ -809,6 +809,52 @@ describe('multi-account storage, routing and portable migration', () => {
     await expect(flushWrites()).rejects.toThrow(/metadata write failed/);
   });
 
+  it('keeps the last persisted credentials when overlapping saves both fail', async () => {
+    const original = { apiKey: 'persisted', apiSecret: 'test-secret' };
+    await setStoredCredentials('dynadot', original);
+    vi.spyOn(disk, 'put').mockRejectedValue(
+      new Error('persistence unavailable'),
+    );
+    const results = await Promise.allSettled([
+      setStoredCredentials('dynadot', {
+        apiKey: 'unsaved-first',
+        apiSecret: 'test-secret',
+      }),
+      setStoredCredentials('dynadot', {
+        apiKey: 'unsaved-second',
+        apiSecret: 'test-secret',
+      }),
+    ]);
+    await expect(flushWrites()).rejects.toThrow(/persistence unavailable/);
+    expect(results.every((r) => r.status === 'rejected')).toBe(true);
+    expect(getStoredCredentials('dynadot')).toEqual(original);
+    expect(await disk.get('credentials', 'dynadot')).toEqual(original);
+  });
+
+  it('publishes only one account when identical connection requests overlap', async () => {
+    const args = [
+      'dynadot',
+      { apiKey: 'same-account', apiSecret: 'test-secret' },
+    ];
+    const results = await Promise.allSettled([
+      invoke(
+        'connectRegistrarAccount',
+        coreMethods.connectRegistrarAccount,
+        args,
+      ),
+      invoke(
+        'connectRegistrarAccount',
+        coreMethods.connectRegistrarAccount,
+        args,
+      ),
+    ]);
+    await flushWrites();
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+    expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(1);
+    expect(Object.keys(await disk.list('credentials'))).toHaveLength(1);
+  });
+
   it('rebuilds cached clients when another host changes persisted credentials', async () => {
     await saveRegistrarCredentials('dynadot', {
       apiKey: 'old',

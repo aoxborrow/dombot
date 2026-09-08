@@ -1,51 +1,37 @@
 # Multiple named registrar accounts (#69)
 
-One Dombot user can keep multiple credential sets for the same registrar. Account IDs, never labels, identify credentials, clients, portfolio slices, detail records, domain targets, folders and manual prices.
+## Account model and compatibility
 
-## Compatibility and storage
+Each account has a stable ID and an editable label. IDs identify credentials, clients, sync status, portfolio/detail caches, domain targets, folders, and manual prices; labels never route operations.
 
-Each built-in provider has a default account whose stable ID is its existing provider key (e.g. `dynadot`). This is an in-place, read-compatible migration: legacy encrypted credentials, disabled state, cache keys and user annotations need no secret rewrite. Additional accounts use UUIDs. A separate `registrar-accounts` namespace holds provider and editable label; credentials remain in the encrypted `credentials` namespace. Removed default accounts retain a tombstone so they cannot be silently resurrected. New backups use format 2; format 1 imports remain supported. Older clients reject format 2 instead of silently discarding account metadata.
+Existing installations are adopted in place using the registrar's existing key as the default account ID. This preserves encrypted credentials, compatible caches, disabled state, folders and prices without asking users to re-enter keys. New accounts receive UUIDs. Removed IDs are not reused. Credentials remain in the existing encrypted namespace; account metadata lives in `registrar-accounts`.
 
-## Routing and concurrency
+Updated desktop and web hosts export bundle format 2 and accept formats 1 and 2. Older hosts reject format 2 instead of discarding account metadata. Import validates account/provider mappings before replacing live data.
 
-Optional accountId parameters preserve legacy single-account calls. Explicit account selection must match the provider, enabled/configured state, and any cached ownership evidence. Domain calls may resolve a unique cached owner; ambiguous selections fail before provider calls. Provider-level calls, registrations and inbound transfers require accountId when several configured accounts exist. Bulk targets retain account identity in persisted work and results. Provider-level rate limits remain conservative across accounts. A credential/state/removal change invalidates in-flight sync writes.
+## Minimal account UI
 
-## UI
+Keep one original card per registrar and its expand, credentials, Save, Sync and enable controls. Before the first account is saved, there is no add-account action. With one account, do not show a redundant account selector, label field or default suffix.
 
-Keep the existing registrar card design; group named account cards under each provider with Add account, editable labels, connection test, sync, enable and remove controls. Domains and Renewals aggregate enabled accounts and offer Account filters. Domain rows and CSV exports include account identity. All row/bulk actions carry IDs.
+After credentials are saved, Add another account appends a separate form beneath the existing account. Opening, failing or cancelling that draft leaves the existing form and connected status in place. Successful creation keeps the existing selection and offers View account as an explicit switch. Connection validation precedes persistence; duplicate credentials are rejected.
+
+Only registrars with multiple accounts gain a selector and rename/remove controls. Domains and Renewals expose account-specific UI only when needed. Exports and MCP retain account identity independently of presentation.
+
+## Routing and consistency
+
+Domain operations resolve a unique cached owner or use an explicit account ID. Provider mismatches, cached ownership mismatches, disabled accounts and ambiguous selection fail before provider operations. Registrations and inbound transfers require a destination when multiple configured accounts exist. Legacy unambiguous calls continue to work.
+
+Bulk jobs resolve IDs before starting, persist them, and validate each operation. Old queued targets remain pinned to their original default account. Conservative provider-level throttling is retained.
+
+A failed sync keeps that account's last-good slice and successful timestamp. Generation checks discard stale sync/detail results after credential/state changes or newer syncs. Cached clients check current hydrated credentials. Credential writes serialize per account through persistence and rollback; connection publication serializes per provider and rechecks duplicates after network validation within the service runtime.
 
 ## Verification
 
-Use mocked provider responses with real storage/services for legacy migration, encrypted round trips, restart, independent clients/caches, failed and concurrent syncs, rename/update/disable/remove isolation, wrong-provider/wrong-owner/ambiguous routing, MCP calls, persisted bulk targets and format 1/2 imports. Run the full unit suite, TypeScript, lint and web/desktop builds. Exercise the shared renderer with synthetic two-account data; no paid registrar operations or real credentials are needed.
+- Automated coverage: legacy adoption; independent credentials, clients, caches, prices and errors; rename/update/disable/remove; restart; mismatched and ambiguous UI/MCP routing; destination registration/transfer selection; persisted bulk targets; encrypted desktop/web bundle round trips; failed persistence and overlapping requests.
+- Browser verification with synthetic providers: zero/one/multiple-account UI; first Save; separate new-account form; invalid credentials and cancellation; successful addition without switching away from the existing account; account filtering and reload.
+- Desktop verification with synthetic providers: production renderer/preload, real IPC and filesystem storage, OS-encrypted credentials, two-account portfolio, account-specific changes and process restart.
+- User-reported live validation: three Dynadot accounts connected successfully. This is distinct from automated/mock routing coverage; no paid registrar operations are required by the test plan.
+- Required checks: unit suite, TypeScript, ESLint, web renderer build, Worker deployment dry run, macOS package.
 
-## Implementation and verification outcome
+## Related desktop MCP correction
 
-Implemented the account model, both transports, settings, domain and renewals filters, exports, and MCP routing on `codex/multi-account-support`. During verification, added current-credential client invalidation across storage hydration, failed-write memory rollback, latest-sync fencing, and import validation for account routing metadata.
-
-Manual web verification used two synthetic Dynadot accounts through the real API table and built renderer: add/save/test/sync, combined portfolio, Account filter, Company-only auto-renew, reload persistence, and Renewals filtering passed, with no browser console errors observed.
-
-Manual macOS verification used the built renderer and preload, real IPC handlers, filesystem storage with OS `safeStorage` encryption, mocked providers, and an isolated `/tmp` profile. Both accounts saved/tested/synced and appeared together; credentials were confirmed sealed on disk. Full process restart restored both accounts and the Company-only auto-renew change. Renewals showed the combined two-account portfolio. No live registrar credentials or paid operations were used.
-
-Final checks: 335 automated tests passed (the opt-in browser harness is skipped in normal test runs); TypeScript, ESLint, web build, and the macOS arm64 package passed. No blocking findings remain in the account routing and migration review.
-
-## Earlier UX revision (superseded by original-flow restoration)
-
-The initial UI exposed an empty Default account and Add account under every provider, then made users create a label-only card before entering credentials. Replaced this with a saved-account list grouped once by registrar, one Connect account entry point, and one form for provider, credentials, and an optional label. The connection is checked before persistence. Secondary management actions are in one menu. The provider catalog remains available independently of account records, including after removing a provider's last account.
-
-Browser verification covered empty state, failed connection, cancellation without an empty record, first account with an automatic label, second account with Dynadot preselected, grouped rows, edit menu, and label-only changes surviving reload. The real-API test remains separate from these synthetic-provider checks.
-
-## MCP broken-pipe correction
-
-The user reported an EPIPE in the installed app's SDK stdio send. Its bundled code matches the SDK stdout write without an error listener. A real SDK transport over a failing Writable reproduced an unhandled EPIPE. The shim now handles pipe errors and stdin EOF/close, consumes rejected sends, and drops late HTTP responses after disconnect. Regression tests exercise EPIPE, EOF, late errors, send rejection and normal backpressure. The fix is in the local build; it does not replace the user's installed release or MCP client configuration.
-
-## Original-flow restoration
-
-The user's direction is to preserve the original UI and add multiple accounts with minimal UX changes. Restored the original registrar cards, expansion, credential fields, Save, Sync, and enable controls. Empty registrars do not offer Add another account. That action appears inside a card only after its first account is saved with credentials. Adding reuses the inline form; the account selector, optional naming/rename, and removal appear only for multiple accounts. Single-account registrars show no Default label or account field. Domains, Renewals and the status bar expose account-specific UI only when a provider has multiple accounts. Backend account IDs, encrypted data, routing, and the EPIPE fix are retained.
-
-Verified the empty → first Save → second Save transition in the browser, including the absence of Account fields for one account, appearance of the selector only after adding another, and independent selection/sync. Regression tests cover one account at each of several registrars, unused migration placeholders, three accounts grouped into one registrar card, disabled accounts, and removal back to one account. 351 automated tests pass; the optional browser harness is skipped in normal test runs.
-
-## Add-account continuity correction
-
-The first original-flow restoration still used `adding || !selected` to choose the card's displayed account. Opening another-account draft therefore blanked the existing form, hid its selector, and showed the registrar as unconfigured. Corrected this by giving the appended new-account form independent state. Existing credentials, selection, enable toggle and sync status remain in place while the draft is open or fails validation. Cancel dismisses only the draft. Successful creation leaves the existing account selected and offers View account for an explicit switch.
-
-Browser checks verified open/cancel/reopen, rejected credentials, successful addition without a selection change, and keeping the existing selector visible when a further draft is opened. The existing 351-test suite, TypeScript, lint and web build pass.
+The stdio bridge handles client pipe closure rather than surfacing an uncaught EPIPE. Tests cover a real SDK transport over an errored Writable, stdin EOF, late replies/errors, rejected sends and normal backpressure. This is a separate desktop transport correction; it does not change account authorization or registrar operations.
