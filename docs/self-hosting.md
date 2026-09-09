@@ -175,3 +175,56 @@ fires the cron by hand.
 Nothing about authentication is stored in the database. Rotating the
 password invalidates every session because the session-signing key is
 derived from it.
+
+## Optional fixed IP proxy for Namecheap
+
+When configuring Namecheap in **Settings → Registrars**, turn on **Use fixed IP
+proxy** if the machine running DomBot cannot connect from an allowlisted IPv4
+address. Enter:
+
+- **Proxy URL:** an HTTP CONNECT proxy with a public IPv4 endpoint. Use the form
+  `http://username:password@IP:port`, percent-encoding special characters in the
+  username or password. Unauthenticated proxies are also supported. Hostnames,
+  private/reserved addresses, HTTPS/SOCKS proxy URLs, paths and query strings
+  are not supported by this first version.
+- **Outgoing IPv4 address:** the IP Namecheap sees, which may differ from the
+  proxy endpoint. Add it to your Namecheap API allowlist before syncing.
+
+Save starts the normal sync. This connection is used by all Namecheap operations,
+including scheduled sync and MCP. Other registrars keep their normal connections.
+Proxy failure never silently switches to a direct request.
+
+The proxy fields are stored with the Namecheap credentials under the existing
+host encryption scheme and included in data exports. A plain export therefore
+contains proxy credentials too; use the export passphrase option when appropriate.
+The saved direct Client IP is retained separately. Turn the proxy switch off and
+save to remove the proxy credentials and restore direct configuration. If the
+account was first configured with a proxy, enter a direct Client IP before saving
+in direct mode.
+
+### Transport limitations and security review
+
+Workers use pinned `tunnelfetch` 1.13.0 with certificate verification enabled,
+redirects unfollowed, bounded timeouts and a 2 MiB decoded-response limit. A new
+client is closed after every request so no open socket crosses Worker invocation
+boundaries. Native Workers `startTls` cannot verify a different destination after
+an HTTP CONNECT tunnel. `tunnelfetch` implements TLS 1.2/1.3 and certificate
+validation in JavaScript/WebCrypto; its authors state that it has not had an
+external security audit. This opt-in feature requires review of that additional
+trust boundary and may need Workers Paid for the additional CPU cost.
+
+Desktop uses `https-proxy-agent` with Node's native TLS verification. HTTP proxy
+authentication itself is not encrypted between DomBot and the proxy; the registrar
+request is encrypted end to end inside the HTTPS tunnel. Use a proxy provider and
+network you trust. No setting disables certificate verification.
+
+Only Namecheap's production API is reachable through this transport. Namecheap
+uses GET for writes as well as reads, so retries use an explicit read-command
+allowlist. Writes, renewals and unknown commands are never automatically replayed.
+After an uncertain write failure, check the outcome in Namecheap before retrying.
+Provider error codes are shown without raw response bodies or credential-bearing
+request URLs.
+
+References: [Namecheap API parameters](https://www.namecheap.com/support/api/global-parameters/),
+[Cloudflare sockets implementation](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/sockets.c++),
+[tunnelfetch security and maturity](https://github.com/latentharbor/tunnelfetch#readme).

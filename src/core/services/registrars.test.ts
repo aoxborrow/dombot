@@ -60,13 +60,16 @@ const clientMethods = {
   getNameservers: vi.fn(),
 };
 const listPortfolio = vi.fn();
-vi.mock('@aoxborrow/registrar-client', () => {
+vi.mock('@aoxborrow/registrar-client', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@aoxborrow/registrar-client')>();
   class RegistrarClient {
     constructor() {
       Object.assign(this, clientMethods);
     }
   }
   return {
+    ...actual,
     RegistrarClient,
     createRegistrar: vi.fn(() => ({})),
     listPortfolio: (...a: unknown[]) => listPortfolio(...a),

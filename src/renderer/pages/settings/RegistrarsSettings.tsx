@@ -17,6 +17,8 @@ import {
 } from '../../../shared/registrar-help';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
+import { namecheapCredentials } from '../../../shared/namecheap-proxy';
+import { isWeb } from '../../lib/platform';
 import { timeAgo } from '../../lib/time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -145,6 +147,8 @@ function RegistrarCard({
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [toggling, setToggling] = useState(false);
+  // Namecheap fixed-IP proxy: on for an account whose stored creds carry one.
+  const [proxyEnabled, setProxyEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const currentId = selected && idOf(selected);
@@ -158,6 +162,7 @@ function RegistrarCard({
       setValues({});
       setOriginal({});
       setLabel('');
+      setProxyEnabled(false);
       setLoading(false);
     } else {
       setLoading(true);
@@ -168,6 +173,9 @@ function RegistrarCard({
           if (current) {
             setValues(creds);
             setOriginal(creds);
+            setProxyEnabled(
+              Boolean(creds.proxyUrl?.trim() || creds.proxyIp?.trim()),
+            );
             setLoading(false);
           }
         })
@@ -204,11 +212,17 @@ function RegistrarCard({
     setSaving(true);
     setError(null);
     try {
-      const clean = Object.fromEntries(
+      const trimmed = Object.fromEntries(
         Object.entries(values)
           .map(([k, v]) => [k, v.trim()])
           .filter(([, v]) => v),
-      );
+      ) as CredentialValues;
+      // Namecheap: apply/strip the fixed-IP proxy per the toggle. This validates
+      // an enabled proxy (both URL and IP present and public) before any save.
+      const clean =
+        provider.name === 'namecheap'
+          ? namecheapCredentials(trimmed, proxyEnabled)
+          : trimmed;
       if (draft) {
         // Same Save action as before; no empty account is created beforehand.
         const account = await window.api.connectRegistrarAccount(
@@ -238,7 +252,6 @@ function RegistrarCard({
       }
     } catch (err) {
       setError(errorMessage(err));
-    } finally {
       setSaving(false);
     }
   };
@@ -316,9 +329,17 @@ function RegistrarCard({
   const { configured, enabled, sync } = meta;
   const help = REGISTRAR_HELP[provider.name];
   const hasCredentials = Object.values(values).some((v) => v.trim());
+  // A Namecheap proxy supplies the outgoing ClientIp, so it isn't required in the
+  // form when the proxy is on (the URL/IP live in the proxy section below).
+  const proxySuppliesIp = provider.name === 'namecheap' && proxyEnabled;
   const missingRequired =
     hasCredentials &&
-    provider.configFields.some((f) => f.required && !values[f.name]?.trim());
+    provider.configFields.some(
+      (f) =>
+        f.required &&
+        !values[f.name]?.trim() &&
+        !(proxySuppliesIp && f.name === 'clientIp'),
+    );
 
   return (
     <Card className="gap-0 overflow-hidden rounded-md py-0">
@@ -530,7 +551,88 @@ function RegistrarCard({
               onChange={(name, value) =>
                 setValues((current) => ({ ...current, [name]: value }))
               }
+              hideFields={
+                proxySuppliesIp ? new Set(['clientIp']) : undefined
+              }
             />
+
+            {provider.name === 'namecheap' && (
+              <div className="mt-5 border-t pt-4">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id={`${provider.name}-proxy-enabled`}
+                    checked={proxyEnabled}
+                    onCheckedChange={setProxyEnabled}
+                    disabled={busy}
+                  />
+                  <FieldLabel htmlFor={`${provider.name}-proxy-enabled`}>
+                    Use fixed IP proxy
+                  </FieldLabel>
+                </div>
+                {proxyEnabled && (
+                  <FieldGroup className="mt-4 gap-4">
+                    <Field className="gap-1.5">
+                      <FieldLabel htmlFor={`${provider.name}-proxy-url`}>
+                        Proxy URL
+                      </FieldLabel>
+                      <FieldDescription>
+                        HTTP CONNECT proxy with a public IPv4 endpoint. Include
+                        username and password if required.
+                      </FieldDescription>
+                      <Input
+                        id={`${provider.name}-proxy-url`}
+                        type="password"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="font-mono"
+                        placeholder="http://user:password@proxy-ip:port"
+                        value={values.proxyUrl ?? ''}
+                        disabled={busy}
+                        onChange={(e) =>
+                          setValues((v) => ({ ...v, proxyUrl: e.target.value }))
+                        }
+                      />
+                    </Field>
+                    <Field className="gap-1.5">
+                      <FieldLabel htmlFor={`${provider.name}-proxy-ip`}>
+                        Outgoing IPv4 address
+                      </FieldLabel>
+                      <FieldDescription>
+                        Allowlist this address in Namecheap API settings. It may
+                        differ from the proxy endpoint.
+                      </FieldDescription>
+                      <Input
+                        id={`${provider.name}-proxy-ip`}
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="font-mono"
+                        placeholder="Your proxy’s outgoing IPv4"
+                        value={values.proxyIp ?? ''}
+                        disabled={busy}
+                        onChange={(e) =>
+                          setValues((v) => ({ ...v, proxyIp: e.target.value }))
+                        }
+                      />
+                    </Field>
+                    {isWeb() && (
+                      <p className="text-sm text-muted-foreground">
+                        Workers proxy connections use an experimental TLS client.
+                        Review the{' '}
+                        <a
+                          className="underline"
+                          href="https://github.com/latentharbor/tunnelfetch#readme"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          transport’s security limitations
+                        </a>{' '}
+                        before enabling it.
+                      </p>
+                    )}
+                  </FieldGroup>
+                )}
+              </div>
+            )}
 
             <div className="mt-4 flex items-center gap-3">
               <Button
@@ -659,17 +761,20 @@ function CredentialFields({
   values,
   disabled,
   onChange,
+  hideFields,
 }: {
   provider: RegistrarDefinition;
   idPrefix: string;
   values: CredentialValues;
   disabled: boolean;
   onChange: (name: string, value: string) => void;
+  hideFields?: ReadonlySet<string>;
 }) {
   const help = REGISTRAR_HELP[provider.name];
   return (
     <FieldGroup className="gap-4">
       {provider.configFields.map((field) => {
+        if (hideFields?.has(field.name)) return null;
         const id = `${idPrefix}-${field.name}`;
         const fieldHelp = help.fields[field.name];
         return (
@@ -742,21 +847,34 @@ function NewRegistrarAccountForm({
   }, []);
   const [values, setValues] = useState<CredentialValues>({});
   const [label, setLabel] = useState('');
+  const [proxyEnabled, setProxyEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // With the Namecheap proxy on, its outgoing IP supplies the required ClientIp,
+  // so the direct field isn't needed; the proxy URL/IP are required instead.
+  const proxySuppliesIp = provider.name === 'namecheap' && proxyEnabled;
   const ready =
     Object.values(values).some((value) => value.trim()) &&
     provider.configFields.every(
-      (field) => !field.required || values[field.name]?.trim(),
-    );
+      (field) =>
+        !field.required ||
+        values[field.name]?.trim() ||
+        (proxySuppliesIp && field.name === 'clientIp'),
+    ) &&
+    (!proxyEnabled ||
+      Boolean(values.proxyUrl?.trim() && values.proxyIp?.trim()));
   const save = async () => {
     if (!ready || saving) return;
     setSaving(true);
     setError(null);
     try {
+      const credentials =
+        provider.name === 'namecheap'
+          ? namecheapCredentials(values, proxyEnabled)
+          : values;
       const account = await window.api.connectRegistrarAccount(
         provider.name,
-        values,
+        credentials,
         label.trim() || undefined,
       );
       onAdded(account);
@@ -795,7 +913,85 @@ function NewRegistrarAccountForm({
           onChange={(name, value) =>
             setValues((current) => ({ ...current, [name]: value }))
           }
+          hideFields={proxySuppliesIp ? new Set(['clientIp']) : undefined}
         />
+        {provider.name === 'namecheap' && (
+          <div className="border-t pt-4">
+            <div className="flex items-center gap-3">
+              <Switch
+                id={`${provider.name}-new-proxy-enabled`}
+                checked={proxyEnabled}
+                onCheckedChange={setProxyEnabled}
+                disabled={saving}
+              />
+              <FieldLabel htmlFor={`${provider.name}-new-proxy-enabled`}>
+                Use fixed IP proxy
+              </FieldLabel>
+            </div>
+            {proxyEnabled && (
+              <FieldGroup className="mt-4 gap-4">
+                <Field className="gap-1.5">
+                  <FieldLabel htmlFor={`${provider.name}-new-proxy-url`}>
+                    Proxy URL
+                  </FieldLabel>
+                  <FieldDescription>
+                    HTTP CONNECT proxy with a public IPv4 endpoint. Include
+                    username and password if required.
+                  </FieldDescription>
+                  <Input
+                    id={`${provider.name}-new-proxy-url`}
+                    type="password"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="font-mono"
+                    placeholder="http://user:password@proxy-ip:port"
+                    value={values.proxyUrl ?? ''}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setValues((v) => ({ ...v, proxyUrl: e.target.value }))
+                    }
+                  />
+                </Field>
+                <Field className="gap-1.5">
+                  <FieldLabel htmlFor={`${provider.name}-new-proxy-ip`}>
+                    Outgoing IPv4 address
+                  </FieldLabel>
+                  <FieldDescription>
+                    Allowlist this address in Namecheap API settings. It may
+                    differ from the proxy endpoint.
+                  </FieldDescription>
+                  <Input
+                    id={`${provider.name}-new-proxy-ip`}
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="font-mono"
+                    placeholder="Your proxy’s outgoing IPv4"
+                    value={values.proxyIp ?? ''}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setValues((v) => ({ ...v, proxyIp: e.target.value }))
+                    }
+                  />
+                </Field>
+                {isWeb() && (
+                  <p className="text-sm text-muted-foreground">
+                    Workers proxy connections use an experimental TLS client.
+                    Review the{' '}
+                    <a
+                      className="underline"
+                      href="https://github.com/latentharbor/tunnelfetch#readme"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      transport’s security limitations
+                    </a>{' '}
+                    before enabling it.
+                  </p>
+                )}
+              </FieldGroup>
+            )}
+          </div>
+        )}
         <Field className="gap-1.5">
           <FieldLabel htmlFor={`${provider.name}-new-label`}>
             Account label{' '}
