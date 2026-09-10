@@ -28,8 +28,10 @@ export interface RegistrarHelp {
 }
 
 // Exhaustive over RegistrarName so adding a registrar to the library forces a
-// help entry here (the build fails until one is written).
-export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
+// help entry here (the build fails until one is written). Name.com is prepared
+// ahead of the registrar-client release; it appears once that dependency adds it.
+type HelpRegistrar = RegistrarName | 'namecom';
+export const REGISTRAR_HELP: Record<HelpRegistrar, RegistrarHelp> = {
   cloudflare: {
     summary:
       'A user API token with the account-level Registrar permission (Read ' +
@@ -126,6 +128,21 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
     fields: {
       clientIp:
         'The whitelisted IPv4 address; calls from any other IP are rejected.',
+    },
+  },
+
+  namecom: {
+    summary:
+      'Use your Name.com username and a production API token. If your account uses two-step verification, enable API Access in its security settings.',
+    links: [
+      {
+        label: 'API token settings',
+        url: 'https://www.name.com/account/settings/api',
+      },
+    ],
+    fields: {
+      apiToken:
+        'Use a token from the Production section, not the Development/Test token.',
     },
   },
 

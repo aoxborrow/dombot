@@ -34,6 +34,10 @@ beforeEach(async () => {
 const reg = (name: string) => name as RegistrarName;
 
 describe('usesPerNameQuote', () => {
+  it('fetches Name.com quotes for both legacy and premium-capable TLDs', () => {
+    expect(pricing.usesPerNameQuote(reg('namecom'), 'com')).toBe(true);
+    expect(pricing.usesPerNameQuote(reg('namecom'), 'io')).toBe(true);
+  });
   it('is true for gandi/dynadot on a premium-capable TLD', () => {
     expect(pricing.usesPerNameQuote(reg('gandi'), 'io')).toBe(true);
     expect(pricing.usesPerNameQuote(reg('dynadot'), 'DEV')).toBe(true); // case-insensitive

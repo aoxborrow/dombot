@@ -32,6 +32,10 @@ import type { RenewalPricing } from '../../shared/ipc';
 // back to the base rate.
 const SPECIFIC_CAPABLE = new Set<RegistrarName>(['gandi', 'dynadot']);
 
+// Name.com has no bundled base-rate table. Quote every owned domain, including
+// legacy extensions, once the released library adds this provider.
+const ALWAYS_QUOTE = new Set<string>(['namecom']);
+
 // TLDs whose registry runs no premium program, so every name renews at one
 // uniform rate — the base per-TLD price is already exact and a per-name quote
 // can't improve on it. These are the legacy gTLDs; extend as more flat-priced
@@ -50,7 +54,8 @@ export function usesPerNameQuote(
   tld: string,
 ): boolean {
   return (
-    SPECIFIC_CAPABLE.has(registrar) && !NO_PREMIUM_TLDS.has(tld.toLowerCase())
+    ALWAYS_QUOTE.has(registrar) ||
+    (SPECIFIC_CAPABLE.has(registrar) && !NO_PREMIUM_TLDS.has(tld.toLowerCase()))
   );
 }
 
