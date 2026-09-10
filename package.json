@@ -79,7 +79,7 @@
     "wrangler": "^4.129.0"
   },
   "dependencies": {
-    "@aoxborrow/registrar-client": "^0.5.0",
+    "@aoxborrow/registrar-client": "^0.6.0",
     "@hono/node-server": "^2.1.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "class-variance-authority": "^0.7.1",
