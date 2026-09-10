@@ -34,7 +34,6 @@ const api: DombotApi = {
     ),
 
   // Registrars
-  listDynadotDomains: () => ipcRenderer.invoke(IpcChannels.listDynadotDomains),
   getDomainDetail: (registrar, domainName, refresh, accountId) =>
     ipcRenderer.invoke(
       IpcChannels.getDomainDetail,

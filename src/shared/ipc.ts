@@ -29,7 +29,6 @@ export type Domain = ProviderDomain & {
 export const IpcChannels = {
   ping: 'app:ping',
   getAppInfo: 'app:getAppInfo',
-  listDynadotDomains: 'registrar:listDynadotDomains',
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
   applyDomainOp: 'domain:apply',
@@ -550,7 +549,6 @@ export interface DombotApi {
   ) => Promise<void>;
 
   // Registrars
-  listDynadotDomains: () => Promise<Domain[]>;
   /**
    * Aggregate portfolio across every configured registrar. With `refresh` false,
    * the cached portfolio is returned (no network); otherwise it re-syncs every

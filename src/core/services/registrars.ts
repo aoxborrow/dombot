@@ -131,14 +131,20 @@ export function resolveAccount(
         `Account "${accountId}" does not belong to registrar "${name}".`,
       );
   } else {
-    const matches = owners.filter(
-      (a) =>
-        a.registrar === name &&
-        configured.some((c) => c.id === a.id) &&
-        isRegistrarEnabled(a.id),
+    const ownersHere = owners.filter((a) => a.registrar === name);
+    const matches = ownersHere.filter(
+      (a) => configured.some((c) => c.id === a.id) && isRegistrarEnabled(a.id),
     );
     if (matches.length === 1) account = matches[0];
-    else if (matches.length > 1 || configured.length > 1)
+    else if (matches.length > 1)
+      throw new Error(
+        'Multiple accounts match. Pass accountId to disambiguate.',
+      );
+    // A single cached owner that isn't usable (disabled or missing credentials):
+    // resolve to it so the caller gets the precise reason, not a misleading
+    // "multiple accounts match" when only one account actually holds the domain.
+    else if (ownersHere.length === 1) account = ownersHere[0];
+    else if (ownersHere.length > 1 || configured.length > 1)
       throw new Error(
         'Multiple accounts match. Pass accountId to disambiguate.',
       );
@@ -408,9 +414,15 @@ export async function syncRegistrar(
   accountId?: string,
 ): Promise<Portfolio> {
   const account = resolveAccount(name, accountId);
-  if (isConfigured(name, account.id) && isRegistrarEnabled(account.id))
-    await syncRegistrarInto(account);
-  else clearRegistrarData(account.id);
+  if (isConfigured(name, account.id)) {
+    // A configured account keeps its cached slice even while disabled — the
+    // portfolio just hides it (see setRegistrarEnabledCached, which never
+    // clears). Only sync when it's actually enabled.
+    if (isRegistrarEnabled(account.id)) await syncRegistrarInto(account);
+  } else {
+    // Credentials are gone — drop the stale slice so it can't reappear.
+    clearRegistrarData(account.id);
+  }
   return assemblePortfolio();
 }
 

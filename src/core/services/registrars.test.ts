@@ -370,7 +370,7 @@ describe('syncRegistrarInto — last-good on error (via getPortfolio)', () => {
   });
 });
 
-describe('syncRegistrar — drops the slice when unconfigured/disabled', () => {
+describe('syncRegistrar — cache lifecycle', () => {
   it('clears a registrar that is no longer configured', async () => {
     seedSlice('cloudflare', [
       domain({ domainName: 'c.com', registrar: 'cloudflare' }),
@@ -378,6 +378,18 @@ describe('syncRegistrar — drops the slice when unconfigured/disabled', () => {
     // cloudflare has no stored credentials → not configured.
     await syncRegistrar('cloudflare');
     expect(store.portfolio.cloudflare).toBeUndefined();
+  });
+
+  it('keeps a configured-but-disabled account’s cached slice', async () => {
+    seedSlice('dynadot', [
+      domain({ domainName: 'a.com', registrar: 'dynadot' }),
+    ]);
+    // Disabling keeps credentials and cache; syncing a disabled account must
+    // not fetch and must not wipe the last-good slice.
+    enabled.dynadot = false;
+    await syncRegistrar('dynadot');
+    expect(listPortfolio).not.toHaveBeenCalled();
+    expect(store.portfolio.dynadot).toBeDefined();
   });
 });
 

@@ -194,9 +194,6 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   ),
 
   // ── Registrars ────────────────────────────────────────────────────────────
-  listDynadotDomains: method(none, async () =>
-    getRegistrarClient('dynadot').listDomains(),
-  ),
   listPortfolio: method(
     z.tuple([z.boolean().optional()]),
     async (refresh = true) => getPortfolio(refresh),

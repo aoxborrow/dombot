@@ -265,8 +265,6 @@ export function createHttpApi(): DombotApi {
     getPortfolioPricing: m('getPortfolioPricing'),
     setManualPrice: m('setManualPrice'),
 
-    listDynadotDomains: async () =>
-      (await call<Domain[]>('listDynadotDomains')).map(reviveDomain),
     listPortfolio: async (refresh) =>
       reviveDomains(
         await call<Awaited<ReturnType<DombotApi['listPortfolio']>>>(
