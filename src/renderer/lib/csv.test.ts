@@ -34,12 +34,16 @@ function fields(row: string): string[] {
   for (let i = 0; i < row.length; i++) {
     const ch = row[i];
     if (inQ) {
-      if (ch === '"' && row[i + 1] === '"') { cur += '"'; i++; }
-      else if (ch === '"') inQ = false;
+      if (ch === '"' && row[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else if (ch === '"') inQ = false;
       else cur += ch;
     } else if (ch === '"') inQ = true;
-    else if (ch === ',') { out.push(cur); cur = ''; }
-    else cur += ch;
+    else if (ch === ',') {
+      out.push(cur);
+      cur = '';
+    } else cur += ch;
   }
   out.push(cur);
   return out;
@@ -59,9 +63,22 @@ describe('domainsToCsv', () => {
   it('emits the header row first, in column order', () => {
     const csv = domainsToCsv([], {}, [], {});
     expect(fields(rows(csv)[0])).toEqual([
-      'Domain', 'TLD', 'Registrar', 'Folder', 'Status', 'Created', 'Expires',
-      'Days Until Expiry', 'Renewal Date', 'Auto Renew', 'Locked', 'Privacy',
-      'Nameservers', 'Last Synced',
+      'Domain',
+      'Account',
+      'Account ID',
+      'TLD',
+      'Registrar',
+      'Folder',
+      'Status',
+      'Created',
+      'Expires',
+      'Days Until Expiry',
+      'Renewal Date',
+      'Auto Renew',
+      'Locked',
+      'Privacy',
+      'Nameservers',
+      'Last Synced',
     ]);
   });
 
@@ -90,7 +107,11 @@ describe('domainsToCsv', () => {
   });
 
   it('leaves date columns blank for null dates', () => {
-    const d = domain({ domainName: 'x.com', createdDate: null, expirationDate: null });
+    const d = domain({
+      domainName: 'x.com',
+      createdDate: null,
+      expirationDate: null,
+    });
     const csv = domainsToCsv([d], {}, [], {});
     expect(col(csv, 1, 'Created')).toBe('');
     expect(col(csv, 1, 'Expires')).toBe('');

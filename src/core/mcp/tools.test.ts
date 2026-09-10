@@ -20,6 +20,16 @@ const getDomainDetail = vi.fn();
 const getMergedPortfolio = vi.fn();
 
 vi.mock('../services/registrars', () => ({
+  resolveAccount: (registrar: string, id?: string) => ({
+    registrar,
+    id: id ?? registrar,
+    label: 'Default',
+  }),
+  resolveDomainAccount: (registrar: string, _domain: string, id?: string) => ({
+    registrar,
+    id: id ?? registrar,
+    label: 'Default',
+  }),
   registrarNames: ['dynadot', 'porkbun', 'godaddy'] as const,
   findRegistrarsForDomain: (d: string) => findRegistrarsForDomain(d),
   getConfiguredRegistrars: () => getConfiguredRegistrars(),
@@ -29,7 +39,7 @@ vi.mock('../services/registrars', () => ({
   getDomainDetail: (...a: unknown[]) => getDomainDetail(...a),
   getMergedPortfolio: () => getMergedPortfolio(),
   getPortfolio: vi.fn(),
-  getRegistrarMetadata: vi.fn(),
+  getRegistrarMetadata: vi.fn(() => []),
   getRenewalPriceLive: vi.fn(),
   syncRegistrar: vi.fn(),
 }));
@@ -93,6 +103,7 @@ describe('json() payload shape', () => {
     expect(res.content).toHaveLength(1);
     expect(res.content[0]).toMatchObject({ type: 'text' });
     expect(JSON.parse(res.content[0].text)).toEqual({
+      accounts: [],
       all: ['dynadot', 'porkbun', 'godaddy'],
       configured: ['dynadot'],
       active: ['dynadot'],
@@ -113,7 +124,7 @@ describe('resolveRegistrar (via domain_set_autorenew)', () => {
     });
     expect(findRegistrarsForDomain).not.toHaveBeenCalled();
     expect(applyDomainOp).toHaveBeenCalledWith(
-      { registrar: 'dynadot', domainName: 'example.com' },
+      { registrar: 'dynadot', accountId: 'dynadot', domainName: 'example.com' },
       { kind: 'autoRenew', enabled: true },
     );
   });
@@ -125,7 +136,7 @@ describe('resolveRegistrar (via domain_set_autorenew)', () => {
       enabled: false,
     });
     expect(applyDomainOp).toHaveBeenCalledWith(
-      { registrar: 'porkbun', domainName: 'example.com' },
+      { registrar: 'porkbun', accountId: 'porkbun', domainName: 'example.com' },
       { kind: 'autoRenew', enabled: false },
     );
   });
@@ -159,6 +170,8 @@ describe('domainOp() result mapping', () => {
       enabled: true,
     });
     expect(out).toEqual({
+      registrar: 'dynadot',
+      accountId: 'dynadot',
       success: true,
       status: 'ok',
       message: 'Auto-renew enabled',
@@ -172,6 +185,8 @@ describe('domainOp() result mapping', () => {
       enabled: true,
     });
     expect(out).toEqual({
+      registrar: 'dynadot',
+      accountId: 'dynadot',
       success: false,
       status: 'failed',
       message: 'rejected',
@@ -330,7 +345,7 @@ describe('end-to-end handlers', () => {
     applyDomainOp.mockResolvedValue({ status: 'ok', message: 'Renewed' });
     const out = await call('domain_renew', { domain: 'a.com', years: 3 });
     expect(applyDomainOp).toHaveBeenCalledWith(
-      { registrar: 'dynadot', domainName: 'a.com' },
+      { registrar: 'dynadot', accountId: 'dynadot', domainName: 'a.com' },
       { kind: 'renew', years: 3 },
     );
     expect(out).toMatchObject({ success: true, status: 'ok' });

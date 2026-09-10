@@ -1,3 +1,4 @@
+import { domainKey } from '../../../shared/account-key';
 import {
   CalendarPlus,
   Check,
@@ -56,7 +57,7 @@ export function RowActionsMenu({
   onRenew: () => void;
   onAssignFolder: (folderId: string | null) => void;
 }) {
-  const key = `${domain.registrar}:${domain.domainName}`;
+  const key = domainKey(domain);
   const pending = useAppStore((s) => s.mutating[key] ?? false);
   const urlReason = useOpUnsupportedReason(domain.registrar, {
     kind: 'urlForwarding',

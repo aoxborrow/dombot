@@ -1,3 +1,5 @@
+import { multiAccountRegistrars } from '../lib/registrar-accounts';
+import { domainKey } from '../../shared/account-key';
 import { useMemo, useState } from 'react';
 import {
   CalendarClock,
@@ -113,13 +115,50 @@ const MANUAL_PRICING_ENABLED = false;
 
 export default function Renewals() {
   const {
-    portfolio,
+    portfolio: allDomains,
     portfolioLoadedAt,
     portfolioRegistrarLabels,
     pricing,
     setManualPrice,
   } = useAppStore();
 
+  const [account, setAccount] = useState('all');
+  const accounts = useAppStore((s) => s.registrars);
+  const multipleAccounts = useMemo(
+    () => multiAccountRegistrars(accounts, allDomains),
+    [accounts, allDomains],
+  );
+  const showAccountDetails = multipleAccounts.size > 0;
+  const portfolio = useMemo(
+    () =>
+      !showAccountDetails || account === 'all'
+        ? allDomains
+        : allDomains.filter((d) => (d.accountId ?? d.registrar) === account),
+    [allDomains, account, showAccountDetails],
+  );
+  const accountFilter = showAccountDetails && (
+    <label className="flex items-center gap-3 text-sm">
+      Account
+      <select
+        aria-label="Account"
+        className="rounded-md border bg-background px-3 py-2"
+        value={account}
+        onChange={(e) => setAccount(e.target.value)}
+      >
+        <option value="all">All accounts</option>
+        {accounts
+          ?.filter((r) => r.configured && r.enabled)
+          .map((r) => (
+            <option key={r.accountId ?? r.name} value={r.accountId ?? r.name}>
+              {r.displayName}
+              {multipleAccounts.has(r.name)
+                ? ` · ${r.accountLabel ?? 'Default'}`
+                : ''}
+            </option>
+          ))}
+      </select>
+    </label>
+  );
   const hasPortfolio = portfolioLoadedAt !== null && portfolio.length > 0;
   const hasPricing = Object.keys(pricing).length > 0;
   // Pricing is computed locally in main and arrives with the portfolio (and is
@@ -186,6 +225,7 @@ export default function Renewals() {
     return (
       <div className="mx-auto max-w-[1400px]">
         <PageHeader loading={pricingLoading} summary={summary} />
+        {accountFilter}
         <Empty className="mt-6 rounded-lg border border-dashed">
           <EmptyHeader>
             <EmptyTitle>No portfolio loaded</EmptyTitle>
@@ -204,6 +244,7 @@ export default function Renewals() {
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-6">
       <PageHeader loading={pricingLoading} summary={summary} />
+      {accountFilter}
 
       {/* Totals */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -553,6 +594,7 @@ function PriceEditor({
     registrar: string,
     domain: string,
     price: number | null,
+    accountId?: string,
   ) => Promise<void>;
 }) {
   return (
@@ -580,7 +622,7 @@ function PriceEditor({
               const p = priceOf(d, pricing);
               return (
                 <PriceEditorRow
-                  key={`${d.registrar}:${d.domainName}`}
+                  key={domainKey(d)}
                   domain={d}
                   label={registrarLabel(d.registrar, labels)}
                   current={p?.source === 'manual' ? p.renewal : null}
@@ -611,6 +653,7 @@ function PriceEditorRow({
     registrar: string,
     domain: string,
     price: number | null,
+    accountId?: string,
   ) => Promise<void>;
 }) {
   const [value, setValue] = useState(current != null ? String(current) : '');
@@ -624,7 +667,12 @@ function PriceEditorRow({
     if (invalid) return;
     setSaving(true);
     try {
-      await onSave(domain.registrar, domain.domainName, parsed);
+      await onSave(
+        domain.registrar,
+        domain.domainName,
+        parsed,
+        domain.accountId,
+      );
     } finally {
       setSaving(false);
     }

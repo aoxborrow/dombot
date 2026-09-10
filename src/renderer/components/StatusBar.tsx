@@ -1,3 +1,4 @@
+import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { useEffect, useReducer } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -53,6 +54,8 @@ export default function StatusBar() {
   // counts as synced when its last sync succeeded (lastSyncedAt set, no
   // lastError). `null` = metadata not yet known.
   const configured = registrars?.filter((r) => r.configured && r.enabled) ?? [];
+  const unit =
+    multiAccountRegistrars(registrars).size > 0 ? 'accounts' : 'registrars';
   const configuredCount = configured.length;
   const syncedCount = configured.filter(
     (r) => r.sync.lastSyncedAt != null && r.sync.lastError == null,
@@ -109,10 +112,10 @@ export default function StatusBar() {
               )}
               title={
                 noneConfigured
-                  ? 'No registrars configured — open registrar settings'
+                  ? `No ${unit} configured — open registrar settings`
                   : allSynced
-                    ? 'All configured registrars synced — open registrar settings'
-                    : `${configuredCount - syncedCount} registrar(s) not synced — open registrar settings`
+                    ? `All configured ${unit} synced — open registrar settings`
+                    : `${configuredCount - syncedCount} ${unit} not synced — open registrar settings`
               }
             >
               <span
@@ -122,7 +125,7 @@ export default function StatusBar() {
                 )}
                 aria-hidden
               />
-              {syncedCount}/{configuredCount} registrars synced
+              {syncedCount}/{configuredCount} {unit} synced
             </button>
           )}
         </div>

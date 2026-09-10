@@ -1,3 +1,4 @@
+import { domainKey } from '../../../shared/account-key';
 import { useMemo, useState } from 'react';
 import { ChevronRight, Copy, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
@@ -115,9 +116,7 @@ export function BulkActionDialog({
 
   const candidates = useMemo(
     () =>
-      retryOf
-        ? domains.filter((d) => retryOf.has(`${d.registrar}:${d.domainName}`))
-        : domains,
+      retryOf ? domains.filter((d) => retryOf.has(domainKey(d))) : domains,
     [domains, retryOf],
   );
   const buckets = useMemo(
@@ -126,7 +125,7 @@ export function BulkActionDialog({
         candidates,
         op,
         registrars,
-        (d) => `${d.registrar}:${d.domainName}` in enriched,
+        (d) => domainKey(d) in enriched,
       ),
     [candidates, op, registrars, enriched],
   );
@@ -199,6 +198,7 @@ export function BulkActionDialog({
               : op;
       const targets: DomainTarget[] = targetsToRun.map((d) => ({
         registrar: d.registrar as DomainTarget['registrar'],
+        accountId: d.accountId,
         domainName: d.domainName,
       }));
       const started = await startBulk(targets, finalOp);
@@ -220,7 +220,7 @@ export function BulkActionDialog({
   const retryFailed = (j: BulkJob) => {
     const keys = j.results
       .filter((r) => isRetryable(r.status))
-      .map((r) => `${r.target.registrar}:${r.target.domainName}`);
+      .map((r) => domainKey(r.target));
     setRetryOf(new Set(keys));
     setJobId(null);
   };
@@ -606,7 +606,7 @@ function BulkRenew({
   let known = 0;
   let total = 0;
   for (const d of domains) {
-    const p = pricing[`${d.registrar}:${d.domainName}`];
+    const p = pricing[domainKey(d)];
     if (p?.renewal != null) {
       known += 1;
       total += p.renewal * years;
@@ -713,7 +713,7 @@ function ResultsList({
     <ul className="max-h-64 overflow-y-auto rounded-md border text-xs">
       {[...results].reverse().map((r, i) => (
         <li
-          key={`${r.target.registrar}:${r.target.domainName}:${i}`}
+          key={`${domainKey(r.target)}:${i}`}
           className="flex items-start gap-2 border-b px-2.5 py-1.5 last:border-b-0"
         >
           <span className="mt-1.5 shrink-0">
@@ -773,7 +773,7 @@ function AuthCodeResults({ results }: { results: DomainOpResult[] }) {
       <ul className="max-h-72 overflow-y-auto rounded-md border text-xs">
         {results.map((r, i) => (
           <li
-            key={`${r.target.registrar}:${r.target.domainName}:${i}`}
+            key={`${domainKey(r.target)}:${i}`}
             className="flex items-center gap-2 border-b px-2.5 py-1.5 last:border-b-0"
           >
             <StatusDot status={r.status} />
@@ -818,11 +818,9 @@ function Buckets({
    *  registrar's own constraints. */
   held: { domain: Domain; reason: string }[];
 }) {
-  const heldKeys = new Set(
-    held.map((h) => `${h.domain.registrar}:${h.domain.domainName}`),
-  );
+  const heldKeys = new Set(held.map((h) => domainKey(h.domain)));
   const willChange = buckets.eligible.filter(
-    (d) => !heldKeys.has(`${d.registrar}:${d.domainName}`),
+    (d) => !heldKeys.has(domainKey(d)),
   );
   return (
     <div className="flex flex-col gap-1.5 text-sm">

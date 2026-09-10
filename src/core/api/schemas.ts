@@ -13,7 +13,10 @@ export const registrarName = z.enum(registrarNames);
 
 export const domainName = z.string().trim().min(1).max(253);
 
+export const accountId = z.string().min(1).max(100).optional();
+
 export const domainTarget = z.object({
+  accountId,
   registrar: registrarName,
   domainName,
 });

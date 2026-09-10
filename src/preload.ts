@@ -24,17 +24,23 @@ const api: DombotApi = {
   clearAllCaches: () => ipcRenderer.invoke(IpcChannels.clearAllCaches),
   getPortfolioPricing: () =>
     ipcRenderer.invoke(IpcChannels.getPortfolioPricing),
-  setManualPrice: (registrar, domain, price) =>
-    ipcRenderer.invoke(IpcChannels.setManualPrice, registrar, domain, price),
+  setManualPrice: (registrar, domain, price, accountId) =>
+    ipcRenderer.invoke(
+      IpcChannels.setManualPrice,
+      registrar,
+      domain,
+      price,
+      accountId,
+    ),
 
   // Registrars
-  listDynadotDomains: () => ipcRenderer.invoke(IpcChannels.listDynadotDomains),
-  getDomainDetail: (registrar, domainName, refresh) =>
+  getDomainDetail: (registrar, domainName, refresh, accountId) =>
     ipcRenderer.invoke(
       IpcChannels.getDomainDetail,
       registrar,
       domainName,
       refresh,
+      accountId,
     ),
   applyDomainOp: (target, op) =>
     ipcRenderer.invoke(IpcChannels.applyDomainOp, target, op),
@@ -59,15 +65,38 @@ const api: DombotApi = {
   },
   listPortfolio: (refresh) =>
     ipcRenderer.invoke(IpcChannels.listPortfolio, refresh),
-  syncRegistrar: (name) => ipcRenderer.invoke(IpcChannels.syncRegistrar, name),
+  syncRegistrar: (name, accountId) =>
+    ipcRenderer.invoke(IpcChannels.syncRegistrar, name, accountId),
+  getRegistrarCatalog: () =>
+    ipcRenderer.invoke(IpcChannels.getRegistrarCatalog),
+  connectRegistrarAccount: (...args) =>
+    ipcRenderer.invoke(IpcChannels.connectRegistrarAccount, ...args),
+  createRegistrarAccount: (...args) =>
+    ipcRenderer.invoke(IpcChannels.createRegistrarAccount, ...args),
+  renameRegistrarAccount: (...args) =>
+    ipcRenderer.invoke(IpcChannels.renameRegistrarAccount, ...args),
+  removeRegistrarAccount: (...args) =>
+    ipcRenderer.invoke(IpcChannels.removeRegistrarAccount, ...args),
+  testRegistrarAccount: (...args) =>
+    ipcRenderer.invoke(IpcChannels.testRegistrarAccount, ...args),
   getRegistrarMetadata: () =>
     ipcRenderer.invoke(IpcChannels.getRegistrarMetadata),
-  getRegistrarCredentials: (name) =>
-    ipcRenderer.invoke(IpcChannels.getRegistrarCredentials, name),
-  saveRegistrarCredentials: (name, creds) =>
-    ipcRenderer.invoke(IpcChannels.saveRegistrarCredentials, name, creds),
-  setRegistrarEnabled: (name, enabled) =>
-    ipcRenderer.invoke(IpcChannels.setRegistrarEnabled, name, enabled),
+  getRegistrarCredentials: (name, accountId) =>
+    ipcRenderer.invoke(IpcChannels.getRegistrarCredentials, name, accountId),
+  saveRegistrarCredentials: (name, creds, accountId) =>
+    ipcRenderer.invoke(
+      IpcChannels.saveRegistrarCredentials,
+      name,
+      creds,
+      accountId,
+    ),
+  setRegistrarEnabled: (name, enabled, accountId) =>
+    ipcRenderer.invoke(
+      IpcChannels.setRegistrarEnabled,
+      name,
+      enabled,
+      accountId,
+    ),
 
   // MCP server
   getMcpInfo: () => ipcRenderer.invoke(IpcChannels.getMcpInfo),

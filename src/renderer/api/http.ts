@@ -265,8 +265,6 @@ export function createHttpApi(): DombotApi {
     getPortfolioPricing: m('getPortfolioPricing'),
     setManualPrice: m('setManualPrice'),
 
-    listDynadotDomains: async () =>
-      (await call<Domain[]>('listDynadotDomains')).map(reviveDomain),
     listPortfolio: async (refresh) =>
       reviveDomains(
         await call<Awaited<ReturnType<DombotApi['listPortfolio']>>>(
@@ -274,18 +272,24 @@ export function createHttpApi(): DombotApi {
           [refresh],
         ),
       ),
-    syncRegistrar: async (name) =>
+    syncRegistrar: async (name, accountId) =>
       reviveDomains(
         await call<Awaited<ReturnType<DombotApi['syncRegistrar']>>>(
           'syncRegistrar',
-          [name],
+          [name, accountId],
         ),
       ),
-    getDomainDetail: async (registrar, domainName, refresh) => {
+    getDomainDetail: async (
+      registrar,
+      domainName,
+      refresh = false,
+      accountId,
+    ) => {
       const d = await call<Partial<Domain> | null>('getDomainDetail', [
         registrar,
         domainName,
         refresh,
+        accountId,
       ]);
       return d ? reviveDomain(d) : null;
     },
@@ -332,14 +336,20 @@ export function createHttpApi(): DombotApi {
       };
     },
 
+    getRegistrarCatalog: m('getRegistrarCatalog'),
+    connectRegistrarAccount: m('connectRegistrarAccount'),
+    createRegistrarAccount: m('createRegistrarAccount'),
+    renameRegistrarAccount: m('renameRegistrarAccount'),
+    removeRegistrarAccount: m('removeRegistrarAccount'),
+    testRegistrarAccount: m('testRegistrarAccount'),
     getRegistrarMetadata: m('getRegistrarMetadata'),
     getRegistrarCredentials: m('getRegistrarCredentials'),
     saveRegistrarCredentials: m('saveRegistrarCredentials'),
-    setRegistrarEnabled: async (name, enabled) =>
+    setRegistrarEnabled: async (name, enabled, accountId) =>
       reviveDomains(
         await call<Awaited<ReturnType<DombotApi['setRegistrarEnabled']>>>(
           'setRegistrarEnabled',
-          [name, enabled],
+          [name, enabled, accountId],
         ),
       ),
 

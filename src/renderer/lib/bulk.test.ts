@@ -126,9 +126,9 @@ describe('resultsToCsv', () => {
     };
     expect(resultsToCsv(job)).toBe(
       [
-        'Domain,Registrar,Status,Message',
-        'a.com,dynadot,Done,Locked',
-        'b.com,gandi,Failed,"Bad, ""quoted"", reason"',
+        'Domain,Registrar,Account ID,Status,Message',
+        'a.com,dynadot,dynadot,Done,Locked',
+        'b.com,gandi,gandi,Failed,"Bad, ""quoted"", reason"',
       ].join('\r\n'),
     );
   });

@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import {
+  registrarGroups,
+  registrarSummary,
+} from '../../lib/registrar-accounts';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, CircleX, ExternalLink, RefreshCw } from 'lucide-react';
 import type {
   CredentialValues,
+  RegistrarAccount,
+  RegistrarDefinition,
   RegistrarMeta,
   RegistrarName,
 } from '../../../shared/ipc';
@@ -40,19 +46,26 @@ import {
 export default function RegistrarsSettings() {
   const registrars = useAppStore((s) => s.registrars);
   const loadRegistrars = useAppStore((s) => s.loadRegistrars);
+  const [catalog, setCatalog] = useState<RegistrarDefinition[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Shared store metadata is the source of truth (so the status bar and Domains
   // agree); load it once and let store actions (save/sync) keep it fresh.
   useEffect(() => {
-    void loadRegistrars();
+    void Promise.all([loadRegistrars(), window.api.getRegistrarCatalog()])
+      .then(([, definitions]) => setCatalog(definitions))
+      .catch((err) => setLoadError(errorMessage(err)));
   }, [loadRegistrars]);
 
-  const sorted = useMemo(
+  const groups = useMemo(
     () =>
-      (registrars ?? [])
-        .slice()
-        .sort((a, b) => a.displayName.localeCompare(b.displayName)),
-    [registrars],
+      registrarGroups(
+        catalog
+          .slice()
+          .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+        registrars ?? [],
+      ),
+    [catalog, registrars],
   );
 
   return (
@@ -67,68 +80,245 @@ export default function RegistrarsSettings() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {sorted.map((r) => (
-          <RegistrarCard key={r.name} meta={r} />
+        {loadError && (
+          <p role="alert" className="text-sm text-destructive">
+            {loadError}
+          </p>
+        )}
+        {groups.map(({ provider, accounts, canAddAccount }) => (
+          <RegistrarCard
+            key={provider.name}
+            provider={provider}
+            accounts={accounts}
+            canAddAccount={canAddAccount}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
+const errorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+const idOf = (account: RegistrarMeta) => account.accountId ?? account.name;
+
+function RegistrarCard({
+  provider,
+  accounts,
+  canAddAccount,
+}: {
+  provider: RegistrarDefinition;
+  accounts: RegistrarMeta[];
+  canAddAccount: boolean;
+}) {
   const syncRegistrar = useAppStore((s) => s.syncRegistrar);
   const setRegistrarEnabled = useAppStore((s) => s.setRegistrarEnabled);
+  const loadRegistrars = useAppStore((s) => s.loadRegistrars);
+  const refreshCache = useAppStore((s) => s.applyPortfolioCacheUpdate);
+  const [selectedId, setSelectedId] = useState(
+    accounts[0] && idOf(accounts[0]),
+  );
+  const selected = accounts.find((a) => idOf(a) === selectedId) ?? accounts[0];
+  const [adding, setAdding] = useState(false);
+  const addButton = useRef<HTMLButtonElement>(null);
+  const [addedNotice, setAddedNotice] = useState<
+    (RegistrarAccount & { message: string }) | null
+  >(null);
+  const [renaming, setRenaming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const multiple = accounts.length > 1;
+  const summary = registrarSummary(provider, accounts);
+  // The draft for another account must never replace the selected account.
+  const draft = !selected;
+  const meta: RegistrarMeta = draft
+    ? {
+        ...provider,
+        configured: false,
+        enabled: true,
+        sync: { lastSyncedAt: null, lastError: null, domainCount: 0 },
+      }
+    : selected;
   const [values, setValues] = useState<CredentialValues>({});
+  const [original, setOriginal] = useState<CredentialValues>({});
+  const [label, setLabel] = useState('');
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const currentId = selected && idOf(selected);
+  const currentLabel = selected?.accountLabel ?? 'Default';
 
   useEffect(() => {
-    if (open) {
-      void window.api.getRegistrarCredentials(meta.name).then(setValues);
+    if (!open) return;
+    let current = true;
+    setError(null);
+    if (draft || !currentId) {
+      setValues({});
+      setOriginal({});
+      setLabel('');
+      setLoading(false);
+    } else {
+      setLoading(true);
+      setLabel(currentLabel);
+      window.api
+        .getRegistrarCredentials(provider.name, currentId)
+        .then((creds) => {
+          if (current) {
+            setValues(creds);
+            setOriginal(creds);
+            setLoading(false);
+          }
+        })
+        .catch((err) => {
+          if (current) setError(errorMessage(err));
+        });
     }
-  }, [open, meta.name]);
+    return () => {
+      current = false;
+    };
+  }, [open, draft, currentId, currentLabel, provider.name]);
 
-  // Sync this registrar's domains. `syncRegistrar` updates the shared store
-  // (portfolio + metadata), so this card's header status, the status bar, and
-  // the Domains page all reflect the result on their own.
-  const runSync = async () => {
+  const runSync = async (allAccounts = false) => {
+    if (!selected || draft) return;
     setSyncing(true);
+    setError(null);
     try {
-      await syncRegistrar(meta.name);
+      const targets = allAccounts
+        ? accounts.filter((account) => account.configured && account.enabled)
+        : [selected];
+      for (const account of targets) {
+        await syncRegistrar(provider.name, idOf(account));
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+      if (allAccounts) setOpen(true);
     } finally {
       setSyncing(false);
     }
   };
 
-  // Save credentials, then immediately sync so the domains appear without a
-  // separate step (and against the values just entered, not stale saved ones).
   const save = async () => {
+    if (loading) return;
     setSaving(true);
+    setError(null);
     try {
-      await window.api.saveRegistrarCredentials(meta.name, values);
-      await runSync();
+      const clean = Object.fromEntries(
+        Object.entries(values)
+          .map(([k, v]) => [k, v.trim()])
+          .filter(([, v]) => v),
+      );
+      if (draft) {
+        // Same Save action as before; no empty account is created beforehand.
+        const account = await window.api.connectRegistrarAccount(
+          provider.name,
+          clean,
+        );
+        setSelectedId(account.id);
+        await loadRegistrars();
+        await syncRegistrar(provider.name, account.id);
+      } else {
+        const id = idOf(selected);
+        const changed = Object.keys({ ...original, ...clean }).some(
+          (k) => original[k] !== clean[k],
+        );
+        if (changed)
+          await window.api.saveRegistrarCredentials(provider.name, clean, id);
+        if (renaming && label.trim() && label.trim() !== currentLabel)
+          await window.api.renameRegistrarAccount(id, label.trim());
+        setOriginal(clean);
+        setValues(clean);
+        setRenaming(false);
+        if (changed) await syncRegistrar(provider.name, id);
+        else {
+          await loadRegistrars();
+          await refreshCache();
+        }
+      }
+    } catch (err) {
+      setError(errorMessage(err));
     } finally {
       setSaving(false);
     }
   };
 
-  // Enable/disable this registrar. Disabling keeps its credentials but drops its
-  // cached data and stops syncs; enabling re-syncs it. The store updates the
-  // portfolio, pricing, and metadata, so every surface reflects it.
-  const toggleEnabled = async (next: boolean) => {
+  const toggleEnabled = async (next: boolean, allAccounts = false) => {
+    if (!selected || draft) return;
     setToggling(true);
+    setError(null);
     try {
-      await setRegistrarEnabled(meta.name, next);
+      const targets = allAccounts
+        ? accounts.filter(
+            (account) => account.configured && account.enabled !== next,
+          )
+        : [selected];
+      for (const account of targets) {
+        await setRegistrarEnabled(provider.name, next, idOf(account));
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+      if (allAccounts) setOpen(true);
     } finally {
       setToggling(false);
     }
   };
+  const remove = async () => {
+    if (!selected) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await window.api.removeRegistrarAccount(idOf(selected));
+      await loadRegistrars();
+      await refreshCache();
+      setRemoving(false);
+      setRenaming(false);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  const busy = saving || syncing || toggling;
+  const added = (account: RegistrarAccount) => {
+    setAdding(false);
+    requestAnimationFrame(() => addButton.current?.focus());
+    setAddedNotice({
+      ...account,
+      message: `“${account.label}” added. Syncing its domains…`,
+    });
+    void (async () => {
+      await loadRegistrars();
+      const result = await syncRegistrar(provider.name, account.id);
+      setAddedNotice((notice) =>
+        notice?.id === account.id
+          ? {
+              ...notice,
+              message: result.lastError
+                ? `“${account.label}” added. Sync failed: ${result.lastError}`
+                : `“${account.label}” added · ${result.domainCount} domain${result.domainCount === 1 ? '' : 's'} synced.`,
+            }
+          : notice,
+      );
+    })().catch((err) =>
+      setAddedNotice((notice) =>
+        notice?.id === account.id
+          ? {
+              ...notice,
+              message: `“${account.label}” added. Could not refresh: ${errorMessage(err)}`,
+            }
+          : notice,
+      ),
+    );
+  };
+
+  const busy = saving || syncing || toggling || loading;
   const { configured, enabled, sync } = meta;
-  const help = REGISTRAR_HELP[meta.name];
+  const help = REGISTRAR_HELP[provider.name];
+  const hasCredentials = Object.values(values).some((v) => v.trim());
+  const missingRequired =
+    hasCredentials &&
+    provider.configFields.some((f) => f.required && !values[f.name]?.trim());
 
   return (
     <Card className="gap-0 overflow-hidden rounded-md py-0">
@@ -142,49 +332,61 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
               up; read-only (off) until the registrar has credentials. */}
           <div className="flex w-9 shrink-0 justify-center">
             <Switch
-              checked={configured && enabled}
-              onCheckedChange={(v) => void toggleEnabled(v)}
-              disabled={busy || !configured}
+              checked={summary.configured && summary.enabled}
+              onCheckedChange={(v) => void toggleEnabled(v, true)}
+              disabled={busy || !summary.configured}
               aria-label={
-                configured
-                  ? `${enabled ? 'Disable' : 'Enable'} ${meta.displayName}`
+                summary.configured
+                  ? `${summary.enabled ? 'Disable' : 'Enable'} ${meta.displayName}${multiple ? ' — all accounts' : ''}`
                   : `${meta.displayName} — add credentials to enable`
               }
               title={
-                !configured
+                !summary.configured
                   ? 'Add credentials to enable this registrar'
-                  : enabled
-                    ? 'Disable this registrar (keeps credentials, drops its data)'
-                    : 'Enable and sync this registrar'
+                  : summary.enabled
+                    ? 'Disable this registrar’s accounts (keeps credentials and cached data)'
+                    : 'Enable and sync this registrar’s accounts'
               }
             />
           </div>
-          <CollapsibleTrigger className="flex flex-1 items-center gap-[18px] text-left">
+          <CollapsibleTrigger className="flex min-w-0 flex-1 flex-wrap items-center gap-x-[18px] gap-y-1 text-left">
             <span
               className={cn(
-                'flex items-center gap-2.5 font-medium',
+                'flex shrink-0 items-center gap-2.5 whitespace-nowrap font-medium',
                 // Dim the name for a configured-but-disabled registrar so the
                 // off state reads at a glance.
-                configured && !enabled && 'opacity-50',
+                summary.configured && !summary.enabled && 'opacity-50',
               )}
             >
               <RegistrarLogo name={meta.name} label={meta.displayName} />
               {meta.displayName}
             </span>
-            <SyncStatus meta={meta} syncing={syncing} />
+            <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+              <SyncStatus
+                meta={multiple ? summary : meta}
+                syncing={syncing}
+                showCount={!multiple}
+              />
+              {multiple && (
+                <span className="whitespace-nowrap text-xs text-muted-foreground">
+                  · {summary.sync.domainCount} domain
+                  {summary.sync.domainCount === 1 ? '' : 's'}
+                </span>
+              )}
+            </span>
           </CollapsibleTrigger>
           {/* Sync only makes sense for an enabled registrar. */}
-          {configured && enabled && (
+          {summary.configured && summary.enabled && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => void runSync()}
+              onClick={() => void runSync(true)}
               disabled={busy}
-              title="Sync this registrar’s domains now"
+              title="Sync all enabled accounts for this registrar"
               // Absorb the button's height into the row's vertical padding so a
               // configured row (which shows this button) stays the same slim
               // height as an unconfigured one, rather than growing to fit it.
-              className="-my-1 text-muted-foreground hover:text-foreground"
+              className="-my-1 shrink-0 text-muted-foreground hover:text-foreground"
             >
               <RefreshCw className={cn(syncing && 'animate-spin')} />
               {syncing ? 'Syncing…' : 'Sync'}
@@ -204,94 +406,432 @@ function RegistrarCard({ meta }: { meta: RegistrarMeta }) {
         </div>
 
         <CollapsibleContent className="border-t px-5 py-4">
-          {/* Where the credentials come from, with real links to the pages
-              (opened in the system browser via the window-open handler). */}
-          <div className="mb-4 flex flex-col gap-2">
-            <p className="text-[13px] leading-relaxed text-muted-foreground">
-              {help.summary}
-            </p>
-            {help.links.length > 0 && (
-              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                {help.links.map((link) => (
-                  <HelpLink key={link.url} link={link} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          <FieldGroup className="gap-4">
-            {meta.configFields.map((field) => {
-              const id = `${meta.name}-${field.name}`;
-              const fieldHelp = help.fields[field.name];
-              return (
-                <Field key={field.name} className="gap-1.5">
-                  <FieldLabel htmlFor={id}>
-                    {field.label}
-                    {field.required && (
-                      <span className="text-destructive"> *</span>
-                    )}
-                  </FieldLabel>
-                  {/* Only fields that need disambiguating carry a description;
-                      it sits under the label, ahead of the input. */}
-                  {fieldHelp && (
-                    <FieldDescription className="text-[13px]">
-                      {fieldHelp}
-                    </FieldDescription>
-                  )}
-                  {field.type === 'select' ? (
-                    <Select
-                      value={values[field.name] ?? ''}
-                      onValueChange={(v) =>
-                        setValues((prev) => ({ ...prev, [field.name]: v }))
-                      }
-                    >
-                      <SelectTrigger id={id} className="w-full">
-                        <SelectValue placeholder="Select…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {field.options?.map((opt) => (
-                            <SelectItem key={opt} value={opt}>
-                              {opt}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id={id}
-                      value={values[field.name] ?? ''}
-                      autoComplete="off"
-                      spellCheck={false}
-                      className="font-mono"
-                      onChange={(e) =>
-                        setValues((prev) => ({
-                          ...prev,
-                          [field.name]: e.target.value,
-                        }))
-                      }
-                    />
-                  )}
-                </Field>
-              );
-            })}
-          </FieldGroup>
-
-          <div className="mt-4 flex items-center gap-3">
-            <Button onClick={() => void save()} disabled={busy}>
-              {saving ? 'Saving…' : 'Save'}
-            </Button>
-            {configured && !syncing && sync.lastError && (
-              <span className="ml-auto flex items-center gap-1.5 text-sm text-destructive">
-                <CircleX className="size-4" />
-                {sync.lastError}
+          {multiple && (
+            <div className="mb-4 flex items-center gap-3">
+              <Field className="flex-1 gap-1.5">
+                <FieldLabel htmlFor={`${provider.name}-account`}>
+                  Account
+                </FieldLabel>
+                <Select
+                  value={currentId}
+                  disabled={busy}
+                  onValueChange={(id) => {
+                    setSelectedId(id);
+                    setRenaming(false);
+                    setRemoving(false);
+                  }}
+                >
+                  <SelectTrigger
+                    id={`${provider.name}-account`}
+                    className="w-full"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {accounts.map((a) => (
+                        <SelectItem key={idOf(a)} value={idOf(a)}>
+                          {a.accountLabel ?? 'Default'}
+                          {!a.enabled ? ' (disabled)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+              {!renaming && (
+                <Button
+                  className="self-end"
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => setRenaming(true)}
+                >
+                  Rename
+                </Button>
+              )}
+            </div>
+          )}
+          {multiple && (
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <Switch
+                checked={configured && enabled}
+                onCheckedChange={(value) => void toggleEnabled(value)}
+                disabled={busy || !configured}
+                aria-label={`${enabled ? 'Disable' : 'Enable'} ${currentLabel}`}
+              />
+              <span className="text-sm">Account status</span>
+              <SyncStatus meta={meta} syncing={syncing} showCount={false} />
+              <span className="whitespace-nowrap text-xs text-muted-foreground">
+                · {meta.sync.domainCount} domain
+                {meta.sync.domainCount === 1 ? '' : 's'}
               </span>
+              {configured && enabled && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void runSync()}
+                >
+                  <RefreshCw className={cn(syncing && 'animate-spin')} />
+                  Sync account
+                </Button>
+              )}
+            </div>
+          )}
+          {renaming && (
+            <Field className="mb-4 gap-1.5">
+              <FieldLabel htmlFor={`${provider.name}-account-label`}>
+                Account label
+              </FieldLabel>
+              <Input
+                id={`${provider.name}-account-label`}
+                form={`${provider.name}-credentials`}
+                placeholder="e.g. Personal or Company"
+                value={label}
+                disabled={busy}
+                maxLength={100}
+                onChange={(e) => setLabel(e.target.value)}
+              />
+            </Field>
+          )}
+          {loading && !error && (
+            <p role="status" className="mb-3 text-sm text-muted-foreground">
+              Loading credentials…
+            </p>
+          )}
+          <form
+            id={`${provider.name}-credentials`}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void save();
+            }}
+          >
+            {/* Where the credentials come from, with real links to the pages
+              (opened in the system browser via the window-open handler). */}
+            <div className="mb-4 flex flex-col gap-2">
+              <p className="text-[13px] leading-relaxed text-muted-foreground">
+                {help.summary}
+              </p>
+              {help.links.length > 0 && (
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {help.links.map((link) => (
+                    <HelpLink key={link.url} link={link} />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <CredentialFields
+              provider={provider}
+              idPrefix={provider.name}
+              values={values}
+              disabled={busy}
+              onChange={(name, value) =>
+                setValues((current) => ({ ...current, [name]: value }))
+              }
+            />
+
+            <div className="mt-4 flex items-center gap-3">
+              <Button
+                type="submit"
+                disabled={
+                  busy ||
+                  missingRequired ||
+                  (draft && !hasCredentials) ||
+                  (renaming && !label.trim())
+                }
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
+              {renaming ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => {
+                    setRenaming(false);
+                    setLabel(currentLabel);
+                  }}
+                >
+                  Cancel
+                </Button>
+              ) : (
+                canAddAccount && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={busy || adding}
+                    ref={addButton}
+                    aria-expanded={adding}
+                    aria-controls={`${provider.name}-new-account`}
+                    onClick={() => {
+                      setAdding(true);
+                      setAddedNotice(null);
+                      setRemoving(false);
+                    }}
+                  >
+                    Add another account
+                  </Button>
+                )
+              )}
+              {multiple && !renaming && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="ml-auto text-muted-foreground"
+                  disabled={busy}
+                  onClick={() => setRemoving(true)}
+                >
+                  Remove account
+                </Button>
+              )}
+              {configured && !syncing && sync.lastError && (
+                <span className="ml-auto flex items-center gap-1.5 text-sm text-destructive">
+                  <CircleX className="size-4" />
+                  {sync.lastError}
+                </span>
+              )}
+            </div>
+            {error && (
+              <p role="alert" className="mt-3 text-sm text-destructive">
+                {error}
+              </p>
             )}
-          </div>
+          </form>
+          {removing && (
+            <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4 text-sm">
+              <span>
+                Remove “{currentLabel}” from Dombot? Its domains stay at the
+                registrar.
+              </span>
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={() => void remove()}
+              >
+                Remove
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() => setRemoving(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+          {adding && (
+            <NewRegistrarAccountForm
+              provider={provider}
+              onAdded={added}
+              onCancel={() => {
+                setAdding(false);
+                requestAnimationFrame(() => addButton.current?.focus());
+              }}
+            />
+          )}
+          {addedNotice && (
+            <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4 text-sm">
+              <p role="status">{addedNotice.message}</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!accounts.some((a) => idOf(a) === addedNotice.id)}
+                onClick={() => {
+                  setSelectedId(addedNotice.id);
+                  setAddedNotice(null);
+                }}
+              >
+                View account
+              </Button>
+            </div>
+          )}
         </CollapsibleContent>
       </Collapsible>
     </Card>
+  );
+}
+
+function CredentialFields({
+  provider,
+  idPrefix,
+  values,
+  disabled,
+  onChange,
+}: {
+  provider: RegistrarDefinition;
+  idPrefix: string;
+  values: CredentialValues;
+  disabled: boolean;
+  onChange: (name: string, value: string) => void;
+}) {
+  const help = REGISTRAR_HELP[provider.name];
+  return (
+    <FieldGroup className="gap-4">
+      {provider.configFields.map((field) => {
+        const id = `${idPrefix}-${field.name}`;
+        const fieldHelp = help.fields[field.name];
+        return (
+          <Field key={field.name} className="gap-1.5">
+            <FieldLabel htmlFor={id}>
+              {field.label}
+              {field.required && <span className="text-destructive"> *</span>}
+            </FieldLabel>
+            {/* Only fields that need disambiguating carry a description;
+                      it sits under the label, ahead of the input. */}
+            {fieldHelp && (
+              <FieldDescription className="text-[13px]">
+                {fieldHelp}
+              </FieldDescription>
+            )}
+            {field.type === 'select' ? (
+              <Select
+                disabled={disabled}
+                value={values[field.name] ?? ''}
+                onValueChange={(value) => onChange(field.name, value)}
+              >
+                <SelectTrigger id={id} className="w-full">
+                  <SelectValue placeholder="Select…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {field.options?.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                id={id}
+                value={values[field.name] ?? ''}
+                type={field.type === 'password' ? 'password' : 'text'}
+                disabled={disabled}
+                autoComplete="off"
+                spellCheck={false}
+                className="font-mono"
+                onChange={(e) => onChange(field.name, e.target.value)}
+              />
+            )}
+          </Field>
+        );
+      })}
+    </FieldGroup>
+  );
+}
+
+/** A separate sibling form: opening, typing, failing or cancelling it cannot
+ * change the selected account's credentials, label, enabled state or sync UI. */
+function NewRegistrarAccountForm({
+  provider,
+  onAdded,
+  onCancel,
+}: {
+  provider: RegistrarDefinition;
+  onAdded: (account: RegistrarAccount) => void;
+  onCancel: () => void;
+}) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    // Reveal the appended heading, not a replacement view or the entire form.
+    heading.current?.scrollIntoView({ block: 'nearest' });
+    heading.current?.focus({ preventScroll: true });
+  }, []);
+  const [values, setValues] = useState<CredentialValues>({});
+  const [label, setLabel] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ready =
+    Object.values(values).some((value) => value.trim()) &&
+    provider.configFields.every(
+      (field) => !field.required || values[field.name]?.trim(),
+    );
+  const save = async () => {
+    if (!ready || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const account = await window.api.connectRegistrarAccount(
+        provider.name,
+        values,
+        label.trim() || undefined,
+      );
+      onAdded(account);
+    } catch (err) {
+      setError(errorMessage(err));
+      setSaving(false);
+    }
+  };
+  return (
+    <section
+      id={`${provider.name}-new-account`}
+      aria-labelledby={`${provider.name}-new-heading`}
+      className="mt-5 border-t pt-5"
+    >
+      <h4
+        ref={heading}
+        tabIndex={-1}
+        id={`${provider.name}-new-heading`}
+        className="mb-4 scroll-mb-24 text-sm font-medium outline-none"
+      >
+        Add another {provider.displayName} account
+      </h4>
+      <form
+        aria-label={`New ${provider.displayName} account`}
+        className="flex flex-col gap-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <CredentialFields
+          provider={provider}
+          idPrefix={`${provider.name}-new`}
+          values={values}
+          disabled={saving}
+          onChange={(name, value) =>
+            setValues((current) => ({ ...current, [name]: value }))
+          }
+        />
+        <Field className="gap-1.5">
+          <FieldLabel htmlFor={`${provider.name}-new-label`}>
+            Account label{' '}
+            <span className="font-normal text-muted-foreground">
+              (optional)
+            </span>
+          </FieldLabel>
+          <Input
+            id={`${provider.name}-new-label`}
+            value={label}
+            disabled={saving}
+            maxLength={100}
+            placeholder="e.g. Personal or Company"
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </Field>
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        <div className="flex items-center gap-3">
+          <Button type="submit" disabled={!ready || saving}>
+            {saving ? 'Adding…' : 'Add account'}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={saving}
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </section>
   );
 }
 
@@ -389,9 +929,11 @@ function RegistrarLogo({
 function SyncStatus({
   meta,
   syncing,
+  showCount = true,
 }: {
   meta: RegistrarMeta;
   syncing: boolean;
+  showCount?: boolean;
 }) {
   if (syncing) {
     return <span className="text-sm text-muted-foreground">Syncing…</span>;
@@ -435,14 +977,16 @@ function SyncStatus({
     );
   }
   return (
-    <span className="flex items-center gap-1.5">
+    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
       <span className="size-2 shrink-0 rounded-full bg-[#31613b] dark:bg-[#7ac28d]" />
-      <span className="text-[13px] font-medium text-[#31613b] dark:text-[#7ac28d]">
+      <span className="whitespace-nowrap text-[13px] font-medium text-[#31613b] dark:text-[#7ac28d]">
         Last synced {timeAgo(lastSyncedAt)}
       </span>
-      <span className="text-xs text-muted-foreground">
-        · {domainCount} domain{domainCount === 1 ? '' : 's'}
-      </span>
+      {showCount && (
+        <span className="whitespace-nowrap text-xs text-muted-foreground">
+          · {domainCount} domain{domainCount === 1 ? '' : 's'}
+        </span>
+      )}
     </span>
   );
 }

@@ -1,11 +1,8 @@
+import { domainKey } from '../../shared/account-key';
 // Builds the Domains-page CSV export. Kept separate from the page component so
 // the column model and formatting are easy to read and test in isolation.
 
-import {
-  HIDDEN_FOLDER_ID,
-  type Domain,
-  type Folder,
-} from '../../shared/ipc';
+import { HIDDEN_FOLDER_ID, type Domain, type Folder } from '../../shared/ipc';
 
 /** id → nicely capitalized registrar name, e.g. dynadot → "Dynadot". */
 type RegistrarLabels = Record<string, string>;
@@ -55,6 +52,8 @@ interface CsvColumn {
 /** The exported columns, in order. Every value is a plain string. */
 const CSV_COLUMNS: CsvColumn[] = [
   { header: 'Domain', value: (d) => d.domainName },
+  { header: 'Account', value: (d) => d.accountLabel ?? 'Default' },
+  { header: 'Account ID', value: (d) => d.accountId ?? d.registrar },
   { header: 'TLD', value: (d) => tldOf(d.domainName) },
   {
     header: 'Registrar',
@@ -91,7 +90,7 @@ export function domainsToCsv(
   // The assigned folder's name, "Hidden" for the built-in hidden folder, or
   // empty when unassigned or the folder is gone.
   const folderName = (d: Domain): string => {
-    const id = assignments[`${d.registrar}:${d.domainName}`];
+    const id = assignments[domainKey(d)];
     if (id === HIDDEN_FOLDER_ID) return 'Hidden';
     return nameById.get(id ?? '') ?? '';
   };
@@ -99,7 +98,9 @@ export function domainsToCsv(
   const rows: string[] = [CSV_COLUMNS.map((c) => csvField(c.header)).join(',')];
   for (const d of domains) {
     rows.push(
-      CSV_COLUMNS.map((c) => csvField(c.value(d, labels, folderName))).join(','),
+      CSV_COLUMNS.map((c) => csvField(c.value(d, labels, folderName))).join(
+        ',',
+      ),
     );
   }
   return rows.join('\r\n');

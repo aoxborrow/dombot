@@ -3,13 +3,21 @@ import {
   createRegistrar,
   listPortfolio,
   registrars,
-  type Domain,
   type OperationResult,
   type RegisterDomainInput,
   type RegistrarCredentials,
   type RegistrarName,
   type RequestOptions,
 } from '@aoxborrow/registrar-client';
+import {
+  accountById,
+  createAccount,
+  isSavedAccount,
+  listAccounts,
+  removeAccountRecord,
+} from './accounts';
+import { domainKey } from '../../shared/account-key';
+import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { resolveNameservers } from '../dns';
 import { isRegistrarEnabled, setRegistrarEnabled } from './registrar-state';
@@ -28,14 +36,17 @@ import {
   type RenewalQuote,
 } from './pricing';
 import type {
+  Domain,
+  RegistrarAccount,
+  RegistrarDefinition,
   Portfolio,
   PortfolioErrorInfo,
   RegistrarMeta,
   RenewalPricing,
 } from '../../shared/ipc';
 
-const detailKey = (name: RegistrarName, domain: string): string =>
-  `${name}:${domain}`;
+const detailKey = (accountId: string, domain: string): string =>
+  `${accountId}:${domain}`;
 
 // A cached per-domain detail record: the domain's detail fields (nameservers,
 // privacy, lock, creation date) plus an optional per-name renewal quote captured
@@ -48,6 +59,8 @@ type DetailRecord = Partial<Domain> & { renewalQuote?: RenewalQuote };
 function withoutQuote(record: DetailRecord): Partial<Domain> {
   const rest = { ...record };
   delete rest.renewalQuote;
+  delete rest.accountId;
+  delete rest.accountLabel;
   return rest;
 }
 
@@ -73,8 +86,15 @@ function reviveDomainDates<T extends Partial<Domain>>(d: T): T {
   return out as T;
 }
 
-// Cache one client per registrar so we don't rebuild it on every call.
-const clients = new Map<RegistrarName, RegistrarClient>();
+// Cache one client per account so we don't rebuild it on every call.
+const clients = new Map<string, RegistrarClient>();
+const clientCredentials = new Map<string, string>();
+const generations = new Map<string, number>();
+function invalidateAccount(id: string): void {
+  clients.delete(id);
+  clientCredentials.delete(id);
+  generations.set(id, (generations.get(id) ?? 0) + 1);
+}
 
 /** All built-in registrar ids, e.g. "dynadot", "godaddy". */
 export const registrarNames = Object.keys(registrars) as [
@@ -87,42 +107,123 @@ export function getRegistrarFeatures(name: RegistrarName): readonly string[] {
   return registrars[name].features;
 }
 
-/**
- * Returns a cached client for `name`, building it from resolved credentials on
- * first use. The shared lower-level core: MCP tools and UI IPC handlers both
- * call in.
- */
-export function getRegistrarClient(name: RegistrarName): RegistrarClient {
-  let client = clients.get(name);
-  if (!client) {
-    client = new RegistrarClient(
-      createRegistrar(name, resolveCredentials(name)),
+/** Resolve once before work starts. Labels never participate in routing. */
+export function resolveAccount(
+  name: RegistrarName,
+  accountId?: string,
+  domainName?: string,
+): RegistrarAccount {
+  const accounts = listAccounts().filter((a) => a.registrar === name);
+  const configured = accounts.filter((a) => isConfigured(name, a.id));
+  const target = domainName?.trim().toLowerCase();
+  const owners = target
+    ? listAccounts().filter((a) =>
+        readRegistrarEntry(a.id)?.domains.some(
+          (d) => d.domainName.toLowerCase() === target,
+        ),
+      )
+    : [];
+  let account: RegistrarAccount | undefined;
+  if (accountId) {
+    account = accountById(accountId);
+    if (account.registrar !== name)
+      throw new Error(
+        `Account "${accountId}" does not belong to registrar "${name}".`,
+      );
+  } else {
+    const ownersHere = owners.filter((a) => a.registrar === name);
+    const matches = ownersHere.filter(
+      (a) => configured.some((c) => c.id === a.id) && isRegistrarEnabled(a.id),
     );
-    clients.set(name, client);
+    if (matches.length === 1) account = matches[0];
+    else if (matches.length > 1)
+      throw new Error(
+        'Multiple accounts match. Pass accountId to disambiguate.',
+      );
+    // A single cached owner that isn't usable (disabled or missing credentials):
+    // resolve to it so the caller gets the precise reason, not a misleading
+    // "multiple accounts match" when only one account actually holds the domain.
+    else if (ownersHere.length === 1) account = ownersHere[0];
+    else if (ownersHere.length > 1 || configured.length > 1)
+      throw new Error(
+        'Multiple accounts match. Pass accountId to disambiguate.',
+      );
+    else
+      account =
+        configured[0] ?? (accounts.length === 1 ? accounts[0] : undefined);
+  }
+  if (!account)
+    throw new Error(
+      'No account selected. Configure an account in Settings or pass accountId.',
+    );
+  if (owners.length && !owners.some((a) => a.id === account.id))
+    throw new Error(
+      `Domain "${domainName}" is cached in a different account. Sync or select its owning account.`,
+    );
+  return account;
+}
+
+/** Validates a domain target before any cached read or provider operation. */
+export function resolveDomainAccount(
+  name: RegistrarName,
+  domain: string,
+  accountId?: string,
+): RegistrarAccount {
+  const account = resolveAccount(name, accountId, domain);
+  requireActive(account);
+  return account;
+}
+
+function requireActive(account: RegistrarAccount): void {
+  if (!isRegistrarEnabled(account.id))
+    throw new Error(`Account "${account.label}" is disabled.`);
+  if (!isConfigured(account.registrar, account.id))
+    throw new Error(
+      `Missing credentials for "${account.label}" (configure in Settings).`,
+    );
+}
+
+export function getRegistrarClient(
+  name: RegistrarName,
+  accountId?: string,
+): RegistrarClient {
+  const account = resolveAccount(name, accountId);
+  requireActive(account);
+  const credentials = resolveCredentials(name, account.id);
+  const fingerprint = JSON.stringify(credentials);
+  if (clientCredentials.get(account.id) !== fingerprint)
+    invalidateAccount(account.id);
+  let client = clients.get(account.id);
+  if (!client) {
+    client = new RegistrarClient(createRegistrar(name, credentials));
+    clients.set(account.id, client);
+    clientCredentials.set(account.id, fingerprint);
   }
   return client;
 }
 
-/** Registrars whose required credentials are all present. */
 export function getConfiguredRegistrars(): RegistrarName[] {
-  return registrarNames.filter((name) => isConfigured(name));
+  return [
+    ...new Set(
+      listAccounts()
+        .filter((a) => isConfigured(a.registrar, a.id))
+        .map((a) => a.registrar),
+    ),
+  ];
 }
 
-/**
- * Registrars that are both configured AND enabled — the set that actually syncs
- * and contributes domains. A disabled registrar keeps its credentials but is
- * skipped here, so it neither syncs nor shows up in the portfolio.
- */
-export function getActiveRegistrars(): RegistrarName[] {
-  return registrarNames.filter(
-    (name) => isConfigured(name) && isRegistrarEnabled(name),
+export function getActiveAccounts(): RegistrarAccount[] {
+  return listAccounts().filter(
+    (a) => isConfigured(a.registrar, a.id) && isRegistrarEnabled(a.id),
   );
 }
 
+export function getActiveRegistrars(): RegistrarName[] {
+  return [...new Set(getActiveAccounts().map((a) => a.registrar))];
+}
+
 /** One registrar's cached slice (dates revived), or null when never synced. */
-function readRegistrarEntry(
-  name: RegistrarName,
-): RegistrarPortfolioEntry | null {
+function readRegistrarEntry(name: string): RegistrarPortfolioEntry | null {
   const cached = readEntry<RegistrarPortfolioEntry>('portfolio', name);
   if (!cached) return null;
   return {
@@ -151,12 +252,25 @@ function assemblePortfolio(): Portfolio {
   const registrarIds: string[] = [];
   let fetchedAt: number | null = null;
 
-  for (const name of getActiveRegistrars()) {
-    const entry = readRegistrarEntry(name);
+  for (const account of getActiveAccounts()) {
+    const name = account.registrar;
+    const entry = readRegistrarEntry(account.id);
     if (!entry) continue;
-    domains.push(...entry.domains);
+    domains.push(
+      ...entry.domains.map((d) => ({
+        ...d,
+        registrar: name,
+        accountId: account.id,
+        accountLabel: account.label,
+      })),
+    );
     if (entry.lastError)
-      errors.push({ registrar: name, message: entry.lastError });
+      errors.push({
+        registrar: name,
+        accountId: account.id,
+        accountLabel: account.label,
+        message: entry.lastError,
+      });
     if (entry.lastSyncedAt != null) {
       registrarIds.push(name);
       fetchedAt = Math.max(fetchedAt ?? 0, entry.lastSyncedAt);
@@ -166,7 +280,7 @@ function assemblePortfolio(): Portfolio {
   return {
     domains,
     errors,
-    registrars: registrarIds,
+    registrars: [...new Set(registrarIds)],
     registrarLabels: registrarLabelMap(),
     fetchedAt,
   };
@@ -179,11 +293,16 @@ function assemblePortfolio(): Portfolio {
  * `lastSyncedAt` and only record `lastError`, so a transient failure doesn't blank
  * a registrar that was working.
  */
-async function syncRegistrarInto(name: RegistrarName): Promise<void> {
-  const prev = readRegistrarEntry(name);
+async function syncRegistrarInto(account: RegistrarAccount): Promise<void> {
+  const { registrar: name, id: accountId } = account;
+  let generation = generations.get(accountId) ?? 0;
+  const prev = readRegistrarEntry(accountId);
   let entry: RegistrarPortfolioEntry;
   try {
-    const { domains, errors } = await listPortfolio([getRegistrarClient(name)]);
+    const client = getRegistrarClient(name, accountId);
+    generation = (generations.get(accountId) ?? 0) + 1;
+    generations.set(accountId, generation);
+    const { domains, errors } = await listPortfolio([client]);
     const error = errors[0]?.error;
     entry = error
       ? {
@@ -199,12 +318,14 @@ async function syncRegistrarInto(name: RegistrarName): Promise<void> {
       lastError: err instanceof Error ? err.message : String(err),
     };
   }
-  writeEntry('portfolio', name, entry);
+  if ((generations.get(accountId) ?? 0) !== generation) return;
+  writeEntry('portfolio', accountId, entry);
   // Refresh per-name renewal quotes as part of the sync. Only registrars that
   // can price a specific owned domain, and only on premium-capable TLDs, make an
   // API call here; every other domain resolves from the bundled base rates with
   // no network. Quotes land in each domain's detail cache (see syncRenewalQuotes).
-  await syncRenewalQuotes(name, entry.domains);
+  if (!entry.lastError)
+    await syncRenewalQuotes(name, entry.domains, accountId, generation);
 }
 
 /**
@@ -215,9 +336,12 @@ async function syncRegistrarInto(name: RegistrarName): Promise<void> {
 async function fetchRenewalQuote(
   name: RegistrarName,
   domain: string,
+  accountId: string,
 ): Promise<RenewalQuote | null> {
   try {
-    const pricing = await getRegistrarClient(name).getPricing(domain);
+    const pricing = await getRegistrarClient(name, accountId).getPricing(
+      domain,
+    );
     return {
       renewal: typeof pricing.renewal === 'number' ? pricing.renewal : null,
       currency: pricing.currency ?? 'USD',
@@ -236,6 +360,8 @@ async function fetchRenewalQuote(
 async function syncRenewalQuotes(
   name: RegistrarName,
   domains: Domain[],
+  accountId: string,
+  generation: number,
 ): Promise<void> {
   const todo = domains.filter((d) =>
     usesPerNameQuote(name, tldOf(d.domainName)),
@@ -247,10 +373,11 @@ async function syncRenewalQuotes(
   const worker = async (): Promise<void> => {
     while (next < todo.length) {
       const d = todo[next++];
-      const quote = await fetchRenewalQuote(name, d.domainName);
+      const quote = await fetchRenewalQuote(name, d.domainName, accountId);
+      if ((generations.get(accountId) ?? 0) !== generation) return;
       if (!quote) continue;
       // Merge onto any existing detail so nameservers/privacy/lock are preserved.
-      const key = detailKey(name, d.domainName);
+      const key = detailKey(accountId, d.domainName);
       const existing = readEntry<DetailRecord>('detail', key)?.data ?? {};
       writeEntry('detail', key, { ...existing, renewalQuote: quote });
     }
@@ -272,7 +399,7 @@ export async function getPortfolio(refresh = true): Promise<Portfolio> {
   if (refresh) {
     // Only sync enabled registrars — a disabled one keeps its credentials but is
     // deliberately skipped.
-    await Promise.all(getActiveRegistrars().map(syncRegistrarInto));
+    await Promise.all(getActiveAccounts().map(syncRegistrarInto));
   }
   return assemblePortfolio();
 }
@@ -282,38 +409,46 @@ export async function getPortfolio(refresh = true): Promise<Portfolio> {
  * returns the updated aggregate portfolio, merged with every other registrar's
  * cached slice.
  */
-export async function syncRegistrar(name: RegistrarName): Promise<Portfolio> {
-  if (isConfigured(name) && isRegistrarEnabled(name)) {
-    await syncRegistrarInto(name);
+export async function syncRegistrar(
+  name: RegistrarName,
+  accountId?: string,
+): Promise<Portfolio> {
+  const account = resolveAccount(name, accountId);
+  if (isConfigured(name, account.id)) {
+    // A configured account keeps its cached slice even while disabled — the
+    // portfolio just hides it (see setRegistrarEnabledCached, which never
+    // clears). Only sync when it's actually enabled.
+    if (isRegistrarEnabled(account.id)) await syncRegistrarInto(account);
   } else {
-    // Credentials cleared, or the registrar is disabled — drop its slice so its
-    // domains don't linger (or resurface if it's reconfigured/re-enabled before
-    // the next sync).
-    clearEntry('portfolio', name);
+    // Credentials are gone — drop the stale slice so it can't reappear.
+    clearRegistrarData(account.id);
   }
   return assemblePortfolio();
 }
 
-/**
- * Enable or disable a registrar without touching its credentials. Disabling drops
- * its cached portfolio + detail data and stops future syncs; enabling re-syncs it
- * so its domains come back. Returns the reassembled portfolio either way.
- */
 export async function setRegistrarEnabledCached(
   name: RegistrarName,
   enabled: boolean,
+  accountId?: string,
 ): Promise<Portfolio> {
-  setRegistrarEnabled(name, enabled);
-  if (enabled) {
-    if (isConfigured(name)) await syncRegistrarInto(name);
-  } else {
-    clearRegistrarData(name);
-  }
+  const account = resolveAccount(name, accountId);
+  invalidateAccount(account.id);
+  setRegistrarEnabled(account.id, enabled);
+  if (enabled && isConfigured(name, account.id))
+    await syncRegistrarInto(account);
   return assemblePortfolio();
 }
 
+export async function removeRegistrarAccount(accountId: string): Promise<void> {
+  accountById(accountId);
+  invalidateAccount(accountId);
+  await setStoredCredentials(accountId, {});
+  clearRegistrarData(accountId);
+  await removeAccountRecord(accountId);
+}
+
 /** Drops a registrar's cached portfolio slice and every one of its detail entries. */
-function clearRegistrarData(name: RegistrarName): void {
+function clearRegistrarData(name: string): void {
   clearEntry('portfolio', name);
   const prefix = `${name}:`;
   for (const key of Object.keys(readAll<DetailRecord>('detail'))) {
@@ -323,8 +458,8 @@ function clearRegistrarData(name: RegistrarName): void {
 
 /** The cached portfolio (revived), or null when nothing has ever synced. */
 export function getCachedPortfolio(): Portfolio | null {
-  const anySynced = getActiveRegistrars().some((name) =>
-    readEntry('portfolio', name),
+  const anySynced = getActiveAccounts().some((account) =>
+    readEntry('portfolio', account.id),
   );
   return anySynced ? assemblePortfolio() : null;
 }
@@ -371,12 +506,16 @@ export function getPortfolioPricing(): Record<string, RenewalPricing> {
   const out: Record<string, RenewalPricing> = {};
   for (const d of portfolio.domains) {
     const registrar = d.registrar as RegistrarName;
-    const key = detailKey(registrar, d.domainName);
-    out[`${d.registrar}:${d.domainName}`] = resolvePricing(
-      registrar,
-      d.domainName,
-      quotes[key]?.data.renewalQuote,
-    );
+    const key = domainKey(d);
+    out[key] = {
+      ...resolvePricing(
+        registrar,
+        d.domainName,
+        quotes[key]?.data.renewalQuote,
+        d.accountId,
+      ),
+      accountId: d.accountId,
+    };
   }
   return out;
 }
@@ -389,11 +528,13 @@ export function getPortfolioPricing(): Record<string, RenewalPricing> {
 export async function getRenewalPriceLive(
   name: RegistrarName,
   domain: string,
+  accountId?: string,
 ): Promise<RenewalPricing> {
+  accountId = resolveDomainAccount(name, domain, accountId).id;
   const quote = usesPerNameQuote(name, tldOf(domain))
-    ? ((await fetchRenewalQuote(name, domain)) ?? undefined)
+    ? ((await fetchRenewalQuote(name, domain, accountId)) ?? undefined)
     : undefined;
-  return resolvePricing(name, domain, quote);
+  return { ...resolvePricing(name, domain, quote, accountId), accountId };
 }
 
 // The registrar-client library lists its config fields in an order that puts a
@@ -428,22 +569,14 @@ function orderConfigFields<T extends { name: string }>(
     );
 }
 
-/** Metadata that drives the Settings > Registrars form (no secret values). */
-export function getRegistrarMetadata(): RegistrarMeta[] {
+/** Provider catalog stays available even after its last account is removed. */
+export function getRegistrarCatalog(): RegistrarDefinition[] {
   return registrarNames.map((name) => {
     const R = registrars[name];
-    const sync = readEntry<RegistrarPortfolioEntry>('portfolio', name)?.data;
     return {
       name,
       displayName: R.displayName,
       supportsSandbox: R.supportsSandbox,
-      configured: isConfigured(name),
-      enabled: isRegistrarEnabled(name),
-      sync: {
-        lastSyncedAt: sync?.lastSyncedAt ?? null,
-        lastError: sync?.lastError ?? null,
-        domainCount: sync?.domains.length ?? 0,
-      },
       configFields: orderConfigFields(name, R.configFields).map((f) => ({
         name: f.name,
         label: f.label,
@@ -456,26 +589,116 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
   });
 }
 
+/** Metadata for stored accounts and backward-compatible default placeholders. */
+export function getRegistrarMetadata(): RegistrarMeta[] {
+  const catalog = getRegistrarCatalog();
+  return listAccounts().map((account) => {
+    const sync = readEntry<RegistrarPortfolioEntry>(
+      'portfolio',
+      account.id,
+    )?.data;
+    return {
+      ...catalog.find((r) => r.name === account.registrar)!,
+      accountId: account.id,
+      accountLabel: account.label,
+      saved:
+        isSavedAccount(account.id) ||
+        Object.keys(getStoredCredentials(account.id)).length > 0,
+      configured: isConfigured(account.registrar, account.id),
+      enabled: isRegistrarEnabled(account.id),
+      sync: {
+        lastSyncedAt: sync?.lastSyncedAt ?? null,
+        lastError: sync?.lastError ?? null,
+        domainCount: sync?.domains.length ?? 0,
+      },
+    };
+  });
+}
+
+const publishConnection = serialByKey();
+
+/** Check draft credentials without saving them, then publish a complete account. */
+export async function connectRegistrarAccount(
+  name: RegistrarName,
+  credentials: RegistrarCredentials,
+  label?: string,
+): Promise<RegistrarAccount> {
+  const provider = getRegistrarCatalog().find((r) => r.name === name);
+  if (!provider) throw new Error('Unknown registrar.');
+  const clean: RegistrarCredentials = {};
+  for (const field of provider.configFields) {
+    const value = credentials[field.name]?.trim();
+    if (value) clean[field.name] = value;
+    else if (field.required) throw new Error(`${field.label} is required.`);
+  }
+  if (!Object.keys(clean).length)
+    throw new Error('Enter your account credentials.');
+  if ((label?.trim().length ?? 0) > 100)
+    throw new Error('Account label must contain at most 100 characters.');
+  const assertNotDuplicate = () => {
+    const duplicate = getRegistrarMetadata().find(
+      (account) =>
+        account.name === name &&
+        account.saved &&
+        provider.configFields.every(
+          (field) =>
+            (getStoredCredentials(account.accountId ?? name)[
+              field.name
+            ]?.trim() ?? '') === (clean[field.name] ?? ''),
+        ),
+    );
+    if (duplicate)
+      throw new Error(
+        `These credentials are already connected as "${duplicate.accountLabel}". Edit that account instead.`,
+      );
+  };
+  assertNotDuplicate();
+  const client = new RegistrarClient(createRegistrar(name, clean));
+  const result = await client.testConnection();
+  if (!result.success)
+    throw new Error(
+      result.message ||
+        'Connection failed. Check your credentials and try again.',
+    );
+  // Concurrent tests may both pass before either account exists. Recheck and
+  // publish serially, while keeping network tests outside this short queue.
+  return publishConnection(name, async () => {
+    assertNotDuplicate();
+    const existing = getRegistrarMetadata().filter(
+      (a) => a.name === name && a.saved,
+    );
+    let number = existing.length + 1;
+    let suggested = existing.length ? `Account ${number}` : 'Main';
+    while (existing.some((a) => a.accountLabel === suggested))
+      suggested = `Account ${++number}`;
+    return createAccount(name, label?.trim() || suggested, clean);
+  });
+}
+
 /** The saved credential values for a registrar (for pre-filling the form). */
 export function getRegistrarCredentialValues(
   name: RegistrarName,
+  accountId?: string,
 ): RegistrarCredentials {
-  return getStoredCredentials(name);
+  return getStoredCredentials(resolveAccount(name, accountId).id);
 }
 
 /** Drops every cached client (credentials were replaced wholesale, e.g. by
  *  a data import) so the next call rebuilds from what's stored now. */
 export function resetRegistrarClients(): void {
-  clients.clear();
+  for (const id of clients.keys()) invalidateAccount(id);
 }
 
 /** Saves credentials and invalidates the cached client so the next call rebuilds. */
 export async function saveRegistrarCredentials(
   name: RegistrarName,
   creds: RegistrarCredentials,
+  accountId?: string,
 ): Promise<void> {
-  await setStoredCredentials(name, creds);
-  clients.delete(name);
+  const account = resolveAccount(name, accountId);
+  invalidateAccount(account.id);
+  await setStoredCredentials(account.id, creds);
+  clearRegistrarData(account.id);
 }
 
 /**
@@ -496,8 +719,12 @@ export async function getDomainDetail(
   name: RegistrarName,
   domainName: string,
   refresh = false,
+  accountId?: string,
 ): Promise<Partial<Domain> | null> {
-  const key = detailKey(name, domainName);
+  accountId = resolveDomainAccount(name, domainName, accountId).id;
+  const client = getRegistrarClient(name, accountId);
+  const generation = generations.get(accountId) ?? 0;
+  const key = detailKey(accountId, domainName);
   // Preserve any renewal quote captured at Sync when we rewrite this entry below,
   // so refreshing detail doesn't drop the domain's price.
   const priorQuote = readEntry<DetailRecord>('detail', key)?.data.renewalQuote;
@@ -507,11 +734,14 @@ export async function getDomainDetail(
     const cached = readEntry<DetailRecord>('detail', key);
     // Serve a fresh-enough cached partial without any network calls.
     if (cached && !isStale(cached)) {
-      return reviveDomainDates(withoutQuote(cached.data));
+      return {
+        ...reviveDomainDates(withoutQuote(cached.data)),
+        registrar: name,
+        accountId,
+        accountLabel: accountById(accountId).label,
+      };
     }
   }
-
-  const client = getRegistrarClient(name);
 
   let domain: Domain | null = null;
   try {
@@ -540,13 +770,21 @@ export async function getDomainDetail(
     nameservers = await lookupNameservers(domainName);
   }
 
+  if ((generations.get(accountId) ?? 0) !== generation)
+    throw new Error(
+      'Account changed while loading detail; refresh the portfolio.',
+    );
   if (domain) {
     const result = {
       ...domain,
+      registrar: name,
+      accountId,
+      accountLabel: accountById(accountId).label,
       nameservers,
       ...(createdDate ? { createdDate } : {}),
     };
-    writeEntry('detail', key, withQuote(result));
+    if ((generations.get(accountId) ?? 0) === generation)
+      writeEntry('detail', key, withQuote(result));
     return result;
   }
   const partial: Partial<Domain> = {};
@@ -557,7 +795,8 @@ export async function getDomainDetail(
   if (Object.keys(partial).length === 0) {
     return priorQuote ? {} : null;
   }
-  writeEntry('detail', key, withQuote(partial));
+  if ((generations.get(accountId) ?? 0) === generation)
+    writeEntry('detail', key, withQuote(partial));
   return partial;
 }
 
@@ -580,8 +819,16 @@ export function getMergedPortfolio(): {
     return { domains: [], fetchedAt: null, registrars: [], errors: [] };
   const detail = getCachedDetail();
   const domains = portfolio.domains.map((d) => {
-    const extra = detail[detailKey(d.registrar as RegistrarName, d.domainName)];
-    return extra ? { ...d, ...extra } : d;
+    const extra = detail[domainKey(d)];
+    return extra
+      ? {
+          ...d,
+          ...extra,
+          registrar: d.registrar,
+          accountId: d.accountId,
+          accountLabel: d.accountLabel,
+        }
+      : d;
   });
   return {
     domains,
@@ -601,8 +848,9 @@ function patchDomainInCaches(
   name: RegistrarName,
   domainName: string,
   patch: Partial<Domain>,
+  accountId: string,
 ): void {
-  patchEntryData<RegistrarPortfolioEntry>('portfolio', name, (e) => ({
+  patchEntryData<RegistrarPortfolioEntry>('portfolio', accountId, (e) => ({
     ...e,
     domains: e.domains.map((d) =>
       d.domainName === domainName ? { ...d, ...patch } : d,
@@ -610,7 +858,7 @@ function patchDomainInCaches(
   }));
   patchEntryData<Partial<Domain>>(
     'detail',
-    detailKey(name, domainName),
+    detailKey(accountId, domainName),
     (d) => ({
       ...d,
       ...patch,
@@ -630,14 +878,16 @@ export async function setAutoRenewCached(
   domainName: string,
   enabled: boolean,
   opts?: RequestOptions,
+  accountId?: string,
 ): Promise<OperationResult> {
-  const result = await getRegistrarClient(name).setAutoRenew(
+  accountId = resolveDomainAccount(name, domainName, accountId).id;
+  const result = await getRegistrarClient(name, accountId).setAutoRenew(
     domainName,
     enabled,
     opts,
   );
   if (result.success)
-    patchDomainInCaches(name, domainName, { autoRenew: enabled });
+    patchDomainInCaches(name, domainName, { autoRenew: enabled }, accountId);
   return result;
 }
 
@@ -648,12 +898,15 @@ export async function setLockCached(
   domainName: string,
   locked: boolean,
   opts?: RequestOptions,
+  accountId?: string,
 ): Promise<OperationResult> {
-  const client = getRegistrarClient(name);
+  accountId = resolveDomainAccount(name, domainName, accountId).id;
+  const client = getRegistrarClient(name, accountId);
   const result = await (locked
     ? client.lockDomain(domainName, opts)
     : client.unlockDomain(domainName, opts));
-  if (result.success) patchDomainInCaches(name, domainName, { locked });
+  if (result.success)
+    patchDomainInCaches(name, domainName, { locked }, accountId);
   return result;
 }
 
@@ -664,14 +917,16 @@ export async function setPrivacyCached(
   domainName: string,
   enabled: boolean,
   opts?: RequestOptions,
+  accountId?: string,
 ): Promise<OperationResult> {
-  const result = await getRegistrarClient(name).setPrivacy(
+  accountId = resolveDomainAccount(name, domainName, accountId).id;
+  const result = await getRegistrarClient(name, accountId).setPrivacy(
     domainName,
     enabled,
     opts,
   );
   if (result.success)
-    patchDomainInCaches(name, domainName, { privacy: enabled });
+    patchDomainInCaches(name, domainName, { privacy: enabled }, accountId);
   return result;
 }
 
@@ -682,13 +937,16 @@ export async function setNameserversCached(
   domainName: string,
   nameservers: string[],
   opts?: RequestOptions,
+  accountId?: string,
 ): Promise<OperationResult> {
-  const result = await getRegistrarClient(name).updateNameservers(
+  accountId = resolveDomainAccount(name, domainName, accountId).id;
+  const result = await getRegistrarClient(name, accountId).updateNameservers(
     domainName,
     nameservers,
     opts,
   );
-  if (result.success) patchDomainInCaches(name, domainName, { nameservers });
+  if (result.success)
+    patchDomainInCaches(name, domainName, { nameservers }, accountId);
   return result;
 }
 
@@ -708,8 +966,10 @@ export async function renewDomainCached(
   domainName: string,
   years?: number,
   opts?: RequestOptions,
+  accountId?: string,
 ): Promise<{ result: OperationResult; patch: Partial<Domain> }> {
-  const result = await getRegistrarClient(name).renewDomain(
+  accountId = resolveDomainAccount(name, domainName, accountId).id;
+  const result = await getRegistrarClient(name, accountId).renewDomain(
     domainName,
     years,
     opts,
@@ -717,13 +977,13 @@ export async function renewDomainCached(
   const patch: Partial<Domain> = {};
   if (result.success) {
     try {
-      const detail = await getDomainDetail(name, domainName, true);
+      const detail = await getDomainDetail(name, domainName, true, accountId);
       if (detail?.expirationDate != null)
         patch.expirationDate = detail.expirationDate;
       if (detail?.renewalDate != null) patch.renewalDate = detail.renewalDate;
       if (detail?.status != null) patch.status = detail.status;
       if (Object.keys(patch).length > 0)
-        patchDomainInCaches(name, domainName, patch);
+        patchDomainInCaches(name, domainName, patch, accountId);
     } catch {
       // Renewal succeeded; leave the cached expiry for the next Sync to correct.
     }
@@ -740,12 +1000,14 @@ export async function registerDomainCached(
   name: RegistrarName,
   domainName: string,
   input: RegisterDomainInput,
+  accountId?: string,
 ): Promise<OperationResult> {
-  const result = await getRegistrarClient(name).registerDomain(
+  accountId = resolveAccount(name, accountId).id;
+  const result = await getRegistrarClient(name, accountId).registerDomain(
     domainName,
     input,
   );
-  if (result.success) await syncRegistrarInto(name);
+  if (result.success) await syncRegistrarInto(accountById(accountId));
   return result;
 }
 
@@ -771,15 +1033,15 @@ async function lookupNameservers(domainName: string): Promise<string[]> {
 // Resolve a field to the value the user saved in Settings (encrypted at rest
 // by the host). Credentials come only from the GUI store now — no .env or
 // process.env fallback, so ambient vars from other tools can't shadow creds.
-function resolveField(name: RegistrarName, field: string): string | undefined {
+function resolveField(name: string, field: string): string | undefined {
   return getStoredCredentials(name)[field];
 }
 
-function isConfigured(name: RegistrarName): boolean {
+function isConfigured(name: RegistrarName, accountId: string): boolean {
   const fields = registrars[name].configFields;
   // Every required field must resolve to a value.
   const requiredOk = fields.every(
-    (field) => !field.required || Boolean(resolveField(name, field.name)),
+    (field) => !field.required || Boolean(resolveField(accountId, field.name)),
   );
   if (!requiredOk) return false;
   // Some registrars mark every credential field optional because they accept
@@ -789,14 +1051,17 @@ function isConfigured(name: RegistrarName): boolean {
   // nothing is required, also demand at least one credential value before
   // treating the registrar as configured.
   if (fields.some((field) => field.required)) return true;
-  return fields.some((field) => Boolean(resolveField(name, field.name)));
+  return fields.some((field) => Boolean(resolveField(accountId, field.name)));
 }
 
-function resolveCredentials(name: RegistrarName): RegistrarCredentials {
+function resolveCredentials(
+  name: RegistrarName,
+  accountId: string,
+): RegistrarCredentials {
   const creds: RegistrarCredentials = {};
   const missing: string[] = [];
   for (const field of registrars[name].configFields) {
-    const value = resolveField(name, field.name);
+    const value = resolveField(accountId, field.name);
     if (value) creds[field.name] = value;
     else if (field.required) missing.push(field.name);
   }

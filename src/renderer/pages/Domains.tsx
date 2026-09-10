@@ -1,3 +1,5 @@
+import { multiAccountRegistrars } from '../lib/registrar-accounts';
+import { domainKey } from '../../shared/account-key';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -393,7 +395,7 @@ function LifecycleBadge({ status }: { status: string }) {
  */
 function AutoRenewSwitch({ domain }: { domain: Domain }) {
   const applyDomainOp = useAppStore((s) => s.applyDomainOp);
-  const key = `${domain.registrar}:${domain.domainName}`;
+  const key = domainKey(domain);
   const pending = useAppStore((s) => s.mutating[key] ?? false);
   const reason = useOpUnsupportedReason(domain.registrar, {
     kind: 'autoRenew',
@@ -433,6 +435,12 @@ const COLUMNS: Column[] = [
       </span>
     ),
     sortValue: (d) => d.domainName.toLowerCase(),
+  },
+  {
+    key: 'accountLabel',
+    label: 'Account',
+    render: (d) => d.accountLabel ?? 'Default',
+    sortValue: (d) => (d.accountLabel ?? 'Default').toLowerCase(),
   },
   {
     key: 'registrar',
@@ -611,6 +619,32 @@ export default function Domains() {
     bulk,
   } = useAppStore();
 
+  const multipleAccounts = useMemo(
+    () => multiAccountRegistrars(registrars, portfolio),
+    [registrars, portfolio],
+  );
+  const showAccountDetails = multipleAccounts.size > 0;
+  const columns = useMemo(
+    () =>
+      COLUMNS.filter((c) => c.key !== 'accountLabel' || showAccountDetails).map(
+        (c) =>
+          c.key === 'accountLabel'
+            ? {
+                ...c,
+                render: (d: Domain) =>
+                  multipleAccounts.has(d.registrar)
+                    ? (d.accountLabel ?? 'Default')
+                    : '—',
+                sortValue: (d: Domain) =>
+                  multipleAccounts.has(d.registrar)
+                    ? (d.accountLabel ?? 'Default').toLowerCase()
+                    : '',
+              }
+            : c,
+      ),
+    [showAccountDetails, multipleAccounts],
+  );
+
   const navigate = useNavigate();
   // Pricing is computed locally in main and arrives with the portfolio; the only
   // gap is the brief moment after a live Sync resets it before it's re-read.
@@ -630,7 +664,16 @@ export default function Domains() {
   // Overlay lazily-fetched per-domain detail (nameservers/privacy/lock) onto the
   // fast summary. Filtering, sorting, and rendering all use this merged view.
   const merged = useMemo(
-    () => portfolio.map((d) => enriched[`${d.registrar}:${d.domainName}`] ?? d),
+    () =>
+      portfolio.map((d) =>
+        enriched[domainKey(d)]
+          ? {
+              ...enriched[domainKey(d)],
+              accountId: d.accountId,
+              accountLabel: d.accountLabel,
+            }
+          : d,
+      ),
     [portfolio, enriched],
   );
 
@@ -638,6 +681,18 @@ export default function Domains() {
   // Multi-select filters; an empty array means "no filter" (show all).
   const [tld, setTld] = useState<string[]>([]);
   const [registrar, setRegistrar] = useState<string[]>([]);
+  const [account, setAccount] = useState<string[]>([]);
+  const accountOptions = (registrars ?? [])
+    .filter((r) => r.configured && r.enabled)
+    .map((r) => ({
+      value: r.accountId ?? r.name,
+      label: multipleAccounts.has(r.name)
+        ? `${r.displayName} · ${r.accountLabel ?? 'Default'}`
+        : r.displayName,
+      count: portfolio.filter(
+        (d) => (d.accountId ?? d.registrar) === (r.accountId ?? r.name),
+      ).length,
+    }));
   const [expiry, setExpiry] = useState<string[]>([]);
   const [ns, setNs] = useState<string[]>([]);
   const [folder, setFolder] = useState<string[]>([]);
@@ -745,7 +800,7 @@ export default function Domains() {
         }
         keys.add(group.key);
       }
-      keysByDomain.set(`${d.registrar}:${d.domainName}`, keys);
+      keysByDomain.set(domainKey(d), keys);
     }
     const groups = Array.from(counts, ([value, v]) => ({
       value,
@@ -765,7 +820,7 @@ export default function Domains() {
     let unassigned = 0;
     let hidden = 0;
     for (const d of portfolio) {
-      const id = folderAssignments[`${d.registrar}:${d.domainName}`];
+      const id = folderAssignments[domainKey(d)];
       if (id === HIDDEN_FOLDER_ID) {
         hidden += 1;
       } else if (id && folders.some((f) => f.id === id)) {
@@ -793,6 +848,7 @@ export default function Domains() {
     search.trim() !== '' ||
     tld.length > 0 ||
     registrar.length > 0 ||
+    (showAccountDetails && account.length > 0) ||
     expiry.length > 0 ||
     ns.length > 0 ||
     folder.length > 0;
@@ -801,6 +857,7 @@ export default function Domains() {
     setSearch('');
     setTld([]);
     setRegistrar([]);
+    setAccount([]);
     setExpiry([]);
     setNs([]);
     setFolder([]);
@@ -811,6 +868,12 @@ export default function Domains() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const rows = merged.filter((d) => {
+      if (
+        showAccountDetails &&
+        account.length &&
+        !account.includes(d.accountId ?? d.registrar)
+      )
+        return false;
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
       if (tld.length > 0 && !tld.includes(tldOf(d.domainName))) return false;
       if (registrar.length > 0 && !registrar.includes(d.registrar))
@@ -823,7 +886,7 @@ export default function Domains() {
       }
       // Nameservers: keep a domain in ANY selected nameserver group.
       if (ns.length > 0) {
-        const keys = nsKeysByDomain.get(`${d.registrar}:${d.domainName}`);
+        const keys = nsKeysByDomain.get(domainKey(d));
         if (!keys || !ns.some((k) => keys.has(k))) return false;
       }
       // Folder: resolve each domain to a bucket — a real folder id, the built-in
@@ -831,7 +894,7 @@ export default function Domains() {
       // folder filter active, keep only domains whose bucket is selected. With no
       // folder filter, hide the Hidden bucket (that's the whole point of hiding).
       {
-        const id = folderAssignments[`${d.registrar}:${d.domainName}`];
+        const id = folderAssignments[domainKey(d)];
         const bucket =
           id === HIDDEN_FOLDER_ID
             ? HIDDEN_FOLDER_ID
@@ -847,15 +910,15 @@ export default function Domains() {
       return true;
     });
 
-    const col = COLUMNS.find((c) => c.key === sortKey) ?? COLUMNS[0];
+    const col = columns.find((c) => c.key === sortKey) ?? columns[0];
     const dir = sortDir === 'asc' ? 1 : -1;
     // Renewal isn't a Domain field — sort it from the pricing map.
     const valueOf = (d: Domain): SortValue | null => {
       if (sortKey === RENEWAL) {
-        return pricing[`${d.registrar}:${d.domainName}`]?.renewal ?? null;
+        return pricing[domainKey(d)]?.renewal ?? null;
       }
       if (sortKey === FOLDER) {
-        const id = folderAssignments[`${d.registrar}:${d.domainName}`];
+        const id = folderAssignments[domainKey(d)];
         return folders.find((f) => f.id === id)?.name.toLowerCase() ?? null;
       }
       return col.sortValue(d, portfolioRegistrarLabels);
@@ -875,10 +938,13 @@ export default function Domains() {
     });
   }, [
     merged,
+    columns,
+    showAccountDetails,
     portfolioRegistrarLabels,
     search,
     tld,
     registrar,
+    account,
     expiry,
     ns,
     nsKeysByDomain,
@@ -902,19 +968,17 @@ export default function Domains() {
   // Header checkbox reflects the whole filtered set (across pages): fully checked
   // when every filtered row is selected, indeterminate when only some are.
   const allFilteredSelected =
-    filtered.length > 0 &&
-    filtered.every((d) => selected.has(`${d.registrar}:${d.domainName}`));
+    filtered.length > 0 && filtered.every((d) => selected.has(domainKey(d)));
   const someFilteredSelected =
-    !allFilteredSelected &&
-    filtered.some((d) => selected.has(`${d.registrar}:${d.domainName}`));
+    !allFilteredSelected && filtered.some((d) => selected.has(domainKey(d)));
   const toggleSelectAll = () =>
     setSelectedMany(
-      filtered.map((d) => `${d.registrar}:${d.domainName}`),
+      filtered.map((d) => domainKey(d)),
       !allFilteredSelected,
     );
   // The selected domains as merged rows, for the bulk bar and dialog.
   const selectedDomains = useMemo(
-    () => merged.filter((d) => selected.has(`${d.registrar}:${d.domainName}`)),
+    () => merged.filter((d) => selected.has(domainKey(d))),
     [merged, selected],
   );
   // Bulk: re-fetch every selected domain's detail from its registrar, bypassing
@@ -926,7 +990,7 @@ export default function Domains() {
     );
   };
   const bulkAssignFolder = (folderId: string | null) => {
-    const keys = selectedDomains.map((d) => `${d.registrar}:${d.domainName}`);
+    const keys = selectedDomains.map((d) => domainKey(d));
     void Promise.all(keys.map((k) => assignFolder(k, folderId))).then(() =>
       toast.success(
         folderId === HIDDEN_FOLDER_ID
@@ -943,9 +1007,7 @@ export default function Domains() {
   // Lazily fetch full detail for the rows actually on screen. Keyed on the
   // visible domains' identities so it re-runs on page/sort/filter changes;
   // enrichVisible dedupes against already-fetched and in-flight domains.
-  const visibleKey = visible
-    .map((d) => `${d.registrar}:${d.domainName}`)
-    .join('|');
+  const visibleKey = visible.map((d) => domainKey(d)).join('|');
 
   // After a live refresh (refreshTick bumps), force one re-fetch of the visible
   // rows' detail — bypassing the caches — then fall back to cache-first for later
@@ -1036,15 +1098,20 @@ export default function Domains() {
         <Alert>
           <TriangleAlert />
           <AlertTitle>
-            {portfolioErrors.length} registrar
+            {portfolioErrors.length}{' '}
+            {showAccountDetails ? 'account' : 'registrar'}
             {portfolioErrors.length === 1 ? '' : 's'} failed to load
           </AlertTitle>
           <AlertDescription>
             <ul className="flex flex-col gap-0.5">
               {portfolioErrors.map((e) => (
-                <li key={e.registrar}>
+                <li key={e.accountId ?? e.registrar}>
                   <span className="font-medium text-foreground">
                     {registrarLabel(e.registrar, portfolioRegistrarLabels)}
+                    {multipleAccounts.has(e.registrar) ? ' · ' : ''}
+                    {multipleAccounts.has(e.registrar)
+                      ? (e.accountLabel ?? 'Default')
+                      : ''}
                   </span>
                   : {e.message}
                 </li>
@@ -1087,6 +1154,18 @@ export default function Domains() {
               setPage(0);
             }}
           />
+          {showAccountDetails && (
+            <MultiSelectFilter
+              label="Account"
+              icon={Building2}
+              options={accountOptions}
+              selected={account}
+              onChange={(next) => {
+                setAccount(next);
+                setPage(0);
+              }}
+            />
+          )}
           <MultiSelectFilter
             label="TLD"
             icon={Globe}
@@ -1206,7 +1285,7 @@ export default function Domains() {
                     aria-label="Select all domains"
                   />
                 </TableHead>
-                {COLUMNS.map((col, i) => {
+                {columns.map((col, i) => {
                   const active = col.key === sortKey;
                   const Icon = !active
                     ? ChevronsUpDown
@@ -1292,7 +1371,7 @@ export default function Domains() {
             </TableHeader>
             <TableBody>
               {visible.map((d) => {
-                const key = `${d.registrar}:${d.domainName}`;
+                const key = domainKey(d);
                 const loadingDetail = enriching[key] === true;
                 return (
                   // Rows highlight on hover but aren't themselves clickable —
@@ -1310,7 +1389,7 @@ export default function Domains() {
                         aria-label={`Select ${d.domainName}`}
                       />
                     </TableCell>
-                    {COLUMNS.map((col, i) => (
+                    {columns.map((col, i) => (
                       <Fragment key={col.key}>
                         <TableCell
                           className={cn(
@@ -1375,7 +1454,7 @@ export default function Domains() {
               {visible.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell
-                    colSpan={COLUMNS.length + 5}
+                    colSpan={columns.length + 5}
                     className="h-40 text-center text-muted-foreground"
                   >
                     {noneConfigured ? (
@@ -1518,7 +1597,7 @@ export default function Domains() {
       {renewFor && (
         <RenewDialog
           domain={renewFor}
-          pricing={pricing[`${renewFor.registrar}:${renewFor.domainName}`]}
+          pricing={pricing[domainKey(renewFor)]}
           onClose={() => setRenewFor(null)}
         />
       )}

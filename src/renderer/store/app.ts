@@ -1,3 +1,4 @@
+import { domainKey } from '../../shared/account-key';
 import { create } from 'zustand';
 import type {
   AppInfo,
@@ -18,9 +19,6 @@ import type {
   RegistrarSync,
   RenewalPricing,
 } from '../../shared/ipc';
-
-/** Stable per-domain key across registrars. */
-const domainKey = (d: Domain): string => `${d.registrar}:${d.domainName}`;
 
 /** Hard ceiling on any sync — if the main-process fetch hangs (a registrar API
  * that never responds), reject so the "Syncing…" state can't stick forever. */
@@ -57,12 +55,8 @@ let detailAllInFlight = false;
 interface AppState {
   appInfo: AppInfo | null;
   mcpInfo: McpInfo | null;
-  domains: Domain[];
-  domainsLoading: boolean;
-  domainsError: string | null;
   loadAppInfo: () => Promise<void>;
   loadMcpInfo: () => Promise<void>;
-  loadDynadotDomains: () => Promise<void>;
 
   // Aggregated portfolio across every configured registrar.
   portfolio: Domain[];
@@ -91,11 +85,18 @@ interface AppState {
   loadRegistrars: () => Promise<void>;
   /** Sync one registrar's domains (e.g. after saving its credentials), merge the
    * result into the portfolio, refresh `registrars`, and return its sync state. */
-  syncRegistrar: (name: RegistrarName) => Promise<RegistrarSync>;
-  /** Enable/disable a registrar (keeps its credentials). Disabling drops its
-   * cached data and stops syncs; enabling re-syncs it. Updates the portfolio,
+  syncRegistrar: (
+    name: RegistrarName,
+    accountId?: string,
+  ) => Promise<RegistrarSync>;
+  /** Enable/disable an account (keeps credentials and cached data). Disabling hides its
+   * domains and stops syncs; enabling re-syncs it. Updates the portfolio,
    * pricing, and registrar metadata to match. */
-  setRegistrarEnabled: (name: RegistrarName, enabled: boolean) => Promise<void>;
+  setRegistrarEnabled: (
+    name: RegistrarName,
+    enabled: boolean,
+    accountId?: string,
+  ) => Promise<void>;
   /** Restore portfolio + detail + pricing from the on-disk cache
    * with no network calls. Call once on app launch. */
   hydrateFromCache: () => Promise<void>;
@@ -154,6 +155,7 @@ interface AppState {
     registrar: string,
     domain: string,
     price: number | null,
+    accountId?: string,
   ) => Promise<void>;
 
   // User-defined folders for organizing domains, plus the domain→folder map
@@ -208,9 +210,6 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   appInfo: null,
   mcpInfo: null,
-  domains: [],
-  domainsLoading: false,
-  domainsError: null,
   loadAppInfo: async () => {
     const appInfo = await window.api.getAppInfo();
     set({ appInfo });
@@ -218,18 +217,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadMcpInfo: async () => {
     const mcpInfo = await window.api.getMcpInfo();
     set({ mcpInfo });
-  },
-  loadDynadotDomains: async () => {
-    set({ domainsLoading: true, domainsError: null });
-    try {
-      const domains = await window.api.listDynadotDomains();
-      set({ domains, domainsLoading: false });
-    } catch (err) {
-      set({
-        domainsLoading: false,
-        domainsError: err instanceof Error ? err.message : String(err),
-      });
-    }
   },
 
   portfolio: [],
@@ -247,8 +234,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ registrars: await window.api.getRegistrarMetadata() });
   },
 
-  syncRegistrar: async (name) => {
-    const result = await withSyncTimeout(window.api.syncRegistrar(name));
+  syncRegistrar: async (name, accountId) => {
+    const prefix = `${accountId ?? name}:`;
+    set((state) => ({
+      enriched: Object.fromEntries(
+        Object.entries(state.enriched).filter(
+          ([key]) => !key.startsWith(prefix),
+        ),
+      ),
+    }));
+    const result = await withSyncTimeout(
+      window.api.syncRegistrar(name, accountId),
+    );
     // Merge the updated aggregate into the portfolio without disturbing other
     // registrars' lazily-loaded detail/pricing (those maps stay keyed by
     // registrar:domain and remain valid). A full "Sync domains" is what clears
@@ -266,17 +263,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     // registrar's just-synced renewal prices show (local, no network).
     await get().loadRegistrars();
     await get().loadPricing();
-    const meta = get().registrars?.find((r) => r.name === name);
+    const meta = get().registrars?.find(
+      (r) => r.name === name && (!accountId || r.accountId === accountId),
+    );
     return (
       meta?.sync ?? { lastSyncedAt: null, lastError: null, domainCount: 0 }
     );
   },
 
-  setRegistrarEnabled: async (name, enabled) => {
-    // Main flips the flag, then either re-syncs (enable) or drops the registrar's
+  setRegistrarEnabled: async (name, enabled, accountId) => {
+    // Main flips the flag, then either re-syncs (enable) or hides the account's
     // cached data (disable), and returns the reassembled portfolio.
     const result = await withSyncTimeout(
-      window.api.setRegistrarEnabled(name, enabled),
+      window.api.setRegistrarEnabled(name, enabled, accountId),
     );
     set((state) => ({
       portfolio: result.domains,
@@ -327,7 +326,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (get().portfolioSource === null) return;
     const snapshot = await window.api.hydrateFromCache();
     const portfolio = snapshot.portfolio;
-    if (!portfolio) return;
+    if (!portfolio) {
+      set({
+        portfolio: [],
+        portfolioErrors: [],
+        portfolioRegistrars: [],
+        enriched: {},
+        pricing: {},
+      });
+      return;
+    }
     set((state) => {
       // Overlay the freshly-cached summary + detail onto any existing enriched
       // entry so a patched field (auto-renew, lock, privacy, nameservers, …)
@@ -414,7 +422,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   enriching: {},
   mutating: {},
   applyDomainOp: async (target, op, optimistic) => {
-    const key = `${target.registrar}:${target.domainName}`;
+    const key = domainKey(target);
     const state = get();
     // Base to merge onto: the already-enriched full domain if present, else the
     // portfolio summary. Absent (a domain not in view) → no row to update, but
@@ -501,6 +509,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             d.registrar as RegistrarName,
             d.domainName,
             force,
+            d.accountId,
           );
           if (detail) {
             // detail is a partial — merge it over the list summary.
@@ -546,8 +555,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     const pricing = await window.api.getPortfolioPricing();
     set({ pricing });
   },
-  setManualPrice: async (registrar, domain, price) => {
-    await window.api.setManualPrice(registrar as RegistrarName, domain, price);
+  setManualPrice: async (registrar, domain, price, accountId) => {
+    await window.api.setManualPrice(
+      registrar as RegistrarName,
+      domain,
+      price,
+      accountId,
+    );
     // The override changes one domain's price; re-read the whole map (local, no
     // network) so the dashboard totals and the row both reflect it.
     await get().loadPricing();
@@ -635,8 +649,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const job = await window.api.startBulk(targets, op);
     set((state) => {
       const mutating = { ...state.mutating };
-      for (const t of targets)
-        mutating[`${t.registrar}:${t.domainName}`] = true;
+      for (const t of targets) mutating[domainKey(t)] = true;
       return { bulk: job, mutating };
     });
     return job;
@@ -651,9 +664,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Rows a still-running job hasn't reached yet read as mutating.
       if (!job || job.status !== 'running') return { bulk: job };
       const mutating = { ...state.mutating };
-      const done = new Set(
-        job.results.map((r) => `${r.target.registrar}:${r.target.domainName}`),
-      );
+      const done = new Set(job.results.map((r) => domainKey(r.target)));
       for (const d of state.portfolio) {
         const key = domainKey(d);
         if (!done.has(key)) mutating[key] = true;
@@ -663,7 +674,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   applyBulkProgress: ({ jobId, result }) =>
     set((state) => {
-      const key = `${result.target.registrar}:${result.target.domainName}`;
+      const key = domainKey(result.target);
       const mutating = { ...state.mutating };
       delete mutating[key];
       const next: Partial<AppState> = { mutating };
@@ -694,7 +705,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Anything still marked from this job (cancelled before it ran) clears.
       const mutating = { ...state.mutating };
       for (const r of job.results) {
-        delete mutating[`${r.target.registrar}:${r.target.domainName}`];
+        delete mutating[domainKey(r.target)];
       }
       return { bulk: job, mutating };
     }),

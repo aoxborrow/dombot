@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { app } from 'electron';
+import { manageStdio } from './stdio-lifecycle';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   StreamableHTTPClientTransport,
@@ -45,6 +46,18 @@ export async function runStdioShim(): Promise<never> {
 
   const stdio = new StdioServerTransport();
   let http: StreamableHTTPClientTransport | null = null;
+  const lifecycle = manageStdio(
+    stdio,
+    process.stdin,
+    process.stdout,
+    (error) => {
+      void http?.close().catch(() => undefined);
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      app.exit(
+        !error || code === 'EPIPE' || code === 'ERR_STREAM_DESTROYED' ? 0 : 1,
+      );
+    },
+  );
   // The client's initialize request, replayed if the app restarts.
   let initMessage: JSONRPCMessage | null = null;
   // Ids of replayed-initialize responses the client must not see twice.
@@ -57,7 +70,7 @@ export async function runStdioShim(): Promise<never> {
     });
     transport.onmessage = (msg) => {
       if ('id' in msg && msg.id !== undefined && swallow.delete(msg.id)) return;
-      void stdio.send(msg);
+      void lifecycle.send(msg);
     };
     transport.onerror = (err) =>
       console.error('[mcp-stdio] http:', err.message);
@@ -87,6 +100,7 @@ export async function runStdioShim(): Promise<never> {
   };
 
   const forward = async (msg: JSONRPCMessage): Promise<void> => {
+    if (lifecycle.closed) return;
     try {
       await (http ?? (http = await connect())).send(msg);
     } catch (err) {
@@ -102,7 +116,7 @@ export async function runStdioShim(): Promise<never> {
       const message = describe(failure);
       console.error('[mcp-stdio]', message);
       if (isJSONRPCRequest(msg)) {
-        await stdio.send({
+        await lifecycle.send({
           jsonrpc: '2.0',
           id: msg.id,
           error: { code: -32000, message },
@@ -112,12 +126,8 @@ export async function runStdioShim(): Promise<never> {
   };
 
   // The client hung up (or was killed): we're done.
-  stdio.onclose = () => {
-    void http?.close().catch(() => undefined);
-    app.exit(0);
-  };
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
-    process.on(sig, () => app.exit(0));
+    process.on(sig, () => lifecycle.close());
   }
 
   await stdio.start();
