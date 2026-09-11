@@ -29,6 +29,8 @@ import {
 import { deriveEncryptionKey, parseRootSecret } from './keys';
 import { withRequestLock } from './lock';
 import { D1DocStore } from './storage/d1-doc-store';
+import { configureNamecheapProxyTransport } from '../core/services/namecheap-proxy';
+import { workerNamecheapProxyFetch } from './namecheap-proxy';
 
 // The Cloudflare Worker host: the same core (services, API table, storage
 // façade) as the desktop app behind an HTTP transport. See
@@ -71,6 +73,7 @@ function bootOnce(env: Env): Promise<Boot> {
     const root = parseRootSecret(env.DOMBOT_SECRET);
     const cipher = await aesGcmCipher(await deriveEncryptionKey(root));
     configureStore(new EncryptedDocStore(new D1DocStore(env.DB), cipher));
+    configureNamecheapProxyTransport(workerNamecheapProxyFetch);
     return { auth: await buildAuthConfig(env, root) };
   })().catch((err) => {
     boot = null; // let the next request retry (e.g. secret set after deploy)

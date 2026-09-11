@@ -86,6 +86,7 @@
     "clsx": "^2.1.1",
     "electron-squirrel-startup": "^1.0.1",
     "hono": "^4.13.7",
+    "https-proxy-agent": "7.0.6",
     "jose": "^6.2.12",
     "lucide-react": "^1.37.0",
     "radix-ui": "^1.6.7",
@@ -95,6 +96,7 @@
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0",
     "tldts": "^7.4.11",
+    "tunnelfetch": "1.13.0",
     "zod": "^3.25.76",
     "zustand": "^5.0.15"
   }

@@ -7,6 +7,7 @@ import { restartAutoSync } from '../services/auto-sync';
 import { resetRegistrarClients } from '../services/registrars';
 import { getSettings, notifySettingsChanged } from '../services/settings';
 import { exportNamespaces, importNamespaces } from './namespace';
+import { parseNamecheapProxy } from '../../shared/namecheap-proxy';
 
 // A portable copy of everything DomBot stores — registrar keys, portfolio
 // cache, folders, manual prices, settings, MCP pairings, bulk-job history —
@@ -92,6 +93,35 @@ export function parseBundle(text: string): DataBundle {
     validateAccountRecords(head.namespaces['registrar-accounts'] ?? {});
   } catch (err) {
     throw new BundleError(err instanceof Error ? err.message : String(err));
+  }
+  // Validate the fixed-IP proxy settings for every Namecheap account in the
+  // bundle — the legacy default key plus any UUID-keyed accounts — so an import
+  // can't smuggle in a private/reserved-IP or otherwise malformed proxy.
+  const accountRecords = (head.namespaces['registrar-accounts'] ?? {}) as Record<
+    string,
+    { registrar?: unknown } | null
+  >;
+  const namecheapIds = new Set<string>(['namecheap']);
+  for (const [id, record] of Object.entries(accountRecords))
+    if (record && typeof record === 'object' && record.registrar === 'namecheap')
+      namecheapIds.add(id);
+  const credentials = (head.namespaces.credentials ?? {}) as Record<
+    string,
+    unknown
+  >;
+  for (const id of namecheapIds) {
+    const bag = credentials[id];
+    if (bag && typeof bag === 'object') {
+      try {
+        parseNamecheapProxy(bag as Record<string, unknown>);
+      } catch (error) {
+        throw new BundleError(
+          error instanceof Error
+            ? error.message
+            : 'Invalid Namecheap proxy settings.',
+        );
+      }
+    }
   }
   return head as DataBundle;
 }
