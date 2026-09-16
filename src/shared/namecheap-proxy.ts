@@ -5,7 +5,7 @@ export interface NamecheapProxy {
   ip: string;
 }
 
-/** Only public IPv4 literals: no DNS rebinding, local networks or metadata IPs. */
+/** Public IPv4 literals only: no loopback, private, link-local or reserved ranges. */
 export function isPublicIpv4(value: string): boolean {
   if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(value)) return false;
   const parts = value.split('.').map(Number);
@@ -27,6 +27,19 @@ export function isPublicIpv4(value: string): boolean {
     (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) ||
     (a === 203 && b === 0 && c === 113)
   );
+}
+
+const DNS_LABEL = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+const DNS_NAME = new RegExp(`^${DNS_LABEL}(?:\\.${DNS_LABEL})+\\.?$`, 'i');
+/**
+ * A DNS hostname (at least two labels, so `localhost` and LAN shortnames are
+ * out) or a public IPv4 literal. IPv6 literals are not supported. On the
+ * Worker, Cloudflare blocks outbound sockets to private ranges regardless of
+ * how the name resolves; on the desktop the proxy is the user's own choice.
+ */
+export function isProxyHost(hostname: string): boolean {
+  if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(hostname)) return isPublicIpv4(hostname);
+  return hostname.length <= 253 && DNS_NAME.test(hostname);
 }
 
 /** Pure validation shared by the form and server; never echo secret URLs. */
@@ -61,15 +74,14 @@ export function parseNamecheapProxy(
       'Use an HTTP or HTTPS CONNECT proxy URL without a path, query or fragment.',
     );
   }
-  if (!isPublicIpv4(url.hostname))
-    throw new Error('The proxy endpoint must be a public IPv4 address.');
+  if (!isProxyHost(url.hostname))
+    throw new Error(
+      'The proxy endpoint must be a hostname or a public IPv4 address.',
+    );
   if (!isPublicIpv4(ip))
     throw new Error('The outgoing IP must be a public IPv4 address.');
   if (url.port === '0')
     throw new Error('The proxy port must be between 1 and 65535.');
-  // CONNECT protects registrar traffic, but only TLS to the proxy protects its password.
-  if (url.protocol === 'http:' && (url.username || url.password))
-    throw new Error('Proxy authentication requires an HTTPS proxy URL.');
   try {
     const user = decodeURIComponent(url.username),
       password = decodeURIComponent(url.password);

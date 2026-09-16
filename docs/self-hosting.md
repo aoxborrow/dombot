@@ -186,12 +186,16 @@ When configuring Namecheap in **Settings → Registrars**, turn on **Use fixed I
 proxy** if the machine running DomBot cannot connect from an allowlisted IPv4
 address. Enter:
 
-- **Proxy URL:** a CONNECT proxy with a public IPv4 endpoint. For authentication,
-  use `https://username:password@IP:port`, percent-encoding special characters.
-  The proxy must present a valid TLS certificate for that IP. Unauthenticated
-  HTTP proxies are also supported. Authenticated HTTP, hostnames, private/reserved
-  addresses, SOCKS URLs, paths and query strings are rejected. Existing HTTP
-  proxy accounts with passwords must switch to an HTTPS endpoint before use.
+- **Proxy URL:** an HTTP or HTTPS CONNECT proxy, as
+  `http://username:password@host:port` or `https://username:password@host:port`,
+  percent-encoding special characters in the username or password. The host may
+  be a hostname or a public IPv4 address; credentials are optional. With an
+  HTTPS proxy the connection to the proxy itself is encrypted and its
+  certificate is verified against the hostname, so use a hostname there rather
+  than a bare IP. With an HTTP proxy the username and password travel
+  unencrypted to the proxy (the Namecheap request inside the tunnel is still
+  HTTPS). IPv6 literals, private/reserved IPv4 addresses, `localhost`, SOCKS
+  URLs, paths and query strings are rejected.
 - **Outgoing IPv4 address:** the IP Namecheap sees, which may differ from the
   proxy endpoint. Add it to your Namecheap API allowlist before syncing.
 
@@ -218,10 +222,12 @@ validation in JavaScript/WebCrypto; its authors state that it has not had an
 external security audit. This opt-in feature requires review of that additional
 trust boundary and may need Workers Paid for the additional CPU cost.
 
-Desktop uses `https-proxy-agent` with Node's native TLS verification. HTTPS
-protects the proxy authentication handshake, and a separate verified TLS
-connection protects Namecheap traffic inside the tunnel. No setting disables
-certificate verification. Plain HTTP proxies are permitted only without credentials.
+Desktop uses `https-proxy-agent` with Node's native TLS verification. An HTTPS
+proxy URL encrypts the CONNECT handshake, including any proxy password; a
+separate verified TLS connection protects Namecheap traffic inside the tunnel
+either way. No setting disables certificate verification. On the Worker,
+Cloudflare additionally blocks outbound sockets to private network ranges
+whatever the proxy hostname resolves to.
 
 Only Namecheap's production API is reachable through this transport. Namecheap
 uses GET for writes as well as reads, so retries use an explicit read-command
