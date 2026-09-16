@@ -29,6 +29,8 @@
     "site:dev": "vite site",
     "site:build": "vite build site",
     "site:preview": "vite preview site",
+    "demo:build": "vite build -c vite.demo.config.mts",
+    "demo:dev": "vite -c vite.demo.config.mts --port 5199",
     "web:types": "wrangler types",
     "web:build": "vite build -c vite.web.config.mts",
     "web:dev": "npm run web:build && wrangler dev --test-scheduled",

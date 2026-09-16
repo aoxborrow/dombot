@@ -36,10 +36,13 @@ provider behind `getRegistrarClient()`.
 ## Phases
 
 1. ✅ Fake registrar + seed generator + factory hook, with tests.
-2. A third `DombotApi` implementation, `src/renderer/api/demo.ts`, that calls
-   the core's method table in-process over a `MemoryDocStore` with bulk
-   auto-drive on, and feeds core events straight to the `onX` subscriptions.
-   A demo Vite config producing `dist/demo`.
+2. ✅ `src/renderer/api/demo.ts` — a third `DombotApi` implementation that
+   calls the core's method table in-process over a `MemoryDocStore` with
+   bulk auto-drive on, and feeds core events straight to the `onX`
+   subscriptions. `vite.demo.config.mts` builds it to `dist/demo`
+   (`npm run demo:build`; `npm run demo:dev` for a dev server on 5199). The
+   `__DOMBOT_DEMO__` define keeps the demo out of the desktop and web
+   bundles.
 3. Demo affordances: a banner ("Demo portfolio — the domains are invented,
    the prices are real, nothing you do here leaves your browser") with a
    Reset button; registrar credential forms read-only with a note; MCP tab

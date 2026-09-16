@@ -56,6 +56,7 @@ describe('generateDemoSeed', () => {
     expect(soon.length).toBeGreaterThan(5);
     for (const r of seed.records) {
       expect(r.createdDate.getTime()).toBeLessThan(r.expirationDate.getTime());
+      expect(r.createdDate.getTime()).toBeLessThan(now);
       expect(r.nameservers.length).toBeGreaterThanOrEqual(2);
       expect(r.authCode).toMatch(/^DEMO-/);
       expect(r.contacts.registrant?.email).toBe('domains@example.com');

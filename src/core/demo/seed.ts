@@ -468,11 +468,16 @@ export function generateDemoSeed(
               ? 30 + Math.floor(r() * 520)
               : 550 + Math.floor(r() * 1500);
       const expirationDate = new Date(now.getTime() + daysOut * dayMs);
+      // Registered 1–9 years before expiry, but never in the future: a
+      // multi-year renewal pushes expiry out without moving the birthday.
       const ageYears = 1 + Math.floor(r() * 9);
       const createdDate = new Date(
-        expirationDate.getTime() -
-          ageYears * 365.25 * dayMs -
-          Math.floor(r() * 300) * dayMs,
+        Math.min(
+          expirationDate.getTime() -
+            ageYears * 365.25 * dayMs -
+            Math.floor(r() * 300) * dayMs,
+          now.getTime() - (45 + Math.floor(r() * 400)) * dayMs,
+        ),
       );
       const nameservers = pickNameservers(r, account.registrar);
       const parked =
