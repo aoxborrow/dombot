@@ -6,11 +6,25 @@
 export type AuthMode = 'password' | 'cloudflare-access' | 'external';
 
 let web = false;
+let demo = false;
 let authMode: AuthMode | null = null;
 
 export function markWeb(mode: AuthMode): void {
   web = true;
   authMode = mode;
+}
+
+/** The demo build: a browser host (downloads, no stdio) with no login and a
+ *  few features switched off. See docs/demo.md. */
+export function markDemo(): void {
+  web = true;
+  demo = true;
+  authMode = 'external';
+}
+
+/** True only in the demo build. */
+export function isDemo(): boolean {
+  return demo;
 }
 
 /** True in the self-hosted browser build; false in Electron. */

@@ -18,7 +18,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
 import { namecheapCredentials } from '../../../shared/namecheap-proxy';
-import { isWeb } from '../../lib/platform';
+import { isDemo, isWeb } from '../../lib/platform';
 import { timeAgo } from '../../lib/time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -326,6 +326,8 @@ function RegistrarCard({
   };
 
   const busy = saving || syncing || toggling || loading;
+  // The demo shows the form filled with stub credentials but takes no edits.
+  const locked = busy || isDemo();
   const { configured, enabled, sync } = meta;
   const help = REGISTRAR_HELP[provider.name];
   const hasCredentials = Object.values(values).some((v) => v.trim());
@@ -355,7 +357,7 @@ function RegistrarCard({
             <Switch
               checked={summary.configured && summary.enabled}
               onCheckedChange={(v) => void toggleEnabled(v, true)}
-              disabled={busy || !summary.configured}
+              disabled={locked || !summary.configured}
               aria-label={
                 summary.configured
                   ? `${summary.enabled ? 'Disable' : 'Enable'} ${meta.displayName}${multiple ? ' — all accounts' : ''}`
@@ -435,7 +437,7 @@ function RegistrarCard({
                 </FieldLabel>
                 <Select
                   value={currentId}
-                  disabled={busy}
+                  disabled={locked}
                   onValueChange={(id) => {
                     setSelectedId(id);
                     setRenaming(false);
@@ -465,7 +467,7 @@ function RegistrarCard({
                   className="self-end"
                   variant="ghost"
                   size="sm"
-                  disabled={busy}
+                  disabled={locked}
                   onClick={() => setRenaming(true)}
                 >
                   Rename
@@ -478,7 +480,7 @@ function RegistrarCard({
               <Switch
                 checked={configured && enabled}
                 onCheckedChange={(value) => void toggleEnabled(value)}
-                disabled={busy || !configured}
+                disabled={locked || !configured}
                 aria-label={`${enabled ? 'Disable' : 'Enable'} ${currentLabel}`}
               />
               <span className="text-sm">Account status</span>
@@ -491,7 +493,7 @@ function RegistrarCard({
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={busy}
+                  disabled={locked}
                   onClick={() => void runSync()}
                 >
                   <RefreshCw className={cn(syncing && 'animate-spin')} />
@@ -510,7 +512,7 @@ function RegistrarCard({
                 form={`${provider.name}-credentials`}
                 placeholder="e.g. Personal or Company"
                 value={label}
-                disabled={busy}
+                disabled={locked}
                 maxLength={100}
                 onChange={(e) => setLabel(e.target.value)}
               />
@@ -519,6 +521,12 @@ function RegistrarCard({
           {loading && !error && (
             <p role="status" className="mb-3 text-sm text-muted-foreground">
               Loading credentials…
+            </p>
+          )}
+          {isDemo() && (
+            <p className="mb-3 text-sm text-muted-foreground">
+              Credentials are stubbed in the demo. In the app you paste your
+              registrar&apos;s API key here and DomBot syncs your domains.
             </p>
           )}
           <form
@@ -547,13 +555,11 @@ function RegistrarCard({
               provider={provider}
               idPrefix={provider.name}
               values={values}
-              disabled={busy}
+              disabled={locked}
               onChange={(name, value) =>
                 setValues((current) => ({ ...current, [name]: value }))
               }
-              hideFields={
-                proxySuppliesIp ? new Set(['clientIp']) : undefined
-              }
+              hideFields={proxySuppliesIp ? new Set(['clientIp']) : undefined}
             />
 
             {provider.name === 'namecheap' && (
@@ -563,7 +569,7 @@ function RegistrarCard({
                     id={`${provider.name}-proxy-enabled`}
                     checked={proxyEnabled}
                     onCheckedChange={setProxyEnabled}
-                    disabled={busy}
+                    disabled={locked}
                   />
                   <FieldLabel htmlFor={`${provider.name}-proxy-enabled`}>
                     Use fixed IP proxy
@@ -587,7 +593,7 @@ function RegistrarCard({
                         className="font-mono"
                         placeholder="http://user:password@proxy-ip:port"
                         value={values.proxyUrl ?? ''}
-                        disabled={busy}
+                        disabled={locked}
                         onChange={(e) =>
                           setValues((v) => ({ ...v, proxyUrl: e.target.value }))
                         }
@@ -608,7 +614,7 @@ function RegistrarCard({
                         className="font-mono"
                         placeholder="Your proxy’s outgoing IPv4"
                         value={values.proxyIp ?? ''}
-                        disabled={busy}
+                        disabled={locked}
                         onChange={(e) =>
                           setValues((v) => ({ ...v, proxyIp: e.target.value }))
                         }
@@ -616,8 +622,8 @@ function RegistrarCard({
                     </Field>
                     {isWeb() && (
                       <p className="text-sm text-muted-foreground">
-                        Workers proxy connections use an experimental TLS client.
-                        Review the{' '}
+                        Workers proxy connections use an experimental TLS
+                        client. Review the{' '}
                         <a
                           className="underline"
                           href="https://github.com/latentharbor/tunnelfetch#readme"
@@ -650,7 +656,7 @@ function RegistrarCard({
                 <Button
                   type="button"
                   variant="ghost"
-                  disabled={busy}
+                  disabled={locked}
                   onClick={() => {
                     setRenaming(false);
                     setLabel(currentLabel);
@@ -663,7 +669,7 @@ function RegistrarCard({
                   <Button
                     type="button"
                     variant="ghost"
-                    disabled={busy || adding}
+                    disabled={locked || adding}
                     ref={addButton}
                     aria-expanded={adding}
                     aria-controls={`${provider.name}-new-account`}
@@ -682,7 +688,7 @@ function RegistrarCard({
                   type="button"
                   variant="ghost"
                   className="ml-auto text-muted-foreground"
-                  disabled={busy}
+                  disabled={locked}
                   onClick={() => setRemoving(true)}
                 >
                   Remove account
@@ -709,14 +715,14 @@ function RegistrarCard({
               </span>
               <Button
                 variant="destructive"
-                disabled={busy}
+                disabled={locked}
                 onClick={() => void remove()}
               >
                 Remove
               </Button>
               <Button
                 variant="ghost"
-                disabled={busy}
+                disabled={locked}
                 onClick={() => setRemoving(false)}
               >
                 Cancel

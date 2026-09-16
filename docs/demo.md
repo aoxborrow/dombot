@@ -43,10 +43,14 @@ provider behind `getRegistrarClient()`.
    (`npm run demo:build`; `npm run demo:dev` for a dev server on 5199). The
    `__DOMBOT_DEMO__` define keeps the demo out of the desktop and web
    bundles.
-3. Demo affordances: a banner ("Demo portfolio — the domains are invented,
-   the prices are real, nothing you do here leaves your browser") with a
-   Reset button; registrar credential forms read-only with a note; MCP tab
-   hidden; import disabled (export and CSV still work).
+3. ✅ Demo affordances (`isDemo()` in `src/renderer/lib/platform.ts`): a
+   banner across the top ("Demo mode. The domains are invented, the prices
+   are real, and nothing you do here leaves your browser. Registrar
+   credentials, MCP, and data import are disabled.") with Reset and Get
+   DomBot; the footer reads "Demo mode"; registrar cards show the stubbed
+   credentials read-only with a note (Sync still works); the MCP tab is a
+   single "disabled in the demo" card; Import is disabled (export and CSV
+   still work).
 4. Publish under the site and link it from the site hero and the README.
 
 Open: whether visitor changes persist across reloads (`localStorage` mirror

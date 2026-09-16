@@ -23,6 +23,7 @@ import {
   openBundle,
   sealBundle,
 } from '../../../shared/bundle-seal';
+import { isDemo } from '../../lib/platform';
 import { useAppStore } from '../../store/app';
 import { SettingsCard } from './SettingsCard';
 
@@ -249,6 +250,7 @@ function DataBundleCard() {
         <p className="text-sm text-muted-foreground">
           Import a DomBot data file. This <b>replaces</b> everything stored here
           with the file&apos;s contents.
+          {isDemo() && ' Import is disabled in the demo.'}
         </p>
         <div>
           <input
@@ -261,7 +263,11 @@ function DataBundleCard() {
               e.target.value = '';
             }}
           />
-          <Button variant="outline" onClick={() => fileInput.current?.click()}>
+          <Button
+            variant="outline"
+            disabled={isDemo()}
+            onClick={() => fileInput.current?.click()}
+          >
             Import data…
           </Button>
         </div>
