@@ -574,8 +574,9 @@ function RegistrarCard({
                         Proxy URL
                       </FieldLabel>
                       <FieldDescription>
-                        CONNECT proxy with a public IPv4 endpoint. HTTPS is
-                        required when using a username and password.
+                        HTTP or HTTPS CONNECT proxy, by hostname or public IPv4
+                        address. Prefer HTTPS when the proxy needs a username
+                        and password; an HTTP proxy receives them unencrypted.
                       </FieldDescription>
                       <Input
                         id={`${provider.name}-proxy-url`}
@@ -583,7 +584,7 @@ function RegistrarCard({
                         autoComplete="off"
                         spellCheck={false}
                         className="font-mono"
-                        placeholder="https://user:password@proxy-ip:port"
+                        placeholder="https://user:password@proxy.example.com:8080"
                         value={values.proxyUrl ?? ''}
                         disabled={busy}
                         onChange={(e) =>
@@ -933,8 +934,9 @@ function NewRegistrarAccountForm({
                     Proxy URL
                   </FieldLabel>
                   <FieldDescription>
-                    CONNECT proxy with a public IPv4 endpoint. HTTPS is required
-                    when using a username and password.
+                    HTTP or HTTPS CONNECT proxy, by hostname or public IPv4
+                    address. Prefer HTTPS when the proxy needs a username and
+                    password; an HTTP proxy receives them unencrypted.
                   </FieldDescription>
                   <Input
                     id={`${provider.name}-new-proxy-url`}
@@ -942,7 +944,7 @@ function NewRegistrarAccountForm({
                     autoComplete="off"
                     spellCheck={false}
                     className="font-mono"
-                    placeholder="https://user:password@proxy-ip:port"
+                    placeholder="https://user:password@proxy.example.com:8080"
                     value={values.proxyUrl ?? ''}
                     disabled={saving}
                     onChange={(e) =>

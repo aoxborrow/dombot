@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isProxyHost,
   isPublicIpv4,
   namecheapCredentials,
   parseNamecheapProxy,
@@ -37,6 +38,39 @@ describe('Namecheap proxy configuration', () => {
     ).not.toBeNull();
   });
   it.each([
+    'http://8.8.8.8:8080',
+    'http://proxy-user:proxy-secret@8.8.8.8:8080',
+    'https://proxy-user:proxy-secret@8.8.8.8:8080',
+    'http://proxy.example.com:8080',
+    'http://proxy-user:proxy-secret@proxy.example.com:8080',
+    'https://proxy-user:proxy-secret@proxy.example.com:8080',
+    'https://gw.eu-1.proxy-provider.net:443',
+    'http://PROXY.Example.COM:8080',
+  ])(
+    'accepts hostnames or public IPv4, with or without credentials: %s',
+    (proxyUrl) => {
+      const parsed = parseNamecheapProxy({ ...values, proxyUrl });
+      expect(parsed?.url).toBe(new URL(proxyUrl).href);
+      expect(parsed?.ip).toBe('8.8.4.4');
+    },
+  );
+  it.each([
+    ['proxy.example.com', true],
+    ['proxy.example.com.', true],
+    ['8.8.8.8', true],
+    ['localhost', false],
+    ['localhost.', false],
+    ['proxy', false],
+    ['-bad.example.com', false],
+    ['bad-.example.com', false],
+    ['under_score.example.com', false],
+    ['10.0.0.1', false],
+    ['::1', false],
+    ['a'.repeat(64) + '.example.com', false],
+  ])('classifies proxy host %s', (host, ok) => {
+    expect(isProxyHost(host)).toBe(ok);
+  });
+  it.each([
     '127.0.0.1',
     '10.0.0.1',
     '172.16.0.1',
@@ -59,13 +93,15 @@ describe('Namecheap proxy configuration', () => {
   });
   it.each([
     'http://localhost:8080',
-    'http://proxy.example:8080',
+    'http://proxy:8080',
     'http://2130706433:8080',
     'http://0x7f000001:8080',
     'http://[::1]:8080',
+    'https://[2001:db8::1]:8080',
     'socks5://8.8.8.8:8080',
-    'http://proxy-user:proxy-secret@8.8.8.8:8080',
+    'ftp://proxy.example.com:8080',
     'http://8.8.8.8/path',
+    'https://proxy.example.com/path',
     'http://8.8.8.8?secret=x',
     'http://8.8.8.8#x',
     'http://8.8.8.8:0',
