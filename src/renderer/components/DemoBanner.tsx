@@ -9,7 +9,7 @@ export default function DemoBanner() {
   return (
     <div
       role="note"
-      className="flex h-8 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 text-xs"
+      className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-[7px] text-xs"
     >
       <FlaskConical className="size-3.5 shrink-0 text-amber-500" aria-hidden />
       <p className="flex-1 leading-snug text-foreground/60">
@@ -22,7 +22,7 @@ export default function DemoBanner() {
       <Button
         variant="outline"
         size="sm"
-        className="h-6 shrink-0 px-2 text-xs"
+        className="h-6 shrink-0 px-2 text-xs text-foreground/60 hover:text-foreground"
         onClick={() => window.location.reload()}
         title="Start over with a fresh portfolio"
       >
