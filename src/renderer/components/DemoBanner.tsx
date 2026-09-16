@@ -9,7 +9,7 @@ export default function DemoBanner() {
   return (
     <div
       role="note"
-      className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-[7px] text-xs"
+      className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-[7px] text-[13px]"
     >
       <FlaskConical className="size-3.5 shrink-0 text-amber-500" aria-hidden />
       <p className="flex-1 leading-snug text-amber-50/60">
