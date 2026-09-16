@@ -62,3 +62,5 @@ jobs:
       - name: Bundle the Worker without deploying
         # No account or token needed: --dry-run stops after bundling.
         run: npx wrangler deploy --dry-run --outdir dist/worker
+      - name: Build the demo
+        run: npm run demo:build

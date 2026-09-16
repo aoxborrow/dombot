@@ -52,7 +52,25 @@ provider behind `getRegistrarClient()`.
    controls that would change something real are disabled: saving or
    adding registrar credentials, the MCP switch, Import. Sync, export and
    CSV still work.
-4. Publish under the site and link it from the site hero and the README.
+4. ✅ Published at **demo.dombot.ai** as a static-assets Worker
+   (`wrangler.demo.jsonc`, `npm run demo:deploy`), redeployed by
+   `.github/workflows/deploy-demo.yml` on every merge to main that touches
+   the app. The workflow runs only in the upstream repository (gated on the
+   repo name) and only when its own secrets are set, so a fork never
+   deploys a demo, and the Deploy button / `web:deploy` never read this
+   config.
+
+   One-time setup (upstream only):
+   - The `dombot.ai` zone is on Cloudflare DNS (a Workers custom domain
+     needs that; the marketing site stays on GitHub Pages via its A/CNAME
+     records).
+   - A Cloudflare API token with **Workers Scripts: Edit** on the account,
+     stored as the repo secret `DEMO_CLOUDFLARE_API_TOKEN`, plus
+     `DEMO_CLOUDFLARE_ACCOUNT_ID`. These are deliberately _not_ the
+     `CLOUDFLARE_*` names the self-hosting workflow uses, so setting one
+     can't switch on the other.
+   - The first `npm run demo:deploy` creates the Worker and attaches the
+     custom domain.
 
 Open: whether visitor changes persist across reloads (`localStorage` mirror
 plus Reset) and whether the desktop app gets a "try with sample data" mode,

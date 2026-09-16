@@ -1,0 +1,21 @@
+// The public demo at demo.dombot.ai: a static-assets-only Worker serving the
+// demo build (npm run demo:build → dist/demo). No code, no bindings, no
+// secrets — the whole app runs in the visitor's browser (docs/demo.md).
+//
+// This is NOT the self-hosting config. `wrangler.jsonc` (the root) is what
+// the Deploy button and `npm run web:deploy` use; this file is only ever read
+// by .github/workflows/deploy-demo.yml, which runs solely in the upstream
+// repository, and by `npx wrangler deploy -c wrangler.demo.jsonc` by hand.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "dombot-demo",
+  "compatibility_date": "2026-09-06",
+  "assets": {
+    "directory": "./dist/demo",
+    "not_found_handling": "single-page-application",
+  },
+  "routes": [{ "pattern": "demo.dombot.ai", "custom_domain": true }],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+}
