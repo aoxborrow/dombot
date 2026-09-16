@@ -12,7 +12,11 @@ export default function DemoBanner() {
       className="flex items-center gap-3 border-b border-amber-500/30 bg-amber-500/10 px-6 py-2 text-sm"
     >
       <FlaskConical className="size-4 shrink-0 text-amber-500" aria-hidden />
-      <p className="flex-1 font-medium leading-snug">Demo mode</p>
+      <p className="flex-1 leading-snug">
+        <span className="font-medium">Demo mode.</span> Fake domains and
+        registrar credentials; real prices. Nothing you do here leaves your
+        browser.
+      </p>
       <Button
         variant="outline"
         size="sm"

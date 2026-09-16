@@ -44,8 +44,10 @@ provider behind `getRegistrarClient()`.
    (`npm run demo:build`; `npm run demo:dev` for a dev server on 5199). The
    `__DOMBOT_DEMO__` define keeps the demo out of the desktop and web
    bundles.
-3. ✅ Demo mode (`isDemo()` in `src/renderer/lib/platform.ts`): a "Demo
-   mode" strip across the top with a Reset button (reload → fresh seed);
+3. ✅ Demo mode (`isDemo()` in `src/renderer/lib/platform.ts`): a strip
+   across the top ("Demo mode. Fake domains and registrar credentials; real
+   prices. Nothing you do here leaves your browser.") with a Reset button
+   (reload → fresh seed);
    the footer reads "Demo mode". Every page keeps its normal copy; only the
    controls that would change something real are disabled: saving or
    adding registrar credentials, the MCP switch, Import. Sync, export and
