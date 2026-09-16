@@ -20,7 +20,8 @@ provider behind `getRegistrarClient()`.
   provider lacks throws the library's `NotImplementedError`. Pricing comes
   from the bundled base table, so it's true.
 - **`src/core/demo/seed.ts`** — a deterministic generator (seeded PRNG) for
-  ~180 plausible domains across GoDaddy, Porkbun, Cloudflare, Dynadot,
+  ~180 single-dictionary-word domains (at most two share a name on a second
+  TLD) across GoDaddy, Porkbun, Cloudflare, Dynadot,
   Namecheap and Spaceship, with realistic expiry spread (a few overdue, some
   due soon, a few multi-year), auto-renew/lock/privacy mixes, varied
   delegation (registrar default, Cloudflare, a few custom), contacts, DNS
@@ -43,14 +44,12 @@ provider behind `getRegistrarClient()`.
    (`npm run demo:build`; `npm run demo:dev` for a dev server on 5199). The
    `__DOMBOT_DEMO__` define keeps the demo out of the desktop and web
    bundles.
-3. ✅ Demo affordances (`isDemo()` in `src/renderer/lib/platform.ts`): a
-   banner across the top ("Demo mode. The domains are invented, the prices
-   are real, and nothing you do here leaves your browser. Registrar
-   credentials, MCP, and data import are disabled.") with Reset and Get
-   DomBot; the footer reads "Demo mode"; registrar cards show the stubbed
-   credentials read-only with a note (Sync still works); the MCP tab is a
-   single "disabled in the demo" card; Import is disabled (export and CSV
-   still work).
+3. ✅ Demo mode (`isDemo()` in `src/renderer/lib/platform.ts`): a "Demo
+   mode" strip across the top with a Reset button (reload → fresh seed);
+   the footer reads "Demo mode". Every page keeps its normal copy; only the
+   controls that would change something real are disabled: saving or
+   adding registrar credentials, the MCP switch, Import. Sync, export and
+   CSV still work.
 4. Publish under the site and link it from the site hero and the README.
 
 Open: whether visitor changes persist across reloads (`localStorage` mirror

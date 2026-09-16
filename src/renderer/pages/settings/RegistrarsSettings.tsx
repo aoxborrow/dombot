@@ -326,7 +326,7 @@ function RegistrarCard({
   };
 
   const busy = saving || syncing || toggling || loading;
-  // The demo shows the form filled with stub credentials but takes no edits.
+  // The demo shows the form (with its stub credentials) but takes no edits.
   const locked = busy || isDemo();
   const { configured, enabled, sync } = meta;
   const help = REGISTRAR_HELP[provider.name];
@@ -521,12 +521,6 @@ function RegistrarCard({
           {loading && !error && (
             <p role="status" className="mb-3 text-sm text-muted-foreground">
               Loading credentials…
-            </p>
-          )}
-          {isDemo() && (
-            <p className="mb-3 text-sm text-muted-foreground">
-              Credentials are stubbed in the demo. In the app you paste your
-              registrar&apos;s API key here and DomBot syncs your domains.
             </p>
           )}
           <form

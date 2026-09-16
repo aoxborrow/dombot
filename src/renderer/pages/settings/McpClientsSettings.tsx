@@ -59,27 +59,6 @@ export default function McpClientsSettings() {
   const web = isWeb();
   const gated = web && webAuthMode() !== 'password';
 
-  if (isDemo()) {
-    return (
-      <div className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-xl font-bold">MCP</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Agents connect to DomBot&apos;s MCP server to manage your portfolio.
-            New connections must be approved here.
-          </p>
-        </div>
-        <SettingsCard title="MCP server">
-          <p className="text-sm text-muted-foreground">
-            MCP is disabled in the demo. In the app, Claude and other MCP
-            clients pair here and can read and change your domains through the
-            same tools you see in the UI.
-          </p>
-        </SettingsCard>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -143,7 +122,7 @@ export default function McpClientsSettings() {
             id="mcp-enabled"
             className={cn(loading && 'invisible')}
             checked={enabled}
-            disabled={loading || toggling}
+            disabled={loading || toggling || isDemo()}
             onCheckedChange={(v) => void toggle(v)}
           />
         </div>

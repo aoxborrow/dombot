@@ -250,7 +250,6 @@ function DataBundleCard() {
         <p className="text-sm text-muted-foreground">
           Import a DomBot data file. This <b>replaces</b> everything stored here
           with the file&apos;s contents.
-          {isDemo() && ' Import is disabled in the demo.'}
         </p>
         <div>
           <input
