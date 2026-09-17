@@ -73,7 +73,7 @@ export function BulkBar({
         {domains.length > 0 ? (
           <>
             <span className="font-medium text-[#7ac28d]">
-              {domains.length} selected
+              <span className="text-[17px]">{domains.length}</span> selected
               {registrarCount > 1 && (
                 <span className="font-normal text-muted-foreground">
                   {' '}
