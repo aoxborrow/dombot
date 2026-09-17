@@ -735,6 +735,10 @@ function DraftAccountCard({
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Optional, edited inline in the title bar like on a saved card. It only
+  // lives here until the account is saved.
+  const [nickname, setNickname] = useState('');
+  const [editingNickname, setEditingNickname] = useState(false);
   // With the Namecheap proxy on, its outgoing IP supplies the required ClientIp,
   // so the direct field isn't needed; the proxy URL/IP are required instead.
   const proxySuppliesIp = provider.name === 'namecheap' && proxyEnabled;
@@ -755,9 +759,8 @@ function DraftAccountCard({
       const account = await window.api.connectRegistrarAccount(
         provider.name,
         values,
-        // No nickname up front: the account takes the next number and can be
-        // named from its title bar afterwards.
-        undefined,
+        // Without a nickname the account takes the next number.
+        nickname.trim() || undefined,
         proxyEnabled,
       );
       onAdded(account);
@@ -779,6 +782,50 @@ function DraftAccountCard({
         >
           New {provider.displayName} account
         </h3>
+        {editingNickname ? (
+          <Input
+            autoFocus
+            value={nickname}
+            disabled={saving}
+            maxLength={100}
+            autoComplete="off"
+            placeholder="Add a nickname"
+            aria-label={`Nickname for the new ${provider.displayName} account`}
+            className="h-8 w-44 shrink"
+            onChange={(e) => setNickname(e.target.value)}
+            onBlur={() => setEditingNickname(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'Escape') {
+                e.preventDefault();
+                if (e.key === 'Escape') setNickname('');
+                setEditingNickname(false);
+              }
+            }}
+          />
+        ) : (
+          <>
+            {nickname.trim() && (
+              <span className="-ml-1 flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                <span aria-hidden>·</span>
+                <span className="truncate">{nickname.trim()}</span>
+              </span>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="-ml-1.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground"
+              disabled={saving}
+              aria-label={
+                nickname.trim() ? 'Change nickname' : 'Add a nickname'
+              }
+              title={nickname.trim() ? 'Change nickname' : 'Add a nickname'}
+              onClick={() => setEditingNickname(true)}
+            >
+              <Pencil className="size-3" />
+            </Button>
+          </>
+        )}
       </div>
       <form
         aria-label={`New ${provider.displayName} account`}
@@ -852,7 +899,7 @@ function RegistrarHelp({ provider }: { provider: RegistrarDefinition }) {
   );
 }
 
-/** Routes one account through the proxy set up under Settings → Proxy. The
+/** Routes one account through the proxy set up on the Proxy tab. The
  * proxy itself is never edited here; an account only opts in or out. */
 function ProxyToggle({
   id,
@@ -871,7 +918,7 @@ function ProxyToggle({
 }) {
   const proxyLink = (
     <Link to="/settings?tab=proxy" className="underline underline-offset-4">
-      Settings → Proxy
+      proxy
     </Link>
   );
   return (
@@ -888,7 +935,7 @@ function ProxyToggle({
       </div>
       <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
         {!proxy ? (
-          <>Set up your proxy under {proxyLink} to use this.</>
+          <>Set up your {proxyLink} to use this.</>
         ) : enabled ? (
           <>
             This account&apos;s requests go through your proxy, and{' '}
@@ -897,10 +944,7 @@ function ProxyToggle({
             Add that address to the {provider.displayName} API allowlist.
           </>
         ) : (
-          <>
-            Send this account&apos;s requests through the proxy from {proxyLink}
-            , for when this machine has no allowlisted address of its own.
-          </>
+          <>Send this account&apos;s requests through your {proxyLink}.</>
         )}
       </p>
     </div>
