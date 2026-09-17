@@ -71,4 +71,5 @@ jobs:
           DOMBOT_WORKER_NAME: ${{ vars.DOMBOT_WORKER_NAME }}
           DOMBOT_D1_DATABASE_ID: ${{ vars.DOMBOT_D1_DATABASE_ID }}
           DOMBOT_D1_DATABASE_NAME: ${{ vars.DOMBOT_D1_DATABASE_NAME }}
+          DOMBOT_CUSTOM_DOMAIN: ${{ vars.DOMBOT_CUSTOM_DOMAIN }}
         run: npm run deploy
