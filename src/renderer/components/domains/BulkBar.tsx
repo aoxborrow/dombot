@@ -68,7 +68,7 @@ export function BulkBar({
   if (domains.length === 0 && !running) return null;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#7ac28d]/70 bg-[#7ac28d]/10 px-3 py-2">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#7ac28d]/70 bg-[#7ac28d]/10 py-1.5 pl-3 pr-[7px]">
       <div className="flex items-center gap-3 text-sm">
         {domains.length > 0 ? (
           <>
