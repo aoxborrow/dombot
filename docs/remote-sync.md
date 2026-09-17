@@ -86,6 +86,25 @@ web the browser calls its own instance's `/api/syncPush|syncPull` and the
 CORS handling on either side, and the Remote sync panel appears on **both** the
 desktop and web builds.
 
+**Do not hold the store lock across the outbound fetch.** On the web host, every
+`/api/:method` runs under `withRequestLock` with a hydrate/flush around it
+(`src/worker/index.ts`). If a sync handler ran the whole operation inside that
+lock, the initiating instance would be **stalled for the entire network round
+trip**, and — worse — pointing the remote URL at the instance's **own origin**
+(or any URL that lands on the same isolate, e.g. `wrangler dev`) would
+**deadlock**: the outbound `/api` call needs the lock the initiator is still
+holding. So the sync handler must take the store lock **only around the local
+export/import step**, never across the outbound HTTP calls:
+
+- **Push**: take the lock → `exportBundle` a snapshot → release → `POST` it to
+  the remote.
+- **Pull**: `GET` the remote bundle (no lock) → take the lock → `importBundle`.
+
+This likely means the web sync handler is a **dedicated route that opts out of
+the standard locked `/api` dispatch**, rather than a plain locked core method.
+Additionally, **reject a remote URL equal to the instance's own origin** up
+front — self-sync is meaningless and is the obvious deadlock trigger.
+
 ## Authentication
 
 The web instance authenticates with a **password** (`DOMBOT_PASSWORD` secret),
@@ -114,7 +133,16 @@ Two additions, both narrow:
    minted token **in the JSON body** — it sets **no cookie**. Because it sets no
    ambient credential and an attacker page cannot read a cross-origin JSON
    response, it is safe to **exempt from `sameOrigin`**; the password in the body
-   is the authorization. Reuse the existing login rate-limiter on it.
+   is the authorization. Rate-limit it with the same mechanism as login but a
+   **separate bucket** (distinct key prefix), **not** the login bucket. Because
+   this route is `sameOrigin`-exempt, a cross-origin page can reach it; if it
+   shared the login limiter it could burn a visitor's 10-attempts/15-min budget
+   and lock that IP out of `/auth/login` (a CSRF-driven login lockout — note
+   `/auth/login` only charges the limiter *after* its `sameOrigin` check, so it
+   is not itself reachable this way). A separate bucket confines any such abuse
+   to the sync path. Optionally also require a non-simple request (e.g. a custom
+   header) so browsers must preflight it, blocking simple cross-origin form
+   POSTs outright.
 2. **Bearer acceptance on `/api/:method`.** In `isAuthenticated` (password
    mode), also accept a valid token from `Authorization: Bearer <token>`
    (`verifySession` on the header). In the `/api` gate, **skip `sameOrigin` when
@@ -222,44 +250,61 @@ saved URL (and any remembered secret). This config is host-local, like `auth`
 and `meta`. Store it in a dedicated `remote-sync` namespace that is added to
 `NEVER_EXPORTED` (`src/core/storage/bundle.ts`) so it is excluded from every
 bundle in both directions: `remoteSyncUrl`, the "remember" flag, and — only if
-"remember" is on — the target password. That namespace is encrypted at rest by
-whichever host store holds it (OS keychain on desktop via `safeStorage`; the
-instance's AES-GCM D1 layer on web), so the remembered secret is protected the
-same way registrar credentials already are. Keeping it out of the bundle also
-prevents a host-local secret from ever being pushed to the remote.
+"remember" is on — the target password.
+
+Encryption of that stored password needs an explicit step, and this is easy to
+get wrong: the desktop `EncryptedDocStore` seals **only** the `credentials` and
+`proxies` namespaces (`src/electron/storage/index.ts`), so a new `remote-sync`
+namespace would be written as **plaintext JSON under `userData`** by default.
+To store the password at the same protection as registrar credentials,
+`remote-sync` **must be added to the desktop store's sealed-namespace set** (or,
+alternatively, keep the secret in the already-sealed `credentials` store and put
+only the URL/flag in `remote-sync`). On web this is automatic — the Worker's
+`EncryptedDocStore` seals every namespace via its AES-GCM/D1 layer. (Simplest to
+reason about: seal `remote-sync` on both hosts and keep it in `NEVER_EXPORTED`.)
+Keeping it out of the bundle also prevents a host-local secret from ever being
+pushed to the remote.
 
 ## Implementation surface
 
 Receiver side (worker) — what a *target* instance needs:
 
 - `src/worker/index.ts` — add `POST /auth/token` (password mode, `sameOrigin`-
-  exempt, rate-limited, returns the token in the body); skip `sameOrigin` for
-  bearer-authenticated `/api` requests.
+  exempt, returns the token in the body, rate-limited on a **separate bucket**
+  from `/auth/login`, see *Authentication*); skip `sameOrigin` for bearer-
+  authenticated `/api` requests.
 - `src/worker/auth.ts` — bearer-token acceptance in `isAuthenticated` (password
   mode).
 
-Initiator side — a **host-side core API method**, not a desktop-only IPC method,
-so the same code runs in the desktop main process *and* the initiating
-instance's Worker (this is what makes web-to-web work without CORS — see
-*Topologies*):
+Initiator side — the sync logic runs **host-side** (desktop main process, or the
+initiating instance's Worker), which is what makes web-to-web work without CORS
+(see *Topologies*):
 
-- Add `syncPush` / `syncPull` to the core method table (`src/core/api/index.ts`,
-  beside `exportData` / `importData`). Signature: `(remoteUrl, password)`.
-  Handler, running host-side:
+- Sync handler, `(remoteUrl, password)`:
+  - Reject `remoteUrl` that is not `https://`, or that equals this instance's
+    own origin (self-sync / deadlock guard).
   - Exchange the password for a token at `POST {remoteUrl}/auth/token`.
-  - **Pull**: `POST {remoteUrl}/api/exportData` → local `importBundle(text)`.
-  - **Push**: local `exportBundle(...)` → `POST {remoteUrl}/api/importData`
-    with `{ args: [text] }`.
-  - All target calls carry `Authorization: Bearer <token>`; require `https://`.
-    Reuses the existing bundle machinery unchanged.
-  - Because it is a core method, it dispatches through the normal surface on
-    both hosts: `window.api.syncPush(...)` → Electron IPC (main process) on
-    desktop, → `POST /api/syncPush` handled by the Worker on web. Wire it across
-    the usual touchpoints: `src/shared/ipc.ts` (`DombotApi` + `IpcChannels`),
-    `src/preload.ts`, `src/renderer/api/http.ts` (the web build already routes
-    every core method as `POST /api/<name>`), and the caller in
-    `DataSettings.tsx`.
-- A host-local `remote-sync` namespace (added to `NEVER_EXPORTED`) for the saved
+  - **Pull**: `GET`/`POST {remoteUrl}/api/exportData` (no local lock held) →
+    take the store lock → local `importBundle(text)` → release.
+  - **Push**: take the store lock → local `exportBundle(...)` → release → `POST
+    {remoteUrl}/api/importData` with `{ args: [text] }`.
+  - All target calls carry `Authorization: Bearer <token>`. Reuses the existing
+    bundle machinery unchanged.
+- **Locking (web host).** Do **not** run this as a plain locked core method:
+  `/api/:method` holds `withRequestLock` for the whole call, which would stall
+  the instance for the network round trip and deadlock a same-origin/`wrangler
+  dev` target (see *Topologies*). Implement it as a **dedicated worker route**
+  that acquires the store lock only around the local export/import step, outside
+  the outbound fetch. On desktop there is no isolate lock, but keep the same
+  export-snapshot-then-send / fetch-then-import shape.
+- **Wiring.** Expose `syncPush` / `syncPull` to the renderer the usual way —
+  `src/shared/ipc.ts` (`DombotApi` + `IpcChannels`), `src/preload.ts` (Electron
+  IPC → main process), `src/renderer/api/http.ts` for the web build (pointing at
+  the dedicated route rather than the generic `/api/<name>` dispatch), and the
+  caller in `DataSettings.tsx`.
+- A host-local `remote-sync` namespace — **sealed at rest on both hosts** (add
+  it to the desktop `EncryptedDocStore` seal set; already sealed on web) and
+  added to `NEVER_EXPORTED` — for the saved
   URL / remember-flag / optional stored target password.
 
 UI:
