@@ -6,7 +6,7 @@ import DataSettings from './settings/DataSettings';
 import FoldersSettings from './settings/FoldersSettings';
 import ProxySettings from './settings/ProxySettings';
 
-const TAB_VALUES = ['registrars', 'proxy', 'folders', 'data', 'mcp'];
+const TAB_VALUES = ['registrars', 'data', 'proxy', 'folders', 'mcp'];
 
 export default function Settings() {
   const [params, setParams] = useSearchParams();
@@ -33,6 +33,12 @@ export default function Settings() {
               Registrars
             </TabsTrigger>
             <TabsTrigger
+              value="data"
+              className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
+            >
+              Sync
+            </TabsTrigger>
+            <TabsTrigger
               value="proxy"
               className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
             >
@@ -43,12 +49,6 @@ export default function Settings() {
               className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
             >
               Folders
-            </TabsTrigger>
-            <TabsTrigger
-              value="data"
-              className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
-            >
-              Sync
             </TabsTrigger>
             <TabsTrigger
               value="mcp"
