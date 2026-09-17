@@ -1,6 +1,11 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { applyOverrides, envOverrides, stripJsonc } from './wrangler.mjs';
+import {
+  applyOverrides,
+  envOverrides,
+  stripJsonc,
+  wranglerBin,
+} from './wrangler.mjs';
 
 describe('stripJsonc', () => {
   it('drops comments and trailing commas but leaves strings alone', () => {
@@ -63,5 +68,13 @@ describe('applyOverrides', () => {
     expect(applyOverrides(template, { workers_dev: false }).workers_dev).toBe(
       false,
     );
+  });
+});
+
+describe('wranglerBin', () => {
+  it("resolves wrangler's entry script, to run with node and no shell", () => {
+    const bin = wranglerBin();
+    expect(existsSync(bin)).toBe(true);
+    expect(bin).toMatch(/wrangler[\\/]bin[\\/]wrangler\.js$/);
   });
 });
