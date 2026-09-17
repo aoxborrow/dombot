@@ -7,7 +7,7 @@ import type {
   RegistrarDefinition,
 } from '../../../shared/ipc';
 import { accountTitle } from '../../../shared/account-label';
-import { parseProxy } from '../../../shared/proxy';
+import { isPublicIpv4, parseProxy } from '../../../shared/proxy';
 import { RegistrarLogo } from '../../components/RegistrarLogo';
 import { isDemo, isWeb } from '../../lib/platform';
 import { Button } from '@/components/ui/button';
@@ -95,15 +95,20 @@ export default function ProxySettings() {
         });
         setTest(result);
         // A clean connection with no address entered yet: adopt the one the
-        // test found and save it, so it's ready without retyping.
-        if (result.matches && !egressIp.trim() && result.ip) {
+        // test found and save it, so it's ready without retyping. Only a public
+        // IPv4 is storable, and a failed save must not erase the test result.
+        if (result.matches && !egressIp.trim() && isPublicIpv4(result.ip)) {
           setEgressIp(result.ip);
-          await window.api.saveProxySettings({
-            url: url.trim(),
-            egressIp: result.ip,
-          });
-          apply(await window.api.getProxySettings());
-          toast.success('Proxy saved');
+          try {
+            await window.api.saveProxySettings({
+              url: url.trim(),
+              egressIp: result.ip,
+            });
+            apply(await window.api.getProxySettings());
+            toast.success('Proxy saved');
+          } catch (err) {
+            setError(errorMessage(err));
+          }
         }
       } catch (err) {
         setTest(null);

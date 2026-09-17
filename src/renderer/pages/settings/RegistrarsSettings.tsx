@@ -955,6 +955,10 @@ function ProxyToggle({
               size={Math.max(proxy.egressIp.length, 7)}
               aria-label="Outgoing IP address"
               onFocus={(e) => e.currentTarget.select()}
+              // It sits inside the credentials form; Enter here must not submit.
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.preventDefault();
+              }}
               className="bg-transparent font-mono text-xs text-foreground outline-none"
             />
             <Button
