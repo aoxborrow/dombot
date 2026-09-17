@@ -779,9 +779,6 @@ function DraftAccountCard({
         >
           New {provider.displayName} account
         </h3>
-        <Badge variant="outline" className="text-muted-foreground">
-          Not saved
-        </Badge>
       </div>
       <form
         aria-label={`New ${provider.displayName} account`}
@@ -1072,7 +1069,7 @@ function RegistrarLogo({
 
 /**
  * The registrar's sync state, shown in the card header:
- *  - not configured → "Not set" badge
+ *  - not configured → "Needs credentials" badge
  *  - configured but disabled → "Disabled" badge
  *  - configured + last sync ok → green "Last synced <ago> · N domains"
  *  - configured + last sync errored → amber "Sync failed" (error in tooltip)
@@ -1094,7 +1091,7 @@ function SyncStatus({
   if (!meta.configured) {
     return (
       <Badge variant="outline" className="text-muted-foreground">
-        Not set
+        Needs credentials
       </Badge>
     );
   }
