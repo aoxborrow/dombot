@@ -470,130 +470,145 @@ function AccountCard({
       <Collapsible open={open} onOpenChange={setOpen}>
         {/* Header row: the name + sync status expand the card; the Sync button
             sits outside the triggers so it works even while collapsed. */}
-        <div className="flex items-center gap-3 px-5 py-[13px]">
-          {/* Enable/disable toggle, kept to the far left and outside the expand
-              triggers so it reads as a row-level on/off (not a sync switch) and
-              isn't hit when expanding the card. */}
-          <div className="flex shrink-0 items-center">
-            <Switch
-              checked={configured && enabled}
-              onCheckedChange={(v) => void toggleEnabled(v)}
-              disabled={locked || !configured}
-              aria-label={
-                configured
-                  ? `${enabled ? 'Disable' : 'Enable'} ${title}`
-                  : `${title}: add credentials to enable`
-              }
-              title={
-                !configured
-                  ? 'Add credentials to enable this account'
-                  : enabled
-                    ? 'Disable this account (keeps credentials and cached data)'
-                    : 'Enable and sync this account'
-              }
-            />
-          </div>
-          <CollapsibleTrigger
-            className={cn(
-              'flex min-w-0 flex-wrap items-center gap-x-[18px] gap-y-1 text-left',
-              !open && 'flex-1',
-            )}
-          >
-            <span
-              className={cn(
-                'flex min-w-0 items-center gap-2.5 font-medium',
-                // Dim the name for a configured-but-disabled account so the
-                // off state reads at a glance.
-                configured && !enabled && 'opacity-50',
-              )}
-            >
-              <RegistrarLogo
-                name={provider.name}
-                label={provider.displayName}
-              />
-              <span className="whitespace-nowrap">{provider.displayName}</span>
-              {suffix && nickname === null && (
-                <span className="-ml-1 flex min-w-0 items-center gap-1.5 font-normal text-muted-foreground">
-                  {/* The bullet is its own item so the gap is equal on both
-                      sides, whatever the font's space width. */}
-                  {suffix.startsWith(' · ') && <span aria-hidden>·</span>}
-                  <span className="truncate">
-                    {suffix.replace(/^ (· )?/, '')}
-                  </span>
-                </span>
-              )}
-            </span>
-            {!open && (
-              <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-                <SyncStatus meta={account} syncing={syncing} />
-              </span>
-            )}
-          </CollapsibleTrigger>
-          {/* Expanded: the nickname is edited right in the title bar. The input
-              can't sit inside the trigger (a button), so the status gets its own
-              trigger after it and the row still expands/collapses on click. */}
-          {open &&
-            (nickname === null ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="-ml-2.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground"
-                disabled={locked}
+        {/* On phones the header stacks: an identity row (toggle · name ·
+            chevron), then the sync status, then the Sync button, each on its own
+            line. On desktop `sm:contents` dissolves the identity wrapper so all
+            of it collapses back into the original single row, and the chevron's
+            `sm:order-last` pins it to the far right. */}
+        <div className="flex flex-col items-start gap-y-2 px-5 py-[13px] sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex w-full items-center gap-3 sm:contents">
+            {/* Enable/disable toggle, kept to the far left and outside the expand
+                triggers so it reads as a row-level on/off (not a sync switch)
+                and isn't hit when expanding the card. */}
+            <div className="flex shrink-0 items-center">
+              <Switch
+                checked={configured && enabled}
+                onCheckedChange={(v) => void toggleEnabled(v)}
+                disabled={locked || !configured}
                 aria-label={
-                  hasNickname ? `Rename ${title}` : `Add a nickname to ${title}`
+                  configured
+                    ? `${enabled ? 'Disable' : 'Enable'} ${title}`
+                    : `${title}: add credentials to enable`
                 }
-                title={hasNickname ? 'Rename' : 'Add a nickname'}
-                onClick={() => setNickname(hasNickname ? currentLabel : '')}
-              >
-                <Pencil className="size-3" />
-              </Button>
-            ) : (
-              <Input
-                autoFocus
-                value={nickname}
-                disabled={renaming}
-                maxLength={100}
-                autoComplete="off"
-                placeholder="Add a nickname"
-                aria-label={`Nickname for ${title}`}
-                className="-ml-1 h-8 w-44 shrink"
-                aria-invalid={nicknameError ? true : undefined}
-                onChange={(e) => {
-                  setNickname(e.target.value);
-                  setNicknameError(null);
-                }}
-                onBlur={() => void saveNickname()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void saveNickname();
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    setNicknameError(null);
-                    setNickname(null);
-                  }
-                }}
+                title={
+                  !configured
+                    ? 'Add credentials to enable this account'
+                    : enabled
+                      ? 'Disable this account (keeps credentials and cached data)'
+                      : 'Enable and sync this account'
+                }
               />
-            ))}
-          {open && nickname !== null && nicknameError && (
+            </div>
+            <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2.5 text-left sm:flex-none">
+              <span
+                className={cn(
+                  'flex min-w-0 items-center gap-2.5 font-medium',
+                  // Dim the name for a configured-but-disabled account so the
+                  // off state reads at a glance.
+                  configured && !enabled && 'opacity-50',
+                )}
+              >
+                <RegistrarLogo
+                  name={provider.name}
+                  label={provider.displayName}
+                />
+                <span className="whitespace-nowrap">
+                  {provider.displayName}
+                </span>
+                {suffix && nickname === null && (
+                  <span className="-ml-1 flex min-w-0 items-center gap-1.5 font-normal text-muted-foreground">
+                    {/* The bullet is its own item so the gap is equal on both
+                        sides, whatever the font's space width. */}
+                    {suffix.startsWith(' · ') && <span aria-hidden>·</span>}
+                    <span className="truncate">
+                      {suffix.replace(/^ (· )?/, '')}
+                    </span>
+                  </span>
+                )}
+              </span>
+            </CollapsibleTrigger>
+            {/* Expanded: the nickname is edited right in the title bar. The input
+                can't sit inside the trigger (a button), so the status gets its
+                own trigger below and the row still expands/collapses on click. */}
+            {open &&
+              (nickname === null ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6 shrink-0 text-muted-foreground/60 hover:text-foreground sm:-ml-2.5"
+                  disabled={locked}
+                  aria-label={
+                    hasNickname
+                      ? `Rename ${title}`
+                      : `Add a nickname to ${title}`
+                  }
+                  title={hasNickname ? 'Rename' : 'Add a nickname'}
+                  onClick={() => setNickname(hasNickname ? currentLabel : '')}
+                >
+                  <Pencil className="size-3" />
+                </Button>
+              ) : (
+                <Input
+                  autoFocus
+                  value={nickname}
+                  disabled={renaming}
+                  maxLength={100}
+                  autoComplete="off"
+                  placeholder="Add a nickname"
+                  aria-label={`Nickname for ${title}`}
+                  className="h-8 w-44 shrink sm:-ml-1"
+                  aria-invalid={nicknameError ? true : undefined}
+                  onChange={(e) => {
+                    setNickname(e.target.value);
+                    setNicknameError(null);
+                  }}
+                  onBlur={() => void saveNickname()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void saveNickname();
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setNicknameError(null);
+                      setNickname(null);
+                    }
+                  }}
+                />
+              ))}
+            <CollapsibleTrigger
+              className="shrink-0 sm:order-last"
+              aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
+            >
+              <ChevronDown
+                className={cn(
+                  'size-4 text-muted-foreground transition-transform',
+                  open && 'rotate-180',
+                )}
+              />
+            </CollapsibleTrigger>
+          </div>
+
+          {/* Sync status (or a nickname error) — its own line on phones. */}
+          {open && nickname !== null && nicknameError ? (
             <span
               role="alert"
-              className="min-w-0 flex-1 text-sm text-destructive"
+              className="min-w-0 text-sm text-destructive sm:flex-1"
             >
               {nicknameError}
             </span>
-          )}
-          {open && !(nickname !== null && nicknameError) && (
+          ) : (
             <CollapsibleTrigger
               tabIndex={-1}
               aria-hidden
-              className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1 text-left"
+              className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-left max-sm:w-full sm:flex-1"
             >
               <SyncStatus meta={account} syncing={syncing} />
             </CollapsibleTrigger>
           )}
-          {/* Sync only makes sense for an enabled account. */}
+
+          {/* Sync only makes sense for an enabled account. Its own line
+              (left-aligned) on phones, inline on desktop. */}
           {configured && enabled && (
             <Button
               variant="outline"
@@ -601,25 +616,15 @@ function AccountCard({
               onClick={() => void runSync()}
               disabled={busy}
               title="Sync this account's domains"
-              // Absorb the button's height into the row's vertical padding so
-              // the row stays slim rather than growing to fit it.
-              className="-my-1 shrink-0 border-border text-muted-foreground hover:text-foreground"
+              // Full-width on phones (its own line); on desktop a slim inline
+              // button whose height is absorbed into the row's vertical padding
+              // so the row stays compact.
+              className="border-border text-muted-foreground hover:text-foreground max-sm:w-full max-sm:justify-center sm:-my-1 sm:shrink-0"
             >
               <RefreshCw className={cn(syncing && 'animate-spin')} />
               {syncing ? 'Syncing…' : 'Sync'}
             </Button>
           )}
-          <CollapsibleTrigger
-            className="shrink-0"
-            aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
-          >
-            <ChevronDown
-              className={cn(
-                'size-4 text-muted-foreground transition-transform',
-                open && 'rotate-180',
-              )}
-            />
-          </CollapsibleTrigger>
         </div>
 
         <CollapsibleContent className="border-t px-5 py-4">
@@ -1159,7 +1164,7 @@ function SyncStatus({
     );
   }
   return (
-    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 max-sm:w-full">
       <span className="size-2 shrink-0 rounded-full bg-[#31613b] dark:bg-[#7ac28d]" />
       <span className="whitespace-nowrap text-[13px] font-medium text-[#31613b] dark:text-[#7ac28d]">
         Last synced {timeAgo(lastSyncedAt)}

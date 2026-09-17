@@ -24,6 +24,7 @@ import {
   Plug,
   Search,
   Server,
+  SlidersHorizontal,
   TriangleAlert,
   X,
 } from 'lucide-react';
@@ -119,6 +120,9 @@ interface Column {
   detail?: boolean;
   /** Narrow column (trims header padding) — for the yes/no flag columns. */
   compact?: boolean;
+  /** Dropped below sm to trim the table on phones (still there when scrolled on
+   * desktop). Applied to both the header and the body cell. */
+  hideOnMobile?: boolean;
 }
 
 /** Everything after the first dot, e.g. "example.co.uk" → "co.uk". */
@@ -239,7 +243,7 @@ function FolderCell({
         <button
           type="button"
           title="Assign folder"
-          className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground"
+          className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground max-sm:px-2 max-sm:py-1.5 max-sm:text-xs"
         >
           {hidden ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
@@ -384,7 +388,7 @@ function LifecycleBadge({ status }: { status: string }) {
   return (
     <Badge
       className={cn(
-        'border-transparent px-1.5 py-0 text-[11px]',
+        'border-transparent px-1.5 py-0 text-[11px] max-sm:px-1 max-sm:text-[10px]',
         LIFECYCLE_TONE[flag.tone],
       )}
       title={`Registry status: ${status}`}
@@ -439,7 +443,9 @@ const COLUMNS: Column[] = [
     label: 'Domain',
     render: (d) => (
       <span className="inline-flex items-center gap-2">
-        <span className="font-mono">{d.domainName}</span>
+        {/* One step up from the reduced mobile body size — the domain is the
+            row's primary field. Desktop inherits the table's text-sm. */}
+        <span className="font-mono max-sm:text-[13px]">{d.domainName}</span>
         <LifecycleBadge status={d.status} />
       </span>
     ),
@@ -454,6 +460,7 @@ const COLUMNS: Column[] = [
   {
     key: 'createdDate',
     label: 'Created',
+    hideOnMobile: true,
     render: (d) => (
       <span className="font-mono text-muted-foreground">
         {fmtDate(d.createdDate)}
@@ -477,7 +484,9 @@ const COLUMNS: Column[] = [
         >
           <span>{fmtDate(d.expirationDate)}</span>
           {days !== null && (
-            <span className="text-xs opacity-60">{relativeDays(days)}</span>
+            <span className="text-xs opacity-60 max-sm:text-[11px]">
+              {relativeDays(days)}
+            </span>
           )}
         </span>
       );
@@ -498,6 +507,7 @@ const COLUMNS: Column[] = [
     align: 'center',
     compact: true,
     detail: true,
+    hideOnMobile: true,
     render: (d) => (
       <FlagToggle
         domain={d}
@@ -715,6 +725,9 @@ export default function Domains() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(0);
+  // Phones only: the filter chips collapse behind a "Filters" toggle (they're
+  // always shown at sm+). Search and Reset stay visible.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // The bulk dialog: an op to configure for the current selection, or a
   // running/finished job to view (the bar's progress pill).
@@ -881,6 +894,16 @@ export default function Domains() {
     expiry.length > 0 ||
     ns.length > 0 ||
     folder.length > 0;
+
+  // How many filter groups are narrowing the list (search excluded — it has its
+  // own always-visible field). Drives the count badge on the mobile "Filters"
+  // toggle.
+  const activeFilterGroups =
+    (registrar.length > 0 ? 1 : 0) +
+    (tld.length > 0 ? 1 : 0) +
+    (ns.length > 0 ? 1 : 0) +
+    (expiry.length > 0 ? 1 : 0) +
+    (folder.length > 0 ? 1 : 0);
 
   function resetFilters() {
     setSearch('');
@@ -1100,7 +1123,7 @@ export default function Domains() {
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-[13px]">
       <div>
-        <h1 className="text-[32px] font-bold">Domains</h1>
+        <h1 className="text-2xl font-bold sm:text-[32px]">Domains</h1>
         <p className="-mt-0.5 text-sm text-muted-foreground">
           {/* Always a count — "0 domains across 0 registrars" before a load or
               when nothing is configured, never a call-to-action sentence. */}
@@ -1153,8 +1176,8 @@ export default function Domains() {
         {/* Toolbar: search and filters flow inline and wrap together as equal
               items. Extra top margin separates it from the title/refresh row
               above. */}
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[140px] flex-1">
+        <div className="mt-1 flex flex-wrap items-center gap-3 sm:mt-3">
+          <div className="relative min-w-[140px] flex-1 max-sm:basis-full">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
@@ -1168,70 +1191,105 @@ export default function Domains() {
             />
           </div>
 
-          <MultiSelectFilter
-            label="Registrar"
-            icon={Building2}
-            options={registrarOptions}
-            selected={registrar}
-            onChange={(next) => {
-              setRegistrar(next);
-              setPage(0);
-            }}
-          />
-          <MultiSelectFilter
-            label="TLD"
-            icon={Globe}
-            options={tldOptions}
-            selected={tld}
-            onChange={(next) => {
-              setTld(next);
-              setPage(0);
-            }}
-          />
-          <MultiSelectFilter
-            label="Nameservers"
-            icon={Server}
-            options={nsGroups}
-            selected={ns}
-            onChange={(next) => {
-              setNs(next);
-              setPage(0);
-            }}
-          />
-          <MultiSelectFilter
-            label="Expiration"
-            icon={CalendarClock}
-            options={expiryOptions}
-            selected={expiry}
-            onChange={(next) => {
-              setExpiry(next);
-              setPage(0);
-            }}
-          />
-          {/* Offer the Folder filter once there's anything to filter by —
-                  a folder of the user's own, or hidden domains to reveal. */}
-          {(folders.length > 0 || hiddenCount > 0) && (
+          {/* Phones only: a toggle that collapses the filter chips (below) so the
+              toolbar doesn't wrap onto several lines. At sm+ the chips are always
+              shown and this is hidden. */}
+          <Button
+            variant="outline"
+            onClick={() => setFiltersOpen((o) => !o)}
+            aria-expanded={filtersOpen}
+            className="gap-2 sm:hidden"
+          >
+            <SlidersHorizontal className="size-4 text-muted-foreground" />
+            Filters
+            {activeFilterGroups > 0 && (
+              <Badge className="bg-primary px-1.5 py-0 text-xs tabular-nums text-primary-foreground">
+                {activeFilterGroups}
+              </Badge>
+            )}
+            <ChevronDown
+              className={cn(
+                'size-4 text-muted-foreground transition-transform',
+                filtersOpen && 'rotate-180',
+              )}
+            />
+          </Button>
+
+          {/* The filter chips. On phones this is a collapsible full-width row
+              (shown only when filtersOpen); at sm+ `sm:contents` dissolves the
+              wrapper so the chips flow inline in the toolbar exactly as before. */}
+          <div
+            className={cn(
+              'flex-wrap items-center gap-3 max-sm:basis-full sm:contents',
+              filtersOpen ? 'flex' : 'hidden',
+            )}
+          >
             <MultiSelectFilter
-              label="Folder"
-              icon={FolderIcon}
-              options={folderOptions}
-              selected={folder}
+              label="Registrar"
+              icon={Building2}
+              options={registrarOptions}
+              selected={registrar}
               onChange={(next) => {
-                setFolder(next);
+                setRegistrar(next);
                 setPage(0);
               }}
             />
-          )}
+            <MultiSelectFilter
+              label="TLD"
+              icon={Globe}
+              options={tldOptions}
+              selected={tld}
+              onChange={(next) => {
+                setTld(next);
+                setPage(0);
+              }}
+            />
+            <MultiSelectFilter
+              label="Nameservers"
+              icon={Server}
+              options={nsGroups}
+              selected={ns}
+              onChange={(next) => {
+                setNs(next);
+                setPage(0);
+              }}
+            />
+            <MultiSelectFilter
+              label="Expiration"
+              icon={CalendarClock}
+              options={expiryOptions}
+              selected={expiry}
+              onChange={(next) => {
+                setExpiry(next);
+                setPage(0);
+              }}
+            />
+            {/* Offer the Folder filter once there's anything to filter by —
+                    a folder of the user's own, or hidden domains to reveal. */}
+            {(folders.length > 0 || hiddenCount > 0) && (
+              <MultiSelectFilter
+                label="Folder"
+                icon={FolderIcon}
+                options={folderOptions}
+                selected={folder}
+                onChange={(next) => {
+                  setFolder(next);
+                  setPage(0);
+                }}
+              />
+            )}
+          </div>
 
           {/* Reset button styled like the filters (no chevron); faded/
-                  disabled when nothing is active. Trialling this alongside the
-                  green header link. */}
+                  disabled when nothing is active. On phones it stays beside the
+                  Filters toggle (sm:order-last pins it after the chips on
+                  desktop, its original spot). */}
           <Button
             variant="outline"
             onClick={resetFilters}
             disabled={!hasActiveFilters}
             className={cn(
-              'gap-2 pr-[14px]! pl-[8px]!',
+              'gap-2 pr-[14px]! pl-[8px]! sm:order-last',
               hasActiveFilters && 'border-[#4f9d6b] dark:border-[#4f9d6b]',
             )}
           >
@@ -1247,7 +1305,7 @@ export default function Domains() {
           {exportNote && (
             <span
               className={cn(
-                'inline-flex items-center gap-1.5 text-sm',
+                'inline-flex items-center gap-1.5 text-sm sm:order-last',
                 exportNote.error
                   ? 'text-destructive'
                   : 'text-[#31613b] dark:text-[#7ac28d]',
@@ -1278,8 +1336,10 @@ export default function Domains() {
         />
 
         {/* Table */}
-        <div className="overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50">
-          <Table>
+        <div className="overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 max-sm:[&_td]:py-1">
+          {/* Slightly smaller body text on phones (headers keep their own
+              sizes); cells with an explicit size opt down separately. */}
+          <Table className="max-sm:text-xs">
             <TableHeader>
               <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
                 {/* Checkbox column reads as part of the Domain column: no
@@ -1313,6 +1373,7 @@ export default function Domains() {
                           col.compact && 'w-0 px-1.5',
                           col.key === 'autoRenew' && 'pl-[8px]',
                           col.key === 'domainName' && 'border-l-0! pl-3',
+                          col.hideOnMobile && 'hidden sm:table-cell',
                         )}
                       >
                         <button
@@ -1330,7 +1391,7 @@ export default function Domains() {
                       </TableHead>
                       {/* Folder sits right after the domain name, before Registrar. */}
                       {i === 0 && (
-                        <TableHead className="pl-3">
+                        <TableHead className="pl-3 max-sm:pl-2">
                           <button
                             type="button"
                             onClick={() => toggleSort(FOLDER)}
@@ -1410,6 +1471,7 @@ export default function Domains() {
                             col.compact && 'w-0 px-1.5',
                             col.key === 'autoRenew' && 'pl-[6px]',
                             col.key === 'domainName' && 'border-l-0! pl-3',
+                            col.hideOnMobile && 'hidden sm:table-cell',
                           )}
                         >
                           {col.key === 'domainName' ? (
@@ -1503,8 +1565,9 @@ export default function Domains() {
           </Table>
         </div>
 
-        {/* Pagination */}
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+        {/* Pagination. On phones the controls stack above the rows-per-page
+            select (flex-col-reverse), which reads better than side-by-side. */}
+        <div className="flex flex-col-reverse gap-3 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <span>Rows per page</span>
             <Select
@@ -1529,7 +1592,7 @@ export default function Domains() {
             </Select>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3 sm:justify-start">
             <span>
               {filtered.length === 0
                 ? '0 of 0'

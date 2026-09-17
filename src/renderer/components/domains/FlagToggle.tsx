@@ -103,7 +103,7 @@ export function FlagToggle({
       onClick={needsConfirm ? undefined : apply}
       className={cn(
         // Same footprint and hover as the row's "⋯" ghost icon button.
-        'mx-auto flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent',
+        'mx-auto flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent max-sm:size-7',
         pending && 'animate-pulse',
         reason !== null && 'opacity-40',
       )}

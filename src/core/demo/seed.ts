@@ -892,17 +892,33 @@ export function generateDemoSeed(
       used.add(domainName);
       usedLabels.add(domainName.slice(0, domainName.indexOf('.')));
 
-      // Expiry: most within the next 18 months, a handful overdue/grace, a
-      // few far out (multi-year renewals). Created 1–9 years ago.
+      // Expiry: most within the next 18 months, a handful overdue, and a few
+      // far out (multi-year renewals). A small slice of the overdue sits in the
+      // registry grace and redemption windows so those lifecycle states show in
+      // the demo. Created 1–9 years ago. Each branch consumes exactly one r()
+      // so the rest of the seed stays put.
       const roll = r();
-      const daysOut =
-        roll < 0.05
-          ? -Math.floor(r() * 25) - 1
-          : roll < 0.15
-            ? Math.floor(r() * 30)
-            : roll < 0.85
-              ? 30 + Math.floor(r() * 520)
-              : 550 + Math.floor(r() * 1500);
+      let daysOut: number;
+      let lifecycle: 'redemption' | 'grace' | 'expired' | 'active';
+      if (roll < 0.006) {
+        daysOut = -35 - Math.floor(r() * 40); // ~35–74 days past due
+        lifecycle = 'redemption';
+      } else if (roll < 0.024) {
+        daysOut = -1 - Math.floor(r() * 28); // within the ~30-day grace window
+        lifecycle = 'grace';
+      } else if (roll < 0.05) {
+        daysOut = -Math.floor(r() * 25) - 1;
+        lifecycle = 'expired';
+      } else if (roll < 0.15) {
+        daysOut = Math.floor(r() * 30);
+        lifecycle = 'active';
+      } else if (roll < 0.85) {
+        daysOut = 30 + Math.floor(r() * 520);
+        lifecycle = 'active';
+      } else {
+        daysOut = 550 + Math.floor(r() * 1500);
+        lifecycle = 'active';
+      }
       const expirationDate = new Date(now.getTime() + daysOut * dayMs);
       // Registered 1–9 years before expiry, but never in the future: a
       // multi-year renewal pushes expiry out without moving the birthday.
@@ -924,7 +940,7 @@ export function generateDemoSeed(
         domainName,
         registrar: account.registrar,
         accountId: account.id,
-        status: daysOut < 0 ? 'expired' : 'active',
+        status: lifecycle,
         createdDate,
         expirationDate,
         autoRenew: r() < 0.7,
@@ -983,9 +999,9 @@ export function generateDemoSeed(
   const folders: DemoFolder[] = [
     {
       name: 'For Sale',
-      color: 'amber',
+      color: 'green',
       description: 'Listed, or should be',
-      domains: names.filter((_, i) => i % 11 === 3).slice(0, 30),
+      domains: names.filter((_, i) => i % 8 === 3).slice(0, 60),
     },
     {
       name: 'Personal',
@@ -1001,13 +1017,13 @@ export function generateDemoSeed(
     },
     {
       name: 'Dropping',
-      color: 'red',
+      color: 'orange',
       description: 'Letting these expire',
       domains: names.filter((_, i) => i % 17 === 6).slice(0, 8),
     },
     {
       name: 'Transfer',
-      color: 'orange',
+      color: 'red',
       description: 'Moving to a cheaper registrar',
       domains: names.filter((_, i) => i % 19 === 2).slice(0, 6),
     },

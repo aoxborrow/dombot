@@ -52,7 +52,17 @@ describe('generateDemoSeed', () => {
       return d >= 0 && d < 30;
     });
     expect(overdue.length).toBeGreaterThan(2);
-    expect(overdue.every((r) => r.status === 'expired')).toBe(true);
+    // Overdue domains are one of the past-due lifecycle states; a few sit in
+    // the grace and redemption windows so those badges show in the demo.
+    expect(
+      overdue.every((r) =>
+        ['expired', 'grace', 'redemption'].includes(r.status),
+      ),
+    ).toBe(true);
+    expect(seed.records.filter((r) => r.status === 'grace').length).toBeGreaterThan(0);
+    expect(
+      seed.records.filter((r) => r.status === 'redemption').length,
+    ).toBeGreaterThan(0);
     expect(soon.length).toBeGreaterThan(5);
     for (const r of seed.records) {
       expect(r.createdDate.getTime()).toBeLessThan(r.expirationDate.getTime());
