@@ -240,13 +240,7 @@ export default function ProxySettings() {
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={locked || !canSave}>
-              {busy === 'save'
-                ? clearing
-                  ? 'Clearing…'
-                  : 'Saving…'
-                : clearing
-                  ? 'Clear'
-                  : 'Save'}
+              {busy === 'save' ? 'Saving…' : 'Save'}
             </Button>
             {saved && (
               <Button
