@@ -32,6 +32,8 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const TEMPLATE = 'wrangler.jsonc';
@@ -110,15 +112,29 @@ export function localConfigArgs() {
   return ['-c', GENERATED];
 }
 
-/** Spawns wrangler with the local config applied. */
-export function runWrangler(args, options = {}) {
-  return spawnSync('npx', ['wrangler', ...args, ...localConfigArgs()], {
-    stdio: 'inherit',
-    ...options,
-  });
+/** Wrangler's own entry script. Running it with the current Node binary
+ *  (rather than `npx wrangler`) needs no shell, so it works on Windows, where
+ *  Node won't spawn `npx.cmd` directly. */
+export function wranglerBin() {
+  const require = createRequire(import.meta.url);
+  const pkgPath = require.resolve('wrangler/package.json');
+  const { bin } = require(pkgPath);
+  return join(dirname(pkgPath), typeof bin === 'string' ? bin : bin.wrangler);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+/** Spawns wrangler with the local config applied. */
+export function runWrangler(args, options = {}) {
+  return spawnSync(
+    process.execPath,
+    [wranglerBin(), ...args, ...localConfigArgs()],
+    { stdio: 'inherit', ...options },
+  );
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   const result = runWrangler(process.argv.slice(2));
   process.exit(result.status ?? 1);
 }
