@@ -195,20 +195,16 @@ pre .a { color: var(--accent-ink); font-weight: 500; }
    on the near-black ground), true brand color on hover. Needs transparent SVGs. */
 .logo-img { flex-shrink: 0; width: 28px; height: 28px; object-fit: contain; filter: brightness(0) invert(.6); opacity: .9; transition: filter .15s ease, opacity .15s ease; }
 .logo:hover .logo-img { filter: none; opacity: 1; }
-.logo:not(.logo-more):hover .logo-name { color: var(--ink); }
+.logo:hover .logo-name { color: var(--ink); }
 .logo-name { font-weight: 500; font-size: 1.05rem; color: var(--muted); transition: color .15s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.more-plus { flex-shrink: 0; width: 30px; height: 30px; display: grid; place-items: center; color: var(--accent-ink); }
-.more-plus svg { width: 20px; height: 20px; display: block; }
 /* Phones: tighter marks and type so the two-column cloud stays compact. */
 @media (max-width: 519px) {
   .logo { gap: 9px; padding: 6px 4px; }
   .logo-img, .logo-mark { width: 24px; height: 24px; }
   .logo-name { font-size: .95rem; }
-  .more-plus { width: 26px; height: 26px; }
-  .more-plus svg { width: 18px; height: 18px; }
 }
-.logo-more .logo-name { color: var(--accent-ink); font-weight: 400; }
-.logos-foot { margin-top: 20px; font-size: .86rem; color: var(--muted); }
+.logos-foot { margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 7px; font-size: .86rem; color: var(--accent-ink); }
+.logos-foot-plus { flex-shrink: 0; width: 15px; height: 15px; }
 .logos-foot b { color: var(--ink); font-weight: 500; }
 
 /* ── mcp ── */
