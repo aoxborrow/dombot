@@ -443,10 +443,10 @@ function AccountCard({
   };
 
   const busy = saving || syncing || toggling || loading;
-  // The demo is fully interactive over its browser-local data (edit keys, Save,
-  // toggle, rename — the fake registrar always connects). `locked` stays only
-  // on the two things that don't make sense there: Remove (wipes sample data)
-  // and the fixed-IP proxy toggle (no real proxy in the demo).
+  // The demo is fully interactive over its browser-local data — edit keys,
+  // Save, toggle, rename, even Remove (Reset demo brings it all back), since
+  // the fake registrar always connects. `locked` stays only on the fixed-IP
+  // proxy toggle, the one control with no effect in the demo (no real proxy).
   const locked = busy || isDemo();
   const { configured, enabled, sync } = account;
   const hasCredentials = Object.values(values).some((v) => v.trim());
@@ -682,7 +682,7 @@ function AccountCard({
                 type="button"
                 variant="outline"
                 className="ml-auto border-border text-muted-foreground"
-                disabled={locked}
+                disabled={busy}
                 onClick={() => setRemoving(true)}
               >
                 Remove account
@@ -702,7 +702,7 @@ function AccountCard({
               </span>
               <Button
                 variant="destructive"
-                disabled={locked}
+                disabled={busy}
                 onClick={() => void remove()}
               >
                 Remove
