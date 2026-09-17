@@ -6,8 +6,8 @@ name: Deploy demo
 # from wrangler.demo.jsonc.
 #
 # This runs ONLY in the upstream repository. A fork never deploys a demo:
-# the job is gated on the repository name, and on the demo's own secrets
-# (DEMO_CLOUDFLARE_*), which are distinct from the self-hosting workflow's
+# the job is gated on the repository name, and on the dombot.ai secrets
+# (DOMBOT_CLOUDFLARE_*), which are distinct from the self-hosting workflow's
 # CLOUDFLARE_* so enabling one can't switch on the other.
 
 on:
@@ -39,13 +39,13 @@ jobs:
       - name: Check for demo credentials
         id: creds
         env:
-          TOKEN: ${{ secrets.DEMO_CLOUDFLARE_API_TOKEN }}
-          ACCOUNT: ${{ secrets.DEMO_CLOUDFLARE_ACCOUNT_ID }}
+          TOKEN: ${{ secrets.DOMBOT_CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.DOMBOT_CLOUDFLARE_ACCOUNT_ID }}
         run: |
           if [ -n "$TOKEN" ] && [ -n "$ACCOUNT" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
-            echo "DEMO_CLOUDFLARE_API_TOKEN / DEMO_CLOUDFLARE_ACCOUNT_ID not set; skipping."
+            echo "DOMBOT_CLOUDFLARE_API_TOKEN / DOMBOT_CLOUDFLARE_ACCOUNT_ID not set; skipping."
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Checkout
@@ -70,6 +70,6 @@ jobs:
       - name: Deploy
         if: steps.creds.outputs.present == 'true'
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.DEMO_CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.DEMO_CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.DOMBOT_CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.DOMBOT_CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy -c wrangler.demo.jsonc

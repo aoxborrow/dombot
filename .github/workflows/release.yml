@@ -25,7 +25,7 @@ on:
 
 permissions:
   contents: write # create tags/releases and upload assets
-  actions: write # dispatch the deploy-pages workflow after publishing
+  actions: write # dispatch the deploy-site workflow after publishing
   id-token: write # mint the OIDC token that signs build provenance
   attestations: write # record build-provenance attestations for the artifacts
 
@@ -247,8 +247,8 @@ jobs:
 
       - name: Rebuild the site with the new release
         # Publishing with GITHUB_TOKEN doesn't fire `release: published` for other
-        # workflows (anti-recursion), so trigger deploy-pages explicitly to refresh
+        # workflows (anti-recursion), so trigger deploy-site explicitly to refresh
         # the download links + version. workflow_dispatch IS allowed via GITHUB_TOKEN.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run deploy-pages.yml --repo "$GITHUB_REPOSITORY" --ref main
+        run: gh workflow run deploy-site.yml --repo "$GITHUB_REPOSITORY" --ref main

@@ -5,7 +5,7 @@ import { defineConfig } from 'vite';
 // which pass this directory as the Vite root so this config is picked up.
 //
 //   npm run site:dev      # dev server with HMR, http://localhost:8794
-//   npm run site:build    # production build → site/dist (deployed to Pages)
+//   npm run site:build    # production build → site/dist (deployed by deploy-site.yml)
 //   npm run site:preview   # serve the built site locally
 //
 // base: './' keeps every asset URL relative, so the build works unchanged

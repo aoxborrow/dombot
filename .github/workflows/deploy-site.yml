@@ -1,8 +1,12 @@
-name: Deploy site to GitHub Pages
+name: Deploy site
 
-# Builds the static landing page with Vite (site/ → site/dist) and publishes
-# site/dist to GitHub Pages.
-# One-time setup: repo Settings → Pages → Source → "GitHub Actions".
+# Builds the static landing page with Vite (site/ → site/dist) and deploys it
+# to dombot.ai as a static-assets Worker (wrangler.site.jsonc).
+#
+# This runs ONLY in the upstream repository: the job is gated on the
+# repository name and on the DOMBOT_CLOUDFLARE_* secrets, which are distinct
+# from the self-hosting workflow's CLOUDFLARE_* so enabling one can't switch
+# on the other. A fork never deploys the site.
 
 on:
   push:
@@ -12,7 +16,8 @@ on:
       - 'scripts/inject-release.mjs'
       - 'package.json'
       - 'package-lock.json'
-      - '.github/workflows/deploy-pages.yml'
+      - 'wrangler.site.jsonc'
+      - '.github/workflows/deploy-site.yml'
   # Rebuild when a release is published so the download links + version on the
   # page point at the newest release's assets.
   release:
@@ -21,21 +26,26 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # Allow one concurrent deploy; don't cancel an in-progress production deploy.
 concurrency:
-  group: pages
+  group: deploy-site
   cancel-in-progress: false
 
 jobs:
   deploy:
+    if: github.repository == 'aoxborrow/dombot'
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.DOMBOT_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.DOMBOT_CLOUDFLARE_ACCOUNT_ID }}
     steps:
+      - name: Check for Cloudflare credentials
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::DOMBOT_CLOUDFLARE_API_TOKEN / DOMBOT_CLOUDFLARE_ACCOUNT_ID are not set."
+            exit 1
+          fi
       - name: Checkout
         uses: actions/checkout@v7
       - name: Set up Node
@@ -62,12 +72,5 @@ jobs:
           node scripts/inject-release.mjs /tmp/release.json site/index.html
       - name: Build site
         run: npm run site:build
-      - name: Configure Pages
-        uses: actions/configure-pages@v6
-      - name: Upload site artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: site/dist
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+      - name: Deploy
+        run: npx wrangler deploy -c wrangler.site.jsonc

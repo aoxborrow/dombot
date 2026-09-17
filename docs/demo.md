@@ -62,15 +62,17 @@ provider behind `getRegistrarClient()`.
 
    One-time setup (upstream only):
    - The `dombot.ai` zone is on Cloudflare DNS (a Workers custom domain
-     needs that; the marketing site stays on GitHub Pages via its A/CNAME
-     records).
-   - A Cloudflare API token with **Workers Scripts: Edit** on the account,
-     stored as the repo secret `DEMO_CLOUDFLARE_API_TOKEN`, plus
-     `DEMO_CLOUDFLARE_ACCOUNT_ID`. These are deliberately _not_ the
-     `CLOUDFLARE_*` names the self-hosting workflow uses, so setting one
-     can't switch on the other.
-   - The first `npm run demo:deploy` creates the Worker and attaches the
-     custom domain.
+     needs that). The marketing site deploys the same way, as the
+     `dombot-site` Worker (`wrangler.site.jsonc`, `deploy-site.yml`,
+     `npm run site:deploy`).
+   - A Cloudflare API token with **Workers Scripts: Edit** on the account
+     and **Workers Routes: Edit** + **DNS: Edit** on the `dombot.ai` zone
+     (custom domains create their own DNS records), stored as the repo
+     secret `DOMBOT_CLOUDFLARE_API_TOKEN`, plus
+     `DOMBOT_CLOUDFLARE_ACCOUNT_ID`. One token covers both Workers. The
+     names are deliberately _not_ the `CLOUDFLARE_*` ones the self-hosting
+     workflow uses, so setting one can't switch on the other.
+   - The first deploy of each Worker attaches its custom domain.
 
 Open: whether visitor changes persist across reloads (`localStorage` mirror
 plus Reset) and whether the desktop app gets a "try with sample data" mode,
