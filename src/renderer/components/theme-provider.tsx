@@ -54,6 +54,11 @@ export function ThemeProvider({
       const mode = resolve(theme);
       root.classList.remove('light', 'dark');
       root.classList.add(mode);
+      // index.html starts the document dark with inline styles (no flash before
+      // the stylesheet loads). Drop them so the stylesheet's per-theme
+      // color-scheme takes over — otherwise native scrollbars stay dark.
+      root.style.colorScheme = '';
+      root.style.backgroundColor = '';
     };
     apply();
 

@@ -11,8 +11,7 @@ const META: Record<Theme, { label: string; icon: typeof Sun }> = {
   light: { label: 'Light', icon: Sun },
 };
 
-/** Compact three-way theme switch (dark / auto / light), sized to sit in the
- * status bar. */
+/** Three-way theme switch (dark / auto / light) as a segmented control. */
 export function ModeToggle({ className }: { className?: string }) {
   const { theme, setTheme } = useTheme();
 
@@ -21,7 +20,7 @@ export function ModeToggle({ className }: { className?: string }) {
       role="radiogroup"
       aria-label="Theme"
       className={cn(
-        'inline-flex items-center gap-px rounded-full border p-px',
+        'inline-flex items-center gap-0.5 rounded-lg border bg-muted/50 p-0.5 text-sm text-muted-foreground',
         className,
       )}
     >
@@ -34,15 +33,14 @@ export function ModeToggle({ className }: { className?: string }) {
             type="button"
             role="radio"
             aria-checked={active}
-            aria-label={label}
-            title={t === 'auto' ? 'Auto — follow the system theme' : label}
             onClick={() => setTheme(t)}
             className={cn(
-              'inline-flex h-[19px] w-6 items-center justify-center rounded-full outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
-              active && 'bg-accent text-foreground',
+              'inline-flex h-8 items-center gap-2 rounded-md px-3 font-medium outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
+              active && 'bg-background text-foreground shadow-sm',
             )}
           >
-            <Icon className="size-3" />
+            <Icon className="size-4" />
+            {label}
           </button>
         );
       })}

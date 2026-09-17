@@ -13,13 +13,14 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  /* Brand green, matching the marketing site's primary CTA. */
-  --primary: #31613b;
+  /* Brand green fill. A step lighter than the dark theme's, which reads heavy
+     on a white page. */
+  --primary: var(--color-brand-700);
   --primary-foreground: #ffffff;
   /* Brand green as a foreground accent — logo, status dots, success text —
-     on the page background. Flips with the theme so it keeps its contrast;
-     --primary (filled buttons, white text) stays the deep green in both. */
-  --brand: #31613b;
+     on the page background. Flips with the theme so it keeps its contrast,
+     where --primary (filled buttons, white text) stays a deep shade. */
+  --brand: var(--color-brand-600);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -30,7 +31,7 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: #7ac28d;
+  --ring: var(--color-brand-400);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -58,9 +59,9 @@
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
   /* Brand green with light text — replaces the default near-white button. */
-  --primary: #31613b;
+  --primary: var(--color-brand-800);
   --primary-foreground: #ffffff;
-  --brand: #7ac28d;
+  --brand: var(--color-brand-400);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -71,7 +72,7 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: #7ac28d;
+  --ring: var(--color-brand-400);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -87,6 +88,24 @@
   --sidebar-ring: oklch(0.556 0 0);
   --dropdown-shadow:
     0 18px 50px 6px rgb(0 0 0 / 0.75), 0 4px 16px rgb(0 0 0 / 0.6);
+}
+
+/* Brand green ramp, generated in OKLCH around hue ~150: lightness steps down
+   from 0.98 to 0.27 while chroma peaks mid-ramp, and it passes exactly through
+   the two original brand greens (400 = #7ac28d, 800 = #31613b). `static` so
+   every shade is emitted even when unused — Settings → General lists them. */
+@theme static {
+  --color-brand-50: #f1fcf4;
+  --color-brand-100: #e1f7e6;
+  --color-brand-200: #c5edcf;
+  --color-brand-300: #a1dbaf;
+  --color-brand-400: #7ac28d;
+  --color-brand-500: #5aa66e;
+  --color-brand-600: #448956;
+  --color-brand-700: #3a7347;
+  --color-brand-800: #31613b;
+  --color-brand-900: #274e2f;
+  --color-brand-950: #152d1a;
 }
 
 @theme inline {

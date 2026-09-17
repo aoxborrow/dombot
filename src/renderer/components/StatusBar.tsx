@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
-import { ModeToggle } from './mode-toggle';
 import {
   isDemo,
   isLocalWeb,
@@ -99,10 +98,6 @@ export default function StatusBar() {
           {mcpRunning && mcpEndpoint ? `MCP ${mcpEndpoint}` : 'MCP off'}
         </button>
       </div>
-
-      {/* Centered on the bar itself, independent of the side groups' widths.
-          Hidden on phones, where the side groups already fill the bar. */}
-      <ModeToggle className="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 sm:inline-flex" />
 
       {(showRefreshed || showSync) && (
         <div className="flex items-center gap-3">
