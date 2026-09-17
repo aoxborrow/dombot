@@ -21,7 +21,7 @@
 // both in the environment the script runs unattended.
 
 import { randomBytes, webcrypto } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { runWrangler } from './wrangler.mjs';
 import { writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
@@ -154,7 +154,7 @@ console.log(`Exported to ./${file} (sealed with your passphrase).`);
 
 // 3. New secret.
 const next = randomBytes(32).toString('base64');
-const r = spawnSync('npx', ['wrangler', 'secret', 'put', 'DOMBOT_SECRET'], {
+const r = runWrangler(['secret', 'put', 'DOMBOT_SECRET'], {
   input: next + '\n',
   stdio: ['pipe', 'inherit', 'inherit'],
 });
