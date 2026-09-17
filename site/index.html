@@ -36,7 +36,11 @@
       </svg>
       <span class="brand-name"><span class="brand-dom">Dom</span><span class="brand-bot">Bot</span></span>
     </a>
-    <nav class="nav-links" aria-label="Primary">
+    <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="nav-menu">
+      <svg class="ic-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      <svg class="ic-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <nav class="nav-links" id="nav-menu" aria-label="Primary">
       <a href="#registrars">Registrars</a>
       <a href="#mcp">MCP</a>
       <a href="#features">Features</a>
@@ -55,9 +59,9 @@
 <header class="hero">
   <div class="wrap hero-grid">
     <div>
-      <span class="eyebrow">Desktop app + MCP server</span>
+      <span class="eyebrow">Desktop + Self-hosted + MCP</span>
       <h1>All your domains,<br>from all your registrars,<br>in one app + MCP.</h1>
-      <p class="lede"><strong>DomBot pulls your whole domain portfolio</strong> — scattered across GoDaddy, Dynadot, Cloudflare, and more — into one desktop app, and serves the same portfolio to your AI agents through a built-in MCP server. <strong>Built for professional domain investors. <span class="nowrap">Free and open source.</span></strong></p>
+      <p class="lede"><strong>DomBot pulls your whole domain portfolio</strong> — scattered across GoDaddy, Dynadot, Cloudflare, and more — into one app, and serves the same portfolio to your AI agents through a built-in MCP server. <strong>Built for professional domain investors. <span class="nowrap">Free and <a href="https://github.com/aoxborrow/dombot">open source</a>.</span></strong></p>
       <div class="hero-cta">
         <a class="btn btn-primary" id="hero-dl" href="#download">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
@@ -65,11 +69,7 @@
         </a>
         <a class="btn" href="https://demo.dombot.ai/">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-          Try the demo
-        </a>
-        <a class="btn" href="https://github.com/aoxborrow/dombot">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.46-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.36-2.22-.26-4.56-1.14-4.56-5.05 0-1.12.39-2.03 1.03-2.74-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.71 1.03 1.62 1.03 2.74 0 3.92-2.34 4.78-4.57 5.04.36.32.68.94.68 1.9 0 1.37-.01 2.480-.01 2.81 0 .27.18.6.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
-          View source
+          View demo
         </a>
       </div>
       <p class="hero-note">macOS · Windows · Linux</p>
@@ -101,8 +101,9 @@
       <div class="logo"><img class="logo-img" src="./src/assets/logos/porkbun.svg" alt="" width="33" height="33"><span class="logo-name">Porkbun</span></div>
       <div class="logo"><img class="logo-img" src="./src/assets/logos/gandi.svg" alt="" width="33" height="33"><span class="logo-name">Gandi.net</span></div>
       <div class="logo"><img class="logo-img" src="./src/assets/logos/namebright.svg" alt="" width="33" height="33"><span class="logo-name">NameBright</span></div>
-      <div class="logo logo-more"><span class="more-plus" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="logo-name">More soon</span></div>
+      <div class="logo"><img class="logo-img" src="./src/assets/logos/namecom.svg" alt="" width="33" height="33"><span class="logo-name">Name.com</span></div>
     </div>
+    <p class="logos-foot"><svg class="logos-foot-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>More registrars coming soon.</p>
   </div>
 </section>
 
@@ -115,7 +116,7 @@
       <div class="sec-head">
         <span class="eyebrow">Connect with MCP</span>
         <h2>Manage your domains with AI</h2>
-        <p>DomBot runs a local <a href="https://modelcontextprotocol.io">MCP</a> server that is securely bound to your machine. Connect any agent and manage your domains in plain English, including registrations, renewals, transfers and DNS.</p>
+        <p>DomBot runs a built-in <a href="https://modelcontextprotocol.io">MCP</a> server — local and bound to your machine on the desktop, or at your own URL when self-hosted. Connect any agent and manage your domains in plain English, including registrations, renewals, transfers and DNS.</p>
       </div>
 
       <div class="mcp-connect">
@@ -197,7 +198,7 @@
   <div class="wrap">
     <div class="sec-head">
       <span class="eyebrow">Download</span>
-      <h2>Download a better way.</h2>
+      <h2>Download the desktop app.</h2>
       <p>All downloads are available on <a href="https://github.com/aoxborrow/dombot/releases">GitHub Releases</a>.<span data-dl-version-wrap hidden> Latest: <strong data-dl-version></strong>.</span> Binaries are <a href="https://github.com/aoxborrow/dombot/attestations">cryptographically proven</a> to match the open source code on GitHub.</p>
     </div>
 
@@ -250,22 +251,21 @@
   <div class="wrap">
     <div class="sec-head">
       <span class="eyebrow">Self-host</span>
-      <h2>Or run it in your browser, on your own Cloudflare.</h2>
-      <p>The same app as a private web app on your account — one Worker and one D1 database, encrypted under a key only you hold, with the MCP server at <code>https://&lt;your-host&gt;/mcp</code>. Three steps, no other services.</p>
+      <h2>Run it in the browser, on your Cloudflare account.</h2>
+      <p>Deploy your own private copy of DomBot to a free Cloudflare account — the same app on the web instead of the desktop, with your data kept where only you can reach it.</p>
     </div>
 
     <ol class="steps">
       <li>
-        <b>Click deploy.</b> Cloudflare forks the repo, creates the database, and asks for two secrets — a root key and your login password — with the commands to generate them.
+        <b>Click deploy.</b><span class="step-sub">Cloudflare copies DomBot into your account and walks you through the setup.</span>
         <div class="step-action">
           <a class="btn btn-primary" href="https://deploy.workers.cloudflare.com/?url=https://github.com/aoxborrow/dombot">Deploy to Cloudflare</a>
         </div>
       </li>
-      <li><b>Open the URL and sign in</b> with the password you set.</li>
-      <li><b>Add your registrars</b> — or move your desktop setup over with <em>Settings → Sync → Export data</em> and import it there.</li>
+      <li><b>Open your DomBot and sign in.</b><span class="step-sub">Add your registrars, or bring your desktop setup with you using <em>Settings → Sync → Export data</em>, then import it here.</span></li>
     </ol>
 
-    <p class="self-host-note">Prefer the terminal, want GitHub Actions to redeploy on push, or need Cloudflare Access in front? The <a href="https://github.com/aoxborrow/dombot/blob/main/docs/self-hosting.md">self-hosting guide</a> covers all of it.</p>
+    <p class="self-host-note">See the <a href="https://github.com/aoxborrow/dombot/blob/main/docs/self-hosting.md">self-hosting guide</a> for the details.</p>
   </div>
 </section>
 
@@ -280,7 +280,7 @@
     <div class="faq">
       <div class="faq-item">
         <h3>Is DomBot really free?</h3>
-        <p>Yes. The desktop app is free and open source (AGPL-3.0). Optional paid add-ons may come later, but the core management app stays free.</p>
+        <p>Yes. DomBot is free and open source (AGPL-3.0), whether you run the desktop app or self-host it in your browser. Optional paid add-ons may come later, but the core management app stays free.</p>
       </div>
       <div class="faq-item">
         <h3>How do I add a registrar?</h3>
@@ -288,7 +288,7 @@
       </div>
       <div class="faq-item">
         <h3>Where do my keys and data live?</h3>
-        <p>On your machine. Your portfolio is cached locally and your API keys are encrypted with the OS keystore (Keychain / DPAPI / libsecret). The free app talks only to your registrars — never to a DomBot server.</p>
+        <p>On your machine, or your own account. On the desktop your portfolio is cached locally and your API keys are encrypted with the OS keystore (Keychain / DPAPI / libsecret). Self-hosted, everything lives in your own Cloudflare, encrypted under a key only you hold. Either way, DomBot talks only to your registrars — never to a DomBot server.</p>
       </div>
       <div class="faq-item">
         <h3>Do agents need my approval?</h3>

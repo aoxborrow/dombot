@@ -25,6 +25,28 @@
   }
 })();
 
+// Mobile nav — toggle the dropdown behind the hamburger.
+(function () {
+  const nav = document.querySelector('.nav');
+  const toggle = nav && nav.querySelector('.nav-toggle');
+  const menu = document.getElementById('nav-menu');
+  if (!nav || !toggle || !menu) return;
+  const setOpen = function (open) {
+    nav.classList.toggle('open', open);
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  toggle.addEventListener('click', function () {
+    setOpen(!nav.classList.contains('open'));
+  });
+  // Close after picking a link, or on Escape.
+  menu.addEventListener('click', function (e) {
+    if (e.target.closest('a')) setOpen(false);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') setOpen(false);
+  });
+})();
+
 // Copy-to-clipboard buttons — flip to a check for a moment on success.
 (function () {
   document.querySelectorAll('.copy-btn').forEach(function (btn) {
