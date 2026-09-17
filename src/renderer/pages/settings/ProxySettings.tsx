@@ -7,7 +7,8 @@ import type {
   RegistrarDefinition,
 } from '../../../shared/ipc';
 import { accountTitle } from '../../../shared/account-label';
-import { parseProxy } from '../../../shared/proxy';
+import { isPublicIpv4, parseProxy } from '../../../shared/proxy';
+import { RegistrarLogo } from '../../components/RegistrarLogo';
 import { isDemo, isWeb } from '../../lib/platform';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +26,7 @@ const errorMessage = (error: unknown) =>
 /**
  * The fixed IP proxy: configured once here, switched on per account under
  * Registrars. Identical on desktop and web, and included in data exports, so
- * the same proxy and the same allowlisted address work on both.
+ * the same proxy and the same whitelisted address work on both.
  */
 export default function ProxySettings() {
   const [settings, setSettings] = useState<ProxySettingsData | null>(null);
@@ -62,6 +63,9 @@ export default function ProxySettings() {
   const dirty =
     url.trim() !== (saved?.url ?? '') ||
     egressIp.trim() !== (saved?.egressIp ?? '');
+  // Emptying the URL and saving clears the stored proxy (and its address).
+  const clearing = !url.trim() && Boolean(saved);
+  const canSave = dirty && (filled || clearing);
 
   // Same validation the server runs, so a typo is caught before any request.
   const validate = (): { url: string; egressIp: string } | null => {
@@ -77,20 +81,56 @@ export default function ProxySettings() {
 
   const run = async (kind: 'save' | 'test' | 'remove') => {
     setError(null);
-    if (kind !== 'test') setTest(null);
-    const input = kind === 'remove' ? null : validate();
-    if (kind !== 'remove' && !input) return;
+    if (kind === 'test') {
+      // Testing needs only the URL — the outgoing address is what it reveals.
+      if (!url.trim()) {
+        setError('Enter the proxy URL.');
+        return;
+      }
+      setBusy('test');
+      try {
+        const result = await window.api.testProxySettings({
+          url: url.trim(),
+          egressIp: egressIp.trim(),
+        });
+        setTest(result);
+        // A clean connection with no address entered yet: adopt the one the
+        // test found and save it, so it's ready without retyping. Only a public
+        // IPv4 is storable, and a failed save must not erase the test result.
+        if (result.matches && !egressIp.trim() && isPublicIpv4(result.ip)) {
+          setEgressIp(result.ip);
+          try {
+            await window.api.saveProxySettings({
+              url: url.trim(),
+              egressIp: result.ip,
+            });
+            apply(await window.api.getProxySettings());
+            toast.success('Proxy saved');
+          } catch (err) {
+            setError(errorMessage(err));
+          }
+        }
+      } catch (err) {
+        setTest(null);
+        setError(errorMessage(err));
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
+
+    setTest(null);
+    // A save with an emptied URL means "clear it", same as Remove.
+    const removing = kind === 'remove' || !url.trim();
+    const input = removing ? null : validate();
+    if (!removing && !input) return;
     setBusy(kind);
     try {
-      if (kind === 'test') setTest(await window.api.testProxySettings(input!));
-      else {
-        if (kind === 'save') await window.api.saveProxySettings(input!);
-        else await window.api.removeProxySettings();
-        apply(await window.api.getProxySettings());
-        toast.success(kind === 'save' ? 'Proxy saved' : 'Proxy removed');
-      }
+      if (removing) await window.api.removeProxySettings();
+      else await window.api.saveProxySettings(input!);
+      apply(await window.api.getProxySettings());
+      toast.success(removing ? 'Proxy removed' : 'Proxy saved');
     } catch (err) {
-      if (kind === 'test') setTest(null);
       setError(errorMessage(err));
     } finally {
       setBusy(null);
@@ -106,7 +146,7 @@ export default function ProxySettings() {
         <h2 className="text-xl font-bold">Proxy</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Some registrars only accept API requests from an address you have
-          allowlisted. If the machine running DomBot doesn&apos;t have a fixed
+          whitelisted. If the machine running DomBot doesn&apos;t have a fixed
           one, send those requests through a proxy that does. Set it up once
           here, then turn on <strong>Use fixed IP proxy</strong> for each
           account under Registrars.
@@ -128,35 +168,56 @@ export default function ProxySettings() {
                 address. Prefer HTTPS when the proxy needs a username and
                 password; an HTTP proxy receives them unencrypted.
               </FieldDescription>
-              <Input
-                id="proxy-url"
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                className="font-mono"
-                placeholder="https://user:password@proxy.example.com:8080"
-                value={url}
-                disabled={locked}
-                onChange={(e) => {
-                  setUrl(e.target.value);
-                  setTest(null);
-                }}
-              />
+              <div className="flex items-start gap-2">
+                <Input
+                  id="proxy-url"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="font-mono"
+                  placeholder="https://user:pass@proxy.example.com:8080"
+                  value={url}
+                  disabled={locked}
+                  onChange={(e) => {
+                    setUrl(e.target.value);
+                    setTest(null);
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0 border-border"
+                  disabled={locked || !url.trim()}
+                  onClick={() => void run('test')}
+                >
+                  {busy === 'test' ? 'Testing…' : 'Test'}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground/55">
+                <code className="font-mono">
+                  https://user:pass@proxy.example.com:8080
+                </code>{' '}
+                or{' '}
+                <code className="font-mono">
+                  http://user:pass@203.0.113.10:3128
+                </code>
+              </p>
             </Field>
             <Field className="gap-1.5">
               <FieldLabel htmlFor="proxy-egress-ip">
-                Outgoing IPv4 address
+                Proxy IPv4 address
               </FieldLabel>
               <FieldDescription className="text-[13px]">
-                The address registrars see, which may differ from the proxy
-                endpoint. Add it to each registrar&apos;s API allowlist.
+                The outgoing IP address registrars see, which may differ from the
+                proxy endpoint. Whitelist it in each registrar&apos;s API
+                settings. Clicking the &ldquo;Test&rdquo; button will fill in the
+                IP address here.
               </FieldDescription>
               <Input
                 id="proxy-egress-ip"
                 autoComplete="off"
                 spellCheck={false}
                 className="font-mono"
-                placeholder="203.0.113.10"
+                placeholder="123.456.789.001"
                 value={egressIp}
                 disabled={locked}
                 onChange={(e) => {
@@ -183,28 +244,15 @@ export default function ProxySettings() {
           )}
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={locked || !filled || !dirty}>
+            <Button type="submit" disabled={locked || !canSave}>
               {busy === 'save' ? 'Saving…' : 'Save'}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={locked || !filled}
-              onClick={() => void run('test')}
-            >
-              {busy === 'test' ? 'Testing…' : 'Test'}
             </Button>
             {saved && (
               <Button
                 type="button"
-                variant="ghost"
-                className="ml-auto text-muted-foreground"
-                disabled={locked || users.length > 0}
-                title={
-                  users.length > 0
-                    ? 'Turn the proxy off for the accounts below first'
-                    : undefined
-                }
+                variant="outline"
+                className="ml-auto border-border text-muted-foreground"
+                disabled={locked}
                 onClick={() => void run('remove')}
               >
                 {busy === 'remove' ? 'Removing…' : 'Remove proxy'}
@@ -227,8 +275,10 @@ export default function ProxySettings() {
                 <TriangleAlert className="mt-0.5 size-4 shrink-0" />
               )}
               {test.matches
-                ? `Connected. Requests leave from ${test.ip}.`
-                : `Connected, but requests leave from ${test.ip}, not ${test.expected}. Registrars will see ${test.ip}, so use that as the outgoing address.`}
+                ? test.expected
+                  ? `Connected through the proxy. Registrars will see your requests coming from ${test.ip}.`
+                  : `Connected through the proxy. Your outgoing address is ${test.ip}.`
+                : `Connected, but your requests came from ${test.ip}, not the ${test.expected} you entered. Registrars will see ${test.ip}, so use that as the outgoing address.`}
             </p>
           )}
           {error && (
@@ -248,14 +298,24 @@ export default function ProxySettings() {
               Registrars.
             </p>
           ) : (
-            <ul className="flex flex-col gap-1.5 text-sm">
+            <ul className="-my-1 flex flex-col divide-y divide-border/60">
               {users.map((user) => (
-                <li key={user.accountId}>
-                  {accountTitle(
-                    registrarName(user.registrar),
-                    user.label,
-                    user.hasSiblings,
-                  )}
+                <li
+                  key={user.accountId}
+                  className="flex items-center gap-3 py-2.5"
+                >
+                  <RegistrarLogo
+                    name={user.registrar}
+                    label={registrarName(user.registrar)}
+                    className="size-6"
+                  />
+                  <span className="min-w-0 truncate text-sm">
+                    {accountTitle(
+                      registrarName(user.registrar),
+                      user.label,
+                      user.hasSiblings,
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>

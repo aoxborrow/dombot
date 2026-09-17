@@ -1,7 +1,9 @@
 import {
   DEFAULT_PROXY_ID,
   PROXIES_NAMESPACE,
+  isPublicIpv4,
   parseProxy,
+  parseProxyUrl,
   type ProxyProfile,
   type ProxyRoute,
 } from '../../shared/proxy';
@@ -35,7 +37,7 @@ export function listProxyProfiles(): ProxyProfile[] {
 
 /** The route for an account, or null for a direct connection. An account that
  * points at a missing profile fails loudly: it must never quietly go direct
- * from an address the registrar hasn't allowlisted. */
+ * from an address the registrar hasn't whitelisted. */
 export function accountProxyRoute(
   account: RegistrarAccount,
 ): ProxyRoute | null {
@@ -72,13 +74,10 @@ export async function saveProxyProfile(
   return profile;
 }
 
-/** Refused while any account still depends on it. */
+/** Removes the proxy, first switching it off for any account that used it (those
+ * accounts fall back to a direct connection). */
 export async function removeProxyProfile(id = DEFAULT_PROXY_ID): Promise<void> {
-  const users = proxyUsers(id);
-  if (users.length)
-    throw new Error(
-      `${users.length} account${users.length === 1 ? ' still uses' : 's still use'} this proxy. Turn off “Use fixed IP proxy” on ${users.length === 1 ? 'it' : 'them'} first.`,
-    );
+  for (const user of proxyUsers(id)) await setAccountProxy(user.id, null);
   await store.delete(id);
 }
 
@@ -179,9 +178,14 @@ export async function testProxy(input: {
   url: string;
   egressIp: string;
 }): Promise<ProxyTestResult> {
-  const route = parseProxy(input);
-  if (!route)
-    throw new Error('Enter both the proxy URL and its outgoing IPv4 address.');
+  // A test needs only the URL: the outgoing address is what it discovers. When
+  // an address is supplied, validate it too and report whether the two match.
+  const url = parseProxyUrl(input.url);
+  const expected =
+    typeof input.egressIp === 'string' ? input.egressIp.trim() : '';
+  if (expected && !isPublicIpv4(expected))
+    throw new Error('The outgoing IP must be a public IPv4 address.');
+  const route: ProxyRoute = { url, ip: expected };
   let failure = 'no response';
   for (const probe of IP_PROBES) {
     const controller = new AbortController();
@@ -199,7 +203,8 @@ export async function testProxy(input: {
         );
       const ip = probe.read(await response.text())?.trim();
       if (!ip) throw new Error('the address check returned no address');
-      return { ip, expected: route.ip, matches: ip === route.ip };
+      // With no address to check against, the connection alone is the pass.
+      return { ip, expected, matches: expected ? ip === expected : true };
     } catch (error) {
       failure = controller.signal.aborted
         ? `timed out after ${PROBE_TIMEOUT_MS / 1000}s`

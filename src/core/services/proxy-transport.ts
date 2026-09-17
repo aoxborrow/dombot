@@ -92,7 +92,7 @@ export async function sendThroughProxy(
   init: RequestInit,
 ): Promise<Response> {
   const send = transport;
-  // Never fall back to a direct request from an address nobody allowlisted.
+  // Never fall back to a direct request from an address nobody whitelisted.
   if (!send)
     throw markNotSent(new Error('The fixed IP proxy is not available here.'));
   try {

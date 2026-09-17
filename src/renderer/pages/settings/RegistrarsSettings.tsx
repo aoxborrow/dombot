@@ -6,8 +6,10 @@ import {
 } from '../../../shared/account-label';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Check,
   ChevronDown,
   CircleX,
+  Copy,
   ExternalLink,
   Pencil,
   Plus,
@@ -20,13 +22,13 @@ import type {
   RegistrarAccount,
   RegistrarDefinition,
   RegistrarMeta,
-  RegistrarName,
 } from '../../../shared/ipc';
 import {
   REGISTRAR_HELP,
   type HelpLink as HelpLinkData,
 } from '../../../shared/registrar-help';
 import { cn } from '@/lib/utils';
+import { RegistrarLogo } from '../../components/RegistrarLogo';
 import { useAppStore } from '../../store/app';
 import { Link } from 'react-router-dom';
 import { isDemo } from '../../lib/platform';
@@ -594,14 +596,14 @@ function AccountCard({
           {/* Sync only makes sense for an enabled account. */}
           {configured && enabled && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => void runSync()}
               disabled={busy}
               title="Sync this account's domains"
               // Absorb the button's height into the row's vertical padding so
               // the row stays slim rather than growing to fit it.
-              className="-my-1 shrink-0 text-muted-foreground hover:text-foreground"
+              className="-my-1 shrink-0 border-border text-muted-foreground hover:text-foreground"
             >
               <RefreshCw className={cn(syncing && 'animate-spin')} />
               {syncing ? 'Syncing…' : 'Sync'}
@@ -670,8 +672,8 @@ function AccountCard({
               )}
               <Button
                 type="button"
-                variant="ghost"
-                className="ml-auto text-muted-foreground"
+                variant="outline"
+                className="ml-auto border-border text-muted-foreground"
                 disabled={locked}
                 onClick={() => setRemoving(true)}
               >
@@ -916,14 +918,27 @@ function ProxyToggle({
   disabled: boolean;
   onChange: (enabled: boolean) => void;
 }) {
+  const [copied, setCopied] = useState(false);
   const proxyLink = (
     <Link to="/settings?tab=proxy" className="underline underline-offset-4">
       configured proxy
     </Link>
   );
+
+  const copyEgressIp = async () => {
+    if (!proxy) return;
+    try {
+      await navigator.clipboard.writeText(proxy.egressIp);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable: the address is still selectable by hand.
+    }
+  };
+
   return (
     <div className="mt-5 border-t pt-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Switch
           id={id}
           checked={enabled}
@@ -932,6 +947,39 @@ function ProxyToggle({
           disabled={disabled || (!proxy && !enabled)}
         />
         <FieldLabel htmlFor={id}>Use fixed IP proxy</FieldLabel>
+        {proxy && enabled && (
+          <div className="ml-auto flex shrink-0 items-center gap-0.5 rounded border border-border/60 bg-muted/30 py-0.5 pr-0.5 pl-2">
+            <input
+              readOnly
+              value={proxy.egressIp}
+              size={Math.max(proxy.egressIp.length, 7)}
+              aria-label="Outgoing IP address"
+              onFocus={(e) => e.currentTarget.select()}
+              // It sits inside the credentials form; Enter here must not submit.
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.preventDefault();
+              }}
+              className="bg-transparent font-mono text-xs text-foreground outline-none"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void copyEgressIp()}
+              aria-label="Copy outgoing IP address"
+              className={cn(
+                'size-5 shrink-0 text-muted-foreground hover:text-foreground',
+                copied && 'text-[#7ac28d] hover:text-[#7ac28d]',
+              )}
+            >
+              {copied ? (
+                <Check className="size-3" />
+              ) : (
+                <Copy className="size-3" />
+              )}
+            </Button>
+          </div>
+        )}
       </div>
       <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
         {!proxy ? (
@@ -947,10 +995,9 @@ function ProxyToggle({
           </>
         ) : enabled ? (
           <>
-            This account&apos;s requests go through your proxy, and{' '}
-            {provider.displayName} sees them arrive from{' '}
-            <span className="font-mono text-foreground">{proxy.egressIp}</span>.
-            Add that address to the {provider.displayName} API allowlist.
+            This account&apos;s requests go through your proxy, so{' '}
+            {provider.displayName} sees them arrive from a fixed address.
+            Whitelist this IP address in the {provider.displayName} API settings.
           </>
         ) : (
           <>Send this account&apos;s requests through your {proxyLink}.</>
@@ -1049,74 +1096,6 @@ function HelpLink({ link }: { link: HelpLinkData }) {
       {link.label}
       <ExternalLink className="size-3 shrink-0" aria-hidden />
     </a>
-  );
-}
-
-// Brand SVGs live with the marketing site (site/src/assets/logos); share that
-// one folder so adding a registrar is just dropping in `<name>.svg` — the glob
-// picks it up here, no import to edit. Keyed by filename, which matches the
-// RegistrarName (e.g. godaddy.svg → "godaddy").
-const LOGO_RAW = import.meta.glob('../../../../site/src/assets/logos/*.svg', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
-const LOGOS: Record<string, string> = Object.fromEntries(
-  Object.entries(LOGO_RAW).map(([path, svg]) => [
-    path
-      .split('/')
-      .pop()!
-      .replace(/\.svg$/, ''),
-    svg,
-  ]),
-);
-
-/**
- * Strip the brand fills so the logo renders as a flat monochrome mark that
- * inherits `currentColor` — letting a `text-*` class tint it a uniform grey.
- * Drops width/height too so the size comes from CSS.
- */
-function monochrome(svg: string): string {
-  return (
-    svg
-      // Drop the XML prolog and comments some exports carry (e.g. dynadot).
-      .replace(/<\?xml[\s\S]*?\?>/gi, '')
-      .replace(/<!--[\s\S]*?-->/g, '')
-      // Drop <style> blocks (e.g. dynadot colors its paths via a `.st0` class).
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/\s(?:width|height|fill)="[^"]*"/g, '')
-      // Neutralize any inline `fill:#…` left in style attributes.
-      .replace(/fill:\s*#[0-9a-fA-F]{3,8}/g, 'fill:currentColor')
-      .replace('<svg', '<svg fill="currentColor"')
-      .trim()
-  );
-}
-
-/**
- * The registrar's logo, shown as a small grey mark before the name. Reuses the
- * marketing site's brand SVGs, flattened to `currentColor` for a uniform tint.
- */
-function RegistrarLogo({
-  name,
-  label,
-  className,
-}: {
-  name: RegistrarName;
-  label: string;
-  className?: string;
-}) {
-  const svg = LOGOS[name];
-  if (!svg) return null;
-  return (
-    <span
-      role="img"
-      aria-label={`${label} logo`}
-      className={cn(
-        'inline-flex size-[27px] shrink-0 items-center justify-center text-muted-foreground/70 [&>svg]:size-full',
-        className,
-      )}
-      dangerouslySetInnerHTML={{ __html: monochrome(svg) }}
-    />
   );
 }
 

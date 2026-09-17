@@ -1,6 +1,6 @@
 // The fixed IP proxy: one CONNECT proxy DomBot can route a registrar account's
 // API traffic through, so requests arrive from an address the registrar has
-// allowlisted. Configured once (Settings → Proxy) and switched on per account.
+// whitelisted. Configured once (Settings → Proxy) and switched on per account.
 
 /** A stored proxy. The shape allows several; the UI manages only `default`. */
 export interface ProxyProfile {
@@ -58,6 +58,55 @@ export function isProxyHost(hostname: string): boolean {
   return hostname.length <= 253 && DNS_NAME.test(hostname);
 }
 
+/** Validates just the proxy URL (no outgoing address) and returns its
+ * normalized href. Shared by the form, the connection test and `parseProxy`.
+ * Never echoes the URL, which may hold a password. */
+export function parseProxyUrl(raw: unknown): string {
+  if (typeof raw !== 'string')
+    throw new Error('Proxy settings must be text values.');
+  const trimmed = raw.trim();
+  if (!trimmed) throw new Error('Enter the proxy URL.');
+  if (trimmed.length > 2048) throw new Error('The proxy URL is too long.');
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new Error('Enter a valid HTTP or HTTPS proxy URL.');
+  }
+  if (
+    !['http:', 'https:'].includes(url.protocol) ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(
+      'Use an HTTP or HTTPS CONNECT proxy URL without a path, query or fragment.',
+    );
+  }
+  if (!isProxyHost(url.hostname))
+    throw new Error(
+      'The proxy endpoint must be a hostname or a public IPv4 address.',
+    );
+  if (url.port === '0')
+    throw new Error('The proxy port must be between 1 and 65535.');
+  try {
+    const user = decodeURIComponent(url.username),
+      password = decodeURIComponent(url.password);
+    if (
+      Boolean(user) !== Boolean(password) ||
+      [...(user + password)].some(
+        (c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127,
+      )
+    )
+      throw new Error();
+  } catch {
+    throw new Error(
+      'Proxy authentication requires a valid username and password.',
+    );
+  }
+  return url.href;
+}
+
 /** Validates a proxy URL and its outgoing address. Pure, shared by the form and
  * the server, and never echoes the URL, which may hold a password. Returns null
  * when both are blank. */
@@ -76,47 +125,10 @@ export function parseProxy(input: {
   if (!raw && !ip) return null;
   if (!raw || !ip)
     throw new Error('Enter both the proxy URL and its outgoing IPv4 address.');
-  if (raw.length > 2048) throw new Error('The proxy URL is too long.');
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    throw new Error('Enter a valid HTTP or HTTPS proxy URL.');
-  }
-  if (
-    !['http:', 'https:'].includes(url.protocol) ||
-    url.pathname !== '/' ||
-    url.search ||
-    url.hash
-  ) {
-    throw new Error(
-      'Use an HTTP or HTTPS CONNECT proxy URL without a path, query or fragment.',
-    );
-  }
-  if (!isProxyHost(url.hostname))
-    throw new Error(
-      'The proxy endpoint must be a hostname or a public IPv4 address.',
-    );
+  const href = parseProxyUrl(raw);
   if (!isPublicIpv4(ip))
     throw new Error('The outgoing IP must be a public IPv4 address.');
-  if (url.port === '0')
-    throw new Error('The proxy port must be between 1 and 65535.');
-  try {
-    const user = decodeURIComponent(url.username),
-      password = decodeURIComponent(url.password);
-    if (
-      Boolean(user) !== Boolean(password) ||
-      [...(user + password)].some(
-        (c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127,
-      )
-    )
-      throw new Error();
-  } catch {
-    throw new Error(
-      'Proxy authentication requires a valid username and password.',
-    );
-  }
-  return { url: url.href, ip };
+  return { url: href, ip };
 }
 
 /** The strings in a proxy URL that must never reach a diagnostic. */

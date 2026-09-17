@@ -301,7 +301,7 @@ const namecheapMeta = () =>
   getRegistrarMetadata().find((r) => r.name === 'namecheap')!;
 
 describe('central proxy settings', () => {
-  it('validates before saving and refuses removal while an account depends on it', async () => {
+  it('validates before saving and switches the proxy off for its accounts on removal', async () => {
     await expect(
       saveProxyProfile({ ...profile, egressIp: '127.0.0.1' }),
     ).rejects.toThrow(/public/);
@@ -318,10 +318,11 @@ describe('central proxy settings', () => {
         hasSiblings: false,
       },
     ]);
-    await expect(removeProxyProfile()).rejects.toThrow(/still uses/);
-    await saveRegistrarCredentials('namecheap', credentials, undefined, false);
+    // Removing the proxy while an account still uses it clears it from that
+    // account rather than refusing.
     await removeProxyProfile();
     expect(getProxyProfile()).toBeNull();
+    expect(getProxySettings().users).toEqual([]);
   });
 
   it('cannot be switched on for an account before a proxy exists, and changes nothing when refused', async () => {
