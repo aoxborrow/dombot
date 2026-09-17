@@ -47,7 +47,7 @@ export default function GeneralSettings() {
 
       <SettingsCard title="Appearance" contentClassName="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
-          Auto follows your system&apos;s light or dark setting.
+          Choose light, dark, or auto. Auto follows your system&apos;s setting.
         </p>
         <Select value={theme} onValueChange={(v) => setTheme(v as Theme)}>
           <SelectTrigger className="w-52" aria-label="Theme">
@@ -69,8 +69,7 @@ export default function GeneralSettings() {
       >
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">
-            Rows per page the table opens with. You can still change it on the
-            page for that visit.
+            The number of domains shown per page by default.
           </p>
           <Select
             value={String(pageSize)}
@@ -91,7 +90,7 @@ export default function GeneralSettings() {
 
         <div className="flex flex-col gap-3 border-t pt-5">
           <p className="text-sm text-muted-foreground">
-            Column and direction the table opens sorted by.
+            The column and order domains are sorted by default.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Select
