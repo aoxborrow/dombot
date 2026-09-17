@@ -73,7 +73,7 @@ export function BulkBar({
         {domains.length > 0 ? (
           <>
             <span className="font-medium text-[#7ac28d]">
-              <span className="pl-1 pr-[3px] text-[17px] font-bold">
+              <span className="pl-1 pr-px text-[16px] font-bold">
                 {domains.length}
               </span>{' '}
               selected
