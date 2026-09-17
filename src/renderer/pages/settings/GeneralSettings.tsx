@@ -1,0 +1,137 @@
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useTheme, type Theme } from '@/components/theme-provider';
+import {
+  PAGE_SIZES,
+  SORT_COLUMNS,
+  usePreferences,
+  type Preferences,
+} from '../../lib/preferences';
+import { SettingsCard } from './SettingsCard';
+
+const THEME_OPTIONS: { value: Theme; label: string }[] = [
+  { value: 'dark', label: 'Dark' },
+  { value: 'light', label: 'Light' },
+  { value: 'auto', label: 'Auto (match system)' },
+];
+
+const DIRECTION_OPTIONS: { value: Preferences['sortDir']; label: string }[] = [
+  { value: 'asc', label: 'Ascending' },
+  { value: 'desc', label: 'Descending' },
+];
+
+/**
+ * General preferences: how this window looks and how the Domains table opens.
+ * Stored per device (see lib/preferences), applied immediately — no save step.
+ */
+export default function GeneralSettings() {
+  const { theme, setTheme } = useTheme();
+  const pageSize = usePreferences((s) => s.pageSize);
+  const sortKey = usePreferences((s) => s.sortKey);
+  const sortDir = usePreferences((s) => s.sortDir);
+  const setPreferences = usePreferences((s) => s.setPreferences);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h2 className="text-xl font-bold">General</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Preferences for this device. Changes apply right away.
+        </p>
+      </div>
+
+      <SettingsCard title="Appearance" contentClassName="flex flex-col gap-4">
+        <p className="text-sm text-muted-foreground">
+          Auto follows your system&apos;s light or dark setting.
+        </p>
+        <Select value={theme} onValueChange={(v) => setTheme(v as Theme)}>
+          <SelectTrigger className="w-52" aria-label="Theme">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {THEME_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </SettingsCard>
+
+      <SettingsCard
+        title="Domains table"
+        contentClassName="flex flex-col gap-5"
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted-foreground">
+            Rows per page the table opens with. You can still change it on the
+            page for that visit.
+          </p>
+          <Select
+            value={String(pageSize)}
+            onValueChange={(v) => setPreferences({ pageSize: Number(v) })}
+          >
+            <SelectTrigger className="w-52" aria-label="Default rows per page">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZES.map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n} rows
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t pt-5">
+          <p className="text-sm text-muted-foreground">
+            Column and direction the table opens sorted by.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Select
+              value={sortKey}
+              onValueChange={(v) => setPreferences({ sortKey: v })}
+            >
+              <SelectTrigger className="w-52" aria-label="Default sort column">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_COLUMNS.map((c) => (
+                  <SelectItem key={c.key} value={c.key}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={sortDir}
+              onValueChange={(v) =>
+                setPreferences({ sortDir: v as Preferences['sortDir'] })
+              }
+            >
+              <SelectTrigger
+                className="w-40"
+                aria-label="Default sort direction"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DIRECTION_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </SettingsCard>
+    </div>
+  );
+}

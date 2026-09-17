@@ -60,6 +60,7 @@ import {
 import { BulkBar } from '../components/domains/BulkBar';
 import { BulkActionDialog } from '../components/domains/BulkActionDialog';
 import { defaultBulkOp } from '../lib/bulk';
+import { PAGE_SIZES, usePreferences } from '../lib/preferences';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -541,8 +542,6 @@ function expiryColor(days: number | null): string {
   return 'text-foreground';
 }
 
-const PAGE_SIZES = [25, 50, 100, 250];
-
 /** Sentinel expiration value that keeps only already-expired domains. */
 const EXPIRED = 'expired';
 
@@ -689,9 +688,17 @@ export default function Domains() {
   const [expiry, setExpiry] = useState<string[]>([]);
   const [ns, setNs] = useState<string[]>([]);
   const [folder, setFolder] = useState<string[]>([]);
-  const [sortKey, setSortKey] = useState('domainName');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [pageSize, setPageSize] = useState(50);
+  // Sort and page size open at the Settings → General defaults; changes made
+  // here last for this visit only.
+  const [sortKey, setSortKey] = useState(
+    () => usePreferences.getState().sortKey,
+  );
+  const [sortDir, setSortDir] = useState(
+    () => usePreferences.getState().sortDir,
+  );
+  const [pageSize, setPageSize] = useState(
+    () => usePreferences.getState().pageSize,
+  );
   const [page, setPage] = useState(0);
   // Phones only: the filter chips collapse behind a "Filters" toggle (they're
   // always shown at sm+). Search and Reset stay visible.
