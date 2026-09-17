@@ -58,10 +58,28 @@ code, .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, mono
 .brand-dom { color: var(--ink); }
 .brand-bot { color: var(--accent-ink); }
 .nav-links { margin-left: auto; display: flex; align-items: center; gap: 20px; }
-/* Phones: the links don't fit and are mostly same-page anchors — drop them. */
-@media (max-width: 639px) { .nav-links { display: none; } }
 .nav-links a { color: var(--muted); text-decoration: none; font-size: .85rem; }
 .nav-links a:hover { color: var(--ink); }
+/* Hamburger toggle — hidden on desktop, shown on phones. */
+.nav-toggle { display: none; margin-left: auto; align-items: center; justify-content: center; width: 38px; height: 38px; padding: 0; background: none; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); cursor: pointer; }
+.nav-toggle svg { width: 20px; height: 20px; display: block; }
+.nav-toggle .ic-close { display: none; }
+/* Phones: collapse the links into a dropdown behind the hamburger. */
+@media (max-width: 639px) {
+  .nav-toggle { display: inline-flex; }
+  .nav.open .nav-toggle .ic-menu { display: none; }
+  .nav.open .nav-toggle .ic-close { display: block; }
+  .nav-links {
+    display: none; margin: 0; gap: 0;
+    position: absolute; top: 100%; left: 0; right: 0;
+    flex-direction: column; align-items: stretch;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, .45);
+  }
+  .nav.open .nav-links { display: flex; }
+  .nav-links a { padding: 12px 24px; font-size: .95rem; }
+  .nav-links a:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+}
 
 /* ── buttons ── */
 .btn { display: inline-flex; align-items: center; gap: 8px; font-family: inherit; font-size: .88rem; font-weight: 500; padding: 8px 16px; border-radius: 7px; border: 1px solid var(--line-strong); cursor: pointer; text-decoration: none; background: var(--bg); color: var(--ink); transition: border-color .15s ease, background .15s ease; white-space: nowrap; }
@@ -195,20 +213,16 @@ pre .a { color: var(--accent-ink); font-weight: 500; }
    on the near-black ground), true brand color on hover. Needs transparent SVGs. */
 .logo-img { flex-shrink: 0; width: 28px; height: 28px; object-fit: contain; filter: brightness(0) invert(.6); opacity: .9; transition: filter .15s ease, opacity .15s ease; }
 .logo:hover .logo-img { filter: none; opacity: 1; }
-.logo:not(.logo-more):hover .logo-name { color: var(--ink); }
+.logo:hover .logo-name { color: var(--ink); }
 .logo-name { font-weight: 500; font-size: 1.05rem; color: var(--muted); transition: color .15s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.more-plus { flex-shrink: 0; width: 30px; height: 30px; display: grid; place-items: center; color: var(--accent-ink); }
-.more-plus svg { width: 20px; height: 20px; display: block; }
 /* Phones: tighter marks and type so the two-column cloud stays compact. */
 @media (max-width: 519px) {
   .logo { gap: 9px; padding: 6px 4px; }
   .logo-img, .logo-mark { width: 24px; height: 24px; }
   .logo-name { font-size: .95rem; }
-  .more-plus { width: 26px; height: 26px; }
-  .more-plus svg { width: 18px; height: 18px; }
 }
-.logo-more .logo-name { color: var(--accent-ink); font-weight: 400; }
-.logos-foot { margin-top: 20px; font-size: .86rem; color: var(--muted); }
+.logos-foot { margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 7px; font-size: .86rem; color: var(--accent-ink); }
+.logos-foot-plus { flex-shrink: 0; width: 15px; height: 15px; }
 .logos-foot b { color: var(--ink); font-weight: 500; }
 
 /* ── mcp ── */
@@ -307,4 +321,5 @@ footer { border-top: 1px solid var(--line); padding: 36px 0 48px; }
 .steps li em { font-style: normal; font-weight: 500; }
 .steps li::before { content: counter(step); position: absolute; left: 18px; top: 16px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-contrast, #fff); font-weight: 600; font-size: .85rem; }
 .step-action { margin-top: 12px; }
+.step-sub { display: block; margin-top: 3px; font-size: .85rem; color: var(--faint); }
 .self-host-note { margin-top: 18px; color: var(--muted); font-size: .9rem; max-width: 720px; }
