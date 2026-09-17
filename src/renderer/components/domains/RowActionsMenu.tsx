@@ -3,7 +3,7 @@ import {
   CalendarPlus,
   Check,
   Ellipsis,
-  EyeOff,
+  EyeClosed,
   KeyRound,
   Link2,
   Mail,
@@ -126,7 +126,7 @@ export function RowActionsMenu({
               className="gap-2.5"
               onSelect={() => onAssignFolder(HIDDEN_FOLDER_ID)}
             >
-              <EyeOff className="size-4 shrink-0" aria-hidden />
+              <EyeClosed className="size-4 shrink-0" aria-hidden />
               <span className="flex-1">Hidden</span>
               {folderId === HIDDEN_FOLDER_ID && (
                 <Check className="size-3.5 shrink-0 text-muted-foreground" />
@@ -136,7 +136,10 @@ export function RowActionsMenu({
               className="gap-2.5"
               onSelect={() => onAssignFolder(null)}
             >
-              <FolderOffIcon className="size-4 shrink-0" aria-hidden />
+              <FolderOffIcon
+                className="size-4 shrink-0 text-muted-foreground/50"
+                aria-hidden
+              />
               <span className="flex-1">None</span>
               {folderId === undefined && (
                 <Check className="size-3.5 shrink-0 text-muted-foreground" />

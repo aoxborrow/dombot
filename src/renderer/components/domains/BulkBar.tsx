@@ -1,6 +1,7 @@
 import {
   CalendarPlus,
   ChevronDown,
+  EyeClosed,
   EyeOff,
   FileSpreadsheet,
   KeyRound,
@@ -154,14 +155,17 @@ export function BulkBar({
                   className="gap-2.5"
                   onSelect={() => onAssignFolder(HIDDEN_FOLDER_ID)}
                 >
-                  <EyeOff className="size-4 shrink-0" aria-hidden />
+                  <EyeClosed className="size-4 shrink-0" aria-hidden />
                   <span className="flex-1">Hidden</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="gap-2.5"
                   onSelect={() => onAssignFolder(null)}
                 >
-                  <FolderOffIcon className="size-4 shrink-0" aria-hidden />
+                  <FolderOffIcon
+                    className="size-4 shrink-0 text-muted-foreground/50"
+                    aria-hidden
+                  />
                   <span className="flex-1">None</span>
                 </DropdownMenuItem>
               </DropdownMenuSubContent>

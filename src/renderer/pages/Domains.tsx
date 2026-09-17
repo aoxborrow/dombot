@@ -17,6 +17,7 @@ import {
   ChevronsUpDown,
   CircleCheck,
   Eye,
+  EyeClosed,
   EyeOff,
   Globe,
   Lock,
@@ -248,7 +249,7 @@ function FolderCell({
         >
           {hidden ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
-              <EyeOff className="size-4 shrink-0" />
+              <EyeClosed className="size-4 shrink-0" />
               Hidden
               <ChevronDown
                 className="ml-auto size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
@@ -329,14 +330,17 @@ function FolderMenuContent({
         className="gap-2.5"
         onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
       >
-        <EyeOff className="size-4 shrink-0" aria-hidden />
+        <EyeClosed className="size-4 shrink-0" aria-hidden />
         <span className="flex-1">Hidden</span>
         {folderId === HIDDEN_FOLDER_ID && (
           <Check className="size-3.5 shrink-0 text-muted-foreground" />
         )}
       </DropdownMenuItem>
       <DropdownMenuItem className="gap-2.5" onSelect={() => onAssign(null)}>
-        <FolderOffIcon className="size-4 shrink-0" aria-hidden />
+        <FolderOffIcon
+          className="size-4 shrink-0 text-muted-foreground/50"
+          aria-hidden
+        />
         <span className="flex-1">None</span>
         {folderId === undefined && (
           <Check className="size-3.5 shrink-0 text-muted-foreground" />
