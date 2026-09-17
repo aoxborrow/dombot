@@ -62,10 +62,6 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
         <Button type="submit" className="w-full" disabled={busy || !password}>
           {busy ? 'Signing in…' : 'Sign in'}
         </Button>
-        <p className="text-xs text-muted-foreground">
-          Forgot it? The operator can rotate it with{' '}
-          <code>npm run web:rotate-password</code>.
-        </p>
       </form>
     </div>
   );
