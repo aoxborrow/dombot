@@ -169,17 +169,16 @@ export default function ProxySettings() {
 
           {isWeb() && (
             <p className="mt-4 text-sm text-muted-foreground">
-              On a self-hosted instance, proxy connections use an experimental
-              TLS client. Review the{' '}
+              On a self-hosted instance, proxy connections use{' '}
               <a
                 className="underline"
                 href="https://github.com/latentharbor/tunnelfetch#readme"
                 target="_blank"
                 rel="noreferrer"
               >
-                transport’s security limitations
-              </a>{' '}
-              before relying on it.
+                tunnelfetch
+              </a>
+              , which has some limitations.
             </p>
           )}
 
