@@ -394,7 +394,7 @@ describe('multi-account storage, routing and portable migration', () => {
     expect(fakes.providers.get('company')!.renewDomain).toHaveBeenCalledWith(
       'company.com',
       2,
-      expect.objectContaining({ retries: 0 }),
+      expect.objectContaining({ signal: undefined }),
     );
     expect(fakes.providers.get('personal')!.renewDomain).not.toHaveBeenCalled();
     expect(
@@ -519,10 +519,10 @@ describe('multi-account storage, routing and portable migration', () => {
     ).toMatchObject({ success: true, accountId: 'dynadot' });
   });
 
-  it('round trips v2 desktop/web encrypted storage and imports legacy v1 without re-entering credentials', async () => {
+  it('round trips current desktop/web encrypted storage and imports legacy v1 without re-entering credentials', async () => {
     const company = await twoAccounts();
     const text = exportBundle({ ...APP, platform: 'darwin' });
-    expect(JSON.parse(text).version).toBe(2);
+    expect(JSON.parse(text).version).toBe(3);
     const raw = new MemoryDocStore();
     const key = crypto.getRandomValues(new Uint8Array(32));
     configureStore(new EncryptedDocStore(raw, await aesGcmCipher(key)));
@@ -684,7 +684,7 @@ describe('multi-account storage, routing and portable migration', () => {
     expect(fakes.providers.get('company')!.renewDomain).not.toHaveBeenCalled();
   });
 
-  it('connects in one submission and gives unnamed accounts distinct useful labels', async () => {
+  it('connects in one submission and numbers unnamed accounts', async () => {
     const first = await invoke(
       'connectRegistrarAccount',
       coreMethods.connectRegistrarAccount,
@@ -695,7 +695,7 @@ describe('multi-account storage, routing and portable migration', () => {
       coreMethods.connectRegistrarAccount,
       ['dynadot', { apiKey: 'second', apiSecret: 'secret' }],
     );
-    expect(first.label).toBe('Main');
+    expect(first.label).toBe('Account 1');
     expect(second.label).toBe('Account 2');
     expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(2);
     expect(fakes.providers.get('first')!.testConnection).toHaveBeenCalledOnce();
@@ -709,6 +709,132 @@ describe('multi-account storage, routing and portable migration', () => {
       ]),
     ).rejects.toThrow(/already connected/);
     expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(2);
+  });
+
+  it('numbers past the highest in use, never handing a live number to another account', async () => {
+    const connect = (apiKey: string, label?: string) =>
+      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+        'dynadot',
+        { apiKey, apiSecret: 'secret' },
+        label,
+      ]);
+    const one = await connect('k1');
+    const two = await connect('k2');
+    const three = await connect('k3');
+    expect([one.label, two.label, three.label]).toEqual([
+      'Account 1',
+      'Account 2',
+      'Account 3',
+    ]);
+    // Removing #1 does not renumber the others, and the next account is #4.
+    await removeRegistrarAccount(one.id);
+    expect((await connect('k4')).label).toBe('Account 4');
+    const labels = () =>
+      Object.fromEntries(
+        getRegistrarMetadata()
+          .filter((a) => a.saved)
+          .map((a) => [a.accountId, a.accountLabel]),
+      );
+    expect(labels()[two.id]).toBe('Account 2');
+    // A nicknamed account holds no number.
+    const named = await connect('k5', 'Personal');
+    expect(named.label).toBe('Personal');
+    expect((await connect('k6')).label).toBe('Account 5');
+  });
+
+  it('removes a nickname when it is cleared, returning the account to the lowest free number', async () => {
+    const connect = (apiKey: string) =>
+      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+        'dynadot',
+        { apiKey, apiSecret: 'secret' },
+      ]);
+    const one = await connect('k1');
+    const two = await connect('k2');
+    await invoke('renameRegistrarAccount', coreMethods.renameRegistrarAccount, [
+      one.id,
+      'Personal',
+    ]);
+    const labelOf = (id: string) =>
+      getRegistrarMetadata().find((a) => a.accountId === id)!.accountLabel;
+    expect(labelOf(one.id)).toBe('Personal');
+    await invoke('renameRegistrarAccount', coreMethods.renameRegistrarAccount, [
+      one.id,
+      '  ',
+    ]);
+    expect(labelOf(one.id)).toBe('Account 1');
+    expect(labelOf(two.id)).toBe('Account 2');
+  });
+
+  it('treats a nickname that would display like another account as taken', async () => {
+    // An adopted legacy account is "Default", shown as #1.
+    await saveRegistrarCredentials('dynadot', {
+      apiKey: 'legacy',
+      apiSecret: 'secret',
+    });
+    const second = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'second', apiSecret: 'secret' }],
+    );
+    expect(second.label).toBe('Account 2');
+    for (const clash of ['Main', 'account 1', '#1'])
+      await expect(renameAccount(second.id, clash)).rejects.toThrow(
+        /already named "#1"/,
+      );
+    await renameAccount(second.id, 'Agency');
+  });
+
+  it('keeps nicknames unique per registrar, ignoring case, without a network test or a second account', async () => {
+    const first = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'first', apiSecret: 'secret' }, 'Personal'],
+    );
+    await expect(
+      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+        'dynadot',
+        { apiKey: 'second', apiSecret: 'secret' },
+        ' personal ',
+      ]),
+    ).rejects.toThrow(/already named "Personal"/);
+    // Rejected before the connection test, and nothing was saved.
+    expect(fakes.providers.get('second')).toBeUndefined();
+    expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(1);
+
+    const second = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'second', apiSecret: 'secret' }, 'Agency'],
+    );
+    await expect(renameAccount(second.id, 'PERSONAL')).rejects.toThrow(
+      /already named/,
+    );
+    // Re-saving its own name (any case) and reusing a name at another
+    // registrar are both fine.
+    await renameAccount(second.id, 'agency');
+    await renameAccount(first.id, 'Personal');
+    const elsewhere = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['porkbun', { apiKey: 'pb', secretApiKey: 'secret' }, 'Personal'],
+    );
+    expect(elsewhere.label).toBe('Personal');
+  });
+
+  it('frees a nickname when its account is removed, and never collides with an unused placeholder', async () => {
+    // No Dynadot account is saved, so the placeholder's "Default" is not taken.
+    const first = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'first', apiSecret: 'secret' }, 'Default'],
+    );
+    await removeRegistrarAccount(first.id);
+    const again = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'again', apiSecret: 'secret' }, 'default'],
+    );
+    expect(again.label).toBe('default');
   });
 
   it('a rejected connection never creates an empty account or saves its credentials', async () => {

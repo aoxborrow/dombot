@@ -3,54 +3,48 @@ import type {
   RegistrarDefinition,
   RegistrarMeta,
 } from '../../shared/ipc';
+import { accountNumber } from '../../shared/account-label';
 
-/** Keep the original one-card-per-provider layout; migration placeholders are
- * empty credential forms, not additional accounts. */
-export function registrarGroups(
-  catalog: RegistrarDefinition[],
-  accounts: RegistrarMeta[],
-) {
-  return catalog.map((provider) => {
-    const saved = accounts.filter(
-      (a) => a.name === provider.name && (a.saved ?? a.configured),
-    );
-    return {
-      provider,
-      accounts: saved,
-      canAddAccount: saved.some((a) => a.configured),
-    };
-  });
+export interface AccountCardModel {
+  provider: RegistrarDefinition;
+  account: RegistrarMeta;
+  /** The registrar has other accounts, so an unnamed one shows its number. */
+  hasSiblings: boolean;
 }
 
-/** The collapsed row describes the whole registrar, independently of selection.
- * Counts include every saved account's cache. Freshness covers enabled accounts
- * and uses the oldest sync so one recent account cannot hide stale siblings. */
-export function registrarSummary(
-  provider: RegistrarDefinition,
+const isSaved = (a: RegistrarMeta) => a.saved ?? a.configured;
+// Sort by what is shown: unnamed accounts by number, then nicknames by name.
+const sortKey = (a: RegistrarMeta): [number, string] => {
+  const n = accountNumber(a.accountLabel);
+  return n === null
+    ? [Number.MAX_SAFE_INTEGER, a.accountLabel!.trim()]
+    : [n, ''];
+};
+
+/** One card per account the user actually has. Every registrar also carries a
+ * placeholder account so legacy storage keys resolve; those are not cards.
+ * Sorted by registrar name, then account number, then nickname. */
+export function accountCards(
+  catalog: RegistrarDefinition[],
   accounts: RegistrarMeta[],
-): RegistrarMeta {
-  const configured = accounts.filter((account) => account.configured);
-  const active = configured.filter((account) => account.enabled);
-  const failures = active.filter((account) => account.sync.lastError);
-  return {
-    ...provider,
-    configured: configured.length > 0,
-    enabled: active.length > 0,
-    sync: {
-      domainCount: accounts.reduce(
-        (sum, account) => sum + account.sync.domainCount,
-        0,
-      ),
-      lastSyncedAt:
-        active.length > 0 &&
-        active.every((account) => account.sync.lastSyncedAt != null)
-          ? Math.min(...active.map((account) => account.sync.lastSyncedAt!))
-          : null,
-      lastError: failures.length
-        ? `${failures.length} account${failures.length === 1 ? '' : 's'} failed to sync. Expand to view account details.`
-        : null,
-    },
-  };
+): AccountCardModel[] {
+  const cards: AccountCardModel[] = [];
+  for (const provider of catalog) {
+    const saved = accounts.filter(
+      (a) => a.name === provider.name && isSaved(a),
+    );
+    for (const account of saved)
+      cards.push({ provider, account, hasSiblings: saved.length > 1 });
+  }
+  return cards.sort(
+    (a, b) =>
+      a.provider.displayName.localeCompare(b.provider.displayName) ||
+      sortKey(a.account)[0] - sortKey(b.account)[0] ||
+      sortKey(a.account)[1].localeCompare(sortKey(b.account)[1], undefined, {
+        sensitivity: 'base',
+      }) ||
+      (a.account.accountId ?? '').localeCompare(b.account.accountId ?? ''),
+  );
 }
 
 /** Account UI is useful only when a provider has more than one saved account.

@@ -76,6 +76,7 @@ const STATUSES: DomainOpStatus[] = [
   'skipped',
   'rate-limited',
   'cancelled',
+  'unknown',
 ];
 
 /** The persisted job: the public snapshot plus the runner's own state. */
@@ -229,7 +230,8 @@ export function cancelBulk(jobId?: string): void {
 function record(j: StoredJob, result: DomainOpResult): void {
   j.inFlight = j.inFlight.filter((t) => !sameTarget(t, result.target));
   j.results.push(result);
-  j.counts[result.status] += 1;
+  // `?? 0`: a job persisted by an older build has no slot for newer statuses.
+  j.counts[result.status] = (j.counts[result.status] ?? 0) + 1;
   persist();
   broadcastBulkProgress({
     jobId: j.id,

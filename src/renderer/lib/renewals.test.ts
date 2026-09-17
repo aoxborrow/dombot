@@ -34,7 +34,13 @@ function price(
 ): [string, RenewalPricing] {
   return [
     `${d.registrar}:${d.domainName}`,
-    { domain: d.domainName, registrar: d.registrar, renewal, currency: 'USD', source },
+    {
+      domain: d.domainName,
+      registrar: d.registrar,
+      renewal,
+      currency: 'USD',
+      source,
+    },
   ];
 }
 
@@ -49,7 +55,8 @@ describe('tldOf', () => {
     expect(tldOf('Example.CO.UK')).toBe('co.uk');
     expect(tldOf('example.com')).toBe('com');
   });
-  it('is empty when there is no dot', () => expect(tldOf('localhost')).toBe(''));
+  it('is empty when there is no dot', () =>
+    expect(tldOf('localhost')).toBe(''));
 });
 
 describe('summarize', () => {
@@ -83,7 +90,12 @@ describe('summarize', () => {
 
   it('handles empty input with a zero average', () => {
     const s = summarize([], {});
-    expect(s).toMatchObject({ total: 0, priced: 0, yearly: 0, avgPerDomain: 0 });
+    expect(s).toMatchObject({
+      total: 0,
+      priced: 0,
+      yearly: 0,
+      avgPerDomain: 0,
+    });
   });
 });
 
@@ -92,7 +104,11 @@ describe('groupBy', () => {
     const a = domain({ domainName: 'a.com', registrar: 'dynadot' });
     const b = domain({ domainName: 'b.com', registrar: 'dynadot' });
     const c = domain({ domainName: 'c.net', registrar: 'porkbun' });
-    const pricing = Object.fromEntries([price(a, 5), price(b, 5), price(c, 50)]);
+    const pricing = Object.fromEntries([
+      price(a, 5),
+      price(b, 5),
+      price(c, 50),
+    ]);
 
     const groups = groupBy(
       [a, b, c],
@@ -101,7 +117,12 @@ describe('groupBy', () => {
       (k) => k.toUpperCase(),
     );
     expect(groups.map((g) => g.key)).toEqual(['porkbun', 'dynadot']); // 50 > 10
-    expect(groups[0]).toMatchObject({ label: 'PORKBUN', count: 1, priced: 1, yearly: 50 });
+    expect(groups[0]).toMatchObject({
+      label: 'PORKBUN',
+      count: 1,
+      priced: 1,
+      yearly: 50,
+    });
     expect(groups[1]).toMatchObject({ count: 2, priced: 2, yearly: 10 });
   });
 
@@ -110,7 +131,12 @@ describe('groupBy', () => {
     const b = domain({ domainName: 'b.net', registrar: 'porkbun' });
     const c = domain({ domainName: 'c.net', registrar: 'porkbun' });
     // Both groups sum to 0 (unpriced) → tie broken by count.
-    const groups = groupBy([a, b, c], {}, (d) => d.registrar, (k) => k);
+    const groups = groupBy(
+      [a, b, c],
+      {},
+      (d) => d.registrar,
+      (k) => k,
+    );
     expect(groups[0].key).toBe('porkbun');
     expect(groups[0].count).toBe(2);
   });
@@ -119,8 +145,16 @@ describe('groupBy', () => {
 describe('upcomingByMonth', () => {
   it('returns a continuous strip of `months` buckets including empty ones', () => {
     const buckets = upcomingByMonth([], {}, 3);
-    expect(buckets.map((b) => b.key)).toEqual(['2026-06', '2026-07', '2026-08']);
-    expect(buckets.map((b) => b.label)).toEqual(['Jun 2026', 'Jul 2026', 'Aug 2026']);
+    expect(buckets.map((b) => b.key)).toEqual([
+      '2026-06',
+      '2026-07',
+      '2026-08',
+    ]);
+    expect(buckets.map((b) => b.label)).toEqual([
+      'Jun 2026',
+      'Jul 2026',
+      'Aug 2026',
+    ]);
     expect(buckets.every((b) => b.count === 0)).toBe(true);
   });
 
@@ -130,8 +164,14 @@ describe('upcomingByMonth', () => {
   });
 
   it('buckets by renewal month and folds past-due into the current month', () => {
-    const past = domain({ domainName: 'past.com', renewalDate: new Date('2026-01-01') });
-    const soon = domain({ domainName: 'soon.com', renewalDate: new Date('2026-07-10') });
+    const past = domain({
+      domainName: 'past.com',
+      renewalDate: new Date('2026-01-01'),
+    });
+    const soon = domain({
+      domainName: 'soon.com',
+      renewalDate: new Date('2026-07-10'),
+    });
     const pricing = Object.fromEntries([price(past, 10), price(soon, 20)]);
     const buckets = upcomingByMonth([past, soon], pricing, 3);
 
@@ -142,14 +182,24 @@ describe('upcomingByMonth', () => {
   });
 
   it('skips renewals beyond the window and invalid/missing dates', () => {
-    const far = domain({ domainName: 'far.com', renewalDate: new Date('2027-12-01') });
-    const none = domain({ domainName: 'none.com', renewalDate: null, expirationDate: null });
+    const far = domain({
+      domainName: 'far.com',
+      renewalDate: new Date('2027-12-01'),
+    });
+    const none = domain({
+      domainName: 'none.com',
+      renewalDate: null,
+      expirationDate: null,
+    });
     const buckets = upcomingByMonth([far, none], {}, 3);
     expect(buckets.every((b) => b.count === 0)).toBe(true);
   });
 
   it('falls back to expirationDate when renewalDate is missing', () => {
-    const d = domain({ domainName: 'x.com', expirationDate: new Date('2026-07-05') });
+    const d = domain({
+      domainName: 'x.com',
+      expirationDate: new Date('2026-07-05'),
+    });
     const buckets = upcomingByMonth([d], {}, 3);
     expect(buckets.find((b) => b.key === '2026-07')!.count).toBe(1);
   });
@@ -157,9 +207,18 @@ describe('upcomingByMonth', () => {
 
 describe('dueWithin', () => {
   it('counts domains due within the cutoff and sums only priced ones', () => {
-    const soon = domain({ domainName: 'soon.com', renewalDate: new Date('2026-06-20') });
-    const unpriced = domain({ domainName: 'u.com', renewalDate: new Date('2026-06-18') });
-    const later = domain({ domainName: 'later.com', renewalDate: new Date('2026-08-01') });
+    const soon = domain({
+      domainName: 'soon.com',
+      renewalDate: new Date('2026-06-20'),
+    });
+    const unpriced = domain({
+      domainName: 'u.com',
+      renewalDate: new Date('2026-06-18'),
+    });
+    const later = domain({
+      domainName: 'later.com',
+      renewalDate: new Date('2026-08-01'),
+    });
     const pricing = Object.fromEntries([price(soon, 12)]);
 
     const r = dueWithin([soon, unpriced, later], pricing, 30);

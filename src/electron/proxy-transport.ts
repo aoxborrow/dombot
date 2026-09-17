@@ -2,14 +2,11 @@ import { request } from 'node:https';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import {
   MAX_PROXY_RESPONSE_BYTES,
-  type NamecheapProxyFetch,
-} from '../core/services/namecheap-proxy';
+  ProxyStageError,
+  type ProxyFetch,
+} from '../core/services/proxy-transport';
 
-export const desktopNamecheapProxyFetch: NamecheapProxyFetch = async (
-  proxy,
-  url,
-  init,
-) => {
+export const desktopProxyFetch: ProxyFetch = async (proxy, url, init) => {
   const agent = new HttpsProxyAgent(proxy.url);
   try {
     return await new Promise<Response>((resolve, reject) => {
@@ -54,6 +51,19 @@ export const desktopNamecheapProxyFetch: NamecheapProxyFetch = async (
           });
         },
       );
+      // https-proxy-agent replays a refused CONNECT as though the registrar had
+      // answered. Report it as what it is: the tunnel never opened, so the
+      // request was never sent.
+      req.on('proxyConnect', (connect: { statusCode?: number }) => {
+        const status = connect.statusCode ?? 0;
+        if (status === 200) return;
+        const failure = new ProxyStageError(
+          status === 407 ? 'PROXY_AUTH_FAILED' : 'PROXY_CONNECT_REFUSED',
+          `proxy answered CONNECT with ${status}`,
+        );
+        reject(failure);
+        req.destroy(failure);
+      });
       req.on('error', reject);
       if (typeof init.body === 'string') req.write(init.body);
       req.end();

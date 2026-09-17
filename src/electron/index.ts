@@ -4,8 +4,8 @@ import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { forwardCoreEventsToWindows } from './events';
 import { initStorage } from './storage';
-import { configureNamecheapProxyTransport } from '../core/services/namecheap-proxy';
-import { desktopNamecheapProxyFetch } from './namecheap-proxy';
+import { configureProxyTransport } from '../core/services/proxy-transport';
+import { desktopProxyFetch } from './proxy-transport';
 import { startMcpServer, stopMcpServer } from './mcp/server';
 import { hasPairedClients } from '../core/mcp/oauth';
 import { setAppIdentity } from '../core/app-info';
@@ -182,7 +182,7 @@ function runApp(): void {
     // every namespace must be hydrated before an IPC handler or the MCP server
     // can touch one. Also runs the one-time legacy-credentials migration.
     await initStorage();
-    configureNamecheapProxyTransport(desktopNamecheapProxyFetch);
+    configureProxyTransport(desktopProxyFetch);
     // Bulk jobs: the desktop drives them in-process, and a job left running
     // by a crash/quit is closed out (never silently resumed — renew is money).
     setBulkAutoDrive(true);

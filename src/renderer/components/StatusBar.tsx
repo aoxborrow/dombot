@@ -4,7 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
-import { isDemo, isWeb, signOut, webAuthMode } from '../lib/platform';
+import {
+  isDemo,
+  isLocalWeb,
+  isWeb,
+  signOut,
+  webAuthMode,
+} from '../lib/platform';
 
 /**
  * App-wide bottom status bar (VS Code style): a thin bar fixed across the
@@ -167,6 +173,17 @@ function SessionStatus() {
         {link('Sign out', () => {
           window.location.assign('/cdn-cgi/access/logout');
         })}
+      </span>
+    );
+  }
+  if (mode === 'external' && isLocalWeb()) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5"
+        title="Served from this computer with no login"
+      >
+        {dot}
+        Local dev mode
       </span>
     );
   }

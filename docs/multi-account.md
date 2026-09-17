@@ -1,26 +1,71 @@
 # Multiple registrar accounts
 
-Settings → Registrars keeps the original one-card-per-registrar flow. Expand a card, enter its credentials, and click **Save**. A single-account registrar has no account selector, label field, or “Default” suffix. Empty registrars have no add-account action.
+Settings → Registrars shows **one card per account**. An account is one set of
+API credentials at one registrar; you can have as many as you like, including
+several at the same registrar.
 
-After the first account is saved with credentials, **Add another account** appears beside Save inside that card. It appends a separate inline credential form below the saved account, with an optional label and Cancel. The saved account’s form, selection, enabled state and sync status stay in place. Cancelling dismisses only the new form. After saving, the original account remains selected; View account explicitly switches to the newly added one. The new connection is validated before persistence, so cancellation and failed validation leave no empty account. Existing account credentials are not changed by an unsaved new-account form.
+## Adding an account
 
-The collapsed registrar row shows the combined cached domain count across its accounts, including disabled accounts, without an account name. Its Sync button syncs every configured, enabled account; its enable toggle applies to all configured accounts. The summary uses the oldest enabled account's successful sync time and surfaces pending or failed syncs instead of letting a recently synced account hide them.
+**Add registrar account**, at the top of the page, lists every supported
+registrar. Choosing one opens a new card at the top of the list with that
+registrar's credential form. Nothing is saved yet: **Add account** tests the
+connection first and only then stores the credentials and syncs the account's
+domains. A failed test or **Cancel** leaves nothing behind. One new account can
+be in progress at a time; the button is disabled until it is added or
+cancelled. With no accounts at all, the page shows the supported registrars as
+a grid of buttons that do the same thing.
 
-Only a registrar with multiple saved accounts gains an **Account** selector inside the expanded card. It selects the account whose credentials, count, sync status, Sync account button, and individual enable toggle appear below the registrar summary. Changing this selection leaves the header total unchanged. Rename and Remove account are available in this mode. Removing extra accounts returns a single-account registrar to its original presentation while keeping the surviving ID and label in storage.
+## Numbers and nicknames
 
-Domains and Renewals combine enabled accounts. Their Account column/filter appears only if at least one registrar has multiple accounts. Registrars with only one account do not display a redundant default label, including in a mixed portfolio. Exports and MCP retain account identity for reliable routing regardless of which UI fields are visible.
+You never have to name an account. A registrar's only account is shown as just
+"Dynadot". Once a registrar has more than one, unnamed accounts are told apart
+by number: "Dynadot #1", "Dynadot #2". Numbers are stable. Removing #1 does not
+turn #2 into #1, and the next account added takes the number after the highest
+in use.
 
-Disabling an account keeps its credentials and cache but removes it from the visible portfolio and future syncs. Enabling syncs it again. A failed sync keeps its last successful domains and timestamp and reports the error on that account. Removing an account clears its credentials, portfolio, and detail cache. It never removes another account's data.
+To give an account a nickname, expand its card and click the pencil beside the
+title. Type a name and press Enter (or click away) to save; Escape cancels. The
+card then reads "Dynadot · Personal", and a nickname is shown even when the
+account is the only one. Clearing the field removes the nickname and the
+account goes back to a number, the lowest its siblings aren't using. Renaming
+is separate from the credentials form and takes effect immediately.
+
+Nicknames are unique within a registrar, ignoring case, and can't be something
+that would display like another account (naming one "#1" while an unnamed #1
+exists). The same nickname can be reused at a different registrar. They are
+display names only, never routing identifiers.
+
+Under the hood every account still stores a label. The ones DomBot assigned
+(`Default` for accounts adopted from before multi-account support, `Main` from
+earlier versions, `Account N` now) all stand for a number and are never shown as
+written. The number or nickname appears the same way in the cards, the Domains
+and Renewals Account column and filters, sync errors, the Proxy page and CSV
+exports. MCP returns the stored label unchanged.
+
+## The account card
+
+Collapsed, a card shows the enable switch, the registrar with its number or
+nickname, the last sync result and domain count, and a **Sync** button.
+Expanded, the title gains the rename pencil, and the body holds the
+credentials, the **Use fixed IP proxy** toggle, **Save**, and **Remove
+account**. Cards are sorted by registrar, then number, then nickname.
+
+Everything on a card applies to that account only. There are no
+registrar-wide controls: the toolbar's Sync refreshes every enabled account.
+
+Domains and Renewals combine enabled accounts. Their Account column/filter appears only if at least one registrar has multiple accounts. Registrars with only one account do not display a redundant number, including in a mixed portfolio. Exports and MCP retain account identity for reliable routing regardless of which UI fields are visible.
+
+Disabling an account keeps its credentials and cache but removes it from the visible portfolio and future syncs. Enabling syncs it again. A failed sync keeps its last successful domains and timestamp and reports the error on that account. Removing an account clears its credentials, portfolio, and detail cache, and works for a registrar's only account too; the registrar stays available from **Add registrar account**. It never removes another account's data.
 
 ## Existing data and backups
 
 Existing single-account installations are adopted in place as a **Default** account for each provider. The account ID remains the existing provider key, such as `dynadot`. No credentials need to be re-entered, and existing folder assignments, manual prices, disabled state, and compatible caches remain associated with that account. New accounts receive UUIDs. Labels are editable display names, never routing identifiers.
 
-Credentials remain in the existing encrypted namespace: OS encryption on desktop, and AES-GCM on the self-hosted web host. Account metadata and cached slices travel in data exports. New exports use bundle format **2**, supported by both updated hosts. Format **1** imports are accepted; older Dombot versions reject format 2 instead of silently dropping account metadata. Move multi-account backups only between updated builds.
+Credentials remain in the existing encrypted namespace: OS encryption on desktop, and AES-GCM on the self-hosted web host. Account metadata and cached slices travel in data exports. Exports have used bundle format **2** since multi-account support, and use format **3** now that the fixed IP proxy is stored separately from credentials (see [self-hosting.md](self-hosting.md#optional-fixed-ip-proxy)). Formats **1** and **2** are accepted on import. Older DomBot versions reject a newer format instead of silently dropping what they don't understand, so move backups only between updated builds.
 
 ## MCP
 
-Start with `registrar_list`. Its `accounts` array includes `accountId`, `registrar`, `label`, `configured`, `enabled`, and per-account `sync` state, without secrets. `portfolio_query` rows and sync errors carry account identity. It also accepts an `accountId` filter.
+Start with `registrar_list`. Its `accounts` array includes `accountId`, `registrar`, `label`, `configured`, `enabled`, `proxy` (whether the account is routed through the fixed IP proxy), and per-account `sync` state, without secrets. `portfolio_query` rows and sync errors carry account identity. It also accepts an `accountId` filter.
 
 Every registrar-scoped and domain-scoped tool accepts an optional `accountId`:
 

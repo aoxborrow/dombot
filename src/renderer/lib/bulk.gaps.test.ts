@@ -47,6 +47,7 @@ function job(op: DomainOp, results: DomainOpResult[]): BulkJob {
       skipped: 0,
       'rate-limited': 0,
       cancelled: 0,
+      unknown: 0,
     },
     startedAt: Date.parse('2026-09-04T00:00:00Z'),
     finishedAt: Date.parse('2026-09-04T00:01:00Z'),

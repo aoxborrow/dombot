@@ -83,13 +83,15 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.getRegistrarMetadata),
   getRegistrarCredentials: (name, accountId) =>
     ipcRenderer.invoke(IpcChannels.getRegistrarCredentials, name, accountId),
-  saveRegistrarCredentials: (name, creds, accountId) =>
-    ipcRenderer.invoke(
-      IpcChannels.saveRegistrarCredentials,
-      name,
-      creds,
-      accountId,
-    ),
+  saveRegistrarCredentials: (...args) =>
+    ipcRenderer.invoke(IpcChannels.saveRegistrarCredentials, ...args),
+  getProxySettings: () => ipcRenderer.invoke(IpcChannels.getProxySettings),
+  saveProxySettings: (proxy) =>
+    ipcRenderer.invoke(IpcChannels.saveProxySettings, proxy),
+  removeProxySettings: () =>
+    ipcRenderer.invoke(IpcChannels.removeProxySettings),
+  testProxySettings: (proxy) =>
+    ipcRenderer.invoke(IpcChannels.testProxySettings, proxy),
   setRegistrarEnabled: (name, enabled, accountId) =>
     ipcRenderer.invoke(
       IpcChannels.setRegistrarEnabled,

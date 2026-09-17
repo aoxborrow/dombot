@@ -120,6 +120,7 @@ describe('resultsToCsv', () => {
         skipped: 0,
         'rate-limited': 0,
         cancelled: 0,
+        unknown: 0,
       },
       startedAt: 0,
       finishedAt: 1,

@@ -24,17 +24,25 @@ beforeEach(() => {
   db = {
     prepare(sql: string) {
       const stmt = sqlite.prepare(sql);
-      const bind = (...values: (string | number)[]) => ({
-        async first() {
-          return stmt.get(...values) ?? null;
-        },
-        async run() {
-          return stmt.run(...values);
-        },
-        async all() {
-          return { results: stmt.all(...values) };
-        },
-      });
+      // The production SQL uses D1's numbered placeholders (?1, ?2). Bind by
+      // number, as D1 does: older node:sqlite (22.14, 24.1) treats ?NNN as a
+      // named parameter and rejects positional values for it.
+      const bind = (...values: (string | number)[]) => {
+        const params = Object.fromEntries(
+          values.map((value, i) => [String(i + 1), value]),
+        );
+        return {
+          async first() {
+            return stmt.get(params) ?? null;
+          },
+          async run() {
+            return stmt.run(params);
+          },
+          async all() {
+            return { results: stmt.all(params) };
+          },
+        };
+      };
       return { ...bind(), bind };
     },
   } as unknown as D1Database;

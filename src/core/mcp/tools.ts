@@ -419,6 +419,9 @@ export function registerTools(server: McpServer): void {
           label: r.accountLabel,
           configured: r.configured,
           enabled: r.enabled,
+          // Whether its API traffic goes through the fixed IP proxy. Never the
+          // proxy's address or credentials.
+          proxy: Boolean(r.proxy),
           sync: r.sync,
         })),
         configured: getConfiguredRegistrars(),

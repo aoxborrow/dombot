@@ -114,9 +114,11 @@ export const STATUS_LABEL: Record<DomainOpStatus, string> = {
   skipped: 'Skipped',
   'rate-limited': 'Rate limited',
   cancelled: 'Cancelled',
+  unknown: 'Unconfirmed',
 };
 
-/** Statuses worth a retry. */
+/** Statuses worth a retry. Not `unknown`: that one may have been applied, so
+ * the user checks the domain before deciding. */
 export function isRetryable(status: DomainOpStatus): boolean {
   return (
     status === 'failed' || status === 'rate-limited' || status === 'cancelled'

@@ -5,11 +5,7 @@ import type {
   RegistrarMeta,
   RegistrarName,
 } from '../../shared/ipc';
-import {
-  multiAccountRegistrars,
-  registrarGroups,
-  registrarSummary,
-} from './registrar-accounts';
+import { accountCards, multiAccountRegistrars } from './registrar-accounts';
 
 const provider = (name: RegistrarName): RegistrarDefinition => ({
   name,
@@ -34,141 +30,79 @@ const account = (
 });
 const catalog = [provider('dynadot'), provider('porkbun')];
 
-describe('registrar row totals', () => {
-  it('sums all accounts without exposing an account identity or overstating freshness', () => {
-    const accounts = [
-      account('dynadot', 'first', {
-        sync: { lastSyncedAt: 100, lastError: null, domainCount: 632 },
-      }),
-      account('dynadot', 'second', {
-        sync: { lastSyncedAt: 300, lastError: null, domainCount: 75 },
-      }),
-      account('dynadot', 'third', {
-        sync: { lastSyncedAt: 200, lastError: null, domainCount: 32 },
-      }),
-    ];
-    const summary = registrarSummary(catalog[0], accounts);
-    expect(summary.sync).toEqual({
-      lastSyncedAt: 100,
-      lastError: null,
-      domainCount: 739,
-    });
-    expect(summary.accountId).toBeUndefined();
-    expect(summary.accountLabel).toBeUndefined();
-    expect(registrarSummary(catalog[0], [...accounts].reverse())).toEqual(
-      summary,
-    );
-  });
-
-  it('does not hide an unsynced or failed sibling behind a successful account', () => {
-    const ready = account('dynadot', 'ready', {
-      sync: { lastSyncedAt: 100, lastError: null, domainCount: 10 },
-    });
-    const pending = account('dynadot', 'pending');
-    expect(
-      registrarSummary(catalog[0], [ready, pending]).sync.lastSyncedAt,
-    ).toBeNull();
-    const failed = account('dynadot', 'failed', {
-      sync: { lastSyncedAt: 50, lastError: 'bad key', domainCount: 4 },
-    });
-    expect(registrarSummary(catalog[0], [ready, failed]).sync).toEqual({
-      lastSyncedAt: 50,
-      lastError: '1 account failed to sync. Expand to view account details.',
-      domainCount: 14,
-    });
-  });
-
-  it('includes disabled account counts without treating their old errors as active failures', () => {
-    const disabled = account('dynadot', 'disabled', {
-      enabled: false,
-      sync: { lastSyncedAt: null, lastError: 'old error', domainCount: 5 },
-    });
-    const active = account('dynadot', 'active', {
-      sync: { lastSyncedAt: 100, lastError: null, domainCount: 10 },
-    });
-    expect(registrarSummary(catalog[0], [disabled, active])).toMatchObject({
-      configured: true,
-      enabled: true,
-      sync: { lastSyncedAt: 100, lastError: null, domainCount: 15 },
-    });
-    expect(registrarSummary(catalog[0], [disabled])).toMatchObject({
-      configured: true,
-      enabled: false,
-    });
-  });
-
-  it('keeps an empty registrar unconfigured and preserves a single account count', () => {
-    expect(registrarSummary(catalog[0], [])).toMatchObject({
-      configured: false,
-      enabled: false,
-      sync: { domainCount: 0 },
-    });
-    const single = account('dynadot', 'only', {
-      sync: { lastSyncedAt: 100, lastError: null, domainCount: 632 },
-    });
-    expect(registrarSummary(catalog[0], [single]).sync).toEqual(single.sync);
-  });
-});
-
-describe('progressive registrar account UI', () => {
-  it('keeps the original empty registrar cards, without offering another account', () => {
+describe('one card per account', () => {
+  it('shows no cards for the placeholder accounts of unconfigured registrars', () => {
     const placeholders = catalog.map((p) =>
       account(p.name, p.name, { saved: false, configured: false }),
     );
-    const groups = registrarGroups(catalog, placeholders);
-    expect(groups).toHaveLength(2);
-    expect(
-      groups.every((g) => !g.canAddAccount && g.accounts.length === 0),
-    ).toBe(true);
+    expect(accountCards(catalog, placeholders)).toEqual([]);
     expect(multiAccountRegistrars(placeholders).size).toBe(0);
   });
 
-  it('shows Add another only after credentials are saved, not after a label-only record', () => {
-    const incomplete = account('dynadot', 'second', { configured: false });
-    expect(registrarGroups(catalog, [incomplete])[0].canAddAccount).toBe(false);
-    const configured = { ...incomplete, configured: true };
-    expect(registrarGroups(catalog, [configured])[0].canAddAccount).toBe(true);
-    expect(registrarGroups(catalog, [configured])[1].canAddAccount).toBe(false);
-  });
-
-  it('does not add Account fields when each registrar holds one account, including migrated UUID accounts', () => {
+  it('gives each saved account its own card, with no siblings to number against', () => {
     const accounts = [account('dynadot', 'uuid-one'), account('porkbun')];
+    const cards = accountCards(catalog, accounts);
+    expect(cards.map((c) => c.account.accountId)).toEqual([
+      'uuid-one',
+      'porkbun',
+    ]);
+    expect(cards.every((c) => !c.hasSiblings)).toBe(true);
     expect(multiAccountRegistrars(accounts).size).toBe(0);
-    expect(
-      registrarGroups(catalog, accounts).map((g) => g.accounts.length),
-    ).toEqual([1, 1]);
   });
 
-  it('layers three Dynadot accounts into one card and exposes account UI only for Dynadot', () => {
+  it('flags siblings only for registrars with several accounts', () => {
     const accounts = [
-      account('dynadot', 'first'),
-      account('dynadot', 'second'),
-      account('dynadot', 'third'),
+      account('dynadot', 'first', { accountLabel: 'Personal' }),
+      account('dynadot', 'second', { accountLabel: 'Agency' }),
       account('porkbun'),
     ];
-    expect(
-      registrarGroups(catalog, accounts).map((g) =>
-        g.accounts.map((a) => a.accountId),
-      ),
-    ).toEqual([['first', 'second', 'third'], ['porkbun']]);
+    const cards = accountCards(catalog, accounts);
+    expect(cards.map((c) => [c.account.accountId, c.hasSiblings])).toEqual([
+      ['second', true],
+      ['first', true],
+      ['porkbun', false],
+    ]);
     expect([...multiAccountRegistrars(accounts)]).toEqual(['dynadot']);
   });
 
-  it('does not count the unused legacy placeholder as a second account', () => {
-    expect(
-      multiAccountRegistrars([
-        account('dynadot', 'dynadot', { saved: false, configured: false }),
-        account('dynadot', 'new'),
-      ]).size,
-    ).toBe(0);
+  it('sorts by registrar, then unnamed accounts by number, then nicknames by name, whatever the input order', () => {
+    const accounts = [
+      account('porkbun', 'p2', { accountLabel: 'zeta' }),
+      account('dynadot', 'd3', { accountLabel: 'beta' }),
+      account('dynadot', 'd10', { accountLabel: 'Account 10' }),
+      account('porkbun', 'p1', { accountLabel: 'Alpha' }),
+      account('dynadot', 'd2', { accountLabel: 'Account 2' }),
+      account('dynadot', 'd1', { accountLabel: 'Default' }),
+    ];
+    const order = (list: RegistrarMeta[]) =>
+      accountCards(catalog, list).map((c) => c.account.accountId);
+    const expected = ['d1', 'd2', 'd10', 'd3', 'p1', 'p2'];
+    expect(order(accounts)).toEqual(expected);
+    expect(order([...accounts].reverse())).toEqual(expected);
   });
 
-  it('keeps disabled accounts selectable, but removes the account layer after deletion', () => {
+  it('keeps a disabled or credential-less saved account as a card', () => {
+    const disabled = account('dynadot', 'off', { enabled: false });
+    const incomplete = account('porkbun', 'half', { configured: false });
+    expect(accountCards(catalog, [disabled, incomplete])).toHaveLength(2);
+  });
+
+  it('does not count the unused legacy placeholder as a sibling', () => {
+    const accounts = [
+      account('dynadot', 'dynadot', { saved: false, configured: false }),
+      account('dynadot', 'new'),
+    ];
+    const cards = accountCards(catalog, accounts);
+    expect(cards.map((c) => c.account.accountId)).toEqual(['new']);
+    expect(cards[0].hasSiblings).toBe(false);
+    expect(multiAccountRegistrars(accounts).size).toBe(0);
+  });
+
+  it('drops the account layer in Domains after a sibling is removed', () => {
     const a = account('dynadot', 'first');
     const b = account('dynadot', 'second', { enabled: false });
     expect(multiAccountRegistrars([a, b]).has('dynadot')).toBe(true);
     expect(multiAccountRegistrars([a]).size).toBe(0);
-    expect(registrarGroups(catalog, [a])[0].canAddAccount).toBe(true);
   });
 
   it('uses distinct cached identities during hydration, then honors current metadata after account removal', () => {

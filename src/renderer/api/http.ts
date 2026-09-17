@@ -355,6 +355,10 @@ export function createHttpApi(): DombotApi {
     getRegistrarMetadata: m('getRegistrarMetadata'),
     getRegistrarCredentials: m('getRegistrarCredentials'),
     saveRegistrarCredentials: m('saveRegistrarCredentials'),
+    getProxySettings: m('getProxySettings'),
+    saveProxySettings: m('saveProxySettings'),
+    removeProxySettings: m('removeProxySettings'),
+    testProxySettings: m('testProxySettings'),
     setRegistrarEnabled: async (name, enabled, accountId) =>
       reviveDomains(
         await call<Awaited<ReturnType<DombotApi['setRegistrarEnabled']>>>(
