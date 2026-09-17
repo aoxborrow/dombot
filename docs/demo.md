@@ -77,6 +77,8 @@ provider behind `getRegistrarClient()`.
    `site/vite.config.ts`). The release workflow rewrites and commits that
    file right after publishing, and that push is what rebuilds the site.
 
+Linked from the site's nav and hero and from the README.
+
 Open: whether visitor changes persist across reloads (`localStorage` mirror
 plus Reset) and whether the desktop app gets a "try with sample data" mode,
 which the same seed would provide.
