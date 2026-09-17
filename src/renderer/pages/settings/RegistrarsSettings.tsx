@@ -918,7 +918,7 @@ function ProxyToggle({
 }) {
   const proxyLink = (
     <Link to="/settings?tab=proxy" className="underline underline-offset-4">
-      proxy
+      configured proxy
     </Link>
   );
   return (
@@ -935,7 +935,16 @@ function ProxyToggle({
       </div>
       <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
         {!proxy ? (
-          <>Set up your {proxyLink} to use this.</>
+          <>
+            Set up a{' '}
+            <Link
+              to="/settings?tab=proxy"
+              className="underline underline-offset-4"
+            >
+              proxy
+            </Link>{' '}
+            to use this.
+          </>
         ) : enabled ? (
           <>
             This account&apos;s requests go through your proxy, and{' '}
