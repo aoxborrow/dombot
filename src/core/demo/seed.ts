@@ -982,30 +982,34 @@ export function generateDemoSeed(
     names.filter((n) => tlds.includes(n.slice(n.indexOf('.') + 1)));
   const folders: DemoFolder[] = [
     {
-      name: 'Client sites',
-      color: 'blue',
-      description: 'Managed on behalf of clients',
-      domains: byTld(['studio', 'design', 'cafe', 'co']).concat(
-        names.filter((_, i) => i % 13 === 4).slice(0, 8),
-      ),
+      name: 'For Sale',
+      color: 'amber',
+      description: 'Listed, or should be',
+      domains: names.filter((_, i) => i % 11 === 3).slice(0, 30),
     },
     {
-      name: 'Side projects',
+      name: 'Personal',
+      color: 'blue',
+      description: 'Not for sale at any price',
+      domains: names.filter((_, i) => i % 9 === 0).slice(0, 24),
+    },
+    {
+      name: 'Projects',
       color: 'violet',
       description: 'Things that shipped, or nearly did',
       domains: byTld(['dev', 'app', 'sh', 'tech']),
     },
     {
-      name: 'Keepers',
-      color: 'green',
-      description: 'Never let these lapse',
-      domains: names.filter((_, i) => i % 9 === 0).slice(0, 40),
+      name: 'Dropping',
+      color: 'red',
+      description: 'Letting these expire',
+      domains: names.filter((_, i) => i % 17 === 6).slice(0, 8),
     },
     {
-      name: 'For sale',
-      color: 'amber',
-      description: 'Listed, or should be',
-      domains: names.filter((_, i) => i % 11 === 3).slice(0, 30),
+      name: 'Transfer',
+      color: 'orange',
+      description: 'Moving to a cheaper registrar',
+      domains: names.filter((_, i) => i % 19 === 2).slice(0, 6),
     },
   ];
   // A domain lives in one folder at most; earlier folders win.

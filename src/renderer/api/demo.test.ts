@@ -30,7 +30,7 @@ describe('createDemoApi', () => {
     const creds = await api.getRegistrarCredentials('porkbun');
     expect(creds.apiKey).toMatch(/^pk1_demo_/);
     expect((await api.getMcpInfo()).running).toBe(false);
-    expect((await api.getFolders()).folders.length).toBe(4);
+    expect((await api.getFolders()).folders.length).toBe(5);
   });
 
   it('validates arguments like the other hosts', async () => {
