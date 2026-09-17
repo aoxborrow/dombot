@@ -55,6 +55,7 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import {
   Select,
   SelectContent,
@@ -162,7 +163,7 @@ export default function RegistrarsSettings() {
         {loaded && cards.length > 0 && (
           <AddAccountMenu
             catalog={sortedCatalog}
-            disabled={draft !== null || isDemo()}
+            disabled={draft !== null}
             onPick={startDraft}
           />
         )}
@@ -217,11 +218,7 @@ function AddAccountMenu({
         <Button
           disabled={disabled}
           title={
-            isDemo()
-              ? 'Adding accounts is turned off in the demo'
-              : disabled
-                ? 'Finish or cancel the new account first'
-                : undefined
+            disabled ? 'Finish or cancel the new account first' : undefined
           }
         >
           <Plus />
@@ -446,7 +443,10 @@ function AccountCard({
   };
 
   const busy = saving || syncing || toggling || loading;
-  // The demo shows the form (with its stub credentials) but takes no edits.
+  // The demo is fully interactive over its browser-local data (edit keys, Save,
+  // toggle, rename — the fake registrar always connects). `locked` stays only
+  // on the two things that don't make sense there: Remove (wipes sample data)
+  // and the fixed-IP proxy toggle (no real proxy in the demo).
   const locked = busy || isDemo();
   const { configured, enabled, sync } = account;
   const hasCredentials = Object.values(values).some((v) => v.trim());
@@ -484,7 +484,7 @@ function AccountCard({
               <Switch
                 checked={configured && enabled}
                 onCheckedChange={(v) => void toggleEnabled(v)}
-                disabled={locked || !configured}
+                disabled={busy || !configured}
                 aria-label={
                   configured
                     ? `${enabled ? 'Disable' : 'Enable'} ${title}`
@@ -537,7 +537,7 @@ function AccountCard({
                   variant="ghost"
                   size="icon"
                   className="size-6 shrink-0 text-muted-foreground/60 hover:text-foreground sm:-ml-2.5"
-                  disabled={locked}
+                  disabled={busy}
                   aria-label={
                     hasNickname
                       ? `Rename ${title}`
@@ -645,7 +645,7 @@ function AccountCard({
                 provider={provider}
                 idPrefix={id}
                 values={values}
-                disabled={locked}
+                disabled={busy}
                 onChange={(name, value) =>
                   setValues((current) => ({ ...current, [name]: value }))
                 }
@@ -665,7 +665,10 @@ function AccountCard({
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <Button
                 type="submit"
-                disabled={locked || missingRequired || !hasCredentials}
+                // Save works in the demo too — it's all browser-local, and the
+                // fake registrar always connects, so editing keys + Save just
+                // re-syncs the same sample domains (no error path).
+                disabled={busy || missingRequired || !hasCredentials}
               >
                 {saving ? 'Saving…' : 'Save'}
               </Button>
@@ -1066,11 +1069,21 @@ function CredentialFields({
                   </SelectGroup>
                 </SelectContent>
               </Select>
+            ) : field.type === 'password' ? (
+              <PasswordInput
+                id={id}
+                value={values[field.name] ?? ''}
+                disabled={disabled}
+                autoComplete="off"
+                spellCheck={false}
+                className="font-mono"
+                onChange={(e) => onChange(field.name, e.target.value)}
+              />
             ) : (
               <Input
                 id={id}
                 value={values[field.name] ?? ''}
-                type={field.type === 'password' ? 'password' : 'text'}
+                type="text"
                 disabled={disabled}
                 autoComplete="off"
                 spellCheck={false}
