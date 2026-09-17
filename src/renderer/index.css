@@ -16,6 +16,10 @@
   /* Brand green, matching the marketing site's primary CTA. */
   --primary: #31613b;
   --primary-foreground: #ffffff;
+  /* Brand green as a foreground accent — logo, status dots, success text —
+     on the page background. Flips with the theme so it keeps its contrast;
+     --primary (filled buttons, white text) stays the deep green in both. */
+  --brand: #31613b;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -41,7 +45,8 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   /* Floating menus: wide ambient layer + tight contact layer. */
-  --dropdown-shadow: 0 18px 50px 6px rgb(0 0 0 / 0.12), 0 4px 16px rgb(0 0 0 / 0.08);
+  --dropdown-shadow:
+    0 18px 50px 6px rgb(0 0 0 / 0.12), 0 4px 16px rgb(0 0 0 / 0.08);
 }
 
 .dark {
@@ -55,6 +60,7 @@
   /* Brand green with light text — replaces the default near-white button. */
   --primary: #31613b;
   --primary-foreground: #ffffff;
+  --brand: #7ac28d;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -79,7 +85,8 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-  --dropdown-shadow: 0 18px 50px 6px rgb(0 0 0 / 0.75), 0 4px 16px rgb(0 0 0 / 0.6);
+  --dropdown-shadow:
+    0 18px 50px 6px rgb(0 0 0 / 0.75), 0 4px 16px rgb(0 0 0 / 0.6);
 }
 
 @theme inline {
@@ -95,6 +102,7 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
+  --color-brand: var(--brand);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);

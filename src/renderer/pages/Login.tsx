@@ -43,7 +43,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
       >
         <div>
           <h1 className="text-xl font-bold tracking-tight">
-            Dom<span style={{ color: '#7ac28d' }}>Bot</span>
+            Dom<span className="text-brand">Bot</span>
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Enter this instance&apos;s password to continue.

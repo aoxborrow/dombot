@@ -977,7 +977,7 @@ function ProxyToggle({
               aria-label="Copy outgoing IP address"
               className={cn(
                 'size-5 shrink-0 text-muted-foreground hover:text-foreground',
-                copied && 'text-[#7ac28d] hover:text-[#7ac28d]',
+                copied && 'text-brand hover:text-brand',
               )}
             >
               {copied ? (
@@ -1005,7 +1005,8 @@ function ProxyToggle({
           <>
             This account&apos;s requests go through your proxy, so{' '}
             {provider.displayName} sees them arrive from a fixed address.
-            Whitelist this IP address in the {provider.displayName} API settings.
+            Whitelist this IP address in the {provider.displayName} API
+            settings.
           </>
         ) : (
           <>Send this account&apos;s requests through your {proxyLink}.</>
@@ -1178,8 +1179,8 @@ function SyncStatus({
   }
   return (
     <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 max-sm:w-full">
-      <span className="size-2 shrink-0 rounded-full bg-[#31613b] dark:bg-[#7ac28d]" />
-      <span className="whitespace-nowrap text-[13px] font-medium text-[#31613b] dark:text-[#7ac28d]">
+      <span className="size-2 shrink-0 rounded-full bg-brand" />
+      <span className="whitespace-nowrap text-[13px] font-medium text-brand">
         Last synced {timeAgo(lastSyncedAt)}
       </span>
       {showCount && (

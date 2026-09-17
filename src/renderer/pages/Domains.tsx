@@ -1302,9 +1302,7 @@ export default function Domains() {
             <span
               className={cn(
                 'inline-flex items-center gap-1.5 text-sm sm:order-last',
-                exportNote.error
-                  ? 'text-destructive'
-                  : 'text-[#31613b] dark:text-[#7ac28d]',
+                exportNote.error ? 'text-destructive' : 'text-brand',
               )}
               role="status"
             >

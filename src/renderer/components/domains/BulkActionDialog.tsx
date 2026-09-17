@@ -679,7 +679,7 @@ function summarize(j: BulkJob): string {
 }
 
 const DOT: Record<DomainOpStatus, string> = {
-  ok: 'bg-[#7ac28d]',
+  ok: 'bg-brand',
   failed: 'bg-red-500',
   unsupported: 'bg-amber-500',
   skipped: 'bg-muted-foreground/50',

@@ -92,7 +92,7 @@ export default function StatusBar() {
           <span
             className={cn(
               'size-2 rounded-full',
-              mcpRunning ? 'bg-[#7ac28d]' : 'bg-muted-foreground/30',
+              mcpRunning ? 'bg-brand' : 'bg-muted-foreground/30',
             )}
             aria-hidden
           />
@@ -135,7 +135,7 @@ export default function StatusBar() {
               <span
                 className={cn(
                   'size-2 rounded-full',
-                  allSynced ? 'bg-[#7ac28d]' : 'bg-amber-500 dark:bg-amber-400',
+                  allSynced ? 'bg-brand' : 'bg-amber-500 dark:bg-amber-400',
                 )}
                 aria-hidden
               />
@@ -155,7 +155,7 @@ export default function StatusBar() {
  */
 function SessionStatus() {
   const mode = webAuthMode();
-  const dot = <span className="size-2 rounded-full bg-[#7ac28d]" aria-hidden />;
+  const dot = <span className="size-2 rounded-full bg-brand" aria-hidden />;
   const link = (label: string, onClick: () => void) => (
     <button
       type="button"

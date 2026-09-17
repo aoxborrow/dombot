@@ -207,10 +207,10 @@ export default function ProxySettings() {
                 Proxy IPv4 address
               </FieldLabel>
               <FieldDescription className="text-[13px]">
-                The outgoing IP address registrars see, which may differ from the
-                proxy endpoint. Whitelist it in each registrar&apos;s API
-                settings. Clicking the &ldquo;Test&rdquo; button will fill in the
-                IP address here.
+                The outgoing IP address registrars see, which may differ from
+                the proxy endpoint. Whitelist it in each registrar&apos;s API
+                settings. Clicking the &ldquo;Test&rdquo; button will fill in
+                the IP address here.
               </FieldDescription>
               <Input
                 id="proxy-egress-ip"
@@ -265,7 +265,7 @@ export default function ProxySettings() {
               role="status"
               className={
                 test.matches
-                  ? 'mt-3 flex items-start gap-1.5 text-sm text-[#31613b] dark:text-[#7ac28d]'
+                  ? 'mt-3 flex items-start gap-1.5 text-sm text-brand'
                   : 'mt-3 flex items-start gap-1.5 text-sm text-amber-600 dark:text-amber-400'
               }
             >

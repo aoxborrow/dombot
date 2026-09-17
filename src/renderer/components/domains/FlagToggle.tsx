@@ -111,7 +111,7 @@ export function FlagToggle({
       <Icon
         className={cn(
           'size-4',
-          value ? 'text-[#7ac28d]/85' : 'text-muted-foreground/50',
+          value ? 'text-brand/85' : 'text-muted-foreground/50',
         )}
       />
     </button>
