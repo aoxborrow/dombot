@@ -24,8 +24,7 @@ on:
         default: false
 
 permissions:
-  contents: write # create tags/releases and upload assets
-  actions: write # dispatch the deploy-site workflow after publishing
+  contents: write # create tags/releases, upload assets, commit site/release.json
   id-token: write # mint the OIDC token that signs build provenance
   attestations: write # record build-provenance attestations for the artifacts
 
@@ -245,10 +244,27 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release edit "${{ needs.setup.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft=false --latest
 
-      - name: Rebuild the site with the new release
-        # Publishing with GITHUB_TOKEN doesn't fire `release: published` for other
-        # workflows (anti-recursion), so trigger deploy-site explicitly to refresh
-        # the download links + version. workflow_dispatch IS allowed via GITHUB_TOKEN.
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Record the release for the site
+        # The landing page bakes its download links from site/release.json at
+        # build time. Committing it here is what redeploys the site: Cloudflare's
+        # Workers Builds rebuilds dombot.ai on every push to main (docs/demo.md).
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run deploy-site.yml --repo "$GITHUB_REPOSITORY" --ref main
+          TAG: ${{ needs.setup.outputs.tag }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,assets \
+            --jq '{tagName, assets: [.assets[] | {name, url}]}' > site/release.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/release.json
+          if git diff --cached --quiet; then
+            echo "site/release.json already current."
+          else
+            git commit -m "site: $TAG download links"
+            git push origin HEAD:main
+          fi

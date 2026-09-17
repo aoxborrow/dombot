@@ -53,26 +53,29 @@ provider behind `getRegistrarClient()`.
    adding registrar credentials, the MCP switch, Import. Sync, export and
    CSV still work.
 4. ✅ Published at **demo.dombot.ai** as a static-assets Worker
-   (`wrangler.demo.jsonc`, `npm run demo:deploy`), redeployed by
-   `.github/workflows/deploy-demo.yml` on every merge to main that touches
-   the app. The workflow runs only in the upstream repository (gated on the
-   repo name) and only when its own secrets are set, so a fork never
-   deploys a demo, and the Deploy button / `web:deploy` never read this
-   config.
+   (`wrangler.demo.jsonc`, `npm run demo:deploy`). The marketing site deploys
+   the same way, as the `dombot-site` Worker on dombot.ai
+   (`wrangler.site.jsonc`, `npm run site:deploy`).
 
-   One-time setup (upstream only):
-   - The `dombot.ai` zone is on Cloudflare DNS (a Workers custom domain
-     needs that). The marketing site deploys the same way, as the
-     `dombot-site` Worker (`wrangler.site.jsonc`, `deploy-site.yml`,
-     `npm run site:deploy`).
-   - A Cloudflare API token with **Workers Scripts: Edit** on the account
-     and **Workers Routes: Edit** + **DNS: Edit** on the `dombot.ai` zone
-     (custom domains create their own DNS records), stored as the repo
-     secret `DOMBOT_CLOUDFLARE_API_TOKEN`, plus
-     `DOMBOT_CLOUDFLARE_ACCOUNT_ID`. One token covers both Workers. The
-     names are deliberately _not_ the `CLOUDFLARE_*` ones the self-hosting
-     workflow uses, so setting one can't switch on the other.
-   - The first deploy of each Worker attaches its custom domain.
+   Both redeploy on every push to main through **Workers Builds**,
+   Cloudflare's Git integration, configured per Worker in the dashboard. No
+   API token and no GitHub secrets are involved, and because the connection
+   lives in the upstream Cloudflare account rather than in the repo, a fork
+   can't deploy either one. The Deploy button and `web:deploy` only ever
+   read the root `wrangler.jsonc`.
+
+   | Worker        | Build command        | Deploy command                               | Watch paths                                      |
+   | ------------- | -------------------- | -------------------------------------------- | ------------------------------------------------ |
+   | `dombot-demo` | `npm run demo:build` | `npx wrangler deploy -c wrangler.demo.jsonc` | `src/*`, `data/*`, `package*.json`, `*demo*`     |
+   | `dombot-site` | `npm run site:build` | `npx wrangler deploy -c wrangler.site.jsonc` | `site/*`, `scripts/inject-release.mjs`, `*site*` |
+
+   Set the build variable `ELECTRON_SKIP_BINARY_DOWNLOAD=1` on both so the
+   install step doesn't fetch Electron.
+
+   Release links: the site bakes its download buttons from
+   `site/release.json` at build time (a `transformIndexHtml` hook in
+   `site/vite.config.ts`). The release workflow rewrites and commits that
+   file right after publishing, and that push is what rebuilds the site.
 
 Open: whether visitor changes persist across reloads (`localStorage` mirror
 plus Reset) and whether the desktop app gets a "try with sample data" mode,

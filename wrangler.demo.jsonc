@@ -4,8 +4,9 @@
 //
 // This is NOT the self-hosting config. `wrangler.jsonc` (the root) is what
 // the Deploy button and `npm run web:deploy` use; this file is only ever read
-// by .github/workflows/deploy-demo.yml, which runs solely in the upstream
-// repository, and by `npx wrangler deploy -c wrangler.demo.jsonc` by hand.
+// by Cloudflare's Workers Builds for this Worker (connected to the upstream
+// repository in the dashboard — see docs/demo.md), and by
+// `npm run demo:deploy` by hand.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "dombot-demo",

@@ -64,3 +64,5 @@ jobs:
         run: npx wrangler deploy --dry-run --outdir dist/worker
       - name: Build the demo
         run: npm run demo:build
+      - name: Build the site
+        run: npm run site:build
