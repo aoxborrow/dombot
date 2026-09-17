@@ -321,4 +321,5 @@ footer { border-top: 1px solid var(--line); padding: 36px 0 48px; }
 .steps li em { font-style: normal; font-weight: 500; }
 .steps li::before { content: counter(step); position: absolute; left: 18px; top: 16px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-contrast, #fff); font-weight: 600; font-size: .85rem; }
 .step-action { margin-top: 12px; }
+.step-sub { display: block; margin-top: 3px; font-size: .85rem; color: var(--faint); }
 .self-host-note { margin-top: 18px; color: var(--muted); font-size: .9rem; max-width: 720px; }
