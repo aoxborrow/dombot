@@ -46,6 +46,7 @@ import {
   useOpUnsupportedReason,
 } from '../lib/domain-ops';
 import { FolderIcon } from '../components/icons/FolderIcon';
+import { FolderOffIcon } from '../components/icons/FolderOffIcon';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { NameserversCell } from '../components/domains/NameserversCell';
@@ -335,8 +336,7 @@ function FolderMenuContent({
         )}
       </DropdownMenuItem>
       <DropdownMenuItem className="gap-2.5" onSelect={() => onAssign(null)}>
-        {/* Spacer keeps "None" aligned with the icon'd rows. */}
-        <span className="size-4 shrink-0" aria-hidden />
+        <FolderOffIcon className="size-4 shrink-0" aria-hidden />
         <span className="flex-1">None</span>
         {folderId === undefined && (
           <Check className="size-3.5 shrink-0 text-muted-foreground" />

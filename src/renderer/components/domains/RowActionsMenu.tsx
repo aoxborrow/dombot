@@ -15,6 +15,7 @@ import { useAppStore } from '../../store/app';
 import { useOpUnsupportedReason } from '../../lib/domain-ops';
 import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
+import { FolderOffIcon } from '../icons/FolderOffIcon';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -135,7 +136,7 @@ export function RowActionsMenu({
               className="gap-2.5"
               onSelect={() => onAssignFolder(null)}
             >
-              <span className="size-4 shrink-0" aria-hidden />
+              <FolderOffIcon className="size-4 shrink-0" aria-hidden />
               <span className="flex-1">None</span>
               {folderId === undefined && (
                 <Check className="size-3.5 shrink-0 text-muted-foreground" />
