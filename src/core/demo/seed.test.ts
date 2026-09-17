@@ -82,7 +82,7 @@ describe('generateDemoSeed', () => {
   it('folders hold real domains, each in at most one folder', () => {
     const names = new Set(seed.records.map((r) => r.domainName));
     const seen = new Set<string>();
-    expect(seed.folders.length).toBe(4);
+    expect(seed.folders.length).toBe(5);
     for (const f of seed.folders) {
       expect(f.domains.length).toBeGreaterThan(0);
       for (const d of f.domains) {
