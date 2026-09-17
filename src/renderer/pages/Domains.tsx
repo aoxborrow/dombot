@@ -176,6 +176,14 @@ function fmtUsd(n: number): string {
   return `$${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 }
 
+const SOURCE_LABEL: Record<RenewalPricing['source'], string> = {
+  api: 'registrar quote',
+  tld: 'account rate',
+  base: 'built-in list price',
+  manual: 'manual',
+  unavailable: 'unknown',
+};
+
 /** Annual renewal-price cell. Shows the figure with a source tooltip, a skeleton
  *  while pricing is still loading, or "—" when unavailable. */
 function RenewalCell({
@@ -192,7 +200,7 @@ function RenewalCell({
   return (
     <span
       className="font-medium tabular-nums"
-      title={`Renewal source: ${info.source}`}
+      title={`Renewal source: ${SOURCE_LABEL[info.source]}`}
     >
       {fmtUsd(info.renewal)}
     </span>

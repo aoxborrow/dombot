@@ -99,6 +99,11 @@ export class EncryptedDocStore implements DocStore {
     return this.inner.delete(ns, key);
   }
 
+  async take(ns: string, key: string): Promise<unknown | null> {
+    const raw = await this.inner.take(ns, key);
+    return raw === null ? null : ((await this.open(ns, key, raw)) ?? null);
+  }
+
   async list(ns: string): Promise<Record<string, unknown>> {
     const raw = await this.inner.list(ns);
     const out: Record<string, unknown> = {};

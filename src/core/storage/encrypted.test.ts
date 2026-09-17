@@ -42,7 +42,9 @@ describe('EncryptedDocStore', () => {
     >;
     expect(raw.__sealed).toBe(1);
     expect(raw.alg).toBe('aes-gcm');
-    expect(JSON.stringify(raw)).not.toContain('k1');
+    // Short strings can occur by chance in base64 ciphertext.
+    expect(raw).not.toHaveProperty('apiKey');
+    expect(JSON.stringify(raw)).not.toContain(JSON.stringify({ apiKey: 'k1' }));
 
     expect(await store.get('creds', 'dynadot')).toEqual({ apiKey: 'k1' });
     expect(await store.list('creds')).toEqual({ dynadot: { apiKey: 'k1' } });

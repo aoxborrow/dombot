@@ -58,6 +58,8 @@ const clientMethods = {
   registerDomain: vi.fn(),
   getDomain: vi.fn(),
   getNameservers: vi.fn(),
+  getPricing: vi.fn(),
+  checkAvailability: vi.fn(),
 };
 const listPortfolio = vi.fn();
 vi.mock('@aoxborrow/registrar-client', async (importOriginal) => {
@@ -89,6 +91,11 @@ vi.mock('@aoxborrow/registrar-client', async (importOriginal) => {
         features: [],
         configFields: [{ name: 'apiKey', required: true }],
       },
+      godaddy: {
+        displayName: 'GoDaddy',
+        features: [],
+        configFields: [{ name: 'apiToken', required: true }],
+      },
     },
   };
 });
@@ -107,9 +114,12 @@ vi.mock('./registrar-state', () => ({
   },
 }));
 
+const setTldRate = vi.fn();
 vi.mock('./pricing', () => ({
   usesPerNameQuote: () => false,
   tldOf: (d: string) => d.slice(d.indexOf('.') + 1),
+  normalizeTld: (t: string) => t.trim().replace(/^\.+/, '').toLowerCase(),
+  setTldRate: (...a: unknown[]) => setTldRate(...a),
   resolvePricing: vi.fn(),
 }));
 
@@ -393,6 +403,142 @@ describe('syncRegistrar — cache lifecycle', () => {
     await syncRegistrar('dynadot');
     expect(listPortfolio).not.toHaveBeenCalled();
     expect(store.portfolio.dynadot).toBeDefined();
+  });
+});
+
+describe('GoDaddy shopper renewal quotes on sync', () => {
+  const gd = (domainName: string) =>
+    domain({ domainName, registrar: 'godaddy' });
+  const quotedNames = () =>
+    clientMethods.getPricing.mock.calls.map(([name]) => name as string);
+
+  beforeEach(() => {
+    // GoDaddy alone, so the quote calls below belong to this account.
+    delete storedCredentials.dynadot;
+    delete storedCredentials.porkbun;
+    storedCredentials.godaddy = { apiToken: 'pat' };
+  });
+
+  it('prices each TLD off a dummy name and quotes premiums per name', async () => {
+    listPortfolio.mockResolvedValue({
+      domains: [gd('404cosgrove.com'), gd('cheap.io'), gd('fancy.io')],
+      errors: [],
+    });
+    clientMethods.checkAvailability.mockResolvedValue([
+      { domainName: 'cheap.io', available: false, premium: false },
+      { domainName: 'fancy.io', available: false, premium: true },
+    ]);
+    clientMethods.getPricing.mockImplementation(async (name: string) => {
+      // A name you already own comes back with no prices at all — quoting one
+      // is what left every .com on the bundled list rate.
+      if (name === '404cosgrove.com') return { tld: 'com', currency: 'USD' };
+      if (name === 'fancy.io')
+        return { tld: 'io', currency: 'USD', renewal: 199 };
+      return name.endsWith('.com')
+        ? { tld: 'com', currency: 'USD', registration: 11.99, renewal: 8.99 }
+        : { tld: 'io', currency: 'USD', registration: 44, renewal: 44 };
+    });
+
+    await getPortfolio(true);
+
+    expect(setTldRate.mock.calls).toEqual([
+      ['godaddy', 'com', 8.99, 'godaddy'],
+      ['godaddy', 'io', 44, 'godaddy'],
+    ]);
+    // One .com quote, and it was a dummy rather than the owned name.
+    expect(quotedNames()).not.toContain('404cosgrove.com');
+    expect(quotedNames().filter((n) => n.endsWith('.com'))).toHaveLength(1);
+    expect(store.detail['godaddy:fancy.io'].data).toEqual({
+      renewalQuote: { renewal: 199, currency: 'USD' },
+    });
+    // Standard names ride the TLD rate; nothing per-name is stored for them.
+    expect(store.detail['godaddy:cheap.io']).toBeUndefined();
+  });
+
+  it('reads a register-only quote as the renewal rate', async () => {
+    listPortfolio.mockResolvedValue({ domains: [gd('a.com')], errors: [] });
+    // v3 omits renewalPrice when it matches the register price.
+    clientMethods.getPricing.mockResolvedValue({
+      tld: 'com',
+      currency: 'USD',
+      registration: 21.99,
+    });
+
+    await getPortfolio(true);
+
+    expect(setTldRate.mock.calls).toEqual([
+      ['godaddy', 'com', 21.99, 'godaddy'],
+    ]);
+    // .com carries no premium names, so no availability check is needed.
+    expect(clientMethods.checkAvailability).not.toHaveBeenCalled();
+  });
+
+  it('leaves a TLD unpriced when the quote carries no prices at all', async () => {
+    listPortfolio.mockResolvedValue({ domains: [gd('a.com')], errors: [] });
+    clientMethods.getPricing.mockResolvedValue({ tld: 'com', currency: 'USD' });
+
+    await getPortfolio(true);
+
+    expect(setTldRate).not.toHaveBeenCalled();
+    // Two dummies plus the owned name before giving up on the TLD.
+    expect(quotedNames()).toHaveLength(3);
+    expect(quotedNames().at(-1)).toBe('a.com');
+  });
+
+  it('falls back to the owned name when the dummy quotes fail', async () => {
+    listPortfolio.mockResolvedValue({ domains: [gd('a.com')], errors: [] });
+    clientMethods.getPricing.mockImplementation(async (name: string) => {
+      if (name === 'a.com')
+        return { tld: 'com', currency: 'USD', renewal: 9.5 };
+      throw new Error('rate limited');
+    });
+
+    await getPortfolio(true);
+
+    expect(setTldRate.mock.calls).toEqual([['godaddy', 'com', 9.5, 'godaddy']]);
+    expect(quotedNames().at(-1)).toBe('a.com');
+  });
+
+  it('stores no per-name quote when a premium name comes back priceless', async () => {
+    listPortfolio.mockResolvedValue({
+      domains: [gd('cheap.io'), gd('fancy.io')],
+      errors: [],
+    });
+    clientMethods.checkAvailability.mockResolvedValue([
+      { domainName: 'cheap.io', available: false, premium: false },
+      { domainName: 'fancy.io', available: false, premium: true },
+    ]);
+    clientMethods.getPricing.mockImplementation(async (name: string) =>
+      // The known gap: an owned premium name reports no prices, so it has to
+      // ride the TLD rate rather than pin an empty entry over it.
+      name === 'fancy.io'
+        ? { tld: 'io', currency: 'USD' }
+        : { tld: 'io', currency: 'USD', renewal: 44 },
+    );
+
+    await getPortfolio(true);
+
+    expect(setTldRate.mock.calls).toEqual([['godaddy', 'io', 44, 'godaddy']]);
+    expect(store.detail['godaddy:fancy.io']).toBeUndefined();
+  });
+
+  it('still samples one name per TLD when the availability check fails', async () => {
+    listPortfolio.mockResolvedValue({
+      domains: [gd('cheap.io'), gd('fancy.io')],
+      errors: [],
+    });
+    clientMethods.checkAvailability.mockRejectedValue(new Error('429'));
+    clientMethods.getPricing.mockResolvedValue({
+      tld: 'io',
+      currency: 'USD',
+      renewal: 44,
+    });
+
+    await getPortfolio(true);
+
+    // Unknown flags mean no per-name premium quotes, but the TLD still prices.
+    expect(setTldRate.mock.calls).toEqual([['godaddy', 'io', 44, 'godaddy']]);
+    expect(store.detail['godaddy:fancy.io']).toBeUndefined();
   });
 });
 

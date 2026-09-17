@@ -82,14 +82,14 @@ touches `DOMBOT_SECRET` / `DOMBOT_PASSWORD` — those stay Worker secrets.
   DOMBOT_PASSWORD='something-long' npm run web:rotate-password
   ```
 
-- **Brute-force protection**: after three wrong passwords each further
-  attempt waits twice as long (up to an hour). That counter is per
-  instance, not per client, and a burst spread across several of
-  Cloudflare's isolates can land a few extra guesses before it catches up.
-  For a public instance add a [rate limiting
-  rule](https://developers.cloudflare.com/waf/rate-limiting-rules/) on
-  `POST /auth/login` (say, 5 requests per minute per IP) in the zone's
-  WAF; it costs nothing on the free plan. And use a long password.
+- **Brute-force protection**: each source IP gets at most 10 attempts per
+  15-minute window. D1 reserves attempts atomically across isolates; another
+  source's failures cannot lock out your login. Successful login resets your
+  source's window. Apply migration `0002_login_attempts.sql` before upgrading
+  (the deploy script applies migrations). Source addresses are stored as HMACs,
+  not raw IPs. Cloudflare's `CF-Connecting-IP` header is required outside local
+  development. Use a long random password; distributed attackers still warrant
+  an additional edge rate-limit rule or Cloudflare Access restricted to you.
 - **Updating**: pull, then `npm run web:deploy` again (or push, with the
   workflow above).
 - **Backups and moving**: Settings → Sync → **Export data** writes everything
@@ -125,6 +125,10 @@ MCP clients can't pass an Access login or a password prompt. Behind a gate,
 MCP works only if the gate excludes the MCP paths (`/mcp`, `/authorize`,
 `/token`, `/register`, `/revoke`, `/oauth/status`, `/.well-known/*`), which
 Cloudflare Access can do and platform password protection generally can't.
+
+Version preview URLs are disabled by default (`preview_urls: false`) so a gate
+configured for the production hostname cannot be bypassed through a preview
+hostname. If you enable previews, protect those hostnames separately as well.
 
 ## Connecting an MCP client
 
@@ -182,11 +186,16 @@ When configuring Namecheap in **Settings → Registrars**, turn on **Use fixed I
 proxy** if the machine running DomBot cannot connect from an allowlisted IPv4
 address. Enter:
 
-- **Proxy URL:** an HTTP CONNECT proxy with a public IPv4 endpoint. Use the form
-  `http://username:password@IP:port`, percent-encoding special characters in the
-  username or password. Unauthenticated proxies are also supported. Hostnames,
-  private/reserved addresses, HTTPS/SOCKS proxy URLs, paths and query strings
-  are not supported by this first version.
+- **Proxy URL:** an HTTP or HTTPS CONNECT proxy, as
+  `http://username:password@host:port` or `https://username:password@host:port`,
+  percent-encoding special characters in the username or password. The host may
+  be a hostname or a public IPv4 address; credentials are optional. With an
+  HTTPS proxy the connection to the proxy itself is encrypted and its
+  certificate is verified against the hostname, so use a hostname there rather
+  than a bare IP. With an HTTP proxy the username and password travel
+  unencrypted to the proxy (the Namecheap request inside the tunnel is still
+  HTTPS). IPv6 literals, private/reserved IPv4 addresses, `localhost`, SOCKS
+  URLs, paths and query strings are rejected.
 - **Outgoing IPv4 address:** the IP Namecheap sees, which may differ from the
   proxy endpoint. Add it to your Namecheap API allowlist before syncing.
 
@@ -213,10 +222,12 @@ validation in JavaScript/WebCrypto; its authors state that it has not had an
 external security audit. This opt-in feature requires review of that additional
 trust boundary and may need Workers Paid for the additional CPU cost.
 
-Desktop uses `https-proxy-agent` with Node's native TLS verification. HTTP proxy
-authentication itself is not encrypted between DomBot and the proxy; the registrar
-request is encrypted end to end inside the HTTPS tunnel. Use a proxy provider and
-network you trust. No setting disables certificate verification.
+Desktop uses `https-proxy-agent` with Node's native TLS verification. An HTTPS
+proxy URL encrypts the CONNECT handshake, including any proxy password; a
+separate verified TLS connection protects Namecheap traffic inside the tunnel
+either way. No setting disables certificate verification. On the Worker,
+Cloudflare additionally blocks outbound sockets to private network ranges
+whatever the proxy hostname resolves to.
 
 Only Namecheap's production API is reachable through this transport. Namecheap
 uses GET for writes as well as reads, so retries use an explicit read-command

@@ -1,3 +1,8 @@
+import {
+  clearLoginAttempts,
+  loginSource,
+  reserveLoginAttempt,
+} from './login-rate-limit';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { ApiValidationError, invoke, type ApiMethodName } from '../core/api';
 import { MCP_PUBLIC_PATHS, createMcpRoutes } from '../core/mcp/routes';
@@ -19,9 +24,6 @@ import {
   clearSessionCookie,
   createSession,
   isAuthenticated,
-  loginLockRemaining,
-  recordLoginFailure,
-  recordLoginSuccess,
   sameOrigin,
   sessionCookie,
   type AuthConfig,
@@ -175,14 +177,13 @@ app.post(
     if (!sameOrigin(c.req.raw)) return c.json({ error: 'Bad origin' }, 403);
     await next();
   },
-  stateful, // the attempts counter lives in the store
   async (c) => {
     const auth = c.get('auth');
-    // Requests are serialized per isolate, so a burst of guesses counts every
-    // failure; across isolates the counter is last-write-wins (see
-    // docs/self-hosting.md for the rate-limit rule that closes that gap).
-    const wait = loginLockRemaining();
+    const source = await loginSource(c.req.raw, auth.sessionKey!);
+    if (!source) return c.json({ error: 'Cannot identify login source' }, 503);
+    const wait = await reserveLoginAttempt(c.env.DB, source);
     if (wait > 0) {
+      c.header('Retry-After', String(Math.ceil(wait / 1000)));
       return c.json(
         {
           error: `Too many attempts. Try again in ${Math.ceil(wait / 1000)}s.`,
@@ -197,10 +198,9 @@ app.post(
       typeof body.password !== 'string' ||
       !(await checkPassword(auth, body.password))
     ) {
-      recordLoginFailure();
       return c.json({ error: 'Wrong password' }, 401);
     }
-    recordLoginSuccess();
+    await clearLoginAttempts(c.env.DB, source);
     c.header(
       'Set-Cookie',
       sessionCookie(await createSession(auth.sessionKey!), secure(c)),

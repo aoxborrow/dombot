@@ -59,6 +59,9 @@ describe('Namespace over a DocStore', () => {
     const puts: string[] = [];
     const flaky: DocStore = {
       ...new MemoryDocStore(),
+      async take() {
+        return null;
+      },
       async put(_ns, key) {
         if (key === 'bad') throw new Error('disk full');
         puts.push(key);

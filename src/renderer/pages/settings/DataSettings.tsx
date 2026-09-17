@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  MAX_BUNDLE_BYTES,
   isSealedBundle,
   openBundle,
   sealBundle,
@@ -186,6 +187,10 @@ function DataBundleCard() {
 
   const onPick = async (file: File | undefined) => {
     if (!file) return;
+    if (file.size > MAX_BUNDLE_BYTES) {
+      toast.error('Data file is too large (maximum 32 MiB).');
+      return;
+    }
     const text = await file.text();
     setImportPass('');
     setImportError(null);

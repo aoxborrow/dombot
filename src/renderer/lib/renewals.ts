@@ -41,6 +41,8 @@ export interface RenewalSummary {
   unpriced: number;
   /** Priced domains filled from the base per-TLD database (may miss premiums). */
   base: number;
+  /** Priced domains using a shopper registrar + TLD rate. */
+  tld: number;
   /** Priced domains using a manual override. */
   manual: number;
   /** Sum of known annual renewals across all priced domains. */
@@ -57,6 +59,7 @@ export function summarize(
 ): RenewalSummary {
   let priced = 0;
   let base = 0;
+  let tld = 0;
   let manual = 0;
   let yearly = 0;
   let yearlyAutoRenew = 0;
@@ -69,6 +72,7 @@ export function summarize(
     yearly += value;
     if (d.autoRenew) yearlyAutoRenew += value;
     if (p?.source === 'base') base += 1;
+    if (p?.source === 'tld') tld += 1;
     if (p?.source === 'manual') manual += 1;
   }
 
@@ -77,6 +81,7 @@ export function summarize(
     priced,
     unpriced: domains.length - priced,
     base,
+    tld,
     manual,
     yearly,
     yearlyAutoRenew,

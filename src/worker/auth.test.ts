@@ -6,11 +6,8 @@ import {
   checkPassword,
   createSession,
   isAuthenticated,
-  loginLockRemaining,
   parseAuthMode,
   readCookie,
-  recordLoginFailure,
-  recordLoginSuccess,
   sameOrigin,
   verifySession,
 } from './auth';
@@ -141,26 +138,6 @@ describe('auth config + gate', () => {
     );
     expect(sameOrigin(mk({ origin: 'https://evil.example' }))).toBe(false);
     expect(sameOrigin(mk({}))).toBe(false);
-  });
-});
-
-describe('login backoff', () => {
-  it('locks after three failures with growing waits, clears on success', () => {
-    const t0 = 1_000_000;
-    expect(loginLockRemaining(t0)).toBe(0);
-    recordLoginFailure(t0);
-    recordLoginFailure(t0);
-    recordLoginFailure(t0);
-    expect(loginLockRemaining(t0)).toBe(0); // three free attempts
-    recordLoginFailure(t0);
-    expect(loginLockRemaining(t0)).toBe(1_000);
-    recordLoginFailure(t0);
-    expect(loginLockRemaining(t0)).toBe(2_000);
-    recordLoginFailure(t0);
-    expect(loginLockRemaining(t0)).toBe(4_000);
-    expect(loginLockRemaining(t0 + 4_000)).toBe(0);
-    recordLoginSuccess();
-    recordLoginFailure(t0);
-    expect(loginLockRemaining(t0)).toBe(0);
+    expect(sameOrigin(mk({ origin: 'http://app.example' }))).toBe(false);
   });
 });

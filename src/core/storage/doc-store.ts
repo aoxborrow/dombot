@@ -14,6 +14,8 @@ export interface DocStore {
   put(ns: string, key: string, value: unknown): Promise<void>;
   /** Removes one key. No-op when absent. */
   delete(ns: string, key: string): Promise<void>;
+  /** Atomically remove and return an entry; one caller wins across hosts. */
+  take(ns: string, key: string): Promise<unknown | null>;
   /** Every key/value in a namespace (empty object when none). */
   list(ns: string): Promise<Record<string, unknown>>;
   /** Removes every key in a namespace. */
@@ -48,6 +50,12 @@ export class MemoryDocStore implements DocStore {
 
   async delete(ns: string, key: string): Promise<void> {
     this.ns(ns).delete(key);
+  }
+
+  async take(ns: string, key: string): Promise<unknown | null> {
+    const value = this.ns(ns).get(key);
+    this.ns(ns).delete(key);
+    return structuredClone(value ?? null);
   }
 
   async list(ns: string): Promise<Record<string, unknown>> {

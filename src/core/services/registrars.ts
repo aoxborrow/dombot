@@ -1,3 +1,4 @@
+import { protectRegistrar, redactRegistrarMessage } from './registrar-errors';
 import {
   RegistrarClient,
   createRegistrar,
@@ -35,10 +36,17 @@ import {
 } from './cache';
 import {
   resolvePricing,
+  setTldRate,
   tldOf,
   usesPerNameQuote,
   type RenewalQuote,
 } from './pricing';
+import {
+  dummyNameForTld,
+  planGoDaddyRenewalFetches,
+  renewalFromGodaddyPricing,
+  tldsNeedingPremiumFlags,
+} from './godaddy-renewal-quotes';
 import type {
   Domain,
   RegistrarAccount,
@@ -237,7 +245,10 @@ export function getRegistrarClient(
   let client = clients.get(account.id);
   if (!client) {
     client = new RegistrarClient(
-      buildProvider(name, credentials, account.id, proxy),
+      protectRegistrar(
+        buildProvider(name, credentials, account.id, proxy),
+        getStoredCredentials(account.id),
+      ),
     );
     clients.set(account.id, client);
     clientCredentials.set(account.id, fingerprint);
@@ -271,6 +282,12 @@ function readRegistrarEntry(name: string): RegistrarPortfolioEntry | null {
   if (!cached) return null;
   return {
     ...cached.data,
+    lastError: cached.data.lastError
+      ? redactRegistrarMessage(
+          cached.data.lastError,
+          getStoredCredentials(name),
+        )
+      : null,
     domains: cached.data.domains.map(reviveDomainDates),
   };
 }
@@ -363,10 +380,7 @@ async function syncRegistrarInto(account: RegistrarAccount): Promise<void> {
   }
   if ((generations.get(accountId) ?? 0) !== generation) return;
   writeEntry('portfolio', accountId, entry);
-  // Refresh per-name renewal quotes as part of the sync. Only registrars that
-  // can price a specific owned domain, and only on premium-capable TLDs, make an
-  // API call here; every other domain resolves from the bundled base rates with
-  // no network. Quotes land in each domain's detail cache (see syncRenewalQuotes).
+  // Refresh renewal quotes as part of the sync (see syncRenewalQuotes).
   if (!entry.lastError)
     await syncRenewalQuotes(name, entry.domains, accountId, generation);
 }
@@ -389,16 +403,51 @@ async function fetchRenewalQuote(
       renewal: typeof pricing.renewal === 'number' ? pricing.renewal : null,
       currency: pricing.currency ?? 'USD',
     };
-  } catch {
+  } catch (err) {
+    console.warn(`[pricing] ${name} getPricing(${domain}) failed`, err);
     return null;
   }
 }
 
 /**
- * During a sync, fetch fresh per-name renewal quotes for the registrar's
- * premium-capable domains and merge each into that domain's detail cache entry.
- * Bounded concurrency keeps us well under any registrar's rate limit. A no-op for
- * registrars that don't price per name — those domains always take the base rate.
+ * The account's own renewal rate for one TLD, from GoDaddy's v3 availability
+ * price. Quotes a random unregistered name rather than an owned one: a taken
+ * name usually comes back with no prices at all, which would leave the TLD on
+ * the bundled list rate. Two dummies (in case one happens to be registered),
+ * then an owned name as a last resort.
+ */
+async function fetchGodaddyTldRenewal(
+  tld: string,
+  ownedSample: string,
+  accountId: string,
+): Promise<number | null> {
+  const names = [dummyNameForTld(tld), dummyNameForTld(tld), ownedSample];
+  for (const domain of names) {
+    try {
+      const pricing = await getRegistrarClient('godaddy', accountId).getPricing(
+        domain,
+      );
+      const renewal = renewalFromGodaddyPricing(pricing);
+      if (renewal != null) return renewal;
+    } catch (err) {
+      console.warn(`[pricing] GoDaddy getPricing(${domain}) failed`, err);
+    }
+  }
+  return null;
+}
+
+/**
+ * During a sync, refresh renewal quotes. Gandi/Dynadot/Name.com quote per-name
+ * on premium-capable TLDs. GoDaddy takes the v3 availability price, which is
+ * quoted for the authenticated shopper (so any account discount is included):
+ * one call per TLD to fill that account's TLD rate, plus a per-name call only
+ * for names availability marked premium.
+ *
+ * Known gap: a premium name we *own* is quoted by its real name, and GoDaddy
+ * often returns no prices for a registered name — so that quote can come back
+ * empty and the name falls back to its TLD rate, understating it. Quoting a
+ * dummy instead is not an option there; a premium price belongs to the
+ * specific name.
  */
 async function syncRenewalQuotes(
   name: RegistrarName,
@@ -406,6 +455,11 @@ async function syncRenewalQuotes(
   accountId: string,
   generation: number,
 ): Promise<void> {
+  if (name === 'godaddy') {
+    await syncGoDaddyRenewalQuotes(domains, accountId, generation);
+    return;
+  }
+
   const todo = domains.filter((d) =>
     usesPerNameQuote(name, tldOf(d.domainName)),
   );
@@ -419,15 +473,92 @@ async function syncRenewalQuotes(
       const quote = await fetchRenewalQuote(name, d.domainName, accountId);
       if ((generations.get(accountId) ?? 0) !== generation) return;
       if (!quote) continue;
-      // Merge onto any existing detail so nameservers/privacy/lock are preserved.
-      const key = detailKey(accountId, d.domainName);
-      const existing = readEntry<DetailRecord>('detail', key)?.data ?? {};
-      writeEntry('detail', key, { ...existing, renewalQuote: quote });
+      writeRenewalQuote(accountId, d.domainName, quote);
     }
   };
   await Promise.all(
     Array.from({ length: Math.min(CONCURRENCY, todo.length) }, worker),
   );
+}
+
+const AVAILABILITY_BATCH = 50;
+
+async function syncGoDaddyRenewalQuotes(
+  domains: Domain[],
+  accountId: string,
+  generation: number,
+): Promise<void> {
+  if (domains.length === 0) return;
+  const stillCurrent = () => (generations.get(accountId) ?? 0) === generation;
+
+  const premiumByDomain = new Map<string, boolean | undefined>();
+  const needFlags = new Set(tldsNeedingPremiumFlags(domains));
+  if (needFlags.size > 0) {
+    const client = getRegistrarClient('godaddy', accountId);
+    const names = domains
+      .filter((d) => needFlags.has(tldOf(d.domainName)))
+      .map((d) => d.domainName);
+    for (let i = 0; i < names.length; i += AVAILABILITY_BATCH) {
+      if (!stillCurrent()) return;
+      const chunk = names.slice(i, i + AVAILABILITY_BATCH);
+      try {
+        const results = await client.checkAvailability(chunk);
+        for (const r of results) {
+          premiumByDomain.set(r.domainName.toLowerCase(), r.premium);
+        }
+      } catch {
+        // Flags stay unknown — we fall back to one TLD sample.
+      }
+    }
+  }
+
+  const plan = planGoDaddyRenewalFetches(domains, premiumByDomain);
+  for (const sample of plan.tldSamples) {
+    if (!stillCurrent()) return;
+    const renewal = await fetchGodaddyTldRenewal(
+      sample.tld,
+      sample.domain,
+      accountId,
+    );
+    if (renewal != null) {
+      setTldRate('godaddy', sample.tld, renewal, accountId);
+    } else {
+      // Leave any existing rate alone and let .base fill in; a failed quote is
+      // not evidence the old rate is wrong.
+      console.warn(`[pricing] GoDaddy .${sample.tld} renewal quote failed`);
+    }
+  }
+
+  const CONCURRENCY = 4;
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < plan.premiums.length) {
+      const domain = plan.premiums[next++];
+      const quote = await fetchRenewalQuote('godaddy', domain, accountId);
+      if (!stillCurrent()) return;
+      // A priceless quote is no better than nothing: storing it would only
+      // pin an empty entry over the TLD rate on the next read.
+      if (quote?.renewal != null) writeRenewalQuote(accountId, domain, quote);
+    }
+  };
+  if (plan.premiums.length > 0) {
+    await Promise.all(
+      Array.from(
+        { length: Math.min(CONCURRENCY, plan.premiums.length) },
+        worker,
+      ),
+    );
+  }
+}
+
+function writeRenewalQuote(
+  accountId: string,
+  domain: string,
+  quote: RenewalQuote,
+): void {
+  const key = detailKey(accountId, domain);
+  const existing = readEntry<DetailRecord>('detail', key)?.data ?? {};
+  writeEntry('detail', key, { ...existing, renewalQuote: quote });
 }
 
 /**
@@ -539,8 +670,9 @@ export function getCachedDetail(): Record<string, Partial<Domain>> {
 
 /**
  * Renewal pricing for every cached portfolio domain, computed from local data
- * only (manual override → the quote captured at Sync → the bundled base rate).
- * No network — backs the launch snapshot and the store's post-sync refresh.
+ * only (manual override → the quote captured at Sync → shopper TLD rate → the
+ * bundled base rate). No network — backs the launch snapshot and the store's
+ * post-sync refresh.
  */
 export function getPortfolioPricing(): Record<string, RenewalPricing> {
   const portfolio = getCachedPortfolio();
@@ -574,9 +706,10 @@ export async function getRenewalPriceLive(
   accountId?: string,
 ): Promise<RenewalPricing> {
   accountId = resolveDomainAccount(name, domain, accountId).id;
-  const quote = usesPerNameQuote(name, tldOf(domain))
-    ? ((await fetchRenewalQuote(name, domain, accountId)) ?? undefined)
-    : undefined;
+  const quote =
+    name === 'godaddy' || usesPerNameQuote(name, tldOf(domain))
+      ? ((await fetchRenewalQuote(name, domain, accountId)) ?? undefined)
+      : undefined;
   return { ...resolvePricing(name, domain, quote, accountId), accountId };
 }
 
@@ -708,7 +841,9 @@ export async function connectRegistrarAccount(
   // Validate through the proxy when one is configured, so a fixed-IP account is
   // tested over the connection it will actually use.
   // (The account doesn't exist yet, so the id here is a placeholder.)
-  const client = new RegistrarClient(buildProvider(name, clean, name, proxy));
+  const client = new RegistrarClient(
+    protectRegistrar(buildProvider(name, clean, name, proxy), clean),
+  );
   const result = await client.testConnection();
   if (!result.success)
     throw new Error(

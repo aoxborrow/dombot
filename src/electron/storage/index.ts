@@ -3,6 +3,7 @@ import { CREDENTIALS_NAMESPACE } from '../../core/services/credentials';
 import { EncryptedDocStore } from '../../core/storage/encrypted';
 import { configureStore, hydrateStores } from '../../core/storage/namespace';
 import type { DocStore } from '../../core/storage/doc-store';
+import { sanitizeStoredDiagnostics } from '../../core/storage/sanitize-diagnostics';
 import { FsDocStore } from './fs-doc-store';
 import { migrateLegacyCredentials, migrateLegacyMcpTokens } from './migrate';
 import {
@@ -47,5 +48,6 @@ export async function initStorage(): Promise<void> {
     },
   });
   await migrateLegacyMcpTokens(app.getPath('userData'), store);
+  await sanitizeStoredDiagnostics(store);
   await hydrateStores();
 }

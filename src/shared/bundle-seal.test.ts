@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   SealError,
   isSealedBundle,
@@ -14,6 +14,31 @@ const PLAIN = JSON.stringify({
 });
 
 describe('bundle sealing', () => {
+  it('rejects excessive work and malformed envelopes before starting PBKDF2', async () => {
+    const derive = vi.spyOn(crypto.subtle, 'deriveKey');
+    try {
+      const encrypted = {
+        kdf: 'PBKDF2-SHA256',
+        alg: 'AES-256-GCM',
+        iterations: 2147483647,
+        salt: 'AAAAAAAAAAAAAAAAAAAAAA==',
+        iv: '',
+        ct: '',
+      };
+      await expect(
+        openBundle(JSON.stringify({ encrypted }), 'pass'),
+      ).rejects.toThrow(/cost/);
+      await expect(
+        openBundle(
+          JSON.stringify({ encrypted: { ...encrypted, iterations: 600000 } }),
+          'pass',
+        ),
+      ).rejects.toThrow(/Malformed/);
+      expect(derive).not.toHaveBeenCalled();
+    } finally {
+      derive.mockRestore();
+    }
+  });
   it('seals, keeps the header, and opens with the right passphrase', async () => {
     const sealed = await sealBundle(PLAIN, 'hunter2');
     expect(sealed).not.toContain('apiKey');

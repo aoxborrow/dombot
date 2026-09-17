@@ -36,12 +36,19 @@ function daysUntil(date: Date | null): string {
 
 /** Quote a field per RFC 4180: wrap in quotes and double any embedded quote when
  *  the value contains a comma, quote, or newline. */
-function csvField(value: string): string {
+function csvField(value: string, numeric = false): string {
+  // CSV quoting does not stop Excel from evaluating a cell as a formula.
+  if (
+    !numeric &&
+    (/^[\s\uFEFF]*[=+@-]/u.test(value) || /^[\t\r\n]/.test(value))
+  )
+    value = "'" + value;
   return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
 interface CsvColumn {
   header: string;
+  numeric?: boolean;
   value: (
     d: Domain,
     labels: RegistrarLabels,
@@ -66,7 +73,11 @@ const CSV_COLUMNS: CsvColumn[] = [
   { header: 'Status', value: (d) => d.status },
   { header: 'Created', value: (d) => isoDate(d.createdDate) },
   { header: 'Expires', value: (d) => isoDate(d.expirationDate) },
-  { header: 'Days Until Expiry', value: (d) => daysUntil(d.expirationDate) },
+  {
+    header: 'Days Until Expiry',
+    numeric: true,
+    value: (d) => daysUntil(d.expirationDate),
+  },
   { header: 'Renewal Date', value: (d) => isoDate(d.renewalDate) },
   { header: 'Auto Renew', value: (d) => (d.autoRenew ? 'Yes' : 'No') },
   { header: 'Locked', value: (d) => (d.locked ? 'Yes' : 'No') },
@@ -98,9 +109,9 @@ export function domainsToCsv(
   const rows: string[] = [CSV_COLUMNS.map((c) => csvField(c.header)).join(',')];
   for (const d of domains) {
     rows.push(
-      CSV_COLUMNS.map((c) => csvField(c.value(d, labels, folderName))).join(
-        ',',
-      ),
+      CSV_COLUMNS.map((c) =>
+        csvField(c.value(d, labels, folderName), c.numeric),
+      ).join(','),
     );
   }
   return rows.join('\r\n');

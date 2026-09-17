@@ -41,6 +41,8 @@ jobs:
         run: npm run lint
       - name: Unit tests
         run: npm test
+      - name: Security regression tests
+        run: npx vitest run --config security-review/vitest.config.mts
 
   worker:
     name: Worker build (dry run)

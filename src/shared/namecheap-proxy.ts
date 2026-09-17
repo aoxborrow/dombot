@@ -5,7 +5,7 @@ export interface NamecheapProxy {
   ip: string;
 }
 
-/** Only public IPv4 literals: no DNS rebinding, local networks or metadata IPs. */
+/** Public IPv4 literals only: no loopback, private, link-local or reserved ranges. */
 export function isPublicIpv4(value: string): boolean {
   if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(value)) return false;
   const parts = value.split('.').map(Number);
@@ -29,6 +29,19 @@ export function isPublicIpv4(value: string): boolean {
   );
 }
 
+const DNS_LABEL = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+const DNS_NAME = new RegExp(`^${DNS_LABEL}(?:\\.${DNS_LABEL})+\\.?$`, 'i');
+/**
+ * A DNS hostname (at least two labels, so `localhost` and LAN shortnames are
+ * out) or a public IPv4 literal. IPv6 literals are not supported. On the
+ * Worker, Cloudflare blocks outbound sockets to private ranges regardless of
+ * how the name resolves; on the desktop the proxy is the user's own choice.
+ */
+export function isProxyHost(hostname: string): boolean {
+  if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(hostname)) return isPublicIpv4(hostname);
+  return hostname.length <= 253 && DNS_NAME.test(hostname);
+}
+
 /** Pure validation shared by the form and server; never echo secret URLs. */
 export function parseNamecheapProxy(
   values: Record<string, unknown>,
@@ -49,20 +62,22 @@ export function parseNamecheapProxy(
   try {
     url = new URL(raw);
   } catch {
-    throw new Error('Enter a valid HTTP proxy URL.');
+    throw new Error('Enter a valid HTTP or HTTPS proxy URL.');
   }
   if (
-    url.protocol !== 'http:' ||
+    !['http:', 'https:'].includes(url.protocol) ||
     url.pathname !== '/' ||
     url.search ||
     url.hash
   ) {
     throw new Error(
-      'Use an HTTP CONNECT proxy URL without a path, query or fragment.',
+      'Use an HTTP or HTTPS CONNECT proxy URL without a path, query or fragment.',
     );
   }
-  if (!isPublicIpv4(url.hostname))
-    throw new Error('The proxy endpoint must be a public IPv4 address.');
+  if (!isProxyHost(url.hostname))
+    throw new Error(
+      'The proxy endpoint must be a hostname or a public IPv4 address.',
+    );
   if (!isPublicIpv4(ip))
     throw new Error('The outgoing IP must be a public IPv4 address.');
   if (url.port === '0')

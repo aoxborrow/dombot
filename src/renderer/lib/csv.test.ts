@@ -60,6 +60,25 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('domainsToCsv', () => {
+  it.each(['=1+1', '+1+1', '-1+1', '@SUM(1)', '  =1+1', '\t=1+1'])(
+    'exports untrusted text as literal text: %s',
+    (label) => {
+      const csv = domainsToCsv(
+        [
+          domain({
+            domainName: 'example.com',
+            accountLabel: label,
+            expirationDate: new Date('2026-06-14T12:00:00Z'),
+          }),
+        ],
+        {},
+        [],
+        {},
+      );
+      expect(col(csv, 1, 'Account')).toBe("'" + label);
+      expect(col(csv, 1, 'Days Until Expiry')).toBe('-1');
+    },
+  );
   it('emits the header row first, in column order', () => {
     const csv = domainsToCsv([], {}, [], {});
     expect(fields(rows(csv)[0])).toEqual([

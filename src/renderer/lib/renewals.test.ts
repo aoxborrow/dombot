@@ -67,6 +67,7 @@ describe('summarize', () => {
     expect(s.priced).toBe(2);
     expect(s.unpriced).toBe(1);
     expect(s.base).toBe(1);
+    expect(s.tld).toBe(0);
     expect(s.manual).toBe(1);
     expect(s.yearly).toBe(30);
     expect(s.yearlyAutoRenew).toBe(10); // only a has autoRenew

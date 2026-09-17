@@ -28,7 +28,7 @@ const credentials = {
   clientIp: '9.9.9.9',
 };
 const proxy = {
-  url: 'http://proxy-user:proxy-secret@8.8.8.8:8080/',
+  url: 'https://proxy-user:proxy-secret@8.8.8.8:8080/',
   ip: '8.8.4.4',
 };
 const configured = { ...credentials, proxyUrl: proxy.url, proxyIp: proxy.ip };

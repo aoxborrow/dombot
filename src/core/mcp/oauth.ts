@@ -346,7 +346,20 @@ export async function exchangeAuthorizationCode(
       'code_verifier does not match the challenge',
     );
   }
-  void store.delete(CODE + code);
+  // PKCE verification yields; consume in the backing store, not stale memory.
+  const consumed = (await store.take(CODE + code)) as
+    StoredAuthCode | undefined;
+  if (
+    !consumed ||
+    consumed.clientId !== rec.clientId ||
+    consumed.codeChallenge !== rec.codeChallenge ||
+    consumed.expiresAt < Date.now()
+  ) {
+    throw new OAuthGrantError(
+      'invalid_grant',
+      'Invalid or expired authorization code',
+    );
+  }
 
   const accessToken = randomHex(32);
   const token: StoredToken = {

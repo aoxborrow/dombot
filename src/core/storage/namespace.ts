@@ -1,4 +1,5 @@
 import { MemoryDocStore, type DocStore } from './doc-store';
+import { sanitizeBundleDiagnostics } from './sanitize-diagnostics';
 
 // The synchronous façade services use over the (async) DocStore.
 //
@@ -137,6 +138,15 @@ export class Namespace<T> {
     );
   }
 
+  async take(key: string): Promise<T | undefined> {
+    let value: unknown = null;
+    await enqueue(`${this.name}/${key} take`, async () => {
+      value = await store.take(this.name, key);
+      this.ensure().delete(key);
+    });
+    return value === null ? undefined : (value as T);
+  }
+
   clear(): Promise<void> {
     this.ensure().clear();
     return enqueue(`${this.name} clear`, () => store.clear(this.name));
@@ -149,6 +159,7 @@ export async function hydrateStores(): Promise<void> {
   if (store.loadAll) {
     // One round trip for everything (the web host does this per request).
     const all = await store.loadAll();
+    sanitizeBundleDiagnostics(all);
     for (const ns of registry) ns.replace(all[ns.name] ?? {});
     return;
   }

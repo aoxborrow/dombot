@@ -19,7 +19,7 @@ vi.mock('tunnelfetch', () => ({
   },
 }));
 import { workerNamecheapProxyFetch } from './namecheap-proxy';
-const proxy = { url: 'http://test:secret@8.8.8.8:8080/', ip: '8.8.4.4' };
+const proxy = { url: 'https://test:secret@8.8.8.8:8080/', ip: '8.8.4.4' };
 
 beforeEach(() => {
   mock.options.length = 0;

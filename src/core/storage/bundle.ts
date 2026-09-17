@@ -8,10 +8,11 @@ import { resetRegistrarClients } from '../services/registrars';
 import { getSettings, notifySettingsChanged } from '../services/settings';
 import { exportNamespaces, importNamespaces } from './namespace';
 import { parseNamecheapProxy } from '../../shared/namecheap-proxy';
+import { sanitizeBundleDiagnostics } from './sanitize-diagnostics';
 
 // A portable copy of everything DomBot stores — registrar keys, portfolio
-// cache, folders, manual prices, settings, MCP pairings, bulk-job history —
-// as one JSON document. It's the backup story for a self-hosted instance
+// cache, folders, manual prices, TLD rates, settings, MCP pairings, bulk-job
+// history — as one JSON document. It's the backup story for a self-hosted instance
 // (whose data is unreadable without its root secret), the way to move from
 // the desktop app to a web instance without re-entering keys, and what the
 // secret-rotation script round-trips through.
@@ -97,13 +98,15 @@ export function parseBundle(text: string): DataBundle {
   // Validate the fixed-IP proxy settings for every Namecheap account in the
   // bundle — the legacy default key plus any UUID-keyed accounts — so an import
   // can't smuggle in a private/reserved-IP or otherwise malformed proxy.
-  const accountRecords = (head.namespaces['registrar-accounts'] ?? {}) as Record<
-    string,
-    { registrar?: unknown } | null
-  >;
+  const accountRecords = (head.namespaces['registrar-accounts'] ??
+    {}) as Record<string, { registrar?: unknown } | null>;
   const namecheapIds = new Set<string>(['namecheap']);
   for (const [id, record] of Object.entries(accountRecords))
-    if (record && typeof record === 'object' && record.registrar === 'namecheap')
+    if (
+      record &&
+      typeof record === 'object' &&
+      record.registrar === 'namecheap'
+    )
       namecheapIds.add(id);
   const credentials = (head.namespaces.credentials ?? {}) as Record<
     string,
@@ -134,6 +137,7 @@ export async function importBundle(
   text: string,
 ): Promise<{ namespaces: number; entries: number }> {
   const bundle = parseBundle(text);
+  sanitizeBundleDiagnostics(bundle.namespaces);
   const prevSettings = getSettings();
   const result = importNamespaces(bundle.namespaces, NEVER_EXPORTED);
   // Everyone holding a derived view refreshes: the registrar clients built

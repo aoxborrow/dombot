@@ -264,7 +264,7 @@ describe('multi-account storage, routing and portable migration', () => {
     const prior = readEntry('portfolio', 'dynadot');
     fakes.providers
       .get('company')!
-      .listDomains.mockRejectedValue(new Error('company offline'));
+      .listDomains.mockRejectedValue(new Error('Provider offline'));
     const portfolio = await syncRegistrar('dynadot', company.id);
     expect(portfolio.domains).toHaveLength(2);
     expect(portfolio.errors).toEqual([
@@ -272,7 +272,7 @@ describe('multi-account storage, routing and portable migration', () => {
         registrar: 'dynadot',
         accountId: company.id,
         accountLabel: 'Company',
-        message: 'company offline',
+        message: 'Provider offline',
       },
     ]);
     expect(readEntry('portfolio', 'dynadot')).toEqual(prior);

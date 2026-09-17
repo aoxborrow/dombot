@@ -7,6 +7,8 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "dombot",
+  // Keep version/alias URLs from bypassing the production hostname's Access gate.
+  "preview_urls": false,
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-09-06",
   // fast-xml-parser (via @aoxborrow/registrar-client) touches Buffer.

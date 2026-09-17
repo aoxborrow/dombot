@@ -49,6 +49,15 @@ export class D1DocStore implements DocStore {
     return out;
   }
 
+  async take(ns: string, key: string): Promise<unknown | null> {
+    // A single SQLite statement consumes the grant across Worker isolates.
+    const row = await this.db
+      .prepare('DELETE FROM docs WHERE ns = ?1 AND key = ?2 RETURNING value')
+      .bind(ns, key)
+      .first<{ value: string }>();
+    return row ? (JSON.parse(row.value) as unknown) : null;
+  }
+
   async clear(ns: string): Promise<void> {
     await this.db.prepare('DELETE FROM docs WHERE ns = ?1').bind(ns).run();
   }

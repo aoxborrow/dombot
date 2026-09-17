@@ -14,6 +14,7 @@
 export const SEAL_KDF = 'PBKDF2-SHA256';
 export const SEAL_ALG = 'AES-256-GCM';
 export const SEAL_ITERATIONS = 600_000;
+export const MAX_BUNDLE_BYTES = 32 * 1024 * 1024;
 
 export interface SealedEnvelope {
   kdf: typeof SEAL_KDF;
@@ -123,6 +124,8 @@ export async function openBundle(
   text: string,
   passphrase: string,
 ): Promise<string> {
+  if (text.length > MAX_BUNDLE_BYTES)
+    throw new SealError('Data file is too large (maximum 32 MiB).');
   let head: SealedBundle | null;
   try {
     head = JSON.parse(text) as SealedBundle | null;
@@ -135,13 +138,24 @@ export async function openBundle(
     throw new SealError('Unsupported encryption in this file.');
   }
   if (!passphrase) throw new SealError('This file needs its passphrase.');
-  const key = await deriveKey(passphrase, fromB64(e.salt), e.iterations);
+  // Validate work factors and envelope sizes before spending CPU on a file.
+  if (e.iterations !== SEAL_ITERATIONS)
+    throw new SealError('Unsupported key derivation cost.');
+  let salt: Uint8Array, iv: Uint8Array, ct: Uint8Array;
   try {
-    const plain = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: fromB64(e.iv) },
-      key,
-      fromB64(e.ct),
-    );
+    if (![e.salt, e.iv, e.ct].every((v) => typeof v === 'string'))
+      throw new Error();
+    salt = fromB64(e.salt);
+    iv = fromB64(e.iv);
+    ct = fromB64(e.ct);
+    if (salt.length !== 16 || iv.length !== 12 || ct.length < 16)
+      throw new Error();
+  } catch {
+    throw new SealError('Malformed encrypted data file.');
+  }
+  const key = await deriveKey(passphrase, salt, e.iterations);
+  try {
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
     return new TextDecoder().decode(plain);
   } catch {
     throw new SealError('Wrong passphrase.');

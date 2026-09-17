@@ -57,6 +57,24 @@ function publicClient(name = 'Test Client') {
 }
 
 describe('registration', () => {
+  it('redeems one code only once when requests race during PKCE verification', async () => {
+    const client = publicClient();
+    const verifier = 'concurrent-pkce-verifier-with-more-than-43-characters';
+    const pending = createPendingApproval(client, {
+      redirectUri: REDIRECT,
+      scopes: ['portfolio'],
+      codeChallenge: await challengeFor(verifier),
+    });
+    const code = new URL(resolvePending(pending.id, true)!).searchParams.get(
+      'code',
+    )!;
+    const results = await Promise.allSettled([
+      exchangeAuthorizationCode(client, code, verifier, REDIRECT),
+      exchangeAuthorizationCode(client, code, verifier, REDIRECT),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+  });
   it('issues an id (and no secret) to a public client', () => {
     const c = publicClient();
     expect(c.client_id).toMatch(/[0-9a-f-]{36}/);

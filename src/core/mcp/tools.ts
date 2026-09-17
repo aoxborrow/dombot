@@ -1041,7 +1041,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Estimate renewal price',
       description:
-        'For a single domain: DomBot’s estimated annual renewal price, with provenance — a manual override, else a per-name registrar quote where supported, else the base per-TLD database. Distinct from registrar_pricing, which is the registrar’s own live quote.',
+        'For a single domain: DomBot’s estimated annual renewal price, with provenance — a manual override, else a per-name registrar quote where supported, else the account’s own TLD rate captured on Sync, else the base per-TLD database. Distinct from registrar_pricing, which is the registrar’s own live quote.',
       inputSchema: { accountId, registrar: optionalRegistrar, domain },
       annotations: { readOnlyHint: true },
     },

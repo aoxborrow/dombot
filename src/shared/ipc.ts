@@ -250,14 +250,17 @@ export interface McpClient {
  *  - `api`         a direct, name-accurate quote from the registrar (captures
  *                  premium renewals). Only registrars that price a *specific*
  *                  owned domain qualify.
+ *  - `tld`         the account's own annual rate for this TLD, captured on Sync
+ *                  — it reflects whatever discount that account holds (e.g. a
+ *                  GoDaddy Discount Domain Club membership).
  *  - `base`        the standard TLD rate from the base pricing database — the
  *                  fill for every domain we can't quote per-name. May understate
  *                  premium names.
- *  - `manual`      a price the user entered by hand.
- *  - `unavailable` no price: nothing in the API, the base database, or a manual
- *                  override covers this domain yet.
+ *  - `manual`      a price the user entered by hand for one domain.
+ *  - `unavailable` no price: nothing in the API, a TLD rate, the base database,
+ *                  or a manual override covers this domain yet.
  */
-export type PriceSource = 'api' | 'base' | 'manual' | 'unavailable';
+export type PriceSource = 'api' | 'tld' | 'base' | 'manual' | 'unavailable';
 
 /** A domain's annual renewal price (USD), with provenance. */
 export interface RenewalPricing {
@@ -538,7 +541,8 @@ export interface DombotApi {
   clearAllCaches: () => Promise<void>;
 
   /** Renewal prices for the whole cached portfolio, keyed `accountId:domain`.
-   *  Computed locally (base rates + Sync-captured quotes + manual overrides). */
+   *  Computed locally (base rates + TLD rates + Sync-captured quotes +
+   *  manual overrides). */
   getPortfolioPricing: () => Promise<Record<string, RenewalPricing>>;
   /** Set (or clear, with null) a manual annual renewal price for a domain. */
   setManualPrice: (

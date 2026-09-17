@@ -145,9 +145,9 @@ interface AppState {
 
   // Annual renewal pricing, keyed by `${registrar}:${domainName}`. Backs the
   // Renewals dashboard and the Domains renewal column. Computed in main from
-  // local data (base rates + Sync-captured quotes + manual overrides); it arrives
-  // with the launch snapshot and is refreshed after each Sync — there's no
-  // separate pricing fetch or refresh.
+  // local data (base rates + TLD rates + Sync-captured quotes + manual
+  // overrides); it arrives with the launch snapshot and is refreshed after
+  // each Sync — there's no separate pricing fetch or refresh.
   pricing: Record<string, RenewalPricing>;
   /** Re-read the whole-portfolio pricing map from main (local, no network). */
   loadPricing: () => Promise<void>;

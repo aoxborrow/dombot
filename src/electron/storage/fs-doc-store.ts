@@ -73,6 +73,16 @@ export class FsDocStore implements DocStore {
     return this.read(ns);
   }
 
+  async take(ns: string, key: string): Promise<unknown | null> {
+    // Synchronous read/write: no other request in this process can interleave.
+    const data = this.read(ns);
+    if (!Object.hasOwn(data, key)) return null;
+    const value = data[key];
+    delete data[key];
+    this.write(ns, data);
+    return value;
+  }
+
   async clear(ns: string): Promise<void> {
     fs.rmSync(this.fileFor(ns), { force: true });
   }
