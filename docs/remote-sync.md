@@ -153,10 +153,12 @@ Two additions, both narrow:
 Flow: desktop `POST {remoteUrl}/auth/token {password}` → gets token → calls
 `{remoteUrl}/api/exportData|importData` with `Authorization: Bearer <token>`.
 
-Why this token rather than "token = the password": it is **server-minted** and
-HMAC-signed (can't be forged offline), it **expires** (30-day TTL) and is
-**invalidated by a password change** for free, and the raw password crosses the
-wire only on the one `/auth/token` call.
+Why mint a token at all rather than authenticate each `/api` call with the
+password directly: it reuses the receiver's existing session/bearer machinery
+unchanged, and keeps the raw password to a single `/auth/token` call instead of
+sending it on every request. The token is used only for this one sync and then
+discarded (see *Secret model*), so its 30-day TTL is irrelevant here — it never
+outlives the operation.
 
 This is additive and does not touch the existing browser/cookie path.
 
@@ -226,11 +228,9 @@ runs host-side either way (see *Topologies*). Fields and controls:
 
 - **Remote URL** — text input, `https://…`, e.g. `https://aox.dombot.ai`.
   Validated for https; trimmed; no trailing path required.
-- **Password** — password input. The remote instance's login password. It is
-  **never stored** — it is used once to fetch a token and then discarded (see
-  *Secret model*). The field is shown only when a sync needs a token (no cached
-  token, or it expired); when a valid cached token exists, Push/Pull run without
-  prompting. No "remember password" option.
+- **Password** — password input. The remote instance's login password, entered
+  **on each Push/Pull** (like the passphrase on a file export) and **never
+  stored** (see *Secret model*). No "remember password" option.
 - **Pull** button — "Replace all data here with the remote's."
 - **Push** button — "Replace all data on the remote with this instance's."
 - **Status line** — last successful push/pull time; on load, a lightweight
@@ -245,36 +245,23 @@ wholesale overwrites:
 - Push: "This replaces everything on {host} with this instance's data.
   Continue?"
 
-### Secret model: never store the password, cache the token
+### Secret model: nothing stored, password entered per sync
 
-The password is **never persisted**. The user types it only when a sync needs a
-token, it is exchanged for a bearer token at `POST {remoteUrl}/auth/token`, and
-it is **discarded from memory immediately** after. What gets cached is the
-**token** (30-day TTL), so routine syncs run without re-prompting; the password
-is asked for again only when there is no cached token or the cached one is
-expired/rejected.
+**No secret is ever persisted** — the model mirrors the passphrase on a file
+export. The user enters the remote password **on each Push/Pull**. That password
+is exchanged for a bearer token at `POST {remoteUrl}/auth/token`, the token is
+used for that one operation's `/api` calls, and **both the password and the
+token are discarded** when the sync finishes. The token never touches disk; it
+lives only in memory for the duration of the sync. Sync is an occasional,
+deliberate action, not an ongoing background process, so there is nothing to
+cache and no "session" to keep.
 
-This is strictly better than storing the password: the token **self-expires**
-and is **invalidated by a password change** server-side, and the reusable
-password — which the user may share with other logins — never sits at rest.
-
-The cached token is still a **full-access bearer credential**, so it is treated
-as a secret at rest, and its storage must **not** live in the `settings`
-namespace (which travels in the bundle — a Pull would clobber it). Store it in a
-dedicated host-local `remote-sync` namespace holding `remoteSyncUrl` (non-
-secret) and the `token` + its expiry. That namespace:
-
-- is added to `NEVER_EXPORTED` (`src/core/storage/bundle.ts`) so it never
-  crosses the wire in either direction, and
-- must be **sealed at rest**. The desktop `EncryptedDocStore` seals **only**
-  `credentials` and `proxies` today (`src/electron/storage/index.ts`), so
-  `remote-sync` **must be added to that sealed set** or the token would be
-  written as plaintext JSON under `userData`. On web this is automatic — the
-  Worker seals every namespace via its AES-GCM/D1 layer.
-
-(If we ever want to avoid persisting even the token, the same flow works with no
-cache — the user simply enters the password on every sync. The 30-day token
-cache is purely a convenience layer on top.)
+The only thing worth remembering between syncs is the **remote URL**, which is
+not a secret. Store just `remoteSyncUrl` in a dedicated host-local `remote-sync`
+namespace, added to `NEVER_EXPORTED` (`src/core/storage/bundle.ts`) so a Pull
+does not clobber it. Because that namespace holds **no secret**, it needs **no
+sealing** — this fully retires the earlier at-rest-credential concern (there is
+no password or token at rest to protect).
 
 ## Implementation surface
 
@@ -291,23 +278,22 @@ Initiator side — the sync logic runs **host-side** (desktop main process, or t
 initiating instance's Worker), which is what makes web-to-web work without CORS
 (see *Topologies*):
 
-- Sync handler, `(remoteUrl, password?)` — `password` is passed only when the
-  renderer had to prompt for one:
+- Sync handler, `(remoteUrl, password)` — the password is supplied fresh for
+  every call and never persisted:
   - Reject `remoteUrl` that is not `https://`, or that equals this instance's
     own origin (self-sync / deadlock guard).
-  - **Token:** use the cached, unexpired token for `remoteUrl` if present.
-    Otherwise require `password`, `POST {remoteUrl}/auth/token` to mint one,
-    cache it (30-day TTL), and **discard the password**. Never persist the
-    password.
+  - **Token (ephemeral):** `POST {remoteUrl}/auth/token` with the password to
+    mint a token, held in memory for this operation only. Discard both the
+    password and the token when the handler returns.
   - **Pull**: `GET`/`POST {remoteUrl}/api/exportData` (no local lock held) →
     take the store lock → local `importBundle(text)` → release.
   - **Push**: take the store lock → local `exportBundle(...)` → release → `POST
     {remoteUrl}/api/importData` with `{ args: [text] }`.
   - All target calls carry `Authorization: Bearer <token>`. Reuses the existing
     bundle machinery unchanged.
-  - On a `401` from `/api/*` (token expired/revoked mid-flight), clear the
-    cached token and surface "session expired — re-enter password" so the
-    renderer can re-prompt and retry once.
+  - A `401` from `/api/*` (wrong password, or the remote's password changed)
+    surfaces plainly so the user can re-enter and retry. Nothing to invalidate —
+    no token was stored.
 - **Locking (web host).** Do **not** run this as a plain locked core method:
   `/api/:method` holds `withRequestLock` for the whole call, which would stall
   the instance for the network round trip and deadlock a same-origin/`wrangler
@@ -320,10 +306,9 @@ initiating instance's Worker), which is what makes web-to-web work without CORS
   IPC → main process), `src/renderer/api/http.ts` for the web build (pointing at
   the dedicated route rather than the generic `/api/<name>` dispatch), and the
   caller in `DataSettings.tsx`.
-- A host-local `remote-sync` namespace — **sealed at rest on both hosts** (add
-  it to the desktop `EncryptedDocStore` seal set; already sealed on web) and
-  added to `NEVER_EXPORTED` — holding `remoteSyncUrl` and the cached `token` +
-  expiry. **No password is stored** (see *Secret model*).
+- A host-local `remote-sync` namespace holding only `remoteSyncUrl` (non-
+  secret), added to `NEVER_EXPORTED` so a Pull doesn't clobber it. **No secret
+  is stored, so no sealing is needed** (see *Secret model*).
 
 UI:
 
@@ -335,11 +320,8 @@ UI:
 - **Unreachable / wrong URL / non-HTTPS** — validate up front; surface a clear
   error, do nothing.
 - **Wrong password / rate-limited** — `/auth/token` returns 401 / 429 (its own
-  rate-limit bucket, 10 / 15 min). Surface plainly; do not retry silently.
-- **Expired / revoked cached token** — a cached token past its 30-day TTL, or
-  rejected with `401` mid-sync (e.g. the remote's password was rotated), is
-  cleared; the UI re-prompts for the password and retries once. No stored
-  password to fall back on, by design.
+  rate-limit bucket, 10 / 15 min). Surface plainly; do not retry silently. The
+  user re-enters the password to try again (nothing was stored).
 - **Auth mode mismatch** — if `/auth/status` reports a non-`password` mode,
   disable Push/Pull with an explanation. Both `cloudflare-access` and
   `external` are unsupported in v1 (see *Supported auth modes*): neither yields
@@ -358,9 +340,10 @@ UI:
 
 ## Open questions
 
-1. ~~Remember the password?~~ **Decided: never store the password.** Prompt only
-   when a token is needed, cache the 30-day token, discard the password (see
-   *Secret model*).
+1. ~~Remember the password / cache a token?~~ **Decided: store nothing.** The
+   password is entered on each Push/Pull and discarded, exactly like a file
+   export's passphrase; the token is ephemeral (see *Secret model*). Sync is an
+   occasional action, not an ongoing session.
 2. Show a diff/summary before overwriting (counts of accounts, domains) so the
    user sees what they are about to replace? Nice-to-have, not required for v1.
 3. ~~Desktop-only or web-to-web?~~ **Decided: web-to-web is in.** Push/pull is
