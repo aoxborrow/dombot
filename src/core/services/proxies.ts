@@ -74,13 +74,10 @@ export async function saveProxyProfile(
   return profile;
 }
 
-/** Refused while any account still depends on it. */
+/** Removes the proxy, first switching it off for any account that used it (those
+ * accounts fall back to a direct connection). */
 export async function removeProxyProfile(id = DEFAULT_PROXY_ID): Promise<void> {
-  const users = proxyUsers(id);
-  if (users.length)
-    throw new Error(
-      `${users.length} account${users.length === 1 ? ' still uses' : 's still use'} this proxy. Turn off “Use fixed IP proxy” on ${users.length === 1 ? 'it' : 'them'} first.`,
-    );
+  for (const user of proxyUsers(id)) await setAccountProxy(user.id, null);
   await store.delete(id);
 }
 

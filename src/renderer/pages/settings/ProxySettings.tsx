@@ -8,6 +8,7 @@ import type {
 } from '../../../shared/ipc';
 import { accountTitle } from '../../../shared/account-label';
 import { parseProxy } from '../../../shared/proxy';
+import { RegistrarLogo } from '../../components/RegistrarLogo';
 import { isDemo, isWeb } from '../../lib/platform';
 import { Button } from '@/components/ui/button';
 import {
@@ -62,6 +63,9 @@ export default function ProxySettings() {
   const dirty =
     url.trim() !== (saved?.url ?? '') ||
     egressIp.trim() !== (saved?.egressIp ?? '');
+  // Emptying the URL and saving clears the stored proxy (and its address).
+  const clearing = !url.trim() && Boolean(saved);
+  const canSave = dirty && (filled || clearing);
 
   // Same validation the server runs, so a typo is caught before any request.
   const validate = (): { url: string; egressIp: string } | null => {
@@ -111,14 +115,16 @@ export default function ProxySettings() {
     }
 
     setTest(null);
-    const input = kind === 'remove' ? null : validate();
-    if (kind !== 'remove' && !input) return;
+    // A save with an emptied URL means "clear it", same as Remove.
+    const removing = kind === 'remove' || !url.trim();
+    const input = removing ? null : validate();
+    if (!removing && !input) return;
     setBusy(kind);
     try {
-      if (kind === 'save') await window.api.saveProxySettings(input!);
-      else await window.api.removeProxySettings();
+      if (removing) await window.api.removeProxySettings();
+      else await window.api.saveProxySettings(input!);
       apply(await window.api.getProxySettings());
-      toast.success(kind === 'save' ? 'Proxy saved' : 'Proxy removed');
+      toast.success(removing ? 'Proxy removed' : 'Proxy saved');
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -233,20 +239,21 @@ export default function ProxySettings() {
           )}
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={locked || !filled || !dirty}>
-              {busy === 'save' ? 'Saving…' : 'Save'}
+            <Button type="submit" disabled={locked || !canSave}>
+              {busy === 'save'
+                ? clearing
+                  ? 'Clearing…'
+                  : 'Saving…'
+                : clearing
+                  ? 'Clear'
+                  : 'Save'}
             </Button>
             {saved && (
               <Button
                 type="button"
                 variant="outline"
                 className="ml-auto border-border text-muted-foreground"
-                disabled={locked || users.length > 0}
-                title={
-                  users.length > 0
-                    ? 'Turn the proxy off for the accounts below first'
-                    : undefined
-                }
+                disabled={locked}
                 onClick={() => void run('remove')}
               >
                 {busy === 'remove' ? 'Removing…' : 'Remove proxy'}
@@ -292,14 +299,24 @@ export default function ProxySettings() {
               Registrars.
             </p>
           ) : (
-            <ul className="flex flex-col gap-1.5 text-sm">
+            <ul className="-my-1 flex flex-col divide-y divide-border/60">
               {users.map((user) => (
-                <li key={user.accountId}>
-                  {accountTitle(
-                    registrarName(user.registrar),
-                    user.label,
-                    user.hasSiblings,
-                  )}
+                <li
+                  key={user.accountId}
+                  className="flex items-center gap-3 py-2.5"
+                >
+                  <RegistrarLogo
+                    name={user.registrar}
+                    label={registrarName(user.registrar)}
+                    className="size-6"
+                  />
+                  <span className="min-w-0 truncate text-sm">
+                    {accountTitle(
+                      registrarName(user.registrar),
+                      user.label,
+                      user.hasSiblings,
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
