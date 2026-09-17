@@ -33,8 +33,21 @@ npx wrangler login
 npx wrangler d1 create dombot
 ```
 
-Paste the `database_id` the last command prints into `wrangler.jsonc`
-(replacing the zeros). Then:
+Put the `database_id` the last command prints, and a name for your Worker,
+in a `wrangler.local.json` next to `wrangler.jsonc`:
+
+```json
+{
+  "name": "dombot-yourname",
+  "database_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+}
+```
+
+That file is gitignored. Every `npm run web:*` script applies it on top of
+the template (`scripts/wrangler.mjs`), so your instance's details never land
+in a commit and pulling updates never conflicts. It also accepts `vars`,
+`routes` (for a custom domain), and any other top-level wrangler key. If you
+would rather edit `wrangler.jsonc` directly, that still works. Then:
 
 ```bash
 npm run web:secrets

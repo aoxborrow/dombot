@@ -19,7 +19,7 @@
 // encrypted data) — see docs/self-hosting.md.
 
 import { randomBytes } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { runWrangler } from './wrangler.mjs';
 
 const args = new Set(process.argv.slice(2));
 const onlyPassword = args.has('--password');
@@ -35,7 +35,7 @@ const secrets = onlyPassword
     };
 
 function put(name, value) {
-  const r = spawnSync('npx', ['wrangler', 'secret', 'put', name], {
+  const r = runWrangler(['secret', 'put', name], {
     input: value + '\n',
     stdio: ['pipe', 'inherit', 'inherit'],
   });
