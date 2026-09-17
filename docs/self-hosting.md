@@ -86,12 +86,13 @@ to follow, and set:
 plus these build variables, which stand in for the `wrangler.local.json` a
 build machine doesn't have:
 
-| Variable                        | Value                        |
-| ------------------------------- | ---------------------------- |
-| `DOMBOT_WORKER_NAME`            | your Worker's name           |
-| `DOMBOT_D1_DATABASE_ID`         | your D1 database id          |
-| `DOMBOT_D1_DATABASE_NAME`       | its name, if not `dombot`    |
-| `ELECTRON_SKIP_BINARY_DOWNLOAD` | `1` (skips a large download) |
+| Variable                        | Value                                                             |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `DOMBOT_WORKER_NAME`            | your Worker's name                                                |
+| `DOMBOT_D1_DATABASE_ID`         | your D1 database id                                               |
+| `DOMBOT_D1_DATABASE_NAME`       | its name, if not `dombot`                                         |
+| `DOMBOT_CUSTOM_DOMAIN`          | optional: your own hostname, on a zone in your Cloudflare account |
+| `ELECTRON_SKIP_BINARY_DOWNLOAD` | `1` (skips a large download)                                      |
 
 `npm run deploy` applies any new D1 migrations and then deploys. The
 dashboard may warn that the repository's `wrangler.jsonc` names a different
