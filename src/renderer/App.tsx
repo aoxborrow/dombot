@@ -7,7 +7,9 @@ import Domains from './pages/Domains';
 import Renewals from './pages/Renewals';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
+import DemoBanner from './components/DemoBanner';
 import StatusBar from './components/StatusBar';
+import { isDemo } from './lib/platform';
 import SyncControl from './components/SyncControl';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -69,6 +71,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
+      {isDemo() && <DemoBanner />}
       <header className="flex items-center border-b px-6 py-2">
         <div className="flex flex-1 items-center">
           <button

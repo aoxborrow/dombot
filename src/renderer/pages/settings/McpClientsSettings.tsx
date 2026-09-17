@@ -7,7 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { SettingsCard } from './SettingsCard';
-import { isWeb, webAuthMode } from '@/lib/platform';
+import { isDemo, isWeb, webAuthMode } from '@/lib/platform';
 import { useAppStore } from '../../store/app';
 
 export default function McpClientsSettings() {
@@ -122,7 +122,7 @@ export default function McpClientsSettings() {
             id="mcp-enabled"
             className={cn(loading && 'invisible')}
             checked={enabled}
-            disabled={loading || toggling}
+            disabled={loading || toggling || isDemo()}
             onCheckedChange={(v) => void toggle(v)}
           />
         </div>

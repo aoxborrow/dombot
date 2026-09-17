@@ -66,4 +66,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Your instance's name and database (scripts/wrangler.mjs), so they
+          # never need committing to the public wrangler.jsonc template.
+          DOMBOT_WORKER_NAME: ${{ vars.DOMBOT_WORKER_NAME }}
+          DOMBOT_D1_DATABASE_ID: ${{ vars.DOMBOT_D1_DATABASE_ID }}
+          DOMBOT_D1_DATABASE_NAME: ${{ vars.DOMBOT_D1_DATABASE_NAME }}
+          DOMBOT_CUSTOM_DOMAIN: ${{ vars.DOMBOT_CUSTOM_DOMAIN }}
         run: npm run deploy

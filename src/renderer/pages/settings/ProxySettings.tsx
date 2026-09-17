@@ -7,7 +7,7 @@ import type {
   RegistrarDefinition,
 } from '../../../shared/ipc';
 import { parseProxy } from '../../../shared/proxy';
-import { isWeb } from '../../lib/platform';
+import { isDemo, isWeb } from '../../lib/platform';
 import { Button } from '@/components/ui/button';
 import {
   Field,
@@ -53,6 +53,8 @@ export default function ProxySettings() {
       .catch((err) => setError(errorMessage(err)));
   }, []);
 
+  // The demo shows the page but takes no edits and makes no connections.
+  const locked = busy !== null || settings === null || isDemo();
   const saved = settings?.proxy ?? null;
   const users = settings?.users ?? [];
   const filled = Boolean(url.trim() && egressIp.trim());
@@ -133,7 +135,7 @@ export default function ProxySettings() {
                 className="font-mono"
                 placeholder="https://user:password@proxy.example.com:8080"
                 value={url}
-                disabled={busy !== null || settings === null}
+                disabled={locked}
                 onChange={(e) => {
                   setUrl(e.target.value);
                   setTest(null);
@@ -155,7 +157,7 @@ export default function ProxySettings() {
                 className="font-mono"
                 placeholder="203.0.113.10"
                 value={egressIp}
-                disabled={busy !== null || settings === null}
+                disabled={locked}
                 onChange={(e) => {
                   setEgressIp(e.target.value);
                   setTest(null);
@@ -181,13 +183,13 @@ export default function ProxySettings() {
           )}
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={busy !== null || !filled || !dirty}>
+            <Button type="submit" disabled={locked || !filled || !dirty}>
               {busy === 'save' ? 'Saving…' : 'Save'}
             </Button>
             <Button
               type="button"
               variant="outline"
-              disabled={busy !== null || !filled}
+              disabled={locked || !filled}
               onClick={() => void run('test')}
             >
               {busy === 'test' ? 'Testing…' : 'Test'}
@@ -197,7 +199,7 @@ export default function ProxySettings() {
                 type="button"
                 variant="ghost"
                 className="ml-auto text-muted-foreground"
-                disabled={busy !== null || users.length > 0}
+                disabled={locked || users.length > 0}
                 title={
                   users.length > 0
                     ? 'Turn the proxy off for the accounts below first'

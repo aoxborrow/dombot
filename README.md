@@ -13,7 +13,9 @@ local-first: your data and API keys stay on your machine.
 
 **Download** for macOS, Windows, or Linux from
 [**dombot.ai**](https://dombot.ai) or the
-[Releases](https://github.com/aoxborrow/dombot/releases) page.
+[Releases](https://github.com/aoxborrow/dombot/releases) page, or
+**[try the live demo](https://demo.dombot.ai/)**: the full app in your
+browser on an invented portfolio, no install and no account.
 
 <a href="site/public/dombot-domains.png"><img src="site/public/dombot-domains.png" alt="DomBot's Domains screen — every domain across all your registrars in one sortable, filterable table" width="720"></a>
 

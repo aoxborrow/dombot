@@ -6,6 +6,7 @@ import {
   registrars,
   type OperationResult,
   type RegisterDomainInput,
+  type Registrar,
   type RegistrarCredentials,
   type RegistrarName,
   type RequestOptions,
@@ -105,6 +106,34 @@ function reviveDomainDates<T extends Partial<Domain>>(d: T): T {
 
 // Cache one client per account so we don't rebuild it on every call.
 const clients = new Map<string, RegistrarClient>();
+
+/** Builds the provider behind a client. Hosts swap it to run the app against
+ *  something other than the real registrars (the demo's in-memory one). */
+export type RegistrarFactory = (
+  name: RegistrarName,
+  credentials: RegistrarCredentials,
+  accountId: string,
+) => Registrar;
+
+let factory: RegistrarFactory | null = null;
+
+/** Installs (or with null, removes) a replacement provider factory. Existing
+ *  clients keep their provider until `resetRegistrarClients()`. */
+export function configureRegistrarFactory(next: RegistrarFactory | null): void {
+  factory = next;
+}
+
+function buildProvider(
+  name: RegistrarName,
+  credentials: RegistrarCredentials,
+  accountId: string,
+  proxy: ProxyRoute | null,
+): Registrar {
+  if (factory) return factory(name, credentials, accountId);
+  return proxy
+    ? createProxiedRegistrar(name, credentials, proxy)
+    : createRegistrar(name, credentials);
+}
 const clientCredentials = new Map<string, string>();
 const generations = new Map<string, number>();
 function invalidateAccount(id: string): void {
@@ -220,7 +249,7 @@ export function getRegistrarClient(
   if (!client) {
     client = new RegistrarClient(
       protectRegistrar(
-        buildProvider(name, credentials, proxy),
+        buildProvider(name, credentials, account.id, proxy),
         accountSecrets(account.id, proxy),
       ),
     );
@@ -228,16 +257,6 @@ export function getRegistrarClient(
     clientCredentials.set(account.id, fingerprint);
   }
   return client;
-}
-
-function buildProvider(
-  name: RegistrarName,
-  credentials: RegistrarCredentials,
-  proxy: ProxyRoute | null,
-) {
-  return proxy
-    ? createProxiedRegistrar(name, credentials, proxy)
-    : createRegistrar(name, credentials);
 }
 
 /** Every string that must never appear in this account's diagnostics. */
@@ -842,8 +861,9 @@ export async function connectRegistrarAccount(
   // tested over the connection it will actually use.
   const secrets: Record<string, string | undefined> = { ...clean };
   proxySecrets(proxy?.url).forEach((v, i) => (secrets[`proxy:${i}`] = v));
+  // (The account doesn't exist yet, so the id here is a placeholder.)
   const client = new RegistrarClient(
-    protectRegistrar(buildProvider(name, clean, proxy), secrets),
+    protectRegistrar(buildProvider(name, clean, name, proxy), secrets),
   );
   const result = await client.testConnection();
   if (!result.success)

@@ -27,6 +27,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
 import { Link } from 'react-router-dom';
+import { isDemo } from '../../lib/platform';
 import { timeAgo } from '../../lib/time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -157,7 +158,7 @@ export default function RegistrarsSettings() {
         {loaded && cards.length > 0 && (
           <AddAccountMenu
             catalog={sortedCatalog}
-            disabled={draft !== null}
+            disabled={draft !== null || isDemo()}
             onPick={startDraft}
           />
         )}
@@ -213,7 +214,11 @@ function AddAccountMenu({
         <Button
           disabled={disabled}
           title={
-            disabled ? 'Finish or cancel the new account first' : undefined
+            isDemo()
+              ? 'Adding accounts is turned off in the demo'
+              : disabled
+                ? 'Finish or cancel the new account first'
+                : undefined
           }
         >
           <Plus />
@@ -416,6 +421,8 @@ function AccountCard({
   };
 
   const busy = saving || syncing || toggling || loading;
+  // The demo shows the form (with its stub credentials) but takes no edits.
+  const locked = busy || isDemo();
   const { configured, enabled, sync } = account;
   const hasCredentials = Object.values(values).some((v) => v.trim());
   // A Namecheap proxy supplies the outgoing ClientIp, so it isn't required in the
@@ -447,7 +454,7 @@ function AccountCard({
             <Switch
               checked={configured && enabled}
               onCheckedChange={(v) => void toggleEnabled(v)}
-              disabled={busy || !configured}
+              disabled={locked || !configured}
               aria-label={
                 configured
                   ? `${enabled ? 'Disable' : 'Enable'} ${title}`
@@ -532,7 +539,7 @@ function AccountCard({
               <NicknameField
                 id={`${id}-label`}
                 value={label}
-                disabled={busy}
+                disabled={locked}
                 onChange={setLabel}
                 description={
                   showLabel
@@ -544,7 +551,7 @@ function AccountCard({
                 provider={provider}
                 idPrefix={id}
                 values={values}
-                disabled={busy}
+                disabled={locked}
                 onChange={(name, value) =>
                   setValues((current) => ({ ...current, [name]: value }))
                 }
@@ -557,7 +564,7 @@ function AccountCard({
               provider={provider}
               proxy={proxy}
               enabled={proxyEnabled}
-              disabled={busy}
+              disabled={locked}
               onChange={setProxyEnabled}
             />
 
@@ -565,7 +572,7 @@ function AccountCard({
               <Button
                 type="submit"
                 disabled={
-                  busy || missingRequired || (!hasCredentials && !renamed)
+                  locked || missingRequired || (!hasCredentials && !renamed)
                 }
               >
                 {saving ? 'Saving…' : 'Save'}
@@ -580,7 +587,7 @@ function AccountCard({
                 type="button"
                 variant="ghost"
                 className="ml-auto text-muted-foreground"
-                disabled={busy}
+                disabled={locked}
                 onClick={() => setRemoving(true)}
               >
                 Remove account
@@ -600,7 +607,7 @@ function AccountCard({
               </span>
               <Button
                 variant="destructive"
-                disabled={busy}
+                disabled={locked}
                 onClick={() => void remove()}
               >
                 Remove
