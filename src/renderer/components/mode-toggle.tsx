@@ -1,13 +1,13 @@
-import { Moon, Sun, SunMoon } from 'lucide-react';
+import { Monitor, Moon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme, type Theme } from '@/components/theme-provider';
 
 // Segment order and per-theme presentation. Auto sits between the two fixed
-// themes and gets a blended sun/moon glyph so it reads distinctly from both.
+// themes and gets a monitor glyph, since it follows the system setting.
 const ORDER: Theme[] = ['dark', 'auto', 'light'];
 const META: Record<Theme, { label: string; icon: typeof Sun }> = {
   dark: { label: 'Dark', icon: Moon },
-  auto: { label: 'Auto', icon: SunMoon },
+  auto: { label: 'Auto', icon: Monitor },
   light: { label: 'Light', icon: Sun },
 };
 
