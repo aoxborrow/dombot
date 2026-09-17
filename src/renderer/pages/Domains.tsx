@@ -1,4 +1,4 @@
-import { accountDisplayLabel, accountTitle } from '../../shared/account-label';
+import { accountNumber, accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
@@ -446,12 +446,6 @@ const COLUMNS: Column[] = [
     sortValue: (d) => d.domainName.toLowerCase(),
   },
   {
-    key: 'accountLabel',
-    label: 'Account',
-    render: (d) => accountDisplayLabel(d.accountLabel),
-    sortValue: (d) => accountDisplayLabel(d.accountLabel).toLowerCase(),
-  },
-  {
     key: 'registrar',
     label: 'Registrar',
     render: (d, labels) => registrarLabel(d.registrar, labels),
@@ -632,27 +626,47 @@ export default function Domains() {
     () => multiAccountRegistrars(registrars, portfolio),
     [registrars, portfolio],
   );
-  const showAccountDetails = multipleAccounts.size > 0;
-  const columns = useMemo(
-    () =>
-      COLUMNS.filter((c) => c.key !== 'accountLabel' || showAccountDetails).map(
-        (c) =>
-          c.key === 'accountLabel'
-            ? {
-                ...c,
-                render: (d: Domain) =>
-                  multipleAccounts.has(d.registrar)
-                    ? accountDisplayLabel(d.accountLabel)
-                    : '—',
-                sortValue: (d: Domain) =>
-                  multipleAccounts.has(d.registrar)
-                    ? accountDisplayLabel(d.accountLabel).toLowerCase()
-                    : '',
-              }
-            : c,
-      ),
-    [showAccountDetails, multipleAccounts],
-  );
+  // The Registrar column carries the account too: a nickname always shows in
+  // parens; an unnamed account shows its number only when the registrar has
+  // siblings to tell apart. `null` from accountNumber() means a real nickname.
+  const columns = useMemo(() => {
+    const paren = (label: string | undefined, registrar: string) => {
+      const n = accountNumber(label);
+      if (n === null) return label ?? '';
+      return multipleAccounts.has(registrar) ? `#${n}` : '';
+    };
+    return COLUMNS.map((c) =>
+      c.key === 'registrar'
+        ? {
+            ...c,
+            render: (d: Domain, labels: RegistrarLabels) => {
+              const suffix = paren(d.accountLabel, d.registrar);
+              return (
+                <span>
+                  {registrarLabel(d.registrar, labels)}
+                  {suffix && (
+                    <span className="ml-1 text-xs text-muted-foreground/70">
+                      ({suffix})
+                    </span>
+                  )}
+                </span>
+              );
+            },
+            sortValue: (d: Domain, labels: RegistrarLabels) => {
+              const name = registrarLabel(d.registrar, labels).toLowerCase();
+              const n = accountNumber(d.accountLabel);
+              const suffix =
+                n === null
+                  ? (d.accountLabel ?? '').toLowerCase()
+                  : multipleAccounts.has(d.registrar)
+                    ? String(n).padStart(4, '0')
+                    : '';
+              return suffix ? `${name} ${suffix}` : name;
+            },
+          }
+        : c,
+    );
+  }, [multipleAccounts]);
 
   const navigate = useNavigate();
   // Pricing is computed locally in main and arrives with the portfolio; the only
@@ -689,21 +703,11 @@ export default function Domains() {
   const [search, setSearch] = useState('');
   // Multi-select filters; an empty array means "no filter" (show all).
   const [tld, setTld] = useState<string[]>([]);
+  // One "Registrar" filter, but its options are individual accounts (keyed by
+  // account id), so a registrar's accounts can be picked apart or selected
+  // together. Old saved values were registrar names; those simply match nothing
+  // now, which reads as "no filter".
   const [registrar, setRegistrar] = useState<string[]>([]);
-  const [account, setAccount] = useState<string[]>([]);
-  const accountOptions = (registrars ?? [])
-    .filter((r) => r.configured && r.enabled)
-    .map((r) => ({
-      value: r.accountId ?? r.name,
-      label: accountTitle(
-        r.displayName,
-        r.accountLabel,
-        multipleAccounts.has(r.name),
-      ),
-      count: portfolio.filter(
-        (d) => (d.accountId ?? d.registrar) === (r.accountId ?? r.name),
-      ).length,
-    }));
   const [expiry, setExpiry] = useState<string[]>([]);
   const [ns, setNs] = useState<string[]>([]);
   const [folder, setFolder] = useState<string[]>([]);
@@ -765,16 +769,31 @@ export default function Domains() {
       count,
     })).sort((a, b) => a.value.localeCompare(b.value));
   }, [portfolio]);
+  // One option per account (keyed by account id), so accounts of the same
+  // registrar can be filtered apart or, by multi-selecting, together. Labelled
+  // "Registrar · nickname" / "Registrar #2" / "Registrar".
   const registrarOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const d of portfolio)
-      counts.set(d.registrar, (counts.get(d.registrar) ?? 0) + 1);
-    return Array.from(counts, ([value, count]) => ({
+    const acc = new Map<string, { label: string; count: number }>();
+    for (const d of portfolio) {
+      const value = d.accountId ?? d.registrar;
+      const existing = acc.get(value);
+      if (existing) existing.count += 1;
+      else
+        acc.set(value, {
+          label: accountTitle(
+            registrarLabel(d.registrar, portfolioRegistrarLabels),
+            d.accountLabel,
+            multipleAccounts.has(d.registrar),
+          ),
+          count: 1,
+        });
+    }
+    return Array.from(acc, ([value, v]) => ({
       value,
-      label: registrarLabel(value, portfolioRegistrarLabels),
-      count,
+      label: v.label,
+      count: v.count,
     })).sort((a, b) => a.label.localeCompare(b.label));
-  }, [portfolio, portfolioRegistrarLabels]);
+  }, [portfolio, portfolioRegistrarLabels, multipleAccounts]);
   // Expiration windows are cumulative, so their counts intentionally overlap
   // (a domain due in 20 days matches the 30-, 60-, and 90-day options).
   const expiryOptions = useMemo(
@@ -859,7 +878,6 @@ export default function Domains() {
     search.trim() !== '' ||
     tld.length > 0 ||
     registrar.length > 0 ||
-    (showAccountDetails && account.length > 0) ||
     expiry.length > 0 ||
     ns.length > 0 ||
     folder.length > 0;
@@ -868,7 +886,6 @@ export default function Domains() {
     setSearch('');
     setTld([]);
     setRegistrar([]);
-    setAccount([]);
     setExpiry([]);
     setNs([]);
     setFolder([]);
@@ -879,15 +896,13 @@ export default function Domains() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const rows = merged.filter((d) => {
-      if (
-        showAccountDetails &&
-        account.length &&
-        !account.includes(d.accountId ?? d.registrar)
-      )
-        return false;
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
       if (tld.length > 0 && !tld.includes(tldOf(d.domainName))) return false;
-      if (registrar.length > 0 && !registrar.includes(d.registrar))
+      // The "Registrar" filter picks individual accounts (by account id).
+      if (
+        registrar.length > 0 &&
+        !registrar.includes(d.accountId ?? d.registrar)
+      )
         return false;
       // Expiration: keep a domain matching ANY selected window ("Expired" =
       // past-due; a numeric window = within that many upcoming days).
@@ -950,12 +965,10 @@ export default function Domains() {
   }, [
     merged,
     columns,
-    showAccountDetails,
     portfolioRegistrarLabels,
     search,
     tld,
     registrar,
-    account,
     expiry,
     ns,
     nsKeysByDomain,
@@ -1110,7 +1123,7 @@ export default function Domains() {
           <TriangleAlert />
           <AlertTitle>
             {portfolioErrors.length}{' '}
-            {showAccountDetails ? 'account' : 'registrar'}
+            {multipleAccounts.size > 0 ? 'account' : 'registrar'}
             {portfolioErrors.length === 1 ? '' : 's'} failed to load
           </AlertTitle>
           <AlertDescription>
@@ -1165,18 +1178,6 @@ export default function Domains() {
               setPage(0);
             }}
           />
-          {showAccountDetails && (
-            <MultiSelectFilter
-              label="Account"
-              icon={Building2}
-              options={accountOptions}
-              selected={account}
-              onChange={(next) => {
-                setAccount(next);
-                setPage(0);
-              }}
-            />
-          )}
           <MultiSelectFilter
             label="TLD"
             icon={Globe}
