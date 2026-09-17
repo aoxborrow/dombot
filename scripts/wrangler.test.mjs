@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { applyOverrides, stripJsonc } from './wrangler.mjs';
+import { applyOverrides, envOverrides, stripJsonc } from './wrangler.mjs';
 
 describe('stripJsonc', () => {
   it('drops comments and trailing commas but leaves strings alone', () => {
@@ -45,6 +45,18 @@ describe('applyOverrides', () => {
     expect(out.assets).toEqual(template.assets);
     expect(template.name).toBe('dombot');
     expect(template.d1_databases[0].database_id).toMatch(/^0+-/);
+  });
+
+  it('reads overrides from the environment', () => {
+    expect(envOverrides({})).toEqual({});
+    expect(
+      envOverrides({
+        DOMBOT_WORKER_NAME: 'dombot-ci',
+        DOMBOT_D1_DATABASE_ID: 'id-1',
+        DOMBOT_D1_DATABASE_NAME: 'db',
+        UNRELATED: 'x',
+      }),
+    ).toEqual({ name: 'dombot-ci', database_id: 'id-1', database_name: 'db' });
   });
 
   it('passes unknown keys through as top-level wrangler settings', () => {

@@ -69,14 +69,42 @@ npm run web:deploy
 This builds the renderer, applies the D1 schema, and deploys the Worker.
 Open the URL it prints and sign in.
 
-## Redeploying from GitHub Actions
+## Redeploying automatically
 
-`.github/workflows/deploy-worker.yml` deploys on every push to `main` of
-_your_ fork, once two repository secrets exist (Settings → Secrets and
-variables → Actions): `CLOUDFLARE_API_TOKEN` (an API token from the
-"Edit Cloudflare Workers" template with D1 edit permission added) and
-`CLOUDFLARE_ACCOUNT_ID`. Without them the workflow exits quietly. It never
-touches `DOMBOT_SECRET` / `DOMBOT_PASSWORD` — those stay Worker secrets.
+Two ways to have your instance follow a branch. Neither touches
+`DOMBOT_SECRET` / `DOMBOT_PASSWORD`; those stay Worker secrets.
+
+**Workers Builds (no token).** In the Cloudflare dashboard open your Worker
+→ Settings → Builds, connect the repository (yours or a fork) and the branch
+to follow, and set:
+
+| Setting        | Value            |
+| -------------- | ---------------- |
+| Build command  | `npm run build`  |
+| Deploy command | `npm run deploy` |
+
+plus these build variables, which stand in for the `wrangler.local.json` a
+build machine doesn't have:
+
+| Variable                        | Value                        |
+| ------------------------------- | ---------------------------- |
+| `DOMBOT_WORKER_NAME`            | your Worker's name           |
+| `DOMBOT_D1_DATABASE_ID`         | your D1 database id          |
+| `DOMBOT_D1_DATABASE_NAME`       | its name, if not `dombot`    |
+| `ELECTRON_SKIP_BINARY_DOWNLOAD` | `1` (skips a large download) |
+
+`npm run deploy` applies any new D1 migrations and then deploys. The
+dashboard may warn that the repository's `wrangler.jsonc` names a different
+Worker; that's the public template, and the deploy uses your name. Don't
+merge a pull request that offers to rename it.
+
+**GitHub Actions.** `.github/workflows/deploy-worker.yml` deploys on every
+push to `main` of _your_ fork, once two repository secrets exist (Settings →
+Secrets and variables → Actions): `CLOUDFLARE_API_TOKEN` (an API token from
+the "Edit Cloudflare Workers" template with D1 edit permission added) and
+`CLOUDFLARE_ACCOUNT_ID`. Without them the workflow exits quietly. Set the
+same `DOMBOT_WORKER_NAME` / `DOMBOT_D1_DATABASE_ID` values as repository
+_variables_ so the deploy targets your Worker and database.
 
 ## Day to day
 
