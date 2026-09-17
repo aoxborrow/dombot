@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { cn } from '@/lib/utils';
 import {
   Select,
   SelectContent,
@@ -129,38 +130,83 @@ export default function GeneralSettings() {
   );
 }
 
-/** Swatch grid for the brand ramp. Hex values are read back from the CSS
- * variables, so index.css stays the single source of truth. */
+/** Tailwind's emerald ramp, for comparing relative darkness against ours.
+ * Literal class names so Tailwind emits them. */
+const EMERALD_CLASSES: Record<number, string> = {
+  50: 'bg-emerald-50',
+  100: 'bg-emerald-100',
+  200: 'bg-emerald-200',
+  300: 'bg-emerald-300',
+  400: 'bg-emerald-400',
+  500: 'bg-emerald-500',
+  600: 'bg-emerald-600',
+  700: 'bg-emerald-700',
+  800: 'bg-emerald-800',
+  900: 'bg-emerald-900',
+  950: 'bg-emerald-950',
+};
+
+/** Hex of a swatch's rendered background, via a canvas pixel — the computed
+ * style of Tailwind's own colors comes back as oklch(), not hex. */
+function renderedHex(el: HTMLElement): string {
+  const ctx = document.createElement('canvas').getContext('2d');
+  if (!ctx) return '';
+  ctx.fillStyle = getComputedStyle(el).backgroundColor;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+  return '#' + [r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('');
+}
+
+/** Swatch grids for the brand ramp and, beneath it, Tailwind's emerald for
+ * comparison. Hex values are read back from the rendered swatches, so
+ * index.css stays the single source of truth. */
 function BrandPalette() {
-  const [hexes, setHexes] = useState<Record<number, string>>({});
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [hexes, setHexes] = useState<Record<string, string>>({});
   useEffect(() => {
-    const css = getComputedStyle(document.documentElement);
-    setHexes(
-      Object.fromEntries(
-        BRAND_SHADES.map((n) => [
-          n,
-          css.getPropertyValue(`--color-brand-${n}`).trim(),
-        ]),
-      ),
-    );
+    const out: Record<string, string> = {};
+    gridRef.current
+      ?.querySelectorAll<HTMLElement>('[data-swatch]')
+      .forEach((el) => {
+        out[el.dataset.swatch!] = renderedHex(el);
+      });
+    setHexes(out);
   }, []);
 
-  return (
-    <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-11">
-      {BRAND_SHADES.map((n) => (
-        <div key={n} className="flex flex-col gap-1">
-          <div
-            className="h-10 rounded-md border"
-            style={{ backgroundColor: `var(--color-brand-${n})` }}
-          />
-          <div className="text-xs leading-tight">
-            <div className="font-medium">{n}</div>
-            <div className="font-mono text-[11px] text-muted-foreground">
-              {hexes[n] ?? ''}
+  const row = (
+    name: string,
+    swatchClass: (n: number) => string | undefined,
+  ) => (
+    <div className="flex flex-col gap-1.5">
+      <div className="text-xs font-medium text-muted-foreground">{name}</div>
+      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-11">
+        {BRAND_SHADES.map((n) => (
+          <div key={n} className="flex flex-col gap-1">
+            <div
+              data-swatch={`${name}-${n}`}
+              className={cn('h-10 rounded-md border', swatchClass(n))}
+              style={
+                swatchClass(n)
+                  ? undefined
+                  : { backgroundColor: `var(--color-brand-${n})` }
+              }
+            />
+            <div className="text-xs leading-tight">
+              <div className="font-medium">{n}</div>
+              <div className="font-mono text-[11px] text-muted-foreground">
+                {hexes[`${name}-${n}`] ?? ''}
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div ref={gridRef} className="flex flex-col gap-4">
+      {row('brand', () => undefined)}
+      {row('emerald', (n) => EMERALD_CLASSES[n])}
     </div>
   );
 }
