@@ -4,53 +4,54 @@ import type {
   RegistrarMeta,
 } from '../../shared/ipc';
 
-/** Keep the original one-card-per-provider layout; migration placeholders are
- * empty credential forms, not additional accounts. */
-export function registrarGroups(
-  catalog: RegistrarDefinition[],
-  accounts: RegistrarMeta[],
-) {
-  return catalog.map((provider) => {
-    const saved = accounts.filter(
-      (a) => a.name === provider.name && (a.saved ?? a.configured),
-    );
-    return {
-      provider,
-      accounts: saved,
-      canAddAccount: saved.some((a) => a.configured),
-    };
-  });
+export interface AccountCardModel {
+  provider: RegistrarDefinition;
+  account: RegistrarMeta;
+  /** True when the registrar has sibling accounts, so the nickname matters. */
+  showLabel: boolean;
 }
 
-/** The collapsed row describes the whole registrar, independently of selection.
- * Counts include every saved account's cache. Freshness covers enabled accounts
- * and uses the oldest sync so one recent account cannot hide stale siblings. */
-export function registrarSummary(
-  provider: RegistrarDefinition,
+const isSaved = (a: RegistrarMeta) => a.saved ?? a.configured;
+const labelOf = (a: RegistrarMeta) => a.accountLabel ?? '';
+
+/** One card per account the user actually has. Every registrar also carries a
+ * placeholder account so legacy storage keys resolve; those are not cards.
+ * Sorted by registrar name, then nickname, so the order never depends on when
+ * an account was added. */
+export function accountCards(
+  catalog: RegistrarDefinition[],
   accounts: RegistrarMeta[],
-): RegistrarMeta {
-  const configured = accounts.filter((account) => account.configured);
-  const active = configured.filter((account) => account.enabled);
-  const failures = active.filter((account) => account.sync.lastError);
-  return {
-    ...provider,
-    configured: configured.length > 0,
-    enabled: active.length > 0,
-    sync: {
-      domainCount: accounts.reduce(
-        (sum, account) => sum + account.sync.domainCount,
-        0,
-      ),
-      lastSyncedAt:
-        active.length > 0 &&
-        active.every((account) => account.sync.lastSyncedAt != null)
-          ? Math.min(...active.map((account) => account.sync.lastSyncedAt!))
-          : null,
-      lastError: failures.length
-        ? `${failures.length} account${failures.length === 1 ? '' : 's'} failed to sync. Expand to view account details.`
-        : null,
-    },
-  };
+): AccountCardModel[] {
+  const cards: AccountCardModel[] = [];
+  for (const provider of catalog) {
+    const saved = accounts.filter(
+      (a) => a.name === provider.name && isSaved(a),
+    );
+    for (const account of saved)
+      cards.push({ provider, account, showLabel: saved.length > 1 });
+  }
+  return cards.sort(
+    (a, b) =>
+      a.provider.displayName.localeCompare(b.provider.displayName) ||
+      labelOf(a.account).localeCompare(labelOf(b.account), undefined, {
+        sensitivity: 'base',
+      }) ||
+      (a.account.accountId ?? '').localeCompare(b.account.accountId ?? ''),
+  );
+}
+
+/** Saved accounts for one registrar: what a new account must be told apart from. */
+export function savedSiblings(
+  accounts: RegistrarMeta[],
+  name: string,
+): RegistrarMeta[] {
+  return accounts.filter((a) => a.name === name && isSaved(a));
+}
+
+/** Labels DomBot assigned itself ("Default" for adopted legacy accounts, "Main"
+ * and "Account N" for new ones). Worth replacing once an account has a sibling. */
+export function isAutoLabel(label: string | undefined): boolean {
+  return !label || /^(default|main|account \d+)$/i.test(label.trim());
 }
 
 /** Account UI is useful only when a provider has more than one saved account.

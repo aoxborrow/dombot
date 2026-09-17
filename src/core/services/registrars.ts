@@ -12,6 +12,7 @@ import {
 } from '@aoxborrow/registrar-client';
 import {
   accountById,
+  assertUniqueAccountLabel,
   createAccount,
   isSavedAccount,
   listAccounts,
@@ -749,9 +750,7 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
       ...catalog.find((r) => r.name === account.registrar)!,
       accountId: account.id,
       accountLabel: account.label,
-      saved:
-        isSavedAccount(account.id) ||
-        Object.keys(getStoredCredentials(account.id)).length > 0,
+      saved: isSavedAccount(account.id),
       configured: isConfigured(account.registrar, account.id),
       enabled: isRegistrarEnabled(account.id),
       sync: {
@@ -792,6 +791,8 @@ export async function connectRegistrarAccount(
     throw new Error('Enter your account credentials.');
   if ((label?.trim().length ?? 0) > 100)
     throw new Error('Account label must contain at most 100 characters.');
+  // Fail on a taken nickname before spending a network round trip.
+  if (label?.trim()) assertUniqueAccountLabel(name, label);
   const assertNotDuplicate = () => {
     const duplicate = getRegistrarMetadata().find(
       (account) =>
@@ -835,7 +836,11 @@ export async function connectRegistrarAccount(
     );
     let number = existing.length + 1;
     let suggested = existing.length ? `Account ${number}` : 'Main';
-    while (existing.some((a) => a.accountLabel === suggested))
+    while (
+      existing.some(
+        (a) => a.accountLabel?.toLowerCase() === suggested.toLowerCase(),
+      )
+    )
       suggested = `Account ${++number}`;
     return createAccount(name, label?.trim() || suggested, clean);
   });

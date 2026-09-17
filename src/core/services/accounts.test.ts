@@ -711,6 +711,59 @@ describe('multi-account storage, routing and portable migration', () => {
     expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(2);
   });
 
+  it('keeps nicknames unique per registrar, ignoring case, without a network test or a second account', async () => {
+    const first = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'first', apiSecret: 'secret' }, 'Personal'],
+    );
+    await expect(
+      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+        'dynadot',
+        { apiKey: 'second', apiSecret: 'secret' },
+        ' personal ',
+      ]),
+    ).rejects.toThrow(/already named "Personal"/);
+    // Rejected before the connection test, and nothing was saved.
+    expect(fakes.providers.get('second')).toBeUndefined();
+    expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(1);
+
+    const second = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'second', apiSecret: 'secret' }, 'Agency'],
+    );
+    await expect(renameAccount(second.id, 'PERSONAL')).rejects.toThrow(
+      /already named/,
+    );
+    // Re-saving its own name (any case) and reusing a name at another
+    // registrar are both fine.
+    await renameAccount(second.id, 'agency');
+    await renameAccount(first.id, 'Personal');
+    const elsewhere = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['porkbun', { apiKey: 'pb', secretApiKey: 'secret' }, 'Personal'],
+    );
+    expect(elsewhere.label).toBe('Personal');
+  });
+
+  it('frees a nickname when its account is removed, and never collides with an unused placeholder', async () => {
+    // No Dynadot account is saved, so the placeholder's "Default" is not taken.
+    const first = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'first', apiSecret: 'secret' }, 'Default'],
+    );
+    await removeRegistrarAccount(first.id);
+    const again = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'again', apiSecret: 'secret' }, 'default'],
+    );
+    expect(again.label).toBe('default');
+  });
+
   it('a rejected connection never creates an empty account or saves its credentials', async () => {
     const { createRegistrar } = await import('@aoxborrow/registrar-client');
     createRegistrar('dynadot', { apiKey: 'bad', apiSecret: 'secret' });

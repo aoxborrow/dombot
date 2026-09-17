@@ -1,16 +1,51 @@
 # Multiple registrar accounts
 
-Settings → Registrars keeps the original one-card-per-registrar flow. Expand a card, enter its credentials, and click **Save**. A single-account registrar has no account selector, label field, or “Default” suffix. Empty registrars have no add-account action.
+Settings → Registrars shows **one card per account**. An account is one set of
+API credentials at one registrar; you can have as many as you like, including
+several at the same registrar.
 
-After the first account is saved with credentials, **Add another account** appears beside Save inside that card. It appends a separate inline credential form below the saved account, with an optional label and Cancel. The saved account’s form, selection, enabled state and sync status stay in place. Cancelling dismisses only the new form. After saving, the original account remains selected; View account explicitly switches to the newly added one. The new connection is validated before persistence, so cancellation and failed validation leave no empty account. Existing account credentials are not changed by an unsaved new-account form.
+## Adding an account
 
-The collapsed registrar row shows the combined cached domain count across its accounts, including disabled accounts, without an account name. Its Sync button syncs every configured, enabled account; its enable toggle applies to all configured accounts. The summary uses the oldest enabled account's successful sync time and surfaces pending or failed syncs instead of letting a recently synced account hide them.
+**Add registrar account**, at the top of the page, lists every supported
+registrar. Choosing one opens a new card at the top of the list with that
+registrar's credential form. Nothing is saved yet: **Add account** tests the
+connection first and only then stores the credentials and syncs the account's
+domains. A failed test or **Cancel** leaves nothing behind. One new account can
+be in progress at a time; the button is disabled until it is added or
+cancelled. With no accounts at all, the page shows the supported registrars as
+a grid of buttons that do the same thing.
 
-Only a registrar with multiple saved accounts gains an **Account** selector inside the expanded card. It selects the account whose credentials, count, sync status, Sync account button, and individual enable toggle appear below the registrar summary. Changing this selection leaves the header total unchanged. Rename and Remove account are available in this mode. Removing extra accounts returns a single-account registrar to its original presentation while keeping the surviving ID and label in storage.
+## Nicknames
 
-Domains and Renewals combine enabled accounts. Their Account column/filter appears only if at least one registrar has multiple accounts. Registrars with only one account do not display a redundant default label, including in a mixed portfolio. Exports and MCP retain account identity for reliable routing regardless of which UI fields are visible.
+Every account has a nickname, but it only matters once a registrar has more
+than one account. A lone account is shown as just "Dynadot" everywhere, and its
+nickname field is optional; left blank, DomBot assigns a name (`Main`, then
+`Account 2`, `Account 3`, …). Accounts adopted from before multi-account support
+are named `Default`.
 
-Disabling an account keeps its credentials and cache but removes it from the visible portfolio and future syncs. Enabling syncs it again. A failed sync keeps its last successful domains and timestamp and reports the error on that account. Removing an account clears its credentials, portfolio, and detail cache. It never removes another account's data.
+When you add a second account at a registrar, the form requires a nickname for
+it. If the existing account still has one of the names DomBot made up, the form
+also asks you to name that one, so both end up with names you chose. From then
+on the cards read "Dynadot · Personal" and "Dynadot · Agency".
+
+Nicknames are unique within a registrar, ignoring case. The same nickname can
+be reused at a different registrar. They are display names only, never routing
+identifiers, and can be changed at any time from the account's card.
+
+## The account card
+
+Collapsed, a card shows the enable switch, the registrar (and nickname when it
+has siblings), the last sync result and domain count, and a **Sync** button.
+Expanded, it holds the nickname, the credentials, registrar-specific options
+such as Namecheap's fixed IP proxy, **Save**, and **Remove account**. Cards are
+sorted by registrar, then nickname.
+
+Everything on a card applies to that account only. There are no
+registrar-wide controls: the toolbar's Sync refreshes every enabled account.
+
+Domains and Renewals combine enabled accounts. Their Account column/filter appears only if at least one registrar has multiple accounts. Registrars with only one account do not display a redundant nickname, including in a mixed portfolio. Exports and MCP retain account identity for reliable routing regardless of which UI fields are visible.
+
+Disabling an account keeps its credentials and cache but removes it from the visible portfolio and future syncs. Enabling syncs it again. A failed sync keeps its last successful domains and timestamp and reports the error on that account. Removing an account clears its credentials, portfolio, and detail cache, and works for a registrar's only account too; the registrar stays available from **Add registrar account**. It never removes another account's data.
 
 ## Existing data and backups
 

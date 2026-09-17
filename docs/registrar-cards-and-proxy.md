@@ -64,21 +64,21 @@ Store API credentials for each registrar account. …
 [ + Add registrar account ▾ ]          ← picker: logo + name for every registrar
 
 ┌ (●) Dynadot                 Synced 4m ago · 212 domains   [Sync] ⌄ ┐
+┌ (○) Namecheap · Agency      Disabled                             ⌄ ┐
 ┌ (●) Namecheap · Personal    Synced 4m ago · 38 domains    [Sync] ⌄ ┐
-┌ (○) Namecheap · Agency      Disabled · 120 domains               ⌄ ┐
-┌ (●) Porkbun                 Sync failed: 403 …            [Sync] ⌄ ┐
+┌ (●) Porkbun                 Sync failed                   [Sync] ⌄ ┐
 ```
 
-- **Picker.** A dropdown button above the list. Items are every registrar in
+- **Picker.** A dropdown button beside the page heading. Items are every registrar in
   the catalog, alphabetical, each with its logo. Registrars that already have
   an account are still listed; they are not marked or disabled.
 - **Cards.** One per saved account, sorted by registrar display name, then by
-  nickname (accounts without a nickname first). The collapsed header carries
+  nickname ignoring case. The collapsed header carries
   the enable switch, logo, title, sync status, domain count, a Sync button when
   configured and enabled, and the expand chevron. This is today's
   single-account header with the rollup logic removed.
-- **Title.** `Registrar` when the account has no nickname, `Registrar ·
-  Nickname` when it does.
+- **Title.** `Registrar` for a registrar's only account, `Registrar ·
+  Nickname` once it has siblings.
 - **Expanded body.** Nickname field, credential fields, the proxy toggle (Part
   2), then Save, and Remove account at the far end. Rename is no longer a mode;
   the nickname is just a field saved with the rest of the form.
@@ -88,71 +88,75 @@ Store API credentials for each registrar account. …
 
 ### Adding an account
 
-1. Choosing a registrar from the picker (or the empty-state grid) appends a
-   **draft card**, already expanded, scrolled into view, with focus in its
-   first field. The draft exists only in component state.
-2. The draft shows nickname, credentials, the proxy toggle where available,
-   **Add account** and **Cancel**. If the registrar already has an account, the
-   nickname field is required (see below).
+1. Choosing a registrar from the picker (or the empty-state grid) opens a
+   **draft card** at the top of the list, scrolled into view and focused. The
+   draft exists only in component state.
+2. The draft shows the registrar's help text, nickname, credentials, the proxy
+   toggle where available, **Add account** and **Cancel**.
 3. **Add account** calls the existing `connectRegistrarAccount` path: validate
    the connection first, persist only on success, then sync. A failed test
-   leaves the draft open with the error and persists nothing, as today.
-4. **Cancel** discards the draft. Only one draft can be open at a time; picking
-   another registrar while one is open replaces it after a confirm if any field
-   has been typed into.
+   leaves the draft open with the error and persists nothing, as today. The
+   first sync's result arrives as a toast, and the new card shows "Syncing…"
+   meanwhile.
+4. **Cancel** discards the draft. Only one draft can be open at a time: the
+   picker is disabled, with a tooltip saying why, until the draft is added or
+   cancelled. That is simpler than a discard-confirmation and Cancel is always
+   one click away.
 
 This removes the "draft must never replace the selected account" hazard in the
-current card: a draft is its own card and never shares state with a saved one.
+old card: a draft is its own card and never shares state with a saved one.
 
 ### Nicknames
 
-- Stored in the existing `label` field on the account record. No schema change.
+- Stored in the existing `label` field on the account record, which stays
+  required and non-empty. No schema, bundle or migration change. DomBot already
+  assigns a label when none is given (`Main`, `Account 2`, …; `Default` for
+  adopted legacy accounts), and Domains, Renewals and exports already hide the
+  label of a registrar's only account. The cards follow the same rule.
 - **Optional** while the account is the only one for its registrar. **Required
-  and unique (case-insensitive) within a registrar** once there are two or
-  more. Enforced in `createAccount` and `renameAccount`, not only in the form.
-- When a second account is added to a registrar whose first account has no
-  nickname, the draft form also asks for a nickname for the existing account
-  ("You already have a Dynadot account. Give each a name to tell them
-  apart."). Both labels save together; cancelling saves neither.
-- Removing accounts until one remains keeps its nickname. The user can clear
-  it.
-- The literal label `Default` is treated as "no nickname" everywhere it is
-  displayed. `listAccounts()` stops synthesizing `label: 'Default'` for the
-  built-in account and returns an empty label instead; a one-time rewrite
-  clears stored `Default` labels. The `?? 'Default'` fallbacks in
-  `Domains.tsx`, `Renewals.tsx`, `csv.ts` and `portfolio-query.ts` become "no
-  label", which matches the existing rule that a single-account registrar shows
-  no redundant account name.
+  for the new account** once the registrar already has one.
+- When the registrar's single existing account still carries a label DomBot
+  made up (`isAutoLabel`), the draft form also requires a nickname for that
+  account. It is renamed just before the new account is connected, so the new
+  nickname cannot collide with the label being replaced.
+- **Unique within a registrar, ignoring case**, among accounts the user
+  actually has. Enforced in `createAccount` and `renameAccount`, and checked in
+  `connectRegistrarAccount` before the connection test so a taken nickname
+  costs no network round trip. The unused placeholder account every registrar
+  carries does not reserve the label `Default`.
+- On a saved card the nickname is an ordinary field saved with the form.
+  Clearing it keeps the current nickname.
 
 ### What is removed
 
 - The account `<Select>`, Rename mode, "Account status" sub-row, "Sync
   account" button, and the `registrarSummary` rollup.
-- `canAddAccount` and the in-card "Add another account" button and its inline
-  form. `NewRegistrarAccountForm` and `RegistrarCard` collapse into one
-  `AccountCard` with a `draft` flag.
+- `registrarGroups`/`canAddAccount` and the in-card "Add another account"
+  button and its inline form. `RegistrarCard` becomes `AccountCard`,
+  `NewRegistrarAccountForm` becomes `DraftAccountCard`, and the Namecheap proxy
+  block they each carried a copy of becomes one `NamecheapProxyFields`.
 - The "— all accounts" variants of the enable switch labels and titles.
 
 ### What does not change
 
 - `registrar-accounts`, `credentials`, cache, folders, prices and enabled-state
-  storage. The built-in account's ID still equals the registrar name; extra
-  accounts still get UUIDs.
+  storage, including stored labels. Adopted legacy accounts keep the registrar
+  name as their ID; every account added since gets a UUID.
 - The API surface (`connectRegistrarAccount`, `createRegistrarAccount`,
   `renameRegistrarAccount`, `removeRegistrarAccount`) except for the nickname
   rules above.
 - MCP tools, `registrar_list`, and `accountId` routing.
 - The Account column's visibility rule on Domains and Renewals.
-- Bundle format. Labels change value, not shape.
+- Bundle format.
 
 ### Removing the last account of a registrar
 
-Today the built-in account can only be removed once another exists. With one
-card per account, removing a registrar's only account must work: the card
-disappears and the registrar is available again from the picker. The built-in
-account is already tombstoned with `removed: true` when deleted; adding that
-registrar again should revive the built-in ID (clearing the tombstone) rather
-than mint a UUID, so legacy keys for folders and prices line up again.
+The old card offered Remove only when a registrar had several accounts. With
+one card per account it is always available: the card disappears and the
+registrar is offered again by the picker. The service already supported this.
+Adding the registrar back creates a new UUID account. A removed legacy ID stays
+tombstoned on purpose, so old queued work can never be rerouted to a different
+account that happens to reuse it.
 
 ## Part 2 — Central proxy settings
 
@@ -300,10 +304,9 @@ bumps the bundle version so they refuse the file instead.
 
 Each phase is one PR and leaves the app shippable.
 
-1. **Account cards.** `AccountCard`, picker, empty state, draft flow, nickname
-   rules in `accounts.ts`, `Default` label cleanup, last-account removal and
-   built-in ID revival. The Namecheap proxy fields stay in the card exactly as
-   they are. Rewrite `multi-account.md`.
+1. **Account cards.** *Done.* `AccountCard`, picker, empty state, draft flow,
+   nickname rules in `accounts.ts`, last-account removal. The Namecheap proxy
+   fields stay in the card exactly as they were. `multi-account.md` rewritten.
 2. **registrar-client: `fetch` option and the retry standard.** Library PR
    with the read/write classification, the sent-or-not distinction, the
    `OutcomeUnknownError`, removal of the per-call `retries: 0` opt-outs, tests,
@@ -320,12 +323,13 @@ Each phase is one PR and leaves the app shippable.
 
 ## Testing
 
-- **Accounts.** Nickname optional/required/unique rules at the service level;
-  adding a second account names both; removing and re-adding a registrar's
-  only account revives the built-in ID and its folders/prices; stored
-  `Default` labels are cleared once and never reappear.
-- **Cards.** Picker creates one draft; cancel persists nothing; a failed
-  connection test persists nothing; sort order; empty state.
+- **Accounts.** Nicknames are unique per registrar ignoring case, rejected
+  before any connection test, reusable at another registrar, freed by removal,
+  and never blocked by an unused placeholder.
+- **Cards.** One card per saved account and none for placeholders; nickname
+  shown only with siblings; sort order independent of input order; recognition
+  of DomBot-assigned labels. Draft, cancel, empty state and picker checked in
+  the running app.
 - **Migration.** Single Namecheap proxy; two accounts with the same proxy; two
   accounts with different proxies; already-migrated data is a no-op; legacy
   bundle import.

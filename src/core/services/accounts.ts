@@ -5,7 +5,7 @@ import {
 } from '@aoxborrow/registrar-client';
 import type { RegistrarAccount } from '../../shared/ipc';
 import { Namespace } from '../storage/namespace';
-import { setStoredCredentials } from './credentials';
+import { getStoredCredentials, setStoredCredentials } from './credentials';
 
 // Default IDs deliberately equal legacy storage keys: no credential rewrite or
 // loss of cached domains, folders, manual prices, or disabled state on upgrade.
@@ -32,6 +32,33 @@ export function accountById(id: string): RegistrarAccount {
   return account;
 }
 
+/** An account the user actually has, as opposed to the placeholder every
+ * registrar gets so legacy single-account storage keys keep resolving. */
+export function isSavedAccount(id: string): boolean {
+  return store.has(id) || Object.keys(getStoredCredentials(id)).length > 0;
+}
+
+/** Nicknames tell sibling accounts apart, so they are unique per registrar
+ * (case-insensitively) among accounts the user actually has. */
+export function assertUniqueAccountLabel(
+  registrar: RegistrarName,
+  label: string,
+  exceptId?: string,
+): void {
+  const wanted = label.trim().toLowerCase();
+  const clash = listAccounts().find(
+    (a) =>
+      a.registrar === registrar &&
+      a.id !== exceptId &&
+      isSavedAccount(a.id) &&
+      a.label.trim().toLowerCase() === wanted,
+  );
+  if (clash)
+    throw new Error(
+      `Another account is already named "${clash.label}". Choose a different nickname.`,
+    );
+}
+
 function cleanLabel(label: string): string {
   const value = label.trim();
   if (!value || value.length > 100)
@@ -51,6 +78,7 @@ export async function createAccount(
     registrar,
     label: cleanLabel(label),
   };
+  assertUniqueAccountLabel(registrar, account.label);
   // Persist secrets first. A failed test/save never exposes an empty account.
   if (credentials) await setStoredCredentials(account.id, credentials);
   try {
@@ -66,7 +94,10 @@ export async function createAccount(
 }
 
 export async function renameAccount(id: string, label: string): Promise<void> {
-  await store.set(id, { ...accountById(id), label: cleanLabel(label) });
+  const account = accountById(id);
+  const next = cleanLabel(label);
+  assertUniqueAccountLabel(account.registrar, next, id);
+  await store.set(id, { ...account, label: next });
 }
 
 export async function removeAccountRecord(id: string): Promise<void> {
@@ -99,8 +130,4 @@ export function validateAccountRecords(records: Record<string, unknown>): void {
       throw new Error(`Invalid account metadata for "${key}".`);
     }
   }
-}
-
-export function isSavedAccount(id: string): boolean {
-  return store.has(id);
 }
