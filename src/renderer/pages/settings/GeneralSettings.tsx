@@ -130,6 +130,22 @@ export default function GeneralSettings() {
   );
 }
 
+/** Candidate ramp: the brand ramp with chroma nudged up on a curve peaking at
+ * 400–500 (+15%), tapering to +2% at the ends. Same lightness and hue. */
+const BRAND_SAT_HEX: Record<number, string> = {
+  50: '#f1fcf4',
+  100: '#e0f7e6',
+  200: '#c4eece',
+  300: '#9cddad',
+  400: '#70c588',
+  500: '#449f5f',
+  600: '#337544',
+  700: '#2a5b34',
+  800: '#1f4627',
+  900: '#16341c',
+  950: '#0f2614',
+};
+
 /** Tailwind's sky and slate ramps, for comparing relative darkness and
  * saturation against ours. Literal class names so Tailwind emits them. */
 const SKY_CLASSES: Record<number, string> = {
@@ -189,6 +205,7 @@ function BrandPalette() {
   const row = (
     name: string,
     swatchClass: (n: number) => string | undefined,
+    color?: Record<number, string>,
   ) => (
     <div className="flex flex-col gap-1.5">
       <div className="text-xs font-medium text-muted-foreground">{name}</div>
@@ -199,9 +216,11 @@ function BrandPalette() {
               data-swatch={`${name}-${n}`}
               className={cn('h-10 rounded-md border', swatchClass(n))}
               style={
-                swatchClass(n)
-                  ? undefined
-                  : { backgroundColor: `var(--color-brand-${n})` }
+                color
+                  ? { backgroundColor: color[n] }
+                  : swatchClass(n)
+                    ? undefined
+                    : { backgroundColor: `var(--color-brand-${n})` }
               }
             />
             <div className="text-xs leading-tight">
@@ -219,6 +238,7 @@ function BrandPalette() {
   return (
     <div ref={gridRef} className="flex flex-col gap-4">
       {row('brand', () => undefined)}
+      {row('brand +sat', () => undefined, BRAND_SAT_HEX)}
       {row('sky', (n) => SKY_CLASSES[n])}
       {row('slate', (n) => SLATE_CLASSES[n])}
     </div>
