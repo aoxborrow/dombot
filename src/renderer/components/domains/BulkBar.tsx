@@ -1,7 +1,6 @@
 import {
   CalendarPlus,
   ChevronDown,
-  EyeClosed,
   EyeOff,
   FileSpreadsheet,
   KeyRound,
@@ -13,13 +12,11 @@ import {
   Server,
   X,
 } from 'lucide-react';
-import { HIDDEN_FOLDER_ID } from '../../../shared/ipc';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { bulkOpTitle } from '../../lib/bulk';
-import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
-import { FolderOffIcon } from '../icons/FolderOffIcon';
+import { FolderMenuItems } from './FolderMenuItems';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -130,44 +127,11 @@ export function BulkBar({
                 Folder
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="max-h-[320px] w-52 overflow-y-auto">
-                {folders.map((f) => (
-                  <DropdownMenuItem
-                    key={f.id}
-                    className="gap-2.5"
-                    onSelect={() => onAssignFolder(f.id)}
-                  >
-                    <FolderIcon
-                      className={`size-4 shrink-0 ${folderColorStyle(f.color).text}`}
-                      aria-hidden
-                    />
-                    <span className="flex-1 truncate">{f.name}</span>
-                  </DropdownMenuItem>
-                ))}
-                {folders.length === 0 && (
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                    No folders yet
-                  </div>
-                )}
-                <DropdownMenuSeparator />
-                {/* Hidden is a built-in folder: assigning drops the domains
-                    from the table until "Hidden" is picked in the Folder filter. */}
-                <DropdownMenuItem
-                  className="gap-2.5"
-                  onSelect={() => onAssignFolder(HIDDEN_FOLDER_ID)}
-                >
-                  <EyeClosed className="size-4 shrink-0" aria-hidden />
-                  <span className="flex-1">Hidden</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="gap-2.5"
-                  onSelect={() => onAssignFolder(null)}
-                >
-                  <FolderOffIcon
-                    className="size-4 shrink-0 text-muted-foreground/50"
-                    aria-hidden
-                  />
-                  <span className="flex-1">None</span>
-                </DropdownMenuItem>
+                <FolderMenuItems
+                  folders={folders}
+                  emptyState
+                  onAssign={onAssignFolder}
+                />
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />

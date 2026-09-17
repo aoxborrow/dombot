@@ -4,11 +4,11 @@ import { domainKey } from '../../shared/account-key';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Archive,
   ArrowDown,
   ArrowUp,
   Building2,
   CalendarClock,
-  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -17,7 +17,6 @@ import {
   ChevronsUpDown,
   CircleCheck,
   Eye,
-  EyeClosed,
   EyeOff,
   Globe,
   Lock,
@@ -47,7 +46,7 @@ import {
   useOpUnsupportedReason,
 } from '../lib/domain-ops';
 import { FolderIcon } from '../components/icons/FolderIcon';
-import { FolderOffIcon } from '../components/icons/FolderOffIcon';
+import { FolderMenuItems } from '../components/domains/FolderMenuItems';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { NameserversCell } from '../components/domains/NameserversCell';
@@ -70,8 +69,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -249,7 +246,7 @@ function FolderCell({
         >
           {hidden ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
-              <EyeClosed className="size-4 shrink-0" />
+              <Archive className="size-4 shrink-0" />
               Hidden
               <ChevronDown
                 className="ml-auto size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
@@ -307,45 +304,11 @@ function FolderMenuContent({
       align="start"
       className="max-h-[320px] w-52 overflow-y-auto"
     >
-      {folders.map((f) => (
-        <DropdownMenuItem
-          key={f.id}
-          className="gap-2.5"
-          onSelect={() => onAssign(f.id)}
-        >
-          <FolderIcon
-            className={cn('size-4 shrink-0', folderColorStyle(f.color).text)}
-            aria-hidden
-          />
-          <span className="flex-1 truncate">{f.name}</span>
-          {f.id === folderId && (
-            <Check className="size-3.5 shrink-0 text-muted-foreground" />
-          )}
-        </DropdownMenuItem>
-      ))}
-      {folders.length > 0 && <DropdownMenuSeparator />}
-      {/* Hidden is a built-in folder: assigning to it drops the domain from the
-          table until "Hidden" is picked in the Folder filter. */}
-      <DropdownMenuItem
-        className="gap-2.5"
-        onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
-      >
-        <EyeClosed className="size-4 shrink-0" aria-hidden />
-        <span className="flex-1">Hidden</span>
-        {folderId === HIDDEN_FOLDER_ID && (
-          <Check className="size-3.5 shrink-0 text-muted-foreground" />
-        )}
-      </DropdownMenuItem>
-      <DropdownMenuItem className="gap-2.5" onSelect={() => onAssign(null)}>
-        <FolderOffIcon
-          className="size-4 shrink-0 text-muted-foreground/50"
-          aria-hidden
-        />
-        <span className="flex-1">None</span>
-        {folderId === undefined && (
-          <Check className="size-3.5 shrink-0 text-muted-foreground" />
-        )}
-      </DropdownMenuItem>
+      <FolderMenuItems
+        folders={folders}
+        selected={folderId ?? null}
+        onAssign={onAssign}
+      />
     </DropdownMenuContent>
   );
 }
