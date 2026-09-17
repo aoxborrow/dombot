@@ -171,8 +171,8 @@ function CellSkeleton({ align }: { align?: 'left' | 'right' | 'center' }) {
 
 /** Sort sentinel for the injected Folder column (folders aren't a Domain field). */
 const FOLDER = 'folder';
-/** Filter value matching domains with no folder assigned. */
-const UNASSIGNED = '__unassigned__';
+/** Filter value matching domains with no folder assigned (the "None" bucket). */
+const NONE = '__none__';
 
 const RENEWAL = 'renewal';
 
@@ -822,13 +822,13 @@ export default function Domains() {
   }, [merged]);
 
   // Folder filter options: one per folder (with its assigned-domain count over
-  // the whole portfolio), an "Unassigned" bucket, and an always-present "Archive"
-  // bucket for the built-in archive folder. A dangling assignment (its folder was
-  // deleted) counts as unassigned. `archivedCount` also lets the Folder filter
-  // show when the user has archived domains but no folders of their own.
+  // the whole portfolio), a "None" bucket (no folder), and an always-present
+  // "Archive" bucket for the built-in archive folder. A dangling assignment (its
+  // folder was deleted) counts as None. `archivedCount` also lets the Folder
+  // filter show when the user has archived domains but no folders of their own.
   const { folderOptions, archivedCount } = useMemo(() => {
     const counts: Record<string, number> = {};
-    let unassigned = 0;
+    let noFolder = 0;
     let archived = 0;
     for (const d of portfolio) {
       const id = folderAssignments[domainKey(d)];
@@ -837,7 +837,7 @@ export default function Domains() {
       } else if (id && folders.some((f) => f.id === id)) {
         counts[id] = (counts[id] ?? 0) + 1;
       } else {
-        unassigned += 1;
+        noFolder += 1;
       }
     }
     const opts = folders.map((f) => ({
@@ -852,9 +852,9 @@ export default function Domains() {
       ),
     }));
     opts.push({
-      value: UNASSIGNED,
-      label: 'Unassigned',
-      count: unassigned,
+      value: NONE,
+      label: 'None',
+      count: noFolder,
       icon: (
         <FolderOffIcon
           className="size-4 shrink-0 text-muted-foreground/50"
@@ -928,7 +928,7 @@ export default function Domains() {
         if (!keys || !ns.some((k) => keys.has(k))) return false;
       }
       // Folder: resolve each domain to a bucket — a real folder id, the built-in
-      // Archive id, or "Unassigned" (no folder, or a dangling assignment). With a
+      // Archive id, or "None" (no folder, or a dangling assignment). With a
       // folder filter active, keep only domains whose bucket is selected. With no
       // folder filter, drop the Archive bucket (that's the whole point of it).
       {
@@ -938,7 +938,7 @@ export default function Domains() {
             ? ARCHIVE_FOLDER_ID
             : id && folders.some((f) => f.id === id)
               ? id
-              : UNASSIGNED;
+              : NONE;
         if (folder.length > 0) {
           if (!folder.includes(bucket)) return false;
         } else if (bucket === ARCHIVE_FOLDER_ID) {
