@@ -511,8 +511,13 @@ function AccountCard({
               />
               <span className="whitespace-nowrap">{provider.displayName}</span>
               {suffix && nickname === null && (
-                <span className="-ml-1.5 truncate font-normal whitespace-pre text-muted-foreground">
-                  {suffix}
+                <span className="-ml-1 flex min-w-0 items-center gap-1.5 font-normal text-muted-foreground">
+                  {/* The bullet is its own item so the gap is equal on both
+                      sides, whatever the font's space width. */}
+                  {suffix.startsWith(' · ') && <span aria-hidden>·</span>}
+                  <span className="truncate">
+                    {suffix.replace(/^ (· )?/, '')}
+                  </span>
                 </span>
               )}
             </span>
@@ -531,7 +536,7 @@ function AccountCard({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="-ml-2 size-7 shrink-0 text-muted-foreground hover:text-foreground"
+                className="-ml-2.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground"
                 disabled={locked}
                 aria-label={
                   hasNickname ? `Rename ${title}` : `Add a nickname to ${title}`
@@ -539,7 +544,7 @@ function AccountCard({
                 title={hasNickname ? 'Rename' : 'Add a nickname'}
                 onClick={() => setNickname(hasNickname ? currentLabel : '')}
               >
-                <Pencil className="size-3.5" />
+                <Pencil className="size-3" />
               </Button>
             ) : (
               <Input
