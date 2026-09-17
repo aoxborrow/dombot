@@ -68,11 +68,11 @@ export function BulkBar({
   if (domains.length === 0 && !running) return null;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/60 bg-muted/40 px-3 py-2">
       <div className="flex items-center gap-3 text-sm">
         {domains.length > 0 ? (
           <>
-            <span className="font-medium">
+            <span className="font-medium text-primary">
               {domains.length} selected
               {registrarCount > 1 && (
                 <span className="font-normal text-muted-foreground">
@@ -82,7 +82,7 @@ export function BulkBar({
               )}
             </span>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               className="h-7 gap-1 px-2 text-muted-foreground"
               onClick={onClear}
@@ -110,9 +110,9 @@ export function BulkBar({
       {domains.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
+            <Button size="sm">
               Bulk actions
-              <ChevronDown className="text-muted-foreground" />
+              <ChevronDown className="text-primary-foreground/70" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
