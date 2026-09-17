@@ -154,16 +154,8 @@ export default function ProxySettings() {
               <FieldLabel htmlFor="proxy-url">Proxy URL</FieldLabel>
               <FieldDescription className="text-[13px]">
                 An HTTP or HTTPS CONNECT proxy, by hostname or public IPv4
-                address — for example{' '}
-                <code className="font-mono">
-                  https://user:pass@proxy.example.com:8080
-                </code>{' '}
-                or{' '}
-                <code className="font-mono">
-                  http://user:pass@203.0.113.10:3128
-                </code>
-                . Prefer HTTPS when the proxy needs a username and password; an
-                HTTP proxy receives them unencrypted.
+                address. Prefer HTTPS when the proxy needs a username and
+                password; an HTTP proxy receives them unencrypted.
               </FieldDescription>
               <div className="flex items-start gap-2">
                 <Input
@@ -189,6 +181,16 @@ export default function ProxySettings() {
                   {busy === 'test' ? 'Testing…' : 'Test'}
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground/80">
+                For example{' '}
+                <code className="font-mono">
+                  https://user:pass@proxy.example.com:8080
+                </code>{' '}
+                or{' '}
+                <code className="font-mono">
+                  http://user:pass@203.0.113.10:3128
+                </code>
+              </p>
             </Field>
             <Field className="gap-1.5">
               <FieldLabel htmlFor="proxy-egress-ip">
@@ -269,7 +271,7 @@ export default function ProxySettings() {
               {test.matches
                 ? test.expected
                   ? `Connected through the proxy. Registrars will see your requests coming from ${test.ip}.`
-                  : `Connected through the proxy. Your outgoing address is ${test.ip} — saved as the address registrars will see.`
+                  : `Connected through the proxy. Your outgoing address is ${test.ip}.`
                 : `Connected, but your requests came from ${test.ip}, not the ${test.expected} you entered. Registrars will see ${test.ip}, so use that as the outgoing address.`}
             </p>
           )}

@@ -938,7 +938,7 @@ function ProxyToggle({
 
   return (
     <div className="mt-5 border-t pt-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Switch
           id={id}
           checked={enabled}
@@ -947,32 +947,14 @@ function ProxyToggle({
           disabled={disabled || (!proxy && !enabled)}
         />
         <FieldLabel htmlFor={id}>Use fixed IP proxy</FieldLabel>
-      </div>
-      {!proxy ? (
-        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-          Set up a{' '}
-          <Link
-            to="/settings?tab=proxy"
-            className="underline underline-offset-4"
-          >
-            proxy
-          </Link>{' '}
-          to use this.
-        </p>
-      ) : enabled ? (
-        <div className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-          <p>
-            This account&apos;s requests go through your proxy, so{' '}
-            {provider.displayName} sees them arrive from the address below.
-            Whitelist it in the {provider.displayName} API settings.
-          </p>
-          <div className="mt-2 flex max-w-xs items-center gap-2 rounded-md border bg-muted/40 py-1 pr-1 pl-3">
+        {proxy && enabled && (
+          <div className="ml-auto flex shrink-0 items-center gap-1 rounded-md border bg-muted/40 py-1 pr-1 pl-2.5">
             <input
               readOnly
               value={proxy.egressIp}
               aria-label="Outgoing IP address"
               onFocus={(e) => e.currentTarget.select()}
-              className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none"
+              className="w-32 bg-transparent font-mono text-xs text-foreground outline-none"
             />
             <Button
               type="button"
@@ -988,12 +970,30 @@ function ProxyToggle({
               {copied ? <Check /> : <Copy />}
             </Button>
           </div>
-        </div>
-      ) : (
-        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-          Send this account&apos;s requests through your {proxyLink}.
-        </p>
-      )}
+        )}
+      </div>
+      <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+        {!proxy ? (
+          <>
+            Set up a{' '}
+            <Link
+              to="/settings?tab=proxy"
+              className="underline underline-offset-4"
+            >
+              proxy
+            </Link>{' '}
+            to use this.
+          </>
+        ) : enabled ? (
+          <>
+            This account&apos;s requests go through your proxy, so{' '}
+            {provider.displayName} sees them arrive from a fixed address.
+            Whitelist it in the {provider.displayName} API settings.
+          </>
+        ) : (
+          <>Send this account&apos;s requests through your {proxyLink}.</>
+        )}
+      </p>
     </div>
   );
 }
