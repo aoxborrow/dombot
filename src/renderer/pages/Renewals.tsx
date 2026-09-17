@@ -1,3 +1,4 @@
+import { accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { useMemo, useState } from 'react';
@@ -150,10 +151,11 @@ export default function Renewals() {
           ?.filter((r) => r.configured && r.enabled)
           .map((r) => (
             <option key={r.accountId ?? r.name} value={r.accountId ?? r.name}>
-              {r.displayName}
-              {multipleAccounts.has(r.name)
-                ? ` · ${r.accountLabel ?? 'Default'}`
-                : ''}
+              {accountTitle(
+                r.displayName,
+                r.accountLabel,
+                multipleAccounts.has(r.name),
+              )}
             </option>
           ))}
       </select>

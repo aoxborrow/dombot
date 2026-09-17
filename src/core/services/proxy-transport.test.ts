@@ -311,7 +311,12 @@ describe('central proxy settings', () => {
 
     await saveRegistrarCredentials('namecheap', credentials, undefined, true);
     expect(getProxySettings().users).toEqual([
-      { accountId: 'namecheap', registrar: 'namecheap', label: 'Default' },
+      {
+        accountId: 'namecheap',
+        registrar: 'namecheap',
+        label: 'Default',
+        hasSiblings: false,
+      },
     ]);
     await expect(removeProxyProfile()).rejects.toThrow(/still uses/);
     await saveRegistrarCredentials('namecheap', credentials, undefined, false);

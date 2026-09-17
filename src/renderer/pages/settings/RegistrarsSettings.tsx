@@ -1,13 +1,15 @@
+import { accountCards } from '../../lib/registrar-accounts';
 import {
-  accountCards,
+  accountSuffix,
+  accountTitle,
   isAutoLabel,
-  savedSiblings,
-} from '../../lib/registrar-accounts';
+} from '../../../shared/account-label';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   CircleX,
   ExternalLink,
+  Pencil,
   Plus,
   RefreshCw,
 } from 'lucide-react';
@@ -174,18 +176,17 @@ export default function RegistrarsSettings() {
           <DraftAccountCard
             key={draft.key}
             provider={draft.provider}
-            siblings={savedSiblings(registrars ?? [], draft.provider.name)}
             proxy={proxy}
             onAdded={(account) => added(draft.provider, account)}
             onCancel={() => setDraft(null)}
           />
         )}
-        {cards.map(({ provider, account, showLabel }) => (
+        {cards.map(({ provider, account, hasSiblings }) => (
           <AccountCard
             key={idOf(account)}
             provider={provider}
             account={account}
-            showLabel={showLabel}
+            hasSiblings={hasSiblings}
             proxy={proxy}
             firstSync={syncingIds.has(idOf(account))}
           />
@@ -283,13 +284,14 @@ function EmptyRegistrars({
 function AccountCard({
   provider,
   account,
-  showLabel,
+  hasSiblings,
   proxy,
   firstSync,
 }: {
   provider: RegistrarDefinition;
   account: RegistrarMeta;
-  showLabel: boolean;
+  /** The registrar has other accounts, so an unnamed one shows its number. */
+  hasSiblings: boolean;
   proxy: ProxySettings['proxy'];
   firstSync: boolean;
 }) {
@@ -301,7 +303,10 @@ function AccountCard({
   const currentLabel = account.accountLabel ?? '';
   const [values, setValues] = useState<CredentialValues>({});
   const [original, setOriginal] = useState<CredentialValues>({});
-  const [label, setLabel] = useState(currentLabel);
+  // Inline nickname edit in the title bar; null = not editing.
+  const [nickname, setNickname] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [syncingHere, setSyncing] = useState(false);
@@ -318,7 +323,6 @@ function AccountCard({
     let current = true;
     setError(null);
     setLoading(true);
-    setLabel(currentLabel);
     window.api
       .getRegistrarCredentials(provider.name, id)
       .then((creds) => {
@@ -334,7 +338,7 @@ function AccountCard({
     return () => {
       current = false;
     };
-  }, [open, id, currentLabel, provider.name, usesProxy]);
+  }, [open, id, provider.name, usesProxy]);
 
   const runSync = async () => {
     setSyncing(true);
@@ -366,12 +370,6 @@ function AccountCard({
         Object.keys({ ...original, ...clean }).some(
           (k) => original[k] !== clean[k],
         );
-      // A blank nickname keeps the current one: every account carries a name,
-      // it just isn't shown until the registrar has a second account.
-      const nextLabel = label.trim();
-      if (nextLabel && nextLabel !== currentLabel)
-        await window.api.renameRegistrarAccount(id, nextLabel);
-      else setLabel(currentLabel);
       if (changed)
         await window.api.saveRegistrarCredentials(
           provider.name,
@@ -390,6 +388,31 @@ function AccountCard({
       setError(errorMessage(err));
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Saves on its own, apart from the credentials form. Blank removes the
+  // nickname, and the account goes back to its number.
+  const saveNickname = async () => {
+    if (nickname === null || renaming) return;
+    const next = nickname.trim();
+    const current = isAutoLabel(currentLabel) ? '' : currentLabel;
+    if (next === current) {
+      setNicknameError(null);
+      return setNickname(null);
+    }
+    setRenaming(true);
+    setNicknameError(null);
+    try {
+      await window.api.renameRegistrarAccount(id, next);
+      await loadRegistrars();
+      await refreshCache();
+      setNickname(null);
+    } catch (err) {
+      // Keep the field open with what was typed so it can be corrected.
+      setNicknameError(errorMessage(err));
+    } finally {
+      setRenaming(false);
     }
   };
 
@@ -436,10 +459,9 @@ function AccountCard({
         !values[f.name]?.trim() &&
         !(proxySuppliesIp && f.name === 'clientIp'),
     );
-  const renamed = Boolean(label.trim()) && label.trim() !== currentLabel;
-  const title = showLabel
-    ? `${provider.displayName} · ${currentLabel}`
-    : provider.displayName;
+  const title = accountTitle(provider.displayName, currentLabel, hasSiblings);
+  const suffix = accountSuffix(currentLabel, hasSiblings);
+  const hasNickname = !isAutoLabel(currentLabel);
 
   return (
     <Card className="gap-0 overflow-hidden rounded-md py-0">
@@ -469,7 +491,12 @@ function AccountCard({
               }
             />
           </div>
-          <CollapsibleTrigger className="flex min-w-0 flex-1 flex-wrap items-center gap-x-[18px] gap-y-1 text-left">
+          <CollapsibleTrigger
+            className={cn(
+              'flex min-w-0 flex-wrap items-center gap-x-[18px] gap-y-1 text-left',
+              !open && 'flex-1',
+            )}
+          >
             <span
               className={cn(
                 'flex min-w-0 items-center gap-2.5 font-medium',
@@ -483,16 +510,82 @@ function AccountCard({
                 label={provider.displayName}
               />
               <span className="whitespace-nowrap">{provider.displayName}</span>
-              {showLabel && (
-                <span className="truncate font-normal text-muted-foreground">
-                  · {currentLabel}
+              {suffix && nickname === null && (
+                <span className="-ml-1.5 truncate font-normal whitespace-pre text-muted-foreground">
+                  {suffix}
                 </span>
               )}
             </span>
-            <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-              <SyncStatus meta={account} syncing={syncing} />
-            </span>
+            {!open && (
+              <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+                <SyncStatus meta={account} syncing={syncing} />
+              </span>
+            )}
           </CollapsibleTrigger>
+          {/* Expanded: the nickname is edited right in the title bar. The input
+              can't sit inside the trigger (a button), so the status gets its own
+              trigger after it and the row still expands/collapses on click. */}
+          {open &&
+            (nickname === null ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="-ml-2 size-7 shrink-0 text-muted-foreground hover:text-foreground"
+                disabled={locked}
+                aria-label={
+                  hasNickname ? `Rename ${title}` : `Add a nickname to ${title}`
+                }
+                title={hasNickname ? 'Rename' : 'Add a nickname'}
+                onClick={() => setNickname(hasNickname ? currentLabel : '')}
+              >
+                <Pencil className="size-3.5" />
+              </Button>
+            ) : (
+              <Input
+                autoFocus
+                value={nickname}
+                disabled={renaming}
+                maxLength={100}
+                autoComplete="off"
+                placeholder="Add a nickname"
+                aria-label={`Nickname for ${title}`}
+                className="-ml-1 h-8 w-44 shrink"
+                aria-invalid={nicknameError ? true : undefined}
+                onChange={(e) => {
+                  setNickname(e.target.value);
+                  setNicknameError(null);
+                }}
+                onBlur={() => void saveNickname()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void saveNickname();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setNicknameError(null);
+                    setNickname(null);
+                  }
+                }}
+              />
+            ))}
+          {open && nickname !== null && nicknameError && (
+            <span
+              role="alert"
+              className="min-w-0 flex-1 text-sm text-destructive"
+            >
+              {nicknameError}
+            </span>
+          )}
+          {open && !(nickname !== null && nicknameError) && (
+            <CollapsibleTrigger
+              tabIndex={-1}
+              aria-hidden
+              className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1 text-left"
+            >
+              <SyncStatus meta={account} syncing={syncing} />
+            </CollapsibleTrigger>
+          )}
           {/* Sync only makes sense for an enabled account. */}
           {configured && enabled && (
             <Button
@@ -536,17 +629,6 @@ function AccountCard({
           >
             <RegistrarHelp provider={provider} />
             <FieldGroup className="gap-4">
-              <NicknameField
-                id={`${id}-label`}
-                value={label}
-                disabled={locked}
-                onChange={setLabel}
-                description={
-                  showLabel
-                    ? undefined
-                    : `Shown once you have more than one ${provider.displayName} account.`
-                }
-              />
               <CredentialFields
                 provider={provider}
                 idPrefix={id}
@@ -571,9 +653,7 @@ function AccountCard({
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <Button
                 type="submit"
-                disabled={
-                  locked || missingRequired || (!hasCredentials && !renamed)
-                }
+                disabled={locked || missingRequired || !hasCredentials}
               >
                 {saving ? 'Saving…' : 'Save'}
               </Button>
@@ -602,8 +682,8 @@ function AccountCard({
           {removing && (
             <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4 text-sm">
               <span>
-                Remove {showLabel ? `“${currentLabel}”` : 'this account'} from
-                DomBot? Its domains stay at {provider.displayName}.
+                Remove {title} from DomBot? Its domains stay at{' '}
+                {provider.displayName}.
               </span>
               <Button
                 variant="destructive"
@@ -632,13 +712,11 @@ function AccountCard({
  * is persisted until the connection test passes. */
 function DraftAccountCard({
   provider,
-  siblings,
   proxy,
   onAdded,
   onCancel,
 }: {
   provider: RegistrarDefinition;
-  siblings: RegistrarMeta[];
   proxy: ProxySettings['proxy'];
   onAdded: (account: RegistrarAccount) => void;
   onCancel: () => void;
@@ -648,34 +726,13 @@ function DraftAccountCard({
     heading.current?.scrollIntoView({ block: 'nearest' });
     heading.current?.focus({ preventScroll: true });
   }, []);
-  // A second account must be tellable from the first. If the only existing
-  // account still carries a name DomBot made up, ask for a real one now.
-  const needsNickname = siblings.length > 0;
-  const unnamed =
-    siblings.length === 1 && isAutoLabel(siblings[0].accountLabel)
-      ? siblings[0]
-      : null;
   const [values, setValues] = useState<CredentialValues>({});
-  const [label, setLabel] = useState('');
-  const [siblingLabel, setSiblingLabel] = useState('');
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // With the Namecheap proxy on, its outgoing IP supplies the required ClientIp,
   // so the direct field isn't needed; the proxy URL/IP are required instead.
   const proxySuppliesIp = provider.name === 'namecheap' && proxyEnabled;
-  const same = (a: string, b: string) =>
-    a.trim().toLowerCase() === b.trim().toLowerCase();
-  const taken = siblings.some(
-    (s) => s !== unnamed && same(s.accountLabel ?? '', label),
-  );
-  const nicknameError = !label.trim()
-    ? null
-    : taken
-      ? 'Another account already uses that nickname.'
-      : unnamed && siblingLabel.trim() && same(siblingLabel, label)
-        ? 'Give the two accounts different nicknames.'
-        : null;
   const ready =
     Object.values(values).some((value) => value.trim()) &&
     provider.configFields.every(
@@ -683,27 +740,19 @@ function DraftAccountCard({
         !field.required ||
         values[field.name]?.trim() ||
         (proxySuppliesIp && field.name === 'clientIp'),
-    ) &&
-    (!needsNickname || Boolean(label.trim())) &&
-    (!unnamed || Boolean(siblingLabel.trim())) &&
-    !nicknameError;
+    );
 
   const save = async () => {
     if (!ready || saving) return;
     setSaving(true);
     setError(null);
     try {
-      // Name the existing account first so the new nickname can't collide with
-      // the made-up one it is replacing.
-      if (unnamed && !same(siblingLabel, unnamed.accountLabel ?? ''))
-        await window.api.renameRegistrarAccount(
-          idOf(unnamed),
-          siblingLabel.trim(),
-        );
       const account = await window.api.connectRegistrarAccount(
         provider.name,
         values,
-        label.trim() || undefined,
+        // No nickname up front: the account takes the next number and can be
+        // named from its title bar afterwards.
+        undefined,
         proxyEnabled,
       );
       onAdded(account);
@@ -739,40 +788,6 @@ function DraftAccountCard({
       >
         <RegistrarHelp provider={provider} />
         <FieldGroup className="gap-4">
-          {needsNickname && (
-            <p className="text-sm text-muted-foreground">
-              You already have{' '}
-              {siblings.length === 1
-                ? `a ${provider.displayName} account`
-                : `${siblings.length} ${provider.displayName} accounts`}
-              . Nicknames tell them apart in Domains, Renewals and exports.
-            </p>
-          )}
-          {unnamed && (
-            <NicknameField
-              id={`${idPrefix}-sibling-label`}
-              label="Nickname for your existing account"
-              required
-              value={siblingLabel}
-              disabled={saving}
-              onChange={setSiblingLabel}
-              description={`Currently “${unnamed.accountLabel ?? 'Default'}”, with ${plural(unnamed.sync.domainCount)}.`}
-            />
-          )}
-          <NicknameField
-            id={`${idPrefix}-label`}
-            label={needsNickname ? 'Nickname for this account' : 'Nickname'}
-            required={needsNickname}
-            value={label}
-            disabled={saving}
-            onChange={setLabel}
-            error={nicknameError}
-            description={
-              needsNickname
-                ? undefined
-                : `Optional. Shown once you have more than one ${provider.displayName} account.`
-            }
-          />
           <CredentialFields
             provider={provider}
             idPrefix={idPrefix}
@@ -832,51 +847,6 @@ function RegistrarHelp({ provider }: { provider: RegistrarDefinition }) {
         </div>
       )}
     </div>
-  );
-}
-
-function NicknameField({
-  id,
-  label = 'Nickname',
-  value,
-  disabled,
-  required = false,
-  description,
-  error,
-  onChange,
-}: {
-  id: string;
-  label?: string;
-  value: string;
-  disabled: boolean;
-  required?: boolean;
-  description?: string;
-  error?: string | null;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <Field className="gap-1.5">
-      <FieldLabel htmlFor={id}>
-        {label}
-        {required && <span className="text-destructive"> *</span>}
-      </FieldLabel>
-      {description && (
-        <FieldDescription className="text-[13px]">
-          {description}
-        </FieldDescription>
-      )}
-      <Input
-        id={id}
-        value={value}
-        disabled={disabled}
-        maxLength={100}
-        autoComplete="off"
-        placeholder="e.g. Personal or Company"
-        aria-invalid={error ? true : undefined}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      {error && <p className="text-sm text-destructive">{error}</p>}
-    </Field>
   );
 }
 

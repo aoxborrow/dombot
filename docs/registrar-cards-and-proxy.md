@@ -26,8 +26,9 @@ later.
 - **Adding is one obvious action.** A picker at the top lists every supported
   registrar; choosing one opens a new card in edit mode. It works the same for
   the first account of a registrar and the fifth.
-- **Nicknames are optional until they're needed.** A lone account is just
-  "Dynadot". A second Dynadot account must be distinguishable.
+- **Nicknames are never required.** A lone account is just "Dynadot". With
+  siblings, unnamed accounts are numbered ("Dynadot #1", "Dynadot #2"), and any
+  account can be given a nickname from its title bar.
 - **One proxy, configured once.** A central page holds the proxy URL and
   outgoing IPv4. Accounts opt in with a toggle. The stored shape allows several
   profiles, but the UI exposes exactly one.
@@ -73,15 +74,15 @@ Store API credentials for each registrar account. …
   the catalog, alphabetical, each with its logo. Registrars that already have
   an account are still listed; they are not marked or disabled.
 - **Cards.** One per saved account, sorted by registrar display name, then by
-  nickname ignoring case. The collapsed header carries
+  number, then nickname. The collapsed header carries
   the enable switch, logo, title, sync status, domain count, a Sync button when
   configured and enabled, and the expand chevron. This is today's
   single-account header with the rollup logic removed.
-- **Title.** `Registrar` for a registrar's only account, `Registrar ·
-  Nickname` once it has siblings.
-- **Expanded body.** Nickname field, credential fields, the proxy toggle (Part
-  2), then Save, and Remove account at the far end. Rename is no longer a mode;
-  the nickname is just a field saved with the rest of the form.
+- **Title.** `Registrar` for a lone unnamed account, `Registrar #N` for an
+  unnamed one with siblings, `Registrar · Nickname` for a named one.
+- **Expanded body.** Credential fields, the proxy toggle (Part 2), then Save,
+  and Remove account at the far end. The nickname is edited inline in the title
+  bar, not in the form.
 - **Empty state.** With no saved accounts, the list area shows the catalog as a
   grid of registrar buttons (logo + name), so a first-time user still sees what
   is supported. Each button does what the matching picker item does.
@@ -91,8 +92,9 @@ Store API credentials for each registrar account. …
 1. Choosing a registrar from the picker (or the empty-state grid) opens a
    **draft card** at the top of the list, scrolled into view and focused. The
    draft exists only in component state.
-2. The draft shows the registrar's help text, nickname, credentials, the proxy
-   toggle where available, **Add account** and **Cancel**.
+2. The draft shows the registrar's help text, credentials, the proxy toggle,
+   **Add account** and **Cancel**. No nickname: the account takes the next
+   number and can be named from its title bar afterwards.
 3. **Add account** calls the existing `connectRegistrarAccount` path: validate
    the connection first, persist only on success, then sync. A failed test
    leaves the draft open with the error and persists nothing, as today. The
@@ -106,26 +108,33 @@ Store API credentials for each registrar account. …
 This removes the "draft must never replace the selected account" hazard in the
 old card: a draft is its own card and never shares state with a saved one.
 
-### Nicknames
+### Numbers and nicknames
 
-- Stored in the existing `label` field on the account record, which stays
-  required and non-empty. No schema, bundle or migration change. DomBot already
-  assigns a label when none is given (`Main`, `Account 2`, …; `Default` for
-  adopted legacy accounts), and Domains, Renewals and exports already hide the
-  label of a registrar's only account. The cards follow the same rule.
-- **Optional** while the account is the only one for its registrar. **Required
-  for the new account** once the registrar already has one.
-- When the registrar's single existing account still carries a label DomBot
-  made up (`isAutoLabel`), the draft form also requires a nickname for that
-  account. It is renamed just before the new account is connected, so the new
-  nickname cannot collide with the label being replaced.
-- **Unique within a registrar, ignoring case**, among accounts the user
-  actually has. Enforced in `createAccount` and `renameAccount`, and checked in
-  `connectRegistrarAccount` before the connection test so a taken nickname
-  costs no network round trip. The unused placeholder account every registrar
-  carries does not reserve the label `Default`.
-- On a saved card the nickname is an ordinary field saved with the form.
-  Clearing it keeps the current nickname.
+Revised after trying the first version, which required a nickname for a second
+account and prompted for one for the first. That was far too much ceremony.
+
+- **Never required.** The draft card has no nickname field and no message about
+  existing accounts.
+- **Unnamed accounts are numbered.** The stored `label` stays required and
+  non-empty, so nothing migrates. Labels DomBot assigned (`Default`, `Main`,
+  `Account N`) stand for a number: `Default` and `Main` are #1, `Account N` is
+  #N. `src/shared/account-label.ts` holds the rules.
+- **A number shows only when needed; a nickname always shows.** "Namecheap"
+  alone, "Namecheap #1" and "Namecheap #2" with siblings, "Namecheap · Personal"
+  once named.
+- **Numbers are stable.** A new account takes the highest number in use plus
+  one, so a removal never renumbers the others.
+- **Renaming is an inline edit in the expanded card's title bar**, saved on
+  Enter or blur, cancelled with Escape, independent of the credentials form.
+  Clearing it removes the nickname and the account takes the lowest number its
+  siblings aren't using. Errors show beside the field.
+- **Unique within a registrar by what is displayed**, ignoring case. `Main`
+  can't be used as a nickname while a `Default` account exists, since both would
+  read "#1". Enforced in `createAccount` and `renameAccount`, and checked in
+  `connectRegistrarAccount` before the connection test.
+- The same display helper serves the cards, the Domains and Renewals Account
+  column and filters, sync errors, the Proxy page and CSV. MCP keeps returning
+  the stored label.
 
 ### What is removed
 

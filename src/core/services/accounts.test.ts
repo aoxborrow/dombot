@@ -684,7 +684,7 @@ describe('multi-account storage, routing and portable migration', () => {
     expect(fakes.providers.get('company')!.renewDomain).not.toHaveBeenCalled();
   });
 
-  it('connects in one submission and gives unnamed accounts distinct useful labels', async () => {
+  it('connects in one submission and numbers unnamed accounts', async () => {
     const first = await invoke(
       'connectRegistrarAccount',
       coreMethods.connectRegistrarAccount,
@@ -695,7 +695,7 @@ describe('multi-account storage, routing and portable migration', () => {
       coreMethods.connectRegistrarAccount,
       ['dynadot', { apiKey: 'second', apiSecret: 'secret' }],
     );
-    expect(first.label).toBe('Main');
+    expect(first.label).toBe('Account 1');
     expect(second.label).toBe('Account 2');
     expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(2);
     expect(fakes.providers.get('first')!.testConnection).toHaveBeenCalledOnce();
@@ -709,6 +709,79 @@ describe('multi-account storage, routing and portable migration', () => {
       ]),
     ).rejects.toThrow(/already connected/);
     expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(2);
+  });
+
+  it('numbers past the highest in use, never handing a live number to another account', async () => {
+    const connect = (apiKey: string, label?: string) =>
+      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+        'dynadot',
+        { apiKey, apiSecret: 'secret' },
+        label,
+      ]);
+    const one = await connect('k1');
+    const two = await connect('k2');
+    const three = await connect('k3');
+    expect([one.label, two.label, three.label]).toEqual([
+      'Account 1',
+      'Account 2',
+      'Account 3',
+    ]);
+    // Removing #1 does not renumber the others, and the next account is #4.
+    await removeRegistrarAccount(one.id);
+    expect((await connect('k4')).label).toBe('Account 4');
+    const labels = () =>
+      Object.fromEntries(
+        getRegistrarMetadata()
+          .filter((a) => a.saved)
+          .map((a) => [a.accountId, a.accountLabel]),
+      );
+    expect(labels()[two.id]).toBe('Account 2');
+    // A nicknamed account holds no number.
+    const named = await connect('k5', 'Personal');
+    expect(named.label).toBe('Personal');
+    expect((await connect('k6')).label).toBe('Account 5');
+  });
+
+  it('removes a nickname when it is cleared, returning the account to the lowest free number', async () => {
+    const connect = (apiKey: string) =>
+      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+        'dynadot',
+        { apiKey, apiSecret: 'secret' },
+      ]);
+    const one = await connect('k1');
+    const two = await connect('k2');
+    await invoke('renameRegistrarAccount', coreMethods.renameRegistrarAccount, [
+      one.id,
+      'Personal',
+    ]);
+    const labelOf = (id: string) =>
+      getRegistrarMetadata().find((a) => a.accountId === id)!.accountLabel;
+    expect(labelOf(one.id)).toBe('Personal');
+    await invoke('renameRegistrarAccount', coreMethods.renameRegistrarAccount, [
+      one.id,
+      '  ',
+    ]);
+    expect(labelOf(one.id)).toBe('Account 1');
+    expect(labelOf(two.id)).toBe('Account 2');
+  });
+
+  it('treats a nickname that would display like another account as taken', async () => {
+    // An adopted legacy account is "Default", shown as #1.
+    await saveRegistrarCredentials('dynadot', {
+      apiKey: 'legacy',
+      apiSecret: 'secret',
+    });
+    const second = await invoke(
+      'connectRegistrarAccount',
+      coreMethods.connectRegistrarAccount,
+      ['dynadot', { apiKey: 'second', apiSecret: 'secret' }],
+    );
+    expect(second.label).toBe('Account 2');
+    for (const clash of ['Main', 'account 1', '#1'])
+      await expect(renameAccount(second.id, clash)).rejects.toThrow(
+        /already named "#1"/,
+      );
+    await renameAccount(second.id, 'Agency');
   });
 
   it('keeps nicknames unique per registrar, ignoring case, without a network test or a second account', async () => {

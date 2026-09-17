@@ -15,6 +15,7 @@ import {
   accountById,
   assertUniqueAccountLabel,
   createAccount,
+  nextAccountLabel,
   setAccountProxy,
   isSavedAccount,
   listAccounts,
@@ -875,20 +876,9 @@ export async function connectRegistrarAccount(
   // publish serially, while keeping network tests outside this short queue.
   return publishConnection(name, async () => {
     assertNotDuplicate();
-    const existing = getRegistrarMetadata().filter(
-      (a) => a.name === name && a.saved,
-    );
-    let number = existing.length + 1;
-    let suggested = existing.length ? `Account ${number}` : 'Main';
-    while (
-      existing.some(
-        (a) => a.accountLabel?.toLowerCase() === suggested.toLowerCase(),
-      )
-    )
-      suggested = `Account ${++number}`;
     return createAccount(
       name,
-      label?.trim() || suggested,
+      label?.trim() || nextAccountLabel(name),
       clean,
       proxy ? DEFAULT_PROXY_ID : undefined,
     );

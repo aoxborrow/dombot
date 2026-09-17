@@ -6,6 +6,7 @@ import type {
   ProxyTestResult,
   RegistrarDefinition,
 } from '../../../shared/ipc';
+import { accountTitle } from '../../../shared/account-label';
 import { parseProxy } from '../../../shared/proxy';
 import { isDemo, isWeb } from '../../lib/platform';
 import { Button } from '@/components/ui/button';
@@ -251,8 +252,11 @@ export default function ProxySettings() {
             <ul className="flex flex-col gap-1.5 text-sm">
               {users.map((user) => (
                 <li key={user.accountId}>
-                  {registrarName(user.registrar)}
-                  <span className="text-muted-foreground"> · {user.label}</span>
+                  {accountTitle(
+                    registrarName(user.registrar),
+                    user.label,
+                    user.hasSiblings,
+                  )}
                 </li>
               ))}
             </ul>

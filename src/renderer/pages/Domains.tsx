@@ -1,3 +1,4 @@
+import { accountDisplayLabel, accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
@@ -447,8 +448,8 @@ const COLUMNS: Column[] = [
   {
     key: 'accountLabel',
     label: 'Account',
-    render: (d) => d.accountLabel ?? 'Default',
-    sortValue: (d) => (d.accountLabel ?? 'Default').toLowerCase(),
+    render: (d) => accountDisplayLabel(d.accountLabel),
+    sortValue: (d) => accountDisplayLabel(d.accountLabel).toLowerCase(),
   },
   {
     key: 'registrar',
@@ -641,11 +642,11 @@ export default function Domains() {
                 ...c,
                 render: (d: Domain) =>
                   multipleAccounts.has(d.registrar)
-                    ? (d.accountLabel ?? 'Default')
+                    ? accountDisplayLabel(d.accountLabel)
                     : '—',
                 sortValue: (d: Domain) =>
                   multipleAccounts.has(d.registrar)
-                    ? (d.accountLabel ?? 'Default').toLowerCase()
+                    ? accountDisplayLabel(d.accountLabel).toLowerCase()
                     : '',
               }
             : c,
@@ -694,9 +695,11 @@ export default function Domains() {
     .filter((r) => r.configured && r.enabled)
     .map((r) => ({
       value: r.accountId ?? r.name,
-      label: multipleAccounts.has(r.name)
-        ? `${r.displayName} · ${r.accountLabel ?? 'Default'}`
-        : r.displayName,
+      label: accountTitle(
+        r.displayName,
+        r.accountLabel,
+        multipleAccounts.has(r.name),
+      ),
       count: portfolio.filter(
         (d) => (d.accountId ?? d.registrar) === (r.accountId ?? r.name),
       ).length,
@@ -1115,11 +1118,11 @@ export default function Domains() {
               {portfolioErrors.map((e) => (
                 <li key={e.accountId ?? e.registrar}>
                   <span className="font-medium text-foreground">
-                    {registrarLabel(e.registrar, portfolioRegistrarLabels)}
-                    {multipleAccounts.has(e.registrar) ? ' · ' : ''}
-                    {multipleAccounts.has(e.registrar)
-                      ? (e.accountLabel ?? 'Default')
-                      : ''}
+                    {accountTitle(
+                      registrarLabel(e.registrar, portfolioRegistrarLabels),
+                      e.accountLabel,
+                      multipleAccounts.has(e.registrar),
+                    )}
                   </span>
                   : {e.message}
                 </li>

@@ -147,6 +147,10 @@ export function getProxySettings(): ProxySettings {
       accountId: a.id,
       registrar: a.registrar,
       label: a.label,
+      hasSiblings: listAccounts().some(
+        (b) =>
+          b.registrar === a.registrar && b.id !== a.id && isSavedAccount(b.id),
+      ),
     })),
   };
 }

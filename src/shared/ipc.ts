@@ -30,7 +30,13 @@ export type Domain = ProviderDomain & {
 /** The one proxy the app manages, and the saved accounts routed through it. */
 export interface ProxySettings {
   proxy: { url: string; egressIp: string } | null;
-  users: { accountId: string; registrar: RegistrarName; label: string }[];
+  users: {
+    accountId: string;
+    registrar: RegistrarName;
+    label: string;
+    /** The registrar has other saved accounts, proxied or not. */
+    hasSiblings: boolean;
+  }[];
 }
 
 /** The address the internet saw for a request sent through the proxy. */

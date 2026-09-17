@@ -238,7 +238,8 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     createAccount,
   ),
   renameRegistrarAccount: method(
-    z.tuple([z.string(), z.string().trim().min(1).max(100)]),
+    // A blank nickname removes it; the account goes back to its number.
+    z.tuple([z.string(), z.string().trim().max(100)]),
     renameAccount,
   ),
   removeRegistrarAccount: method(z.tuple([z.string()]), removeRegistrarAccount),

@@ -15,35 +15,45 @@ be in progress at a time; the button is disabled until it is added or
 cancelled. With no accounts at all, the page shows the supported registrars as
 a grid of buttons that do the same thing.
 
-## Nicknames
+## Numbers and nicknames
 
-Every account has a nickname, but it only matters once a registrar has more
-than one account. A lone account is shown as just "Dynadot" everywhere, and its
-nickname field is optional; left blank, DomBot assigns a name (`Main`, then
-`Account 2`, `Account 3`, …). Accounts adopted from before multi-account support
-are named `Default`.
+You never have to name an account. A registrar's only account is shown as just
+"Dynadot". Once a registrar has more than one, unnamed accounts are told apart
+by number: "Dynadot #1", "Dynadot #2". Numbers are stable. Removing #1 does not
+turn #2 into #1, and the next account added takes the number after the highest
+in use.
 
-When you add a second account at a registrar, the form requires a nickname for
-it. If the existing account still has one of the names DomBot made up, the form
-also asks you to name that one, so both end up with names you chose. From then
-on the cards read "Dynadot · Personal" and "Dynadot · Agency".
+To give an account a nickname, expand its card and click the pencil beside the
+title. Type a name and press Enter (or click away) to save; Escape cancels. The
+card then reads "Dynadot · Personal", and a nickname is shown even when the
+account is the only one. Clearing the field removes the nickname and the
+account goes back to a number, the lowest its siblings aren't using. Renaming
+is separate from the credentials form and takes effect immediately.
 
-Nicknames are unique within a registrar, ignoring case. The same nickname can
-be reused at a different registrar. They are display names only, never routing
-identifiers, and can be changed at any time from the account's card.
+Nicknames are unique within a registrar, ignoring case, and can't be something
+that would display like another account (naming one "#1" while an unnamed #1
+exists). The same nickname can be reused at a different registrar. They are
+display names only, never routing identifiers.
+
+Under the hood every account still stores a label. The ones DomBot assigned
+(`Default` for accounts adopted from before multi-account support, `Main` from
+earlier versions, `Account N` now) all stand for a number and are never shown as
+written. The number or nickname appears the same way in the cards, the Domains
+and Renewals Account column and filters, sync errors, the Proxy page and CSV
+exports. MCP returns the stored label unchanged.
 
 ## The account card
 
-Collapsed, a card shows the enable switch, the registrar (and nickname when it
-has siblings), the last sync result and domain count, and a **Sync** button.
-Expanded, it holds the nickname, the credentials, registrar-specific options
-such as Namecheap's fixed IP proxy, **Save**, and **Remove account**. Cards are
-sorted by registrar, then nickname.
+Collapsed, a card shows the enable switch, the registrar with its number or
+nickname, the last sync result and domain count, and a **Sync** button.
+Expanded, the title gains the rename pencil, and the body holds the
+credentials, the **Use fixed IP proxy** toggle, **Save**, and **Remove
+account**. Cards are sorted by registrar, then number, then nickname.
 
 Everything on a card applies to that account only. There are no
 registrar-wide controls: the toolbar's Sync refreshes every enabled account.
 
-Domains and Renewals combine enabled accounts. Their Account column/filter appears only if at least one registrar has multiple accounts. Registrars with only one account do not display a redundant nickname, including in a mixed portfolio. Exports and MCP retain account identity for reliable routing regardless of which UI fields are visible.
+Domains and Renewals combine enabled accounts. Their Account column/filter appears only if at least one registrar has multiple accounts. Registrars with only one account do not display a redundant number, including in a mixed portfolio. Exports and MCP retain account identity for reliable routing regardless of which UI fields are visible.
 
 Disabling an account keeps its credentials and cache but removes it from the visible portfolio and future syncs. Enabling syncs it again. A failed sync keeps its last successful domains and timestamp and reports the error on that account. Removing an account clears its credentials, portfolio, and detail cache, and works for a registrar's only account too; the registrar stays available from **Add registrar account**. It never removes another account's data.
 

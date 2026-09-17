@@ -5,12 +5,7 @@ import type {
   RegistrarMeta,
   RegistrarName,
 } from '../../shared/ipc';
-import {
-  accountCards,
-  isAutoLabel,
-  multiAccountRegistrars,
-  savedSiblings,
-} from './registrar-accounts';
+import { accountCards, multiAccountRegistrars } from './registrar-accounts';
 
 const provider = (name: RegistrarName): RegistrarDefinition => ({
   name,
@@ -44,25 +39,25 @@ describe('one card per account', () => {
     expect(multiAccountRegistrars(placeholders).size).toBe(0);
   });
 
-  it('gives each saved account its own card and hides the nickname of a lone account', () => {
+  it('gives each saved account its own card, with no siblings to number against', () => {
     const accounts = [account('dynadot', 'uuid-one'), account('porkbun')];
     const cards = accountCards(catalog, accounts);
     expect(cards.map((c) => c.account.accountId)).toEqual([
       'uuid-one',
       'porkbun',
     ]);
-    expect(cards.every((c) => !c.showLabel)).toBe(true);
+    expect(cards.every((c) => !c.hasSiblings)).toBe(true);
     expect(multiAccountRegistrars(accounts).size).toBe(0);
   });
 
-  it('shows nicknames only for registrars with sibling accounts', () => {
+  it('flags siblings only for registrars with several accounts', () => {
     const accounts = [
       account('dynadot', 'first', { accountLabel: 'Personal' }),
       account('dynadot', 'second', { accountLabel: 'Agency' }),
       account('porkbun'),
     ];
     const cards = accountCards(catalog, accounts);
-    expect(cards.map((c) => [c.account.accountId, c.showLabel])).toEqual([
+    expect(cards.map((c) => [c.account.accountId, c.hasSiblings])).toEqual([
       ['second', true],
       ['first', true],
       ['porkbun', false],
@@ -70,17 +65,20 @@ describe('one card per account', () => {
     expect([...multiAccountRegistrars(accounts)]).toEqual(['dynadot']);
   });
 
-  it('sorts by registrar name, then nickname ignoring case, independent of input order', () => {
+  it('sorts by registrar, then unnamed accounts by number, then nicknames by name, whatever the input order', () => {
     const accounts = [
       account('porkbun', 'p2', { accountLabel: 'zeta' }),
-      account('dynadot', 'd2', { accountLabel: 'beta' }),
+      account('dynadot', 'd3', { accountLabel: 'beta' }),
+      account('dynadot', 'd10', { accountLabel: 'Account 10' }),
       account('porkbun', 'p1', { accountLabel: 'Alpha' }),
-      account('dynadot', 'd1', { accountLabel: 'Alpha' }),
+      account('dynadot', 'd2', { accountLabel: 'Account 2' }),
+      account('dynadot', 'd1', { accountLabel: 'Default' }),
     ];
     const order = (list: RegistrarMeta[]) =>
       accountCards(catalog, list).map((c) => c.account.accountId);
-    expect(order(accounts)).toEqual(['d1', 'd2', 'p1', 'p2']);
-    expect(order([...accounts].reverse())).toEqual(['d1', 'd2', 'p1', 'p2']);
+    const expected = ['d1', 'd2', 'd10', 'd3', 'p1', 'p2'];
+    expect(order(accounts)).toEqual(expected);
+    expect(order([...accounts].reverse())).toEqual(expected);
   });
 
   it('keeps a disabled or credential-less saved account as a card', () => {
@@ -94,25 +92,10 @@ describe('one card per account', () => {
       account('dynadot', 'dynadot', { saved: false, configured: false }),
       account('dynadot', 'new'),
     ];
-    expect(savedSiblings(accounts, 'dynadot').map((a) => a.accountId)).toEqual([
-      'new',
-    ]);
-    expect(accountCards(catalog, accounts)[0].showLabel).toBe(false);
+    const cards = accountCards(catalog, accounts);
+    expect(cards.map((c) => c.account.accountId)).toEqual(['new']);
+    expect(cards[0].hasSiblings).toBe(false);
     expect(multiAccountRegistrars(accounts).size).toBe(0);
-  });
-
-  it('recognizes the labels DomBot assigns itself', () => {
-    for (const label of [
-      'Default',
-      'Main',
-      'main',
-      'Account 2',
-      ' account 12 ',
-    ])
-      expect(isAutoLabel(label)).toBe(true);
-    for (const label of ['Personal', 'Main agency', 'Account', 'Defaults'])
-      expect(isAutoLabel(label)).toBe(false);
-    expect(isAutoLabel(undefined)).toBe(true);
   });
 
   it('drops the account layer in Domains after a sibling is removed', () => {

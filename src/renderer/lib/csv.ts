@@ -1,3 +1,4 @@
+import { accountDisplayLabel } from '../../shared/account-label';
 import { domainKey } from '../../shared/account-key';
 // Builds the Domains-page CSV export. Kept separate from the page component so
 // the column model and formatting are easy to read and test in isolation.
@@ -59,7 +60,7 @@ interface CsvColumn {
 /** The exported columns, in order. Every value is a plain string. */
 const CSV_COLUMNS: CsvColumn[] = [
   { header: 'Domain', value: (d) => d.domainName },
-  { header: 'Account', value: (d) => d.accountLabel ?? 'Default' },
+  { header: 'Account', value: (d) => accountDisplayLabel(d.accountLabel) },
   { header: 'Account ID', value: (d) => d.accountId ?? d.registrar },
   { header: 'TLD', value: (d) => tldOf(d.domainName) },
   {
