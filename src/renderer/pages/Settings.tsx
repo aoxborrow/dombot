@@ -1,61 +1,91 @@
 import { useSearchParams } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import RegistrarsSettings from './settings/RegistrarsSettings';
 import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
 import FoldersSettings from './settings/FoldersSettings';
 import ProxySettings from './settings/ProxySettings';
 
-const TAB_VALUES = ['registrars', 'proxy', 'data', 'folders', 'mcp'];
+// One row per section: the URL `tab` value and its label. Both the desktop
+// sidebar and the phone picker render from this, so adding a section (which will
+// happen) needs no layout change and can't outgrow either control.
+const SECTIONS = [
+  { value: 'registrars', label: 'Registrars' },
+  { value: 'proxy', label: 'Proxy' },
+  { value: 'data', label: 'Sync' },
+  { value: 'folders', label: 'Folders' },
+  { value: 'mcp', label: 'MCP' },
+] as const;
+
+const TAB_VALUES = SECTIONS.map((s) => s.value);
+
+// The phone section picker's options: the selected one gets the brand-green
+// fill (matching the desktop sidebar's active pill), and its check moves to the
+// left — overriding the default right-aligned indicator on the shared SelectItem.
+const PICKER_ITEM_CLASS = cn(
+  'py-2 pr-2! pl-8!',
+  '[&_[data-slot=select-item-indicator]]:right-auto [&_[data-slot=select-item-indicator]]:left-2',
+  'data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground',
+  'data-[state=checked]:focus:bg-primary data-[state=checked]:focus:text-primary-foreground',
+  'data-[state=checked]:[&_svg]:text-primary-foreground!',
+);
 
 export default function Settings() {
   const [params, setParams] = useSearchParams();
   const requested = params.get('tab');
   const tab =
-    requested && TAB_VALUES.includes(requested) ? requested : 'registrars';
+    requested && TAB_VALUES.includes(requested as (typeof TAB_VALUES)[number])
+      ? requested
+      : 'registrars';
+  const setTab = (v: string) => setParams({ tab: v }, { replace: true });
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-7">
-      <h1 className="text-[32px] font-bold">Settings</h1>
+    <div className="mx-auto flex max-w-4xl flex-col gap-4 sm:gap-7">
+      <h1 className="text-2xl font-bold sm:text-[32px]">Settings</h1>
 
       <Tabs
         value={tab}
-        onValueChange={(v) => setParams({ tab: v }, { replace: true })}
+        onValueChange={setTab}
         orientation="vertical"
-        className="flex flex-row gap-[47px]"
+        className="flex flex-col gap-4 md:flex-row md:gap-[47px]"
       >
-        <div className="w-44 shrink-0">
-          <TabsList className="-ml-2 flex h-auto w-full flex-col gap-1 bg-transparent p-0 [&_button]:text-[15px]">
-            <TabsTrigger
-              value="registrars"
-              className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
-            >
-              Registrars
-            </TabsTrigger>
-            <TabsTrigger
-              value="proxy"
-              className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
-            >
-              Proxy
-            </TabsTrigger>
-            <TabsTrigger
-              value="data"
-              className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
-            >
-              Sync
-            </TabsTrigger>
-            <TabsTrigger
-              value="folders"
-              className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
-            >
-              Folders
-            </TabsTrigger>
-            <TabsTrigger
-              value="mcp"
-              className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
-            >
-              MCP
-            </TabsTrigger>
+        <div className="w-full md:w-44 md:shrink-0">
+          {/* Phones: a compact section picker that stays one line no matter how
+              many sections there are. Desktop: the vertical sidebar list. */}
+          <Select value={tab} onValueChange={setTab}>
+            <SelectTrigger className="w-full md:hidden">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SECTIONS.map((s) => (
+                <SelectItem
+                  key={s.value}
+                  value={s.value}
+                  className={PICKER_ITEM_CLASS}
+                >
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <TabsList className="hidden h-auto w-full flex-col gap-1 bg-transparent p-0 md:-ml-2 md:flex [&_button]:text-[15px]">
+            {SECTIONS.map((s) => (
+              <TabsTrigger
+                key={s.value}
+                value={s.value}
+                className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
+              >
+                {s.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
 

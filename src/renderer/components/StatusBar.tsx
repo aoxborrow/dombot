@@ -103,6 +103,9 @@ export default function StatusBar() {
         <div className="flex items-center gap-3">
           {showRefreshed && (
             <span
+              // Hidden on phones to keep the bar to one line; the sync pill to
+              // its right still carries the synced state.
+              className="hidden sm:inline"
               title={`Last synced ${new Date(portfolioLoadedAt).toLocaleString()}`}
             >
               Last synced {timeAgo(portfolioLoadedAt)}

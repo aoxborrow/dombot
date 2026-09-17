@@ -14,15 +14,19 @@ export default function DemoBanner() {
       <FlaskConical className="size-3.5 shrink-0 text-amber-500" aria-hidden />
       <p className="leading-snug text-amber-50/60">
         <span className="font-medium text-amber-500">Demo Mode</span>
-        <span className="mx-1.5" aria-hidden>
+        {/* The tagline and the DomBot.ai link are desktop-only so the banner
+            stays a single row on phones. */}
+        <span className="mx-1.5 hidden sm:inline" aria-hidden>
           –
         </span>
-        Fake domains and credentials, nothing leaves browser.
+        <span className="hidden sm:inline">
+          Fake domains and credentials, nothing leaves browser.
+        </span>
       </p>
       <Button
         variant="outline"
         size="sm"
-        className="h-6 shrink-0 px-2 text-xs text-foreground/60 hover:text-foreground"
+        className="h-6 shrink-0 px-2 text-xs text-foreground/60 hover:text-foreground max-sm:ml-auto"
         onClick={() => window.location.reload()}
         title="Start over with a fresh portfolio"
       >
@@ -33,7 +37,7 @@ export default function DemoBanner() {
         asChild
         variant="outline"
         size="sm"
-        className="ml-auto h-6 shrink-0 border-foreground/40 px-2 text-xs text-foreground hover:text-foreground"
+        className="ml-auto hidden h-6 shrink-0 border-foreground/40 px-2 text-xs text-foreground hover:text-foreground sm:inline-flex"
       >
         <a href="https://dombot.ai/" target="_blank" rel="noopener noreferrer">
           DomBot.ai
