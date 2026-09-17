@@ -202,6 +202,16 @@ Requirements that follow:
 - The sync client **must require `https://`** for the remote URL and refuse
   plain HTTP (reject the URL at input, and reject a response that arrived over
   HTTP). This holds for both hosts, including the web build's Worker-side call.
+- **Do not follow redirects on the outbound sync/token calls.** `fetch` follows
+  redirects by default, and a `307`/`308` **re-sends the method and body** to the
+  new location — so a malicious or compromised remote could redirect
+  `POST /auth/token` to capture the **cleartext password**, or redirect
+  `POST /api/importData` (Push) to capture the **entire bundle (every registrar
+  API key and proxy password)**; a `https→http` redirect would also silently
+  downgrade the transport. Use `redirect: 'manual'` (as
+  `src/core/services/proxy-transport.ts` already does) and treat any redirect —
+  certainly any cross-origin or scheme-downgrading one — as an error. Without
+  this, redirect-following defeats the HTTPS requirement above.
 - Secrets at rest are unchanged: the remote re-encrypts on import via its own
   D1/AES-GCM layer; the desktop re-encrypts via OS keychain. Only the transient
   in-flight bundle is plaintext-over-TLS.
@@ -217,6 +227,21 @@ at an internal address grants no capability they lack. Adding an IP allowlist
 would be friction (it would also break syncing to a remote on a private LAN)
 for no real gain. The only requirement on the target is **HTTPS**. (Recorded
 explicitly so this is understood as a decision, not an oversight.)
+
+### Trust model — a Pull imports fully-trusted state
+
+`importBundle` replaces the local store wholesale, including **proxy profiles**
+and **MCP pairings**. So a Pull grants the remote **complete control of local
+state**: a malicious remote could plant a proxy profile that routes your future
+registrar API calls through an attacker-controlled proxy (MITM of registrar
+credentials), or plant MCP OAuth pairings. TLS plus the user typing the URL is
+the *only* authenticity guarantee — bundles are not signed. This is inherent to
+"Pull overwrites," and the rule that follows is: **only sync with instances you
+own.** The confirmation dialog must name the target host so the user is choosing
+that trust deliberately (also mitigates handing the entered password to a
+mistyped/attacker host). Import-time validation (account records, proxy
+public-IP checks in `parseBundle`) is not an authenticity control — it only
+rejects malformed data, not hostile-but-well-formed data.
 
 ## UX
 
