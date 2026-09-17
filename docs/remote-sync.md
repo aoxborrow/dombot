@@ -96,14 +96,17 @@ trip**, and — worse — pointing the remote URL at the instance's **own origin
 holding. So the sync handler must take the store lock **only around the local
 export/import step**, never across the outbound HTTP calls:
 
-- **Push**: take the lock → `exportBundle` a snapshot → release → `POST` it to
-  the remote.
-- **Pull**: `GET` the remote bundle (no lock) → take the lock → `importBundle`.
+- **Push**: hydrate → take the lock → `exportBundle` a snapshot → release →
+  `POST` it to the remote.
+- **Pull**: `GET` the remote bundle (no lock) → take the lock → `importBundle` →
+  `flushWrites` → release.
 
-This likely means the web sync handler is a **dedicated route that opts out of
-the standard locked `/api` dispatch**, rather than a plain locked core method.
-Additionally, **reject a remote URL equal to the instance's own origin** up
-front — self-sync is meaningless and is the obvious deadlock trigger.
+This means the web sync handler is a **dedicated route that opts out of the
+standard locked `/api` dispatch** — but it must still keep that dispatch's
+**hydrate-before / flush-after** lifecycle (see *Implementation surface*);
+dropping it would export an empty bundle on a cold isolate or fail to persist a
+Pull. Additionally, **reject a remote URL equal to the instance's own origin**
+up front — self-sync is meaningless and is the obvious deadlock trigger.
 
 ## Authentication
 
@@ -311,21 +314,31 @@ initiating instance's Worker), which is what makes web-to-web work without CORS
     mint a token, held in memory for this operation only. Discard both the
     password and the token when the handler returns.
   - **Pull**: `GET`/`POST {remoteUrl}/api/exportData` (no local lock held) →
-    take the store lock → local `importBundle(text)` → release.
-  - **Push**: take the store lock → local `exportBundle(...)` → release → `POST
-    {remoteUrl}/api/importData` with `{ args: [text] }`.
+    take the store lock → `hydrateStores()` → local `importBundle(text)` →
+    `flushWrites()` → release.
+  - **Push**: take the store lock → `hydrateStores()` → local
+    `exportBundle(...)` → release → `POST {remoteUrl}/api/importData` with
+    `{ args: [text] }`.
   - All target calls carry `Authorization: Bearer <token>`. Reuses the existing
     bundle machinery unchanged.
   - A `401` from `/api/*` (wrong password, or the remote's password changed)
     surfaces plainly so the user can re-enter and retry. Nothing to invalidate —
     no token was stored.
-- **Locking (web host).** Do **not** run this as a plain locked core method:
-  `/api/:method` holds `withRequestLock` for the whole call, which would stall
-  the instance for the network round trip and deadlock a same-origin/`wrangler
-  dev` target (see *Topologies*). Implement it as a **dedicated worker route**
-  that acquires the store lock only around the local export/import step, outside
-  the outbound fetch. On desktop there is no isolate lock, but keep the same
-  export-snapshot-then-send / fetch-then-import shape.
+- **Locking + hydration (web host).** Do **not** run this as a plain locked core
+  method: `/api/:method` holds `withRequestLock` for the whole call, which would
+  stall the instance for the network round trip and deadlock a same-origin/
+  `wrangler dev` target (see *Topologies*). But the standard `/api` wrapper also
+  does two things the sync **must not skip**: it **hydrates** the store from D1
+  before the handler and **flushes** writes to D1 after it. Because
+  `exportNamespaces` skips any namespace that is not loaded, a Push on a **cold
+  isolate without hydration exports an empty bundle — which would wipe all data
+  on the remote** — and a Pull that returns before `flushWrites()` may not
+  persist. So the **dedicated worker route must still hydrate before, and flush
+  after, the local step**; it only moves the *outbound fetch* outside the lock,
+  it does not drop the hydrate/flush lifecycle. Concretely: `hydrate` → (Pull:
+  fetch first) → lock → export/import → `flushWrites` → unlock, with the network
+  call never inside the lock. On desktop there is no isolate lock, but keep the
+  same shape.
 - **Wiring.** Expose `syncPush` / `syncPull` to the renderer the usual way —
   `src/shared/ipc.ts` (`DombotApi` + `IpcChannels`), `src/preload.ts` (Electron
   IPC → main process), `src/renderer/api/http.ts` for the web build (pointing at
