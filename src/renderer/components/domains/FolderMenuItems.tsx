@@ -1,5 +1,5 @@
 import { Archive, Check } from 'lucide-react';
-import { HIDDEN_FOLDER_ID, type Folder } from '../../../shared/ipc';
+import { ARCHIVE_FOLDER_ID, type Folder } from '../../../shared/ipc';
 import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
 import { FolderOffIcon } from '../icons/FolderOffIcon';
@@ -8,12 +8,12 @@ import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
 /**
  * The shared body of every folder-assignment menu: the user's folders, then the
- * built-in "Hidden" (drops the domain from the table) and "None" (clear). Used
+ * built-in "None" (clear) and "Archive" (drops the domain from the table). Used
  * by the Folder cell menu, the row ⋯ submenu, and the bulk-actions submenu — the
  * caller supplies the surrounding {@link DropdownMenuContent} / SubContent so it
  * keeps its own width, trigger, and alignment.
  *
- * Pass `selected` (a folder id, {@link HIDDEN_FOLDER_ID}, or `null` for None) to
+ * Pass `selected` (a folder id, {@link ARCHIVE_FOLDER_ID}, or `null` for None) to
  * mark the current assignment with a check — omit it for the bulk menu, where
  * there is no single current value. Pass `emptyState` to show a "No folders yet"
  * hint when the user has none (again, the bulk menu).
@@ -68,15 +68,15 @@ export function FolderMenuItems({
           <Check className="size-3.5 shrink-0 text-muted-foreground" />
         )}
       </DropdownMenuItem>
-      {/* Hidden is a built-in folder: assigning to it drops the domain from the
-          table until "Hidden" is picked in the Folder filter. */}
+      {/* Archive is a built-in folder: assigning to it drops the domain from the
+          table until "Archive" is picked in the Folder filter. */}
       <DropdownMenuItem
         className="gap-2.5"
-        onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
+        onSelect={() => onAssign(ARCHIVE_FOLDER_ID)}
       >
         <Archive className="size-4 shrink-0" aria-hidden />
         <span className="flex-1">Archive</span>
-        {showChecks && selected === HIDDEN_FOLDER_ID && (
+        {showChecks && selected === ARCHIVE_FOLDER_ID && (
           <Check className="size-3.5 shrink-0 text-muted-foreground" />
         )}
       </DropdownMenuItem>

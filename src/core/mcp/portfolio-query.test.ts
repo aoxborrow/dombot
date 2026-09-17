@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Domain } from '@aoxborrow/registrar-client';
-import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
+import { ARCHIVE_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
 import {
   DEFAULT_LIMIT,
   isStaleAt,
@@ -145,7 +145,7 @@ describe('folder resolution', () => {
   ];
   const assignments = {
     'dynadot:a.com': 'f1',
-    'dynadot:h.com': HIDDEN_FOLDER_ID,
+    'dynadot:h.com': ARCHIVE_FOLDER_ID,
   };
 
   it('matches by folder id', () =>
@@ -158,12 +158,12 @@ describe('folder resolution', () => {
       ['a.com'],
     ));
 
-  it('matches Hidden by keyword and by id', () => {
-    expect(names(domains, { folder: 'Hidden' }, folders, assignments)).toEqual([
-      'h.com',
-    ]);
+  it('matches Archive by keyword and by id', () => {
+    expect(names(domains, { folder: 'Archive' }, folders, assignments)).toEqual(
+      ['h.com'],
+    );
     expect(
-      names(domains, { folder: HIDDEN_FOLDER_ID }, folders, assignments),
+      names(domains, { folder: ARCHIVE_FOLDER_ID }, folders, assignments),
     ).toEqual(['h.com']);
   });
 
@@ -172,10 +172,10 @@ describe('folder resolution', () => {
       [],
     ));
 
-  it('resolves the folder name onto the row (incl. Hidden)', () => {
+  it('resolves the folder name onto the row (incl. Archive)', () => {
     const rows = run(domains, {}, folders, assignments).rows;
     expect(rows.find((r) => r.domainName === 'a.com')!.folder).toBe('Clients');
-    expect(rows.find((r) => r.domainName === 'h.com')!.folder).toBe('Hidden');
+    expect(rows.find((r) => r.domainName === 'h.com')!.folder).toBe('Archive');
     expect(rows.find((r) => r.domainName === 'b.com')!.folder).toBeNull();
   });
 });

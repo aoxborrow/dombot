@@ -27,7 +27,7 @@ import {
 /**
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell): a
  * per-domain refresh, the actions that aren't a column (forwarding, auth code,
- * renew), and a Folder submenu for assigning the domain to a folder, Hidden, or
+ * renew), and a Folder submenu for assigning the domain to a folder, Archive, or
  * None. Registrar-backed items the registrar can't do are disabled with the
  * reason as their tooltip. Disabled outright while a write for this row is in
  * flight.

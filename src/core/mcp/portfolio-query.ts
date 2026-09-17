@@ -5,7 +5,7 @@
 
 import type { Domain } from '../../shared/ipc';
 import { domainKey } from '../../shared/account-key';
-import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
+import { ARCHIVE_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
 
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 500;
@@ -95,12 +95,12 @@ function tldSuffix(tld: string): string {
   return `.${t}`;
 }
 
-/** Resolves a folder filter (name / id / "Hidden") to the folderId to match, or
+/** Resolves a folder filter (name / id / "Archive") to the folderId to match, or
  *  null when it names no known folder (→ the query returns no rows). */
 function resolveFolderId(param: string, folders: FolderRef[]): string | null {
   const p = param.trim();
-  if (param === HIDDEN_FOLDER_ID || p.toLowerCase() === 'hidden')
-    return HIDDEN_FOLDER_ID;
+  if (param === ARCHIVE_FOLDER_ID || p.toLowerCase() === 'archive')
+    return ARCHIVE_FOLDER_ID;
   const lower = p.toLowerCase();
   const match =
     folders.find((f) => f.id === param) ??
@@ -124,7 +124,7 @@ export function queryPortfolio(
   const folderNameFor = (d: Domain): string | null => {
     const id = assignments[domainKey(d)];
     if (!id) return null;
-    if (id === HIDDEN_FOLDER_ID) return 'Hidden';
+    if (id === ARCHIVE_FOLDER_ID) return 'Archive';
     return folders.find((f) => f.id === id)?.name ?? null;
   };
 

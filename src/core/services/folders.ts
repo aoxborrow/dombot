@@ -1,11 +1,15 @@
 import {
-  HIDDEN_FOLDER_ID,
+  ARCHIVE_FOLDER_ID,
   type Folder,
   type FolderInput,
   type FolderPatch,
   type FoldersSnapshot,
 } from '../../shared/ipc';
 import { Namespace } from '../storage/namespace';
+
+// The Archive folder's id was historically stored as this literal; assignments
+// carrying it are migrated to ARCHIVE_FOLDER_ID on load (see `load`).
+const LEGACY_ARCHIVE_FOLDER_ID = '__hidden__';
 
 // Folders: user-defined groupings of domains, plus the per-domain assignment.
 // Persisted in the `folders` namespace under two keys — `folders` (the
@@ -27,13 +31,30 @@ function load(): FoldersStore {
   const folders = store.get('folders');
   const assignments = store.get('assignments');
   // Defend against a hand-edited or partial store.
-  return {
+  const raw =
+    assignments && typeof assignments === 'object'
+      ? (assignments as Record<string, string>)
+      : {};
+  // Migrate the Archive folder's legacy id (`__hidden__`) to ARCHIVE_FOLDER_ID
+  // so domains archived before the rename stay archived.
+  let migrated = false;
+  const normalized: Record<string, string> = {};
+  for (const [key, folderId] of Object.entries(raw)) {
+    if (folderId === LEGACY_ARCHIVE_FOLDER_ID) {
+      normalized[key] = ARCHIVE_FOLDER_ID;
+      migrated = true;
+    } else {
+      normalized[key] = folderId;
+    }
+  }
+  const result: FoldersStore = {
     folders: Array.isArray(folders) ? (folders as Folder[]) : [],
-    assignments:
-      assignments && typeof assignments === 'object'
-        ? (assignments as Record<string, string>)
-        : {},
+    assignments: normalized,
   };
+  // Persist once so the legacy value is rewritten on disk, not re-migrated each
+  // load.
+  if (migrated) persist(result);
+  return result;
 }
 
 function persist(next: FoldersStore): void {
@@ -89,7 +110,7 @@ export function assignFolder(domainKey: string, folderId: string | null): void {
   const assignments = { ...current.assignments };
   const valid =
     folderId !== null &&
-    (folderId === HIDDEN_FOLDER_ID ||
+    (folderId === ARCHIVE_FOLDER_ID ||
       current.folders.some((f) => f.id === folderId));
   if (valid) {
     assignments[domainKey] = folderId;
