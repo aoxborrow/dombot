@@ -181,8 +181,7 @@ export default function ProxySettings() {
                   {busy === 'test' ? 'Testing…' : 'Test'}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground/80">
-                For example{' '}
+              <p className="text-xs text-muted-foreground/55">
                 <code className="font-mono">
                   https://user:pass@proxy.example.com:8080
                 </code>{' '}
@@ -199,7 +198,8 @@ export default function ProxySettings() {
               <FieldDescription className="text-[13px]">
                 The outgoing IP address registrars see, which may differ from the
                 proxy endpoint. Whitelist it in each registrar&apos;s API
-                settings. Testing fills this in for you.
+                settings. Clicking the &ldquo;Test&rdquo; button will fill in the
+                IP address here.
               </FieldDescription>
               <Input
                 id="proxy-egress-ip"

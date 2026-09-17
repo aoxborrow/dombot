@@ -948,13 +948,14 @@ function ProxyToggle({
         />
         <FieldLabel htmlFor={id}>Use fixed IP proxy</FieldLabel>
         {proxy && enabled && (
-          <div className="ml-auto flex shrink-0 items-center gap-1 rounded-md border bg-muted/40 py-1 pr-1 pl-2.5">
+          <div className="ml-auto flex shrink-0 items-center gap-0.5 rounded border border-border/60 bg-muted/30 py-0.5 pr-0.5 pl-2">
             <input
               readOnly
               value={proxy.egressIp}
+              size={Math.max(proxy.egressIp.length, 7)}
               aria-label="Outgoing IP address"
               onFocus={(e) => e.currentTarget.select()}
-              className="w-32 bg-transparent font-mono text-xs text-foreground outline-none"
+              className="bg-transparent font-mono text-xs text-foreground outline-none"
             />
             <Button
               type="button"
@@ -963,11 +964,15 @@ function ProxyToggle({
               onClick={() => void copyEgressIp()}
               aria-label="Copy outgoing IP address"
               className={cn(
-                'shrink-0 text-muted-foreground hover:text-foreground',
+                'size-5 shrink-0 text-muted-foreground hover:text-foreground',
                 copied && 'text-[#7ac28d] hover:text-[#7ac28d]',
               )}
             >
-              {copied ? <Check /> : <Copy />}
+              {copied ? (
+                <Check className="size-3" />
+              ) : (
+                <Copy className="size-3" />
+              )}
             </Button>
           </div>
         )}
@@ -988,7 +993,7 @@ function ProxyToggle({
           <>
             This account&apos;s requests go through your proxy, so{' '}
             {provider.displayName} sees them arrive from a fixed address.
-            Whitelist it in the {provider.displayName} API settings.
+            Whitelist this IP address in the {provider.displayName} API settings.
           </>
         ) : (
           <>Send this account&apos;s requests through your {proxyLink}.</>
