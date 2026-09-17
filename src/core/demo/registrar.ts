@@ -101,16 +101,17 @@ function key(domainName: string): string {
 }
 
 export interface DemoRegistrarOptions {
-  /** Simulated round-trip time per call, ms (0 in tests; a few hundred in
-   *  the demo so progress is visible). */
-  latencyMs?: number;
+  /** Simulated round-trip time per call, ms (0 in tests; a hundred or so in
+   *  the demo so progress is visible). A function is read on every call, so
+   *  a host can boot fast and then turn the pacing on. */
+  latencyMs?: number | (() => number);
 }
 
 export class DemoRegistrar implements Registrar {
   readonly environment = 'production' as const;
   readonly requiresNameserversFetch = false;
   readonly features: readonly RegistrarFeature[];
-  private readonly latencyMs: number;
+  private readonly latency: () => number;
 
   constructor(
     readonly name: RegistrarName,
@@ -119,7 +120,8 @@ export class DemoRegistrar implements Registrar {
     options: DemoRegistrarOptions = {},
   ) {
     this.features = registrars[name].features;
-    this.latencyMs = options.latencyMs ?? 0;
+    const l = options.latencyMs ?? 0;
+    this.latency = typeof l === 'function' ? l : () => l;
   }
 
   supports(feature: RegistrarFeature): boolean {
@@ -138,9 +140,10 @@ export class DemoRegistrar implements Registrar {
         `${registrars[this.name].displayName} does not support ${feature}`,
       );
     }
-    if (this.latencyMs > 0) {
+    const latencyMs = this.latency();
+    if (latencyMs > 0) {
       await new Promise<void>((resolve, reject) => {
-        const t = setTimeout(resolve, this.latencyMs);
+        const t = setTimeout(resolve, latencyMs);
         opts?.signal?.addEventListener('abort', () => {
           clearTimeout(t);
           reject(new DOMException('Aborted', 'AbortError'));

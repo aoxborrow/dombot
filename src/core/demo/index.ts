@@ -47,6 +47,8 @@ export interface InstallDemoOptions {
 export interface DemoInstallation {
   seed: DemoSeed;
   world: DemoWorld;
+  /** Changes the fake registrar's per-call latency from now on. */
+  setLatency(ms: number): void;
 }
 
 /** Installs the demo registrar factory and seeds the store. */
@@ -59,10 +61,12 @@ export async function installDemo(
     options.now,
   );
   const world = new DemoWorld(seed.records);
-  const latencyMs = options.latencyMs ?? 0;
+  let latencyMs = options.latencyMs ?? 0;
 
   configureRegistrarFactory((name: RegistrarName, _credentials, accountId) => {
-    return new DemoRegistrar(name, accountId, world, { latencyMs });
+    return new DemoRegistrar(name, accountId, world, {
+      latencyMs: () => latencyMs,
+    });
   });
   resetRegistrarClients();
 
@@ -94,7 +98,13 @@ export async function installDemo(
   }
 
   await flushWrites();
-  return { seed, world };
+  return {
+    seed,
+    world,
+    setLatency: (ms) => {
+      latencyMs = ms;
+    },
+  };
 }
 
 /** Puts the real provider factory back (tests; leaving demo mode). */

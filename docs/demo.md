@@ -20,7 +20,7 @@ provider behind `getRegistrarClient()`.
   provider lacks throws the library's `NotImplementedError`. Pricing comes
   from the bundled base table, so it's true.
 - **`src/core/demo/seed.ts`** — a deterministic generator (seeded PRNG) for
-  ~180 single-dictionary-word domains (at most two share a name on a second
+  524 single-dictionary-word domains (at most two share a name on a second
   TLD) across GoDaddy, Porkbun, Cloudflare, Dynadot,
   Namecheap and Spaceship, with realistic expiry spread (a few overdue, some
   due soon, a few multi-year), auto-renew/lock/privacy mixes, varied

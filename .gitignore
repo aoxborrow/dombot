@@ -112,5 +112,8 @@ dist/
 
 # Local Worker secrets for `wrangler dev` — never commit
 .dev.vars
+# Your own instance's name / database id (scripts/wrangler.mjs) — never commit
+wrangler.local.json
+wrangler.local.jsonc
 # Wrangler local state
 .wrangler/

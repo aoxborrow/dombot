@@ -32,6 +32,7 @@
     "site:deploy": "npm run site:build && wrangler deploy -c wrangler.site.jsonc",
     "demo:build": "vite build -c vite.demo.config.mts",
     "demo:dev": "vite -c vite.demo.config.mts --port 5199",
+    "demo:preview": "vite preview -c vite.demo.config.mts --port 5198",
     "demo:deploy": "npm run demo:build && wrangler deploy -c wrangler.demo.jsonc",
     "web:types": "wrangler types",
     "web:build": "vite build -c vite.web.config.mts",

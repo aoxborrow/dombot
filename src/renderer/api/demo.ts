@@ -82,11 +82,12 @@ export async function createDemoApi(
   await hydrateStores();
   setAppIdentity({ version: DEMO_VERSION, platform: 'web' });
   setBulkAutoDrive(true);
-  const demo = await installDemo({
-    latencyMs: options.latencyMs ?? 150,
-    size: options.size,
-  });
+  // Boot at full speed — the first sync happens before anything renders —
+  // then pace the registrar so interactive work (bulk jobs, detail fetches)
+  // looks like the real thing.
+  const demo = await installDemo({ latencyMs: 0, size: options.size });
   await getPortfolio(true);
+  demo.setLatency(options.latencyMs ?? 150);
 
   const table: ApiTable = { ...coreMethods, ...demoMethods };
   const api: Record<string, unknown> = {};
