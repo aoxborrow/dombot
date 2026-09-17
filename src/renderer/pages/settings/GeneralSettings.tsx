@@ -130,8 +130,21 @@ export default function GeneralSettings() {
   );
 }
 
-/** Tailwind's emerald ramp, for comparing relative darkness against ours.
- * Literal class names so Tailwind emits them. */
+/** Tailwind's green and emerald ramps, for comparing relative darkness
+ * against ours. Literal class names so Tailwind emits them. */
+const GREEN_CLASSES: Record<number, string> = {
+  50: 'bg-green-50',
+  100: 'bg-green-100',
+  200: 'bg-green-200',
+  300: 'bg-green-300',
+  400: 'bg-green-400',
+  500: 'bg-green-500',
+  600: 'bg-green-600',
+  700: 'bg-green-700',
+  800: 'bg-green-800',
+  900: 'bg-green-900',
+  950: 'bg-green-950',
+};
 const EMERALD_CLASSES: Record<number, string> = {
   50: 'bg-emerald-50',
   100: 'bg-emerald-100',
@@ -157,8 +170,8 @@ function renderedHex(el: HTMLElement): string {
   return '#' + [r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('');
 }
 
-/** Swatch grids for the brand ramp and, beneath it, Tailwind's emerald for
- * comparison. Hex values are read back from the rendered swatches, so
+/** Swatch grids for the brand ramp and, beneath it, Tailwind's green and
+ * emerald for comparison. Hex values are read back from the rendered swatches, so
  * index.css stays the single source of truth. */
 function BrandPalette() {
   const gridRef = useRef<HTMLDivElement>(null);
@@ -206,6 +219,7 @@ function BrandPalette() {
   return (
     <div ref={gridRef} className="flex flex-col gap-4">
       {row('brand', () => undefined)}
+      {row('green', (n) => GREEN_CLASSES[n])}
       {row('emerald', (n) => EMERALD_CLASSES[n])}
     </div>
   );
