@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
-import { isWeb, signOut, webAuthMode } from '../lib/platform';
+import { isDemo, isWeb, signOut, webAuthMode } from '../lib/platform';
 
 /**
  * App-wide bottom status bar (VS Code style): a thin bar fixed across the
@@ -151,6 +151,14 @@ function SessionStatus() {
       {label}
     </button>
   );
+  if (isDemo()) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        {dot}
+        Demo mode
+      </span>
+    );
+  }
   if (mode === 'cloudflare-access') {
     return (
       <span className="inline-flex items-center gap-1.5">

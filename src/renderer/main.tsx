@@ -5,7 +5,7 @@ import App from './App';
 import Login from './pages/Login';
 import { ThemeProvider } from '@/components/theme-provider';
 import { createHttpApi, setSessionActive } from './api/http';
-import { markWeb, type AuthMode } from './lib/platform';
+import { markDemo, markWeb, type AuthMode } from './lib/platform';
 import './index.css';
 
 // HashRouter is used because the packaged app loads over the file:// protocol,
@@ -34,9 +34,20 @@ const app = (
 // On desktop the preload script has already put `window.api` in place. In a
 // browser (the self-hosted web build) there is none, so install the HTTP
 // implementation and, in password mode, show the login screen until the
-// session cookie is in place. See src/renderer/api/http.ts.
+// session cookie is in place. See src/renderer/api/http.ts. The demo build
+// (vite.demo.config.mts) instead runs the whole core in the page against an
+// invented portfolio; see src/renderer/api/demo.ts.
 if (window.api) {
   render(app);
+} else if (__DOMBOT_DEMO__) {
+  void (async () => {
+    const { createDemoApi } = await import('./api/demo');
+    const { api } = await createDemoApi();
+    window.api = api;
+    markDemo();
+    setSessionActive(true);
+    render(app);
+  })();
 } else {
   window.api = createHttpApi();
   void (async () => {

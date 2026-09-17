@@ -4,13 +4,13 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { readFileSync } from 'node:fs';
 
-// The renderer built for the web host (Cloudflare Worker static assets).
-// Same source as the Electron renderer (vite.renderer.config.mts); the
-// differences are the output directory and that the browser runtime, not
-// Electron, provides `window.api` (see src/renderer/api/http.ts).
+// The demo build: the same renderer, but with the whole core bundled into
+// the page and `window.api` served in-process against the in-memory demo
+// registrar (src/renderer/api/demo.ts). No server, no storage — a static
+// page that runs the app on an invented portfolio. See docs/demo.md.
 //
-//   npm run web:build   → dist/web
-//   npm run web:dev     → vite build --watch + wrangler dev
+//   npm run demo:build  → dist/demo
+//   npm run demo:dev    → vite dev server
 
 const pkg = JSON.parse(
   readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
@@ -21,13 +21,11 @@ export default defineConfig({
   base: './',
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
-    __DOMBOT_DEMO__: 'false',
+    __DOMBOT_DEMO__: 'true',
   },
   build: {
-    outDir: 'dist/web',
+    outDir: 'dist/demo',
     emptyOutDir: true,
-    // The Worker serves a strict `script-src 'self'` CSP; keep the build free
-    // of inline scripts (same reason as the Electron renderer build).
     modulePreload: { polyfill: false },
   },
   resolve: {

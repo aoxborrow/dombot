@@ -6,11 +6,26 @@
 export type AuthMode = 'password' | 'cloudflare-access' | 'external';
 
 let web = false;
+let demo = false;
 let authMode: AuthMode | null = null;
 
 export function markWeb(mode: AuthMode): void {
   web = true;
   authMode = mode;
+}
+
+/** The demo build: a browser host (downloads, no stdio) with a few controls
+ *  disabled. Reports the plain web mode so every page keeps its normal copy;
+ *  the footer and the disabled controls branch on isDemo(). See docs/demo.md. */
+export function markDemo(): void {
+  web = true;
+  demo = true;
+  authMode = 'password';
+}
+
+/** True only in the demo build. */
+export function isDemo(): boolean {
+  return demo;
 }
 
 /** True in the self-hosted browser build; false in Electron. */

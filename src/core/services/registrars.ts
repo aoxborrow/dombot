@@ -6,6 +6,7 @@ import {
   registrars,
   type OperationResult,
   type RegisterDomainInput,
+  type Registrar,
   type RegistrarCredentials,
   type RegistrarName,
   type RequestOptions,
@@ -21,6 +22,7 @@ import { domainKey } from '../../shared/account-key';
 import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { createProxiedNamecheap } from './namecheap-proxy';
+import type { NamecheapProxy } from '../../shared/namecheap-proxy';
 import { parseNamecheapProxy } from '../../shared/namecheap-proxy';
 import { resolveNameservers } from '../dns';
 import { isRegistrarEnabled, setRegistrarEnabled } from './registrar-state';
@@ -98,6 +100,34 @@ function reviveDomainDates<T extends Partial<Domain>>(d: T): T {
 
 // Cache one client per account so we don't rebuild it on every call.
 const clients = new Map<string, RegistrarClient>();
+
+/** Builds the provider behind a client. Hosts swap it to run the app against
+ *  something other than the real registrars (the demo's in-memory one). */
+export type RegistrarFactory = (
+  name: RegistrarName,
+  credentials: RegistrarCredentials,
+  accountId: string,
+) => Registrar;
+
+let factory: RegistrarFactory | null = null;
+
+/** Installs (or with null, removes) a replacement provider factory. Existing
+ *  clients keep their provider until `resetRegistrarClients()`. */
+export function configureRegistrarFactory(next: RegistrarFactory | null): void {
+  factory = next;
+}
+
+function buildProvider(
+  name: RegistrarName,
+  credentials: RegistrarCredentials,
+  accountId: string,
+  proxy: NamecheapProxy | null,
+): Registrar {
+  if (factory) return factory(name, credentials, accountId);
+  return proxy
+    ? createProxiedNamecheap(credentials, proxy)
+    : createRegistrar(name, credentials);
+}
 const clientCredentials = new Map<string, string>();
 const generations = new Map<string, number>();
 function invalidateAccount(id: string): void {
@@ -216,9 +246,7 @@ export function getRegistrarClient(
   if (!client) {
     client = new RegistrarClient(
       protectRegistrar(
-        proxy
-          ? createProxiedNamecheap(credentials, proxy)
-          : createRegistrar(name, credentials),
+        buildProvider(name, credentials, account.id, proxy),
         getStoredCredentials(account.id),
       ),
     );
@@ -812,13 +840,9 @@ export async function connectRegistrarAccount(
   assertNotDuplicate();
   // Validate through the proxy when one is configured, so a fixed-IP account is
   // tested over the connection it will actually use.
+  // (The account doesn't exist yet, so the id here is a placeholder.)
   const client = new RegistrarClient(
-    protectRegistrar(
-      proxy
-        ? createProxiedNamecheap(clean, proxy)
-        : createRegistrar(name, clean),
-      clean,
-    ),
+    protectRegistrar(buildProvider(name, clean, name, proxy), clean),
   );
   const result = await client.testConnection();
   if (!result.success)
