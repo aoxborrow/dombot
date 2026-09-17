@@ -12,7 +12,7 @@ as "for sale").
 - Create, edit, and delete folders (name, description, color).
 - Assign each domain to **at most one** folder, from the Domains table.
 - Show the assigned folder as a colored chip in the Domains table.
-- Filter the table by folder (including an "Unassigned" bucket).
+- Filter the table by folder (including a "None" bucket).
 - Configure folders on a new **Settings → Folders** tab.
 - Persist everything on disk as **user data** (survives a cache clear), following
   the same pattern as manual renewal-price overrides.
@@ -231,7 +231,7 @@ that exact injected-column pattern in
   (`folderAssignments[domainKey]`) and the `folders` list:
   - **Assigned →** a colored `Badge` (folder name) using `folderChipClasses`,
     clickable to open the assign menu.
-  - **Unassigned →** a muted, low-emphasis affordance (e.g. a small outline
+  - **None →** a muted, low-emphasis affordance (e.g. a small outline
     "Assign" / a `—` that reveals a control on hover), also opening the menu.
   - **Assign menu:** a `DropdownMenu` (already imported) listing every folder
     (radio-style single choice, with its color swatch), a **None** entry to
@@ -255,9 +255,9 @@ do). Add a **Folder** filter to the toolbar:
 - **Options:** one per folder — `{ value: folder.id, label: folder.name, count }`
   where `count` is domains currently assigned to it (derive from
   `folderAssignments`, like the nameserver-group counts) — plus a special
-  **Unassigned** option (`value: '__unassigned__'`).
+  **None** option (`value: '__none__'`).
 - **Predicate:** with a non-empty selection, keep a domain whose assignment is in
-  the selection; a domain with no assignment matches only when `__unassigned__`
+  the selection; a domain with no assignment matches only when `__none__`
   is selected. Slots into the existing `filtered` `useMemo` next to the other
   filters, and resets `page` to 0 on change like the rest.
 
@@ -306,7 +306,7 @@ work in a git worktree on a feature branch and open a PR).
 4. **Settings → Folders.** Tab + CRUD page + color picker.
 5. **Table integration.** Color lib, `FolderCell` + assign menu, injected Folder
    column + sort sentinel.
-6. **Filter.** Folder `MultiSelectFilter` with the Unassigned bucket + counts.
+6. **Filter.** Folder `MultiSelectFilter` with the None bucket + counts.
 7. **Polish.** CSV column, empty states, DataSettings copy, a11y labels; launch
    and smoke-test create → assign → filter → delete.
 

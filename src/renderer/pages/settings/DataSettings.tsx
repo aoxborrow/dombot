@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -236,9 +236,8 @@ function DataBundleCard() {
             <Label htmlFor="export-pass" className="text-xs">
               Passphrase (optional)
             </Label>
-            <Input
+            <PasswordInput
               id="export-pass"
-              type="password"
               autoComplete="new-password"
               className="w-56"
               value={exportPass}
@@ -296,9 +295,8 @@ function DataBundleCard() {
               <Label htmlFor="import-pass" className="text-xs">
                 Passphrase
               </Label>
-              <Input
+              <PasswordInput
                 id="import-pass"
-                type="password"
                 autoComplete="off"
                 value={importPass}
                 onChange={(e) => setImportPass(e.target.value)}

@@ -12,12 +12,11 @@ import {
   Server,
   X,
 } from 'lucide-react';
-import { HIDDEN_FOLDER_ID } from '../../../shared/ipc';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { bulkOpTitle } from '../../lib/bulk';
-import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
+import { FolderMenuItems } from './FolderMenuItems';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -69,12 +68,15 @@ export function BulkBar({
   if (domains.length === 0 && !running) return null;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#7ac28d]/70 bg-[#7ac28d]/10 py-1.5 pl-2.5 pr-[7px]">
       <div className="flex items-center gap-3 text-sm">
         {domains.length > 0 ? (
           <>
-            <span className="font-medium">
-              {domains.length} selected
+            <span className="font-medium text-[#7ac28d]">
+              <span className="pl-1 pr-px text-[16px] font-bold">
+                {domains.length}
+              </span>{' '}
+              selected
               {registrarCount > 1 && (
                 <span className="font-normal text-muted-foreground">
                   {' '}
@@ -83,9 +85,9 @@ export function BulkBar({
               )}
             </span>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="h-7 gap-1 px-2 text-muted-foreground"
+              className="h-7 gap-1 pl-1.5 pr-2.5 text-muted-foreground"
               onClick={onClear}
             >
               <X />
@@ -111,9 +113,9 @@ export function BulkBar({
       {domains.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
+            <Button size="sm">
               Bulk actions
-              <ChevronDown className="text-muted-foreground" />
+              <ChevronDown className="text-primary-foreground/70" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
@@ -128,41 +130,11 @@ export function BulkBar({
                 Folder
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="max-h-[320px] w-52 overflow-y-auto">
-                {folders.map((f) => (
-                  <DropdownMenuItem
-                    key={f.id}
-                    className="gap-2.5"
-                    onSelect={() => onAssignFolder(f.id)}
-                  >
-                    <FolderIcon
-                      className={`size-4 shrink-0 ${folderColorStyle(f.color).text}`}
-                      aria-hidden
-                    />
-                    <span className="flex-1 truncate">{f.name}</span>
-                  </DropdownMenuItem>
-                ))}
-                {folders.length === 0 && (
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                    No folders yet
-                  </div>
-                )}
-                <DropdownMenuSeparator />
-                {/* Hidden is a built-in folder: assigning drops the domains
-                    from the table until "Hidden" is picked in the Folder filter. */}
-                <DropdownMenuItem
-                  className="gap-2.5"
-                  onSelect={() => onAssignFolder(HIDDEN_FOLDER_ID)}
-                >
-                  <EyeOff className="size-4 shrink-0" aria-hidden />
-                  <span className="flex-1">Hidden</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="gap-2.5"
-                  onSelect={() => onAssignFolder(null)}
-                >
-                  <span className="size-4 shrink-0" aria-hidden />
-                  <span className="flex-1">None</span>
-                </DropdownMenuItem>
+                <FolderMenuItems
+                  folders={folders}
+                  emptyState
+                  onAssign={onAssignFolder}
+                />
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />

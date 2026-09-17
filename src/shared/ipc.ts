@@ -487,12 +487,14 @@ export const FOLDER_COLORS: FolderColor[] = [
 ];
 
 /**
- * Reserved id for the built-in "Hidden" folder. Assigning a domain to it hides
- * the domain from the table by default; it's surfaced again by selecting Hidden
- * in the Folder filter. Not a real folder — it isn't stored in the folders list
- * and has no color — but it's a valid assignment target.
+ * Reserved id for the built-in "Archive" folder. Assigning a domain to it
+ * archives the domain, dropping it from the table by default; it's surfaced
+ * again by selecting Archive in the Folder filter. Not a real folder — it isn't
+ * stored in the folders list and has no color — but it's a valid assignment
+ * target. The stored value was historically `'__hidden__'`; the folders store
+ * migrates that legacy value to this one on load.
  */
-export const HIDDEN_FOLDER_ID = '__hidden__';
+export const ARCHIVE_FOLDER_ID = '__archive__';
 
 /**
  * Future per-folder configuration that cascades to the folder's domains. Kept

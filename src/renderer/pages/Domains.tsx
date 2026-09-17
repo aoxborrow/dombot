@@ -4,11 +4,11 @@ import { domainKey } from '../../shared/account-key';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Archive,
   ArrowDown,
   ArrowUp,
   Building2,
   CalendarClock,
-  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -35,7 +35,7 @@ import type {
   RenewalPricing,
 } from '../../shared/ipc';
 import { toast } from 'sonner';
-import { HIDDEN_FOLDER_ID } from '../../shared/ipc';
+import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
@@ -46,6 +46,8 @@ import {
   useOpUnsupportedReason,
 } from '../lib/domain-ops';
 import { FolderIcon } from '../components/icons/FolderIcon';
+import { FolderOffIcon } from '../components/icons/FolderOffIcon';
+import { FolderMenuItems } from '../components/domains/FolderMenuItems';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { NameserversCell } from '../components/domains/NameserversCell';
@@ -68,8 +70,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -171,8 +171,8 @@ function CellSkeleton({ align }: { align?: 'left' | 'right' | 'center' }) {
 
 /** Sort sentinel for the injected Folder column (folders aren't a Domain field). */
 const FOLDER = 'folder';
-/** Filter value matching domains with no folder assigned. */
-const UNASSIGNED = '__unassigned__';
+/** Filter value matching domains with no folder assigned (the "None" bucket). */
+const NONE = '__none__';
 
 const RENEWAL = 'renewal';
 
@@ -214,7 +214,7 @@ function RenewalCell({
 
 /**
  * The Folder cell: a small colored folder icon plus the folder name when the
- * domain is in a folder, a muted "Hidden" (eye-off) for the built-in hidden
+ * domain is in a folder, a muted "Archive" (box) for the built-in archive
  * folder, or a muted dash when unassigned. Display only — assigning is done from
  * the row menu.
  */
@@ -233,9 +233,9 @@ function FolderCell({
   folderId: string | undefined;
   onAssign: (folderId: string | null) => void;
 }) {
-  const hidden = folderId === HIDDEN_FOLDER_ID;
+  const archived = folderId === ARCHIVE_FOLDER_ID;
   const current =
-    folderId && !hidden ? folders.find((f) => f.id === folderId) : undefined;
+    folderId && !archived ? folders.find((f) => f.id === folderId) : undefined;
 
   return (
     <DropdownMenu>
@@ -245,10 +245,10 @@ function FolderCell({
           title="Assign folder"
           className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground max-sm:px-2 max-sm:py-1.5 max-sm:text-xs"
         >
-          {hidden ? (
+          {archived ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
-              <EyeOff className="size-4 shrink-0" />
-              Hidden
+              <Archive className="size-4 shrink-0" />
+              Archive
               <ChevronDown
                 className="ml-auto size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                 aria-hidden
@@ -288,8 +288,8 @@ function FolderCell({
 
 /**
  * The folder-assignment menu, opened directly from the Folder cell. A flat list
- * of the user's folders followed by "Hidden" (the built-in folder that drops
- * the domain from the table) and "None" (clear).
+ * of the user's folders followed by "None" (clear) and "Archive" (the built-in
+ * folder that drops the domain from the table).
  */
 function FolderMenuContent({
   folders,
@@ -305,43 +305,11 @@ function FolderMenuContent({
       align="start"
       className="max-h-[320px] w-52 overflow-y-auto"
     >
-      {folders.map((f) => (
-        <DropdownMenuItem
-          key={f.id}
-          className="gap-2.5"
-          onSelect={() => onAssign(f.id)}
-        >
-          <FolderIcon
-            className={cn('size-4 shrink-0', folderColorStyle(f.color).text)}
-            aria-hidden
-          />
-          <span className="flex-1 truncate">{f.name}</span>
-          {f.id === folderId && (
-            <Check className="size-3.5 shrink-0 text-muted-foreground" />
-          )}
-        </DropdownMenuItem>
-      ))}
-      {folders.length > 0 && <DropdownMenuSeparator />}
-      {/* Hidden is a built-in folder: assigning to it drops the domain from the
-          table until "Hidden" is picked in the Folder filter. */}
-      <DropdownMenuItem
-        className="gap-2.5"
-        onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
-      >
-        <EyeOff className="size-4 shrink-0" aria-hidden />
-        <span className="flex-1">Hidden</span>
-        {folderId === HIDDEN_FOLDER_ID && (
-          <Check className="size-3.5 shrink-0 text-muted-foreground" />
-        )}
-      </DropdownMenuItem>
-      <DropdownMenuItem className="gap-2.5" onSelect={() => onAssign(null)}>
-        {/* Spacer keeps "None" aligned with the icon'd rows. */}
-        <span className="size-4 shrink-0" aria-hidden />
-        <span className="flex-1">None</span>
-        {folderId === undefined && (
-          <Check className="size-3.5 shrink-0 text-muted-foreground" />
-        )}
-      </DropdownMenuItem>
+      <FolderMenuItems
+        folders={folders}
+        selected={folderId ?? null}
+        onAssign={onAssign}
+      />
     </DropdownMenuContent>
   );
 }
@@ -854,33 +822,54 @@ export default function Domains() {
   }, [merged]);
 
   // Folder filter options: one per folder (with its assigned-domain count over
-  // the whole portfolio), an "Unassigned" bucket, and an always-present "Hidden"
-  // bucket for the built-in hidden folder. A dangling assignment (its folder was
-  // deleted) counts as unassigned. `hiddenCount` also lets the Folder filter show
-  // when the user has hidden domains but no folders of their own.
-  const { folderOptions, hiddenCount } = useMemo(() => {
+  // the whole portfolio), a "None" bucket (no folder), and an always-present
+  // "Archive" bucket for the built-in archive folder. A dangling assignment (its
+  // folder was deleted) counts as None. `archivedCount` also lets the Folder
+  // filter show when the user has archived domains but no folders of their own.
+  const { folderOptions, archivedCount } = useMemo(() => {
     const counts: Record<string, number> = {};
-    let unassigned = 0;
-    let hidden = 0;
+    let noFolder = 0;
+    let archived = 0;
     for (const d of portfolio) {
       const id = folderAssignments[domainKey(d)];
-      if (id === HIDDEN_FOLDER_ID) {
-        hidden += 1;
+      if (id === ARCHIVE_FOLDER_ID) {
+        archived += 1;
       } else if (id && folders.some((f) => f.id === id)) {
         counts[id] = (counts[id] ?? 0) + 1;
       } else {
-        unassigned += 1;
+        noFolder += 1;
       }
     }
     const opts = folders.map((f) => ({
       value: f.id,
       label: f.name,
       count: counts[f.id] ?? 0,
+      icon: (
+        <FolderIcon
+          className={cn('size-4 shrink-0', folderColorStyle(f.color).text)}
+          aria-hidden
+        />
+      ),
     }));
-    opts.push({ value: UNASSIGNED, label: 'Unassigned', count: unassigned });
-    // Always offer Hidden so it's a discoverable way to reveal hidden domains.
-    opts.push({ value: HIDDEN_FOLDER_ID, label: 'Hidden', count: hidden });
-    return { folderOptions: opts, hiddenCount: hidden };
+    opts.push({
+      value: NONE,
+      label: 'None',
+      count: noFolder,
+      icon: (
+        <FolderOffIcon
+          className="size-4 shrink-0 text-muted-foreground/50"
+          aria-hidden
+        />
+      ),
+    });
+    // Always offer Archive so it's a discoverable way to reveal archived domains.
+    opts.push({
+      value: ARCHIVE_FOLDER_ID,
+      label: 'Archive',
+      count: archived,
+      icon: <Archive className="size-4 shrink-0" aria-hidden />,
+    });
+    return { folderOptions: opts, archivedCount: archived };
   }, [portfolio, folders, folderAssignments]);
 
   // Validate the price inputs, then derive the bounds actually applied. A field
@@ -939,20 +928,20 @@ export default function Domains() {
         if (!keys || !ns.some((k) => keys.has(k))) return false;
       }
       // Folder: resolve each domain to a bucket — a real folder id, the built-in
-      // Hidden id, or "Unassigned" (no folder, or a dangling assignment). With a
+      // Archive id, or "None" (no folder, or a dangling assignment). With a
       // folder filter active, keep only domains whose bucket is selected. With no
-      // folder filter, hide the Hidden bucket (that's the whole point of hiding).
+      // folder filter, drop the Archive bucket (that's the whole point of it).
       {
         const id = folderAssignments[domainKey(d)];
         const bucket =
-          id === HIDDEN_FOLDER_ID
-            ? HIDDEN_FOLDER_ID
+          id === ARCHIVE_FOLDER_ID
+            ? ARCHIVE_FOLDER_ID
             : id && folders.some((f) => f.id === id)
               ? id
-              : UNASSIGNED;
+              : NONE;
         if (folder.length > 0) {
           if (!folder.includes(bucket)) return false;
-        } else if (bucket === HIDDEN_FOLDER_ID) {
+        } else if (bucket === ARCHIVE_FOLDER_ID) {
           return false;
         }
       }
@@ -1040,8 +1029,8 @@ export default function Domains() {
     const keys = selectedDomains.map((d) => domainKey(d));
     void Promise.all(keys.map((k) => assignFolder(k, folderId))).then(() =>
       toast.success(
-        folderId === HIDDEN_FOLDER_ID
-          ? `Hid ${keys.length} domain${keys.length === 1 ? '' : 's'}`
+        folderId === ARCHIVE_FOLDER_ID
+          ? `Archived ${keys.length} domain${keys.length === 1 ? '' : 's'}`
           : folderId
             ? `Moved ${keys.length} domain${keys.length === 1 ? '' : 's'} to ${
                 folders.find((f) => f.id === folderId)?.name ?? 'folder'
@@ -1245,7 +1234,7 @@ export default function Domains() {
               }}
             />
             <MultiSelectFilter
-              label="Nameservers"
+              label="DNS"
               icon={Server}
               options={nsGroups}
               selected={ns}
@@ -1255,7 +1244,7 @@ export default function Domains() {
               }}
             />
             <MultiSelectFilter
-              label="Expiration"
+              label="Expires"
               icon={CalendarClock}
               options={expiryOptions}
               selected={expiry}
@@ -1265,8 +1254,8 @@ export default function Domains() {
               }}
             />
             {/* Offer the Folder filter once there's anything to filter by —
-                    a folder of the user's own, or hidden domains to reveal. */}
-            {(folders.length > 0 || hiddenCount > 0) && (
+                    a folder of the user's own, or archived domains to reveal. */}
+            {(folders.length > 0 || archivedCount > 0) && (
               <MultiSelectFilter
                 label="Folder"
                 icon={FolderIcon}
@@ -1693,7 +1682,13 @@ function MultiSelectFilter({
   icon: Icon,
 }: {
   label: string;
-  options: { value: string; label: string; count?: number }[];
+  options: {
+    value: string;
+    label: string;
+    count?: number;
+    /** Optional leading icon shown before this option's label. */
+    icon?: React.ReactNode;
+  }[];
   selected: string[];
   onChange: (next: string[]) => void;
   /** Optional leading icon shown before the label in the trigger. */
@@ -1734,6 +1729,9 @@ function MultiSelectFilter({
             onSelect={(e) => e.preventDefault()}
             onCheckedChange={() => onChange(toggleValue(selected, o.value))}
           >
+            {o.icon && (
+              <span className="ml-0.5 mr-0.5 flex shrink-0">{o.icon}</span>
+            )}
             <span className="flex-1 truncate">{o.label}</span>
             {o.count != null && (
               <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">

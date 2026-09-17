@@ -162,8 +162,8 @@ For `services/pricing.ts`, also `vi.mock('electron')` (`app.getPath`) and either
   `autoRenew` / `locked` / `privacy`, `status` substring,
   `expiresBefore` / `expiresAfter` / `expiringWithinDays` (nulls excluded,
   invalid dates ignored).
-- Folder resolution: by id, case-insensitive name, `"Hidden"` /
-  `HIDDEN_FOLDER_ID`, unknown name → zero rows.
+- Folder resolution: by id, case-insensitive name, `"Archive"` /
+  `ARCHIVE_FOLDER_ID`, unknown name → zero rows.
 - Sorting: default `expirationDate asc`, `desc`, string fields
   case-insensitive, **nulls always last** regardless of direction.
 - Paging: `offset` / `limit`, default `DEFAULT_LIMIT`, `total` reflects
@@ -207,7 +207,7 @@ boundary, unpriced counted but not summed).
 
 **6. `renderer/lib/csv.ts`** — column order + header row; `isoDate` / `daysUntil`
 blank for null/invalid dates; `Yes`/`No` booleans; nameservers joined with
-`; `; folder name resolution incl. `HIDDEN_FOLDER_ID → "Hidden"` and missing
+`; `; folder name resolution incl. `ARCHIVE_FOLDER_ID → "Archive"` and missing
 folder → blank; RFC-4180 quoting (`csvField`) for commas/quotes/newlines; CRLF
 joins.
 

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
 import { MemoryDocStore } from '../storage/doc-store';
 import {
   configureStore,
@@ -78,6 +79,26 @@ describe('folders', () => {
 
     deleteFolder(f.id);
     expect(getFolders()).toEqual({ folders: [], assignments: {} });
+  });
+
+  it('migrates the legacy "__hidden__" archive id to ARCHIVE_FOLDER_ID', async () => {
+    // A store written before the Hidden→Archive rename.
+    await store.put('folders', 'assignments', {
+      'dynadot:a.com': '__hidden__',
+      'dynadot:b.com': 'keep-folder',
+    });
+    await hydrateStores();
+
+    // Reads surface the new id, and it's rewritten on disk (not re-migrated).
+    expect(getFolders().assignments).toEqual({
+      'dynadot:a.com': ARCHIVE_FOLDER_ID,
+      'dynadot:b.com': 'keep-folder',
+    });
+    await flushWrites();
+    expect(await store.get('folders', 'assignments')).toEqual({
+      'dynadot:a.com': ARCHIVE_FOLDER_ID,
+      'dynadot:b.com': 'keep-folder',
+    });
   });
 });
 

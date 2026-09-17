@@ -3,7 +3,7 @@ import { domainKey } from '../../shared/account-key';
 // Builds the Domains-page CSV export. Kept separate from the page component so
 // the column model and formatting are easy to read and test in isolation.
 
-import { HIDDEN_FOLDER_ID, type Domain, type Folder } from '../../shared/ipc';
+import { ARCHIVE_FOLDER_ID, type Domain, type Folder } from '../../shared/ipc';
 
 /** id → nicely capitalized registrar name, e.g. dynadot → "Dynadot". */
 type RegistrarLabels = Record<string, string>;
@@ -99,11 +99,11 @@ export function domainsToCsv(
   assignments: Record<string, string>,
 ): string {
   const nameById = new Map(folders.map((f) => [f.id, f.name]));
-  // The assigned folder's name, "Hidden" for the built-in hidden folder, or
+  // The assigned folder's name, "Archive" for the built-in archive folder, or
   // empty when unassigned or the folder is gone.
   const folderName = (d: Domain): string => {
     const id = assignments[domainKey(d)];
-    if (id === HIDDEN_FOLDER_ID) return 'Hidden';
+    if (id === ARCHIVE_FOLDER_ID) return 'Archive';
     return nameById.get(id ?? '') ?? '';
   };
 

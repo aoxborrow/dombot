@@ -80,7 +80,7 @@ has to live in dombot (see [Capability gating](#capability-gating)).
     (surfaces as `failed`, not `unsupported`).
 
 Two local-only edits ride along because they belong in the same bulk menu:
-**Assign to folder** and **Hide** (assign to the built-in Hidden folder). They
+**Assign to folder** and **Archive** (assign to the built-in Archive folder). They
 touch no registrar and need no job — a synchronous loop over the selection.
 
 ## Design decisions
