@@ -56,52 +56,66 @@ after the call returns (`bundle.ts`).
 
 ## Authentication
 
-The web instance already authenticates with a **password** (`DOMBOT_PASSWORD`
-secret) via `POST /auth/login`, which mints a signed, HMAC-backed session token
-(`src/worker/auth.ts`). Reuse that — do **not** invent a new secret or derive a
-token client-side.
+The web instance authenticates with a **password** (`DOMBOT_PASSWORD` secret),
+and its session token is a signed, HMAC-backed value minted from
+`DOMBOT_SECRET` + password (`src/worker/auth.ts`). Reuse that token type — do
+**not** invent a new secret or derive a token client-side. But the *existing*
+login route cannot be reused as-is, and the reason drives the design.
 
-Flow:
+### Why not the existing `/auth/login`
 
-1. Desktop calls `POST {remoteUrl}/auth/login` with `{ password }`.
-2. The response sets the `dombot_session` cookie. The desktop reads that token
-   value out of the `Set-Cookie` header and stores it (in memory for the
-   operation; optionally persisted — see below).
-3. Desktop calls the remote API with `Authorization: Bearer <token>` instead of
-   relying on the cookie.
+`/auth/login` is guarded by the same `sameOrigin` CSRF check as `/api/*`
+(`src/worker/index.ts`), and `sameOrigin` returns `false` when there is no
+`Origin`/`Referer` header matching the target (`src/worker/auth.ts`). A desktop
+HTTP client has no such origin, so it is rejected **before** any token is
+issued — the bearer flow could never even start. So the token step needs its
+own door. (We must not simply relax `sameOrigin` on `/auth/login`: that route
+*sets a cookie*, and dropping its CSRF check would open real login-CSRF against
+browsers.)
 
-Why the session token rather than "token = the password":
+### Server change: a body-token endpoint + bearer on `/api`
 
-- It is **server-minted** and HMAC-signed by a key derived from
-  `DOMBOT_SECRET` + password, so it cannot be forged offline.
-- It **expires** (30-day TTL) and is **invalidated by a password change** for
-  free, because the signing key depends on the password.
-- The raw password crosses the wire only on the single login call.
+Two additions, both narrow:
 
-Only the `password` auth mode is covered by "enter the password". Instances in
-`cloudflare-access` or `external` mode do not have a DomBot login; the bearer
-path below still works for `external`, and `cloudflare-access` would need the
-CF Access flow (out of scope for v1 — document as unsupported).
+1. **New `POST /auth/token`** (password mode only). Accepts `{ password }`,
+   verifies it with the same constant-time check as login, and returns the
+   minted token **in the JSON body** — it sets **no cookie**. Because it sets no
+   ambient credential and an attacker page cannot read a cross-origin JSON
+   response, it is safe to **exempt from `sameOrigin`**; the password in the body
+   is the authorization. Reuse the existing login rate-limiter on it.
+2. **Bearer acceptance on `/api/:method`.** In `isAuthenticated` (password
+   mode), also accept a valid token from `Authorization: Bearer <token>`
+   (`verifySession` on the header). In the `/api` gate, **skip `sameOrigin` when
+   the request authenticated via bearer** — a bearer token can't be sent
+   ambiently by a browser, so CSRF doesn't apply. Cookie-authenticated requests
+   keep the same-origin check unchanged.
 
-### Server change: accept a bearer token and exempt it from same-origin
+Flow: desktop `POST {remoteUrl}/auth/token {password}` → gets token → calls
+`{remoteUrl}/api/exportData|importData` with `Authorization: Bearer <token>`.
 
-Today every `/api/*` call passes an `isAuthenticated` check **and** a
-`sameOrigin` CSRF check (`src/worker/index.ts`, `sameOrigin` in
-`src/worker/auth.ts`). `sameOrigin` returns `false` when there is no
-`Origin`/`Referer` header, so a desktop HTTP client is rejected as-is.
+Why this token rather than "token = the password": it is **server-minted** and
+HMAC-signed (can't be forged offline), it **expires** (30-day TTL) and is
+**invalidated by a password change** for free, and the raw password crosses the
+wire only on the one `/auth/token` call.
 
-Change:
+This is additive and does not touch the existing browser/cookie path.
 
-1. In `isAuthenticated` (password mode), accept a valid session token from the
-   `Authorization: Bearer <token>` header in addition to the cookie
-   (`verifySession` on the header value).
-2. In the `/api/:method` gate, **skip the `sameOrigin` check when the request
-   authenticated via bearer** (a bearer token cannot be sent ambiently by a
-   browser, so CSRF does not apply to it). Cookie-authenticated requests keep
-   the same-origin check unchanged.
+### Supported auth modes
 
-This is additive and does not touch the existing browser/cookie path. It also
-gives us a proper programmatic-access primitive for anything future.
+Only **`password` mode** supports built-in remote sync, because only it has a
+DomBot credential the desktop can present:
+
+- **`cloudflare-access`** — no DomBot login; requires a valid
+  `Cf-Access-Jwt-Assertion`. Out of scope for v1; a desktop client would need
+  its own CF Access service-token flow.
+- **`external`** — `isAuthenticated` always returns `true`, but there is no
+  token to mint and `/api/*` still enforces `sameOrigin`, so a desktop client is
+  still `403`ed and no bearer exists to trigger the exemption. Also unsupported
+  in v1. (Supporting it would mean satisfying whatever upstream proxy fronts the
+  instance, which is outside DomBot's control.)
+
+The client detects the mode via `GET /auth/status` and disables Push/Pull with
+an explanation when the mode is not `password`.
 
 ## Wire security
 
@@ -155,25 +169,37 @@ wholesale overwrites:
   prices, cached domains — with the copy on {host}. Continue?"
 - Push: "This replaces everything on {host} with this device's data. Continue?"
 
-Persisted UI state lives in the `settings` namespace: `remoteSyncUrl` (and, if
-"remember" is on, the password in encrypted storage; otherwise not stored).
+Persisted UI state must **not** live in the `settings` namespace — `settings`
+travels in the bundle, so a Pull would import the remote's copy and clobber the
+saved URL (and any remembered secret). This config is host-local, like `auth`
+and `meta`. Store it in a dedicated `remote-sync` namespace that is added to
+`NEVER_EXPORTED` (`src/core/storage/bundle.ts`) so it is excluded from every
+bundle in both directions: `remoteSyncUrl`, the "remember" flag, and — only if
+"remember" is on — the token/password in encrypted (`safeStorage`) storage.
+Keeping it out of the bundle also correctly prevents a host-local secret from
+ever being pushed to the remote.
 
 ## Implementation surface
 
 Backend (worker):
 
-- `src/worker/auth.ts` — bearer-token acceptance in `isAuthenticated`.
-- `src/worker/index.ts` — skip `sameOrigin` for bearer-authenticated `/api`
-  requests.
+- `src/worker/index.ts` — add `POST /auth/token` (password mode, `sameOrigin`-
+  exempt, rate-limited, returns the token in the body); skip `sameOrigin` for
+  bearer-authenticated `/api` requests.
+- `src/worker/auth.ts` — bearer-token acceptance in `isAuthenticated` (password
+  mode).
 
 Desktop / core:
 
-- A small `remote-sync` service: given `{ remoteUrl, password }`, log in, get a
-  bearer token, then:
+- A small `remote-sync` service: given `{ remoteUrl, password }`, exchange the
+  password for a token at `POST {remoteUrl}/auth/token`, then:
   - **Pull**: `POST {remoteUrl}/api/exportData` → local `importBundle(text)`.
   - **Push**: local `exportBundle(...)` → `POST {remoteUrl}/api/importData`
     with `{ args: [text] }`.
-  - Reuses the existing bundle machinery unchanged.
+  - All calls carry `Authorization: Bearer <token>`. Reuses the existing bundle
+    machinery unchanged.
+- A host-local `remote-sync` namespace (added to `NEVER_EXPORTED`) for the saved
+  URL / remember-flag / optional stored secret.
 - New IPC methods `syncPush` / `syncPull` following the `exportData` /
   `importData` pattern across the five touchpoints: `src/shared/ipc.ts`
   (`DombotApi` + `IpcChannels`), `src/core/api/index.ts`, `src/preload.ts`,
@@ -190,11 +216,14 @@ UI:
 
 - **Unreachable / wrong URL / non-HTTPS** — validate up front; surface a clear
   error, do nothing.
-- **Wrong password / rate-limited** — `/auth/login` returns 401 / 429
-  (login rate limit is 10 / 15 min). Surface plainly; do not retry silently.
+- **Wrong password / rate-limited** — `/auth/token` returns 401 / 429 (the
+  reused login rate limit is 10 / 15 min). Surface plainly; do not retry
+  silently.
 - **Auth mode mismatch** — if `/auth/status` reports a non-`password` mode,
-  disable Push/Pull with an explanation (except `external`, which needs no
-  login).
+  disable Push/Pull with an explanation. Both `cloudflare-access` and
+  `external` are unsupported in v1 (see *Supported auth modes*): neither yields
+  a token the desktop can present, and `external` still fails the `/api`
+  `sameOrigin` check.
 - **Version skew** — a bundle from a newer DomBot with an unknown namespace is
   skipped on import (`importNamespaces`); an older instance that predates v3
   refuses the bundle (`parseBundle`). Show the refusal message.
