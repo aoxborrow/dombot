@@ -351,7 +351,14 @@ export type DomainOpStatus =
   /** Still rate-limited after the client's own retries. */
   | 'rate-limited'
   /** Aborted via the caller's signal. */
-  | 'cancelled';
+  | 'cancelled'
+  /**
+   * The request may have reached the registrar (it timed out, the connection
+   * dropped, or the registrar answered 5xx) and re-reading the domain couldn't
+   * settle whether it was applied. Never re-sent automatically: `message` says
+   * to check the domain first.
+   */
+  | 'unknown';
 
 export interface DomainOpResult {
   target: DomainTarget;

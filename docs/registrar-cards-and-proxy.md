@@ -310,9 +310,9 @@ bumps the bundle version so they refuse the file instead.
 1. **Account cards.** *Done.* `AccountCard`, picker, empty state, draft flow,
    nickname rules in `accounts.ts`, last-account removal. `multi-account.md`
    rewritten.
-2. **registrar-client: `fetch` option and the retry standard.** *Open as
+2. **registrar-client: `fetch` option and the retry standard.** *Merged as
    [registrar-client#50](https://github.com/aoxborrow/registrar-client/pull/50),
-   awaiting release as 0.7.0.* Read/write classification per feature
+   released as 0.7.0.* Read/write classification per feature
    (`FEATURE_CALLS`), sent-or-not detection, `OutcomeUnknownError` and
    `outcome: 'unknown'` on folded results, `markNotSent` for transports, and
    removal of Name.com's redundant opt-outs.
@@ -320,21 +320,21 @@ bumps the bundle version so they refuse the file instead.
    `proxyId` on accounts, idempotent migration on both hosts and after import,
    bundle format 3 with validation of profiles and pointers, proxy secrets in
    diagnostics redaction, clients rebuilt when the proxy changes.
-4. **Proxy page and per-account toggle.** *Done for Namecheap.* Settings →
-   Proxy with Test (Cloudflare trace, then ipinfo.io), Save, Remove and "Used
-   by"; the toggle on saved and draft account cards; Namecheap Client IP
-   supplied by the proxy; `proxy` flag in MCP `registrar_list`; docs.
-5. **Every registrar, and the retry standard in DomBot.** *Blocked on the 0.7.0
-   release.* Bump the dependency; replace `ProxyHttpClient` with a proxied
-   `fetch` that pins each provider's API origin and maps proxy-stage failures to
-   `markNotSent`; drop the Namecheap read-command allowlist and the renew
-   `retries: 0` special case; widen `PROXY_REGISTRARS` to every registrar;
-   re-fetch after an unknown outcome and report the three states in
-   `applyDomainOp`, the bulk runner and MCP.
-
-Until phase 5, the toggle is offered for Namecheap only (`PROXY_REGISTRARS`),
-and an account of any other registrar that somehow points at a proxy fails
-loudly rather than connecting directly.
+4. **Proxy page and per-account toggle.** *Done.* Settings → Proxy with Test
+   (Cloudflare trace, then ipinfo.io), Save, Remove and "Used by"; the toggle on
+   saved and draft account cards; Namecheap Client IP supplied by the proxy;
+   `proxy` flag in MCP `registrar_list`; docs.
+5. **Every registrar, and the retry standard in DomBot.** *Done, on
+   registrar-client 0.7.0.* The Namecheap `HttpClient` subclass, its
+   read-command allowlist and the renew `retries: 0` special case are gone.
+   `createProxiedRegistrar` gives any provider a `fetch` that pins the
+   provider's API origin and hands the request to the host transport;
+   proxy-stage failures are mapped to plain messages and marked not sent. The
+   desktop transport reports a refused CONNECT instead of replaying it as a
+   registrar response. The toggle is offered for every registrar.
+   `applyDomainOp` settles an unknown outcome by re-reading the domain, with a
+   new `unknown` ("Unconfirmed") result status for what it can't settle, shared
+   by bulk jobs and MCP.
 
 ## Testing
 
@@ -419,10 +419,13 @@ from a domain write, DomBot re-fetches that domain once and compares the
 relevant field with what the write intended:
 
 - **Applied.** Report success and patch the cache, as a normal success would.
-- **Not applied.** Report "No change was made. Safe to try again."
-- **Re-fetch failed, or the field can't confirm it** (for example an auth-code
-  request). Report "The registrar didn't confirm this. Check the domain before
-  retrying."
+- **Not applied, and harmless to repeat** (auto-renew, lock, privacy,
+  nameservers, an auth-code request). Report failed and safe to try again.
+- **Not applied but it costs money, the re-fetch failed, or there is no field
+  to check** (a renewal whose expiry hasn't moved, forwarding changes). Report
+  the new `unknown` status, shown as "Unconfirmed": check the domain first. A
+  renewal is never called safe to retry, because registrars can take a while to
+  show one.
 
 DomBot already re-fetches after a renew, so this generalizes an existing
 pattern. Bulk jobs record the same three states per domain, and "not applied"

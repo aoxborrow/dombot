@@ -2,14 +2,10 @@ import { connect } from 'cloudflare:sockets';
 import { Client } from 'tunnelfetch';
 import {
   MAX_PROXY_RESPONSE_BYTES,
-  type NamecheapProxyFetch,
-} from '../core/services/namecheap-proxy';
+  type ProxyFetch,
+} from '../core/services/proxy-transport';
 
-export const workerNamecheapProxyFetch: NamecheapProxyFetch = async (
-  proxy,
-  url,
-  init,
-) => {
+export const workerProxyFetch: ProxyFetch = async (proxy, url, init) => {
   const client = new Client({
     connect: (address, options) =>
       connect(address, {

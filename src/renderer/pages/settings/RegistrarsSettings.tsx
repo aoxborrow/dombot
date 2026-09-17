@@ -26,7 +26,6 @@ import {
 } from '../../../shared/registrar-help';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
-import { PROXY_REGISTRARS } from '../../../shared/proxy';
 import { Link } from 'react-router-dom';
 import { timeAgo } from '../../lib/time';
 import { Badge } from '@/components/ui/badge';
@@ -891,7 +890,6 @@ function ProxyToggle({
   disabled: boolean;
   onChange: (enabled: boolean) => void;
 }) {
-  if (!PROXY_REGISTRARS.has(provider.name)) return null;
   const proxyLink = (
     <Link to="/settings?tab=proxy" className="underline underline-offset-4">
       Settings → Proxy

@@ -1,10 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { HttpClient } from '@aoxborrow/registrar-client';
 import {
-  configureNamecheapProxyTransport,
-  createProxiedNamecheap,
-  type NamecheapProxyFetch,
-} from './namecheap-proxy';
+  OutcomeUnknownError,
+  registrars,
+  type HttpClient,
+  type RegistrarName,
+} from '@aoxborrow/registrar-client';
+import {
+  configureProxyTransport,
+  createProxiedRegistrar,
+  ProxyStageError,
+  type ProxyFetch,
+} from './proxy-transport';
 import {
   configureStore,
   flushWrites,
@@ -46,47 +52,62 @@ const proxy = {
 const configured = { ...credentials, proxyUrl: proxy.url, proxyIp: proxy.ip };
 const xml =
   '<ApiResponse Status="OK"><CommandResponse><DomainGetListResult><Domain ID="1" Name="example.test" Created="01/01/2020" Expires="01/01/2030" /></DomainGetListResult><Paging><TotalItems>1</TotalItems><CurrentPage>1</CurrentPage><PageSize>100</PageSize></Paging></CommandResponse></ApiResponse>';
-const transport = vi.fn<NamecheapProxyFetch>();
+const transport = vi.fn<ProxyFetch>();
 beforeEach(async () => {
   configureStore(new MemoryDocStore());
   await hydrateStores();
   resetRegistrarClients();
   transport.mockReset();
-  configureNamecheapProxyTransport(transport);
+  configureProxyTransport(transport);
 });
 afterEach(() => {
-  configureNamecheapProxyTransport();
+  configureProxyTransport();
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
-describe('Namecheap proxy command transport', () => {
-  it('rejects a private proxy endpoint and never forwards an off-origin request', async () => {
+const porkbunCreds = { apiKey: 'pk-secret', secretApiKey: 'sk-secret' };
+const ok = () => Promise.resolve(new Response(xml));
+
+describe('proxied registrar transport', () => {
+  it('rejects a private proxy endpoint and never tunnels an off-origin request', async () => {
     expect(() =>
-      createProxiedNamecheap(credentials, {
+      createProxiedRegistrar('namecheap', credentials, {
         ...proxy,
         url: 'http://127.0.0.1:8080',
       }),
     ).toThrow(/public/);
-    const provider = createProxiedNamecheap(credentials, proxy);
+    const provider = createProxiedRegistrar('namecheap', credentials, proxy);
     const http = (provider as unknown as { http: HttpClient }).http;
     await expect(
       http.requestText({
         path: 'https://elsewhere.example/xml.response',
         query: { ApiKey: 'api-secret' },
+        retries: 0,
       }),
-    ).rejects.toThrow(/restricted/);
+    ).rejects.toThrow(/restricted to the Namecheap API/);
     expect(transport).not.toHaveBeenCalled();
   });
-  it('routes listing through the proxy with the correct ClientIp and preserves stored credentials', async () => {
-    transport.mockResolvedValue(new Response(xml));
+
+  it('pins every registrar to its own API origin', () => {
+    for (const name of Object.keys(registrars) as RegistrarName[]) {
+      const fields = Object.fromEntries(
+        registrars[name].configFields.map((f) => [f.name, 'x']),
+      );
+      expect(() => createProxiedRegistrar(name, fields, proxy)).not.toThrow();
+    }
+  });
+
+  it('routes Namecheap through the proxy with the proxy address as ClientIp, leaving the credentials alone', async () => {
+    transport.mockImplementation(ok);
     vi.stubGlobal(
       'fetch',
       vi.fn(() => {
         throw new Error('direct fetch used');
       }),
     );
-    const domains = await createProxiedNamecheap(
+    const domains = await createProxiedRegistrar(
+      'namecheap',
       credentials,
       proxy,
     ).listDomains();
@@ -98,137 +119,175 @@ describe('Namecheap proxy command transport', () => {
       'https://api.namecheap.com/xml.response',
     );
     expect(request.searchParams.get('ClientIp')).toBe(proxy.ip);
-    expect(request.searchParams.get('ApiKey')).toBe('api-secret');
     expect(init.redirect).toBe('manual');
+    expect(new Headers(init.headers).get('accept-encoding')).toBe('identity');
     expect(credentials.clientIp).toBe('9.9.9.9');
   });
-  it('retries a transient read at most twice', async () => {
+
+  it('routes any other registrar the same way, as the registrar  own request', async () => {
+    transport.mockImplementation(() =>
+      Promise.resolve(Response.json({ status: 'SUCCESS', yourIp: proxy.ip })),
+    );
+    const native = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', native);
+    const result = await createProxiedRegistrar(
+      'porkbun',
+      porkbunCreds,
+      proxy,
+    ).testConnection();
+    expect(result.success).toBe(true);
+    expect(native).not.toHaveBeenCalled();
+    const [selected, url, init] = transport.mock.calls[0];
+    expect(selected).toEqual(proxy);
+    expect(new URL(url).origin).toBe('https://api.porkbun.com');
+    expect(init.method).toBe('POST');
+    expect(String(init.body)).toContain('pk-secret');
+  });
+
+  it('retries a transient read', async () => {
     transport
       .mockResolvedValueOnce(new Response('private response', { status: 503 }))
       .mockResolvedValueOnce(new Response('', { status: 503 }))
-      .mockResolvedValueOnce(new Response(xml));
+      .mockImplementationOnce(ok);
     await expect(
-      createProxiedNamecheap(credentials, proxy).listDomains({
+      createProxiedRegistrar('namecheap', credentials, proxy).listDomains({
         backoff: 0,
-        retries: 10,
+        retries: 2,
       }),
     ).resolves.toHaveLength(1);
     expect(transport).toHaveBeenCalledTimes(3);
   });
+
   it.each(['http', 'network'])(
-    'does not retry a renewal after a %s failure even though it uses GET',
+    'sends a renewal once and reports an unknown outcome after a %s failure, even though Namecheap uses GET',
     async (kind) => {
       if (kind === 'http')
-        transport.mockResolvedValue(
-          new Response('api-secret proxy-secret', { status: 500 }),
+        transport.mockImplementation(() =>
+          Promise.resolve(new Response('upstream', { status: 500 })),
         );
-      else transport.mockRejectedValue(new Error('api-secret proxy-secret'));
-      await expect(
-        createProxiedNamecheap(credentials, proxy).renewDomain(
-          'example.test',
-          1,
-          { retries: 10, backoff: 0 },
-        ),
-      ).rejects.toThrow(/before retrying/);
+      else transport.mockRejectedValue(new Error(`reset by ${proxy.url}`));
+      const error = await createProxiedRegistrar(
+        'namecheap',
+        credentials,
+        proxy,
+      )
+        .renewDomain('example.test', 1, { retries: 5, backoff: 0 })
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(OutcomeUnknownError);
+      expect((error as Error).message).not.toContain('proxy-secret');
       expect(transport).toHaveBeenCalledTimes(1);
       expect(transport.mock.calls[0][2].method).toBe('GET');
     },
   );
-  it.each([302, 401, 403, 407])(
-    'fails closed for HTTP %s without leaking secrets or following redirects',
-    async (status) => {
-      transport.mockResolvedValue(
-        new Response('api-secret proxy-secret upstream body', {
-          status,
-          headers: { location: 'https://other.example' },
-        }),
+
+  it.each([
+    ['PROXY_AUTH_FAILED', /rejected the username or password/],
+    ['PROXY_UNREACHABLE', /Could not reach the proxy/],
+    ['PROXY_CONNECT_REFUSED', /refused to open a connection/],
+    ['CERT_NAME_MISMATCH', /certificate could not be verified/],
+  ])(
+    'treats %s as never sent: retried even for a write, reported in plain words without the transport message',
+    async (code, message) => {
+      transport.mockRejectedValue(
+        Object.assign(new Error(`failed for ${proxy.url}`), { code }),
       );
-      const result = await createProxiedNamecheap(
+      const error = await createProxiedRegistrar(
+        'namecheap',
         credentials,
         proxy,
-      ).testConnection();
-      expect(result.success).toBe(false);
-      expect(result.message).toContain(String(status));
-      expect(result.message).not.toMatch(
-        /api-secret|proxy-secret|upstream body|ApiKey=/,
-      );
-      expect(transport).toHaveBeenCalledTimes(1);
+      )
+        .renewDomain('example.test', 1, { retries: 2, backoff: 0 })
+        .catch((e: unknown) => e);
+      expect(transport).toHaveBeenCalledTimes(3);
+      expect(error).not.toBeInstanceOf(OutcomeUnknownError);
+      expect((error as Error).message).toMatch(message);
+      expect((error as Error).message).not.toMatch(/proxy-secret|proxy-user/);
     },
   );
+
+  it('recognizes a desktop tunnel that never opened', async () => {
+    transport.mockRejectedValue(
+      new ProxyStageError(
+        'PROXY_AUTH_FAILED',
+        'proxy answered CONNECT with 407',
+      ),
+    );
+    const result = await createProxiedRegistrar(
+      'porkbun',
+      porkbunCreds,
+      proxy,
+    ).testConnection({ retries: 0 });
+    expect(result).toMatchObject({ success: false });
+    expect(result.message).toMatch(/rejected the username or password/);
+  });
+
+  it.each([302, 401, 403])(
+    'fails closed for HTTP %s without following redirects',
+    async (status) => {
+      transport.mockImplementation(() =>
+        Promise.resolve(
+          new Response('upstream body', {
+            status,
+            headers: { location: 'https://other.example' },
+          }),
+        ),
+      );
+      const result = await createProxiedRegistrar(
+        'namecheap',
+        credentials,
+        proxy,
+      ).testConnection({ retries: 0 });
+      expect(result.success).toBe(false);
+      expect(transport).toHaveBeenCalledTimes(1);
+      expect(transport.mock.calls[0][2].redirect).toBe('manual');
+    },
+  );
+
   it('does not send an already-cancelled request', async () => {
     const controller = new AbortController();
     controller.abort();
     await expect(
-      createProxiedNamecheap(credentials, proxy).listDomains({
+      createProxiedRegistrar('namecheap', credentials, proxy).listDomains({
         signal: controller.signal,
       }),
-    ).rejects.toThrow(/cancelled/);
+    ).rejects.toThrow(/aborted/);
     expect(transport).not.toHaveBeenCalled();
   });
 
-  it('aborts a timed-out transport and does not expose its exception', async () => {
+  it('aborts a timed-out transport and reports a timeout, not the transport exception', async () => {
     vi.useFakeTimers();
     transport.mockImplementation(
       (_proxy, _url, init) =>
         new Promise((_resolve, reject) => {
           init.signal?.addEventListener(
             'abort',
-            () => reject(new Error('proxy-secret')),
+            () =>
+              reject(
+                Object.assign(new Error('proxy-secret'), {
+                  name: 'AbortError',
+                }),
+              ),
             { once: true },
           );
         }),
     );
-    const pending = createProxiedNamecheap(credentials, proxy).listDomains({
-      timeout: 10,
-      retries: 0,
-    });
-    const assertion = expect(pending).rejects.toThrow(
-      'Namecheap proxy request timed out.',
-    );
+    const pending = createProxiedRegistrar(
+      'namecheap',
+      credentials,
+      proxy,
+    ).listDomains({ timeout: 10, retries: 0 });
+    const assertion = expect(pending).rejects.toThrow(/timed out/);
     await vi.advanceTimersByTimeAsync(20);
     await assertion;
     expect(transport.mock.calls[0][2].signal?.aborted).toBe(true);
     expect(transport).toHaveBeenCalledOnce();
   });
 
-  it.each([
-    'CERT_NAME_MISMATCH',
-    'PROXY_AUTH_FAILED',
-    'ERR_TLS_CERT_ALTNAME_INVALID',
-  ])('does not retry permanent transport failure %s', async (code) => {
-    transport.mockRejectedValue(
-      Object.assign(new Error('proxy-secret'), { code }),
-    );
-    const result = await createProxiedNamecheap(
-      credentials,
-      proxy,
-    ).testConnection({ retries: 2, backoff: 0 });
-    expect(result.success).toBe(false);
-    expect(result.message).not.toContain('proxy-secret');
-    expect(transport).toHaveBeenCalledOnce();
-  });
-
-  it('reports XML API error codes without echoing the provider body', async () => {
-    transport.mockResolvedValue(
-      new Response(
-        '<ApiResponse Status="ERROR"><Errors><Error Number="1011150">api-secret proxy-secret</Error></Errors></ApiResponse>',
-      ),
-    );
-    const result = await createProxiedNamecheap(
-      credentials,
-      proxy,
-    ).testConnection();
-    expect(result).toMatchObject({
-      success: false,
-      message: 'Namecheap API rejected the request (code 1011150).',
-    });
-    expect(transport).toHaveBeenCalledOnce();
-  });
   it('never falls back to direct networking when the host transport is missing', () => {
-    configureNamecheapProxyTransport();
-    expect(() => createProxiedNamecheap(credentials, proxy)).toThrow(
-      /unavailable/,
-    );
+    configureProxyTransport();
+    expect(() =>
+      createProxiedRegistrar('namecheap', credentials, proxy),
+    ).toThrow(/not available/);
   });
 });
 
@@ -280,24 +339,22 @@ describe('central proxy settings', () => {
     expect(getStoredCredentials('namecheap')).toEqual(credentials);
   });
 
-  it('is offered only to registrars that can use it, and never silently goes direct', async () => {
+  it('can be switched on for any registrar, and that account then never connects directly', async () => {
     await saveProxyProfile(profile);
-    await expect(
-      saveRegistrarCredentials(
-        'porkbun',
-        { apiKey: 'k', secretApiKey: 's' },
-        undefined,
-        true,
-      ),
-    ).rejects.toThrow(/not available for Porkbun/);
-    await expect(
-      connectRegistrarAccount(
-        'porkbun',
-        { apiKey: 'k', secretApiKey: 's' },
-        undefined,
-        true,
-      ),
-    ).rejects.toThrow(/not available for Porkbun/);
+    await saveRegistrarCredentials('porkbun', porkbunCreds, undefined, true);
+    const native = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', native);
+    transport.mockImplementation(() =>
+      Promise.resolve(Response.json({ status: 'SUCCESS' })),
+    );
+    expect((await getRegistrarClient('porkbun').testConnection()).success).toBe(
+      true,
+    );
+    expect(transport).toHaveBeenCalledOnce();
+    expect(native).not.toHaveBeenCalled();
+    expect(getProxySettings().users.map((u) => u.registrar)).toEqual([
+      'porkbun',
+    ]);
   });
 
   it('reports the address seen through the proxy, falling back to a second service', async () => {

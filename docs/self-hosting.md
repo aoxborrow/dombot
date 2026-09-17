@@ -207,8 +207,8 @@ one allowlisted address can serve both.
   rejection. It checks the values in the form, saved or not.
 
 **2. Turn on “Use fixed IP proxy” for each account that needs it**, in that
-account's card under Settings → Registrars. Currently available for Namecheap
-accounts. Saving re-syncs the account over the new route. For Namecheap, the
+account's card under Settings → Registrars. It works for every registrar.
+Saving re-syncs the account over the new route. For Namecheap, the
 proxy's outgoing address replaces the Client IP, so an account that only ever
 connects through the proxy needs no Client IP of its own. A Client IP you did
 enter is kept, and is used again if you turn the toggle off.
@@ -230,28 +230,53 @@ converted the same way on import.
 
 ### Transport limitations and security review
 
+A proxied account makes exactly the requests it would make directly.
+`@aoxborrow/registrar-client` builds each request and DomBot hands it to the
+host's tunnel instead of the network, so timeouts, retries, error handling and
+the redaction of credentials from diagnostics are the same either way. Requests
+are pinned to the registrar's own API origin over HTTPS; anything else is
+refused rather than tunnelled. Redirects are never followed.
+
 Workers use pinned `tunnelfetch` 1.13.0 with certificate verification enabled,
-redirects unfollowed, bounded timeouts and a 2 MiB decoded-response limit. A new
-client is closed after every request so no open socket crosses Worker invocation
-boundaries. Native Workers `startTls` cannot verify a different destination after
-an HTTP CONNECT tunnel. `tunnelfetch` implements TLS 1.2/1.3 and certificate
-validation in JavaScript/WebCrypto; its authors state that it has not had an
-external security audit. This opt-in feature requires review of that additional
-trust boundary and may need Workers Paid for the additional CPU cost.
+bounded timeouts and a 2 MiB decoded-response limit. A new client is closed
+after every request so no open socket crosses Worker invocation boundaries.
+Native Workers `startTls` cannot verify a different destination after an HTTP
+CONNECT tunnel. `tunnelfetch` implements TLS 1.2/1.3 and certificate validation
+in JavaScript/WebCrypto; its authors state that it has not had an external
+security audit. This opt-in feature requires review of that additional trust
+boundary and may need Workers Paid for the additional CPU cost.
 
 Desktop uses `https-proxy-agent` with Node's native TLS verification. An HTTPS
 proxy URL encrypts the CONNECT handshake, including any proxy password; a
-separate verified TLS connection protects Namecheap traffic inside the tunnel
+separate verified TLS connection protects registrar traffic inside the tunnel
 either way. No setting disables certificate verification. On the Worker,
 Cloudflare additionally blocks outbound sockets to private network ranges
 whatever the proxy hostname resolves to.
 
-Only Namecheap's production API is reachable through this transport. Namecheap
-uses GET for writes as well as reads, so retries use an explicit read-command
-allowlist. Writes, renewals and unknown commands are never automatically replayed.
-After an uncertain write failure, check the outcome in Namecheap before retrying.
-Provider error codes are shown without raw response bodies or credential-bearing
-request URLs.
+A failure before the tunnel is up (proxy unreachable, wrong proxy password,
+CONNECT refused, certificate not verifiable) means the registrar never saw the
+request. It is reported as a proxy problem in plain words, never with the proxy
+URL, and is retried for any operation. Once a request may have reached the
+registrar, the rules below apply exactly as they do without a proxy.
+
+### When a change may or may not have gone through
+
+If a write times out, loses its connection mid-response, or gets a 5xx, the
+registrar may already have applied it. DomBot never sends it again on its own:
+a second renewal is charged twice. Instead it re-reads the domain and tells you
+what actually happened:
+
+- **The change is there.** Reported as done.
+- **It isn't, and repeating it is harmless** (auto-renew, lock, privacy,
+  nameservers, fetching an auth code). Reported as failed and safe to try again.
+- **It isn't, but it costs money, or DomBot can't tell.** Reported as
+  **Unconfirmed**, with a note to check the domain at the registrar first. A
+  renewal is only ever confirmed by its expiry date moving, and an unconfirmed
+  one is never offered for retry, since registrars can take a while to show it.
+  URL and email forwarding changes are reported this way too.
+
+Reads are simply retried. This applies to the app, bulk jobs and MCP alike, and
+to direct and proxied accounts alike.
 
 References: [Namecheap API parameters](https://www.namecheap.com/support/api/global-parameters/),
 [Cloudflare sockets implementation](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/sockets.c++),

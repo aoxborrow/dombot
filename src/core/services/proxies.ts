@@ -12,7 +12,7 @@ import type {
   RegistrarAccount,
 } from '../../shared/ipc';
 import { proxySecrets } from '../../shared/proxy';
-import { getProxyTransport } from './namecheap-proxy';
+import { sendThroughProxy } from './proxy-transport';
 import { redactRegistrarMessage } from './registrar-errors';
 import { Namespace } from '../storage/namespace';
 import { isSavedAccount, listAccounts, setAccountProxy } from './accounts';
@@ -178,14 +178,12 @@ export async function testProxy(input: {
   const route = parseProxy(input);
   if (!route)
     throw new Error('Enter both the proxy URL and its outgoing IPv4 address.');
-  const send = getProxyTransport();
-  if (!send) throw new Error('Proxy connections are not available here.');
   let failure = 'no response';
   for (const probe of IP_PROBES) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
     try {
-      const response = await send(route, probe.url, {
+      const response = await sendThroughProxy(route, probe.url, {
         method: 'GET',
         headers: { Accept: '*/*', 'Accept-Encoding': 'identity' },
         redirect: 'manual',

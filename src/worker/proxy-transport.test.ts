@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientOptions } from 'tunnelfetch';
-import { MAX_PROXY_RESPONSE_BYTES } from '../core/services/namecheap-proxy';
+import { MAX_PROXY_RESPONSE_BYTES } from '../core/services/proxy-transport';
 
 const mock = vi.hoisted(() => ({
   options: [] as ClientOptions[],
@@ -18,7 +18,7 @@ vi.mock('tunnelfetch', () => ({
     close = mock.close;
   },
 }));
-import { workerNamecheapProxyFetch } from './namecheap-proxy';
+import { workerProxyFetch } from './proxy-transport';
 const proxy = { url: 'https://test:secret@8.8.8.8:8080/', ip: '8.8.4.4' };
 
 beforeEach(() => {
@@ -37,7 +37,7 @@ describe('Worker proxy transport lifecycle', () => {
     );
     const signal = new AbortController().signal;
     for (let i = 0; i < 2; i++) {
-      const response = await workerNamecheapProxyFetch(
+      const response = await workerProxyFetch(
         proxy,
         'https://api.namecheap.com/xml.response',
         { signal },
@@ -61,11 +61,7 @@ describe('Worker proxy transport lifecycle', () => {
   it('closes the client after handshake or body failures', async () => {
     mock.fetch.mockRejectedValueOnce(new Error('certificate failure'));
     await expect(
-      workerNamecheapProxyFetch(
-        proxy,
-        'https://api.namecheap.com/xml.response',
-        {},
-      ),
+      workerProxyFetch(proxy, 'https://api.namecheap.com/xml.response', {}),
     ).rejects.toThrow('certificate failure');
     mock.fetch.mockResolvedValueOnce(
       new Response(
@@ -77,11 +73,7 @@ describe('Worker proxy transport lifecycle', () => {
       ),
     );
     await expect(
-      workerNamecheapProxyFetch(
-        proxy,
-        'https://api.namecheap.com/xml.response',
-        {},
-      ),
+      workerProxyFetch(proxy, 'https://api.namecheap.com/xml.response', {}),
     ).rejects.toThrow('body interrupted');
     expect(mock.close).toHaveBeenCalledTimes(2);
   });
@@ -92,7 +84,7 @@ describe('Worker proxy transport lifecycle', () => {
         headers: { location: 'https://elsewhere.example' },
       }),
     );
-    const result = await workerNamecheapProxyFetch(
+    const result = await workerProxyFetch(
       proxy,
       'https://api.namecheap.com/xml.response',
       {},

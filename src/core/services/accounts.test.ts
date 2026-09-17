@@ -394,7 +394,7 @@ describe('multi-account storage, routing and portable migration', () => {
     expect(fakes.providers.get('company')!.renewDomain).toHaveBeenCalledWith(
       'company.com',
       2,
-      expect.objectContaining({ retries: 0 }),
+      expect.objectContaining({ signal: undefined }),
     );
     expect(fakes.providers.get('personal')!.renewDomain).not.toHaveBeenCalled();
     expect(

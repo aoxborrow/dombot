@@ -674,6 +674,7 @@ function summarize(j: BulkJob): string {
     parts.push(`${j.counts['rate-limited']} rate limited`);
   if (j.counts.unsupported) parts.push(`${j.counts.unsupported} unsupported`);
   if (j.counts.cancelled) parts.push(`${j.counts.cancelled} cancelled`);
+  if (j.counts.unknown) parts.push(`${j.counts.unknown} unconfirmed`);
   return parts.join(' · ') || 'Nothing to do.';
 }
 
@@ -684,6 +685,7 @@ const DOT: Record<DomainOpStatus, string> = {
   skipped: 'bg-muted-foreground/50',
   'rate-limited': 'bg-orange-500',
   cancelled: 'bg-muted-foreground/50',
+  unknown: 'bg-amber-500',
 };
 
 function StatusDot({ status }: { status: DomainOpStatus }) {

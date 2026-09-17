@@ -6,7 +6,7 @@ import type {
   ProxyTestResult,
   RegistrarDefinition,
 } from '../../../shared/ipc';
-import { PROXY_REGISTRARS, parseProxy } from '../../../shared/proxy';
+import { parseProxy } from '../../../shared/proxy';
 import { isWeb } from '../../lib/platform';
 import { Button } from '@/components/ui/button';
 import {
@@ -96,9 +96,6 @@ export default function ProxySettings() {
 
   const registrarName = (name: string) =>
     catalog.find((r) => r.name === name)?.displayName ?? name;
-  const supported = catalog
-    .filter((r) => PROXY_REGISTRARS.has(r.name))
-    .map((r) => r.displayName);
 
   return (
     <div className="flex flex-col gap-6">
@@ -110,8 +107,6 @@ export default function ProxySettings() {
           one, send those requests through a proxy that does. Set it up once
           here, then turn on <strong>Use fixed IP proxy</strong> for each
           account under Registrars.
-          {supported.length > 0 &&
-            ` Available for ${supported.join(', ')} accounts.`}
         </p>
       </div>
 

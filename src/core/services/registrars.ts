@@ -22,11 +22,10 @@ import {
 import { domainKey } from '../../shared/account-key';
 import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
-import { createProxiedNamecheap } from './namecheap-proxy';
+import { createProxiedRegistrar } from './proxy-transport';
 import { accountProxyRoute, getProxyProfile } from './proxies';
 import {
   DEFAULT_PROXY_ID,
-  PROXY_REGISTRARS,
   proxySecrets,
   type ProxyRoute,
 } from '../../shared/proxy';
@@ -211,7 +210,7 @@ export function getRegistrarClient(
   // An account may route through the fixed IP proxy. The route is folded into
   // the fingerprint below, so editing the proxy or flipping the account's
   // toggle rebuilds the client.
-  const proxy = routeFor(account);
+  const proxy = accountProxyRoute(account);
   const fingerprint =
     JSON.stringify(credentials) +
     (proxy ? `|proxy:${proxy.url}|${proxy.ip}` : '');
@@ -231,24 +230,13 @@ export function getRegistrarClient(
   return client;
 }
 
-/** The proxy route for an account, refusing registrars that can't use one yet
- * rather than letting them connect directly from an address nobody allowlisted. */
-function routeFor(account: RegistrarAccount): ProxyRoute | null {
-  const route = accountProxyRoute(account);
-  if (route && !PROXY_REGISTRARS.has(account.registrar))
-    throw new Error(
-      `The fixed IP proxy is not available for ${registrars[account.registrar].displayName} yet. Turn it off for this account in Settings.`,
-    );
-  return route;
-}
-
 function buildProvider(
   name: RegistrarName,
   credentials: RegistrarCredentials,
   proxy: ProxyRoute | null,
 ) {
   return proxy
-    ? createProxiedNamecheap(credentials, proxy)
+    ? createProxiedRegistrar(name, credentials, proxy)
     : createRegistrar(name, credentials);
 }
 
@@ -814,7 +802,7 @@ export async function connectRegistrarAccount(
   const provider = getRegistrarCatalog().find((r) => r.name === name);
   if (!provider) throw new Error('Unknown registrar.');
   const clean: RegistrarCredentials = {};
-  const proxy = useProxy ? requireProxy(name) : null;
+  const proxy = useProxy ? requireProxy() : null;
   // Through the proxy, its outgoing address is the Client IP Namecheap sees, so
   // a proxy-only account needs no direct one. It is supplied when the client is
   // built, never stored as if it were the user's own address.
@@ -888,11 +876,7 @@ export async function connectRegistrarAccount(
 }
 
 /** The configured proxy, for an account that is about to start using it. */
-function requireProxy(name: RegistrarName): ProxyRoute {
-  if (!PROXY_REGISTRARS.has(name))
-    throw new Error(
-      `The fixed IP proxy is not available for ${registrars[name].displayName} yet.`,
-    );
+function requireProxy(): ProxyRoute {
   const profile = getProxyProfile();
   if (!profile)
     throw new Error('Set up the fixed IP proxy in Settings → Proxy first.');
@@ -922,7 +906,7 @@ export async function saveRegistrarCredentials(
 ): Promise<void> {
   const account = resolveAccount(name, accountId);
   // Check the route exists before persisting anything.
-  if (useProxy) requireProxy(name);
+  if (useProxy) requireProxy();
   invalidateAccount(account.id);
   // The proxy no longer lives in the credentials; never let it back in.
   const clean = { ...creds };
@@ -1077,6 +1061,21 @@ export function getMergedPortfolio(): {
  * Domains table (via the `portfolioChanged` event) — reflect the new value
  * without waiting for the next full sync. No-op for entries that don't exist.
  */
+/** Overlay confirmed field values on a domain's cached rows. */
+export function patchCachedDomain(
+  name: RegistrarName,
+  domainName: string,
+  patch: Partial<Domain>,
+  accountId?: string,
+): void {
+  patchDomainInCaches(
+    name,
+    domainName,
+    patch,
+    resolveDomainAccount(name, domainName, accountId).id,
+  );
+}
+
 function patchDomainInCaches(
   name: RegistrarName,
   domainName: string,
@@ -1191,8 +1190,8 @@ export async function setNameserversCached(
  * re-fetch failure is swallowed — the renewal still succeeded and the next Sync
  * corrects the date. Returns the raw result (no throw).
  *
- * Callers should pass `{ retries: 0 }`: a timed-out renew may have gone
- * through, and a blind retry would renew twice.
+ * No retry override is needed: registrar-client never re-sends a renewal whose
+ * outcome is unknown, so a timed-out one can't be charged twice.
  */
 export async function renewDomainCached(
   name: RegistrarName,

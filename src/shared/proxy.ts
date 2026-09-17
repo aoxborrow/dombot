@@ -21,13 +21,6 @@ export interface ProxyRoute {
 export const PROXIES_NAMESPACE = 'proxies';
 export const DEFAULT_PROXY_ID = 'default';
 
-/**
- * Registrars whose accounts can be routed through the proxy. Namecheap only
- * until @aoxborrow/registrar-client ships its `fetch` option, which lets any
- * provider use the same transport.
- */
-export const PROXY_REGISTRARS: ReadonlySet<string> = new Set(['namecheap']);
-
 /** Public IPv4 literals only: no loopback, private, link-local or reserved ranges. */
 export function isPublicIpv4(value: string): boolean {
   if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(value)) return false;
