@@ -38,6 +38,15 @@ export function webAuthMode(): AuthMode | null {
   return authMode;
 }
 
+/** True when the web build is served from this machine (`npm run web:dev`),
+ *  where "external" auth just means no login, not a real gate in front. */
+export function isLocalWeb(): boolean {
+  return (
+    isWeb() &&
+    ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
+  );
+}
+
 /** Ends the web session (password mode) and returns to the login screen. */
 export async function signOut(): Promise<void> {
   await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
