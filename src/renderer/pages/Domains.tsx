@@ -1729,7 +1729,9 @@ function MultiSelectFilter({
             onSelect={(e) => e.preventDefault()}
             onCheckedChange={() => onChange(toggleValue(selected, o.value))}
           >
-            {o.icon && <span className="mr-2 flex shrink-0">{o.icon}</span>}
+            {o.icon && (
+              <span className="ml-0.5 mr-0.5 flex shrink-0">{o.icon}</span>
+            )}
             <span className="flex-1 truncate">{o.label}</span>
             {o.count != null && (
               <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">
