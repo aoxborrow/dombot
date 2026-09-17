@@ -104,7 +104,8 @@ push to `main` of _your_ fork, once two repository secrets exist (Settings →
 Secrets and variables → Actions): `CLOUDFLARE_API_TOKEN` (an API token from
 the "Edit Cloudflare Workers" template with D1 edit permission added) and
 `CLOUDFLARE_ACCOUNT_ID`. Without them the workflow exits quietly. Set the
-same `DOMBOT_WORKER_NAME` / `DOMBOT_D1_DATABASE_ID` values as repository
+same `DOMBOT_WORKER_NAME` / `DOMBOT_D1_DATABASE_ID` (and optionally
+`DOMBOT_D1_DATABASE_NAME` / `DOMBOT_CUSTOM_DOMAIN`) values as repository
 _variables_ so the deploy targets your Worker and database.
 
 ## Day to day
