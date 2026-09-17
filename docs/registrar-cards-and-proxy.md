@@ -259,10 +259,10 @@ What stays from today's `ProxyHttpClient`, reimplemented around the hook:
 - **Response cap, no redirects, bounded timeouts, no shared sockets across
   Worker invocations.** Unchanged, and they live in the host transports
   already.
-- **Namecheap specifics.** `clientIp` comes from the profile's `egressIp`, and
-  the read-command retry allowlist stays, because Namecheap uses GET for
-  writes. These remain in a thin Namecheap wrapper; the `HttpClient` subclass
-  that replaced `send` goes away.
+- **Namecheap specifics.** `clientIp` comes from the profile's `egressIp`.
+  That is the only Namecheap-specific piece left. The `HttpClient` subclass
+  that replaced `send` goes away, and so does its read-command allowlist: the
+  retry standard below covers Namecheap's GET-for-writes API without a list.
 
 Error redaction (`protectRegistrar`) adds the profile URL and its credentials
 to the secret list for accounts that use it. `sanitizeBundleDiagnostics`
@@ -304,11 +304,17 @@ Each phase is one PR and leaves the app shippable.
    rules in `accounts.ts`, `Default` label cleanup, last-account removal and
    built-in ID revival. The Namecheap proxy fields stay in the card exactly as
    they are. Rewrite `multi-account.md`.
-2. **registrar-client `fetch` option.** Library PR, tests, release 0.7.0.
+2. **registrar-client: `fetch` option and the retry standard.** Library PR
+   with the read/write classification, the sent-or-not distinction, the
+   `OutcomeUnknownError`, removal of the per-call `retries: 0` opt-outs, tests,
+   release 0.7.0. DomBot bumps and adds the automatic re-fetch after an
+   unknown outcome. This applies to direct connections too, so it ships value
+   before any proxy work.
 3. **Proxy storage and transport.** `proxies` namespace, `proxyId`, migration,
    bundle version bump and validation, generic proxied `fetch` with origin
-   pinning, Namecheap wrapper slimmed down, redaction sources. No UI change
-   yet beyond the Namecheap card reading its values from the profile.
+   pinning, proxy-stage error mapping, Namecheap wrapper slimmed down,
+   redaction sources. No UI change yet beyond the Namecheap card reading its
+   values from the profile.
 4. **Proxy page and per-account toggle.** Settings page with Test, toggle on
    every account card, Namecheap Client IP behavior, MCP `proxy` flag, docs.
 
@@ -323,44 +329,112 @@ Each phase is one PR and leaves the app shippable.
 - **Migration.** Single Namecheap proxy; two accounts with the same proxy; two
   accounts with different proxies; already-migrated data is a no-op; legacy
   bundle import.
+- **Retries (library).** Every feature method is classified as a read or a
+  write, with a test that fails when a new method is added unclassified. A
+  failure before the request is sent retries for reads and writes alike; a 429
+  retries for both; a timeout, mid-response drop or 5xx retries a read and
+  raises `OutcomeUnknownError` for a write without re-sending. Covered for a
+  GET-only provider (Namecheap) and a POST-only provider (Porkbun).
+- **Retries (DomBot).** An unknown outcome triggers one re-fetch of the domain
+  and reports either "applied" or "not applied, safe to retry"; a failed
+  re-fetch reports the outcome as unknown. Bulk jobs record the same three
+  states per domain. A renew is never sent twice.
 - **Transport.** Proxied `fetch` refuses off-origin URLs for each provider;
-  Namecheap still sends the profile's egress IP and never retries writes;
-  changing the profile invalidates cached clients; secrets from the profile
-  never reach portfolio errors, bulk-job results or MCP output.
+  Namecheap sends the profile's egress IP; proxy-stage failures (unreachable,
+  407, non-2xx CONNECT, TLS to the proxy) surface as proxy errors, are retried
+  for any command, and never read as registrar errors; changing the profile
+  invalidates cached clients; secrets from the profile never reach portfolio
+  errors, bulk-job results or MCP output.
 - **Manual.** One real sync through an HTTPS proxy by hostname on the Worker
   and on desktop. That path has never been exercised end to end.
 
-## Retries through a proxy
+## Retry standard
 
-registrar-client's retry loop is method-blind. With the default `retries: 2`
-it re-sends any request, reads and writes alike, after a timeout, a connection
-error, a 429 or a 5xx. Only a few call sites opt out: Name.com's DNS record
-writes inside the library, and DomBot's renew path, which passes `retries: 0`
-because a timed-out renew may already have gone through.
+One rule for every registrar, direct or proxied. It replaces the library's
+current behavior, the Namecheap proxy allowlist, and the scattered
+`retries: 0` opt-outs.
 
-Today's Namecheap proxy path is stricter than that. Namecheap's API sends every
-command, writes included, as a GET with a `Command` parameter, so the HTTP
-method says nothing about safety. `ProxyHttpClient` therefore keeps an
-allowlist of nine read commands (`domains.getList`, `getInfo`,
-`getRegistrarLock`, `check`, `users.getPricing`, `getContacts`, `dns.getList`,
-`dns.getHosts`, `dns.getEmailForwarding`). Those retry at most twice. Every
-other command, including any the library adds later, gets zero retries, and a
-failed write's error tells the user to check the outcome in Namecheap first.
-This only applies when the proxy is on; a direct Namecheap account uses the
-library default.
+### Today
 
-For the generic transport:
+registrar-client's retry loop ignores what is being sent. With the default
+`retries: 2` it re-sends any request, reads and writes alike, after a timeout,
+a connection error, a 429 or a 5xx. The exceptions are ad hoc: Name.com's DNS
+record writes inside the library, DomBot's renew path, and the proxied
+Namecheap client, which keeps a hardcoded list of nine read commands because
+Namecheap sends every command as a GET.
 
-- **Proxied requests retry only `GET` and `HEAD`.** The proxied `fetch` cannot
-  see retry counts, so this is enforced where the client is built: a proxied
-  account's provider is wrapped so non-idempotent requests run with
-  `retries: 0`. An extra hop makes "timed out after the write landed" more
-  likely, and these are writes against domains.
-- **Namecheap keeps its command allowlist**, since all its requests are GETs.
-- **Follow-up outside this plan:** the same method-blind retry applies to
-  direct connections today. Making the library skip retries for non-idempotent
-  methods by default (with Namecheap's allowlist moved into its provider) would
-  fix both routes at once and let DomBot drop its wrapper.
+The HTTP method cannot be the signal. Namecheap uses GET for writes; Porkbun
+uses POST for reads.
+
+### What actually hurts when sent twice
+
+- **Renew.** Charges twice and adds two terms. The one that costs money.
+- **Writes that create records** at registrars whose API adds DNS or
+  forwarding entries one at a time. A repeat leaves duplicates.
+- **Register and transfer-in.** The repeat fails with "unavailable" or
+  "already pending", so the user sees a failure for something that succeeded.
+- Everything else sets a state (auto-renew, lock, nameservers, contacts,
+  privacy flag, forwarding, DNSSEC disable) and is harmless to repeat.
+
+### The rule
+
+Decide by where the failure happened and whether the call is a read or a
+write. The library classifies by feature method, not by HTTP method: `get*`,
+`list*`, `check*` and `testConnection` are reads; everything else is a write.
+New methods must be classified explicitly; unclassified means write.
+
+| Failure | Read | Write |
+| --- | --- | --- |
+| Registrar never saw the request: DNS failure, connection refused, TLS handshake failure, any proxy-stage error | Retry | Retry |
+| 429 (explicitly rejected) | Retry, honoring `Retry-After` | Retry, honoring `Retry-After` |
+| Outcome unknown: timeout after the request was sent, connection dropped mid-response, 5xx | Retry | **Do not retry.** Raise `OutcomeUnknownError` |
+| Any other response (4xx, provider error body) | Fail | Fail |
+
+`OutcomeUnknownError` is a new typed error carrying the feature name and the
+underlying cause. It is not retryable.
+
+### What DomBot does with an unknown outcome
+
+It resolves it instead of asking the user to. After an `OutcomeUnknownError`
+from a domain write, DomBot re-fetches that domain once and compares the
+relevant field with what the write intended:
+
+- **Applied.** Report success and patch the cache, as a normal success would.
+- **Not applied.** Report "No change was made. Safe to try again."
+- **Re-fetch failed, or the field can't confirm it** (for example an auth-code
+  request). Report "The registrar didn't confirm this. Check the domain before
+  retrying."
+
+DomBot already re-fetches after a renew, so this generalizes an existing
+pattern. Bulk jobs record the same three states per domain, and "not applied"
+rows are eligible for the existing retry action. MCP tools return the same
+wording.
+
+### Proxy errors versus registrar errors
+
+A CONNECT proxy has a hard boundary: the tunnel is established or it is not.
+Everything before that point belongs to the proxy and means the registrar
+never saw the request: proxy unreachable, 407, a non-2xx reply to CONNECT, a
+TLS failure to the proxy itself. `tunnelfetch` raises a dedicated error type
+with codes for these; `https-proxy-agent` fails identifiably at the CONNECT
+step. The host transports map them to one `ProxyError` that the library treats
+as "never sent", so they retry for any command and surface with their own
+messages ("The proxy rejected the username or password"), never as registrar
+errors.
+
+Once the tunnel is up the traffic is end-to-end TLS with the registrar, and
+failures are the same as on a direct connection. A tunnel that drops
+mid-request is an unknown outcome and follows the table.
+
+### Where it lives
+
+- **registrar-client:** the read/write classification, telling "never sent"
+  from "sent" in `send`, `OutcomeUnknownError`, a hook for a transport to mark
+  an error as never-sent, and removal of the per-call `retries: 0` opt-outs
+  that the rule makes redundant.
+- **DomBot:** the `ProxyError` mapping in both host transports, the re-fetch
+  and three-state reporting in `applyDomainOp`, the bulk runner and MCP, and
+  deletion of the Namecheap command allowlist and the renew special case.
 
 ## Decisions
 
