@@ -4,8 +4,9 @@ import RegistrarsSettings from './settings/RegistrarsSettings';
 import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
 import FoldersSettings from './settings/FoldersSettings';
+import ProxySettings from './settings/ProxySettings';
 
-const TAB_VALUES = ['registrars', 'folders', 'data', 'mcp'];
+const TAB_VALUES = ['registrars', 'proxy', 'folders', 'data', 'mcp'];
 
 export default function Settings() {
   const [params, setParams] = useSearchParams();
@@ -32,6 +33,12 @@ export default function Settings() {
               Registrars
             </TabsTrigger>
             <TabsTrigger
+              value="proxy"
+              className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
+            >
+              Proxy
+            </TabsTrigger>
+            <TabsTrigger
               value="folders"
               className="w-full justify-start data-[state=active]:bg-primary data-[state=active]:text-primary-foreground dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
             >
@@ -55,6 +62,9 @@ export default function Settings() {
         <div className="min-w-0 flex-1">
           <TabsContent value="registrars">
             <RegistrarsSettings />
+          </TabsContent>
+          <TabsContent value="proxy">
+            <ProxySettings />
           </TabsContent>
           <TabsContent value="folders">
             <FoldersSettings />

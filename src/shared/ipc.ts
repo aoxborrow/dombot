@@ -19,11 +19,26 @@ export interface RegistrarAccount {
   id: string;
   registrar: RegistrarName;
   label: string;
+  /** The proxy profile this account's API traffic goes through; absent = direct. */
+  proxyId?: string;
 }
 export type Domain = ProviderDomain & {
   accountId?: string;
   accountLabel?: string;
 };
+
+/** The one proxy the app manages, and the saved accounts routed through it. */
+export interface ProxySettings {
+  proxy: { url: string; egressIp: string } | null;
+  users: { accountId: string; registrar: RegistrarName; label: string }[];
+}
+
+/** The address the internet saw for a request sent through the proxy. */
+export interface ProxyTestResult {
+  ip: string;
+  expected: string;
+  matches: boolean;
+}
 
 /** Channel identifiers for `ipcRenderer.invoke` / `ipcMain.handle`. */
 export const IpcChannels = {
@@ -53,6 +68,10 @@ export const IpcChannels = {
   testRegistrarAccount: 'registrar:testAccount',
   getRegistrarCredentials: 'registrar:getCredentials',
   saveRegistrarCredentials: 'registrar:saveCredentials',
+  getProxySettings: 'proxy:get',
+  saveProxySettings: 'proxy:save',
+  removeProxySettings: 'proxy:remove',
+  testProxySettings: 'proxy:test',
   setRegistrarEnabled: 'registrar:setEnabled',
   syncRegistrar: 'registrar:sync',
   getMcpInfo: 'mcp:getInfo',
@@ -201,6 +220,8 @@ export interface RegistrarMeta {
   saved?: boolean;
   accountId?: string;
   accountLabel?: string;
+  /** Whether this account's API traffic goes through the fixed IP proxy. */
+  proxy?: boolean;
   name: RegistrarName;
   displayName: string;
   supportsSandbox: boolean;
@@ -617,6 +638,8 @@ export interface DombotApi {
     name: RegistrarName,
     creds: CredentialValues,
     label?: string,
+    /** Route the new account through the fixed IP proxy (and test it that way). */
+    useProxy?: boolean,
   ) => Promise<RegistrarAccount>;
   createRegistrarAccount: (
     name: RegistrarName,
@@ -637,7 +660,21 @@ export interface DombotApi {
     name: RegistrarName,
     creds: CredentialValues,
     accountId?: string,
+    /** Turn the fixed IP proxy on or off for this account; omitted = unchanged. */
+    useProxy?: boolean,
   ) => Promise<void>;
+  getProxySettings: () => Promise<ProxySettings>;
+  saveProxySettings: (proxy: {
+    url: string;
+    egressIp: string;
+  }) => Promise<void>;
+  /** Rejects while any account still has the proxy switched on. */
+  removeProxySettings: () => Promise<void>;
+  /** One request through the given proxy (saved or not), reporting the address seen. */
+  testProxySettings: (proxy: {
+    url: string;
+    egressIp: string;
+  }) => Promise<ProxyTestResult>;
   /** Enable/disable a registrar (keeps credentials). Disabling keeps its cached
    *  data and stops syncs; enabling re-syncs it. Returns the updated portfolio. */
   setRegistrarEnabled: (

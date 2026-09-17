@@ -30,6 +30,11 @@ export function configureNamecheapProxyTransport(
   transport = next;
 }
 
+/** The host's proxy transport, if it has one. */
+export function getProxyTransport(): NamecheapProxyFetch | undefined {
+  return transport;
+}
+
 // Namecheap sends writes via GET too. Unknown/new commands fail safe: no retry.
 const READ_COMMANDS = new Set([
   'namecheap.domains.getList',

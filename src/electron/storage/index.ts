@@ -1,9 +1,15 @@
 import { app, safeStorage } from 'electron';
 import { CREDENTIALS_NAMESPACE } from '../../core/services/credentials';
 import { EncryptedDocStore } from '../../core/storage/encrypted';
-import { configureStore, hydrateStores } from '../../core/storage/namespace';
+import {
+  configureStore,
+  flushWrites,
+  hydrateStores,
+} from '../../core/storage/namespace';
 import type { DocStore } from '../../core/storage/doc-store';
 import { sanitizeStoredDiagnostics } from '../../core/storage/sanitize-diagnostics';
+import { migrateLegacyProxies } from '../../core/services/proxies';
+import { PROXIES_NAMESPACE } from '../../shared/proxy';
 import { FsDocStore } from './fs-doc-store';
 import { migrateLegacyCredentials, migrateLegacyMcpTokens } from './migrate';
 import {
@@ -30,7 +36,8 @@ function buildStore(): DocStore {
   return new EncryptedDocStore(
     files,
     safeStorageCipher,
-    new Set([CREDENTIALS_NAMESPACE]),
+    // The proxy URL carries a password, so it is sealed like credentials.
+    new Set([CREDENTIALS_NAMESPACE, PROXIES_NAMESPACE]),
   );
 }
 
@@ -50,4 +57,5 @@ export async function initStorage(): Promise<void> {
   await migrateLegacyMcpTokens(app.getPath('userData'), store);
   await sanitizeStoredDiagnostics(store);
   await hydrateStores();
+  if (await migrateLegacyProxies()) await flushWrites();
 }

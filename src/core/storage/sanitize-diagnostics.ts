@@ -1,5 +1,6 @@
 import type { DocStore } from './doc-store';
 import { redactRegistrarMessage } from '../services/registrar-errors';
+import { PROXIES_NAMESPACE, proxySecrets } from '../../shared/proxy';
 
 const DIAGNOSTIC_NAMESPACES = ['cache-portfolio', 'bulk-jobs'];
 
@@ -14,6 +15,14 @@ export function sanitizeBundleDiagnostics(
       if (typeof value === 'string' && value)
         credentials[String(Object.keys(credentials).length)] = value;
     }
+  }
+  // Only a proxy's URL and the credentials inside it: its id and label are
+  // ordinary words that would mangle unrelated messages.
+  for (const profile of Object.values(data[PROXIES_NAMESPACE] ?? {})) {
+    const url = (profile as { url?: unknown } | null)?.url;
+    if (typeof url === 'string')
+      for (const secret of proxySecrets(url))
+        credentials[String(Object.keys(credentials).length)] = secret;
   }
   const walk = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(walk);
@@ -39,6 +48,7 @@ export async function sanitizeStoredDiagnostics(
 ): Promise<void> {
   const data: Record<string, Record<string, unknown>> = {
     credentials: await store.list('credentials'),
+    [PROXIES_NAMESPACE]: await store.list(PROXIES_NAMESPACE),
   };
   for (const name of DIAGNOSTIC_NAMESPACES) data[name] = await store.list(name);
   const before = structuredClone(data);

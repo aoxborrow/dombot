@@ -14,6 +14,7 @@ import {
   accountById,
   assertUniqueAccountLabel,
   createAccount,
+  setAccountProxy,
   isSavedAccount,
   listAccounts,
   removeAccountRecord,
@@ -22,7 +23,13 @@ import { domainKey } from '../../shared/account-key';
 import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { createProxiedNamecheap } from './namecheap-proxy';
-import { parseNamecheapProxy } from '../../shared/namecheap-proxy';
+import { accountProxyRoute, getProxyProfile } from './proxies';
+import {
+  DEFAULT_PROXY_ID,
+  PROXY_REGISTRARS,
+  proxySecrets,
+  type ProxyRoute,
+} from '../../shared/proxy';
 import { resolveNameservers } from '../dns';
 import { isRegistrarEnabled, setRegistrarEnabled } from './registrar-state';
 import {
@@ -201,13 +208,10 @@ export function getRegistrarClient(
   const account = resolveAccount(name, accountId);
   requireActive(account);
   const credentials = resolveCredentials(name, account.id);
-  // Namecheap may route through a per-account fixed-IP proxy. The proxy config
-  // lives in the account's own credential bag, so it's scoped per account and
-  // folded into the fingerprint below — a proxy-only change rebuilds the client.
-  const proxy =
-    name === 'namecheap'
-      ? parseNamecheapProxy(getStoredCredentials(account.id))
-      : null;
+  // An account may route through the fixed IP proxy. The route is folded into
+  // the fingerprint below, so editing the proxy or flipping the account's
+  // toggle rebuilds the client.
+  const proxy = routeFor(account);
   const fingerprint =
     JSON.stringify(credentials) +
     (proxy ? `|proxy:${proxy.url}|${proxy.ip}` : '');
@@ -217,16 +221,54 @@ export function getRegistrarClient(
   if (!client) {
     client = new RegistrarClient(
       protectRegistrar(
-        proxy
-          ? createProxiedNamecheap(credentials, proxy)
-          : createRegistrar(name, credentials),
-        getStoredCredentials(account.id),
+        buildProvider(name, credentials, proxy),
+        accountSecrets(account.id, proxy),
       ),
     );
     clients.set(account.id, client);
     clientCredentials.set(account.id, fingerprint);
   }
   return client;
+}
+
+/** The proxy route for an account, refusing registrars that can't use one yet
+ * rather than letting them connect directly from an address nobody allowlisted. */
+function routeFor(account: RegistrarAccount): ProxyRoute | null {
+  const route = accountProxyRoute(account);
+  if (route && !PROXY_REGISTRARS.has(account.registrar))
+    throw new Error(
+      `The fixed IP proxy is not available for ${registrars[account.registrar].displayName} yet. Turn it off for this account in Settings.`,
+    );
+  return route;
+}
+
+function buildProvider(
+  name: RegistrarName,
+  credentials: RegistrarCredentials,
+  proxy: ProxyRoute | null,
+) {
+  return proxy
+    ? createProxiedNamecheap(credentials, proxy)
+    : createRegistrar(name, credentials);
+}
+
+/** Every string that must never appear in this account's diagnostics. */
+function accountSecrets(
+  accountId: string,
+  proxy?: ProxyRoute | null,
+): Record<string, string | undefined> {
+  const secrets: Record<string, string | undefined> = {
+    ...getStoredCredentials(accountId),
+  };
+  const url =
+    proxy === undefined
+      ? getProxyProfile(
+          listAccounts().find((a) => a.id === accountId)?.proxyId ??
+            DEFAULT_PROXY_ID,
+        )?.url
+      : proxy?.url;
+  proxySecrets(url).forEach((value, i) => (secrets[`proxy:${i}`] = value));
+  return secrets;
 }
 
 export function getConfiguredRegistrars(): RegistrarName[] {
@@ -256,10 +298,7 @@ function readRegistrarEntry(name: string): RegistrarPortfolioEntry | null {
   return {
     ...cached.data,
     lastError: cached.data.lastError
-      ? redactRegistrarMessage(
-          cached.data.lastError,
-          getStoredCredentials(name),
-        )
+      ? redactRegistrarMessage(cached.data.lastError, accountSecrets(name))
       : null,
     domains: cached.data.domains.map(reviveDomainDates),
   };
@@ -751,6 +790,7 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
       accountId: account.id,
       accountLabel: account.label,
       saved: isSavedAccount(account.id),
+      proxy: Boolean(account.proxyId),
       configured: isConfigured(account.registrar, account.id),
       enabled: isRegistrarEnabled(account.id),
       sync: {
@@ -769,23 +809,22 @@ export async function connectRegistrarAccount(
   name: RegistrarName,
   credentials: RegistrarCredentials,
   label?: string,
+  useProxy = false,
 ): Promise<RegistrarAccount> {
   const provider = getRegistrarCatalog().find((r) => r.name === name);
   if (!provider) throw new Error('Unknown registrar.');
   const clean: RegistrarCredentials = {};
-  // Namecheap fixed-IP proxy: proxyUrl/proxyIp aren't config fields, so carry
-  // them across explicitly, and let the proxy's outgoing IP satisfy the required
-  // ClientIp so a proxy-only account (no direct IP) can be connected.
-  const proxy = name === 'namecheap' ? parseNamecheapProxy(credentials) : null;
-  if (proxy) {
-    clean.proxyUrl = credentials.proxyUrl?.trim();
-    clean.proxyIp = credentials.proxyIp?.trim();
-  }
+  const proxy = useProxy ? requireProxy(name) : null;
+  // Through the proxy, its outgoing address is the Client IP Namecheap sees, so
+  // a proxy-only account needs no direct one. It is supplied when the client is
+  // built, never stored as if it were the user's own address.
+  const proxySupplies = (field: string) =>
+    Boolean(proxy) && name === 'namecheap' && field === 'clientIp';
   for (const field of provider.configFields) {
     const value = credentials[field.name]?.trim();
     if (value) clean[field.name] = value;
-    else if (proxy && field.name === 'clientIp') clean.clientIp = proxy.ip;
-    else if (field.required) throw new Error(`${field.label} is required.`);
+    else if (field.required && !proxySupplies(field.name))
+      throw new Error(`${field.label} is required.`);
   }
   if (!Object.keys(clean).length)
     throw new Error('Enter your account credentials.');
@@ -813,13 +852,10 @@ export async function connectRegistrarAccount(
   assertNotDuplicate();
   // Validate through the proxy when one is configured, so a fixed-IP account is
   // tested over the connection it will actually use.
+  const secrets: Record<string, string | undefined> = { ...clean };
+  proxySecrets(proxy?.url).forEach((v, i) => (secrets[`proxy:${i}`] = v));
   const client = new RegistrarClient(
-    protectRegistrar(
-      proxy
-        ? createProxiedNamecheap(clean, proxy)
-        : createRegistrar(name, clean),
-      clean,
-    ),
+    protectRegistrar(buildProvider(name, clean, proxy), secrets),
   );
   const result = await client.testConnection();
   if (!result.success)
@@ -842,8 +878,25 @@ export async function connectRegistrarAccount(
       )
     )
       suggested = `Account ${++number}`;
-    return createAccount(name, label?.trim() || suggested, clean);
+    return createAccount(
+      name,
+      label?.trim() || suggested,
+      clean,
+      proxy ? DEFAULT_PROXY_ID : undefined,
+    );
   });
+}
+
+/** The configured proxy, for an account that is about to start using it. */
+function requireProxy(name: RegistrarName): ProxyRoute {
+  if (!PROXY_REGISTRARS.has(name))
+    throw new Error(
+      `The fixed IP proxy is not available for ${registrars[name].displayName} yet.`,
+    );
+  const profile = getProxyProfile();
+  if (!profile)
+    throw new Error('Set up the fixed IP proxy in Settings → Proxy first.');
+  return { url: profile.url, ip: profile.egressIp };
 }
 
 /** The saved credential values for a registrar (for pre-filling the form). */
@@ -865,12 +918,19 @@ export async function saveRegistrarCredentials(
   name: RegistrarName,
   creds: RegistrarCredentials,
   accountId?: string,
+  useProxy?: boolean,
 ): Promise<void> {
-  // Reject a partial/invalid proxy config before persisting anything.
-  if (name === 'namecheap') parseNamecheapProxy(creds);
   const account = resolveAccount(name, accountId);
+  // Check the route exists before persisting anything.
+  if (useProxy) requireProxy(name);
   invalidateAccount(account.id);
-  await setStoredCredentials(account.id, creds);
+  // The proxy no longer lives in the credentials; never let it back in.
+  const clean = { ...creds };
+  delete clean.proxyUrl;
+  delete clean.proxyIp;
+  await setStoredCredentials(account.id, clean);
+  if (useProxy !== undefined)
+    await setAccountProxy(account.id, useProxy ? DEFAULT_PROXY_ID : null);
   clearRegistrarData(account.id);
 }
 
@@ -1214,13 +1274,13 @@ function resolveField(
   accountId: string,
   field: string,
 ): string | undefined {
-  const credentials = getStoredCredentials(accountId);
   if (registrar === 'namecheap' && field === 'clientIp') {
-    // A configured fixed-IP proxy supplies the outgoing ClientIp Namecheap sees.
-    const proxy = parseNamecheapProxy(credentials);
+    // Through the proxy, its outgoing address is the ClientIp Namecheap sees.
+    const account = listAccounts().find((a) => a.id === accountId);
+    const proxy = account ? accountProxyRoute(account) : null;
     if (proxy) return proxy.ip;
   }
-  return credentials[field];
+  return getStoredCredentials(accountId)[field];
 }
 
 function isConfigured(name: RegistrarName, accountId: string): boolean {

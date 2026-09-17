@@ -202,7 +202,8 @@ A new **Settings → Proxy** page, present on desktop and web alike:
   current help text, plus the Workers "experimental TLS client" notice on web.
 - **Test** makes one request through the proxy to an IP-echo endpoint and
   reports the address it saw, flagging a mismatch with the entered outgoing IP.
-  It uses Cloudflare's `https://cloudflare.com/cdn-cgi/trace` (plain text, the
+  It tests the values in the form, saved or not.
+  It uses Cloudflare's `https://www.cloudflare.com/cdn-cgi/trace` (plain text, the
   `ip=` line) and falls back to `https://ipinfo.io/json` if that fails. On the
   Worker the socket goes to the proxy, not to Cloudflare, so the platform's
   block on sockets to Cloudflare's own ranges does not apply; phase 4 confirms
@@ -226,8 +227,12 @@ switch.
 - For other registrars it only changes the route. Help text: "Send this
   account's API requests through your fixed IP proxy. Add the proxy's outgoing
   address to the registrar's API allowlist first."
-- Saved with the rest of the form; changing it re-tests the connection over the
-  new route before persisting, as connecting does today.
+- Saved with the rest of the form. Like any credential edit on a saved
+  account, it is persisted and followed by a sync over the new route, whose
+  result shows on the card. A new account is connection-tested through the
+  proxy before anything is saved.
+- Switching it on is refused, before anything is written, when no proxy is
+  configured. Switching it off is always allowed.
 
 ### Transport: registrar-client change
 
@@ -300,26 +305,36 @@ bumps the bundle version so they refuse the file instead.
   the transport limitations and the Namecheap retry caveats.
 - `mcp-tools.md`: `registrar_list` accounts gain `proxy: boolean`. No secrets.
 
-## Phases
-
-Each phase is one PR and leaves the app shippable.
+## Phases and status
 
 1. **Account cards.** *Done.* `AccountCard`, picker, empty state, draft flow,
-   nickname rules in `accounts.ts`, last-account removal. The Namecheap proxy
-   fields stay in the card exactly as they were. `multi-account.md` rewritten.
-2. **registrar-client: `fetch` option and the retry standard.** Library PR
-   with the read/write classification, the sent-or-not distinction, the
-   `OutcomeUnknownError`, removal of the per-call `retries: 0` opt-outs, tests,
-   release 0.7.0. DomBot bumps and adds the automatic re-fetch after an
-   unknown outcome. This applies to direct connections too, so it ships value
-   before any proxy work.
-3. **Proxy storage and transport.** `proxies` namespace, `proxyId`, migration,
-   bundle version bump and validation, generic proxied `fetch` with origin
-   pinning, proxy-stage error mapping, Namecheap wrapper slimmed down,
-   redaction sources. No UI change yet beyond the Namecheap card reading its
-   values from the profile.
-4. **Proxy page and per-account toggle.** Settings page with Test, toggle on
-   every account card, Namecheap Client IP behavior, MCP `proxy` flag, docs.
+   nickname rules in `accounts.ts`, last-account removal. `multi-account.md`
+   rewritten.
+2. **registrar-client: `fetch` option and the retry standard.** *Open as
+   [registrar-client#50](https://github.com/aoxborrow/registrar-client/pull/50),
+   awaiting release as 0.7.0.* Read/write classification per feature
+   (`FEATURE_CALLS`), sent-or-not detection, `OutcomeUnknownError` and
+   `outcome: 'unknown'` on folded results, `markNotSent` for transports, and
+   removal of Name.com's redundant opt-outs.
+3. **Proxy storage.** *Done.* `proxies` namespace sealed like credentials,
+   `proxyId` on accounts, idempotent migration on both hosts and after import,
+   bundle format 3 with validation of profiles and pointers, proxy secrets in
+   diagnostics redaction, clients rebuilt when the proxy changes.
+4. **Proxy page and per-account toggle.** *Done for Namecheap.* Settings →
+   Proxy with Test (Cloudflare trace, then ipinfo.io), Save, Remove and "Used
+   by"; the toggle on saved and draft account cards; Namecheap Client IP
+   supplied by the proxy; `proxy` flag in MCP `registrar_list`; docs.
+5. **Every registrar, and the retry standard in DomBot.** *Blocked on the 0.7.0
+   release.* Bump the dependency; replace `ProxyHttpClient` with a proxied
+   `fetch` that pins each provider's API origin and maps proxy-stage failures to
+   `markNotSent`; drop the Namecheap read-command allowlist and the renew
+   `retries: 0` special case; widen `PROXY_REGISTRARS` to every registrar;
+   re-fetch after an unknown outcome and report the three states in
+   `applyDomainOp`, the bulk runner and MCP.
+
+Until phase 5, the toggle is offered for Namecheap only (`PROXY_REGISTRARS`),
+and an account of any other registrar that somehow points at a proxy fails
+loudly rather than connecting directly.
 
 ## Testing
 

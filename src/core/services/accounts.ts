@@ -70,13 +70,15 @@ export async function createAccount(
   registrar: RegistrarName,
   label: string,
   credentials?: RegistrarCredentials,
+  proxyId?: string,
 ): Promise<RegistrarAccount> {
   if (!Object.hasOwn(registrars, registrar))
     throw new Error('Unknown registrar.');
-  const account = {
+  const account: RegistrarAccount = {
     id: crypto.randomUUID(),
     registrar,
     label: cleanLabel(label),
+    ...(proxyId ? { proxyId } : {}),
   };
   assertUniqueAccountLabel(registrar, account.label);
   // Persist secrets first. A failed test/save never exposes an empty account.
@@ -98,6 +100,16 @@ export async function renameAccount(id: string, label: string): Promise<void> {
   const next = cleanLabel(label);
   assertUniqueAccountLabel(account.registrar, next, id);
   await store.set(id, { ...account, label: next });
+}
+
+/** Routes an account through a proxy profile, or back to a direct connection. */
+export async function setAccountProxy(
+  id: string,
+  proxyId: string | null,
+): Promise<void> {
+  const { proxyId: current, ...account } = accountById(id);
+  if ((current ?? null) === proxyId) return;
+  await store.set(id, proxyId ? { ...account, proxyId } : account);
 }
 
 export async function removeAccountRecord(id: string): Promise<void> {
@@ -125,6 +137,10 @@ export function validateAccountRecords(records: Record<string, unknown>): void {
       typeof a.label !== 'string' ||
       !a.label.trim() ||
       a.label.length > 100 ||
+      (a.proxyId !== undefined &&
+        (typeof a.proxyId !== 'string' ||
+          !a.proxyId ||
+          a.proxyId.length > 64)) ||
       (a.removed !== undefined && typeof a.removed !== 'boolean')
     ) {
       throw new Error(`Invalid account metadata for "${key}".`);

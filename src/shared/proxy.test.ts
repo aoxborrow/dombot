@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  isProxyHost,
-  isPublicIpv4,
-  namecheapCredentials,
-  parseNamecheapProxy,
-} from './namecheap-proxy';
+import { parseNamecheapProxy } from './namecheap-proxy';
+import { isProxyHost, isPublicIpv4, parseProxy, proxySecrets } from './proxy';
 
 const values = {
   username: 'account',
@@ -14,16 +10,33 @@ const values = {
   proxyIp: '8.8.4.4',
 };
 
-describe('Namecheap proxy configuration', () => {
-  it('is optional and preserves the direct IP when proxy settings are removed', () => {
+describe('proxy validation', () => {
+  it('is optional, and reads the same through the legacy credential-bag reader', () => {
+    expect(parseProxy({})).toBeNull();
+    expect(parseProxy({ url: ' ', egressIp: '' })).toBeNull();
     expect(parseNamecheapProxy({})).toBeNull();
-    expect(namecheapCredentials(values, false)).toEqual({
-      username: 'account',
-      apiKey: 'api-secret',
-      clientIp: '9.9.9.9',
-    });
-    expect(values.proxyUrl).toContain('proxy-secret');
-    expect(namecheapCredentials(values, true)).toEqual(values);
+    expect(parseNamecheapProxy(values)).toEqual(
+      parseProxy({ url: values.proxyUrl, egressIp: values.proxyIp }),
+    );
+    expect(() => parseProxy({ url: 5 })).toThrow(/text/);
+  });
+  it('lists every form of the secrets in a proxy URL for redaction', () => {
+    expect(proxySecrets(undefined)).toEqual([]);
+    const secrets = proxySecrets(
+      'https://us%40er:p%2Fw@proxy.example.com:8080/',
+    );
+    expect(secrets).toEqual(
+      expect.arrayContaining([
+        'https://us%40er:p%2Fw@proxy.example.com:8080/',
+        'us%40er',
+        'us@er',
+        'p%2Fw',
+        'p/w',
+      ]),
+    );
+    expect(proxySecrets('http://proxy.example.com:8080/')).toEqual([
+      'http://proxy.example.com:8080/',
+    ]);
   });
   it('normalizes a proxy independently of its outgoing IP', () => {
     expect(parseNamecheapProxy(values)).toEqual({
@@ -120,12 +133,10 @@ describe('Namecheap proxy configuration', () => {
       }
     },
   );
-  it('rejects incomplete enablement', () => {
-    expect(() => namecheapCredentials({}, true)).toThrow(/both/);
+  it('rejects half a configuration', () => {
+    expect(() => parseProxy({ url: values.proxyUrl })).toThrow(/both/);
+    expect(() => parseProxy({ egressIp: values.proxyIp })).toThrow(/both/);
     expect(() => parseNamecheapProxy({ proxyUrl: values.proxyUrl })).toThrow(
-      /both/,
-    );
-    expect(() => parseNamecheapProxy({ proxyIp: values.proxyIp })).toThrow(
       /both/,
     );
   });

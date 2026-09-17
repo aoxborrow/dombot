@@ -519,10 +519,10 @@ describe('multi-account storage, routing and portable migration', () => {
     ).toMatchObject({ success: true, accountId: 'dynadot' });
   });
 
-  it('round trips v2 desktop/web encrypted storage and imports legacy v1 without re-entering credentials', async () => {
+  it('round trips current desktop/web encrypted storage and imports legacy v1 without re-entering credentials', async () => {
     const company = await twoAccounts();
     const text = exportBundle({ ...APP, platform: 'darwin' });
-    expect(JSON.parse(text).version).toBe(2);
+    expect(JSON.parse(text).version).toBe(3);
     const raw = new MemoryDocStore();
     const key = crypto.getRandomValues(new Uint8Array(32));
     configureStore(new EncryptedDocStore(raw, await aesGcmCipher(key)));

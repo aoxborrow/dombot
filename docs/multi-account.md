@@ -51,11 +51,11 @@ Disabling an account keeps its credentials and cache but removes it from the vis
 
 Existing single-account installations are adopted in place as a **Default** account for each provider. The account ID remains the existing provider key, such as `dynadot`. No credentials need to be re-entered, and existing folder assignments, manual prices, disabled state, and compatible caches remain associated with that account. New accounts receive UUIDs. Labels are editable display names, never routing identifiers.
 
-Credentials remain in the existing encrypted namespace: OS encryption on desktop, and AES-GCM on the self-hosted web host. Account metadata and cached slices travel in data exports. New exports use bundle format **2**, supported by both updated hosts. Format **1** imports are accepted; older Dombot versions reject format 2 instead of silently dropping account metadata. Move multi-account backups only between updated builds.
+Credentials remain in the existing encrypted namespace: OS encryption on desktop, and AES-GCM on the self-hosted web host. Account metadata and cached slices travel in data exports. Exports have used bundle format **2** since multi-account support, and use format **3** now that the fixed IP proxy is stored separately from credentials (see [self-hosting.md](self-hosting.md#optional-fixed-ip-proxy)). Formats **1** and **2** are accepted on import. Older DomBot versions reject a newer format instead of silently dropping what they don't understand, so move backups only between updated builds.
 
 ## MCP
 
-Start with `registrar_list`. Its `accounts` array includes `accountId`, `registrar`, `label`, `configured`, `enabled`, and per-account `sync` state, without secrets. `portfolio_query` rows and sync errors carry account identity. It also accepts an `accountId` filter.
+Start with `registrar_list`. Its `accounts` array includes `accountId`, `registrar`, `label`, `configured`, `enabled`, `proxy` (whether the account is routed through the fixed IP proxy), and per-account `sync` state, without secrets. `portfolio_query` rows and sync errors carry account identity. It also accepts an `accountId` filter.
 
 Every registrar-scoped and domain-scoped tool accepts an optional `accountId`:
 

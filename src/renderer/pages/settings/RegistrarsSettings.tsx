@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner';
 import type {
   CredentialValues,
+  ProxySettings,
   RegistrarAccount,
   RegistrarDefinition,
   RegistrarMeta,
@@ -25,8 +26,8 @@ import {
 } from '../../../shared/registrar-help';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
-import { namecheapCredentials } from '../../../shared/namecheap-proxy';
-import { isWeb } from '../../lib/platform';
+import { PROXY_REGISTRARS } from '../../../shared/proxy';
+import { Link } from 'react-router-dom';
 import { timeAgo } from '../../lib/time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -79,12 +80,21 @@ export default function RegistrarsSettings() {
   } | null>(null);
   // Accounts whose first sync this page started (a new card has no state yet).
   const [syncingIds, setSyncingIds] = useState<ReadonlySet<string>>(new Set());
+  // The one configured proxy (Settings → Proxy), if any; accounts only opt in.
+  const [proxy, setProxy] = useState<ProxySettings['proxy']>(null);
 
   // Shared store metadata is the source of truth (so the status bar and Domains
   // agree); load it once and let store actions (save/sync) keep it fresh.
   useEffect(() => {
-    void Promise.all([loadRegistrars(), window.api.getRegistrarCatalog()])
-      .then(([, definitions]) => setCatalog(definitions))
+    void Promise.all([
+      loadRegistrars(),
+      window.api.getRegistrarCatalog(),
+      window.api.getProxySettings(),
+    ])
+      .then(([, definitions, proxySettings]) => {
+        setCatalog(definitions);
+        setProxy(proxySettings.proxy);
+      })
       .catch((err) => setLoadError(errorMessage(err)));
   }, [loadRegistrars]);
 
@@ -165,6 +175,7 @@ export default function RegistrarsSettings() {
             key={draft.key}
             provider={draft.provider}
             siblings={savedSiblings(registrars ?? [], draft.provider.name)}
+            proxy={proxy}
             onAdded={(account) => added(draft.provider, account)}
             onCancel={() => setDraft(null)}
           />
@@ -175,6 +186,7 @@ export default function RegistrarsSettings() {
             provider={provider}
             account={account}
             showLabel={showLabel}
+            proxy={proxy}
             firstSync={syncingIds.has(idOf(account))}
           />
         ))}
@@ -268,11 +280,13 @@ function AccountCard({
   provider,
   account,
   showLabel,
+  proxy,
   firstSync,
 }: {
   provider: RegistrarDefinition;
   account: RegistrarMeta;
   showLabel: boolean;
+  proxy: ProxySettings['proxy'];
   firstSync: boolean;
 }) {
   const syncRegistrar = useAppStore((s) => s.syncRegistrar);
@@ -289,8 +303,8 @@ function AccountCard({
   const [syncingHere, setSyncing] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [removing, setRemoving] = useState(false);
-  // Namecheap fixed-IP proxy: on for an account whose stored creds carry one.
-  const [proxyEnabled, setProxyEnabled] = useState(false);
+  const usesProxy = Boolean(account.proxy);
+  const [proxyEnabled, setProxyEnabled] = useState(usesProxy);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const syncing = syncingHere || firstSync;
@@ -307,9 +321,7 @@ function AccountCard({
         if (!current) return;
         setValues(creds);
         setOriginal(creds);
-        setProxyEnabled(
-          Boolean(creds.proxyUrl?.trim() || creds.proxyIp?.trim()),
-        );
+        setProxyEnabled(usesProxy);
         setLoading(false);
       })
       .catch((err) => {
@@ -318,7 +330,7 @@ function AccountCard({
     return () => {
       current = false;
     };
-  }, [open, id, currentLabel, provider.name]);
+  }, [open, id, currentLabel, provider.name, usesProxy]);
 
   const runSync = async () => {
     setSyncing(true);
@@ -338,20 +350,18 @@ function AccountCard({
     setSaving(true);
     setError(null);
     try {
-      const trimmed = Object.fromEntries(
+      const clean = Object.fromEntries(
         Object.entries(values)
           .map(([k, v]) => [k, v.trim()])
           .filter(([, v]) => v),
       ) as CredentialValues;
-      // Namecheap: apply/strip the fixed-IP proxy per the toggle. This validates
-      // an enabled proxy (both URL and IP present and public) before any save.
-      const clean =
-        provider.name === 'namecheap'
-          ? namecheapCredentials(trimmed, proxyEnabled)
-          : trimmed;
-      const changed = Object.keys({ ...original, ...clean }).some(
-        (k) => original[k] !== clean[k],
-      );
+      // Switching the route counts as a change: the account is re-synced over
+      // the connection it will use from now on.
+      const changed =
+        proxyEnabled !== usesProxy ||
+        Object.keys({ ...original, ...clean }).some(
+          (k) => original[k] !== clean[k],
+        );
       // A blank nickname keeps the current one: every account carries a name,
       // it just isn't shown until the registrar has a second account.
       const nextLabel = label.trim();
@@ -359,7 +369,12 @@ function AccountCard({
         await window.api.renameRegistrarAccount(id, nextLabel);
       else setLabel(currentLabel);
       if (changed)
-        await window.api.saveRegistrarCredentials(provider.name, clean, id);
+        await window.api.saveRegistrarCredentials(
+          provider.name,
+          clean,
+          id,
+          proxyEnabled,
+        );
       setOriginal(clean);
       setValues(clean);
       if (changed) await syncRegistrar(provider.name, id);
@@ -538,19 +553,14 @@ function AccountCard({
               />
             </FieldGroup>
 
-            {provider.name === 'namecheap' && (
-              <NamecheapProxyFields
-                idPrefix={id}
-                className="mt-5"
-                enabled={proxyEnabled}
-                onEnabledChange={setProxyEnabled}
-                values={values}
-                disabled={busy}
-                onChange={(name, value) =>
-                  setValues((current) => ({ ...current, [name]: value }))
-                }
-              />
-            )}
+            <ProxyToggle
+              id={`${id}-proxy`}
+              provider={provider}
+              proxy={proxy}
+              enabled={proxyEnabled}
+              disabled={busy}
+              onChange={setProxyEnabled}
+            />
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <Button
@@ -617,11 +627,13 @@ function AccountCard({
 function DraftAccountCard({
   provider,
   siblings,
+  proxy,
   onAdded,
   onCancel,
 }: {
   provider: RegistrarDefinition;
   siblings: RegistrarMeta[];
+  proxy: ProxySettings['proxy'];
   onAdded: (account: RegistrarAccount) => void;
   onCancel: () => void;
 }) {
@@ -666,8 +678,6 @@ function DraftAccountCard({
         values[field.name]?.trim() ||
         (proxySuppliesIp && field.name === 'clientIp'),
     ) &&
-    (!proxyEnabled ||
-      Boolean(values.proxyUrl?.trim() && values.proxyIp?.trim())) &&
     (!needsNickname || Boolean(label.trim())) &&
     (!unnamed || Boolean(siblingLabel.trim())) &&
     !nicknameError;
@@ -677,10 +687,6 @@ function DraftAccountCard({
     setSaving(true);
     setError(null);
     try {
-      const credentials =
-        provider.name === 'namecheap'
-          ? namecheapCredentials(values, proxyEnabled)
-          : values;
       // Name the existing account first so the new nickname can't collide with
       // the made-up one it is replacing.
       if (unnamed && !same(siblingLabel, unnamed.accountLabel ?? ''))
@@ -690,8 +696,9 @@ function DraftAccountCard({
         );
       const account = await window.api.connectRegistrarAccount(
         provider.name,
-        credentials,
+        values,
         label.trim() || undefined,
+        proxyEnabled,
       );
       onAdded(account);
     } catch (err) {
@@ -771,19 +778,14 @@ function DraftAccountCard({
             hideFields={proxySuppliesIp ? new Set(['clientIp']) : undefined}
           />
         </FieldGroup>
-        {provider.name === 'namecheap' && (
-          <NamecheapProxyFields
-            idPrefix={idPrefix}
-            className="mt-5"
-            enabled={proxyEnabled}
-            onEnabledChange={setProxyEnabled}
-            values={values}
-            disabled={saving}
-            onChange={(name, value) =>
-              setValues((current) => ({ ...current, [name]: value }))
-            }
-          />
-        )}
+        <ProxyToggle
+          id={`${idPrefix}-proxy`}
+          provider={provider}
+          proxy={proxy}
+          enabled={proxyEnabled}
+          disabled={saving}
+          onChange={setProxyEnabled}
+        />
         {error && (
           <p role="alert" className="mt-4 text-sm text-destructive">
             {error}
@@ -872,95 +874,58 @@ function NicknameField({
   );
 }
 
-/** Namecheap's fixed-IP proxy switch and its two fields, shared by the saved
- * and draft forms. */
-function NamecheapProxyFields({
-  idPrefix,
-  className,
+/** Routes one account through the proxy set up under Settings → Proxy. The
+ * proxy itself is never edited here; an account only opts in or out. */
+function ProxyToggle({
+  id,
+  provider,
+  proxy,
   enabled,
-  onEnabledChange,
-  values,
   disabled,
   onChange,
 }: {
-  idPrefix: string;
-  className?: string;
+  id: string;
+  provider: RegistrarDefinition;
+  proxy: ProxySettings['proxy'];
   enabled: boolean;
-  onEnabledChange: (enabled: boolean) => void;
-  values: CredentialValues;
   disabled: boolean;
-  onChange: (name: 'proxyUrl' | 'proxyIp', value: string) => void;
+  onChange: (enabled: boolean) => void;
 }) {
+  if (!PROXY_REGISTRARS.has(provider.name)) return null;
+  const proxyLink = (
+    <Link to="/settings?tab=proxy" className="underline underline-offset-4">
+      Settings → Proxy
+    </Link>
+  );
   return (
-    <div className={cn('border-t pt-4', className)}>
+    <div className="mt-5 border-t pt-4">
       <div className="flex items-center gap-3">
         <Switch
-          id={`${idPrefix}-proxy-enabled`}
+          id={id}
           checked={enabled}
-          onCheckedChange={onEnabledChange}
-          disabled={disabled}
+          onCheckedChange={onChange}
+          // Always allow switching it off; switching it on needs a proxy.
+          disabled={disabled || (!proxy && !enabled)}
         />
-        <FieldLabel htmlFor={`${idPrefix}-proxy-enabled`}>
-          Use fixed IP proxy
-        </FieldLabel>
+        <FieldLabel htmlFor={id}>Use fixed IP proxy</FieldLabel>
       </div>
-      {enabled && (
-        <FieldGroup className="mt-4 gap-4">
-          <Field className="gap-1.5">
-            <FieldLabel htmlFor={`${idPrefix}-proxy-url`}>Proxy URL</FieldLabel>
-            <FieldDescription>
-              HTTP or HTTPS CONNECT proxy, by hostname or public IPv4 address.
-              Prefer HTTPS when the proxy needs a username and password; an HTTP
-              proxy receives them unencrypted.
-            </FieldDescription>
-            <Input
-              id={`${idPrefix}-proxy-url`}
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              className="font-mono"
-              placeholder="https://user:password@proxy.example.com:8080"
-              value={values.proxyUrl ?? ''}
-              disabled={disabled}
-              onChange={(e) => onChange('proxyUrl', e.target.value)}
-            />
-          </Field>
-          <Field className="gap-1.5">
-            <FieldLabel htmlFor={`${idPrefix}-proxy-ip`}>
-              Outgoing IPv4 address
-            </FieldLabel>
-            <FieldDescription>
-              Allowlist this address in Namecheap API settings. It may differ
-              from the proxy endpoint.
-            </FieldDescription>
-            <Input
-              id={`${idPrefix}-proxy-ip`}
-              autoComplete="off"
-              spellCheck={false}
-              className="font-mono"
-              placeholder="Your proxy’s outgoing IPv4"
-              value={values.proxyIp ?? ''}
-              disabled={disabled}
-              onChange={(e) => onChange('proxyIp', e.target.value)}
-            />
-          </Field>
-          {isWeb() && (
-            <p className="text-sm text-muted-foreground">
-              Workers proxy connections use an experimental TLS client. Review
-              the{' '}
-              <a
-                className="underline"
-                href="https://github.com/latentharbor/tunnelfetch#readme"
-                target="_blank"
-                rel="noreferrer"
-              >
-                transport’s security limitations
-              </a>{' '}
-              before enabling it.
-            </p>
-          )}
-        </FieldGroup>
-      )}
+      <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+        {!proxy ? (
+          <>Set up your proxy under {proxyLink} to use this.</>
+        ) : enabled ? (
+          <>
+            This account&apos;s requests go through your proxy, and{' '}
+            {provider.displayName} sees them arrive from{' '}
+            <span className="font-mono text-foreground">{proxy.egressIp}</span>.
+            Add that address to the {provider.displayName} API allowlist.
+          </>
+        ) : (
+          <>
+            Send this account&apos;s requests through the proxy from {proxyLink}
+            , for when this machine has no allowlisted address of its own.
+          </>
+        )}
+      </p>
     </div>
   );
 }

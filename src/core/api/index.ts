@@ -35,6 +35,12 @@ import {
   setRegistrarEnabledCached,
   syncRegistrar,
 } from '../services/registrars';
+import {
+  getProxySettings,
+  removeProxyProfile,
+  saveProxyProfile,
+  testProxy,
+} from '../services/proxies';
 import { getSettings, updateSettings } from '../services/settings';
 import { restartAutoSync } from '../services/auto-sync';
 import { getRevisions, trackRevisions } from '../revision';
@@ -133,6 +139,11 @@ function requireFeature(target: DomainTarget, feature: string, what: string) {
 }
 
 const none = z.tuple([]);
+// Shape only; the service validates scheme, host and address ranges.
+const proxyInput = z.object({
+  url: z.string().max(2048),
+  egressIp: z.string().max(64),
+});
 
 export type CoreMethodName = Exclude<
   ApiMethodName,
@@ -218,6 +229,7 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
       s.registrarName,
       s.credentialValues,
       z.string().trim().max(100).optional(),
+      z.boolean().optional(),
     ]),
     connectRegistrarAccount,
   ),
@@ -241,11 +253,22 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     async (name, accountId) => getRegistrarCredentialValues(name, accountId),
   ),
   saveRegistrarCredentials: method(
-    z.tuple([s.registrarName, s.credentialValues, s.accountId]),
-    async (name, creds, accountId) => {
-      await saveRegistrarCredentials(name, creds, accountId);
+    z.tuple([
+      s.registrarName,
+      s.credentialValues,
+      s.accountId,
+      z.boolean().optional(),
+    ]),
+    async (name, creds, accountId, useProxy) => {
+      await saveRegistrarCredentials(name, creds, accountId, useProxy);
     },
   ),
+  getProxySettings: method(none, async () => getProxySettings()),
+  saveProxySettings: method(z.tuple([proxyInput]), async (proxy) => {
+    await saveProxyProfile(proxy);
+  }),
+  removeProxySettings: method(none, async () => removeProxyProfile()),
+  testProxySettings: method(z.tuple([proxyInput]), testProxy),
   setRegistrarEnabled: method(
     z.tuple([s.registrarName, z.boolean(), s.accountId]),
     async (name, enabled, accountId) =>

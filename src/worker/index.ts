@@ -32,6 +32,7 @@ import { deriveEncryptionKey, parseRootSecret } from './keys';
 import { withRequestLock } from './lock';
 import { D1DocStore } from './storage/d1-doc-store';
 import { configureNamecheapProxyTransport } from '../core/services/namecheap-proxy';
+import { migrateLegacyProxies } from '../core/services/proxies';
 import { workerNamecheapProxyFetch } from './namecheap-proxy';
 
 // The Cloudflare Worker host: the same core (services, API table, storage
@@ -87,6 +88,8 @@ function bootOnce(env: Env): Promise<Boot> {
 /** Fresh view of the store for this request. */
 async function hydrate(): Promise<void> {
   await hydrateStores();
+  // Idempotent and a no-op once done; its writes flush with the request's.
+  await migrateLegacyProxies();
   resetBulkMemory();
 }
 
