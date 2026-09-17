@@ -4,10 +4,7 @@ import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
 import { FolderOffIcon } from '../icons/FolderOffIcon';
 import { cn } from '@/lib/utils';
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
 /**
  * The shared body of every folder-assignment menu: the user's folders, then the
@@ -61,19 +58,6 @@ export function FolderMenuItems({
           No folders yet
         </div>
       )}
-      {(folders.length > 0 || emptyState) && <DropdownMenuSeparator />}
-      {/* Hidden is a built-in folder: assigning to it drops the domain from the
-          table until "Hidden" is picked in the Folder filter. */}
-      <DropdownMenuItem
-        className="gap-2.5"
-        onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
-      >
-        <Archive className="size-4 shrink-0" aria-hidden />
-        <span className="flex-1">Hidden</span>
-        {showChecks && selected === HIDDEN_FOLDER_ID && (
-          <Check className="size-3.5 shrink-0 text-muted-foreground" />
-        )}
-      </DropdownMenuItem>
       <DropdownMenuItem className="gap-2.5" onSelect={() => onAssign(null)}>
         <FolderOffIcon
           className="size-4 shrink-0 text-muted-foreground/50"
@@ -81,6 +65,18 @@ export function FolderMenuItems({
         />
         <span className="flex-1">None</span>
         {showChecks && selected === null && (
+          <Check className="size-3.5 shrink-0 text-muted-foreground" />
+        )}
+      </DropdownMenuItem>
+      {/* Hidden is a built-in folder: assigning to it drops the domain from the
+          table until "Hidden" is picked in the Folder filter. */}
+      <DropdownMenuItem
+        className="gap-2.5"
+        onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
+      >
+        <Archive className="size-4 shrink-0" aria-hidden />
+        <span className="flex-1">Archive</span>
+        {showChecks && selected === HIDDEN_FOLDER_ID && (
           <Check className="size-3.5 shrink-0 text-muted-foreground" />
         )}
       </DropdownMenuItem>
