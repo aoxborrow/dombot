@@ -31,6 +31,11 @@ later.
 - **One proxy, configured once.** A central page holds the proxy URL and
   outgoing IPv4. Accounts opt in with a toggle. The stored shape allows several
   profiles, but the UI exposes exactly one.
+- **Identical on desktop and web.** The Proxy page, the per-account toggle and
+  the stored profile behave the same on both hosts, and the profile travels in
+  data exports. Someone running the desktop app and a self-hosted instance can
+  use the same proxy account, the same static IP and the same registrar
+  allowlist entry on both.
 - **Proxying is a transport concern, not a Namecheap subclass.** DomBot hands
   registrar-client a `fetch`, and every provider routes through it.
 - **No data loss and no re-entry.** Existing accounts, credentials, caches,
@@ -187,14 +192,18 @@ credentials, no path/query/fragment, public IPv4 egress address.
 
 ### Settings page
 
-A new **Settings → Proxy** page (name open: "Network" if more lands there
-later):
+A new **Settings → Proxy** page, present on desktop and web alike:
 
 - **Proxy URL** (password-style input) and **Outgoing IPv4 address**, with the
   current help text, plus the Workers "experimental TLS client" notice on web.
 - **Test** makes one request through the proxy to an IP-echo endpoint and
   reports the address it saw, flagging a mismatch with the entered outgoing IP.
-  The echo endpoint is an open question below.
+  It uses Cloudflare's `https://cloudflare.com/cdn-cgi/trace` (plain text, the
+  `ip=` line) and falls back to `https://ipinfo.io/json` if that fails. On the
+  Worker the socket goes to the proxy, not to Cloudflare, so the platform's
+  block on sockets to Cloudflare's own ranges does not apply; phase 4 confirms
+  that in practice. The proxied `fetch` pins origins per provider, so Test gets
+  its own two-origin allowlist rather than widening a registrar's.
 - **Save** validates and stores the profile, then invalidates every registrar
   client whose account uses it.
 - **Remove proxy** is blocked while any account has the toggle on, and lists
@@ -321,18 +330,42 @@ Each phase is one PR and leaves the app shippable.
 - **Manual.** One real sync through an HTTPS proxy by hostname on the Worker
   and on desktop. That path has never been exercised end to end.
 
-## Open questions
+## Retries through a proxy
 
-- **Which IP-echo endpoint does Test use?** Options: Cloudflare's
-  `https://cloudflare.com/cdn-cgi/trace`, a small endpoint on the DomBot
-  Worker itself, or skip the echo and only confirm the CONNECT succeeds.
-  Origin pinning needs an explicit exception for whichever is chosen.
-- **Retry safety through a proxy for non-Namecheap providers.** The library's
-  default retry policy was written for direct connections. A timeout through
-  a proxy is more likely to be an uncertain write. Proposal: when proxied,
-  retry only idempotent HTTP methods; Namecheap keeps its command allowlist.
-- **Workers CPU cost.** `tunnelfetch` does TLS in JavaScript. Routing a
-  200-domain detailed sync for several registrars through it may need Workers
-  Paid. Measure in phase 3 before exposing the toggle for every registrar on
-  web; if it is too heavy, the web build can limit the toggle to Namecheap.
-- **Page name.** "Proxy" or "Network".
+registrar-client's retry loop is method-blind. With the default `retries: 2`
+it re-sends any request, reads and writes alike, after a timeout, a connection
+error, a 429 or a 5xx. Only a few call sites opt out: Name.com's DNS record
+writes inside the library, and DomBot's renew path, which passes `retries: 0`
+because a timed-out renew may already have gone through.
+
+Today's Namecheap proxy path is stricter than that. Namecheap's API sends every
+command, writes included, as a GET with a `Command` parameter, so the HTTP
+method says nothing about safety. `ProxyHttpClient` therefore keeps an
+allowlist of nine read commands (`domains.getList`, `getInfo`,
+`getRegistrarLock`, `check`, `users.getPricing`, `getContacts`, `dns.getList`,
+`dns.getHosts`, `dns.getEmailForwarding`). Those retry at most twice. Every
+other command, including any the library adds later, gets zero retries, and a
+failed write's error tells the user to check the outcome in Namecheap first.
+This only applies when the proxy is on; a direct Namecheap account uses the
+library default.
+
+For the generic transport:
+
+- **Proxied requests retry only `GET` and `HEAD`.** The proxied `fetch` cannot
+  see retry counts, so this is enforced where the client is built: a proxied
+  account's provider is wrapped so non-idempotent requests run with
+  `retries: 0`. An extra hop makes "timed out after the write landed" more
+  likely, and these are writes against domains.
+- **Namecheap keeps its command allowlist**, since all its requests are GETs.
+- **Follow-up outside this plan:** the same method-blind retry applies to
+  direct connections today. Making the library skip retries for non-idempotent
+  methods by default (with Namecheap's allowlist moved into its provider) would
+  fix both routes at once and let DomBot drop its wrapper.
+
+## Decisions
+
+- **Page name:** Proxy.
+- **Test endpoint:** Cloudflare trace, falling back to ipinfo.io.
+- **Workers CPU cost:** not a blocker. `tunnelfetch` does TLS in JavaScript, so
+  phase 3 measures a detailed multi-registrar sync through it; the toggle ships
+  for every registrar on both hosts regardless.
