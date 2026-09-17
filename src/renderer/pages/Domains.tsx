@@ -1234,7 +1234,7 @@ export default function Domains() {
               }}
             />
             <MultiSelectFilter
-              label="Nameservers"
+              label="DNS"
               icon={Server}
               options={nsGroups}
               selected={ns}
@@ -1244,7 +1244,7 @@ export default function Domains() {
               }}
             />
             <MultiSelectFilter
-              label="Expiration"
+              label="Expires"
               icon={CalendarClock}
               options={expiryOptions}
               selected={expiry}
