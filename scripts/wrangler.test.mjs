@@ -62,6 +62,11 @@ describe('applyOverrides', () => {
         UNRELATED: 'x',
       }),
     ).toEqual({ name: 'dombot-ci', database_id: 'id-1', database_name: 'db' });
+    expect(
+      envOverrides({ DOMBOT_CUSTOM_DOMAIN: 'dombot.example.com' }),
+    ).toEqual({
+      routes: [{ pattern: 'dombot.example.com', custom_domain: true }],
+    });
   });
 
   it('passes unknown keys through as top-level wrangler settings', () => {

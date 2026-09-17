@@ -26,6 +26,8 @@
 //   DOMBOT_WORKER_NAME        the Worker's name
 //   DOMBOT_D1_DATABASE_ID     the D1 database id
 //   DOMBOT_D1_DATABASE_NAME   optional
+//   DOMBOT_CUSTOM_DOMAIN      optional: a hostname on a zone in your account,
+//                             attached as the Worker's custom domain
 //
 //   node scripts/wrangler.mjs deploy
 //   node scripts/wrangler.mjs secret put DOMBOT_SECRET
@@ -86,6 +88,8 @@ export function envOverrides(env = process.env) {
   if (env.DOMBOT_D1_DATABASE_ID) out.database_id = env.DOMBOT_D1_DATABASE_ID;
   if (env.DOMBOT_D1_DATABASE_NAME)
     out.database_name = env.DOMBOT_D1_DATABASE_NAME;
+  if (env.DOMBOT_CUSTOM_DOMAIN)
+    out.routes = [{ pattern: env.DOMBOT_CUSTOM_DOMAIN, custom_domain: true }];
   return out;
 }
 
