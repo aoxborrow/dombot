@@ -130,8 +130,8 @@ export default function GeneralSettings() {
   );
 }
 
-/** Tailwind's green and emerald ramps, for comparing relative darkness
- * against ours. Literal class names so Tailwind emits them. */
+/** Tailwind ramps for comparing relative darkness and saturation against
+ * ours: green, emerald, and the cooler sky and slate. Literal class names so Tailwind emits them. */
 const GREEN_CLASSES: Record<number, string> = {
   50: 'bg-green-50',
   100: 'bg-green-100',
@@ -144,6 +144,32 @@ const GREEN_CLASSES: Record<number, string> = {
   800: 'bg-green-800',
   900: 'bg-green-900',
   950: 'bg-green-950',
+};
+const SKY_CLASSES: Record<number, string> = {
+  50: 'bg-sky-50',
+  100: 'bg-sky-100',
+  200: 'bg-sky-200',
+  300: 'bg-sky-300',
+  400: 'bg-sky-400',
+  500: 'bg-sky-500',
+  600: 'bg-sky-600',
+  700: 'bg-sky-700',
+  800: 'bg-sky-800',
+  900: 'bg-sky-900',
+  950: 'bg-sky-950',
+};
+const SLATE_CLASSES: Record<number, string> = {
+  50: 'bg-slate-50',
+  100: 'bg-slate-100',
+  200: 'bg-slate-200',
+  300: 'bg-slate-300',
+  400: 'bg-slate-400',
+  500: 'bg-slate-500',
+  600: 'bg-slate-600',
+  700: 'bg-slate-700',
+  800: 'bg-slate-800',
+  900: 'bg-slate-900',
+  950: 'bg-slate-950',
 };
 const EMERALD_CLASSES: Record<number, string> = {
   50: 'bg-emerald-50',
@@ -221,6 +247,8 @@ function BrandPalette() {
       {row('brand', () => undefined)}
       {row('green', (n) => GREEN_CLASSES[n])}
       {row('emerald', (n) => EMERALD_CLASSES[n])}
+      {row('sky', (n) => SKY_CLASSES[n])}
+      {row('slate', (n) => SLATE_CLASSES[n])}
     </div>
   );
 }
