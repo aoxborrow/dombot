@@ -68,11 +68,11 @@ export function BulkBar({
   if (domains.length === 0 && !running) return null;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-green-500/70 bg-green-500/10 px-3 py-2">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#7ac28d]/70 bg-[#7ac28d]/10 px-3 py-2">
       <div className="flex items-center gap-3 text-sm">
         {domains.length > 0 ? (
           <>
-            <span className="font-medium text-green-600 dark:text-green-400">
+            <span className="font-medium text-[#7ac28d]">
               {domains.length} selected
               {registrarCount > 1 && (
                 <span className="font-normal text-muted-foreground">
