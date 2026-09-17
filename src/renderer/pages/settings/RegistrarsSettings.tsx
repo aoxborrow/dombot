@@ -6,8 +6,10 @@ import {
 } from '../../../shared/account-label';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Check,
   ChevronDown,
   CircleX,
+  Copy,
   ExternalLink,
   Pencil,
   Plus,
@@ -594,14 +596,14 @@ function AccountCard({
           {/* Sync only makes sense for an enabled account. */}
           {configured && enabled && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => void runSync()}
               disabled={busy}
               title="Sync this account's domains"
               // Absorb the button's height into the row's vertical padding so
               // the row stays slim rather than growing to fit it.
-              className="-my-1 shrink-0 text-muted-foreground hover:text-foreground"
+              className="-my-1 shrink-0 border-border text-muted-foreground hover:text-foreground"
             >
               <RefreshCw className={cn(syncing && 'animate-spin')} />
               {syncing ? 'Syncing…' : 'Sync'}
@@ -670,8 +672,8 @@ function AccountCard({
               )}
               <Button
                 type="button"
-                variant="ghost"
-                className="ml-auto text-muted-foreground"
+                variant="outline"
+                className="ml-auto border-border text-muted-foreground"
                 disabled={locked}
                 onClick={() => setRemoving(true)}
               >
@@ -916,11 +918,24 @@ function ProxyToggle({
   disabled: boolean;
   onChange: (enabled: boolean) => void;
 }) {
+  const [copied, setCopied] = useState(false);
   const proxyLink = (
     <Link to="/settings?tab=proxy" className="underline underline-offset-4">
       configured proxy
     </Link>
   );
+
+  const copyEgressIp = async () => {
+    if (!proxy) return;
+    try {
+      await navigator.clipboard.writeText(proxy.egressIp);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable: the address is still selectable by hand.
+    }
+  };
+
   return (
     <div className="mt-5 border-t pt-4">
       <div className="flex items-center gap-3">
@@ -933,29 +948,52 @@ function ProxyToggle({
         />
         <FieldLabel htmlFor={id}>Use fixed IP proxy</FieldLabel>
       </div>
-      <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-        {!proxy ? (
-          <>
-            Set up a{' '}
-            <Link
-              to="/settings?tab=proxy"
-              className="underline underline-offset-4"
+      {!proxy ? (
+        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+          Set up a{' '}
+          <Link
+            to="/settings?tab=proxy"
+            className="underline underline-offset-4"
+          >
+            proxy
+          </Link>{' '}
+          to use this.
+        </p>
+      ) : enabled ? (
+        <div className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+          <p>
+            This account&apos;s requests go through your proxy, so{' '}
+            {provider.displayName} sees them arrive from the address below.
+            Whitelist it in the {provider.displayName} API settings.
+          </p>
+          <div className="mt-2 flex max-w-xs items-center gap-2 rounded-md border bg-muted/40 py-1 pr-1 pl-3">
+            <input
+              readOnly
+              value={proxy.egressIp}
+              aria-label="Outgoing IP address"
+              onFocus={(e) => e.currentTarget.select()}
+              className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void copyEgressIp()}
+              aria-label="Copy outgoing IP address"
+              className={cn(
+                'shrink-0 text-muted-foreground hover:text-foreground',
+                copied && 'text-[#7ac28d] hover:text-[#7ac28d]',
+              )}
             >
-              proxy
-            </Link>{' '}
-            to use this.
-          </>
-        ) : enabled ? (
-          <>
-            This account&apos;s requests go through your proxy, and{' '}
-            {provider.displayName} sees them arrive from{' '}
-            <span className="font-mono text-foreground">{proxy.egressIp}</span>.
-            Add that address to the {provider.displayName} API allowlist.
-          </>
-        ) : (
-          <>Send this account&apos;s requests through your {proxyLink}.</>
-        )}
-      </p>
+              {copied ? <Check /> : <Copy />}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+          Send this account&apos;s requests through your {proxyLink}.
+        </p>
+      )}
     </div>
   );
 }
