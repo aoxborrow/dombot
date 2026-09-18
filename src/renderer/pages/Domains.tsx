@@ -328,10 +328,10 @@ type LifecycleTone = 'redemption' | 'expired' | 'grace' | 'hold';
  * lock) is a different, site-down problem and takes a deep red.
  */
 const LIFECYCLE_TONE: Record<LifecycleTone, string> = {
-  redemption: 'bg-purple-700 text-white',
-  expired: 'bg-fuchsia-600 text-white',
+  redemption: 'bg-purple-950 text-purple-100',
+  expired: 'bg-fuchsia-700 text-white',
   grace: 'bg-pink-500 text-white',
-  hold: 'bg-red-700 text-white',
+  hold: 'bg-red-800 text-white',
 };
 
 /**
@@ -547,10 +547,10 @@ function relativeDays(days: number): string {
  */
 function expiryColor(days: number | null): string {
   if (days === null) return 'text-muted-foreground';
-  if (days < -RECOVERABLE_DAYS) return 'text-purple-800 dark:text-purple-400';
+  if (days < -RECOVERABLE_DAYS) return 'text-purple-900 dark:text-purple-500';
   if (days <= 0) return 'text-pink-600 dark:text-pink-400';
-  if (days <= 14) return 'text-red-600 dark:text-red-400';
-  if (days <= 30) return 'text-orange-600 dark:text-orange-400';
+  if (days <= 14) return 'text-red-700 dark:text-red-500';
+  if (days <= 30) return 'text-orange-500 dark:text-orange-375';
   if (days <= 60) return 'text-yellow-600 dark:text-yellow-400';
   return 'text-foreground';
 }

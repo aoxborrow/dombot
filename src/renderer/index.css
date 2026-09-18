@@ -107,6 +107,10 @@
    the semantic tokens above (--primary, --brand, --ring). `static` so
    every shade is emitted even when unused — Settings → General lists them. */
 @theme static {
+  /* Dark-mode "expires within 30 days" orange: a quarter step from Tailwind's
+     orange-400 toward orange-300 (interpolated in OKLCH), since 400 reads too
+     deep next to the deeper red and 300 goes peach. */
+  --color-orange-375: #ff962d;
   --color-brand-50: #f1fcf4;
   --color-brand-100: #e0f7e6;
   --color-brand-200: #c4eece;
