@@ -60,6 +60,18 @@ code, .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, mono
 .nav-links { margin-left: auto; display: flex; align-items: center; gap: 20px; }
 .nav-links a { color: var(--muted); text-decoration: none; font-size: .85rem; }
 .nav-links a:hover { color: var(--ink); }
+/* GitHub mark: icon only on desktop, the label is for the phone menu. */
+.nav-gh { display: inline-flex; align-items: center; gap: 8px; }
+.nav-gh svg { width: 20px; height: 20px; display: block; }
+.nav-gh span { display: none; }
+/* Header CTAs: the site buttons, one size down, tightened together. */
+.nav-links .nav-cta { font-size: .82rem; line-height: 16px; padding: 6.5px 12px 7.5px; color: var(--ink); }
+/* Download in the header is a green outline, so the filled hero button stays the loudest thing on the page. */
+@media (min-width: 640px) {
+  .nav-links .nav-cta.btn-primary { background: transparent; color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent-ink) 55%, transparent); }
+  .nav-links .nav-cta.btn-primary:hover { background: var(--accent-wash); border-color: var(--accent-ink); }
+}
+.nav-links .nav-cta + .nav-cta { margin-left: -10px; }
 /* Hamburger toggle — hidden on desktop, shown on phones. */
 .nav-toggle { display: none; margin-left: auto; align-items: center; justify-content: center; width: 38px; height: 38px; padding: 0; background: none; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); cursor: pointer; }
 .nav-toggle svg { width: 20px; height: 20px; display: block; }
@@ -79,6 +91,14 @@ code, .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, mono
   .nav.open .nav-links { display: flex; }
   .nav-links a { padding: 12px 24px; font-size: .95rem; }
   .nav-links a:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+  /* In the dropdown the GitHub mark and CTAs become plain rows like the rest. */
+  .nav-gh span { display: inline; }
+  .nav-gh svg { width: 18px; height: 18px; }
+  .nav-links .nav-cta, .nav-links .nav-cta.btn-primary {
+    font-size: .95rem; font-weight: 400; padding: 12px 24px; margin: 0;
+    border: 0; border-radius: 0; background: none; color: var(--muted);
+  }
+  .nav-links .nav-cta:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
 }
 
 /* ── buttons ── */
@@ -268,12 +288,24 @@ pre .a { color: var(--accent-ink); font-weight: 500; }
 .mcp-list li::before { content: ""; position: absolute; left: 3px; top: .58em; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-ink); }
 
 /* ── footer ── */
-footer { border-top: 1px solid var(--line); padding: 36px 0 48px; }
-.foot-in { display: flex; flex-wrap: wrap; gap: 22px; align-items: center; justify-content: space-between; }
-.foot-links { display: flex; flex-wrap: wrap; gap: 20px; }
-.foot-links a { color: var(--muted); text-decoration: none; font-size: .85rem; }
-.foot-links a:hover { color: var(--ink); }
-.foot-note { margin-left: auto; text-align: right; font-size: .78rem; color: var(--faint); font-family: "IBM Plex Mono", monospace; }
+footer { border-top: 1px solid var(--line); padding: 48px 0 40px; }
+/* Phones: brand block on top, link columns two-up. Desktop: one row of four. */
+.foot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px 24px; }
+.foot-brand { grid-column: 1 / -1; }
+.foot-tag { margin-top: 12px; max-width: 30ch; font-size: .85rem; line-height: 1.55; color: var(--muted); }
+.foot-social { display: flex; gap: 6px; margin: 14px 0 0 -8px; }
+.foot-social a { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; color: var(--muted); }
+.foot-social a:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.foot-social svg { width: 18px; height: 18px; display: block; }
+.foot-col { display: flex; flex-direction: column; align-items: flex-start; }
+.foot-col h3 { margin-bottom: 8px; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .7rem; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.foot-col a { padding: 5px 0; color: var(--muted); text-decoration: none; font-size: .88rem; }
+.foot-col a:hover { color: var(--ink); }
+.foot-bar { display: flex; flex-wrap: wrap; gap: 6px 20px; justify-content: space-between; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line); font-size: .78rem; color: var(--faint); font-family: "IBM Plex Mono", monospace; }
+@media (min-width: 640px) {
+  .foot-grid { grid-template-columns: 1.5fr repeat(3, 1fr); gap: 32px; }
+  .foot-brand { grid-column: auto; }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    PR ADDITIONS — redesign variants + "Two front ends, one core".
