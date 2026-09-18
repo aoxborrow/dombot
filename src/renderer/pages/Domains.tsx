@@ -1254,7 +1254,7 @@ export default function Domains() {
                   setSearch('');
                   setPage(0);
                 }}
-                className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full text-muted-foreground/70 hover:text-muted-foreground"
+                className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full text-muted-foreground opacity-70 hover:opacity-100"
               >
                 <CircleX
                   className="size-4 [&>path]:stroke-background"
