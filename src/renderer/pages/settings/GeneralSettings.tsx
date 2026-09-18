@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -130,117 +129,38 @@ export default function GeneralSettings() {
   );
 }
 
-/** Candidate ramp: the brand ramp with chroma nudged up on a curve peaking at
- * 400–500 (+15%), tapering to +2% at the ends. Same lightness and hue. */
-const BRAND_SAT_HEX: Record<number, string> = {
-  50: '#f1fcf4',
-  100: '#e0f7e6',
-  200: '#c4eece',
-  300: '#9cddad',
-  400: '#70c588',
-  500: '#449f5f',
-  600: '#337544',
-  700: '#2a5b34',
-  800: '#1f4627',
-  900: '#16341c',
-  950: '#0f2614',
-};
-
-/** Tailwind's sky and slate ramps, for comparing relative darkness and
- * saturation against ours. Literal class names so Tailwind emits them. */
-const SKY_CLASSES: Record<number, string> = {
-  50: 'bg-sky-50',
-  100: 'bg-sky-100',
-  200: 'bg-sky-200',
-  300: 'bg-sky-300',
-  400: 'bg-sky-400',
-  500: 'bg-sky-500',
-  600: 'bg-sky-600',
-  700: 'bg-sky-700',
-  800: 'bg-sky-800',
-  900: 'bg-sky-900',
-  950: 'bg-sky-950',
-};
-const SLATE_CLASSES: Record<number, string> = {
-  50: 'bg-slate-50',
-  100: 'bg-slate-100',
-  200: 'bg-slate-200',
-  300: 'bg-slate-300',
-  400: 'bg-slate-400',
-  500: 'bg-slate-500',
-  600: 'bg-slate-600',
-  700: 'bg-slate-700',
-  800: 'bg-slate-800',
-  900: 'bg-slate-900',
-  950: 'bg-slate-950',
-};
-
-/** Hex of a swatch's rendered background, via a canvas pixel — the computed
- * style of Tailwind's own colors comes back as oklch(), not hex. */
-function renderedHex(el: HTMLElement): string {
-  const ctx = document.createElement('canvas').getContext('2d');
-  if (!ctx) return '';
-  ctx.fillStyle = getComputedStyle(el).backgroundColor;
-  ctx.fillRect(0, 0, 1, 1);
-  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-  return '#' + [r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('');
-}
-
-/** Swatch grids for the brand ramp and, beneath it, Tailwind's sky and slate
- * for comparison. Hex values are read back from the rendered swatches, so
- * index.css stays the single source of truth. */
+/** Swatch grid for the brand ramp. Hex values are read back from the CSS
+ * variables, so index.css stays the single source of truth. */
 function BrandPalette() {
-  const gridRef = useRef<HTMLDivElement>(null);
-  const [hexes, setHexes] = useState<Record<string, string>>({});
+  const [hexes, setHexes] = useState<Record<number, string>>({});
   useEffect(() => {
-    const out: Record<string, string> = {};
-    gridRef.current
-      ?.querySelectorAll<HTMLElement>('[data-swatch]')
-      .forEach((el) => {
-        out[el.dataset.swatch!] = renderedHex(el);
-      });
-    setHexes(out);
+    const css = getComputedStyle(document.documentElement);
+    setHexes(
+      Object.fromEntries(
+        BRAND_SHADES.map((n) => [
+          n,
+          css.getPropertyValue(`--color-brand-${n}`).trim(),
+        ]),
+      ),
+    );
   }, []);
 
-  const row = (
-    name: string,
-    swatchClass: (n: number) => string | undefined,
-    color?: Record<number, string>,
-  ) => (
-    <div className="flex flex-col gap-1.5">
-      <div className="text-xs font-medium text-muted-foreground">{name}</div>
-      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-11">
-        {BRAND_SHADES.map((n) => (
-          <div key={n} className="flex flex-col gap-1">
-            <div
-              data-swatch={`${name}-${n}`}
-              className={cn('h-10 rounded-md border', swatchClass(n))}
-              style={
-                color
-                  ? { backgroundColor: color[n] }
-                  : swatchClass(n)
-                    ? undefined
-                    : { backgroundColor: `var(--color-brand-${n})` }
-              }
-            />
-            <div className="text-xs leading-tight">
-              <div className="font-medium">{n}</div>
-              <div className="font-mono text-[11px] text-muted-foreground">
-                {hexes[`${name}-${n}`] ?? ''}
-              </div>
+  return (
+    <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-11">
+      {BRAND_SHADES.map((n) => (
+        <div key={n} className="flex flex-col gap-1">
+          <div
+            className="h-10 rounded-md border"
+            style={{ backgroundColor: `var(--color-brand-${n})` }}
+          />
+          <div className="text-xs leading-tight">
+            <div className="font-medium">{n}</div>
+            <div className="font-mono text-[11px] text-muted-foreground">
+              {hexes[n] ?? ''}
             </div>
           </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  return (
-    <div ref={gridRef} className="flex flex-col gap-4">
-      {row('brand', () => undefined)}
-      {row('brand +sat', () => undefined, BRAND_SAT_HEX)}
-      {row('sky', (n) => SKY_CLASSES[n])}
-      {row('slate', (n) => SLATE_CLASSES[n])}
+        </div>
+      ))}
     </div>
   );
 }

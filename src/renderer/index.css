@@ -91,21 +91,22 @@
 }
 
 /* Brand green ramp, generated in OKLCH around hue ~150: lightness steps down
-   from 0.98 to 0.245 while chroma peaks mid-ramp. 400 is the original light
-   brand green (#7ac28d); the original deep green (#31613b) sits between 600
-   and 700. `static` so
+   from 0.98 to 0.245 while chroma peaks at 400–500. Derived from the original
+   brand greens (#7ac28d ≈ 400, #31613b between 600 and 700) with a touch more
+   saturation mid-ramp. Every green in the UI should come from this ramp, via
+   the semantic tokens above (--primary, --brand, --ring). `static` so
    every shade is emitted even when unused — Settings → General lists them. */
 @theme static {
   --color-brand-50: #f1fcf4;
-  --color-brand-100: #e1f7e6;
-  --color-brand-200: #c5edcf;
-  --color-brand-300: #a1dbaf;
-  --color-brand-400: #7ac28d;
-  --color-brand-500: #519c65;
-  --color-brand-600: #3a7347;
-  --color-brand-700: #2d5a36;
-  --color-brand-800: #204528;
-  --color-brand-900: #17341d;
+  --color-brand-100: #e0f7e6;
+  --color-brand-200: #c4eece;
+  --color-brand-300: #9cddad;
+  --color-brand-400: #70c588;
+  --color-brand-500: #449f5f;
+  --color-brand-600: #337544;
+  --color-brand-700: #2a5b34;
+  --color-brand-800: #1f4627;
+  --color-brand-900: #16341c;
   --color-brand-950: #0f2614;
 }
 
