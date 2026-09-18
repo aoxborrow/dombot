@@ -429,14 +429,14 @@ const COLUMNS: Column[] = [
           target="_blank"
           rel="noopener noreferrer"
           title={`Open https://${d.domainName} in a new window`}
-          className="group/domain inline-flex items-center font-mono hover:text-brand-700 compact:text-[13px] dark:hover:text-brand"
+          className="group/domain inline-flex items-center font-mono hover:text-brand-600 compact:text-[13px] dark:hover:text-brand"
         >
           {/* One step up from the reduced mobile body size — the domain is
               the row's primary field. Desktop inherits the table's text-sm. */}
           {d.domainName}
           <ExternalLink
             // Always green (not currentColor) so it never flashes grey mid-fade.
-            className="ml-1.5 size-3 shrink-0 text-brand-700 opacity-0 transition-opacity group-hover/domain:opacity-100 dark:text-brand dark:group-hover/domain:opacity-50"
+            className="ml-1.5 size-3 shrink-0 text-brand-600 opacity-0 transition-opacity group-hover/domain:opacity-100 dark:text-brand dark:group-hover/domain:opacity-50"
             aria-hidden
           />
         </a>
