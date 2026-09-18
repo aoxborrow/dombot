@@ -31,6 +31,10 @@
      on the page background. Flips with the theme so it keeps its contrast,
      where --primary (filled buttons, white text) stays a deep shade. */
   --brand: var(--color-brand-500);
+  /* Domains table "needs attention" state — auto-renew off, privacy off,
+     unlocked — a warm yellow that sits apart from the brand green switches
+     and from the warm expiry ramp. A shade deeper/more golden on white. */
+  --flag-off: #d69800;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -72,6 +76,7 @@
   --primary: var(--color-brand-600);
   --primary-foreground: #ffffff;
   --brand: var(--color-brand-500);
+  --flag-off: #e1a322;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -110,10 +115,6 @@
      orange-400 toward orange-300 (interpolated in OKLCH), since 400 reads too
      deep next to the deeper red and 300 goes peach. */
   --color-orange-375: #ff962d;
-  /* Domains table "needs attention" state — auto-renew off, privacy off,
-     unlocked — a warm yellow that sits apart from the brand green switches
-     and from the warm expiry ramp, in both themes. */
-  --color-flag-off: #e1a322;
   --color-brand-50: #f1fcf4;
   --color-brand-100: #e0f7e6;
   --color-brand-200: #c4eece;
@@ -141,6 +142,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-brand: var(--brand);
+  --color-flag-off: var(--flag-off);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
