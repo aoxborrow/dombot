@@ -15,12 +15,12 @@
   --popover-foreground: oklch(0.145 0 0);
   /* Brand green fill. A step lighter than the dark theme's, which reads heavy
      on a white page. */
-  --primary: var(--color-brand-600);
+  --primary: var(--color-brand-500);
   --primary-foreground: #ffffff;
   /* Brand green as a foreground accent — logo, status dots, success text —
      on the page background. Flips with the theme so it keeps its contrast,
      where --primary (filled buttons, white text) stays a deep shade. */
-  --brand: var(--color-brand-600);
+  --brand: var(--color-brand-500);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
