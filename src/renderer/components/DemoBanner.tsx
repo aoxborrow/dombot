@@ -19,12 +19,12 @@ export default function DemoBanner() {
         <span className="font-medium text-amber-600 dark:text-amber-500">
           Demo Mode
         </span>
-        {/* The tagline and the DomBot.ai link are desktop-only so the banner
-            stays a single row on phones. */}
-        <span className="mx-1.5 hidden sm:inline" aria-hidden>
+        {/* The tagline is desktop-only (md+) and the DomBot.ai link sm+, so
+            the banner stays a single row on narrow screens. */}
+        <span className="mx-1.5 hidden md:inline" aria-hidden>
           –
         </span>
-        <span className="hidden sm:inline">
+        <span className="hidden md:inline">
           Fake domains and credentials, nothing leaves browser.
         </span>
       </p>

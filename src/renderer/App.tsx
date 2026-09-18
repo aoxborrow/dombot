@@ -41,7 +41,9 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     // inline-flex + items-center + leading-none centers the icon/label as one
     // box, so the active pill's fill is vertically symmetric (plain line-height
     // left a few extra px on top).
-    'inline-flex h-9 items-center gap-2 rounded-md border border-transparent px-[15px] text-base font-medium leading-none transition-colors',
+    // Tighter padding between sm and md, where the header is only just wide
+    // enough for the labeled nav plus the Sync control.
+    'inline-flex h-9 items-center gap-2 rounded-md border border-transparent px-2.5 text-base font-medium leading-none transition-colors md:px-[15px]',
     isActive
       ? 'bg-primary text-primary-foreground dark:border-input'
       : 'text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -120,7 +122,7 @@ export default function App() {
         </div>
         {/* Desktop: the centered, labeled nav. On phones it collapses into the
             hamburger menu on the right (MobileNav). */}
-        <nav className="hidden flex-1 justify-center gap-4 sm:flex">
+        <nav className="hidden flex-1 justify-center gap-1 sm:flex md:gap-4">
           <NavLink to="/" end className={navLinkClass}>
             <Globe className="size-[18px]" />
             Domains

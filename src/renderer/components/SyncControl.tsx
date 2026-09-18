@@ -99,11 +99,14 @@ export default function SyncControl() {
     useSyncState();
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex shrink-0 items-center gap-2.5">
+      {/* The "ago" caption is dropped between sm and md, where the header has
+          no room for it beside the nav (the Sync button's tooltip still has the
+          timestamp). */}
       {lastSyncedAt !== null && (
         <span
           className={cn(
-            'inline-flex items-center gap-1 text-[11px] text-muted-foreground/60',
+            'hidden items-center gap-1 text-[11px] whitespace-nowrap text-muted-foreground/60 md:inline-flex',
             stale && 'text-amber-600 dark:text-amber-400',
           )}
           title={`Last synced ${new Date(lastSyncedAt).toLocaleString()}`}
