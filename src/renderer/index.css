@@ -5,7 +5,7 @@
 /* Dense table styling: on phones always, and anywhere under a `.compact`
    ancestor (Settings → General → table density). */
 @custom-variant compact {
-  &:is(.compact *) {
+  &:where(.compact, .compact *) {
     @slot;
   }
   @media (width < 40rem) {
