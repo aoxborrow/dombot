@@ -55,7 +55,7 @@ const tabClass = ({ isActive }: { isActive: boolean }) =>
         'z-10 h-[38px] rounded-t-[6px] border-border border-b-background bg-background text-foreground'
       : // Light mode uses a shade deeper than --muted/--border so the strip
         // reads against the white page; dark mode keeps the tokens.
-        'h-[36px] rounded-t-[7px] border-[oklch(0.88_0_0)] border-b-transparent bg-[oklch(0.9_0_0)] text-muted-foreground shadow-[inset_0_-1px_2px_-1px_rgba(0,0,0,0.14)] hover:text-foreground dark:border-white/6 dark:bg-muted dark:shadow-[inset_0_-1px_2px_-1px_rgba(0,0,0,0.35)]',
+        'h-[36px] rounded-t-[7px] border-[oklch(0.88_0_0)] border-b-transparent bg-[oklch(0.915_0_0)] text-[oklch(0.45_0_0)] shadow-[inset_0_-1px_2px_-1px_rgba(0,0,0,0.14)] hover:text-foreground dark:border-white/6 dark:bg-muted dark:text-muted-foreground dark:shadow-[inset_0_-1px_2px_-1px_rgba(0,0,0,0.35)]',
   );
 
 /** The metric pill inside a tab (count, spend, or an alert-tinted issue count). */
