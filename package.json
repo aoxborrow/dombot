@@ -85,6 +85,7 @@
   },
   "dependencies": {
     "@aoxborrow/registrar-client": "^0.7.0",
+    "@heroicons/react": "^2.2.0",
     "@hono/node-server": "^2.1.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "class-variance-authority": "^0.7.1",

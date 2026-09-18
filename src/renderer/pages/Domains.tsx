@@ -31,6 +31,12 @@ import type {
   Folder,
   RenewalPricing,
 } from '../../shared/ipc';
+import {
+  EyeIcon,
+  LockClosedIcon,
+  LockOpenIcon,
+  ShieldCheckIcon,
+} from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
@@ -502,6 +508,8 @@ const COLUMNS: Column[] = [
       <FlagToggle
         domain={d}
         kind="privacy"
+        on={ShieldCheckIcon}
+        off={EyeIcon}
         onLabel="privacy on"
         offLabel="privacy off"
       />
@@ -515,7 +523,14 @@ const COLUMNS: Column[] = [
     compact: true,
     detail: true,
     render: (d) => (
-      <FlagToggle domain={d} kind="lock" onLabel="locked" offLabel="unlocked" />
+      <FlagToggle
+        domain={d}
+        kind="lock"
+        on={LockClosedIcon}
+        off={LockOpenIcon}
+        onLabel="locked"
+        offLabel="unlocked"
+      />
     ),
     sortValue: (d) => (d.locked ? 1 : 0),
   },

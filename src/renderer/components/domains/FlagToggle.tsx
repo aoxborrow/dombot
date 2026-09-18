@@ -1,4 +1,5 @@
 import { domainKey } from '../../../shared/account-key';
+import type { ComponentType, SVGProps } from 'react';
 import type { Domain, DomainOp } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import {
@@ -6,15 +7,18 @@ import {
   targetOf,
   useOpUnsupportedReason,
 } from '../../lib/domain-ops';
-import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 import { ConfirmPopover } from '../ConfirmPopover';
 
 /**
- * An on/off switch cell for the Privacy and Locked columns — the same small
- * switch as Auto-renew, so the three flag columns read alike. Flipping it
- * applies the change at the registrar optimistically, rolling back if the
- * registrar rejects. Disabled (not-allowed cursor, reason as tooltip) when the
- * registrar can't change the flag, and while a write is in flight.
+ * A clickable on/off cell for the Privacy and Locked columns. Solid glyphs
+ * (Heroicons) carry the state: the protected state (`on`) is a quiet muted
+ * icon, the exposed state (`off`) is a different glyph in warning amber, so
+ * the eye catches what needs attention. A click flips the value at the
+ * registrar — optimistically, rolling back if the registrar rejects. When the
+ * registrar can't change the flag the cell looks the same but takes a
+ * not-allowed cursor and the reason as its tooltip; it's also disabled while
+ * a write is in flight.
  *
  * Privacy changes (either direction — turning it off exposes the WHOIS
  * contact, turning it on can be a purchase at some registrars) and unlocking
@@ -25,11 +29,15 @@ import { ConfirmPopover } from '../ConfirmPopover';
 export function FlagToggle({
   domain,
   kind,
+  on: On,
+  off: Off,
   onLabel,
   offLabel,
 }: {
   domain: Domain;
   kind: 'privacy' | 'lock';
+  on: ComponentType<SVGProps<SVGSVGElement>>;
+  off: ComponentType<SVGProps<SVGSVGElement>>;
   onLabel: string;
   offLabel: string;
 }) {
@@ -74,6 +82,7 @@ export function FlagToggle({
             action: 'Disable',
           };
 
+  const Icon = value ? On : Off;
   const label = value ? onLabel : offLabel;
   const title = reason
     ? reason
@@ -87,18 +96,25 @@ export function FlagToggle({
             : 'unlock'
       }`;
 
-  // Controlled, so a click that needs confirming doesn't visibly flip it — the
-  // popover (which the click opens) applies the change on confirm.
   const button = (
-    <Switch
-      size="sm"
-      checked={value}
-      onCheckedChange={needsConfirm ? undefined : apply}
+    <button
+      type="button"
       disabled={pending || reason !== null}
       title={title}
       aria-label={label}
-      className={pending ? 'animate-pulse' : undefined}
-    />
+      aria-pressed={value}
+      onClick={needsConfirm ? undefined : apply}
+      className={cn(
+        // Same footprint and hover as the row's "⋯" ghost icon button.
+        'mx-auto -my-2 flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-accent disabled:hover:bg-transparent compact:size-7',
+        value
+          ? 'text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground'
+          : 'text-amber-500 dark:text-amber-400',
+        pending ? 'animate-pulse' : 'disabled:cursor-not-allowed',
+      )}
+    >
+      <Icon className="size-4" aria-hidden />
+    </button>
   );
 
   if (!needsConfirm) return button;
@@ -112,10 +128,7 @@ export function FlagToggle({
       disabled={pending || reason !== null}
       onConfirm={apply}
     >
-      {/* The popover trigger merges its own data-state onto its child, which
-          would clobber the switch's checked/unchecked state — so it gets a
-          wrapper span instead of the switch itself. */}
-      <span className="inline-flex">{button}</span>
+      {button}
     </ConfirmPopover>
   );
 }
