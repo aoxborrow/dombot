@@ -12,11 +12,11 @@ export default function DemoBanner() {
       className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-[7px] text-[13px]"
     >
       <FlaskConical
-        className="size-3.5 shrink-0 text-amber-700 dark:text-amber-500"
+        className="size-3.5 shrink-0 text-amber-600 dark:text-amber-500"
         aria-hidden
       />
-      <p className="leading-snug text-amber-950/70 dark:text-amber-50/60">
-        <span className="font-medium text-amber-700 dark:text-amber-500">
+      <p className="leading-snug text-foreground/60">
+        <span className="font-medium text-amber-600 dark:text-amber-500">
           Demo Mode
         </span>
         {/* The tagline and the DomBot.ai link are desktop-only so the banner
@@ -31,24 +31,22 @@ export default function DemoBanner() {
       <Button
         variant="outline"
         size="sm"
-        className="h-6 shrink-0 px-2 text-xs text-foreground/60 hover:text-foreground max-sm:ml-auto"
+        className="h-6 shrink-0 bg-transparent px-2 text-xs text-foreground/60 hover:text-foreground max-sm:ml-auto"
         onClick={() => window.location.reload()}
         title="Start over with a fresh portfolio"
       >
         <RotateCcw className="size-3" />
         Reset demo
       </Button>
-      <Button
-        asChild
-        variant="outline"
-        size="sm"
-        className="ml-auto hidden h-6 shrink-0 gap-1 border-foreground/40 pr-1.5 pl-2 text-xs text-foreground hover:text-foreground sm:inline-flex"
+      <a
+        href="https://dombot.ai/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="ml-auto hidden shrink-0 items-center gap-1 text-xs font-medium text-foreground/70 hover:text-foreground sm:inline-flex"
       >
-        <a href="https://dombot.ai/" target="_blank" rel="noopener noreferrer">
-          DomBot.ai
-          <ArrowRight className="size-3" />
-        </a>
-      </Button>
+        DomBot.ai
+        <ArrowRight className="size-3" />
+      </a>
     </div>
   );
 }

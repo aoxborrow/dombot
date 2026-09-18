@@ -11,8 +11,15 @@ const META: Record<Theme, { label: string; icon: typeof Sun }> = {
   light: { label: 'Light', icon: Sun },
 };
 
-/** Three-way theme switch (dark / auto / light) as a segmented control. */
-export function ModeToggle({ className }: { className?: string }) {
+/** Three-way theme switch (dark / auto / light) as a segmented control.
+ * `bare` is the icon-only, borderless form for the status bar. */
+export function ModeToggle({
+  className,
+  bare = false,
+}: {
+  className?: string;
+  bare?: boolean;
+}) {
   const { theme, setTheme } = useTheme();
 
   return (
@@ -20,7 +27,10 @@ export function ModeToggle({ className }: { className?: string }) {
       role="radiogroup"
       aria-label="Theme"
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-lg border bg-muted/50 p-0.5 text-sm text-muted-foreground',
+        'inline-flex items-center text-muted-foreground',
+        bare
+          ? 'gap-0.5'
+          : 'gap-0.5 rounded-lg border bg-muted/50 p-0.5 text-sm',
         className,
       )}
     >
@@ -33,14 +43,21 @@ export function ModeToggle({ className }: { className?: string }) {
             type="button"
             role="radio"
             aria-checked={active}
+            aria-label={label}
             onClick={() => setTheme(t)}
             className={cn(
-              'inline-flex h-8 items-center gap-2 rounded-md px-3 font-medium outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
-              active && 'bg-background text-foreground shadow-sm',
+              'inline-flex items-center outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
+              bare
+                ? 'size-5 justify-center rounded-sm'
+                : 'h-8 gap-2 rounded-md px-3 font-medium',
+              active &&
+                (bare
+                  ? 'bg-accent text-foreground'
+                  : 'bg-background text-foreground shadow-sm'),
             )}
           >
-            <Icon className="size-4" />
-            {label}
+            <Icon className={bare ? 'size-3' : 'size-4'} />
+            {!bare && label}
           </button>
         );
       })}
