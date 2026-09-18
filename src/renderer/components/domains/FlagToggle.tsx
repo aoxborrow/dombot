@@ -12,7 +12,7 @@ import { ConfirmPopover } from '../ConfirmPopover';
 
 /**
  * A clickable on/off cell for the Privacy and Locked columns. Solid glyphs
- * (Solar shields, Heroicons locks) carry the state: the protected state (`on`) is a quiet muted
+ * (Lucide shields, Heroicons locks) carry the state: the protected state (`on`) is a quiet muted
  * icon, the exposed state (`off`) is a different glyph in warning orange, so
  * the eye catches what needs attention. A click flips the value at the
  * registrar — optimistically, rolling back if the registrar rejects. When the

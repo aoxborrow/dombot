@@ -21,6 +21,8 @@ import {
   Plug,
   Search,
   Server,
+  ShieldBan,
+  ShieldCheck,
   SlidersHorizontal,
   TriangleAlert,
   X,
@@ -45,8 +47,6 @@ import {
 } from '../lib/domain-ops';
 import { FolderIcon } from '../components/icons/FolderIcon';
 import { FolderOffIcon } from '../components/icons/FolderOffIcon';
-import { ShieldKeyholeIcon } from '../components/icons/ShieldKeyholeIcon';
-import { ShieldCrossIcon } from '../components/icons/ShieldCrossIcon';
 import { FolderMenuItems } from '../components/domains/FolderMenuItems';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
@@ -506,8 +506,8 @@ const COLUMNS: Column[] = [
       <FlagToggle
         domain={d}
         kind="privacy"
-        on={ShieldKeyholeIcon}
-        off={ShieldCrossIcon}
+        on={ShieldCheck}
+        off={ShieldBan}
         onLabel="privacy on"
         offLabel="privacy off"
       />
