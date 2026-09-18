@@ -42,7 +42,7 @@ export default function DemoBanner() {
         href="https://dombot.ai/"
         target="_blank"
         rel="noopener noreferrer"
-        className="ml-auto hidden shrink-0 items-center gap-1 text-xs font-medium text-foreground/70 hover:text-foreground sm:inline-flex"
+        className="ml-auto hidden shrink-0 items-center gap-1 text-xs font-semibold text-foreground/50 hover:text-foreground/80 sm:inline-flex"
       >
         DomBot.ai
         <ArrowRight className="size-3" />
