@@ -2,6 +2,16 @@
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
+/* Dense table styling: on phones always, and anywhere under a `.compact`
+   ancestor (Settings → General → table density). */
+@custom-variant compact {
+  &:is(.compact *) {
+    @slot;
+  }
+  @media (width < 40rem) {
+    @slot;
+  }
+}
 
 :root {
   /* Render native scrollbars and form controls light; `.dark` flips it. */

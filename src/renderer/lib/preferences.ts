@@ -12,6 +12,9 @@ export interface Preferences {
   /** Column key the Domains table opens sorted by. */
   sortKey: string;
   sortDir: 'asc' | 'desc';
+  /** Domains table density. `compact` is the phone layout's tighter spacing
+   * and smaller type; phones always use it regardless. */
+  density: 'normal' | 'compact';
 }
 
 export const PAGE_SIZES = [25, 50, 100, 250];
@@ -34,6 +37,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   pageSize: 50,
   sortKey: 'domainName',
   sortDir: 'asc',
+  density: 'normal',
 };
 
 const STORAGE_KEY = 'dombot-preferences';
@@ -58,6 +62,8 @@ export function parsePreferences(raw: string | null): Preferences {
       : d.sortKey,
     sortDir:
       v.sortDir === 'asc' || v.sortDir === 'desc' ? v.sortDir : d.sortDir,
+    density:
+      v.density === 'normal' || v.density === 'compact' ? v.density : d.density,
   };
 }
 
@@ -78,11 +84,11 @@ export const usePreferences = create<PreferencesState>((set, get) => ({
   ...readStored(),
   setPreferences: (patch) => {
     set(patch);
-    const { pageSize, sortKey, sortDir } = get();
+    const { pageSize, sortKey, sortDir, density } = get();
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ pageSize, sortKey, sortDir }),
+        JSON.stringify({ pageSize, sortKey, sortDir, density }),
       );
     } catch {
       // Persisting is best-effort; the in-memory state still updates.

@@ -13,6 +13,7 @@ describe('parsePreferences', () => {
       pageSize: 250,
       sortKey: 'expirationDate',
       sortDir: 'desc',
+      density: 'compact',
     };
     expect(parsePreferences(JSON.stringify(stored))).toEqual(stored);
   });
@@ -23,6 +24,7 @@ describe('parsePreferences', () => {
       pageSize: DEFAULT_PREFERENCES.pageSize,
       sortKey: 'renewal',
       sortDir: DEFAULT_PREFERENCES.sortDir,
+      density: DEFAULT_PREFERENCES.density,
     });
   });
 });

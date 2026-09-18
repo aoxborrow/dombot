@@ -244,7 +244,7 @@ function FolderCell({
         <button
           type="button"
           title="Assign folder"
-          className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground max-sm:px-2 max-sm:py-1.5 max-sm:text-xs"
+          className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground compact:px-2 compact:py-1.5 compact:text-xs"
         >
           {archived ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
@@ -357,7 +357,7 @@ function LifecycleBadge({ status }: { status: string }) {
   return (
     <Badge
       className={cn(
-        'border-transparent px-1.5 py-0 text-[11px] max-sm:px-1 max-sm:text-[10px]',
+        'border-transparent px-1.5 py-0 text-[11px] compact:px-1 compact:text-[10px]',
         LIFECYCLE_TONE[flag.tone],
       )}
       title={`Registry status: ${status}`}
@@ -415,7 +415,7 @@ const COLUMNS: Column[] = [
       <span className="inline-flex items-center gap-2">
         {/* One step up from the reduced mobile body size — the domain is the
             row's primary field. Desktop inherits the table's text-sm. */}
-        <span className="font-mono max-sm:text-[13px]">{d.domainName}</span>
+        <span className="font-mono compact:text-[13px]">{d.domainName}</span>
         <LifecycleBadge status={d.status} />
       </span>
     ),
@@ -454,7 +454,7 @@ const COLUMNS: Column[] = [
         >
           <span>{fmtDate(d.expirationDate)}</span>
           {days !== null && (
-            <span className="text-xs opacity-60 max-sm:text-[11px]">
+            <span className="text-xs opacity-60 compact:text-[11px]">
               {relativeDays(days)}
             </span>
           )}
@@ -700,6 +700,7 @@ export default function Domains() {
   const [pageSize, setPageSize] = useState(
     () => usePreferences.getState().pageSize,
   );
+  const density = usePreferences((s) => s.density);
   const [page, setPage] = useState(0);
   // Phones only: the filter chips collapse behind a "Filters" toggle (they're
   // always shown at sm+). Search and Reset stay visible.
@@ -1331,10 +1332,15 @@ export default function Domains() {
         />
 
         {/* Table */}
-        <div className="overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 max-sm:[&_td]:py-1">
-          {/* Slightly smaller body text on phones (headers keep their own
+        <div
+          className={cn(
+            'overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 compact:[&_td]:py-1',
+            density === 'compact' && 'compact',
+          )}
+        >
+          {/* Slightly smaller body text when compact (headers keep their own
               sizes); cells with an explicit size opt down separately. */}
-          <Table className="max-sm:text-xs">
+          <Table className="compact:text-xs">
             <TableHeader>
               <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
                 {/* Checkbox column reads as part of the Domain column: no
@@ -1386,7 +1392,7 @@ export default function Domains() {
                       </TableHead>
                       {/* Folder sits right after the domain name, before Registrar. */}
                       {i === 0 && (
-                        <TableHead className="pl-3 max-sm:pl-2">
+                        <TableHead className="pl-3 compact:pl-2">
                           <button
                             type="button"
                             onClick={() => toggleSort(FOLDER)}

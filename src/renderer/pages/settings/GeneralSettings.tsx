@@ -18,6 +18,11 @@ import { SettingsCard } from './SettingsCard';
 /** Steps of the brand green ramp, defined as `--color-brand-*` in index.css. */
 const BRAND_SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
 
+const DENSITY_OPTIONS: { value: Preferences['density']; label: string }[] = [
+  { value: 'normal', label: 'Normal' },
+  { value: 'compact', label: 'Compact' },
+];
+
 const DIRECTION_OPTIONS: { value: Preferences['sortDir']; label: string }[] = [
   { value: 'asc', label: 'Ascending' },
   { value: 'desc', label: 'Descending' },
@@ -31,6 +36,7 @@ export default function GeneralSettings() {
   const pageSize = usePreferences((s) => s.pageSize);
   const sortKey = usePreferences((s) => s.sortKey);
   const sortDir = usePreferences((s) => s.sortDir);
+  const density = usePreferences((s) => s.density);
   const setPreferences = usePreferences((s) => s.setPreferences);
 
   return (
@@ -62,6 +68,29 @@ export default function GeneralSettings() {
         contentClassName="flex flex-col gap-5"
       >
         <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted-foreground">
+            Row spacing and text size. Phones always use the compact layout.
+          </p>
+          <Select
+            value={density}
+            onValueChange={(v) =>
+              setPreferences({ density: v as Preferences['density'] })
+            }
+          >
+            <SelectTrigger className="w-52" aria-label="Table density">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DENSITY_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t pt-5">
           <p className="text-sm text-muted-foreground">
             The number of domains shown per page by default.
           </p>

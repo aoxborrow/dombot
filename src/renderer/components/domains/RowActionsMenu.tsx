@@ -80,7 +80,7 @@ export function RowActionsMenu({
           disabled={pending}
           aria-label={`Actions for ${domain.domainName}`}
           title="Actions"
-          className="text-muted-foreground/60 hover:text-foreground max-sm:size-7"
+          className="text-muted-foreground/60 hover:text-foreground compact:size-7"
         >
           <Ellipsis />
         </Button>
