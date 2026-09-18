@@ -417,14 +417,19 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
 }
 
 /** Lucide's shield-check as a solid glyph: the shield filled with the current
- * color and the check cut out in the page background (Lucide ships outlines
- * only, so a plain fill would swallow the check). */
+ * color and the check cut out in the page background, enlarged (Lucide ships
+ * outlines only, so a plain fill would swallow the check). */
 function ShieldCheckFilled(props: React.ComponentProps<typeof ShieldCheck>) {
   return (
     <ShieldCheck
       fill="currentColor"
       {...props}
-      className={cn('[&>path:last-child]:stroke-background', props.className)}
+      className={cn(
+        // The check: knocked out in the page background, and scaled up a bit
+        // with a heavier stroke so it reads at 18px.
+        '[&>path:last-child]:origin-center [&>path:last-child]:scale-125 [&>path:last-child]:stroke-background [&>path:last-child]:stroke-[2.75] [&>path:last-child]:[transform-box:fill-box]',
+        props.className,
+      )}
     />
   );
 }
