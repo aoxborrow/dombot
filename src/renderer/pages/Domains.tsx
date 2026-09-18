@@ -21,8 +21,8 @@ import {
   Plug,
   Search,
   Server,
+  Shield,
   ShieldBan,
-  ShieldCheck,
   SlidersHorizontal,
   TriangleAlert,
   X,
@@ -416,6 +416,12 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
   );
 }
 
+/** Lucide's outline shield, filled — a solid "protected" glyph for the
+ * Privacy column's on state (Lucide ships no filled variants). */
+function ShieldFilled(props: React.ComponentProps<typeof Shield>) {
+  return <Shield fill="currentColor" {...props} />;
+}
+
 const COLUMNS: Column[] = [
   {
     key: 'domainName',
@@ -508,7 +514,7 @@ const COLUMNS: Column[] = [
       <FlagToggle
         domain={d}
         kind="privacy"
-        on={ShieldCheck}
+        on={ShieldFilled}
         off={ShieldBan}
         onLabel="privacy on"
         offLabel="privacy off"
