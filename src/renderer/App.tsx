@@ -101,7 +101,7 @@ export default function App() {
             type="button"
             onClick={() => navigate('/')}
             aria-label="DomBot — go to Domains"
-            className="group ml-[2px] flex items-center gap-2"
+            className="group -ml-1 flex items-center gap-2"
           >
             <svg
               viewBox="0 0 32 32"
