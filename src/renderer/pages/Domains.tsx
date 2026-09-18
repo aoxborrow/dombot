@@ -246,7 +246,7 @@ function FolderCell({
           title="Assign folder"
           // Vertical padding matches the table cells' so this full-cell button
           // never sets the row height.
-          className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground compact:px-2 compact:py-2.5 compact:text-xs"
+          className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground compact:px-2 compact:py-[9px] compact:text-xs"
         >
           {archived ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
@@ -1338,8 +1338,10 @@ export default function Domains() {
           className={cn(
             // Row height is set by the cells' vertical padding around one line of
             // text (icon buttons overlap into it with negative margins, so they
-            // don't drive it): ~45px normal, ~39px compact.
-            'overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 [&_td]:py-3 compact:[&_td]:py-2.5',
+            // don't drive it): 45px normal, ~36px compact. align-top keeps
+            // inline-level cell content (checkbox, switch, inline-flex spans)
+            // from adding baseline descent under the line box.
+            'overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 [&_td]:py-3 [&_td>*]:align-top compact:[&_td]:py-[9px]',
             density === 'compact' && 'compact',
           )}
         >
