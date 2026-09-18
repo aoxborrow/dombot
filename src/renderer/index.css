@@ -104,9 +104,8 @@
    from 0.98 to 0.245 while chroma peaks at 400–500. Derived from the original
    brand greens (#7ac28d ≈ 400, #31613b between 600 and 700) with a touch more
    saturation mid-ramp. Every green in the UI should come from this ramp, via
-   the semantic tokens above (--primary, --brand, --ring). `static` so
-   every shade is emitted even when unused — Settings → General lists them. */
-@theme static {
+   the semantic tokens above (--primary, --brand, --ring). */
+@theme {
   /* Dark-mode "expires within 30 days" orange: a quarter step from Tailwind's
      orange-400 toward orange-300 (interpolated in OKLCH), since 400 reads too
      deep next to the deeper red and 300 goes peach. */

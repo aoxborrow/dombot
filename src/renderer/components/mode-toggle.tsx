@@ -47,8 +47,8 @@ export function ModeToggle({
               'inline-flex items-center outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
               bare
                 ? 'size-5 justify-center rounded-sm'
-                : 'h-8 gap-2 rounded-md px-3 font-medium hover:bg-accent/50',
-              active && 'bg-accent text-foreground',
+                : 'h-8 gap-2 rounded-md px-3 font-medium hover:bg-foreground/5 dark:hover:bg-accent/50',
+              active && 'bg-foreground/10 text-foreground dark:bg-accent',
             )}
           >
             <Icon className={bare ? 'size-3' : 'size-4'} />

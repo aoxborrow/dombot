@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -14,9 +13,6 @@ import {
   type Preferences,
 } from '../../lib/preferences';
 import { SettingsCard } from './SettingsCard';
-
-/** Steps of the brand green ramp, defined as `--color-brand-*` in index.css. */
-const BRAND_SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
 
 const DENSITY_OPTIONS: { value: Preferences['density']; label: string }[] = [
   { value: 'normal', label: 'Normal' },
@@ -53,14 +49,6 @@ export default function GeneralSettings() {
           Choose light, dark, or auto. Auto follows your system&apos;s setting.
         </p>
         <ModeToggle className="self-start" />
-
-        <div className="flex flex-col gap-3 border-t pt-5">
-          <p className="text-sm text-muted-foreground">
-            Brand green palette, available as <code>brand-50</code> through{' '}
-            <code>brand-950</code> (e.g. <code>bg-brand-600</code>).
-          </p>
-          <BrandPalette />
-        </div>
       </SettingsCard>
 
       <SettingsCard
@@ -154,42 +142,6 @@ export default function GeneralSettings() {
           </div>
         </div>
       </SettingsCard>
-    </div>
-  );
-}
-
-/** Swatch grid for the brand ramp. Hex values are read back from the CSS
- * variables, so index.css stays the single source of truth. */
-function BrandPalette() {
-  const [hexes, setHexes] = useState<Record<number, string>>({});
-  useEffect(() => {
-    const css = getComputedStyle(document.documentElement);
-    setHexes(
-      Object.fromEntries(
-        BRAND_SHADES.map((n) => [
-          n,
-          css.getPropertyValue(`--color-brand-${n}`).trim(),
-        ]),
-      ),
-    );
-  }, []);
-
-  return (
-    <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-11">
-      {BRAND_SHADES.map((n) => (
-        <div key={n} className="flex flex-col gap-1">
-          <div
-            className="h-10 rounded-md border"
-            style={{ backgroundColor: `var(--color-brand-${n})` }}
-          />
-          <div className="text-xs leading-tight">
-            <div className="font-medium">{n}</div>
-            <div className="font-mono text-[11px] text-muted-foreground">
-              {hexes[n] ?? ''}
-            </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
