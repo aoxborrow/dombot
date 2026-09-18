@@ -200,7 +200,7 @@ export default function Renewals() {
     [portfolio, pricing],
   );
 
-  // Donut slices: registrar by domain count, registrar by spend, TLD by count.
+  // Donut slices: registrar and TLD, each by domain count and by yearly spend.
   const regCount = useMemo(
     () => toSlices(byRegistrar, (g) => g.count),
     [byRegistrar],
@@ -210,7 +210,9 @@ export default function Renewals() {
     [byRegistrar],
   );
   const tldCount = useMemo(() => toSlices(byTld, (g) => g.count), [byTld]);
+  const tldSpend = useMemo(() => toSlices(byTld, (g) => g.yearly), [byTld]);
   const regSpendTotal = regSpend.reduce((s, x) => s + x.value, 0);
+  const tldSpendTotal = tldSpend.reduce((s, x) => s + x.value, 0);
 
   // Domains that can't be priced automatically or already carry a manual price —
   // the working set for the inline editor.
@@ -281,8 +283,8 @@ export default function Renewals() {
           the two rows of three never read as paired. */}
       <MonthlyBarChart months={months} />
 
-      {/* Composition */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* Composition: two pairs (count + spend), one row per dimension. */}
+      <div className="grid gap-4 md:grid-cols-2">
         <DonutCard
           title="Domains by registrar"
           slices={regCount}
@@ -303,6 +305,13 @@ export default function Renewals() {
           centerValue={count(summary.total)}
           centerLabel="domains"
           fmt={count}
+        />
+        <DonutCard
+          title="Spend by TLD"
+          slices={tldSpend}
+          centerValue={usd(tldSpendTotal)}
+          centerLabel="per year"
+          fmt={usd}
         />
       </div>
 
@@ -393,7 +402,9 @@ function MonthlyBarChart({ months }: { months: MonthBucket[] }) {
   const max = Math.max(1, ...months.map((m) => m.yearly));
   const total = months.reduce((sum, m) => sum + m.yearly, 0);
   return (
-    <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 pt-[14px]">
+    // @container: the month labels are sized to the card, not the viewport,
+    // since the card's width depends on the page's grid and padding.
+    <div className="@container flex flex-col gap-3 rounded-lg border bg-card p-4 pt-[14px]">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="text-[15px] font-semibold text-foreground/75">
           Renewals by month
@@ -438,12 +449,15 @@ function MonthlyBarChart({ months }: { months: MonthBucket[] }) {
                   </span>
                 )}
               </div>
-              <span className="hidden text-xs text-muted-foreground sm:block">
+              {/* The full "Sep 2026" only once the card is wide enough for all
+                  twelve on one line (@3xl ≈ 768px). Narrower, just the month
+                  abbreviation: the full label is wider than a bar there, and
+                  letting it wrap broke unevenly ("May 2026" fit where
+                  "Sep 2026" didn't), so both are nowrap. */}
+              <span className="hidden text-xs whitespace-nowrap text-muted-foreground @3xl:block">
                 {m.label}
               </span>
-              {/* Just the month abbreviation on phones — the full "Sep 2026"
-                  is wider than a bar and the labels would collide. */}
-              <span className="text-[10px] whitespace-nowrap text-muted-foreground sm:hidden">
+              <span className="text-[10px] whitespace-nowrap text-muted-foreground sm:text-xs @3xl:hidden">
                 {m.label.slice(0, 3)}
               </span>
             </div>
