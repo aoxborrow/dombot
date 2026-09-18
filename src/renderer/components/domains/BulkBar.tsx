@@ -87,7 +87,7 @@ export function BulkBar({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 gap-1 pl-1.5 pr-2.5 text-muted-foreground"
+              className="h-7 gap-1 border-brand/40 pl-1.5 pr-2.5 text-muted-foreground dark:border-brand/40"
               onClick={onClear}
             >
               <X />
