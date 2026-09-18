@@ -21,8 +21,8 @@ import {
   Plug,
   Search,
   Server,
-  Shield,
   ShieldBan,
+  ShieldCheck,
   SlidersHorizontal,
   TriangleAlert,
   X,
@@ -416,6 +416,19 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
   );
 }
 
+/** Lucide's shield-check as a solid glyph: the shield filled with the current
+ * color and the check cut out in the page background (Lucide ships outlines
+ * only, so a plain fill would swallow the check). */
+function ShieldCheckFilled(props: React.ComponentProps<typeof ShieldCheck>) {
+  return (
+    <ShieldCheck
+      fill="currentColor"
+      {...props}
+      className={cn('[&>path:last-child]:stroke-background', props.className)}
+    />
+  );
+}
+
 const COLUMNS: Column[] = [
   {
     key: 'domainName',
@@ -508,7 +521,7 @@ const COLUMNS: Column[] = [
       <FlagToggle
         domain={d}
         kind="privacy"
-        on={Shield}
+        on={ShieldCheckFilled}
         off={ShieldBan}
         onLabel="privacy on"
         offLabel="privacy off"
