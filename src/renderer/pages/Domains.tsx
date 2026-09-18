@@ -31,12 +31,7 @@ import type {
   Folder,
   RenewalPricing,
 } from '../../shared/ipc';
-import {
-  LockClosedIcon,
-  LockOpenIcon,
-  ShieldCheckIcon,
-  ShieldExclamationIcon,
-} from '@heroicons/react/20/solid';
+import { LockClosedIcon, LockOpenIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
@@ -50,6 +45,8 @@ import {
 } from '../lib/domain-ops';
 import { FolderIcon } from '../components/icons/FolderIcon';
 import { FolderOffIcon } from '../components/icons/FolderOffIcon';
+import { ShieldKeyholeIcon } from '../components/icons/ShieldKeyholeIcon';
+import { ShieldCrossIcon } from '../components/icons/ShieldCrossIcon';
 import { FolderMenuItems } from '../components/domains/FolderMenuItems';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
@@ -509,8 +506,8 @@ const COLUMNS: Column[] = [
       <FlagToggle
         domain={d}
         kind="privacy"
-        on={ShieldCheckIcon}
-        off={ShieldExclamationIcon}
+        on={ShieldKeyholeIcon}
+        off={ShieldCrossIcon}
         onLabel="privacy on"
         offLabel="privacy off"
       />
