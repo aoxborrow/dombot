@@ -435,7 +435,7 @@ const COLUMNS: Column[] = [
               the row's primary field. Desktop inherits the table's text-sm. */}
           {d.domainName}
           <ExternalLink
-            className="ml-1 size-3 shrink-0 opacity-0 transition-opacity group-hover/domain:opacity-100"
+            className="ml-1.5 size-3 shrink-0 opacity-0 transition-opacity group-hover/domain:opacity-50"
             aria-hidden
           />
         </a>
