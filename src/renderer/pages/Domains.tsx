@@ -320,19 +320,18 @@ function FolderMenuContent({
 type LifecycleTone = 'redemption' | 'expired' | 'grace' | 'hold';
 
 /**
- * A solid pill per lifecycle state. The post-expiry states share the pink hue
- * of an expired date (see expiryColor) and darken with severity — grace (still
- * renewable at the normal price) → expired → redemption (renewable at a fee) —
- * so they read as "past expiry" rather than as a countdown, which uses the warm
+ * A solid pill per lifecycle state. The post-expiry states walk the cool side
+ * of the wheel with severity — grace (still renewable at the normal price) is
+ * pink, expired fuchsia, redemption (renewable at a fee) purple — matching the
+ * expired-date text (see expiryColor) and staying clear of the countdown's warm
  * yellow → orange → red ramp. Hold (DNS switched off by a registrar/registry
- * lock) is a different problem, so it takes purple. Grace takes dark text for
- * contrast.
+ * lock) is a different, site-down problem and takes a deep red.
  */
 const LIFECYCLE_TONE: Record<LifecycleTone, string> = {
-  redemption: 'bg-fuchsia-700 text-white',
-  expired: 'bg-pink-600 text-white',
-  grace: 'bg-pink-400 text-pink-950',
-  hold: 'bg-purple-600 text-white',
+  redemption: 'bg-purple-700 text-white',
+  expired: 'bg-fuchsia-600 text-white',
+  grace: 'bg-pink-500 text-white',
+  hold: 'bg-red-700 text-white',
 };
 
 /**
@@ -540,15 +539,15 @@ function relativeDays(days: number): string {
 
 /**
  * Expiry text color. Upcoming expiries climb a warm ramp as they near — yellow
- * (≤60, a heads-up) → orange (≤30) → red (≤14). Past expiries switch hue so
- * they can't be mistaken for a countdown: pink while the domain is likely
- * still recoverable (most registrars' grace + redemption windows fall inside
- * ~45 days), then muted once it's probably gone and no longer a call to action.
- * Muted when there's no date.
+ * (≤60, a heads-up) → orange (≤30) → red (≤14). Past expiries switch to the
+ * cool side so they can't be mistaken for a countdown: pink while the domain
+ * is likely still recoverable (most registrars' grace + redemption windows
+ * fall inside ~45 days), then a deep purple once it's probably gone. Muted
+ * when there's no date.
  */
 function expiryColor(days: number | null): string {
   if (days === null) return 'text-muted-foreground';
-  if (days < -RECOVERABLE_DAYS) return 'text-muted-foreground';
+  if (days < -RECOVERABLE_DAYS) return 'text-purple-800 dark:text-purple-400';
   if (days <= 0) return 'text-pink-600 dark:text-pink-400';
   if (days <= 14) return 'text-red-600 dark:text-red-400';
   if (days <= 30) return 'text-orange-600 dark:text-orange-400';
