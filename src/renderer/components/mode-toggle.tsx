@@ -28,9 +28,7 @@ export function ModeToggle({
       aria-label="Theme"
       className={cn(
         'inline-flex items-center text-muted-foreground',
-        bare
-          ? 'gap-0.5'
-          : 'gap-0.5 rounded-lg border bg-muted/50 p-0.5 text-sm',
+        bare ? 'gap-0.5' : 'gap-1 text-sm',
         className,
       )}
     >
@@ -49,11 +47,8 @@ export function ModeToggle({
               'inline-flex items-center outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
               bare
                 ? 'size-5 justify-center rounded-sm'
-                : 'h-8 gap-2 rounded-md px-3 font-medium',
-              active &&
-                (bare
-                  ? 'bg-accent text-foreground'
-                  : 'bg-background text-foreground shadow-sm'),
+                : 'h-8 gap-2 rounded-md px-3 font-medium hover:bg-accent/50',
+              active && 'bg-accent text-foreground',
             )}
           >
             <Icon className={bare ? 'size-3' : 'size-4'} />
