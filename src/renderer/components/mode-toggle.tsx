@@ -28,7 +28,7 @@ export function ModeToggle({
       aria-label="Theme"
       className={cn(
         'inline-flex items-center text-muted-foreground',
-        bare ? 'gap-0.5' : 'gap-1 text-sm',
+        bare ? 'gap-0.5' : 'gap-1 rounded-lg border p-1 text-sm',
         className,
       )}
     >
