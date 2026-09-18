@@ -111,9 +111,9 @@
      deep next to the deeper red and 300 goes peach. */
   --color-orange-375: #ff962d;
   /* Domains table "needs attention" state — auto-renew off, privacy off,
-     unlocked — a pale yellow that sits apart from the brand green switches
+     unlocked — a warm yellow that sits apart from the brand green switches
      and from the warm expiry ramp, in both themes. */
-  --color-flag-off: #d6a755;
+  --color-flag-off: #e1a322;
   --color-brand-50: #f1fcf4;
   --color-brand-100: #e0f7e6;
   --color-brand-200: #c4eece;
