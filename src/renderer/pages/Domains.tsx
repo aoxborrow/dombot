@@ -393,6 +393,7 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
 
   return (
     <Switch
+      size="sm"
       checked={domain.autoRenew}
       onCheckedChange={onToggle}
       disabled={pending || reason !== null}
