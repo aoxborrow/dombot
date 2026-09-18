@@ -31,7 +31,7 @@ export default function DemoBanner() {
       <Button
         variant="outline"
         size="sm"
-        className="h-6 shrink-0 border-amber-500/40 bg-transparent px-2 text-xs text-foreground/60 hover:bg-amber-500/10 hover:text-foreground max-sm:ml-auto dark:border-amber-500/40 dark:hover:bg-amber-500/10"
+        className="h-6 shrink-0 border-amber-600/60 bg-transparent px-2 text-xs text-foreground/60 hover:bg-amber-500/10 hover:text-foreground max-sm:ml-auto dark:border-amber-500/40 dark:hover:bg-amber-500/10"
         onClick={() => window.location.reload()}
         title="Start over with a fresh portfolio"
       >
