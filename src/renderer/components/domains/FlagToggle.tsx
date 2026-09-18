@@ -113,7 +113,7 @@ export function FlagToggle({
         pending ? 'animate-pulse' : 'disabled:cursor-not-allowed',
       )}
     >
-      <Icon className="size-4" aria-hidden />
+      <Icon className="size-[18px]" aria-hidden />
     </button>
   );
 

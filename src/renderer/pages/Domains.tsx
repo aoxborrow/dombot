@@ -382,7 +382,8 @@ function LifecycleBadge({ status }: { status: string }) {
  * immediately) and rolls back if the registrar rejects. Disabled, with the
  * reason as its tooltip, where the registrar can't toggle it post-registration
  * (Cloudflare), and while the write is in flight. Outcome is a toast. Brand
- * green when on, a muted red when off.
+ * green when on, warning amber when off (matching the exposed-state glyphs
+ * in the Privacy and Locked columns).
  */
 function AutoRenewSwitch({ domain }: { domain: Domain }) {
   const applyDomainOp = useAppStore((s) => s.applyDomainOp);
@@ -411,7 +412,7 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
         reason ??
         `Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`
       }
-      className="data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80"
+      className="data-[state=unchecked]:bg-amber-500 dark:data-[state=unchecked]:bg-amber-400"
     />
   );
 }
