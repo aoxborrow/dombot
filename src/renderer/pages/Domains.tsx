@@ -1440,7 +1440,9 @@ export default function Domains() {
                           onClick={() => toggleSort(col.key)}
                           className={cn(
                             'inline-flex items-center gap-1 select-none hover:text-foreground',
-                            col.compact && 'gap-0.5',
+                            // The narrow flag columns: nudge label + chevron
+                            // right so the label sits visually over the icons.
+                            col.compact && 'gap-0.5 translate-x-0.5',
                             active && 'text-foreground',
                           )}
                         >
