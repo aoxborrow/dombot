@@ -13,7 +13,8 @@ import { ConfirmPopover } from '../ConfirmPopover';
 /**
  * A clickable on/off cell for the Privacy and Locked columns. Solid glyphs
  * (Lucide shields, Heroicons locks) carry the state: the protected state (`on`) is a quiet muted
- * icon, the exposed state (`off`) is a different glyph in warning orange, so
+ * icon, the exposed state (`off`) is a different glyph in the pale-yellow
+ * `flag-off` color, so
  * the eye catches what needs attention. A click flips the value at the
  * registrar — optimistically, rolling back if the registrar rejects. When the
  * registrar can't change the flag the cell looks the same but takes a
@@ -109,7 +110,7 @@ export function FlagToggle({
         'mx-auto -my-2 flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-accent disabled:hover:bg-transparent compact:size-7',
         value
           ? 'text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground'
-          : 'text-orange-500 dark:text-orange-400',
+          : 'text-flag-off',
         pending ? 'animate-pulse' : 'disabled:cursor-not-allowed',
       )}
     >

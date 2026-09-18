@@ -379,7 +379,7 @@ function LifecycleBadge({ status }: { status: string }) {
  * immediately) and rolls back if the registrar rejects. Disabled, with the
  * reason as its tooltip, where the registrar can't toggle it post-registration
  * (Cloudflare), and while the write is in flight. Outcome is a toast. Brand
- * green when on, warning orange when off (matching the exposed-state glyphs
+ * green when on, pale yellow (`flag-off`) when off (matching the exposed-state glyphs
  * in the Privacy and Locked columns).
  */
 function AutoRenewSwitch({ domain }: { domain: Domain }) {
@@ -409,7 +409,9 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
         reason ??
         `Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`
       }
-      className="data-[state=unchecked]:bg-orange-500 dark:data-[state=unchecked]:bg-orange-400"
+      // Unsupported ones look the same as the rest (no fade) — the not-allowed
+      // cursor and tooltip carry that.
+      className="data-[state=unchecked]:bg-flag-off disabled:opacity-100 dark:data-[state=unchecked]:bg-flag-off"
     />
   );
 }
