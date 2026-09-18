@@ -1,32 +1,61 @@
-import { Moon, Sun, SunMoon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Monitor, Moon, Sun } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useTheme, type Theme } from '@/components/theme-provider';
 
-// Cycle order and per-theme presentation. Auto gets a blended sun/moon glyph so
-// it reads distinctly from the plain light (sun) and dark (moon) states.
-const ORDER: Theme[] = ['light', 'dark', 'auto'];
+// Segment order and per-theme presentation. Auto sits between the two fixed
+// themes and gets a monitor glyph, since it follows the system setting.
+const ORDER: Theme[] = ['dark', 'auto', 'light'];
 const META: Record<Theme, { label: string; icon: typeof Sun }> = {
-  light: { label: 'Light', icon: Sun },
   dark: { label: 'Dark', icon: Moon },
-  auto: { label: 'Auto', icon: SunMoon },
+  auto: { label: 'Auto', icon: Monitor },
+  light: { label: 'Light', icon: Sun },
 };
 
-/** Single-button theme switch: each click steps light → dark → auto → light,
- * showing the active theme's icon. */
-export function ModeToggle() {
+/** Three-way theme switch (dark / auto / light) as a segmented control.
+ * `bare` is the icon-only, borderless form for the status bar. */
+export function ModeToggle({
+  className,
+  bare = false,
+}: {
+  className?: string;
+  bare?: boolean;
+}) {
   const { theme, setTheme } = useTheme();
-  const { label, icon: Icon } = META[theme] ?? META.auto;
-  const next = ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length];
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => setTheme(next)}
-      aria-label={`Theme: ${label}. Switch to ${META[next].label}.`}
-      title={`Theme: ${label} — click for ${META[next].label}`}
+    <div
+      role="radiogroup"
+      aria-label="Theme"
+      className={cn(
+        'inline-flex items-center text-muted-foreground',
+        bare ? 'gap-0.5' : 'gap-1 rounded-lg border p-1 text-sm',
+        className,
+      )}
     >
-      <Icon />
-    </Button>
+      {ORDER.map((t) => {
+        const { label, icon: Icon } = META[t];
+        const active = theme === t;
+        return (
+          <button
+            key={t}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={label}
+            onClick={() => setTheme(t)}
+            className={cn(
+              'inline-flex items-center outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
+              bare
+                ? 'size-5 justify-center rounded-sm'
+                : 'h-8 gap-2 rounded-md px-3 font-medium hover:bg-foreground/5 dark:hover:bg-accent/50',
+              active && 'bg-foreground/10 text-foreground dark:bg-accent',
+            )}
+          >
+            <Icon className={bare ? 'size-3' : 'size-4'} />
+            {!bare && label}
+          </button>
+        );
+      })}
+    </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import GeneralSettings from './settings/GeneralSettings';
 import RegistrarsSettings from './settings/RegistrarsSettings';
 import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
@@ -18,6 +19,7 @@ import ProxySettings from './settings/ProxySettings';
 // sidebar and the phone picker render from this, so adding a section (which will
 // happen) needs no layout change and can't outgrow either control.
 const SECTIONS = [
+  { value: 'general', label: 'General' },
   { value: 'registrars', label: 'Registrars' },
   { value: 'proxy', label: 'Proxy' },
   { value: 'data', label: 'Sync' },
@@ -44,7 +46,7 @@ export default function Settings() {
   const tab =
     requested && TAB_VALUES.includes(requested as (typeof TAB_VALUES)[number])
       ? requested
-      : 'registrars';
+      : SECTIONS[0].value;
   const setTab = (v: string) => setParams({ tab: v }, { replace: true });
 
   return (
@@ -90,6 +92,9 @@ export default function Settings() {
         </div>
 
         <div className="min-w-0 flex-1">
+          <TabsContent value="general">
+            <GeneralSettings />
+          </TabsContent>
           <TabsContent value="registrars">
             <RegistrarsSettings />
           </TabsContent>

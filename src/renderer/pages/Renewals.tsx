@@ -261,7 +261,7 @@ export default function Renewals() {
         />
         <StatCard
           icon={CircleDollarSign}
-          accentClass="text-emerald-500"
+          accentClass="text-brand-500"
           label="Yearly renewals"
           value={usd(summary.yearly)}
           hint={`${usd(monthly)}/mo · ${usd(summary.yearlyAutoRenew)} auto-renews, ${usd(
@@ -355,7 +355,7 @@ function StatCard({
 }: {
   icon: LucideIcon;
   /** Tailwind text-color for the background watermark (rendered at a low group
-   * opacity), e.g. "text-emerald-500". */
+   * opacity), e.g. "text-brand-500". */
   accentClass: string;
   label: string;
   value: string;

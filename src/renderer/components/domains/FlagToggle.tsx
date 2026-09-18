@@ -1,5 +1,5 @@
 import { domainKey } from '../../../shared/account-key';
-import type { LucideIcon } from 'lucide-react';
+import type { ComponentType, SVGProps } from 'react';
 import type { Domain, DomainOp } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import {
@@ -11,11 +11,15 @@ import { cn } from '@/lib/utils';
 import { ConfirmPopover } from '../ConfirmPopover';
 
 /**
- * A clickable on/off cell for the Privacy and Locked columns. Shows the `on`
- * icon (emphasized) when enabled, the muted `off` icon otherwise, and flips
- * the value at the registrar on click — optimistically, rolling back if the
- * registrar rejects. Disabled (with the reason as its tooltip) when the
- * registrar can't change the flag, and while a write is in flight.
+ * A clickable on/off cell for the Privacy and Locked columns. Solid glyphs
+ * (Lucide shields, Heroicons locks) carry the state: the protected state
+ * (`on`) is brand green, the exposed state (`off`) a different glyph in the
+ * yellow `flag-off` color, so
+ * the eye catches what needs attention. A click flips the value at the
+ * registrar — optimistically, rolling back if the registrar rejects. When the
+ * registrar can't change the flag the cell looks the same but takes a
+ * not-allowed cursor and the reason as its tooltip; it's also disabled while
+ * a write is in flight.
  *
  * Privacy changes (either direction — turning it off exposes the WHOIS
  * contact, turning it on can be a purchase at some registrars) and unlocking
@@ -33,8 +37,8 @@ export function FlagToggle({
 }: {
   domain: Domain;
   kind: 'privacy' | 'lock';
-  on: LucideIcon;
-  off: LucideIcon;
+  on: ComponentType<SVGProps<SVGSVGElement>>;
+  off: ComponentType<SVGProps<SVGSVGElement>>;
   onLabel: string;
   offLabel: string;
 }) {
@@ -103,17 +107,12 @@ export function FlagToggle({
       onClick={needsConfirm ? undefined : apply}
       className={cn(
         // Same footprint and hover as the row's "⋯" ghost icon button.
-        'mx-auto flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent max-sm:size-7',
-        pending && 'animate-pulse',
-        reason !== null && 'opacity-40',
+        'mx-auto -my-2 flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-accent disabled:hover:bg-transparent compact:size-7',
+        value ? 'text-brand' : 'text-flag-off',
+        pending ? 'animate-pulse' : 'disabled:cursor-not-allowed',
       )}
     >
-      <Icon
-        className={cn(
-          'size-4',
-          value ? 'text-[#7ac28d]/85' : 'text-muted-foreground/50',
-        )}
-      />
+      <Icon className="size-[18px]" aria-hidden />
     </button>
   );
 

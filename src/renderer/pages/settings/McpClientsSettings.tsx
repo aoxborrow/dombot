@@ -77,7 +77,7 @@ export default function McpClientsSettings() {
               htmlFor="mcp-enabled"
               className={cn(
                 'inline-flex items-center gap-1.5 text-sm font-medium',
-                !loading && enabled && info?.running && 'text-[#7ac28d]',
+                !loading && enabled && info?.running && 'text-brand',
               )}
             >
               <span
@@ -86,7 +86,7 @@ export default function McpClientsSettings() {
                   loading
                     ? 'bg-muted-foreground/30'
                     : enabled && info?.running
-                      ? 'bg-[#7ac28d]'
+                      ? 'bg-brand'
                       : enabled
                         ? 'bg-amber-500'
                         : 'bg-muted-foreground/30',
@@ -219,7 +219,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
           aria-label={`Copy ${label}`}
           className={cn(
             'shrink-0 text-muted-foreground hover:text-foreground',
-            copied && 'text-[#7ac28d] hover:text-[#7ac28d]',
+            copied && 'text-brand hover:text-brand',
           )}
         >
           {copied ? <Check /> : <Copy />}

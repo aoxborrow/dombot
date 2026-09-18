@@ -2,6 +2,16 @@
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
+/* Dense table styling: on phones always, and anywhere under a `.compact`
+   ancestor (Settings → General → table density). */
+@custom-variant compact {
+  &:where(.compact, .compact *) {
+    @slot;
+  }
+  @media (width < 40rem) {
+    @slot;
+  }
+}
 
 :root {
   /* Render native scrollbars and form controls light; `.dark` flips it. */
@@ -13,9 +23,18 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  /* Brand green, matching the marketing site's primary CTA. */
-  --primary: #31613b;
+  /* Brand green fill. A step lighter than the dark theme's, which reads heavy
+     on a white page. */
+  --primary: var(--color-brand-500);
   --primary-foreground: #ffffff;
+  /* Brand green as a foreground accent — logo, status dots, success text —
+     on the page background. Flips with the theme so it keeps its contrast,
+     where --primary (filled buttons, white text) stays a deep shade. */
+  --brand: var(--color-brand-500);
+  /* Domains table "needs attention" state — auto-renew off, privacy off,
+     unlocked — a warm yellow that sits apart from the brand green switches
+     and from the warm expiry ramp. A shade deeper/more golden on white. */
+  --flag-off: #d69800;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -26,7 +45,7 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: #7ac28d;
+  --ring: var(--color-brand-400);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -40,6 +59,9 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Floating menus: wide ambient layer + tight contact layer. */
+  --dropdown-shadow:
+    0 18px 50px 6px rgb(0 0 0 / 0.12), 0 4px 16px rgb(0 0 0 / 0.08);
 }
 
 .dark {
@@ -51,8 +73,10 @@
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
   /* Brand green with light text — replaces the default near-white button. */
-  --primary: #31613b;
+  --primary: var(--color-brand-600);
   --primary-foreground: #ffffff;
+  --brand: var(--color-brand-500);
+  --flag-off: #e1a322;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -63,7 +87,7 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: #7ac28d;
+  --ring: var(--color-brand-400);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -77,9 +101,35 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --dropdown-shadow:
+    0 18px 50px 6px rgb(0 0 0 / 0.75), 0 4px 16px rgb(0 0 0 / 0.6);
+}
+
+/* Brand green ramp, generated in OKLCH around hue ~150: lightness steps down
+   from 0.98 to 0.245 while chroma peaks at 400–500. Derived from the original
+   brand greens (#7ac28d ≈ 400, #31613b between 600 and 700) with a touch more
+   saturation mid-ramp. Every green in the UI should come from this ramp, via
+   the semantic tokens above (--primary, --brand, --ring). */
+@theme {
+  /* Dark-mode "expires within 30 days" orange: a quarter step from Tailwind's
+     orange-400 toward orange-300 (interpolated in OKLCH), since 400 reads too
+     deep next to the deeper red and 300 goes peach. */
+  --color-orange-375: #ff962d;
+  --color-brand-50: #f1fcf4;
+  --color-brand-100: #e0f7e6;
+  --color-brand-200: #c4eece;
+  --color-brand-300: #9cddad;
+  --color-brand-400: #70c588;
+  --color-brand-500: #449f5f;
+  --color-brand-600: #337544;
+  --color-brand-700: #2a5b34;
+  --color-brand-800: #1f4627;
+  --color-brand-900: #16341c;
+  --color-brand-950: #0f2614;
 }
 
 @theme inline {
+  --shadow-dropdown: var(--dropdown-shadow);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -91,6 +141,8 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
+  --color-brand: var(--brand);
+  --color-flag-off: var(--flag-off);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -129,6 +181,13 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* Search inputs draw their own clear control (see Domains search); hide the
+     native one, which is a blue ⓧ on macOS and varies by platform. */
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
   }
   /* Tailwind v4's Preflight resets buttons to `cursor: default` (matching the
    * browser default), which drops the finger pointer web users expect on

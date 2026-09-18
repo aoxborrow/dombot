@@ -68,11 +68,11 @@ export function BulkBar({
   if (domains.length === 0 && !running) return null;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#7ac28d]/70 bg-[#7ac28d]/10 py-1.5 pl-2.5 pr-[7px]">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand/70 bg-brand/10 py-1.5 pl-2.5 pr-[7px]">
       <div className="flex items-center gap-3 text-sm">
         {domains.length > 0 ? (
           <>
-            <span className="font-medium text-[#7ac28d]">
+            <span className="font-medium text-brand">
               <span className="pl-1 pr-px text-[16px] font-bold">
                 {domains.length}
               </span>{' '}
@@ -87,7 +87,7 @@ export function BulkBar({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 gap-1 pl-1.5 pr-2.5 text-muted-foreground"
+              className="h-7 gap-1 border-brand/40 pl-1! pr-2.5 text-muted-foreground hover:bg-brand/10 hover:text-brand dark:border-brand/40 dark:hover:bg-brand/15 dark:hover:text-brand"
               onClick={onClear}
             >
               <X />

@@ -44,11 +44,9 @@ export function ThemeProvider({
   children: React.ReactNode;
   defaultTheme?: Theme;
 }) {
-  // Forced to dark for now — the light/auto toggle is hidden. To restore user
-  // theme selection, revert this to `readStored(defaultTheme)`.
-  void readStored;
-  void defaultTheme;
-  const [theme, setThemeState] = useState<Theme>('dark');
+  const [theme, setThemeState] = useState<Theme>(() =>
+    readStored(defaultTheme),
+  );
 
   useEffect(() => {
     const root = document.documentElement;
@@ -56,6 +54,11 @@ export function ThemeProvider({
       const mode = resolve(theme);
       root.classList.remove('light', 'dark');
       root.classList.add(mode);
+      // index.html starts the document dark with inline styles (no flash before
+      // the stylesheet loads). Drop them so the stylesheet's per-theme
+      // color-scheme takes over — otherwise native scrollbars stay dark.
+      root.style.colorScheme = '';
+      root.style.backgroundColor = '';
     };
     apply();
 

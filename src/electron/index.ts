@@ -109,7 +109,7 @@ const createWindow = () => {
     minWidth: 1040,
     minHeight: 560,
     // Paint the window with the app's dark background from the first frame so
-    // there's no white flash before the renderer loads. The UI is forced to
+    // there's no white flash before the renderer loads. The UI defaults to
     // dark (see renderer theme-provider), and this matches its `--background`
     // (oklch(0.145 0 0)). Also defer showing until the content is ready.
     backgroundColor: '#0a0a0a',

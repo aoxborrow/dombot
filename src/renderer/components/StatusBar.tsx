@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
+import { ModeToggle } from './mode-toggle';
 import {
   isDemo,
   isLocalWeb,
@@ -91,13 +92,20 @@ export default function StatusBar() {
           <span
             className={cn(
               'size-2 rounded-full',
-              mcpRunning ? 'bg-[#7ac28d]' : 'bg-muted-foreground/30',
+              mcpRunning ? 'bg-brand' : 'bg-muted-foreground/30',
             )}
             aria-hidden
           />
           {mcpRunning && mcpEndpoint ? `MCP ${mcpEndpoint}` : 'MCP off'}
         </button>
       </div>
+
+      {/* Centered on the bar itself, independent of the side groups' widths.
+          Hidden on phones, where the side groups already fill the bar. */}
+      <ModeToggle
+        bare
+        className="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 sm:inline-flex"
+      />
 
       {(showRefreshed || showSync) && (
         <div className="flex items-center gap-3">
@@ -130,7 +138,7 @@ export default function StatusBar() {
               <span
                 className={cn(
                   'size-2 rounded-full',
-                  allSynced ? 'bg-[#7ac28d]' : 'bg-amber-500 dark:bg-amber-400',
+                  allSynced ? 'bg-brand' : 'bg-amber-500 dark:bg-amber-400',
                 )}
                 aria-hidden
               />
@@ -150,7 +158,7 @@ export default function StatusBar() {
  */
 function SessionStatus() {
   const mode = webAuthMode();
-  const dot = <span className="size-2 rounded-full bg-[#7ac28d]" aria-hidden />;
+  const dot = <span className="size-2 rounded-full bg-brand" aria-hidden />;
   const link = (label: string, onClick: () => void) => (
     <button
       type="button"

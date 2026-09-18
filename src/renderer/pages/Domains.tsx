@@ -16,14 +16,14 @@ import {
   ChevronsRight,
   ChevronsUpDown,
   CircleCheck,
-  Eye,
-  EyeOff,
+  CircleX,
+  ExternalLink,
   Globe,
-  Lock,
-  LockOpen,
   Plug,
   Search,
   Server,
+  ShieldBan,
+  ShieldCheck,
   SlidersHorizontal,
   TriangleAlert,
   X,
@@ -34,6 +34,7 @@ import type {
   Folder,
   RenewalPricing,
 } from '../../shared/ipc';
+import { LockClosedIcon, LockOpenIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
@@ -60,6 +61,7 @@ import {
 import { BulkBar } from '../components/domains/BulkBar';
 import { BulkActionDialog } from '../components/domains/BulkActionDialog';
 import { defaultBulkOp } from '../lib/bulk';
+import { PAGE_SIZES, usePreferences } from '../lib/preferences';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -243,7 +245,9 @@ function FolderCell({
         <button
           type="button"
           title="Assign folder"
-          className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground max-sm:px-2 max-sm:py-1.5 max-sm:text-xs"
+          // Vertical padding matches the table cells' so this full-cell button
+          // never sets the row height.
+          className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground compact:px-2 compact:py-[9px] compact:text-xs"
         >
           {archived ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
@@ -317,14 +321,18 @@ function FolderMenuContent({
 type LifecycleTone = 'redemption' | 'expired' | 'grace' | 'hold';
 
 /**
- * A distinct fill color per lifecycle state, most→least urgent — all solid
- * warning pills: red, orange, amber, rose. Amber takes dark text for contrast.
+ * A solid pill per lifecycle state. The post-expiry states walk the cool side
+ * of the wheel with severity — grace (still renewable at the normal price) is
+ * pink, expired fuchsia, redemption (renewable at a fee) purple — matching the
+ * expired-date text (see expiryColor) and staying clear of the countdown's warm
+ * yellow → orange → red ramp. Hold (DNS switched off by a registrar/registry
+ * lock) is a different, site-down problem and takes a deep red.
  */
 const LIFECYCLE_TONE: Record<LifecycleTone, string> = {
-  redemption: 'bg-red-600 text-white',
-  expired: 'bg-orange-500 text-white',
-  grace: 'bg-amber-400 text-amber-950',
-  hold: 'bg-rose-500 text-white',
+  redemption: 'bg-purple-950 text-purple-100',
+  expired: 'bg-fuchsia-700 text-white',
+  grace: 'bg-pink-500 text-white',
+  hold: 'bg-red-800 text-white',
 };
 
 /**
@@ -356,7 +364,7 @@ function LifecycleBadge({ status }: { status: string }) {
   return (
     <Badge
       className={cn(
-        'border-transparent px-1.5 py-0 text-[11px] max-sm:px-1 max-sm:text-[10px]',
+        'border-transparent px-1.5 py-0 text-[11px] compact:px-1 compact:text-[10px]',
         LIFECYCLE_TONE[flag.tone],
       )}
       title={`Registry status: ${status}`}
@@ -372,7 +380,8 @@ function LifecycleBadge({ status }: { status: string }) {
  * immediately) and rolls back if the registrar rejects. Disabled, with the
  * reason as its tooltip, where the registrar can't toggle it post-registration
  * (Cloudflare), and while the write is in flight. Outcome is a toast. Brand
- * green when on, a muted red when off.
+ * green when on, pale yellow (`flag-off`) when off (matching the exposed-state glyphs
+ * in the Privacy and Locked columns).
  */
 function AutoRenewSwitch({ domain }: { domain: Domain }) {
   const applyDomainOp = useAppStore((s) => s.applyDomainOp);
@@ -392,6 +401,7 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
 
   return (
     <Switch
+      size="sm"
       checked={domain.autoRenew}
       onCheckedChange={onToggle}
       disabled={pending || reason !== null}
@@ -400,7 +410,27 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
         reason ??
         `Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`
       }
-      className="data-[state=unchecked]:bg-red-800/80 dark:data-[state=unchecked]:bg-red-800/80"
+      // Unsupported ones look the same as the rest (no fade) — the not-allowed
+      // cursor and tooltip carry that.
+      className="data-[state=unchecked]:bg-flag-off disabled:opacity-100 dark:data-[state=unchecked]:bg-flag-off"
+    />
+  );
+}
+
+/** Lucide's shield-check as a solid glyph: the shield filled with the current
+ * color and the check cut out in the page background, enlarged (Lucide ships
+ * outlines only, so a plain fill would swallow the check). */
+function ShieldCheckFilled(props: React.ComponentProps<typeof ShieldCheck>) {
+  return (
+    <ShieldCheck
+      fill="currentColor"
+      {...props}
+      className={cn(
+        // The check: knocked out in the page background, and scaled up a bit
+        // with a heavier stroke so it reads at 18px.
+        '[&>path:last-child]:origin-center [&>path:last-child]:scale-125 [&>path:last-child]:stroke-background [&>path:last-child]:stroke-[2.75] [&>path:last-child]:[transform-box:fill-box]',
+        props.className,
+      )}
     />
   );
 }
@@ -411,9 +441,26 @@ const COLUMNS: Column[] = [
     label: 'Domain',
     render: (d) => (
       <span className="inline-flex items-center gap-2">
-        {/* One step up from the reduced mobile body size — the domain is the
-            row's primary field. Desktop inherits the table's text-sm. */}
-        <span className="font-mono max-sm:text-[13px]">{d.domainName}</span>
+        {/* Opens the site in a new tab/window (Electron hands target=_blank to
+            the OS browser). noreferrer keeps the Referer header off the request.
+            The external-link glyph only shows on hover but always takes its
+            space, so nothing shifts when it appears. */}
+        <a
+          href={`https://${d.domainName}/`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`Open https://${d.domainName} in a new window`}
+          className="group/domain inline-flex items-center font-mono hover:text-brand-600 compact:text-[13px] dark:hover:text-brand"
+        >
+          {/* One step up from the reduced mobile body size — the domain is
+              the row's primary field. Desktop inherits the table's text-sm. */}
+          {d.domainName}
+          <ExternalLink
+            // Always green (not currentColor) so it never flashes grey mid-fade.
+            className="ml-1.5 size-3 shrink-0 text-brand-600 opacity-0 transition-opacity group-hover/domain:opacity-100 dark:text-brand dark:group-hover/domain:opacity-50"
+            aria-hidden
+          />
+        </a>
         <LifecycleBadge status={d.status} />
       </span>
     ),
@@ -452,7 +499,7 @@ const COLUMNS: Column[] = [
         >
           <span>{fmtDate(d.expirationDate)}</span>
           {days !== null && (
-            <span className="text-xs opacity-60 max-sm:text-[11px]">
+            <span className="text-xs opacity-60 compact:text-[11px]">
               {relativeDays(days)}
             </span>
           )}
@@ -480,8 +527,8 @@ const COLUMNS: Column[] = [
       <FlagToggle
         domain={d}
         kind="privacy"
-        on={EyeOff}
-        off={Eye}
+        on={ShieldCheckFilled}
+        off={ShieldBan}
         onLabel="privacy on"
         offLabel="privacy off"
       />
@@ -498,8 +545,8 @@ const COLUMNS: Column[] = [
       <FlagToggle
         domain={d}
         kind="lock"
-        on={Lock}
-        off={LockOpen}
+        on={LockClosedIcon}
+        off={LockOpenIcon}
         onLabel="locked"
         offLabel="unlocked"
       />
@@ -530,18 +577,25 @@ function relativeDays(days: number): string {
 }
 
 /**
- * Urgency heat ramp for the expiry date: red (expired or ≤14 days) → orange
- * (≤30) → yellow (≤60, a heads-up) → normal. Muted when there's no date.
+ * Expiry text color. Upcoming expiries climb a warm ramp as they near — yellow
+ * (≤60, a heads-up) → orange (≤30) → red (≤14). Past expiries switch to the
+ * cool side so they can't be mistaken for a countdown: pink while the domain
+ * is likely still recoverable (most registrars' grace + redemption windows
+ * fall inside ~45 days), then a deep purple once it's probably gone. Muted
+ * when there's no date.
  */
 function expiryColor(days: number | null): string {
   if (days === null) return 'text-muted-foreground';
-  if (days <= 14) return 'text-red-600 dark:text-red-400';
-  if (days <= 30) return 'text-orange-600 dark:text-orange-400';
+  if (days < -RECOVERABLE_DAYS) return 'text-purple-900 dark:text-purple-500';
+  if (days <= 0) return 'text-pink-600 dark:text-pink-400';
+  if (days <= 14) return 'text-red-700 dark:text-red-500';
+  if (days <= 30) return 'text-orange-500 dark:text-orange-375';
   if (days <= 60) return 'text-yellow-600 dark:text-yellow-400';
   return 'text-foreground';
 }
 
-const PAGE_SIZES = [25, 50, 100, 250];
+/** Days past expiry within which a domain is usually still renewable. */
+const RECOVERABLE_DAYS = 45;
 
 /** Sentinel expiration value that keeps only already-expired domains. */
 const EXPIRED = 'expired';
@@ -689,9 +743,18 @@ export default function Domains() {
   const [expiry, setExpiry] = useState<string[]>([]);
   const [ns, setNs] = useState<string[]>([]);
   const [folder, setFolder] = useState<string[]>([]);
-  const [sortKey, setSortKey] = useState('domainName');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [pageSize, setPageSize] = useState(50);
+  // Sort and page size open at the Settings → General defaults; changes made
+  // here last for this visit only.
+  const [sortKey, setSortKey] = useState(
+    () => usePreferences.getState().sortKey,
+  );
+  const [sortDir, setSortDir] = useState(
+    () => usePreferences.getState().sortDir,
+  );
+  const [pageSize, setPageSize] = useState(
+    () => usePreferences.getState().pageSize,
+  );
+  const density = usePreferences((s) => s.density);
   const [page, setPage] = useState(0);
   // Phones only: the filter chips collapse behind a "Filters" toggle (they're
   // always shown at sm+). Search and Reset stay visible.
@@ -1176,8 +1239,30 @@ export default function Domains() {
                 setPage(0);
               }}
               placeholder="Search domains…"
-              className="pl-8"
+              // Room on the right for the clear button below.
+              className="pr-8 pl-8"
             />
+            {/* Custom clear control in place of the native search-cancel
+                button (a blue ⓧ on macOS): a muted solid disc with the ✕ cut
+                out in the field's background, the same on every platform. */}
+            {search !== '' && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                title="Clear search"
+                onClick={() => {
+                  setSearch('');
+                  setPage(0);
+                }}
+                className="absolute top-1/2 right-2.5 -translate-y-1/2 rounded-full text-muted-foreground opacity-70 hover:opacity-100"
+              >
+                <CircleX
+                  className="size-4 [&>path]:stroke-background"
+                  fill="currentColor"
+                  strokeWidth={2.5}
+                />
+              </button>
+            )}
           </div>
 
           {/* Phones only: a toggle that collapses the filter chips (below) so the
@@ -1295,9 +1380,7 @@ export default function Domains() {
             <span
               className={cn(
                 'inline-flex items-center gap-1.5 text-sm sm:order-last',
-                exportNote.error
-                  ? 'text-destructive'
-                  : 'text-[#31613b] dark:text-[#7ac28d]',
+                exportNote.error ? 'text-destructive' : 'text-brand',
               )}
               role="status"
             >
@@ -1325,10 +1408,20 @@ export default function Domains() {
         />
 
         {/* Table */}
-        <div className="overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 max-sm:[&_td]:py-1">
-          {/* Slightly smaller body text on phones (headers keep their own
+        <div
+          className={cn(
+            // Row height is set by the cells' vertical padding around one line of
+            // text (icon buttons overlap into it with negative margins, so they
+            // don't drive it): 45px normal, ~36px compact. align-top keeps
+            // inline-level cell content (checkbox, switch, inline-flex spans)
+            // from adding baseline descent under the line box.
+            'overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 [&_td]:py-3 [&_td>*]:align-top compact:[&_td]:py-[9px]',
+            density === 'compact' && 'compact',
+          )}
+        >
+          {/* Slightly smaller body text when compact (headers keep their own
               sizes); cells with an explicit size opt down separately. */}
-          <Table className="max-sm:text-xs">
+          <Table className="compact:text-xs">
             <TableHeader>
               <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
                 {/* Checkbox column reads as part of the Domain column: no
@@ -1370,7 +1463,9 @@ export default function Domains() {
                           onClick={() => toggleSort(col.key)}
                           className={cn(
                             'inline-flex items-center gap-1 select-none hover:text-foreground',
-                            col.compact && 'gap-0.5',
+                            // The narrow flag columns: nudge label + chevron
+                            // right so the label sits visually over the icons.
+                            col.compact && 'gap-0.5 translate-x-0.5',
                             active && 'text-foreground',
                           )}
                         >
@@ -1380,7 +1475,7 @@ export default function Domains() {
                       </TableHead>
                       {/* Folder sits right after the domain name, before Registrar. */}
                       {i === 0 && (
-                        <TableHead className="pl-3 max-sm:pl-2">
+                        <TableHead className="pl-3 compact:pl-2">
                           <button
                             type="button"
                             onClick={() => toggleSort(FOLDER)}
@@ -1491,7 +1586,7 @@ export default function Domains() {
                           )}
                         </TableCell>
                         {i === 0 && (
-                          <TableCell className="p-0">
+                          <TableCell className="p-0!">
                             <FolderCell
                               folders={folders}
                               folderId={folderAssignments[key]}
