@@ -182,6 +182,13 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Search inputs draw their own clear control (see Domains search); hide the
+     native one, which is a blue ⓧ on macOS and varies by platform. */
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+  }
   /* Tailwind v4's Preflight resets buttons to `cursor: default` (matching the
    * browser default), which drops the finger pointer web users expect on
    * clickable controls. Restore it for enabled buttons and role="button". */

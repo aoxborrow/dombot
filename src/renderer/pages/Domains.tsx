@@ -16,6 +16,7 @@ import {
   ChevronsRight,
   ChevronsUpDown,
   CircleCheck,
+  CircleX,
   ExternalLink,
   Globe,
   Plug,
@@ -1238,8 +1239,30 @@ export default function Domains() {
                 setPage(0);
               }}
               placeholder="Search domains…"
-              className="pl-8"
+              // Room on the right for the clear button below.
+              className="pr-8 pl-8"
             />
+            {/* Custom clear control in place of the native search-cancel
+                button (a blue ⓧ on macOS): a muted solid disc with the ✕ cut
+                out in the field's background, the same on every platform. */}
+            {search !== '' && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                title="Clear search"
+                onClick={() => {
+                  setSearch('');
+                  setPage(0);
+                }}
+                className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full text-muted-foreground/70 hover:text-muted-foreground"
+              >
+                <CircleX
+                  className="size-4 [&>path]:stroke-background"
+                  fill="currentColor"
+                  strokeWidth={2.5}
+                />
+              </button>
+            )}
           </div>
 
           {/* Phones only: a toggle that collapses the filter chips (below) so the
