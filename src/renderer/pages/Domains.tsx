@@ -17,11 +17,7 @@ import {
   ChevronsUpDown,
   CircleCheck,
   ExternalLink,
-  Eye,
-  EyeOff,
   Globe,
-  Lock,
-  LockOpen,
   Plug,
   Search,
   Server,
@@ -506,8 +502,6 @@ const COLUMNS: Column[] = [
       <FlagToggle
         domain={d}
         kind="privacy"
-        on={EyeOff}
-        off={Eye}
         onLabel="privacy on"
         offLabel="privacy off"
       />
@@ -521,14 +515,7 @@ const COLUMNS: Column[] = [
     compact: true,
     detail: true,
     render: (d) => (
-      <FlagToggle
-        domain={d}
-        kind="lock"
-        on={Lock}
-        off={LockOpen}
-        onLabel="locked"
-        offLabel="unlocked"
-      />
+      <FlagToggle domain={d} kind="lock" onLabel="locked" offLabel="unlocked" />
     ),
     sortValue: (d) => (d.locked ? 1 : 0),
   },
