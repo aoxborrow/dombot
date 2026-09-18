@@ -105,13 +105,13 @@ export function FlagToggle({
         // Same footprint and hover as the row's "⋯" ghost icon button.
         'mx-auto -my-2 flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent compact:size-7',
         pending && 'animate-pulse',
-        reason !== null && 'opacity-40',
+        reason !== null && 'opacity-60',
       )}
     >
       <Icon
         className={cn(
           'size-4',
-          value ? 'text-brand/85' : 'text-muted-foreground/50',
+          value ? 'text-brand/85' : 'text-muted-foreground',
         )}
       />
     </button>
