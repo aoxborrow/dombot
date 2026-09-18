@@ -32,10 +32,10 @@ import type {
   RenewalPricing,
 } from '../../shared/ipc';
 import {
-  EyeIcon,
   LockClosedIcon,
   LockOpenIcon,
   ShieldCheckIcon,
+  ShieldExclamationIcon,
 } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
@@ -382,7 +382,7 @@ function LifecycleBadge({ status }: { status: string }) {
  * immediately) and rolls back if the registrar rejects. Disabled, with the
  * reason as its tooltip, where the registrar can't toggle it post-registration
  * (Cloudflare), and while the write is in flight. Outcome is a toast. Brand
- * green when on, warning amber when off (matching the exposed-state glyphs
+ * green when on, warning orange when off (matching the exposed-state glyphs
  * in the Privacy and Locked columns).
  */
 function AutoRenewSwitch({ domain }: { domain: Domain }) {
@@ -412,7 +412,7 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
         reason ??
         `Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`
       }
-      className="data-[state=unchecked]:bg-amber-500 dark:data-[state=unchecked]:bg-amber-400"
+      className="data-[state=unchecked]:bg-orange-500 dark:data-[state=unchecked]:bg-orange-400"
     />
   );
 }
@@ -510,7 +510,7 @@ const COLUMNS: Column[] = [
         domain={d}
         kind="privacy"
         on={ShieldCheckIcon}
-        off={EyeIcon}
+        off={ShieldExclamationIcon}
         onLabel="privacy on"
         offLabel="privacy off"
       />
