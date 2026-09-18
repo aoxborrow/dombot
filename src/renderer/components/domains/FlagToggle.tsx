@@ -11,11 +11,13 @@ import { cn } from '@/lib/utils';
 import { ConfirmPopover } from '../ConfirmPopover';
 
 /**
- * A clickable on/off cell for the Privacy and Locked columns. Shows the `on`
- * icon (emphasized) when enabled, the muted `off` icon otherwise, and flips
- * the value at the registrar on click — optimistically, rolling back if the
- * registrar rejects. Disabled (with the reason as its tooltip) when the
- * registrar can't change the flag, and while a write is in flight.
+ * A clickable on/off cell for the Privacy and Locked columns. The glyph alone
+ * carries the state (`on` vs `off` icon, one muted shade for both, so the
+ * column reads as a quiet row of symbols rather than a scatter of colors), and
+ * a click flips the value at the registrar — optimistically, rolling back if
+ * the registrar rejects. When the registrar can't change the flag the cell
+ * looks the same but takes a not-allowed cursor and the reason as its tooltip;
+ * it's also disabled while a write is in flight.
  *
  * Privacy changes (either direction — turning it off exposes the WHOIS
  * contact, turning it on can be a purchase at some registrars) and unlocking
@@ -103,17 +105,11 @@ export function FlagToggle({
       onClick={needsConfirm ? undefined : apply}
       className={cn(
         // Same footprint and hover as the row's "⋯" ghost icon button.
-        'mx-auto -my-2 flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent compact:size-7',
-        pending && 'animate-pulse',
-        reason !== null && 'opacity-60',
+        'mx-auto -my-2 flex size-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground compact:size-7',
+        pending ? 'animate-pulse' : 'disabled:cursor-not-allowed',
       )}
     >
-      <Icon
-        className={cn(
-          'size-4',
-          value ? 'text-brand/85' : 'text-muted-foreground',
-        )}
-      />
+      <Icon className="size-4" />
     </button>
   );
 
