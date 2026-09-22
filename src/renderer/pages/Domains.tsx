@@ -1075,6 +1075,25 @@ export default function Domains() {
       filtered.map((d) => domainKey(d)),
       !allFilteredSelected,
     );
+  // The row whose checkbox was last clicked without Shift. Shift-click checks
+  // that row through the clicked one, in the current table order.
+  const selectionAnchor = useRef<string | null>(null);
+  const selectRow = (key: string, shift: boolean) => {
+    const anchor = selectionAnchor.current;
+    if (shift && anchor) {
+      const keys = filtered.map((d) => domainKey(d));
+      const from = keys.indexOf(anchor);
+      const to = keys.indexOf(key);
+      if (from !== -1 && to !== -1) {
+        const start = Math.min(from, to);
+        const end = Math.max(from, to);
+        setSelectedMany(keys.slice(start, end + 1), true);
+        return;
+      }
+    }
+    toggleSelected(key);
+    selectionAnchor.current = key;
+  };
   // The selected domains as merged rows, for the bulk bar and dialog.
   const selectedDomains = useMemo(
     () => merged.filter((d) => selected.has(domainKey(d))),
@@ -1542,7 +1561,18 @@ export default function Domains() {
                     <TableCell className="w-9 border-r-0! pl-3">
                       <Checkbox
                         checked={selected.has(key)}
-                        onCheckedChange={() => toggleSelected(key)}
+                        onMouseDown={(e) => {
+                          if (e.shiftKey) e.preventDefault();
+                        }}
+                        onClick={(e) => {
+                          if (!e.shiftKey) return;
+                          // Skip the checkbox's own toggle; the range is applied
+                          // below, and preventDefault keeps that toggle from
+                          // also firing.
+                          e.preventDefault();
+                          selectRow(key, true);
+                        }}
+                        onCheckedChange={() => selectRow(key, false)}
                         aria-label={`Select ${d.domainName}`}
                       />
                     </TableCell>
