@@ -1,4 +1,5 @@
 import { domainKey } from '../../shared/account-key';
+import { purchaseKey } from '../../shared/money';
 import { create } from 'zustand';
 import type {
   AppInfo,
@@ -8,7 +9,10 @@ import type {
   Domain,
   DomainOp,
   DomainOpResult,
+  DomainPurchase,
   DomainTarget,
+  PurchaseImportResult,
+  PurchaseInput,
   Folder,
   FolderInput,
   FolderPatch,
@@ -184,6 +188,16 @@ interface AppState {
   rememberNameservers: (nameservers: string[]) => Promise<void>;
   /** Turn the embedded MCP server on or off; applied live in main. */
   setMcpEnabled: (enabled: boolean) => Promise<void>;
+  /** Save the preferred currency and the on-screen number format. */
+  saveMoneySettings: (
+    patch: Pick<AppSettings, 'preferredCurrency' | 'numberFormat'>,
+  ) => Promise<void>;
+
+  /** Purchase records keyed by normalized domain name. */
+  purchases: Record<string, DomainPurchase>;
+  loadPurchases: () => Promise<void>;
+  savePurchase: (input: PurchaseInput) => Promise<void>;
+  importPurchases: (rows: PurchaseInput[]) => Promise<PurchaseImportResult>;
 
   // Row selection for bulk actions, keyed `${registrar}:${domainName}`. Lives
   // here (not in the page) so it survives tab switches; pruned when the
@@ -617,6 +631,29 @@ export const useAppStore = create<AppState>((set, get) => ({
       autoSyncIntervalMinutes: minutes,
     });
     set({ settings });
+  },
+  saveMoneySettings: async (patch) => {
+    const settings = await window.api.updateSettings(patch);
+    set({ settings });
+  },
+  purchases: {},
+  loadPurchases: async () => {
+    set({ purchases: await window.api.getPurchases() });
+  },
+  savePurchase: async (input) => {
+    const saved = await window.api.setPurchase(input);
+    const key = purchaseKey(input.domainName);
+    set((state) => {
+      const purchases = { ...state.purchases };
+      if (saved) purchases[key] = saved;
+      else delete purchases[key];
+      return { purchases };
+    });
+  },
+  importPurchases: async (rows) => {
+    const result = await window.api.importPurchases(rows);
+    set({ purchases: await window.api.getPurchases() });
+    return result;
   },
   setMcpEnabled: async (enabled) => {
     const settings = await window.api.updateSettings({ mcpEnabled: enabled });

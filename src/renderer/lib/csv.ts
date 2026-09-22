@@ -3,7 +3,13 @@ import { domainKey } from '../../shared/account-key';
 // Builds the Domains-page CSV export. Kept separate from the page component so
 // the column model and formatting are easy to read and test in isolation.
 
-import { ARCHIVE_FOLDER_ID, type Domain, type Folder } from '../../shared/ipc';
+import {
+  ARCHIVE_FOLDER_ID,
+  type Domain,
+  type DomainPurchase,
+  type Folder,
+} from '../../shared/ipc';
+import { purchaseKey } from '../../shared/money';
 
 /** id → nicely capitalized registrar name, e.g. dynadot → "Dynadot". */
 type RegistrarLabels = Record<string, string>;
@@ -97,6 +103,7 @@ export function domainsToCsv(
   labels: RegistrarLabels,
   folders: Folder[],
   assignments: Record<string, string>,
+  purchases: Record<string, DomainPurchase> = {},
 ): string {
   const nameById = new Map(folders.map((f) => [f.id, f.name]));
   // The assigned folder's name, "Archive" for the built-in archive folder, or
@@ -107,12 +114,28 @@ export function domainsToCsv(
     return nameById.get(id ?? '') ?? '';
   };
 
-  const rows: string[] = [CSV_COLUMNS.map((c) => csvField(c.header)).join(',')];
+  const purchaseOf = (d: Domain) => purchases[purchaseKey(d.domainName)];
+  const columns: CsvColumn[] = [
+    ...CSV_COLUMNS,
+    {
+      header: 'Purchase date',
+      value: (d) => purchaseOf(d)?.purchaseDate ?? '',
+    },
+    {
+      header: 'Purchase amount',
+      numeric: true,
+      value: (d) => purchaseOf(d)?.amount ?? '',
+    },
+    { header: 'Currency', value: (d) => purchaseOf(d)?.currency ?? '' },
+    { header: 'Notes', value: (d) => purchaseOf(d)?.notes ?? '' },
+  ];
+
+  const rows: string[] = [columns.map((c) => csvField(c.header)).join(',')];
   for (const d of domains) {
     rows.push(
-      CSV_COLUMNS.map((c) =>
-        csvField(c.value(d, labels, folderName), c.numeric),
-      ).join(','),
+      columns
+        .map((c) => csvField(c.value(d, labels, folderName), c.numeric))
+        .join(','),
     );
   }
   return rows.join('\r\n');

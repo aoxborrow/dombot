@@ -55,6 +55,8 @@ export default function App() {
     (s) => s.applyPortfolioCacheUpdate,
   );
   const loadFolders = useAppStore((s) => s.loadFolders);
+  const loadSettings = useAppStore((s) => s.loadSettings);
+  const loadPurchases = useAppStore((s) => s.loadPurchases);
   const attachBulk = useAppStore((s) => s.attachBulk);
   const applyBulkProgress = useAppStore((s) => s.applyBulkProgress);
   const applyBulkFinished = useAppStore((s) => s.applyBulkFinished);
@@ -71,7 +73,9 @@ export default function App() {
   // cache hydration, so the Domains table paints folder chips immediately.
   useEffect(() => {
     void loadFolders();
-  }, [loadFolders]);
+    void loadSettings();
+    void loadPurchases();
+  }, [loadFolders, loadSettings, loadPurchases]);
 
   // An MCP tool write mutates the on-disk cache out of band; re-read it and
   // overlay the change so an open Domains table updates live, without a Sync.

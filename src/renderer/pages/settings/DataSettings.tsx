@@ -26,6 +26,7 @@ import {
 } from '../../../shared/bundle-seal';
 import { isDemo } from '../../lib/platform';
 import { useAppStore } from '../../store/app';
+import { ImportPurchasesButton } from '../../components/domains/ImportPurchasesButton';
 import { SettingsCard } from './SettingsCard';
 
 /** Auto-sync interval choices (minutes). `0` disables the background sync. */
@@ -252,8 +253,13 @@ function DataBundleCard() {
 
       <div className="flex flex-col gap-3 border-t pt-5">
         <p className="text-sm text-muted-foreground">
-          Import a DomBot data file. This <b>replaces</b> everything stored here
-          with the file&apos;s contents.
+          Import replaces everything stored here with this file: registrar keys,
+          the saved domain list, folders, prices, purchase records, settings,
+          and MCP pairings. It does not contact your registrars. The next Sync
+          does. Names in the file that an account no longer has will leave the
+          list then, and names an account has that the file does not will
+          appear. Purchase records are kept either way, including for names
+          that are not in the list.
         </p>
         <div>
           <input
@@ -274,6 +280,21 @@ function DataBundleCard() {
             Import data…
           </Button>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-3 border-t pt-5">
+        <p className="text-sm text-muted-foreground">
+          Import a spreadsheet of purchase fields only. Columns: Domain,
+          Purchase date, Purchase amount, Currency, Notes. This does not
+          replace your registrar keys or domain list. A row with those purchase
+          cells blank is left alone. A name that is not in the list still keeps
+          its purchase record.
+        </p>
+        <ImportPurchasesButton
+          onResult={(text, error) =>
+            error ? toast.error(text) : toast.success(text)
+          }
+        />
       </div>
 
       <Dialog

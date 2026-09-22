@@ -84,6 +84,8 @@ export const appSettingsPatch = z
     autoSyncIntervalMinutes: z.number(),
     recentNameservers: z.array(z.array(z.string())),
     mcpEnabled: z.boolean(),
+    preferredCurrency: z.string(),
+    numberFormat: z.enum(['us', 'eu-dot', 'fr', 'si', 'ch', 'ch-comma']),
   })
   .partial()
   .strict();
@@ -95,3 +97,16 @@ export const credentialValues = z.record(z.string(), z.string());
 export const domainKey = z.string().trim().min(3).max(300);
 
 export const uuid = z.string().uuid();
+
+/** One domain's purchase date, amount, currency, and notes. */
+export const purchaseInput = z
+  .object({
+    domainName: z.string().trim().min(1).max(253),
+    purchaseDate: z.string().nullable(),
+    amount: z.string().nullable(),
+    currency: z.string().nullable(),
+    notes: z.string().max(4000),
+  })
+  .strict();
+
+export const purchaseImport = z.array(purchaseInput).max(10000);

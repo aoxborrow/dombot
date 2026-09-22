@@ -51,6 +51,12 @@ import { FolderOffIcon } from '../components/icons/FolderOffIcon';
 import { FolderMenuItems } from '../components/domains/FolderMenuItems';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
+import { purchaseColumns } from '../components/domains/purchase-columns';
+import { PurchaseDialog } from '../components/domains/PurchaseDialog';
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_NUMBER_FORMAT,
+} from '../../shared/money';
 import { NameserversCell } from '../components/domains/NameserversCell';
 import { AuthCodeDialog } from '../components/domains/AuthCodeDialog';
 import { RenewDialog } from '../components/domains/RenewDialog';
@@ -652,12 +658,15 @@ export default function Domains() {
     setSelectedMany,
     clearSelection,
     bulk,
+    purchases,
+    settings,
   } = useAppStore();
 
   const multipleAccounts = useMemo(
     () => multiAccountRegistrars(registrars, portfolio),
     [registrars, portfolio],
   );
+  const [purchaseFor, setPurchaseFor] = useState<Domain | null>(null);
   // The Registrar column carries the account too: a nickname always shows in
   // parens; an unnamed account shows its number only when the registrar has
   // siblings to tell apart. `null` from accountNumber() means a real nickname.
@@ -667,7 +676,7 @@ export default function Domains() {
       if (n === null) return label ?? '';
       return multipleAccounts.has(registrar) ? `#${n}` : '';
     };
-    return COLUMNS.map((c) =>
+    const base = COLUMNS.map((c) =>
       c.key === 'registrar'
         ? {
             ...c,
@@ -698,7 +707,16 @@ export default function Domains() {
           }
         : c,
     );
-  }, [multipleAccounts]);
+    const purchasedAt = base.findIndex((c) => c.key === 'createdDate');
+    const extra = purchaseColumns({
+      purchases,
+      preferredCurrency: settings?.preferredCurrency ?? DEFAULT_CURRENCY,
+      numberFormat: settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+      onEdit: setPurchaseFor,
+    });
+    base.splice(purchasedAt + 1, 0, ...extra);
+    return base;
+  }, [multipleAccounts, purchases, settings]);
 
   const navigate = useNavigate();
   // Pricing is computed locally in main and arrives with the portfolio; the only
@@ -1155,6 +1173,7 @@ export default function Domains() {
         portfolioRegistrarLabels,
         folders,
         folderAssignments,
+        purchases,
       );
       const result = await window.api.saveTextFile(csv, csvFilename());
       if (!result.saved) return; // user cancelled the dialog
@@ -1574,6 +1593,7 @@ export default function Domains() {
                                 }
                                 onAuthCode={() => setAuthCodeFor(d)}
                                 onRenew={() => setRenewFor(d)}
+                                onEditPurchase={() => setPurchaseFor(d)}
                                 onAssignFolder={(folderId) =>
                                   void assignFolder(key, folderId)
                                 }
@@ -1751,6 +1771,12 @@ export default function Domains() {
           domains={selectedDomains}
           jobId={bulkDialog.jobId}
           onClose={() => setBulkDialog(null)}
+        />
+      )}
+      {purchaseFor && (
+        <PurchaseDialog
+          domain={purchaseFor}
+          onClose={() => setPurchaseFor(null)}
         />
       )}
       {renewFor && (
