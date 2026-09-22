@@ -137,8 +137,22 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.updateSettings, patch),
   getPurchases: () => ipcRenderer.invoke(IpcChannels.getPurchases),
   setPurchase: (input) => ipcRenderer.invoke(IpcChannels.setPurchase, input),
+  setSale: (input) => ipcRenderer.invoke(IpcChannels.setSale, input),
   importPurchases: (rows) =>
     ipcRenderer.invoke(IpcChannels.importPurchases, rows),
+  getPortfolioChanges: () =>
+    ipcRenderer.invoke(IpcChannels.getPortfolioChanges),
+  resolvePortfolioChange: (id, resolution) =>
+    ipcRenderer.invoke(IpcChannels.resolvePortfolioChange, id, resolution),
+  lookupRegistrations: (domainNames) =>
+    ipcRenderer.invoke(IpcChannels.lookupRegistrations, domainNames),
+  getRegistrationQuote: (registrar, domainName, accountId) =>
+    ipcRenderer.invoke(
+      IpcChannels.getRegistrationQuote,
+      registrar,
+      domainName,
+      accountId,
+    ),
 
   // Events (polling)
   getRevisions: () => ipcRenderer.invoke(IpcChannels.getRevisions),

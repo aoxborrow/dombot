@@ -239,12 +239,15 @@ export function parseLocalizedAmount(
   return parseCanonicalAmount(s, currency);
 }
 
-/** Calendar date `YYYY-MM-DD`, or null when blank. */
-export function parsePurchaseDate(raw: string): string | null {
+/** Calendar date `YYYY-MM-DD`, or null when blank. `label` is the field name in errors. */
+export function parsePurchaseDate(
+  raw: string,
+  label = 'Purchase date',
+): string | null {
   const s = raw.trim();
   if (!s) return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!m) throw new Error('Purchase date must be YYYY-MM-DD.');
+  if (!m) throw new Error(`${label} must be YYYY-MM-DD.`);
   const year = Number(m[1]);
   const month = Number(m[2]);
   const day = Number(m[3]);
@@ -254,7 +257,7 @@ export function parsePurchaseDate(raw: string): string | null {
     dt.getUTCMonth() !== month - 1 ||
     dt.getUTCDate() !== day
   ) {
-    throw new Error('Purchase date is not a real calendar day.');
+    throw new Error(`${label} is not a real calendar day.`);
   }
   return s;
 }

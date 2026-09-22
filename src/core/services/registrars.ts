@@ -22,6 +22,9 @@ import {
   removeAccountRecord,
 } from './accounts';
 import { domainKey } from '../../shared/account-key';
+import { currencyInfo } from '../../shared/money';
+import type { AccountHoldings } from '../../shared/portfolio-changes';
+import { recordPortfolioDiff } from './portfolio-changes';
 import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { createProxiedRegistrar } from './proxy-transport';
@@ -228,6 +231,29 @@ function requireActive(account: RegistrarAccount): void {
     throw new Error(
       `Missing credentials for "${account.label}" (configure in Settings).`,
     );
+}
+
+/**
+ * The registrar's own registration fee for this name, from `getPricing`.
+ * Null when the registrar doesn't return one. The amount is a plain decimal
+ * string in that currency.
+ */
+export async function getRegistrationQuote(
+  name: RegistrarName,
+  domainName: string,
+  accountId?: string,
+): Promise<{ amount: string | null; currency: string }> {
+  const account = resolveAccount(name, accountId);
+  const pricing = await getRegistrarClient(name, account.id).getPricing(
+    domainName,
+  );
+  const code = currencyInfo(pricing.currency ?? 'USD')?.code ?? 'USD';
+  const decimals = currencyInfo(code)?.decimals ?? 2;
+  const registration = pricing.registration;
+  if (typeof registration !== 'number' || !Number.isFinite(registration) || registration < 0) {
+    return { amount: null, currency: code };
+  }
+  return { amount: registration.toFixed(decimals), currency: code };
 }
 
 export function getRegistrarClient(
@@ -581,6 +607,51 @@ function writeRenewalQuote(
   writeEntry('detail', key, { ...existing, renewalQuote: quote });
 }
 
+/** Domain names currently cached for one account. `synced` is true only after
+ * a successful pull in this batch — a failure keeps the old list and is not a
+ * baseline and not a diff. */
+function holdingsOf(
+  account: RegistrarAccount,
+  synced: boolean,
+): AccountHoldings {
+  const entry = readRegistrarEntry(account.id);
+  return {
+    accountId: account.id,
+    registrar: account.registrar,
+    label: account.label,
+    names: (entry?.domains ?? []).map((domain) => domain.domainName),
+    synced:
+      synced &&
+      entry != null &&
+      entry.lastError == null &&
+      entry.lastSyncedAt != null,
+  };
+}
+
+/** Pull these accounts, then record arrivals, departures, and moves. */
+async function syncAccounts(accounts: RegistrarAccount[]): Promise<void> {
+  const before = getActiveAccounts().map((account) =>
+    holdingsOf(account, false),
+  );
+  await Promise.all(accounts.map((account) => syncRegistrarInto(account)));
+  const attempted = new Set(accounts.map((account) => account.id));
+  const after = getActiveAccounts().map((account) =>
+    holdingsOf(account, attempted.has(account.id)),
+  );
+  try {
+    recordPortfolioDiff(before, after);
+  } catch (err) {
+    console.error('[portfolio-changes] diff failed', err);
+  }
+}
+
+/** Account ids whose cached portfolio came from a successful sync. */
+export function cachedSyncedAccountIds(): string[] {
+  return getActiveAccounts()
+    .filter((account) => holdingsOf(account, true).synced)
+    .map((account) => account.id);
+}
+
 /**
  * The aggregated portfolio across every configured registrar, cache-backed.
  *
@@ -593,7 +664,7 @@ export async function getPortfolio(refresh = true): Promise<Portfolio> {
   if (refresh) {
     // Only sync enabled registrars — a disabled one keeps its credentials but is
     // deliberately skipped.
-    await Promise.all(getActiveAccounts().map(syncRegistrarInto));
+    await syncAccounts(getActiveAccounts());
   }
   return assemblePortfolio();
 }
@@ -612,7 +683,7 @@ export async function syncRegistrar(
     // A configured account keeps its cached slice even while disabled — the
     // portfolio just hides it (see setRegistrarEnabledCached, which never
     // clears). Only sync when it's actually enabled.
-    if (isRegistrarEnabled(account.id)) await syncRegistrarInto(account);
+    if (isRegistrarEnabled(account.id)) await syncAccounts([account]);
   } else {
     // Credentials are gone — drop the stale slice so it can't reappear.
     clearRegistrarData(account.id);
@@ -628,8 +699,7 @@ export async function setRegistrarEnabledCached(
   const account = resolveAccount(name, accountId);
   invalidateAccount(account.id);
   setRegistrarEnabled(account.id, enabled);
-  if (enabled && isConfigured(name, account.id))
-    await syncRegistrarInto(account);
+  if (enabled && isConfigured(name, account.id)) await syncAccounts([account]);
   return assemblePortfolio();
 }
 

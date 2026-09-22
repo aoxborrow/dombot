@@ -11,8 +11,12 @@ import type {
   DomainOpResult,
   DomainPurchase,
   DomainTarget,
+  PortfolioChange,
+  PortfolioChangeResolution,
   PurchaseImportResult,
   PurchaseInput,
+  RegistrationLookup,
+  SaleInput,
   Folder,
   FolderInput,
   FolderPatch,
@@ -197,7 +201,20 @@ interface AppState {
   purchases: Record<string, DomainPurchase>;
   loadPurchases: () => Promise<void>;
   savePurchase: (input: PurchaseInput) => Promise<void>;
+  saveSale: (input: SaleInput) => Promise<void>;
   importPurchases: (rows: PurchaseInput[]) => Promise<PurchaseImportResult>;
+
+  /** Public registration for names on History, keyed by domain name. */
+  registrationLookups: Record<string, RegistrationLookup>;
+  loadRegistrationLookups: (domainNames: string[]) => Promise<void>;
+
+  /** Portfolio add / remove / move history. Unresolved rows are the alerts. */
+  portfolioChanges: PortfolioChange[];
+  loadPortfolioChanges: () => Promise<void>;
+  resolvePortfolioChange: (
+    id: string,
+    resolution: Exclude<PortfolioChangeResolution, 'returned'>,
+  ) => Promise<void>;
 
   // Row selection for bulk actions, keyed `${registrar}:${domainName}`. Lives
   // here (not in the page) so it survives tab switches; pruned when the
@@ -277,6 +294,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     // registrar's just-synced renewal prices show (local, no network).
     await get().loadRegistrars();
     await get().loadPricing();
+    await get().loadPortfolioChanges();
+    await get().loadFolders();
     const meta = get().registrars?.find(
       (r) => r.name === name && (!accountId || r.accountId === accountId),
     );
@@ -304,6 +323,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     // status bar, and re-read pricing for the updated portfolio.
     await get().loadRegistrars();
     await get().loadPricing();
+    await get().loadPortfolioChanges();
+    await get().loadFolders();
   },
 
   hydrateFromCache: async () => {
@@ -372,6 +393,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         enriched,
       };
     });
+    await get().loadPortfolioChanges();
+    await get().loadFolders();
   },
 
   clearAllCaches: async () => {
@@ -424,6 +447,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       // prices are computed locally in main (no network).
       void get().loadRegistrars();
       void get().loadPricing();
+      void get().loadPortfolioChanges();
+      void get().loadFolders();
     } catch (err) {
       set({
         portfolioLoading: false,
@@ -481,6 +506,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   enrichVisible: async (domains, force = false) => {
     const todo = domains.filter((d) => {
       const key = domainKey(d);
+      // A name that already left the registrar has nothing to refresh.
+      if (d.departed) return false;
       // A forced refresh re-fetches on-screen rows regardless of prior state,
       // skipping only ones already in flight.
       if (force) return !enrichInFlight.has(key);
@@ -650,10 +677,40 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { purchases };
     });
   },
+  saveSale: async (input) => {
+    const saved = await window.api.setSale(input);
+    const key = purchaseKey(input.domainName);
+    set((state) => {
+      const purchases = { ...state.purchases };
+      if (saved) purchases[key] = saved;
+      else delete purchases[key];
+      return { purchases };
+    });
+  },
   importPurchases: async (rows) => {
     const result = await window.api.importPurchases(rows);
     set({ purchases: await window.api.getPurchases() });
     return result;
+  },
+  registrationLookups: {},
+  loadRegistrationLookups: async (domainNames) => {
+    if (domainNames.length === 0) return;
+    const found = await window.api.lookupRegistrations(domainNames);
+    set((state) => ({
+      registrationLookups: { ...state.registrationLookups, ...found },
+    }));
+  },
+  portfolioChanges: [],
+  loadPortfolioChanges: async () => {
+    set({ portfolioChanges: await window.api.getPortfolioChanges() });
+  },
+  resolvePortfolioChange: async (id, resolution) => {
+    const portfolioChanges = await window.api.resolvePortfolioChange(
+      id,
+      resolution,
+    );
+    set({ portfolioChanges });
+    await get().loadFolders();
   },
   setMcpEnabled: async (enabled) => {
     const settings = await window.api.updateSettings({ mcpEnabled: enabled });

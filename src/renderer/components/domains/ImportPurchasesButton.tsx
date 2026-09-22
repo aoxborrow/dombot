@@ -1,13 +1,16 @@
 import { useRef } from 'react';
-import { Upload } from 'lucide-react';
-import { parsePurchaseCsv } from '../../../shared/purchase-csv';
+import { Download, Upload } from 'lucide-react';
+import {
+  parsePurchaseCsv,
+  purchaseCsvSample,
+} from '../../../shared/purchase-csv';
 import { DEFAULT_CURRENCY } from '../../../shared/money';
 import { useAppStore } from '../../store/app';
 import { Button } from '@/components/ui/button';
 
 /**
- * Import a CSV of purchase fields. Columns match Domains → Export. Rows with
- * every purchase cell blank are skipped.
+ * Import a CSV of purchase fields, and download a sample with three rows
+ * that show how to fill the date, amount, currency, and notes.
  */
 export function ImportPurchasesButton({
   onResult,
@@ -42,8 +45,29 @@ export function ImportPurchasesButton({
     }
   }
 
+  async function onSample() {
+    try {
+      const result = await window.api.saveTextFile(
+        purchaseCsvSample(),
+        'dombot-purchases-sample.csv',
+      );
+      if (result.saved) onResult('Sample CSV downloaded.', false);
+    } catch (err) {
+      onResult(err instanceof Error ? err.message : 'Download failed', true);
+    }
+  }
+
   return (
-    <>
+    <div className="flex flex-wrap gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        className="gap-2"
+        onClick={() => void onSample()}
+      >
+        <Download className="size-4" />
+        Download sample CSV
+      </Button>
       <input
         ref={inputRef}
         type="file"
@@ -64,8 +88,8 @@ export function ImportPurchasesButton({
         onClick={() => inputRef.current?.click()}
       >
         <Upload className="size-4" />
-        Import purchases
+        Import purchase data
       </Button>
-    </>
+    </div>
   );
 }

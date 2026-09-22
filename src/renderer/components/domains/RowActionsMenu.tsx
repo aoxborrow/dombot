@@ -8,7 +8,7 @@ import {
   Receipt,
   RefreshCw,
 } from 'lucide-react';
-import type { Domain, Folder } from '../../../shared/ipc';
+import { SOLD_FOLDER_ID, type Domain, type Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { useOpUnsupportedReason } from '../../lib/domain-ops';
 import { FolderIcon } from '../icons/FolderIcon';
@@ -43,6 +43,7 @@ export function RowActionsMenu({
   onAuthCode,
   onRenew,
   onEditPurchase,
+  onEditSale,
   onAssignFolder,
 }: {
   domain: Domain;
@@ -54,6 +55,7 @@ export function RowActionsMenu({
   onAuthCode: () => void;
   onRenew: () => void;
   onEditPurchase: () => void;
+  onEditSale: () => void;
   onAssignFolder: (folderId: string | null) => void;
 }) {
   const key = domainKey(domain);
@@ -89,11 +91,15 @@ export function RowActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem onSelect={onRefresh}>
-          <RefreshCw className="text-muted-foreground" />
-          Refresh
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
+        {!domain.departed && (
+          <>
+            <DropdownMenuItem onSelect={onRefresh}>
+              <RefreshCw className="text-muted-foreground" />
+              Refresh
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <FolderIcon className="text-muted-foreground" />
@@ -112,40 +118,50 @@ export function RowActionsMenu({
           <Receipt className="text-muted-foreground" />
           Purchase & notes
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          disabled={urlReason !== null}
-          title={urlReason ?? undefined}
-          onSelect={onUrlForwarding}
-        >
-          <Link2 className="text-muted-foreground" />
-          URL forwarding<span className="-ml-[6px] opacity-50">…</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={emailReason !== null}
-          title={emailReason ?? undefined}
-          onSelect={onEmailForwarding}
-        >
-          <Mail className="text-muted-foreground" />
-          Email forwarding<span className="-ml-[6px] opacity-50">…</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          disabled={renewReason !== null}
-          title={renewReason ?? undefined}
-          onSelect={onRenew}
-        >
-          <CalendarPlus className="text-muted-foreground" />
-          Renew<span className="-ml-[6px] opacity-50">…</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={authReason !== null}
-          title={authReason ?? undefined}
-          onSelect={onAuthCode}
-        >
-          <KeyRound className="text-muted-foreground" />
-          Get auth code<span className="-ml-[6px] opacity-50">…</span>
-        </DropdownMenuItem>
+        {folderId === SOLD_FOLDER_ID && (
+          <DropdownMenuItem onSelect={onEditSale}>
+            <Receipt className="text-muted-foreground" />
+            Sale & notes
+          </DropdownMenuItem>
+        )}
+        {!domain.departed && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={urlReason !== null}
+              title={urlReason ?? undefined}
+              onSelect={onUrlForwarding}
+            >
+              <Link2 className="text-muted-foreground" />
+              URL forwarding<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={emailReason !== null}
+              title={emailReason ?? undefined}
+              onSelect={onEmailForwarding}
+            >
+              <Mail className="text-muted-foreground" />
+              Email forwarding<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={renewReason !== null}
+              title={renewReason ?? undefined}
+              onSelect={onRenew}
+            >
+              <CalendarPlus className="text-muted-foreground" />
+              Renew<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={authReason !== null}
+              title={authReason ?? undefined}
+              onSelect={onAuthCode}
+            >
+              <KeyRound className="text-muted-foreground" />
+              Get auth code<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

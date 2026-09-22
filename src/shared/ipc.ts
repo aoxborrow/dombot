@@ -14,6 +14,12 @@ import type {
   RegistrarName,
 } from '@aoxborrow/registrar-client';
 import type { NumberFormatId } from './money';
+import type {
+  PortfolioChange,
+  PortfolioChangeResolution,
+} from './portfolio-changes';
+
+export type { PortfolioChange, PortfolioChangeResolution };
 
 /** Account identity is supplied by Dombot, never by a registrar response. */
 export interface RegistrarAccount {
@@ -26,6 +32,20 @@ export interface RegistrarAccount {
 export type Domain = ProviderDomain & {
   accountId?: string;
   accountLabel?: string;
+  /**
+   * Set on a row DomBot kept after the name left the registrar (Sold, Dropped,
+   * or Archive). It is not at the registrar, so registrar actions do not apply.
+   */
+  departed?: boolean;
+  /**
+   * Public registration lookup is still in flight. History shows a skeleton
+   * for registrar, created, and expires until it lands.
+   */
+  registrationPending?: boolean;
+  /** RDAP says nobody holds the name. Those three cells are a dash. */
+  unregistered?: boolean;
+  /** Current registrar from RDAP, which may not be an account of yours. */
+  registrationRegistrar?: string;
 };
 
 /** The one proxy the app manages, and the saved accounts routed through it. */
@@ -97,7 +117,12 @@ export const IpcChannels = {
   updateSettings: 'settings:update',
   getPurchases: 'purchases:list',
   setPurchase: 'purchases:set',
+  setSale: 'purchases:setSale',
   importPurchases: 'purchases:import',
+  getPortfolioChanges: 'portfolioChanges:list',
+  resolvePortfolioChange: 'portfolioChanges:resolve',
+  getRegistrationQuote: 'pricing:registrationQuote',
+  lookupRegistrations: 'registration:lookup',
   getRevisions: 'events:getRevisions',
 } as const;
 
@@ -204,18 +229,56 @@ export interface AppSettings {
   numberFormat: NumberFormatId;
 }
 
-/** What you paid for a domain name. Amount is a plain decimal, or null. */
+/** The registrar's registration fee for one name. `amount` is null when unknown. */
+export interface RegistrationQuote {
+  amount: string | null;
+  currency: string;
+}
+
+/**
+ * Public registration record for a name you no longer hold. Refreshed from
+ * RDAP so created and expires stay current. `registered: false` means the
+ * name is free.
+ */
+export interface RegistrationLookup {
+  registered: boolean;
+  registrar: string | null;
+  /** ISO timestamp, or null. */
+  created: string | null;
+  expires: string | null;
+  checkedAt: string;
+}
+
+/**
+ * Money and notes for one domain name. Purchase fields are what you paid.
+ * Sale fields are what you got when you marked it Sold. Notes are one box
+ * for the name, shared by both. Amounts are plain decimals, or null.
+ * A sale is stored here even though no column lists it yet.
+ */
 export interface DomainPurchase {
   purchaseDate: string | null;
   amount: string | null;
   currency: string | null;
   notes: string;
+  /** Absent on records saved before a sale could be stored. */
+  saleDate?: string | null;
+  saleAmount?: string | null;
+  saleCurrency?: string | null;
 }
 
 /** One purchase record to save or import. `domainName` is not stored on the record. */
 export interface PurchaseInput {
   domainName: string;
   purchaseDate: string | null;
+  amount: string | null;
+  currency: string | null;
+  notes: string;
+}
+
+/** Sale date, sale amount, and the shared notes field. Does not change what you paid. */
+export interface SaleInput {
+  domainName: string;
+  saleDate: string | null;
   amount: string | null;
   currency: string | null;
   notes: string;
@@ -533,6 +596,29 @@ export const FOLDER_COLORS: FolderColor[] = [
 export const ARCHIVE_FOLDER_ID = '__archive__';
 
 /**
+ * Built-in folders for names the user used to own. Sold: they sold it.
+ * Dropped: they let it go. Same hiding rule as Archive — absent from the
+ * usual list until that folder is selected. Not stored in the folder list.
+ */
+export const SOLD_FOLDER_ID = '__sold__';
+export const DROPPED_FOLDER_ID = '__dropped__';
+
+/** Label for Archive, Sold, or Dropped. Null for a user folder or no folder. */
+export function builtInFolderName(
+  id: string | null | undefined,
+): string | null {
+  if (id === ARCHIVE_FOLDER_ID) return 'Archive';
+  if (id === SOLD_FOLDER_ID) return 'Sold';
+  if (id === DROPPED_FOLDER_ID) return 'Dropped';
+  return null;
+}
+
+/** Archive, Sold, and Dropped stay out of the usual domain list. */
+export function isHiddenFolder(id: string | null | undefined): boolean {
+  return builtInFolderName(id) !== null;
+}
+
+/**
  * Future per-folder configuration that cascades to the folder's domains. Kept
  * as an optional bag so new keys are purely additive; empty/absent today. The
  * motivating case is `forSale` — not yet acted on anywhere.
@@ -768,10 +854,37 @@ export interface DombotApi {
   // Purchase records (keyed by domain name; not cleared by Sync or Clear cache)
   /** Every saved purchase record, keyed by the normalized domain name. */
   getPurchases: () => Promise<Record<string, DomainPurchase>>;
-  /** Save one name's purchase fields. Null deletes the record (all fields empty). */
+  /** Save one name's purchase fields. Null deletes the record (all fields empty). Keeps any sale already stored. */
   setPurchase: (input: PurchaseInput) => Promise<DomainPurchase | null>;
+  /** Save what a sold name went for, and the shared notes. Keeps what you paid. */
+  setSale: (input: SaleInput) => Promise<DomainPurchase | null>;
   /** Upsert many purchase rows. A bad row is reported; the rest still save. */
   importPurchases: (rows: PurchaseInput[]) => Promise<PurchaseImportResult>;
+
+  /** Every portfolio add, remove, and move. History is never deleted. */
+  getPortfolioChanges: () => Promise<PortfolioChange[]>;
+  /**
+   * Close one alert. A removal dismissed this way is filed in Archive.
+   * Sold and Dropped file the name in those folders. A move or an arrival
+   * only accepts `dismissed`.
+   */
+  resolvePortfolioChange: (
+    id: string,
+    resolution: Exclude<PortfolioChangeResolution, 'returned'>,
+  ) => Promise<PortfolioChange[]>;
+  /** This registrar's registration fee for a name that just arrived. */
+  getRegistrationQuote: (
+    registrar: RegistrarName,
+    domainName: string,
+    accountId?: string,
+  ) => Promise<RegistrationQuote>;
+  /**
+   * Current public registration for names on History. Cached for a day.
+   * A name missing from the result could not be looked up.
+   */
+  lookupRegistrations: (
+    domainNames: string[],
+  ) => Promise<Record<string, RegistrationLookup>>;
 
   // Events (polling)
   /** Current change counters — see `Revisions`. */

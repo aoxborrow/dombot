@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Domain } from '../../../shared/ipc';
+import type { Domain, RegistrarName } from '../../../shared/ipc';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
@@ -23,17 +23,40 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { CurrencyPicker } from './CurrencyPicker';
+import {
+  NOTES_MAX,
+  NotesLimit,
+  notesNearLimit,
+  notesTextareaClass,
+} from './NotesLimit';
 
 /**
  * Edit the purchase date, amount, and notes for one domain. The amount is
  * typed in the number format from Settings. An empty form deletes the record.
  */
+function registrationDay(value: Domain['createdDate']): string {
+  if (value) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
+  }
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
 export function PurchaseDialog({
   domain,
   onClose,
+  onSaved,
+  justRegistered = false,
 }: {
   domain: Domain;
   onClose: () => void;
+  /** Called after a successful Save, before the dialog closes. */
+  onSaved?: () => void;
+  /** An arrival: offer to fill the registration date and this registrar's fee. */
+  justRegistered?: boolean;
 }) {
   const purchases = useAppStore((s) => s.purchases);
   const settings = useAppStore((s) => s.settings);
@@ -58,6 +81,32 @@ export function PurchaseDialog({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [filling, setFilling] = useState(false);
+
+  async function fillJustRegistered() {
+    setError(null);
+    setFilling(true);
+    try {
+      const quote = await window.api.getRegistrationQuote(
+        domain.registrar as RegistrarName,
+        domain.domainName,
+        domain.accountId,
+      );
+      if (!quote.amount) {
+        setError("This registrar didn't return a registration fee.");
+        return;
+      }
+      setDate(registrationDay(domain.createdDate));
+      setCurrency(quote.currency);
+      setAmount(formatAmountInput(quote.amount, quote.currency, formatId));
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not look up the fee.',
+      );
+    } finally {
+      setFilling(false);
+    }
+  }
 
   async function save(clear: boolean) {
     setError(null);
@@ -81,6 +130,7 @@ export function PurchaseDialog({
         currency: canonical ? currency : null,
         notes: clear ? '' : notes,
       });
+      if (!clear) onSaved?.();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save.');
@@ -99,24 +149,49 @@ export function PurchaseDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="purchase-date">Purchase date</Label>
-            <Input
-              id="purchase-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="purchase-amount">Purchase amount</Label>
-            <Input
-              id="purchase-amount"
-              inputMode="decimal"
-              value={amount}
-              placeholder={formatAmountInput('0', currency, formatId)}
-              onChange={(e) => setAmount(e.target.value)}
-            />
+          <div
+            className={
+              justRegistered
+                ? 'flex flex-col gap-3 rounded-md border bg-muted/40 p-3'
+                : 'flex flex-col gap-4'
+            }
+          >
+            {justRegistered && (
+              <div className="flex flex-col gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={saving || filling}
+                  onClick={() => void fillJustRegistered()}
+                >
+                  Just Registered
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Fills the purchase date and purchase amount below. It does
+                  not save.
+                </p>
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="purchase-date">Purchase date</Label>
+              <Input
+                id="purchase-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="purchase-amount">Purchase amount</Label>
+              <Input
+                id="purchase-amount"
+                inputMode="decimal"
+                value={amount}
+                placeholder={formatAmountInput('0', currency, formatId)}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </div>
           </div>
           <div className="flex flex-col gap-2">
             <Label>Currency</Label>
@@ -126,10 +201,15 @@ export function PurchaseDialog({
             <Label htmlFor="purchase-notes">Notes</Label>
             <Textarea
               id="purchase-notes"
+              className={notesTextareaClass}
               value={notes}
-              maxLength={4000}
+              maxLength={NOTES_MAX}
+              aria-describedby={
+                notesNearLimit(notes.length) ? 'purchase-notes-limit' : undefined
+              }
               onChange={(e) => setNotes(e.target.value)}
             />
+            <NotesLimit notes={notes} id="purchase-notes-limit" />
           </div>
           {error && (
             <p className="text-sm text-destructive" role="alert">
@@ -168,14 +248,14 @@ export function PurchaseDialog({
             <Button
               type="button"
               variant="outline"
-              disabled={saving}
+              disabled={saving || filling}
               onClick={() => setConfirmClear(true)}
             >
               Clear
             </Button>
             <Button
               type="button"
-              disabled={saving}
+              disabled={saving || filling}
               onClick={() => void save(false)}
             >
               Save

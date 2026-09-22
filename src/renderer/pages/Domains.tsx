@@ -2,9 +2,11 @@ import { accountNumber, accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
+  BadgeDollarSign,
+  CircleOff,
   ArrowDown,
   ArrowUp,
   Building2,
@@ -36,7 +38,14 @@ import type {
 } from '../../shared/ipc';
 import { LockClosedIcon, LockOpenIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
-import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
+import {
+  ARCHIVE_FOLDER_ID,
+  DROPPED_FOLDER_ID,
+  SOLD_FOLDER_ID,
+  builtInFolderName,
+  isHiddenFolder,
+} from '../../shared/ipc';
+import { departedDomains } from '../lib/departed';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
@@ -49,13 +58,16 @@ import {
 import { FolderIcon } from '../components/icons/FolderIcon';
 import { FolderOffIcon } from '../components/icons/FolderOffIcon';
 import { FolderMenuItems } from '../components/domains/FolderMenuItems';
+import { OwnershipSwitch } from '../components/domains/OwnershipSwitch';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { purchaseColumns } from '../components/domains/purchase-columns';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
+import { SaleDialog } from '../components/domains/SaleDialog';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
+  purchaseKey,
 } from '../../shared/money';
 import { NameserversCell } from '../components/domains/NameserversCell';
 import { AuthCodeDialog } from '../components/domains/AuthCodeDialog';
@@ -241,9 +253,15 @@ function FolderCell({
   folderId: string | undefined;
   onAssign: (folderId: string | null) => void;
 }) {
-  const archived = folderId === ARCHIVE_FOLDER_ID;
+  const builtIn = builtInFolderName(folderId);
+  const BuiltInIcon =
+    folderId === SOLD_FOLDER_ID
+      ? BadgeDollarSign
+      : folderId === DROPPED_FOLDER_ID
+        ? CircleOff
+        : Archive;
   const current =
-    folderId && !archived ? folders.find((f) => f.id === folderId) : undefined;
+    folderId && !builtIn ? folders.find((f) => f.id === folderId) : undefined;
 
   return (
     <DropdownMenu>
@@ -255,10 +273,10 @@ function FolderCell({
           // never sets the row height.
           className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground compact:px-2 compact:py-[9px] compact:text-xs"
         >
-          {archived ? (
+          {builtIn ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
-              <Archive className="size-4 shrink-0" />
-              Archive
+              <BuiltInIcon className="size-4 shrink-0" />
+              {builtIn}
               <ChevronDown
                 className="ml-auto size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                 aria-hidden
@@ -440,6 +458,14 @@ function ShieldCheckFilled(props: React.ComponentProps<typeof ShieldCheck>) {
     />
   );
 }
+
+/** Not useful once a name has left: there is nothing to renew or reconfigure. */
+const HISTORY_HIDDEN_COLUMNS = new Set([
+  'autoRenew',
+  'privacy',
+  'locked',
+  'nameservers',
+]);
 
 const COLUMNS: Column[] = [
   {
@@ -635,6 +661,12 @@ function toggleValue(selected: string[], value: string): string[] {
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function Domains() {
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  // History is Sold, Dropped, and Archive together. Owned is the registrar
+  // list and hides those three. Moves between accounts are stored on the
+  // change row, but this view does not list them.
+  const historyView = params.get('view') === 'history';
   const {
     portfolio,
     portfolioErrors,
@@ -660,6 +692,9 @@ export default function Domains() {
     bulk,
     purchases,
     settings,
+    portfolioChanges,
+    registrationLookups,
+    loadRegistrationLookups,
   } = useAppStore();
 
   const multipleAccounts = useMemo(
@@ -667,6 +702,7 @@ export default function Domains() {
     [registrars, portfolio],
   );
   const [purchaseFor, setPurchaseFor] = useState<Domain | null>(null);
+  const [saleFor, setSaleFor] = useState<Domain | null>(null);
   // The Registrar column carries the account too: a nickname always shows in
   // parens; an unnamed account shows its number only when the registrar has
   // siblings to tell apart. `null` from accountNumber() means a real nickname.
@@ -713,12 +749,18 @@ export default function Domains() {
       preferredCurrency: settings?.preferredCurrency ?? DEFAULT_CURRENCY,
       numberFormat: settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
       onEdit: setPurchaseFor,
+      onEditSale: setSaleFor,
+      showSale: historyView,
+      isSold: (d) => folderAssignments[domainKey(d)] === SOLD_FOLDER_ID,
     });
     base.splice(purchasedAt + 1, 0, ...extra);
     return base;
-  }, [multipleAccounts, purchases, settings]);
+  }, [multipleAccounts, purchases, settings, historyView, folderAssignments]);
 
-  const navigate = useNavigate();
+  const tableColumns = historyView
+    ? columns.filter((col) => !HISTORY_HIDDEN_COLUMNS.has(col.key))
+    : columns;
+
   // Pricing is computed locally in main and arrives with the portfolio; the only
   // gap is the brief moment after a live Sync resets it before it's re-read.
   const pricingLoading =
@@ -749,6 +791,56 @@ export default function Domains() {
       ),
     [portfolio, enriched],
   );
+
+  // Names filed in Sold, Dropped, or Archive after they left a registrar.
+  // They are not in `merged`. The folder filter is what reveals them.
+  const listed = useMemo(
+    () => [
+      ...merged,
+      ...departedDomains(portfolioChanges, portfolio, folderAssignments),
+    ],
+    [merged, portfolioChanges, portfolio, folderAssignments],
+  );
+
+  // History asks RDAP for names that have left, so created and expires stay
+  // current and a free name can be shown as unregistered.
+  const departedKey = historyView
+    ? listed
+        .filter((d) => d.departed)
+        .map((d) => d.domainName.toLowerCase())
+        .sort()
+        .join('\n')
+    : '';
+  useEffect(() => {
+    if (!departedKey) return;
+    void loadRegistrationLookups(departedKey.split('\n'));
+  }, [departedKey, loadRegistrationLookups]);
+
+  const shown = useMemo(() => {
+    if (!historyView) return listed;
+    return listed.map((d) => {
+      if (!d.departed) return d;
+      const lookup = registrationLookups[purchaseKey(d.domainName)];
+      if (!lookup) return { ...d, registrationPending: true };
+      if (!lookup.registered) {
+        return {
+          ...d,
+          registrationPending: false,
+          unregistered: true,
+          createdDate: null,
+          expirationDate: null,
+        };
+      }
+      return {
+        ...d,
+        registrationPending: false,
+        unregistered: false,
+        registrationRegistrar: lookup.registrar ?? undefined,
+        createdDate: lookup.created ? new Date(lookup.created) : null,
+        expirationDate: lookup.expires ? new Date(lookup.expires) : null,
+      };
+    });
+  }, [listed, historyView, registrationLookups]);
 
   const [search, setSearch] = useState('');
   // Multi-select filters; an empty array means "no filter" (show all).
@@ -902,20 +994,21 @@ export default function Domains() {
     return { nsGroups: groups, nsKeysByDomain: keysByDomain };
   }, [merged]);
 
-  // Folder filter options: one per folder (with its assigned-domain count over
-  // the whole portfolio), a "None" bucket (no folder), and an always-present
-  // "Archive" bucket for the built-in archive folder. A dangling assignment (its
-  // folder was deleted) counts as None. `archivedCount` also lets the Folder
-  // filter show when the user has archived domains but no folders of their own.
-  const { folderOptions, archivedCount } = useMemo(() => {
+  // Folder filter options. Owned offers the user's folders. History offers
+  // only Sold, Dropped, and Archive — that switch is how those names appear.
+  const { ownedFolderOptions, historyFolderOptions, ownedCount, historyCount } =
+    useMemo(() => {
     const counts: Record<string, number> = {};
     let noFolder = 0;
     let archived = 0;
-    for (const d of portfolio) {
+    let sold = 0;
+    let dropped = 0;
+    for (const d of listed) {
       const id = folderAssignments[domainKey(d)];
-      if (id === ARCHIVE_FOLDER_ID) {
-        archived += 1;
-      } else if (id && folders.some((f) => f.id === id)) {
+      if (id === ARCHIVE_FOLDER_ID) archived += 1;
+      else if (id === SOLD_FOLDER_ID) sold += 1;
+      else if (id === DROPPED_FOLDER_ID) dropped += 1;
+      else if (id && folders.some((f) => f.id === id)) {
         counts[id] = (counts[id] ?? 0) + 1;
       } else {
         noFolder += 1;
@@ -943,15 +1036,34 @@ export default function Domains() {
         />
       ),
     });
-    // Always offer Archive so it's a discoverable way to reveal archived domains.
-    opts.push({
-      value: ARCHIVE_FOLDER_ID,
-      label: 'Archive',
-      count: archived,
-      icon: <Archive className="size-4 shrink-0" aria-hidden />,
-    });
-    return { folderOptions: opts, archivedCount: archived };
-  }, [portfolio, folders, folderAssignments]);
+    const historyOptions = [
+      {
+        value: SOLD_FOLDER_ID,
+        label: 'Sold',
+        count: sold,
+        icon: <BadgeDollarSign className="size-4 shrink-0" aria-hidden />,
+      },
+      {
+        value: DROPPED_FOLDER_ID,
+        label: 'Dropped',
+        count: dropped,
+        icon: <CircleOff className="size-4 shrink-0" aria-hidden />,
+      },
+      {
+        value: ARCHIVE_FOLDER_ID,
+        label: 'Archive',
+        count: archived,
+        icon: <Archive className="size-4 shrink-0" aria-hidden />,
+      },
+    ];
+    const userFolderCount = Object.values(counts).reduce((n, c) => n + c, 0);
+    return {
+      ownedFolderOptions: opts,
+      historyFolderOptions: historyOptions,
+      ownedCount: noFolder + userFolderCount,
+      historyCount: archived + sold + dropped,
+    };
+  }, [listed, folders, folderAssignments]);
 
   // Validate the price inputs, then derive the bounds actually applied. A field
   // error (or min > max) leaves the range unapplied until it's corrected.
@@ -985,10 +1097,19 @@ export default function Domains() {
     setPage(0);
   }
 
+  function setListView(next: 'owned' | 'history') {
+    setFolder([]);
+    setPage(0);
+    const nextParams = new URLSearchParams(params);
+    if (next === 'history') nextParams.set('view', 'history');
+    else nextParams.delete('view');
+    setParams(nextParams, { replace: true });
+  }
+
   // Filter → sort. Pagination is applied after, on the sorted result.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const rows = merged.filter((d) => {
+    const rows = shown.filter((d) => {
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
       if (tld.length > 0 && !tld.includes(tldOf(d.domainName))) return false;
       // The "Registrar" filter picks individual accounts (by account id).
@@ -1008,21 +1129,22 @@ export default function Domains() {
         const keys = nsKeysByDomain.get(domainKey(d));
         if (!keys || !ns.some((k) => keys.has(k))) return false;
       }
-      // Folder: resolve each domain to a bucket — a real folder id, the built-in
-      // Archive id, or "None" (no folder, or a dangling assignment). With a
-      // folder filter active, keep only domains whose bucket is selected. With no
-      // folder filter, drop the Archive bucket (that's the whole point of it).
+      // Folder: resolve each domain to a bucket — a real folder id, a built-in
+      // Sold / Dropped / Archive id, or "None". History shows only those three.
+      // Owned hides them. A folder filter narrows further inside the view.
       {
         const id = folderAssignments[domainKey(d)];
-        const bucket =
-          id === ARCHIVE_FOLDER_ID
-            ? ARCHIVE_FOLDER_ID
-            : id && folders.some((f) => f.id === id)
-              ? id
-              : NONE;
-        if (folder.length > 0) {
+        const bucket = isHiddenFolder(id)
+          ? id!
+          : id && folders.some((f) => f.id === id)
+            ? id
+            : NONE;
+        if (historyView) {
+          if (!isHiddenFolder(bucket)) return false;
+          if (folder.length > 0 && !folder.includes(bucket)) return false;
+        } else if (folder.length > 0) {
           if (!folder.includes(bucket)) return false;
-        } else if (bucket === ARCHIVE_FOLDER_ID) {
+        } else if (isHiddenFolder(bucket)) {
           return false;
         }
       }
@@ -1038,7 +1160,11 @@ export default function Domains() {
       }
       if (sortKey === FOLDER) {
         const id = folderAssignments[domainKey(d)];
-        return folders.find((f) => f.id === id)?.name.toLowerCase() ?? null;
+        return (
+          builtInFolderName(id)?.toLowerCase() ??
+          folders.find((f) => f.id === id)?.name.toLowerCase() ??
+          null
+        );
       }
       return col.sortValue(d, portfolioRegistrarLabels);
     };
@@ -1056,7 +1182,7 @@ export default function Domains() {
       return 0;
     });
   }, [
-    merged,
+    shown,
     columns,
     portfolioRegistrarLabels,
     search,
@@ -1068,6 +1194,7 @@ export default function Domains() {
     folder,
     folders,
     folderAssignments,
+    historyView,
     sortKey,
     sortDir,
     pricing,
@@ -1095,8 +1222,8 @@ export default function Domains() {
     );
   // The selected domains as merged rows, for the bulk bar and dialog.
   const selectedDomains = useMemo(
-    () => merged.filter((d) => selected.has(domainKey(d))),
-    [merged, selected],
+    () => shown.filter((d) => selected.has(domainKey(d))),
+    [shown, selected],
   );
   // Bulk: re-fetch every selected domain's detail from its registrar, bypassing
   // the detail cache (their cells show skeletons while in flight).
@@ -1193,15 +1320,24 @@ export default function Domains() {
 
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-[13px]">
-      <div>
-        <h1 className="text-2xl font-bold sm:text-[32px]">Domains</h1>
-        <p className="-mt-0.5 text-sm text-muted-foreground">
-          {/* Always a count — "0 domains across 0 registrars" before a load or
-              when nothing is configured, never a call-to-action sentence. */}
-          {`${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
-            portfolioRegistrars.length === 1 ? '' : 's'
-          }`}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div>
+          <h1 className="text-2xl font-bold leading-none sm:text-[32px]">Domains</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {historyView
+              ? `${historyCount} in Sold, Dropped, or Archived`
+              : `${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
+                  portfolioRegistrars.length === 1 ? '' : 's'
+                }`}
+          </p>
+        </div>
+        <OwnershipSwitch
+          history={historyView}
+          ownedCount={ownedCount}
+          historyCount={historyCount}
+          onOwned={() => setListView('owned')}
+          onHistory={() => setListView('history')}
+        />
       </div>
 
       {portfolioError && (
@@ -1357,13 +1493,12 @@ export default function Domains() {
                 setPage(0);
               }}
             />
-            {/* Offer the Folder filter once there's anything to filter by —
-                    a folder of the user's own, or archived domains to reveal. */}
-            {(folders.length > 0 || archivedCount > 0) && (
+            {/* Owned: the user's folders. History: Sold, Dropped, Archive. */}
+            {(historyView ? historyCount > 0 : folders.length > 0) && (
               <MultiSelectFilter
                 label="Folder"
                 icon={FolderIcon}
-                options={folderOptions}
+                options={historyView ? historyFolderOptions : ownedFolderOptions}
                 selected={folder}
                 onChange={(next) => {
                   setFolder(next);
@@ -1458,7 +1593,7 @@ export default function Domains() {
                     aria-label="Select all domains"
                   />
                 </TableHead>
-                {columns.map((col, i) => {
+                {tableColumns.map((col, i) => {
                   const active = col.key === sortKey;
                   const Icon = !active
                     ? ChevronsUpDown
@@ -1516,8 +1651,9 @@ export default function Domains() {
                           </button>
                         </TableHead>
                       )}
-                      {/* Renewal price sits right before the Auto-Renew flag. */}
-                      {col.key === 'expirationDate' && (
+                      {/* Renewal price sits right before the Auto-Renew flag.
+                          History has no renewal column. */}
+                      {col.key === 'expirationDate' && !historyView && (
                         <TableHead className="w-0 text-right">
                           <button
                             type="button"
@@ -1565,7 +1701,7 @@ export default function Domains() {
                         aria-label={`Select ${d.domainName}`}
                       />
                     </TableCell>
-                    {columns.map((col, i) => (
+                    {tableColumns.map((col, i) => (
                       <Fragment key={col.key}>
                         <TableCell
                           className={cn(
@@ -1594,11 +1730,28 @@ export default function Domains() {
                                 onAuthCode={() => setAuthCodeFor(d)}
                                 onRenew={() => setRenewFor(d)}
                                 onEditPurchase={() => setPurchaseFor(d)}
+                                onEditSale={() => setSaleFor(d)}
                                 onAssignFolder={(folderId) =>
                                   void assignFolder(key, folderId)
                                 }
                               />
                             </div>
+                          ) : d.registrationPending &&
+                            (col.key === 'registrar' ||
+                              col.key === 'createdDate' ||
+                              col.key === 'expirationDate') ? (
+                            <CellSkeleton align={col.align} />
+                          ) : d.unregistered &&
+                            (col.key === 'registrar' ||
+                              col.key === 'createdDate' ||
+                              col.key === 'expirationDate') ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : col.key === 'registrar' &&
+                            d.registrationRegistrar ? (
+                            <span>{d.registrationRegistrar}</span>
+                          ) : d.departed &&
+                            (col.detail || col.key === 'autoRenew') ? (
+                            <span className="text-muted-foreground/50">—</span>
                           ) : col.detail && loadingDetail ? (
                             <CellSkeleton align={col.align} />
                           ) : (
@@ -1616,7 +1769,7 @@ export default function Domains() {
                             />
                           </TableCell>
                         )}
-                        {col.key === 'expirationDate' && (
+                        {col.key === 'expirationDate' && !historyView && (
                           <TableCell className="w-0 text-right pr-3">
                             <RenewalCell
                               info={pricing[key]}
@@ -1632,7 +1785,7 @@ export default function Domains() {
               {visible.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell
-                    colSpan={columns.length + 5}
+                    colSpan={tableColumns.length + (historyView ? 2 : 3)}
                     className="h-40 text-center text-muted-foreground"
                   >
                     {noneConfigured ? (
@@ -1653,6 +1806,8 @@ export default function Domains() {
                           Configure registrars
                         </Button>
                       </div>
+                    ) : historyView && historyCount === 0 ? (
+                      'Names you mark Sold, Dropped, or Archive show up here.'
                     ) : portfolio.length === 0 ? (
                       hasLoaded ? (
                         'No domains found in any configured registrar.'
@@ -1778,6 +1933,9 @@ export default function Domains() {
           domain={purchaseFor}
           onClose={() => setPurchaseFor(null)}
         />
+      )}
+      {saleFor && (
+        <SaleDialog domain={saleFor} onClose={() => setSaleFor(null)} />
       )}
       {renewFor && (
         <RenewDialog

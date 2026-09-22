@@ -6,7 +6,12 @@ import {
   hydrateStores,
 } from '../storage/namespace';
 import { clearAll } from './cache';
-import { getPurchases, importPurchases, setPurchase } from './purchases';
+import {
+  getPurchases,
+  importPurchases,
+  setPurchase,
+  setSale,
+} from './purchases';
 
 let store: MemoryDocStore;
 beforeEach(async () => {
@@ -29,6 +34,9 @@ describe('purchases', () => {
       amount: '0.00',
       currency: 'USD',
       notes: 'hand reg',
+      saleDate: null,
+      saleAmount: null,
+      saleCurrency: null,
     });
     clearAll();
     expect(getPurchases()['example.com']?.amount).toBe('0.00');
@@ -56,6 +64,43 @@ describe('purchases', () => {
       }),
     ).toBeNull();
     expect(getPurchases()['a.com']).toBeUndefined();
+  });
+
+  it('keeps a sale when the purchase is saved, and the purchase when the sale is saved', () => {
+    setPurchase({
+      domainName: 'a.com',
+      purchaseDate: '2020-01-01',
+      amount: '10',
+      currency: 'USD',
+      notes: 'hand reg',
+    });
+    setSale({
+      domainName: 'a.com',
+      saleDate: '2024-06-01',
+      amount: '500',
+      currency: 'USD',
+      notes: 'sold on Afternic',
+    });
+    expect(getPurchases()['a.com']).toMatchObject({
+      purchaseDate: '2020-01-01',
+      amount: '10.00',
+      saleDate: '2024-06-01',
+      saleAmount: '500.00',
+      notes: 'sold on Afternic',
+    });
+    setPurchase({
+      domainName: 'a.com',
+      purchaseDate: '2020-01-02',
+      amount: '12',
+      currency: 'USD',
+      notes: 'sold on Afternic',
+    });
+    expect(getPurchases()['a.com']).toMatchObject({
+      purchaseDate: '2020-01-02',
+      amount: '12.00',
+      saleDate: '2024-06-01',
+      saleAmount: '500.00',
+    });
   });
 
   it('rejects a negative amount and yen with a fraction', () => {

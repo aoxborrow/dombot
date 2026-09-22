@@ -2,6 +2,7 @@ import type {
   DomainPurchase,
   PurchaseImportResult,
   PurchaseInput,
+  SaleInput,
 } from '../../shared/ipc';
 import {
   assertDomainName,
@@ -27,36 +28,90 @@ function clean(input: PurchaseInput): { key: string; record: DomainPurchase } {
   const key = assertDomainName(input.domainName);
   const purchaseDate = parsePurchaseDate(input.purchaseDate ?? '');
   const notes = (input.notes ?? '').trim().slice(0, MAX_NOTES);
-  const currencyCode = input.currency
-    ? currencyInfo(input.currency)?.code
-    : null;
-  if (input.currency?.trim() && !currencyCode) {
-    throw new Error(`Unknown currency ${input.currency.trim().toUpperCase()}.`);
-  }
-  let amount: string | null = null;
-  let currency: string | null = null;
-  const rawAmount = (input.amount ?? '').trim();
-  if (rawAmount) {
-    if (!currencyCode) throw new Error('Choose a currency for the amount.');
-    amount = parseCanonicalAmount(rawAmount, currencyCode);
-    currency = currencyCode;
-  }
+  const { amount, currency } = parseAmount(input.amount, input.currency);
   return {
     key,
-    record: { purchaseDate, amount, currency, notes },
+    record: {
+      purchaseDate,
+      amount,
+      currency,
+      notes,
+      ...keptSale(store.get(key)),
+    },
+  };
+}
+
+function keptSale(
+  existing: DomainPurchase | undefined,
+): Pick<DomainPurchase, 'saleDate' | 'saleAmount' | 'saleCurrency'> {
+  return {
+    saleDate: existing?.saleDate ?? null,
+    saleAmount: existing?.saleAmount ?? null,
+    saleCurrency: existing?.saleCurrency ?? null,
+  };
+}
+
+function parseAmount(
+  raw: string | null | undefined,
+  currencyRaw: string | null | undefined,
+): { amount: string | null; currency: string | null } {
+  const currencyCode = currencyRaw ? currencyInfo(currencyRaw)?.code : null;
+  if (currencyRaw?.trim() && !currencyCode) {
+    throw new Error(`Unknown currency ${currencyRaw.trim().toUpperCase()}.`);
+  }
+  const rawAmount = (raw ?? '').trim();
+  if (!rawAmount) return { amount: null, currency: null };
+  if (!currencyCode) throw new Error('Choose a currency for the amount.');
+  return {
+    amount: parseCanonicalAmount(rawAmount, currencyCode),
+    currency: currencyCode,
   };
 }
 
 function isEmpty(record: DomainPurchase): boolean {
-  return !record.purchaseDate && !record.amount && !record.notes;
+  return (
+    !record.purchaseDate &&
+    !record.amount &&
+    !record.notes &&
+    !record.saleDate &&
+    !record.saleAmount
+  );
 }
 
 /**
  * Save one name's purchase fields. Returns null and deletes the record when
- * the date, amount, and notes are all empty.
+ * the purchase fields, sale fields, and notes are all empty. A sale already
+ * stored on the name is left in place.
  */
 export function setPurchase(input: PurchaseInput): DomainPurchase | null {
   const { key, record } = clean(input);
+  if (isEmpty(record)) {
+    void store.delete(key);
+    return null;
+  }
+  void store.set(key, record);
+  return record;
+}
+
+/**
+ * Save what a sold name went for, plus the shared notes. What you paid stays.
+ * Returns null and deletes the record only when nothing is left on it.
+ */
+export function setSale(input: SaleInput): DomainPurchase | null {
+  const key = assertDomainName(input.domainName);
+  const saleDate = parsePurchaseDate(input.saleDate ?? '', 'Sale date');
+  const notes = (input.notes ?? '').trim().slice(0, MAX_NOTES);
+  const { amount, currency } = parseAmount(input.amount, input.currency);
+  const existing = store.get(key);
+  const record: DomainPurchase = {
+    purchaseDate: existing?.purchaseDate ?? null,
+    amount: existing?.amount ?? null,
+    currency: existing?.currency ?? null,
+    notes,
+    saleDate,
+    saleAmount: amount,
+    saleCurrency: currency,
+  };
   if (isEmpty(record)) {
     void store.delete(key);
     return null;

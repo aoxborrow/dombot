@@ -34,6 +34,7 @@ import SyncControl, {
   SyncStatusMini,
   useSyncState,
 } from './components/SyncControl';
+import { PortfolioChangesButton } from './components/PortfolioChanges';
 import { Toaster } from '@/components/ui/sonner';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -57,6 +58,7 @@ export default function App() {
   const loadFolders = useAppStore((s) => s.loadFolders);
   const loadSettings = useAppStore((s) => s.loadSettings);
   const loadPurchases = useAppStore((s) => s.loadPurchases);
+  const loadPortfolioChanges = useAppStore((s) => s.loadPortfolioChanges);
   const attachBulk = useAppStore((s) => s.attachBulk);
   const applyBulkProgress = useAppStore((s) => s.applyBulkProgress);
   const applyBulkFinished = useAppStore((s) => s.applyBulkFinished);
@@ -75,7 +77,8 @@ export default function App() {
     void loadFolders();
     void loadSettings();
     void loadPurchases();
-  }, [loadFolders, loadSettings, loadPurchases]);
+    void loadPortfolioChanges();
+  }, [loadFolders, loadSettings, loadPurchases, loadPortfolioChanges]);
 
   // An MCP tool write mutates the on-disk cache out of band; re-read it and
   // overlay the change so an open Domains table updates live, without a Sync.
@@ -146,7 +149,10 @@ export default function App() {
             control shows, balancing the logo so the centered nav stays
             centered. */}
         <div className="flex flex-1 items-center justify-end gap-2">
-          <SyncStatusMini className="mr-2 sm:hidden" />
+          <span className="mr-2 inline-flex items-center gap-2.5 sm:hidden">
+            <PortfolioChangesButton />
+            <SyncStatusMini />
+          </span>
           <MobileNav />
           <div className="hidden sm:block">
             <SyncControl />
