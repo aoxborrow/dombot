@@ -48,6 +48,8 @@ export function getPortfolioChanges(): PortfolioChange[] {
 
 const HIDDEN = new Set([ARCHIVE_FOLDER_ID, SOLD_FOLDER_ID, DROPPED_FOLDER_ID]);
 
+type UserResolution = Exclude<PortfolioChangeResolution, 'returned'>;
+
 /** A name that came back should show in the usual list again. */
 function releaseHiddenFolder(
   accountId: string | null,
@@ -92,7 +94,24 @@ export function recordPortfolioDiff(
     if (change.resolution === 'returned' && prev?.resolution !== 'returned') {
       releaseHiddenFolder(change.fromAccountId, change.domainName);
     }
+    // Already filed from the domain list. Record the departure and do not ask again.
+    if (!prev && change.kind === 'removed' && !change.resolved) {
+      const filed = filedResolution(change.fromAccountId, change.domainName);
+      if (filed) resolvePortfolioChange(change.id, filed);
+    }
   }
+}
+
+function filedResolution(
+  accountId: string | null,
+  domainName: string,
+): UserResolution | null {
+  if (!accountId) return null;
+  const folderId = getFolders().assignments[`${accountId}:${domainName}`];
+  if (folderId === SOLD_FOLDER_ID) return 'sold';
+  if (folderId === DROPPED_FOLDER_ID) return 'dropped';
+  if (folderId === ARCHIVE_FOLDER_ID) return 'archive';
+  return null;
 }
 
 /**
@@ -107,8 +126,6 @@ export function baselineAccountsIfUnset(accountIds: string[]): void {
   if (ids.length === 0) return;
   persist({ ...current, baselinedAccountIds: ids });
 }
-
-type UserResolution = Exclude<PortfolioChangeResolution, 'returned'>;
 
 function folderFor(resolution: UserResolution): string | null {
   if (resolution === 'sold') return SOLD_FOLDER_ID;

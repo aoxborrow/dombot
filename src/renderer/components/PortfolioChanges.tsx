@@ -36,10 +36,7 @@ function summary(change: PortfolioChange): string {
   return `${name} left ${accountText(change.fromLabel, change.fromRegistrar)}`;
 }
 
-function arrivalDomain(
-  change: PortfolioChange,
-  portfolio: Domain[],
-): Domain {
+function arrivalDomain(change: PortfolioChange, portfolio: Domain[]): Domain {
   const live = portfolio.find(
     (domain) =>
       domain.domainName.toLowerCase() === change.domainName.toLowerCase() &&
@@ -107,7 +104,10 @@ export function PortfolioChangesButton() {
     id: string;
     domain: Domain;
   } | null>(null);
-  const [saleFor, setSaleFor] = useState<Domain | null>(null);
+  const [saleFor, setSaleFor] = useState<{
+    id: string;
+    domain: Domain;
+  } | null>(null);
 
   // The last alert just closed. Don't leave the empty "Nothing waiting" list up.
   if (open && unresolved.length === 0) setOpen(false);
@@ -126,15 +126,13 @@ export function PortfolioChangesButton() {
           {unresolved.length}
         </button>
       )}
-      <Dialog
-        open={open}
-        onOpenChange={setOpen}
-      >
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Portfolio changes</DialogTitle>
             <DialogDescription>
-              Names that arrived, left, or moved the last time an account synced.
+              Names that arrived, left, or moved the last time an account
+              synced.
             </DialogDescription>
           </DialogHeader>
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
@@ -162,10 +160,12 @@ export function PortfolioChangesButton() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => {
-                        setSaleFor(departedDomain(change));
-                        void resolve(change.id, 'sold');
-                      }}
+                      onClick={() =>
+                        setSaleFor({
+                          id: change.id,
+                          domain: departedDomain(change),
+                        })
+                      }
                     >
                       Sold
                     </Button>
@@ -239,7 +239,12 @@ export function PortfolioChangesButton() {
         </DialogContent>
       </Dialog>
       {saleFor && (
-        <SaleDialog domain={saleFor} onClose={() => setSaleFor(null)} />
+        <SaleDialog
+          domain={saleFor.domain}
+          mode="mark"
+          onSaved={() => resolve(saleFor.id, 'sold')}
+          onClose={() => setSaleFor(null)}
+        />
       )}
       {purchase && (
         <PurchaseDialog

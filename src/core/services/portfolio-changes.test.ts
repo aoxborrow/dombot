@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { ARCHIVE_FOLDER_ID, SOLD_FOLDER_ID } from '../../shared/ipc';
+import {
+  ARCHIVE_FOLDER_ID,
+  DROPPED_FOLDER_ID,
+  SOLD_FOLDER_ID,
+} from '../../shared/ipc';
 import type { AccountHoldings } from '../../shared/portfolio-changes';
 import { MemoryDocStore } from '../storage/doc-store';
 import {
@@ -8,7 +12,7 @@ import {
   hydrateStores,
 } from '../storage/namespace';
 import { clearAll } from './cache';
-import { getFolders } from './folders';
+import { assignFolder, getFolders } from './folders';
 import {
   baselineAccountsIfUnset,
   getPortfolioChanges,
@@ -77,6 +81,34 @@ describe('portfolio change history', () => {
     resolvePortfolioChange(removal.id, 'sold');
     expect(getPortfolioChanges()[0].resolution).toBe('sold');
     expect(getFolders().assignments['dynadot:a.com']).toBe(SOLD_FOLDER_ID);
+  });
+
+  it('closes a departure on its own when the name was already filed', () => {
+    recordPortfolioDiff(
+      [holding('dynadot', [])],
+      [holding('dynadot', ['sold.com', 'dropped.com'])],
+    );
+    assignFolder('dynadot:sold.com', SOLD_FOLDER_ID);
+    assignFolder('dynadot:dropped.com', DROPPED_FOLDER_ID);
+    recordPortfolioDiff(
+      [holding('dynadot', ['sold.com', 'dropped.com'])],
+      [holding('dynadot', [])],
+    );
+    const byName = new Map(
+      getPortfolioChanges().map((change) => [change.domainName, change]),
+    );
+    expect(byName.get('sold.com')).toMatchObject({
+      kind: 'removed',
+      resolved: true,
+      resolution: 'sold',
+    });
+    expect(byName.get('dropped.com')).toMatchObject({
+      resolved: true,
+      resolution: 'dropped',
+    });
+    expect(getPortfolioChanges().some((change) => !change.resolved)).toBe(
+      false,
+    );
   });
 
   it('baselines a restored portfolio that has no history yet', () => {

@@ -46,6 +46,8 @@ import {
   isHiddenFolder,
 } from '../../shared/ipc';
 import { departedDomains } from '../lib/departed';
+import { planFolderMove } from '../lib/folder-move';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
@@ -703,6 +705,17 @@ export default function Domains() {
   );
   const [purchaseFor, setPurchaseFor] = useState<Domain | null>(null);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
+  const [markSold, setMarkSold] = useState<Domain[] | null>(null);
+  const [markIndex, setMarkIndex] = useState(0);
+  const markSaved = useRef(0);
+  const markAdvanced = useRef(false);
+  const [moveConfirm, setMoveConfirm] = useState<{
+    domains: Domain[];
+    folderId: string | null;
+    title: string;
+    description: string;
+    actionLabel: string;
+  } | null>(null);
   // The Registrar column carries the account too: a nickname always shows in
   // parens; an unnamed account shows its number only when the registrar has
   // siblings to tell apart. `null` from accountNumber() means a real nickname.
@@ -1233,20 +1246,86 @@ export default function Domains() {
       toast.success(`Refreshed ${n} domain${n === 1 ? '' : 's'}`),
     );
   };
-  const bulkAssignFolder = (folderId: string | null) => {
-    const keys = selectedDomains.map((d) => domainKey(d));
-    void Promise.all(keys.map((k) => assignFolder(k, folderId))).then(() =>
-      toast.success(
-        folderId === ARCHIVE_FOLDER_ID
-          ? `Archived ${keys.length} domain${keys.length === 1 ? '' : 's'}`
-          : folderId
-            ? `Moved ${keys.length} domain${keys.length === 1 ? '' : 's'} to ${
-                folders.find((f) => f.id === folderId)?.name ?? 'folder'
-              }`
-            : `Removed ${keys.length} domain${keys.length === 1 ? '' : 's'} from their folders`,
-      ),
+  function folderMoveToast(folderId: string | null, count: number): string {
+    const noun = `${count} domain${count === 1 ? '' : 's'}`;
+    if (folderId === SOLD_FOLDER_ID) return `Marked ${noun} as Sold`;
+    if (folderId === DROPPED_FOLDER_ID) return `Moved ${noun} to Dropped`;
+    if (folderId === ARCHIVE_FOLDER_ID) return `Archived ${noun}`;
+    if (folderId === null) return `Moved ${noun} back to Owned`;
+    const name = folders.find((folder) => folder.id === folderId)?.name;
+    return `Moved ${noun} to ${name ?? 'folder'}`;
+  }
+
+  function applyFolders(domainsToMove: Domain[], folderId: string | null) {
+    const keys = domainsToMove.map((domain) => domainKey(domain));
+    void Promise.all(keys.map((key) => assignFolder(key, folderId))).then(
+      () => {
+        setSelectedMany(keys, false);
+        toast.success(folderMoveToast(folderId, keys.length));
+      },
     );
-  };
+  }
+
+  function requestFolder(domainsToMove: Domain[], folderId: string | null) {
+    const changing = domainsToMove.filter(
+      (domain) => (folderAssignments[domainKey(domain)] ?? null) !== folderId,
+    );
+    const destinationName =
+      folderId && !isHiddenFolder(folderId)
+        ? (folders.find((folder) => folder.id === folderId)?.name ?? null)
+        : null;
+    const plan = planFolderMove(
+      changing.map((domain) => folderAssignments[domainKey(domain)] ?? null),
+      folderId,
+      changing.map((domain) => domain.domainName),
+      destinationName,
+    );
+    if (plan.action === 'noop') return;
+    if (plan.action === 'apply') {
+      applyFolders(changing, folderId);
+      return;
+    }
+    if (plan.action === 'sold') {
+      markSaved.current = 0;
+      setMarkIndex(0);
+      setMarkSold(changing);
+      return;
+    }
+    setMoveConfirm({
+      domains: changing,
+      folderId,
+      title: plan.title,
+      description: plan.description,
+      actionLabel: plan.actionLabel,
+    });
+  }
+
+  function finishMarkQueue() {
+    const saved = markSaved.current;
+    markSaved.current = 0;
+    setMarkSold(null);
+    setMarkIndex(0);
+    if (saved > 0) toast.success(folderMoveToast(SOLD_FOLDER_ID, saved));
+  }
+
+  async function onMarkSaved() {
+    if (!markSold) return;
+    const domain = markSold[markIndex];
+    markAdvanced.current = true;
+    markSaved.current += 1;
+    await assignFolder(domainKey(domain), SOLD_FOLDER_ID);
+    setSelectedMany([domainKey(domain)], false);
+    if (markIndex + 1 < markSold.length) setMarkIndex((index) => index + 1);
+    else finishMarkQueue();
+  }
+
+  function onMarkClose() {
+    if (markAdvanced.current) {
+      markAdvanced.current = false;
+      return;
+    }
+    finishMarkQueue();
+  }
 
   // Lazily fetch full detail for the rows actually on screen. Keyed on the
   // visible domains' identities so it re-runs on page/sort/filter changes;
@@ -1498,7 +1577,9 @@ export default function Domains() {
               <MultiSelectFilter
                 label="Folder"
                 icon={FolderIcon}
-                options={historyView ? historyFolderOptions : ownedFolderOptions}
+                options={
+                  historyView ? historyFolderOptions : ownedFolderOptions
+                }
                 selected={folder}
                 onChange={(next) => {
                   setFolder(next);
@@ -1552,7 +1633,9 @@ export default function Domains() {
           onClear={clearSelection}
           onRefresh={bulkRefresh}
           onExport={() => void exportCsv(selectedDomains)}
-          onAssignFolder={bulkAssignFolder}
+          onAssignFolder={(folderId) =>
+            requestFolder(selectedDomains, folderId)
+          }
           onKind={(kind) =>
             setBulkDialog({ op: defaultBulkOp(kind, selectedDomains) })
           }
@@ -1732,7 +1815,7 @@ export default function Domains() {
                                 onEditPurchase={() => setPurchaseFor(d)}
                                 onEditSale={() => setSaleFor(d)}
                                 onAssignFolder={(folderId) =>
-                                  void assignFolder(key, folderId)
+                                  requestFolder([d], folderId)
                                 }
                               />
                             </div>
@@ -1764,7 +1847,7 @@ export default function Domains() {
                               folders={folders}
                               folderId={folderAssignments[key]}
                               onAssign={(folderId) =>
-                                void assignFolder(key, folderId)
+                                requestFolder([d], folderId)
                               }
                             />
                           </TableCell>
@@ -1936,6 +2019,40 @@ export default function Domains() {
       )}
       {saleFor && (
         <SaleDialog domain={saleFor} onClose={() => setSaleFor(null)} />
+      )}
+      {markSold && markSold[markIndex] && (
+        <SaleDialog
+          key={`${domainKey(markSold[markIndex])}:${markIndex}`}
+          domain={markSold[markIndex]}
+          mode="mark"
+          step={
+            markSold.length > 1
+              ? { current: markIndex + 1, total: markSold.length }
+              : undefined
+          }
+          onSaved={onMarkSaved}
+          onClose={onMarkClose}
+        />
+      )}
+      {moveConfirm && (
+        <ConfirmDialog
+          title={
+            <span
+              className={
+                moveConfirm.title.includes('.') ? 'font-mono' : undefined
+              }
+            >
+              {moveConfirm.title}
+            </span>
+          }
+          description={moveConfirm.description}
+          actionLabel={moveConfirm.actionLabel}
+          onConfirm={() => {
+            applyFolders(moveConfirm.domains, moveConfirm.folderId);
+            setMoveConfirm(null);
+          }}
+          onClose={() => setMoveConfirm(null)}
+        />
       )}
       {renewFor && (
         <RenewDialog

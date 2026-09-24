@@ -31,15 +31,23 @@ import {
 } from './NotesLimit';
 
 /**
- * Sale date, sale amount, and the shared notes for one name. Opened when
- * the user marks a departure Sold. Closing without Save leaves the name
- * Sold and does not store a price or date.
+ * Sale date, sale amount, and the shared notes for one name.
+ * `edit` updates a name that is already Sold. `mark` files it in Sold only
+ * when the user saves. Closing without that button leaves the name where it was.
  */
 export function SaleDialog({
   domain,
+  mode = 'edit',
+  step,
+  onSaved,
   onClose,
 }: {
   domain: Domain;
+  mode?: 'edit' | 'mark';
+  /** 1-based place in a bulk Mark as Sold run. */
+  step?: { current: number; total: number };
+  /** Runs after the sale is stored. The caller files the folder on `mark`. */
+  onSaved?: () => void | Promise<void>;
   onClose: () => void;
 }) {
   const purchases = useAppStore((s) => s.purchases);
@@ -87,6 +95,7 @@ export function SaleDialog({
         currency: canonical ? currency : null,
         notes,
       });
+      await onSaved?.();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save.');
@@ -100,8 +109,13 @@ export function SaleDialog({
         <DialogHeader>
           <DialogTitle className="font-mono">{domain.domainName}</DialogTitle>
           <DialogDescription>
-            This name is marked Sold. Add what you sold it for, the date, and
-            any notes. Notes are the same notes kept for this name.
+            {mode === 'mark'
+              ? `Add the sale date, amount, and notes. Mark as Sold files this name in Sold, under History. The registrar account is not changed.${
+                  step && step.total > 1
+                    ? ` ${step.current} of ${step.total}.`
+                    : ''
+                }`
+              : 'This name is marked Sold. Add what you sold it for, the date, and any notes. Notes are the same notes kept for this name.'}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
@@ -151,8 +165,16 @@ export function SaleDialog({
           )}
         </div>
         <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saving}
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
           <Button type="button" disabled={saving} onClick={() => void save()}>
-            Save
+            {mode === 'mark' ? 'Mark as Sold' : 'Save'}
           </Button>
         </DialogFooter>
       </DialogContent>
