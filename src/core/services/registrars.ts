@@ -1,5 +1,6 @@
 import { protectRegistrar, redactRegistrarMessage } from './registrar-errors';
 import {
+  NotImplementedError,
   RegistrarClient,
   createRegistrar,
   listPortfolio,
@@ -235,8 +236,8 @@ function requireActive(account: RegistrarAccount): void {
 
 /**
  * The registrar's own registration fee for this name, from `getPricing`.
- * Null when the registrar doesn't return one. The amount is a plain decimal
- * string in that currency.
+ * `amount` is null when the registrar has no pricing API, or the quote
+ * didn't include a registration fee. The amount is a plain decimal string.
  */
 export async function getRegistrationQuote(
   name: RegistrarName,
@@ -244,13 +245,22 @@ export async function getRegistrationQuote(
   accountId?: string,
 ): Promise<{ amount: string | null; currency: string }> {
   const account = resolveAccount(name, accountId);
-  const pricing = await getRegistrarClient(name, account.id).getPricing(
-    domainName,
-  );
+  let pricing;
+  try {
+    pricing = await getRegistrarClient(name, account.id).getPricing(domainName);
+  } catch (err) {
+    if (err instanceof NotImplementedError)
+      return { amount: null, currency: 'USD' };
+    throw err;
+  }
   const code = currencyInfo(pricing.currency ?? 'USD')?.code ?? 'USD';
   const decimals = currencyInfo(code)?.decimals ?? 2;
   const registration = pricing.registration;
-  if (typeof registration !== 'number' || !Number.isFinite(registration) || registration < 0) {
+  if (
+    typeof registration !== 'number' ||
+    !Number.isFinite(registration) ||
+    registration < 0
+  ) {
     return { amount: null, currency: code };
   }
   return { amount: registration.toFixed(decimals), currency: code };

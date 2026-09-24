@@ -59,6 +59,7 @@ export function PurchaseDialog({
   justRegistered?: boolean;
 }) {
   const purchases = useAppStore((s) => s.purchases);
+  const registrars = useAppStore((s) => s.registrars);
   const settings = useAppStore((s) => s.settings);
   const savePurchase = useAppStore((s) => s.savePurchase);
   const formatId: NumberFormatId =
@@ -79,30 +80,38 @@ export function PurchaseDialog({
   const [currency, setCurrency] = useState(existing?.currency ?? preferred);
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
+  const [feeNote, setFeeNote] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [filling, setFilling] = useState(false);
 
   async function fillJustRegistered() {
     setError(null);
+    setFeeNote(null);
     setFilling(true);
+    const day = registrationDay(domain.createdDate);
     try {
       const quote = await window.api.getRegistrationQuote(
         domain.registrar as RegistrarName,
         domain.domainName,
         domain.accountId,
       );
+      setDate(day);
       if (!quote.amount) {
-        setError("This registrar didn't return a registration fee.");
+        const name =
+          registrars?.find((r) => r.name === domain.registrar)?.displayName ??
+          'This registrar';
+        setFeeNote(
+          `${name} doesn't report a registration fee. The date is filled in. Type the amount you paid.`,
+        );
         return;
       }
-      setDate(registrationDay(domain.createdDate));
       setCurrency(quote.currency);
       setAmount(formatAmountInput(quote.amount, quote.currency, formatId));
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Could not look up the fee.',
-      );
+      const raw =
+        err instanceof Error ? err.message : 'Could not look up the fee.';
+      setError(raw.replace(/^Error invoking remote method '[^']+':\s*/, ''));
     } finally {
       setFilling(false);
     }
@@ -168,9 +177,14 @@ export function PurchaseDialog({
                   Just Registered
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Fills the purchase date and purchase amount below. It does
-                  not save.
+                  Fills the purchase date, and the registration fee when this
+                  registrar reports one. It does not save.
                 </p>
+                {feeNote && (
+                  <p className="text-xs text-muted-foreground" role="status">
+                    {feeNote}
+                  </p>
+                )}
               </div>
             )}
             <div className="flex flex-col gap-2">
@@ -205,7 +219,9 @@ export function PurchaseDialog({
               value={notes}
               maxLength={NOTES_MAX}
               aria-describedby={
-                notesNearLimit(notes.length) ? 'purchase-notes-limit' : undefined
+                notesNearLimit(notes.length)
+                  ? 'purchase-notes-limit'
+                  : undefined
               }
               onChange={(e) => setNotes(e.target.value)}
             />
