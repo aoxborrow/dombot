@@ -179,6 +179,37 @@
   html {
     scrollbar-gutter: stable;
   }
+  /* Domain table: native bars are off. Overlay thumbs fade in on hover or scroll. */
+  .domain-table-scroll {
+    scrollbar-width: none;
+  }
+  .domain-table-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  .domain-scroll-thumb {
+    position: absolute;
+    z-index: 20;
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+  }
+  .domain-scroll-host.is-scrollbar-visible .domain-scroll-thumb {
+    opacity: 1;
+    pointer-events: auto;
+    transition: opacity 0.12s ease;
+  }
+  .domain-scroll-thumb-v {
+    top: 2px;
+    right: 2px;
+    width: 8px;
+  }
+  .domain-scroll-thumb-h {
+    bottom: 2px;
+    left: 2px;
+    height: 8px;
+  }
   body {
     @apply bg-background text-foreground;
   }

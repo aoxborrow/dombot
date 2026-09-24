@@ -95,7 +95,7 @@ export default function App() {
   }, [attachBulk, applyBulkProgress, applyBulkFinished]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       {isDemo() && <DemoBanner />}
       <header className="flex items-center border-b px-4 py-2 sm:px-6">
         <div className="flex flex-1 items-center">
@@ -152,7 +152,7 @@ export default function App() {
 
       {/* Extra bottom padding clears the fixed status bar (h-6) so the last
           row of a page is never hidden behind it. */}
-      <main className="flex-1 px-4 pt-3 pb-14 sm:px-6 sm:pt-[21px]">
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-3 pb-14 sm:px-6 sm:pt-[21px]">
         <Routes>
           <Route path="/" element={<Domains />} />
           <Route path="/renewals" element={<Renewals />} />
