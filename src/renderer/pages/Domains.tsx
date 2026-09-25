@@ -1,6 +1,7 @@
 import { accountNumber, accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
+import { toAscii } from '../../shared/domain-name';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -894,7 +895,7 @@ export default function Domains() {
     let noFolder = 0;
     let archived = 0;
     for (const d of portfolio) {
-      const id = folderAssignments[domainKey(d)];
+      const id = folderAssignments[toAscii(d.domainName)];
       if (id === ARCHIVE_FOLDER_ID) {
         archived += 1;
       } else if (id && folders.some((f) => f.id === id)) {
@@ -995,7 +996,7 @@ export default function Domains() {
       // folder filter active, keep only domains whose bucket is selected. With no
       // folder filter, drop the Archive bucket (that's the whole point of it).
       {
-        const id = folderAssignments[domainKey(d)];
+        const id = folderAssignments[toAscii(d.domainName)];
         const bucket =
           id === ARCHIVE_FOLDER_ID
             ? ARCHIVE_FOLDER_ID
@@ -1019,7 +1020,7 @@ export default function Domains() {
         return pricing[domainKey(d)]?.renewal ?? null;
       }
       if (sortKey === FOLDER) {
-        const id = folderAssignments[domainKey(d)];
+        const id = folderAssignments[toAscii(d.domainName)];
         return folders.find((f) => f.id === id)?.name.toLowerCase() ?? null;
       }
       return col.sortValue(d, portfolioRegistrarLabels);
@@ -1108,7 +1109,7 @@ export default function Domains() {
     );
   };
   const bulkAssignFolder = (folderId: string | null) => {
-    const keys = selectedDomains.map((d) => domainKey(d));
+    const keys = selectedDomains.map((d) => d.domainName);
     void Promise.all(keys.map((k) => assignFolder(k, folderId))).then(() =>
       toast.success(
         folderId === ARCHIVE_FOLDER_ID
@@ -1596,7 +1597,9 @@ export default function Domains() {
                               <RowActionsMenu
                                 domain={d}
                                 folders={folders}
-                                folderId={folderAssignments[key]}
+                                folderId={
+                                  folderAssignments[toAscii(d.domainName)]
+                                }
                                 onRefresh={() => refreshDomain(d)}
                                 onUrlForwarding={() => setUrlForwardingFor(d)}
                                 onEmailForwarding={() =>
@@ -1605,7 +1608,7 @@ export default function Domains() {
                                 onAuthCode={() => setAuthCodeFor(d)}
                                 onRenew={() => setRenewFor(d)}
                                 onAssignFolder={(folderId) =>
-                                  void assignFolder(key, folderId)
+                                  void assignFolder(d.domainName, folderId)
                                 }
                               />
                             </div>
@@ -1619,9 +1622,11 @@ export default function Domains() {
                           <TableCell className="p-0!">
                             <FolderCell
                               folders={folders}
-                              folderId={folderAssignments[key]}
+                              folderId={
+                                folderAssignments[toAscii(d.domainName)]
+                              }
                               onAssign={(folderId) =>
-                                void assignFolder(key, folderId)
+                                void assignFolder(d.domainName, folderId)
                               }
                             />
                           </TableCell>

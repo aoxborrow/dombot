@@ -1,13 +1,13 @@
 import { Namespace } from '../storage/namespace';
 
-// Per-registrar enable/disable state, persisted (`registrar-state` namespace)
+// Per-registrar enable/disable state, persisted (`registrars` namespace)
 // separately from credentials. A registrar is enabled by default (the moment its credentials are added); the
 // user can disable it in Settings to stop future syncs and drop its cached data
 // without clearing the credentials. We store only the DISABLED set — absence
 // means enabled — so a fresh install and every newly-configured registrar are on
 // by default with no migration.
 
-const store = new Namespace<string[]>('registrar-state');
+const store = new Namespace<string[]>('registrars');
 
 function load(): Set<string> {
   return new Set(store.get('disabled') ?? []);

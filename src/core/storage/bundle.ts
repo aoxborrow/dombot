@@ -11,6 +11,8 @@ import { parseNamecheapProxy } from '../../shared/namecheap-proxy';
 import { PROXIES_NAMESPACE, parseProxy } from '../../shared/proxy';
 import { migrateLegacyProxies } from '../services/proxies';
 import { sanitizeBundleDiagnostics } from './sanitize-diagnostics';
+import { upgradeLegacyNamespaces } from './migrations';
+import { CREDENTIALS_NAMESPACE } from './names';
 
 // A portable copy of everything DomBot stores — registrar keys, portfolio
 // cache, folders, manual prices, TLD rates, settings, MCP pairings, bulk-job
@@ -27,14 +29,14 @@ import { sanitizeBundleDiagnostics } from './sanitize-diagnostics';
 export const BUNDLE_FORMAT = 'dombot-data';
 // v3 adds the `proxies` namespace and `proxyId` on accounts. Older builds would
 // silently drop both and then connect directly, so they must refuse the file.
-export const BUNDLE_VERSION = 3;
-
-/** Host-specific or transient namespaces that never travel. */
-const NEVER_EXPORTED: ReadonlySet<string> = new Set(['auth', 'meta']);
+// v4 renames namespaces and keys folders and prices by domain name
+// (docs/storage-model.md); v1–v3 files are upgraded on import. Namespaces
+// flagged `local` (meta, …) never travel.
+export const BUNDLE_VERSION = 4;
 
 export interface DataBundle {
   format: typeof BUNDLE_FORMAT;
-  version: 1 | 2 | typeof BUNDLE_VERSION;
+  version: 1 | 2 | 3 | typeof BUNDLE_VERSION;
   exportedAt: string;
   /** Which DomBot wrote it (informational). */
   app: { version: string; platform: string };
@@ -50,7 +52,7 @@ export function buildBundle(app: DataBundle['app']): DataBundle {
     version: BUNDLE_VERSION,
     exportedAt: new Date().toISOString(),
     app,
-    namespaces: exportNamespaces(NEVER_EXPORTED),
+    namespaces: exportNamespaces(),
   };
 }
 
@@ -76,7 +78,7 @@ export function parseBundle(text: string): DataBundle {
   if (!head || head.format !== BUNDLE_FORMAT) {
     throw new BundleError('Not a DomBot data file.');
   }
-  if (![1, 2, BUNDLE_VERSION].includes(head.version as number)) {
+  if (![1, 2, 3, BUNDLE_VERSION].includes(head.version as number)) {
     throw new BundleError(
       `This file was made by a newer DomBot (format v${String(head.version)}). Update and try again.`,
     );
@@ -93,6 +95,12 @@ export function parseBundle(text: string): DataBundle {
     if (!entries || typeof entries !== 'object' || Array.isArray(entries)) {
       throw new BundleError(`Malformed namespace "${ns}" in this file.`);
     }
+  }
+  // Older files use the pre-v4 names and account-scoped keys; bring them up
+  // to date first so every check below sees one layout.
+  if ((head.version as number) < BUNDLE_VERSION) {
+    head.namespaces = upgradeLegacyNamespaces(head.namespaces);
+    head.version = BUNDLE_VERSION;
   }
   try {
     validateAccountRecords(head.namespaces['registrar-accounts'] ?? {});
@@ -141,7 +149,7 @@ export function parseBundle(text: string): DataBundle {
       record.registrar === 'namecheap'
     )
       namecheapIds.add(id);
-  const credentials = (head.namespaces.credentials ?? {}) as Record<
+  const credentials = (head.namespaces[CREDENTIALS_NAMESPACE] ?? {}) as Record<
     string,
     unknown
   >;
@@ -172,7 +180,7 @@ export async function importBundle(
   const bundle = parseBundle(text);
   sanitizeBundleDiagnostics(bundle.namespaces);
   const prevSettings = getSettings();
-  const result = importNamespaces(bundle.namespaces, NEVER_EXPORTED);
+  const result = importNamespaces(bundle.namespaces);
   await migrateLegacyProxies();
   // Everyone holding a derived view refreshes: the registrar clients built
   // from the old credentials, the UI (portfolio, pairings), the host's

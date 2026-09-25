@@ -72,10 +72,23 @@ export async function flushWrites(): Promise<void> {
 
 // ── namespaces ──────────────────────────────────────────────────────────────
 
+// Names follow docs/storage-model.md: kebab-case `<subject>-<plural noun>`
+// describing the data (`registrar-domains`, `domain-prices`). How a
+// namespace is treated is declared here, not encoded in its name.
+export interface NamespaceOptions {
+  /** Re-fetchable from a registrar or lookup: "Clear cache" wipes it. */
+  cache?: boolean;
+  /** Belongs to this install only: never exported, never replaced by an import. */
+  local?: boolean;
+}
+
 export class Namespace<T> {
   private data: Map<string, T> | null = null;
 
-  constructor(readonly name: string) {
+  constructor(
+    readonly name: string,
+    readonly options: NamespaceOptions = {},
+  ) {
     registry.add(this as Namespace<unknown>);
   }
 
@@ -178,14 +191,17 @@ export async function hydrateStores(): Promise<void> {
 
 // ── whole-store export / import (backup, migration, secret rotation) ────────
 
-/** Every registered namespace's entries, minus `exclude`. Reads memory, so
- *  the store must be hydrated. */
-export function exportNamespaces(
-  exclude: ReadonlySet<string> = new Set(),
-): Record<string, Record<string, unknown>> {
+/** Empties every namespace flagged `cache` ("Clear cache"). */
+export function clearCacheNamespaces(): void {
+  for (const ns of registry) if (ns.options.cache) void ns.clear();
+}
+
+/** Every registered namespace's entries, except those flagged `local`.
+ *  Reads memory, so the store must be hydrated. */
+export function exportNamespaces(): Record<string, Record<string, unknown>> {
   const out: Record<string, Record<string, unknown>> = {};
   for (const ns of registry) {
-    if (exclude.has(ns.name) || !ns.loaded) continue;
+    if (ns.options.local || !ns.loaded) continue;
     out[ns.name] = ns.all() as Record<string, unknown>;
   }
   return out;
@@ -198,16 +214,18 @@ export function exportNamespaces(
  * A registered namespace missing from the bundle is *emptied*, not kept:
  * "import" means the store becomes what the file says, so a crafted file
  * can't swap in its own settings or pairings while leaving the existing
- * credentials in place. Only `exclude` survives untouched.
+ * credentials in place. Only namespaces flagged `local` survive untouched.
  */
 export function importNamespaces(
   data: Record<string, Record<string, unknown>>,
-  exclude: ReadonlySet<string> = new Set(),
-): { namespaces: number; entries: number } {
+): {
+  namespaces: number;
+  entries: number;
+} {
   let namespaces = 0;
   let entries = 0;
   for (const ns of registry) {
-    if (exclude.has(ns.name)) continue;
+    if (ns.options.local) continue;
     const incoming = data[ns.name];
     if (!incoming) {
       if (ns.loaded && ns.size() > 0) void ns.clear();

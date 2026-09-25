@@ -429,12 +429,14 @@ describe('account persistence and routing', () => {
     await saveProxyProfile(profile);
     await saveRegistrarCredentials('namecheap', credentials, undefined, true);
     await flushWrites();
-    expect(await disk.get('proxies', 'default')).toMatchObject({ __sealed: 1 });
-    expect(JSON.stringify(await disk.list('proxies'))).not.toContain(
+    expect(await disk.get('registrar-proxies', 'default')).toMatchObject({
+      __sealed: 1,
+    });
+    expect(JSON.stringify(await disk.list('registrar-proxies'))).not.toContain(
       'proxy-secret',
     );
     const bundle = exportBundle({ version: 'test', platform: 'web' });
-    expect(JSON.parse(bundle).version).toBe(3);
+    expect(JSON.parse(bundle).version).toBe(4);
 
     configureStore(new MemoryDocStore());
     await hydrateStores();
@@ -452,23 +454,24 @@ describe('account persistence and routing', () => {
     const good = JSON.parse(exportBundle({ version: 'test', platform: 'web' }));
 
     const privateProxy = structuredClone(good);
-    privateProxy.namespaces.proxies.default.url = 'http://127.0.0.1:8080';
+    privateProxy.namespaces['registrar-proxies'].default.url =
+      'http://127.0.0.1:8080';
     await expect(importBundle(JSON.stringify(privateProxy))).rejects.toThrow(
       /public/,
     );
     const mismatched = structuredClone(good);
-    mismatched.namespaces.proxies.default.id = 'other';
+    mismatched.namespaces['registrar-proxies'].default.id = 'other';
     await expect(importBundle(JSON.stringify(mismatched))).rejects.toThrow(
       /Malformed/,
     );
     const dangling = structuredClone(good);
-    delete dangling.namespaces.proxies;
+    delete dangling.namespaces['registrar-proxies'];
     await expect(importBundle(JSON.stringify(dangling))).rejects.toThrow(
       /does not contain/,
     );
     // Legacy per-account fields are still validated on the way in.
     const legacy = structuredClone(good);
-    legacy.namespaces.credentials.namecheap = {
+    legacy.namespaces['registrar-credentials'].namecheap = {
       ...configured,
       proxyUrl: 'http://127.0.0.1:8080',
     };
@@ -627,8 +630,13 @@ describe('migration from per-account proxy fields', () => {
     const bundle = JSON.parse(
       exportBundle({ version: 'test', platform: 'web' }),
     );
+    // A real v2 file: pre-v4 names, the proxy still inside the credentials.
     bundle.version = 2;
-    bundle.namespaces.credentials.namecheap = configured;
+    bundle.namespaces.credentials = {
+      ...bundle.namespaces['registrar-credentials'],
+      namecheap: configured,
+    };
+    delete bundle.namespaces['registrar-credentials'];
     await importBundle(JSON.stringify(bundle));
     expect(getProxyProfile()).toMatchObject(profile);
     expect(getStoredCredentials('namecheap')).toEqual(credentials);

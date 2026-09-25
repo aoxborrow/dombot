@@ -1,4 +1,5 @@
 import { domainKey } from '../../shared/account-key';
+import { toAscii } from '../../shared/domain-name';
 import { create } from 'zustand';
 import type {
   AppInfo,
@@ -151,12 +152,7 @@ interface AppState {
   pricing: Record<string, RenewalPricing>;
   /** Re-read the whole-portfolio pricing map from main (local, no network). */
   loadPricing: () => Promise<void>;
-  setManualPrice: (
-    registrar: string,
-    domain: string,
-    price: number | null,
-    accountId?: string,
-  ) => Promise<void>;
+  setManualPrice: (domain: string, price: number | null) => Promise<void>;
 
   // User-defined folders for organizing domains, plus the domain→folder map
   // (keyed `${registrar}:${domainName}`, the same key as `pricing`/`enriched`).
@@ -170,7 +166,7 @@ interface AppState {
   /** Delete a folder; also drops any local assignments pointing at it. */
   deleteFolder: (id: string) => Promise<void>;
   /** Assign a domain to a folder, or unassign it with a null folderId. */
-  assignFolder: (domainKey: string, folderId: string | null) => Promise<void>;
+  assignFolder: (domainName: string, folderId: string | null) => Promise<void>;
 
   // User-adjustable app settings (e.g. the background-sync interval). `null`
   // until first loaded.
@@ -555,13 +551,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     const pricing = await window.api.getPortfolioPricing();
     set({ pricing });
   },
-  setManualPrice: async (registrar, domain, price, accountId) => {
-    await window.api.setManualPrice(
-      registrar as RegistrarName,
-      domain,
-      price,
-      accountId,
-    );
+  setManualPrice: async (domain, price) => {
+    await window.api.setManualPrice(domain, price);
     // The override changes one domain's price; re-read the whole map (local, no
     // network) so the dashboard totals and the row both reflect it.
     await get().loadPricing();
@@ -598,12 +589,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
     });
   },
-  assignFolder: async (domainKey, folderId) => {
-    await window.api.assignFolder(domainKey, folderId);
+  assignFolder: async (domainName, folderId) => {
+    await window.api.assignFolder(domainName, folderId);
+    const key = toAscii(domainName);
     set((state) => {
       const folderAssignments = { ...state.folderAssignments };
-      if (folderId === null) delete folderAssignments[domainKey];
-      else folderAssignments[domainKey] = folderId;
+      if (folderId === null) delete folderAssignments[key];
+      else folderAssignments[key] = folderId;
       return { folderAssignments };
     });
   },

@@ -85,16 +85,13 @@ export async function installDemo(
       }).id;
     for (const domainName of folder.domains) {
       const record = world.get(domainName);
-      if (record) assignFolder(`${record.accountId}:${domainName}`, id);
+      if (record) assignFolder(domainName, id);
     }
   }
 
   for (const [key, price] of Object.entries(seed.manualPrices)) {
-    const colon = key.indexOf(':');
-    const accountId = key.slice(0, colon);
-    const domainName = key.slice(colon + 1);
-    const record = world.get(domainName);
-    if (record) setManualPrice(record.registrar, domainName, price, accountId);
+    const domainName = key.slice(key.indexOf(':') + 1);
+    if (world.get(domainName)) setManualPrice(domainName, price);
   }
 
   await flushWrites();
