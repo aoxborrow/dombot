@@ -217,10 +217,19 @@ the Worker subrequest limit.
    Neither has shipped, so their data needs no migration. Bundle
    re-validation from the #99 branch carries over to `domain-events`.
 
-## Open questions
+## Decided
 
-1. Event ids: a small ULID helper, or `${Date.now()}-${crypto.randomUUID()}`?
-2. Should a `renewed` event be written automatically when sync sees the
-   expiry move forward, or only by hand?
-3. Does `manual-domains` need its own CSV importer, or does the purchase CSV
-   grow an "add if missing" option?
+- **Event ids carry their date.** A time-sortable id (ULID-style: a
+  millisecond timestamp prefix plus randomness), so ids sort by when the event
+  was recorded and stay unique across instances.
+
+## Future work
+
+- **Every domain change writes an event.** Review each place that changes a
+  domain — registrar sync, bulk edits, nameserver and auto-renew changes, MCP
+  tool writes, renewals seen when the expiry moves forward — and have it append
+  to `domain-events`. The first domain-history PR only needs purchases, sales,
+  and the sync-detected arrivals, departures, and moves.
+- **Manual domains importer.** A CSV importer for `manual-domains`, designed
+  separately. The purchase CSV (#99, reworked in #100) needs its own review
+  before it merges.
