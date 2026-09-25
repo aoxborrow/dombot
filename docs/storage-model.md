@@ -95,23 +95,45 @@ shares one folder and one price.
 One document per event in `domain-events`, keyed by a time-sortable id, so a
 new event writes one small row and never rewrites the history.
 
+Event types and sources are const maps in `src/shared/domain-events.ts`, in
+the same style as `IpcChannels`, so code reads `DomainEventType.Removed`
+rather than a bare string. The stored value is the lowercase string, which
+never changes once written; renaming a constant is free, renaming a value
+needs a migration.
+
 ```ts
+export const DomainEventType = {
+  // Something you did.
+  Registered: 'registered', // hand-registered as a new name
+  Purchased: 'purchased', // bought from someone (aftermarket, private)
+  Sold: 'sold',
+  Renewed: 'renewed',
+  Dropped: 'dropped', // let it expire
+  Archived: 'archived', // no longer tracked as active, kept for reference
+  // Something sync saw.
+  Added: 'added', // the name appeared in an account
+  Removed: 'removed', // the name is gone from an account
+  Moved: 'moved', // gone from one of your accounts, appeared in another
+  Transferred: 'transferred', // changed registrar (in or out)
+} as const;
+export type DomainEventType =
+  (typeof DomainEventType)[keyof typeof DomainEventType];
+
+export const DomainEventSource = {
+  User: 'user',
+  Sync: 'sync',
+  Import: 'import',
+} as const;
+export type DomainEventSource =
+  (typeof DomainEventSource)[keyof typeof DomainEventSource];
+
 interface DomainEvent {
   id: string; // time-sortable (ULID-style), also the storage key
   domain: string; // toAscii(name)
-  type:
-    | 'purchased'
-    | 'sold'
-    | 'renewed'
-    | 'transferred'
-    | 'arrived'
-    | 'left'
-    | 'moved'
-    | 'dropped'
-    | 'archived';
+  type: DomainEventType;
   at: string; // when it happened; user-editable for purchases/sales
   recordedAt: string; // when DomBot recorded it
-  source: 'user' | 'sync' | 'import';
+  source: DomainEventSource;
   accountId?: string | null;
   fromAccountId?: string | null; // moved
   toAccountId?: string | null; // moved
@@ -125,11 +147,14 @@ interface DomainEvent {
 ```
 
 - **Repeats are normal.** Drop a name and buy it back: two `purchased`
-  events. The cost basis shown in the table is the latest `purchased` since the
-  last `sold` or `dropped`.
+  events. The cost basis shown in the table is the latest `purchased` or
+  `registered` since the last `sold` or `dropped`.
+- **You vs. sync.** `added` and `removed` only say that a name appeared in or
+  disappeared from an account; they don't say why. The user events say what
+  happened (`purchased`, `sold`, `dropped`), usually resolving a sync one.
 - **Sync writes, you resolve.** A sync that no longer sees a name writes
-  `left` (`source: 'sync'`). Marking it Sold writes `sold` with
-  `resolves: <left id>`; Dropped and Archive work the same way. #100's
+  `removed` (`source: 'sync'`). Marking it Sold writes `sold` with
+  `resolves: <removed id>`; Dropped and Archive work the same way. #100's
   baselining (the first sync of an account creates no alerts) carries over as a
   small per-account marker in `domain-events` or `meta`.
 - **Sold, Dropped, and Archive are views,** derived from each name's latest
