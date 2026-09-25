@@ -107,14 +107,13 @@ export const DomainEventType = {
   Registered: 'registered', // hand-registered as a new name
   Purchased: 'purchased', // bought from someone (aftermarket, private)
   Sold: 'sold',
-  Renewed: 'renewed',
+  Renewed: 'renewed', // written by sync when the expiry moves forward (future)
   Dropped: 'dropped', // let it expire
   Archived: 'archived', // no longer tracked as active, kept for reference
   // Something sync saw.
   Added: 'added', // the name appeared in an account
   Removed: 'removed', // the name is gone from an account
   Moved: 'moved', // gone from one of your accounts, appeared in another
-  Transferred: 'transferred', // changed registrar (in or out)
 } as const;
 export type DomainEventType =
   (typeof DomainEventType)[keyof typeof DomainEventType];
@@ -139,8 +138,6 @@ interface DomainEvent {
   toAccountId?: string | null; // moved
   amount?: string | null; // canonical decimal (money.ts)
   currency?: string | null; // ISO 4217
-  counterparty?: string; // Sedo, Afternic, a private buyer…
-  notes?: string; // about this event, not the name
   resolves?: string; // a user event closing a sync-detected one
   dismissed?: boolean; // sync alert acknowledged with no action
 }
@@ -149,6 +146,15 @@ interface DomainEvent {
 - **Repeats are normal.** Drop a name and buy it back: two `purchased`
   events. The cost basis shown in the table is the latest `purchased` or
   `registered` since the last `sold` or `dropped`.
+- **No separate transfer type.** DomBot sees accounts, not registrar
+  transfers, so a transfer always lands as one of the sync events: to another
+  of your accounts (even at another registrar) is `moved`; to someone else is
+  `removed`, resolved as `sold`; in from outside is `added`, resolved as
+  `purchased`.
+- **Notes belong to the name.** An event has no notes field; the sale and
+  purchase dialogs edit the name's `domain-notes`, as #100's sale dialog
+  already does. A per-event note or a counterparty (marketplace, buyer) can be
+  added later without touching stored data.
 - **You vs. sync.** `added` and `removed` only say that a name appeared in or
   disappeared from an account; they don't say why. The user events say what
   happened (`purchased`, `sold`, `dropped`), usually resolving a sync one.
