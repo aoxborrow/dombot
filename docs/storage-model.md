@@ -63,7 +63,7 @@ set passed to `EncryptedDocStore`.
 | `proxies`                                | `registrar-proxies`     | sealed | proxy id                   | proxy profiles                                    |
 | `registrar-state`                        | `registrars`            |        | fixed keys                 | which registrars are switched on                  |
 | —                                        | `manual-domains`        |        | name                       | names you add that no connected registrar reports |
-| —                                        | `domain-notes`          |        | name                       | free-text notes, for any domain                   |
+| —                                        | `domain-notes`          |        | note id                    | notes on a domain, or on one of its events        |
 | `domain-purchases` + `portfolio-changes` | `domain-events`         |        | event id                   | purchases, sales, arrivals, moves, drops          |
 | `folders` (`assignments` key)            | `domain-folders`        |        | name                       | name → folder id                                  |
 | `folders` (`folders` key)                | `folders`               |        | folder id                  | folder definitions                                |
@@ -130,14 +130,15 @@ interface DomainEvent {
   id: string; // time-sortable (ULID-style), also the storage key
   domain: string; // toAscii(name)
   type: DomainEventType;
-  at: string; // when it happened; user-editable for purchases/sales
-  recordedAt: string; // when DomBot recorded it
+  date: string; // YYYY-MM-DD, the day it happened; user-editable
+  createdAt: number; // ms epoch, when DomBot recorded it
+  updatedAt: number | null; // ms epoch, last edit
   source: DomainEventSource;
   accountId?: string | null;
   fromAccountId?: string | null; // moved
   toAccountId?: string | null; // moved
-  amount?: string | null; // canonical decimal (money.ts)
-  currency?: string | null; // ISO 4217
+  amount?: string | null; // canonical decimal, e.g. "19.99", "1500" (money.ts)
+  currency?: CurrencyCode | null; // ISO 4217, from CURRENCIES
   resolves?: string; // a user event closing a sync-detected one
   dismissed?: boolean; // sync alert acknowledged with no action
 }
@@ -151,10 +152,24 @@ interface DomainEvent {
   of your accounts (even at another registrar) is `moved`; to someone else is
   `removed`, resolved as `sold`; in from outside is `added`, resolved as
   `purchased`.
-- **Notes belong to the name.** An event has no notes field; the sale and
-  purchase dialogs edit the name's `domain-notes`, as #100's sale dialog
-  already does. A per-event note or a counterparty (marketplace, buyer) can be
-  added later without touching stored data.
+- **Timestamps follow the codebase.** Something DomBot records is `…At:
+number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
+  day is a `YYYY-MM-DD` string (like `purchaseDate`), so it can't shift with
+  the timezone. A sync event's `date` is the day of the sync; `createdAt` has
+  the exact time.
+- **Amounts are decimal strings,** as #99 stores them: digits and an optional
+  period, with exactly the currency's decimal places (USD 2, JPY 0, KWD 3). A
+  string is exact (no float rounding), reads as money in a data file, and
+  exports to CSV unchanged, and the same text imports back. Code that needs to
+  sum or compare parses it to integer minor units for the calculation.
+- **Currencies are a fixed list.** `CURRENCIES` in `src/shared/currencies.ts`
+  holds every active ISO 4217 code with its decimal places, and `CurrencyCode`
+  is derived from it. A static list, not `Intl.supportedValuesOf`, so Electron,
+  browsers, and the Worker all accept the same codes.
+- **Notes point at events, not the other way round.** An event has no text;
+  a `domain-notes` record can reference it (see below).
+- **No counterparty yet.** A marketplace or buyer field can be added later
+  without touching stored data.
 - **You vs. sync.** `added` and `removed` only say that a name appeared in or
   disappeared from an account; they don't say why. The user events say what
   happened (`purchased`, `sold`, `dropped`), usually resolving a sync one.
@@ -166,7 +181,7 @@ interface DomainEvent {
 - **Sold, Dropped, and Archive are views,** derived from each name's latest
   event, not folders that events have to keep in step with.
 - **CSV import is idempotent.** A purchase row that matches an existing event
-  on (domain, type, `at`, amount, currency) is skipped, so importing the same
+  on (domain, type, `date`, amount, currency) is skipped, so importing the same
   file twice doesn't double-count.
 - **Merge-ready.** Ids are unique across instances, so a later remote sync can
   union `domain-events` by id instead of overwriting it.
@@ -193,12 +208,29 @@ If a connected registrar later reports the same name, sync removes the
 folders, and prices are keyed by name, not by the manual entry, so they carry
 straight across; the name never leaves the table, it only changes source.
 
-`domain-notes` is one string per name, for any domain. It replaces the notes
-field #99 put on the purchase record. It stays its own namespace rather than a
-catch-all per-name record: each `domain-*` namespace holds one thing, so a
-future remote-sync merge can't collide two unrelated edits to the same name. A
-new per-name field (tags, an asking price) gets its own small namespace; a
-dated note is a `domain-events` entry.
+`domain-notes` holds note records, keyed by note id, for any domain:
+
+```ts
+interface DomainNote {
+  id: string; // storage key
+  domain: string; // toAscii(name)
+  eventId: string | null; // null: about the name; set: about that event
+  text: string;
+  createdAt: number; // ms epoch
+  updatedAt: number | null; // ms epoch
+}
+```
+
+The name's general note is the one with `eventId: null`, which replaces the
+notes field #99 put on the purchase record. A sale or purchase can carry its
+own note ("via Afternic, paid through Escrow.com") by pointing at its event.
+The link lives on the note, so events stay small, an event can have several
+notes, and deleting an event deletes its notes.
+
+Notes stay their own namespace rather than fields on a catch-all per-name
+record: each `domain-*` namespace holds one thing, so a future remote-sync
+merge can't collide two unrelated edits to the same name. A new per-name field
+(tags, an asking price) gets its own small namespace.
 
 ## Migration
 
