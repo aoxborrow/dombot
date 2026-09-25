@@ -1085,9 +1085,9 @@ export default function Domains() {
       const from = keys.indexOf(anchor);
       const to = keys.indexOf(key);
       if (from !== -1 && to !== -1) {
-        const start = Math.min(from, to);
-        const end = Math.max(from, to);
-        setSelectedMany(keys.slice(start, end + 1), true);
+        const lo = Math.min(from, to);
+        const hi = Math.max(from, to);
+        setSelectedMany(keys.slice(lo, hi + 1), true);
         return;
       }
     }
