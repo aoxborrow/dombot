@@ -1,6 +1,7 @@
 # Storage model
 
-Status: design (2026-09-25). Not yet implemented.
+Status: storage conventions implemented (naming, flags, name-keyed folders and
+prices, migration, bundle v4); domain events and manual domains not yet.
 
 A naming and keying standard for everything DomBot persists, a domain event
 history that replaces the separate purchase and portfolio-change stores
@@ -68,7 +69,7 @@ set passed to `EncryptedDocStore`.
 | `folders` (`folders` key)                | `folders`               |        | folder id                  | folder definitions                                |
 | `pricing-overrides`                      | `domain-prices`         |        | name                       | your manual renewal price                         |
 | `settings`, `bulk-jobs`, `mcp`           | _(unchanged)_           |        |                            | app-level                                         |
-| `meta`, `auth`                           | _(unchanged)_           | local  |                            | this install only                                 |
+| `meta`                                   | _(unchanged)_           | local  |                            | this install only                                 |
 | — (#89)                                  | `remote-sync`           | local  |                            | the remote URL                                    |
 
 Clear cache now also wipes `registrar-tld-rates`; the next sync refetches it.
@@ -170,29 +171,39 @@ dated note is a `domain-events` entry.
 
 ## Migration
 
-A schema version lives in `meta` (`schemaVersion`). One shared step,
-`runMigrations(store)`, runs before `hydrateStores()` on both hosts
-(`src/electron/storage/index.ts`, `src/worker/index.ts`).
+A schema version lives in `meta` (`schemaVersion`).
+`runMigrations(raw, store)` (`src/core/storage/migrations.ts`) runs before
+`hydrateStores()` on both hosts: in `initStorage` on desktop, and in the
+Worker's per-isolate boot, which every request awaits.
 
 **Migration 1:**
 
-1. For each renamed namespace: `list(old)` → `putMany(new, …)` →
+1. Split `folders`: the `folders` key stays, the `assignments` map becomes one
+   `domain-folders` entry per name (the legacy `__hidden__` Archive id is
+   normalized on the way).
+2. For each renamed namespace: `list(old)` → `putMany(new, …)` →
    `clear(old)`. Skipped when `old` is empty, so a rerun is harmless.
-2. Re-key `domain-folders` and `domain-prices` from `${accountId}:${name}` to
-   `toAscii(name)`. When two accounts disagree about the same name, the account
-   that currently reports the name in `registrar-domains` wins; otherwise the
-   first one found. A conflict is logged, not raised.
-3. Split `folders`: the `folders` key stays, the `assignments` map becomes one
-   `domain-folders` entry per name.
-4. Set `schemaVersion = 1`.
+   `pricing-overrides` is re-keyed from `${accountId ?? registrar}:${name}`
+   to `toAscii(name)` on the way.
+3. Set `schemaVersion = 1`.
 
-It runs against the **inner** store, below `EncryptedDocStore`, so sealed
-values move as ciphertext and are never decrypted. The sealed-namespace set
-switches to the new names in the same release.
+Re-keying by name can collide when two accounts held the same name with
+different values. The first entry found wins and the rest are logged. (It only
+happens for a name held by two accounts at once, i.e. mid-transfer.)
 
-On the web host it runs inside the request lock with the usual hydrate and
-flush around it. The copies use `putMany`, so a large portfolio stays within
-the Worker subrequest limit.
+`raw` is the store **beneath** `EncryptedDocStore`, so renames copy values
+exactly as stored: sealed values move as ciphertext, and a value the cipher
+can't open right now (a locked desktop keyring) is moved rather than dropped.
+The sealed-namespace set switches to the new names in the same release. The
+folder map is the one value that has to be read; it goes through the
+configured `store`, and if it exists but can't be opened the migration stops
+before changing anything and retries on the next start.
+
+The copies use `putMany`, so a large portfolio stays within the Worker
+subrequest limit. Two Worker isolates booting at once can both run it;
+copy-then-clear makes that safe, and the only exposure is a write landing in
+a new namespace in the moment another isolate is still copying into it, which
+is limited to the first requests after deploying this release.
 
 ## Data bundle v4
 
@@ -203,8 +214,10 @@ the Worker subrequest limit.
 - An older DomBot refuses a v4 file ("made by a newer DomBot") instead of
   silently skipping namespaces it doesn't know. For remote sync (#89) that's
   the safe failure.
-- Namespaces flagged `local` are never exported; `remote-sync` joins `meta`
-  and `auth` there.
+- Namespaces flagged `local` are never exported and never replaced by an
+  import; today that's `meta`, and `remote-sync` (#89) will join it. (`auth`
+  was on the old never-exported list but no namespace by that name exists; an
+  unknown namespace in a file is skipped anyway.)
 
 ## Rollout
 
