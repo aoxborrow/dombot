@@ -15,6 +15,16 @@ afterEach(() => {
 });
 
 describe('FsDocStore', () => {
+  it('writes a batch of keys into the namespace file at once', async () => {
+    const store = new FsDocStore(dir);
+    await store.put('purchases', 'a.com', 1);
+    await store.putMany('purchases', [
+      ['b.com', 2],
+      ['a.com', 3],
+    ]);
+    expect(await store.list('purchases')).toEqual({ 'a.com': 3, 'b.com': 2 });
+  });
+
   it('keeps one {key: value} JSON file per namespace', async () => {
     const store = new FsDocStore(dir);
     await store.put('settings', 'autoSyncIntervalMinutes', 60);

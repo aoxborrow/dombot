@@ -131,6 +131,16 @@ export class Namespace<T> {
     );
   }
 
+  /** Sets many keys with one store write (see `DocStore.putMany`). */
+  setMany(entries: [string, T][]): Promise<void> {
+    if (entries.length === 0) return Promise.resolve();
+    const data = this.ensure();
+    for (const [key, value] of entries) data.set(key, value);
+    return enqueue(`${this.name} put ${entries.length}`, () =>
+      store.putMany(this.name, entries),
+    );
+  }
+
   delete(key: string): Promise<void> {
     if (!this.ensure().delete(key)) return Promise.resolve();
     return enqueue(`${this.name}/${key} delete`, () =>
@@ -183,7 +193,7 @@ export function exportNamespaces(
 
 /**
  * Replaces the store with `data` wholesale — memory first, then a clear plus
- * one put per entry through the write queue. A namespace this build doesn't
+ * one batched put through the write queue. A namespace this build doesn't
  * know is skipped (so a bundle from a newer DomBot can't leave stray docs).
  * A registered namespace missing from the bundle is *emptied*, not kept:
  * "import" means the store becomes what the file says, so a crafted file
@@ -209,7 +219,7 @@ export function importNamespaces(
     entries += items.length;
     enqueue(`${ns.name} import`, async () => {
       await store.clear(ns.name);
-      for (const [key, value] of items) await store.put(ns.name, key, value);
+      await store.putMany(ns.name, items);
     });
   }
   return { namespaces, entries };

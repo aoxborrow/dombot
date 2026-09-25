@@ -87,12 +87,24 @@ export class EncryptedDocStore implements DocStore {
 
   async put(ns: string, key: string, value: unknown): Promise<void> {
     if (!this.sealed(ns)) return this.inner.put(ns, key, value);
-    const envelope: Envelope = {
+    return this.inner.put(ns, key, await this.seal(value));
+  }
+
+  private async seal(value: unknown): Promise<Envelope> {
+    return {
       __sealed: 1,
       alg: this.cipher.alg,
       ct: await this.cipher.seal(JSON.stringify(value)),
     };
-    return this.inner.put(ns, key, envelope);
+  }
+
+  async putMany(ns: string, entries: [string, unknown][]): Promise<void> {
+    if (!this.sealed(ns)) return this.inner.putMany(ns, entries);
+    const sealed: [string, unknown][] = [];
+    for (const [key, value] of entries) {
+      sealed.push([key, await this.seal(value)]);
+    }
+    return this.inner.putMany(ns, sealed);
   }
 
   delete(ns: string, key: string): Promise<void> {

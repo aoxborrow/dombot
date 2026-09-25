@@ -62,6 +62,13 @@ export class FsDocStore implements DocStore {
     this.write(ns, data);
   }
 
+  async putMany(ns: string, entries: [string, unknown][]): Promise<void> {
+    if (entries.length === 0) return;
+    const data = this.read(ns);
+    for (const [key, value] of entries) data[key] = value;
+    this.write(ns, data);
+  }
+
   async delete(ns: string, key: string): Promise<void> {
     const data = this.read(ns);
     if (!(key in data)) return;

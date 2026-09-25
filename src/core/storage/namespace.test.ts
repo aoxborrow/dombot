@@ -66,6 +66,7 @@ describe('Namespace over a DocStore', () => {
         if (key === 'bad') throw new Error('disk full');
         puts.push(key);
       },
+      async putMany() {},
       async delete() {},
       async clear() {},
       async get() {
