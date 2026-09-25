@@ -156,11 +156,17 @@ interface ManualDomain {
 
 They join the Domains table beside the registrar list and take folders,
 prices, notes, and events like any other name. Clear cache never touches them.
-If a connected registrar later reports the same name, the registrar's row wins
-and the manual row is flagged so it can be removed.
+If a connected registrar later reports the same name, sync removes the
+`manual-domains` entry and the registrar's row takes over. Notes, events,
+folders, and prices are keyed by name, not by the manual entry, so they carry
+straight across; the name never leaves the table, it only changes source.
 
 `domain-notes` is one string per name, for any domain. It replaces the notes
-field #99 put on the purchase record.
+field #99 put on the purchase record. It stays its own namespace rather than a
+catch-all per-name record: each `domain-*` namespace holds one thing, so a
+future remote-sync merge can't collide two unrelated edits to the same name. A
+new per-name field (tags, an asking price) gets its own small namespace; a
+dated note is a `domain-events` entry.
 
 ## Migration
 
