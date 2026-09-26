@@ -15,17 +15,14 @@ import {
   CalendarClock,
   ChevronDown,
   CircleCheck,
-  CircleX,
   ExternalLink,
   Globe,
   Plug,
-  Search,
   Server,
   ShieldBan,
   ShieldCheck,
   SlidersHorizontal,
   TriangleAlert,
-  X,
 } from 'lucide-react';
 import type {
   Domain,
@@ -82,14 +79,17 @@ import { defaultBulkOp } from '../lib/bulk';
 import { usePreferences } from '../lib/preferences';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { paginate, sortRows } from '../components/data-table/table-state';
+import {
+  MultiSelectFilter,
+  ResetButton,
+  SearchField,
+} from '../components/data-table/Toolbar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -660,13 +660,6 @@ function matchesExpiryOption(option: string, days: number | null): boolean {
   if (days === null) return false;
   if (option === EXPIRED) return days < 0;
   return days >= 0 && days <= Number(option);
-}
-
-/** Adds or removes `value` from a multi-select selection array. */
-function toggleValue(selected: string[], value: string): string[] {
-  return selected.includes(value)
-    ? selected.filter((v) => v !== value)
-    : [...selected, value];
 }
 
 // ── Page ────────────────────────────────────────────────────────────────────
@@ -1532,41 +1525,14 @@ export default function Domains() {
               items. Extra top margin separates it from the title/refresh row
               above. */}
         <div className="mt-1 flex flex-wrap items-center gap-3 sm:mt-3">
-          <div className="relative min-w-[140px] flex-1 max-sm:basis-full">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(0);
-              }}
-              placeholder="Search domains…"
-              // Room on the right for the clear button below.
-              className="pr-8 pl-8"
-            />
-            {/* Custom clear control in place of the native search-cancel
-                button (a blue ⓧ on macOS): a muted solid disc with the ✕ cut
-                out in the field's background, the same on every platform. */}
-            {search !== '' && (
-              <button
-                type="button"
-                aria-label="Clear search"
-                title="Clear search"
-                onClick={() => {
-                  setSearch('');
-                  setPage(0);
-                }}
-                className="absolute top-1/2 right-2.5 -translate-y-1/2 rounded-full text-muted-foreground opacity-70 hover:opacity-100"
-              >
-                <CircleX
-                  className="size-4 [&>path]:stroke-background"
-                  fill="currentColor"
-                  strokeWidth={2.5}
-                />
-              </button>
-            )}
-          </div>
+          <SearchField
+            value={search}
+            onChange={(value) => {
+              setSearch(value);
+              setPage(0);
+            }}
+            placeholder="Search domains…"
+          />
 
           {/* Phones only: a toggle that collapses the filter chips (below) so the
               toolbar doesn't wrap onto several lines. At sm+ the chips are always
@@ -1658,27 +1624,7 @@ export default function Domains() {
             )}
           </div>
 
-          {/* Reset button styled like the filters (no chevron); faded/
-                  disabled when nothing is active. On phones it stays beside the
-                  Filters toggle (sm:order-last pins it after the chips on
-                  desktop, its original spot). */}
-          <Button
-            variant="outline"
-            onClick={resetFilters}
-            disabled={!hasActiveFilters}
-            className={cn(
-              'gap-2 pr-[14px]! pl-[8px]! sm:order-last',
-              hasActiveFilters && 'border-[#4f9d6b] dark:border-[#4f9d6b]',
-            )}
-          >
-            <X
-              className={cn(
-                'size-[18px]',
-                hasActiveFilters ? 'text-[#4f9d6b]' : 'text-muted-foreground',
-              )}
-            />
-            Reset
-          </Button>
+          <ResetButton active={hasActiveFilters} onReset={resetFilters} />
 
           {exportNote && (
             <span
@@ -1855,81 +1801,5 @@ export default function Domains() {
         />
       )}
     </div>
-  );
-}
-
-/**
- * A checkbox dropdown filter. The trigger shows the plural `label` plus a count
- * badge once anything is selected; an empty selection means "no filter". The
- * menu stays open while toggling so several can be picked at once.
- */
-function MultiSelectFilter({
-  label,
-  options,
-  selected,
-  onChange,
-  icon: Icon,
-}: {
-  label: string;
-  options: {
-    value: string;
-    label: string;
-    count?: number;
-    /** Optional leading icon shown before this option's label. */
-    icon?: React.ReactNode;
-  }[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-  /** Optional leading icon shown before the label in the trigger. */
-  icon?: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          aria-label={label}
-          className="gap-2 pr-[7px]!"
-        >
-          {Icon && <Icon className="size-4 text-muted-foreground" />}
-          {label}
-          {selected.length > 0 && (
-            <Badge className="bg-primary px-1.5 py-0 text-xs tabular-nums text-primary-foreground">
-              {selected.length}
-            </Badge>
-          )}
-          <ChevronDown className="size-4 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className="max-h-[320px] overflow-y-auto"
-      >
-        {options.length === 0 && (
-          <div className="px-2 py-1.5 text-sm text-muted-foreground">
-            No options
-          </div>
-        )}
-        {options.map((o) => (
-          <DropdownMenuCheckboxItem
-            key={o.value}
-            checked={selected.includes(o.value)}
-            // Keep the menu open so multiple options can be toggled in one go.
-            onSelect={(e) => e.preventDefault()}
-            onCheckedChange={() => onChange(toggleValue(selected, o.value))}
-          >
-            {o.icon && (
-              <span className="ml-0.5 mr-0.5 flex shrink-0">{o.icon}</span>
-            )}
-            <span className="flex-1 truncate">{o.label}</span>
-            {o.count != null && (
-              <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">
-                {o.count}
-              </span>
-            )}
-          </DropdownMenuCheckboxItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

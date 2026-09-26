@@ -1,6 +1,7 @@
 import {
   DomainEventSource,
   DomainEventType,
+  localDay,
   type DomainEvent,
 } from '../../shared/domain-events';
 import type { RegistrarMeta } from '../../shared/ipc';
@@ -55,7 +56,8 @@ export function resolutions(events: DomainEvent[]): Map<string, DomainEvent> {
   return out;
 }
 
-const VERB: Record<DomainEvent['type'], string> = {
+/** What each event type is called: the Type badge, and what a sale or label says. */
+export const VERB: Record<DomainEvent['type'], string> = {
   registered: 'Registered',
   purchased: 'Purchased',
   sold: 'Sold',
@@ -141,7 +143,39 @@ export function alertStatus(
 
 export const SOURCE_LABEL: Record<DomainEvent['source'], string> = {
   user: 'You',
-  sync: 'Sync',
+  sync: 'Registrar sync',
   import: 'Import',
   lookup: 'Lookup',
 };
+
+/** The day an event happened: its date, or the day it was recorded. */
+export function eventDay(e: DomainEvent): string {
+  return e.date ?? localDay(e.createdAt);
+}
+
+/** Whether an event happened within the last `days` days (today included). */
+export function withinDays(e: DomainEvent, days: number, now: number): boolean {
+  return eventDay(e) >= localDay(now - days * 86_400_000);
+}
+
+/** Every account an event names: where it arrived or left, or both ends of a move. */
+export function eventAccounts(e: DomainEvent): string[] {
+  return [e.accountId, e.fromAccountId, e.toAccountId].filter(
+    (id): id is string => !!id,
+  );
+}
+
+/** "$2,500 · 2 yr", or null when there's nothing to say. */
+export function eventDetails(
+  e: DomainEvent,
+  numberFormat: NumberFormatId,
+  preferredCurrency: string,
+): string | null {
+  const parts: string[] = [];
+  if (e.amount && e.currency)
+    parts.push(
+      formatMoney(e.amount, e.currency, preferredCurrency, numberFormat),
+    );
+  if (e.years) parts.push(`${e.years} yr`);
+  return parts.length ? parts.join(' · ') : null;
+}

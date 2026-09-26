@@ -13,7 +13,7 @@ import { DispositionDialog } from '../actions/OwnershipDialogs';
 import { Button } from '@/components/ui/button';
 
 /** A Domain for the purchase and sale dialogs, from an alert. */
-function alertDomain(
+export function alertDomain(
   e: DomainEvent,
   portfolio: Domain[],
   registrars: RegistrarMeta[] | null,
