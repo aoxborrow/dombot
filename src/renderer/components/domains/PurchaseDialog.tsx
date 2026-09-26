@@ -50,6 +50,7 @@ export function PurchaseDialog({
   onClose,
   onSaved,
   justRegistered = false,
+  resolves,
 }: {
   domain: Domain;
   onClose: () => void;
@@ -57,6 +58,8 @@ export function PurchaseDialog({
   onSaved?: () => void;
   /** An arrival: offer to fill the registration date and this registrar's fee. */
   justRegistered?: boolean;
+  /** The arrival alert this answers: records a new purchase and closes it. */
+  resolves?: string;
 }) {
   const purchases = useAppStore((s) => s.purchases);
   const registrars = useAppStore((s) => s.registrars);
@@ -139,6 +142,7 @@ export function PurchaseDialog({
       await savePurchase({
         domainName: domain.domainName,
         ...(registered && !clear ? { kind: 'registered' as const } : {}),
+        ...(resolves && !clear ? { resolves } : {}),
         purchaseDate,
         amount: canonical,
         currency: canonical ? currency : null,

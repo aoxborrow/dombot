@@ -2,12 +2,15 @@ import type { RegistrationLookup } from '../../shared/ipc';
 import { toAscii } from '../../shared/domain-name';
 import { Namespace } from '../storage/namespace';
 
-// Public registration data for names that have left your accounts. History
+// Public registration data for names that have left your accounts. Archive
 // uses it so created and expires keep moving after you no longer hold the
-// name. Not part of Clear cache: a day-old answer is still useful offline,
-// and the next History visit refreshes anything older than a day.
+// name. A cache: Clear cache drops it, and the next Archive visit refetches
+// anything older than a day. All RDAP should move to one central module
+// (issue #105).
 
-const store = new Namespace<RegistrationLookup>('registration-lookups');
+const store = new Namespace<RegistrationLookup>('rdap-lookups', {
+  cache: true,
+});
 const FRESH_MS = 24 * 60 * 60 * 1000;
 const CONCURRENCY = 4;
 

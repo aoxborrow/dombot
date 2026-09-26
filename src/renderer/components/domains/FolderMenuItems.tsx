@@ -1,10 +1,5 @@
-import { Archive, BadgeDollarSign, Check, CircleOff } from 'lucide-react';
-import {
-  ARCHIVE_FOLDER_ID,
-  DROPPED_FOLDER_ID,
-  SOLD_FOLDER_ID,
-  type Folder,
-} from '../../../shared/ipc';
+import { Check, EyeOff } from 'lucide-react';
+import { HIDDEN_FOLDER_ID, type Folder } from '../../../shared/ipc';
 import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
 import { FolderOffIcon } from '../icons/FolderOffIcon';
@@ -16,11 +11,12 @@ import {
 
 /**
  * The shared body of every folder-assignment menu: the user's folders, then
- * None, then Sold, Dropped, and Archive. The row menu and the bulk Folder
+ * None, then the built-in Hidden folder. The row menu and the bulk Folder
  * submenu use the same list. The caller supplies the surrounding menu so it
- * keeps its own width and trigger.
+ * keeps its own width and trigger. Sold, Dropped, and Archived aren't folders:
+ * they're ownership actions in the row menu.
  *
- * Pass `selected` (a folder id, {@link ARCHIVE_FOLDER_ID}, or `null` for None) to
+ * Pass `selected` (a folder id, {@link HIDDEN_FOLDER_ID}, or `null` for None) to
  * mark the current assignment with a check — omit it for the bulk menu, where
  * there is no single current value. Pass `emptyState` to show a "No folders yet"
  * hint when the user has none (again, the bulk menu).
@@ -78,31 +74,11 @@ export function FolderMenuItems({
       <DropdownMenuSeparator />
       <DropdownMenuItem
         className="gap-2.5"
-        onSelect={() => onAssign(SOLD_FOLDER_ID)}
+        onSelect={() => onAssign(HIDDEN_FOLDER_ID)}
       >
-        <BadgeDollarSign className="size-4 shrink-0" aria-hidden />
-        <span className="flex-1">Sold</span>
-        {showChecks && selected === SOLD_FOLDER_ID && (
-          <Check className="size-3.5 shrink-0 text-muted-foreground" />
-        )}
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        className="gap-2.5"
-        onSelect={() => onAssign(DROPPED_FOLDER_ID)}
-      >
-        <CircleOff className="size-4 shrink-0" aria-hidden />
-        <span className="flex-1">Dropped</span>
-        {showChecks && selected === DROPPED_FOLDER_ID && (
-          <Check className="size-3.5 shrink-0 text-muted-foreground" />
-        )}
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        className="gap-2.5"
-        onSelect={() => onAssign(ARCHIVE_FOLDER_ID)}
-      >
-        <Archive className="size-4 shrink-0" aria-hidden />
-        <span className="flex-1">Archive</span>
-        {showChecks && selected === ARCHIVE_FOLDER_ID && (
+        <EyeOff className="size-4 shrink-0" aria-hidden />
+        <span className="flex-1">Hidden</span>
+        {showChecks && selected === HIDDEN_FOLDER_ID && (
           <Check className="size-3.5 shrink-0 text-muted-foreground" />
         )}
       </DropdownMenuItem>

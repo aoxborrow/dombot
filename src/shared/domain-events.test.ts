@@ -13,8 +13,12 @@ describe('domain events', () => {
     const late = newEventId(Date.UTC(2026, 8, 25));
     expect(early).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(early < late).toBe(true);
-    const ids = new Set(Array.from({ length: 1000 }, () => newEventId(0)));
-    expect(ids.size).toBe(1000);
+    const ids = Array.from({ length: 1000 }, () => newEventId(0));
+    expect(new Set(ids).size).toBe(1000);
+    // Made in the same millisecond, they still sort in the order made.
+    expect([...ids].sort()).toEqual(ids);
+    // A clock that steps back never produces an earlier id.
+    expect(newEventId(-5) > ids[ids.length - 1]).toBe(true);
   });
 
   it('recognizes only the defined types and sources', () => {

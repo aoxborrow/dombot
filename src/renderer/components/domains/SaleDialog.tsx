@@ -39,6 +39,7 @@ export function SaleDialog({
   domain,
   mode = 'edit',
   step,
+  resolves,
   onSaved,
   onClose,
 }: {
@@ -46,7 +47,9 @@ export function SaleDialog({
   mode?: 'edit' | 'mark';
   /** 1-based place in a bulk Mark as Sold run. */
   step?: { current: number; total: number };
-  /** Runs after the sale is stored. The caller files the folder on `mark`. */
+  /** The "left your accounts" alert this sale answers, if any. */
+  resolves?: string;
+  /** Runs after the sale is stored. */
   onSaved?: () => void | Promise<void>;
   onClose: () => void;
 }) {
@@ -89,6 +92,8 @@ export function SaleDialog({
     setSaving(true);
     try {
       await saveSale({
+        ...(mode === 'mark' ? { mark: true } : {}),
+        ...(resolves ? { resolves } : {}),
         domainName: domain.domainName,
         saleDate,
         amount: canonical,
@@ -110,7 +115,7 @@ export function SaleDialog({
           <DialogTitle className="font-mono">{domain.domainName}</DialogTitle>
           <DialogDescription>
             {mode === 'mark'
-              ? `Add the sale date, amount, and notes. Mark as Sold files this name in Sold, under History. The registrar account is not changed.${
+              ? `Add the sale date, amount, and notes. Mark as Sold moves this name to Archive. The registrar account is not changed.${
                   step && step.total > 1
                     ? ` ${step.current} of ${step.total}.`
                     : ''

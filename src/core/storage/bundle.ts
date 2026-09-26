@@ -11,7 +11,7 @@ import { parseNamecheapProxy } from '../../shared/namecheap-proxy';
 import { PROXIES_NAMESPACE, parseProxy } from '../../shared/proxy';
 import { migrateLegacyProxies } from '../services/proxies';
 import { sanitizeBundleDiagnostics } from './sanitize-diagnostics';
-import { upgradeLegacyNamespaces } from './migrations';
+import { hiddenFolderAssignments, upgradeLegacyNamespaces } from './migrations';
 import {
   EVENTS_NAMESPACE,
   NOTES_NAMESPACE,
@@ -112,6 +112,12 @@ export function parseBundle(text: string): DataBundle {
   // names and simply has no history yet.)
   if ((head.version as number) < 4) {
     head.namespaces = upgradeLegacyNamespaces(head.namespaces);
+  }
+  // v4's Archive folder is v5's Hidden folder (migration 2).
+  const folderAssignments = head.namespaces['domain-folders'];
+  if ((head.version as number) < 5 && folderAssignments) {
+    head.namespaces['domain-folders'] =
+      hiddenFolderAssignments(folderAssignments);
   }
   head.version = BUNDLE_VERSION;
   try {

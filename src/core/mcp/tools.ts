@@ -293,7 +293,7 @@ const queryShape = {
     .string()
     .optional()
     .describe(
-      'Only domains in this folder — a folder name or id, or "Archive" for the built-in archive group. Unknown folder → no rows.',
+      'Only domains in this folder — a folder name or id, or "Hidden" for the built-in Hidden folder. Unknown folder → no rows.',
     ),
   nameContains: z
     .string()

@@ -10,6 +10,7 @@ import {
   ACQUISITION_TYPES,
   DomainEventSource,
   DomainEventType,
+  localDay,
   type DomainEvent,
 } from '../../shared/domain-events';
 import { parseCanonicalAmount, parsePurchaseDate } from '../../shared/money';
@@ -32,7 +33,7 @@ import {
 
 /** Orders events by the day they happened, then by when they were recorded. */
 function orderKey(e: DomainEvent): string {
-  const day = e.date ?? new Date(e.createdAt).toISOString().slice(0, 10);
+  const day = e.date ?? localDay(e.createdAt);
   return `${day}|${e.id}`;
 }
 
@@ -139,7 +140,10 @@ export function setPurchase(input: PurchaseInput): DomainPurchase | null {
   const domain = assertDomainName(input.domainName);
   const date = parsePurchaseDate(input.purchaseDate ?? '');
   const { amount, currency } = parseAmount(input.amount, input.currency);
-  const existing = holdings().get(domain)?.acquisition;
+  // Answering an arrival alert records a new holding; otherwise edit the latest.
+  const existing = input.resolves
+    ? undefined
+    : holdings().get(domain)?.acquisition;
   const type =
     input.kind === 'registered'
       ? DomainEventType.Registered
@@ -151,10 +155,14 @@ export function setPurchase(input: PurchaseInput): DomainPurchase | null {
     { domain, type, source: DomainEventSource.User, date, amount, currency },
     Date.now(),
   );
-  if (next) putEvents([next]);
+  if (next) putEvents([withResolves(next, input.resolves)]);
   else if (existing) deleteEvent(existing.id);
   setNameNote(domain, input.notes ?? '');
   return purchaseOf(domain);
+}
+
+function withResolves(e: DomainEvent, resolves: string | undefined) {
+  return resolves ? { ...e, resolves } : e;
 }
 
 /**
@@ -163,8 +171,10 @@ export function setPurchase(input: PurchaseInput): DomainPurchase | null {
  */
 export function setSale(input: SaleInput): DomainPurchase | null {
   const domain = assertDomainName(input.domainName);
-  const date = parsePurchaseDate(input.saleDate ?? '', 'Sale date');
+  const typed = parsePurchaseDate(input.saleDate ?? '', 'Sale date');
   const { amount, currency } = parseAmount(input.amount, input.currency);
+  // Marking a name Sold always records the sale, dated today if you left it blank.
+  const date = typed ?? (input.mark && !amount ? localDay() : null);
   const existing = holdings().get(domain)?.sale;
   const next = upsert(
     existing,
@@ -178,7 +188,7 @@ export function setSale(input: SaleInput): DomainPurchase | null {
     },
     Date.now(),
   );
-  if (next) putEvents([next]);
+  if (next) putEvents([withResolves(next, input.resolves)]);
   else if (existing) deleteEvent(existing.id);
   setNameNote(domain, input.notes ?? '');
   return purchaseOf(domain);

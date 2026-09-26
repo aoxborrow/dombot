@@ -1,7 +1,5 @@
 import {
-  ARCHIVE_FOLDER_ID,
-  DROPPED_FOLDER_ID,
-  SOLD_FOLDER_ID,
+  HIDDEN_FOLDER_ID,
   isHiddenFolder,
   type Folder,
   type FolderInput,
@@ -78,9 +76,7 @@ export function assignFolder(
   const key = assertDomainName(domainName);
   const valid =
     folderId !== null &&
-    (folderId === ARCHIVE_FOLDER_ID ||
-      folderId === SOLD_FOLDER_ID ||
-      folderId === DROPPED_FOLDER_ID ||
+    (folderId === HIDDEN_FOLDER_ID ||
       loadFolders().some((f) => f.id === folderId));
   if (valid) void assignments.set(key, folderId);
   else void assignments.delete(key);

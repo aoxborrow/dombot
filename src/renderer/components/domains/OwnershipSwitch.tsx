@@ -1,33 +1,33 @@
 import { cn } from '@/lib/utils';
 
-/** Owned vs History, same segmented style as the theme switch. */
+/** Owned vs Archive (names you no longer own), same segmented style as the theme switch. */
 export function OwnershipSwitch({
-  history,
+  archive,
   ownedCount,
-  historyCount,
+  archiveCount,
   onOwned,
-  onHistory,
+  onArchive,
 }: {
-  history: boolean;
+  archive: boolean;
   ownedCount: number;
-  historyCount: number;
+  archiveCount: number;
   onOwned: () => void;
-  onHistory: () => void;
+  onArchive: () => void;
 }) {
   const options = [
     {
       id: 'owned',
       label: 'Owned',
       count: ownedCount,
-      active: !history,
+      active: !archive,
       onClick: onOwned,
     },
     {
-      id: 'history',
-      label: 'History',
-      count: historyCount,
-      active: history,
-      onClick: onHistory,
+      id: 'archive',
+      label: 'Archive',
+      count: archiveCount,
+      active: archive,
+      onClick: onArchive,
     },
   ] as const;
 

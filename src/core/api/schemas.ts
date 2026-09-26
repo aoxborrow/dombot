@@ -105,6 +105,7 @@ export const purchaseInput = z
   .object({
     domainName: z.string().trim().min(1).max(253),
     kind: z.enum(['registered', 'purchased']).optional(),
+    resolves: z.string().min(1).max(80).optional(),
     purchaseDate: z.string().nullable(),
     amount: z.string().nullable(),
     currency: z.string().nullable(),
@@ -119,14 +120,13 @@ export const saleInput = z
     amount: z.string().nullable(),
     currency: z.string().nullable(),
     notes: z.string().max(4000),
+    resolves: z.string().min(1).max(80).optional(),
+    mark: z.boolean().optional(),
   })
   .strict();
 
 export const purchaseImport = z.array(purchaseInput).max(10000);
 
-export const portfolioChangeResolution = z.enum([
-  'sold',
-  'dropped',
-  'archive',
-  'dismissed',
-]);
+export const eventId = z.string().min(1).max(80);
+
+export const disposition = z.enum(['dropped', 'archived']);

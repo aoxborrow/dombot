@@ -24,8 +24,8 @@ import {
 } from './accounts';
 import { domainKey } from '../../shared/account-key';
 import { currencyInfo } from '../../shared/money';
-import type { AccountHoldings } from '../../shared/portfolio-changes';
-import { recordPortfolioDiff } from './portfolio-changes';
+import type { AccountHoldings } from '../../shared/sync-diff';
+import { recordSync } from './domain-history';
 import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { createProxiedRegistrar } from './proxy-transport';
@@ -619,7 +619,8 @@ function writeRenewalQuote(
 
 /** Domain names currently cached for one account. `synced` is true only after
  * a successful pull in this batch — a failure keeps the old list and is not a
- * baseline and not a diff. */
+ * starting point and not a diff. `known` is false when there's no cached list
+ * to compare with (a new account, or after Clear cache). */
 function holdingsOf(
   account: RegistrarAccount,
   synced: boolean,
@@ -627,9 +628,8 @@ function holdingsOf(
   const entry = readRegistrarEntry(account.id);
   return {
     accountId: account.id,
-    registrar: account.registrar,
-    label: account.label,
     names: (entry?.domains ?? []).map((domain) => domain.domainName),
+    known: entry != null && entry.lastSyncedAt != null,
     synced:
       synced &&
       entry != null &&
@@ -649,17 +649,10 @@ async function syncAccounts(accounts: RegistrarAccount[]): Promise<void> {
     holdingsOf(account, attempted.has(account.id)),
   );
   try {
-    recordPortfolioDiff(before, after);
+    recordSync(before, after);
   } catch (err) {
-    console.error('[portfolio-changes] diff failed', err);
+    console.error('[domain-history] recording the sync failed', err);
   }
-}
-
-/** Account ids whose cached portfolio came from a successful sync. */
-export function cachedSyncedAccountIds(): string[] {
-  return getActiveAccounts()
-    .filter((account) => holdingsOf(account, true).synced)
-    .map((account) => account.id);
 }
 
 /**
@@ -885,6 +878,7 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
         lastSyncedAt: sync?.lastSyncedAt ?? null,
         lastError: sync?.lastError ?? null,
         domainCount: sync?.domains.length ?? 0,
+        trackedSince: account.trackedSince ?? null,
       },
     };
   });
@@ -1329,7 +1323,8 @@ export async function registerDomainCached(
     domainName,
     input,
   );
-  if (result.success) await syncRegistrarInto(accountById(accountId));
+  // Through syncAccounts so the new name is recorded as an arrival.
+  if (result.success) await syncAccounts([accountById(accountId)]);
   return result;
 }
 

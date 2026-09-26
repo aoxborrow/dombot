@@ -11,8 +11,7 @@ import type {
   DomainOpResult,
   DomainPurchase,
   DomainTarget,
-  PortfolioChange,
-  PortfolioChangeResolution,
+  DomainEvent,
   PurchaseImportResult,
   PurchaseInput,
   RegistrationLookup,
@@ -203,13 +202,26 @@ interface AppState {
   registrationLookups: Record<string, RegistrationLookup>;
   loadRegistrationLookups: (domainNames: string[]) => Promise<void>;
 
-  /** Portfolio add / remove / move history. Unresolved rows are the alerts. */
-  portfolioChanges: PortfolioChange[];
-  loadPortfolioChanges: () => Promise<void>;
-  resolvePortfolioChange: (
-    id: string,
-    resolution: Exclude<PortfolioChangeResolution, 'returned'>,
+  /**
+   * The domain event log: purchases, sales, and what sync saw. Ownership
+   * (Owned / Archive) and the alerts are derived from it (shared/ownership.ts,
+   * shared/sync-diff.ts).
+   */
+  domainEvents: DomainEvent[];
+  loadDomainEvents: () => Promise<void>;
+  /** Mark a name Dropped or Archived; `resolves` closes the alert it answers. */
+  setDisposition: (
+    domainName: string,
+    type: 'dropped' | 'archived',
+    resolves?: string,
   ) => Promise<void>;
+  /** "Move back to Owned": undo Sold, Dropped, or Archived. */
+  restoreOwned: (domainName: string) => Promise<void>;
+  setAlertDismissed: (id: string, dismissed: boolean) => Promise<void>;
+  /** Undo one of your own events. */
+  deleteUserEvent: (id: string) => Promise<void>;
+  /** Delete everything DomBot holds about a name. */
+  deleteDomain: (domainName: string) => Promise<void>;
 
   // Row selection for bulk actions, keyed `${registrar}:${domainName}`. Lives
   // here (not in the page) so it survives tab switches; pruned when the
@@ -289,13 +301,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     // registrar's just-synced renewal prices show (local, no network).
     await get().loadRegistrars();
     await get().loadPricing();
-    await get().loadPortfolioChanges();
+    await get().loadDomainEvents();
     await get().loadFolders();
     const meta = get().registrars?.find(
       (r) => r.name === name && (!accountId || r.accountId === accountId),
     );
     return (
-      meta?.sync ?? { lastSyncedAt: null, lastError: null, domainCount: 0 }
+      meta?.sync ?? {
+        lastSyncedAt: null,
+        lastError: null,
+        domainCount: 0,
+        trackedSince: null,
+      }
     );
   },
 
@@ -318,7 +335,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // status bar, and re-read pricing for the updated portfolio.
     await get().loadRegistrars();
     await get().loadPricing();
-    await get().loadPortfolioChanges();
+    await get().loadDomainEvents();
     await get().loadFolders();
   },
 
@@ -388,7 +405,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         enriched,
       };
     });
-    await get().loadPortfolioChanges();
+    await get().loadDomainEvents();
     await get().loadFolders();
   },
 
@@ -442,7 +459,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // prices are computed locally in main (no network).
       void get().loadRegistrars();
       void get().loadPricing();
-      void get().loadPortfolioChanges();
+      void get().loadDomainEvents();
       void get().loadFolders();
     } catch (err) {
       set({
@@ -660,6 +677,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   savePurchase: async (input) => {
     const saved = await window.api.setPurchase(input);
+    void get().loadDomainEvents();
     const key = toAscii(input.domainName);
     set((state) => {
       const purchases = { ...state.purchases };
@@ -670,6 +688,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   saveSale: async (input) => {
     const saved = await window.api.setSale(input);
+    void get().loadDomainEvents();
     const key = toAscii(input.domainName);
     set((state) => {
       const purchases = { ...state.purchases };
@@ -681,6 +700,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   importPurchases: async (rows) => {
     const result = await window.api.importPurchases(rows);
     set({ purchases: await window.api.getPurchases() });
+    void get().loadDomainEvents();
     return result;
   },
   registrationLookups: {},
@@ -691,17 +711,33 @@ export const useAppStore = create<AppState>((set, get) => ({
       registrationLookups: { ...state.registrationLookups, ...found },
     }));
   },
-  portfolioChanges: [],
-  loadPortfolioChanges: async () => {
-    set({ portfolioChanges: await window.api.getPortfolioChanges() });
+  domainEvents: [],
+  loadDomainEvents: async () => {
+    set({ domainEvents: await window.api.getDomainEvents() });
   },
-  resolvePortfolioChange: async (id, resolution) => {
-    const portfolioChanges = await window.api.resolvePortfolioChange(
-      id,
-      resolution,
-    );
-    set({ portfolioChanges });
-    await get().loadFolders();
+  setDisposition: async (domainName, type, resolves) => {
+    set({
+      domainEvents: await window.api.setDisposition(domainName, type, resolves),
+    });
+  },
+  restoreOwned: async (domainName) => {
+    set({ domainEvents: await window.api.restoreOwned(domainName) });
+    await get().loadPurchases();
+  },
+  setAlertDismissed: async (id, dismissed) => {
+    set({ domainEvents: await window.api.setAlertDismissed(id, dismissed) });
+  },
+  deleteUserEvent: async (id) => {
+    set({ domainEvents: await window.api.deleteUserEvent(id) });
+    await get().loadPurchases();
+  },
+  deleteDomain: async (domainName) => {
+    set({ domainEvents: await window.api.deleteDomain(domainName) });
+    await Promise.all([
+      get().loadPurchases(),
+      get().loadFolders(),
+      get().loadPricing(),
+    ]);
   },
   setMcpEnabled: async (enabled) => {
     const settings = await window.api.updateSettings({ mcpEnabled: enabled });

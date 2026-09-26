@@ -95,23 +95,56 @@ export interface DomainNote {
   updatedAt: number | null;
 }
 
+/**
+ * `YYYY-MM-DD` for a moment, in this machine's local time: the day you'd
+ * say it happened. (A Worker has no local zone, so there it's the UTC day.)
+ */
+export function localDay(ms: number = Date.now()): string {
+  const d = new Date(ms);
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
 // Crockford base32, as ULID uses: sortable as plain strings.
 const BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 /**
- * A ULID: 10 characters of millisecond timestamp, then 16 of randomness. Ids
- * sort by when they were made, and two instances never collide, so a later
- * remote sync can union events by id.
+ * A monotonic ULID: 10 characters of millisecond timestamp, then 16 of
+ * randomness. Ids sort by when they were made, and two instances never
+ * collide, so a later remote sync can union events by id. Within one
+ * millisecond (a sync writes several events at once) each id increments the
+ * last one instead of drawing new randomness, so order is kept exactly.
  */
+let lastTime = -1;
+let lastRandom: number[] = [];
+
 export function newEventId(now: number = Date.now()): string {
+  const t0 = Math.max(now, lastTime);
+  let random: number[];
+  if (t0 === lastTime) {
+    random = [...lastRandom];
+    // Base-32 increment from the right (16 digits never overflow in practice).
+    for (let i = random.length - 1; i >= 0; i--) {
+      if (random[i] < 31) {
+        random[i]++;
+        break;
+      }
+      random[i] = 0;
+    }
+  } else {
+    random = Array.from(
+      crypto.getRandomValues(new Uint8Array(16)),
+      (b) => b % 32,
+    );
+  }
+  lastTime = t0;
+  lastRandom = random;
   let time = '';
-  let t = now;
+  let t = t0;
   for (let i = 0; i < 10; i++) {
     time = BASE32[t % 32] + time;
     t = Math.floor(t / 32);
   }
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  let random = '';
-  for (const b of bytes) random += BASE32[b % 32];
-  return time + random;
+  return time + random.map((d) => BASE32[d]).join('');
 }

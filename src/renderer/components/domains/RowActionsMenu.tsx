@@ -1,14 +1,20 @@
 import { domainKey } from '../../../shared/account-key';
 import {
+  Archive,
+  BadgeDollarSign,
   CalendarPlus,
+  CircleOff,
   Ellipsis,
   KeyRound,
   Link2,
   Mail,
   Receipt,
   RefreshCw,
+  Trash2,
+  Undo2,
 } from 'lucide-react';
-import { SOLD_FOLDER_ID, type Domain, type Folder } from '../../../shared/ipc';
+import type { Domain, Folder } from '../../../shared/ipc';
+import type { ArchiveLabel } from '../../../shared/ownership';
 import { useAppStore } from '../../store/app';
 import { useOpUnsupportedReason } from '../../lib/domain-ops';
 import { FolderIcon } from '../icons/FolderIcon';
@@ -28,10 +34,11 @@ import {
 /**
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell): a
  * per-domain refresh, the actions that aren't a column (forwarding, auth code,
- * renew), and a Folder submenu for assigning the domain to a folder, Archive, or
- * None. Registrar-backed items the registrar can't do are disabled with the
- * reason as their tooltip. Disabled outright while a write for this row is in
- * flight.
+ * renew), a Folder submenu (a folder, Hidden, or None), and the ownership
+ * actions: Sold, Dropped, and Archived move a name to Archive; "Move back to
+ * Owned" undoes yours; Delete forgets the name. Registrar-backed items the
+ * registrar can't do are disabled with the reason as their tooltip. Disabled
+ * outright while a write for this row is in flight.
  */
 export function RowActionsMenu({
   domain,
@@ -45,6 +52,12 @@ export function RowActionsMenu({
   onEditPurchase,
   onEditSale,
   onAssignFolder,
+  archive,
+  onMarkSold,
+  onMarkDropped,
+  onMarkArchived,
+  onRestoreOwned,
+  onDelete,
 }: {
   domain: Domain;
   folders: Folder[];
@@ -57,7 +70,16 @@ export function RowActionsMenu({
   onEditPurchase: () => void;
   onEditSale: () => void;
   onAssignFolder: (folderId: string | null) => void;
+  /** Why the name is in Archive, or null while you own it. */
+  archive: ArchiveLabel | null;
+  onMarkSold: () => void;
+  onMarkDropped: () => void;
+  onMarkArchived: () => void;
+  onRestoreOwned: () => void;
+  onDelete: () => void;
 }) {
+  // Label a name you own, or one sync saw leave; undo one you labeled.
+  const canLabel = archive === null || archive === 'left';
   const key = domainKey(domain);
   const pending = useAppStore((s) => s.mutating[key] ?? false);
   const urlReason = useOpUnsupportedReason(domain.registrar, {
@@ -100,28 +122,58 @@ export function RowActionsMenu({
             <DropdownMenuSeparator />
           </>
         )}
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <FolderIcon className="text-muted-foreground" />
-            Folder
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="max-h-[320px] w-52 overflow-y-auto">
-            <FolderMenuItems
-              folders={folders}
-              selected={folderId ?? null}
-              onAssign={onAssignFolder}
-            />
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        <DropdownMenuSeparator />
+        {archive === null && (
+          <>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <FolderIcon className="text-muted-foreground" />
+                Folder
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="max-h-[320px] w-52 overflow-y-auto">
+                <FolderMenuItems
+                  folders={folders}
+                  selected={folderId ?? null}
+                  onAssign={onAssignFolder}
+                />
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem onSelect={onEditPurchase}>
           <Receipt className="text-muted-foreground" />
           Purchase & notes
         </DropdownMenuItem>
-        {folderId === SOLD_FOLDER_ID && (
+        {archive === 'sold' && (
           <DropdownMenuItem onSelect={onEditSale}>
             <Receipt className="text-muted-foreground" />
             Sale & notes
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        {canLabel ? (
+          <>
+            <DropdownMenuItem onSelect={onMarkSold}>
+              <BadgeDollarSign className="text-muted-foreground" />
+              Mark sold<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onMarkDropped}>
+              <CircleOff className="text-muted-foreground" />
+              Mark dropped
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onMarkArchived}>
+              <Archive className="text-muted-foreground" />
+              Archive
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <DropdownMenuItem onSelect={onRestoreOwned}>
+            <Undo2 className="text-muted-foreground" />
+            {/* Still in an account: back to Owned. Gone from every account:
+                undoing the label leaves it as "Left your accounts". */}
+            {domain.departed
+              ? `Undo ${archive === 'sold' ? 'Sold' : archive === 'dropped' ? 'Dropped' : 'Archived'}`
+              : 'Move back to Owned'}
           </DropdownMenuItem>
         )}
         {!domain.departed && (
@@ -162,6 +214,11 @@ export function RowActionsMenu({
             </DropdownMenuItem>
           </>
         )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+          <Trash2 />
+          Delete<span className="-ml-[6px] opacity-50">…</span>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

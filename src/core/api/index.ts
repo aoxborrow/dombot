@@ -23,10 +23,13 @@ import {
   setSale,
 } from '../services/purchases';
 import {
-  baselineAccountsIfUnset,
-  getPortfolioChanges,
-  resolvePortfolioChange,
-} from '../services/portfolio-changes';
+  deleteDomain,
+  deleteUserEvent,
+  restoreOwned,
+  setAlertDismissed,
+  setDisposition,
+} from '../services/domain-history';
+import { listEvents } from '../services/domain-events';
 import { lookupRegistrations } from '../services/registration-lookup';
 import {
   getRegistrarCatalog,
@@ -34,7 +37,6 @@ import {
   removeRegistrarAccount,
   resolveDomainAccount,
   getCachedDetail,
-  cachedSyncedAccountIds,
   getCachedPortfolio,
   getConfiguredRegistrars,
   getDomainDetail,
@@ -194,10 +196,6 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   exportData: method(none, async () => exportBundle(getAppIdentity())),
   importData: method(z.tuple([z.string()]), async (text) => {
     const result = await importBundle(text);
-    // A backup from before portfolio history has no baselines. Mark the
-    // restored accounts as already seen so the next Sync reports real
-    // differences instead of treating the whole list as a first sync.
-    baselineAccountsIfUnset(cachedSyncedAccountIds());
     // Durable before we say so: the caller reloads on the strength of it.
     await flushWrites();
     return result;
@@ -375,14 +373,36 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     async (registrar, domainName, accountId) =>
       getRegistrationQuote(registrar, domainName, accountId),
   ),
-  getPortfolioChanges: method(none, async () => getPortfolioChanges()),
-  resolvePortfolioChange: method(
-    z.tuple([z.string().min(1).max(80), s.portfolioChangeResolution]),
-    async (id, resolution) => {
-      resolvePortfolioChange(id, resolution);
-      return getPortfolioChanges();
+
+  // ── Domain history (events) ───────────────────────────────────────────────
+  // Every change returns the whole log, so the caller refreshes in one call.
+  getDomainEvents: method(none, async () => listEvents()),
+  setDisposition: method(
+    z.tuple([s.domainName, s.disposition, s.eventId.optional()]),
+    async (domainName, type, resolves) => {
+      setDisposition(domainName, type, resolves);
+      return listEvents();
     },
   ),
+  restoreOwned: method(z.tuple([s.domainName]), async (domainName) => {
+    restoreOwned(domainName);
+    return listEvents();
+  }),
+  setAlertDismissed: method(
+    z.tuple([s.eventId, z.boolean()]),
+    async (id, dismissed) => {
+      setAlertDismissed(id, dismissed);
+      return listEvents();
+    },
+  ),
+  deleteUserEvent: method(z.tuple([s.eventId]), async (id) => {
+    deleteUserEvent(id);
+    return listEvents();
+  }),
+  deleteDomain: method(z.tuple([s.domainName]), async (domainName) => {
+    deleteDomain(domainName);
+    return listEvents();
+  }),
 
   // ── Events (polling) ──────────────────────────────────────────────────────
   getRevisions: method(none, async () => getRevisions()),

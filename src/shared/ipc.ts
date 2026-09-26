@@ -14,12 +14,9 @@ import type {
   RegistrarName,
 } from '@aoxborrow/registrar-client';
 import type { NumberFormatId } from './money';
-import type {
-  PortfolioChange,
-  PortfolioChangeResolution,
-} from './portfolio-changes';
+import type { DomainEvent } from './domain-events';
 
-export type { PortfolioChange, PortfolioChangeResolution };
+export type { DomainEvent, DomainNote } from './domain-events';
 
 /** Account identity is supplied by Dombot, never by a registrar response. */
 export interface RegistrarAccount {
@@ -28,6 +25,12 @@ export interface RegistrarAccount {
   label: string;
   /** The proxy profile this account's API traffic goes through; absent = direct. */
   proxyId?: string;
+  /**
+   * ms epoch of the first successful sync: from then on, sync records what
+   * arrives, leaves, or moves. Absent until then. Exported with the account,
+   * so an imported history carries on where it left off.
+   */
+  trackedSince?: number;
 }
 export type Domain = ProviderDomain & {
   accountId?: string;
@@ -119,8 +122,12 @@ export const IpcChannels = {
   setPurchase: 'purchases:set',
   setSale: 'purchases:setSale',
   importPurchases: 'purchases:import',
-  getPortfolioChanges: 'portfolioChanges:list',
-  resolvePortfolioChange: 'portfolioChanges:resolve',
+  getDomainEvents: 'domainEvents:list',
+  setDisposition: 'domainEvents:setDisposition',
+  restoreOwned: 'domainEvents:restoreOwned',
+  setAlertDismissed: 'domainEvents:setAlertDismissed',
+  deleteUserEvent: 'domainEvents:deleteUserEvent',
+  deleteDomain: 'domainEvents:deleteDomain',
   getRegistrationQuote: 'pricing:registrationQuote',
   lookupRegistrations: 'registration:lookup',
   getRevisions: 'events:getRevisions',
@@ -271,6 +278,11 @@ export interface PurchaseInput {
   domainName: string;
   /** Hand-registered vs. bought; omitted keeps what's stored (default purchased). */
   kind?: 'registered' | 'purchased';
+  /**
+   * The sync `added` alert this answers. Records a new purchase (a new
+   * holding) instead of editing the latest one, and closes the alert.
+   */
+  resolves?: string;
   purchaseDate: string | null;
   amount: string | null;
   currency: string | null;
@@ -284,6 +296,10 @@ export interface SaleInput {
   amount: string | null;
   currency: string | null;
   notes: string;
+  /** The sync `removed` alert this answers; closes it. */
+  resolves?: string;
+  /** Mark as Sold: record the sale even with no date or amount (dated today). */
+  mark?: boolean;
 }
 
 export interface PurchaseImportResult {
@@ -313,6 +329,8 @@ export interface RegistrarSync {
   lastError: string | null;
   /** Domains held from the last successful sync. */
   domainCount: number;
+  /** When sync started recording this account's changes (ms epoch), or null. */
+  trackedSince: number | null;
 }
 
 /** Metadata that drives the Settings > Registrars form. Help copy is not
@@ -588,36 +606,28 @@ export const FOLDER_COLORS: FolderColor[] = [
 ];
 
 /**
- * Reserved id for the built-in "Archive" folder. Assigning a domain to it
- * archives the domain, dropping it from the table by default; it's surfaced
- * again by selecting Archive in the Folder filter. Not a real folder — it isn't
- * stored in the folders list and has no color — but it's a valid assignment
- * target. The stored value was historically `'__hidden__'`; the folders store
- * migrates that legacy value to this one on load.
+ * The built-in Hidden folder: names you still own but don't want in the usual
+ * list (personal names, expiring ones you're letting go). Not stored in the
+ * folders list and has no color, but a valid assignment target; like any
+ * folder, a name is in it or in one other folder, never both. Hidden names
+ * stay out of Owned until the folder filter selects Hidden.
+ *
+ * Before the domain history work the same idea was the Archive folder
+ * (`'__archive__'`, and before that `'__hidden__'`); migration 2 moves those
+ * assignments here. Archive is now an ownership action, not a folder.
  */
-export const ARCHIVE_FOLDER_ID = '__archive__';
+export const HIDDEN_FOLDER_ID = '__hidden__';
 
-/**
- * Built-in folders for names the user used to own. Sold: they sold it.
- * Dropped: they let it go. Same hiding rule as Archive — absent from the
- * usual list until that folder is selected. Not stored in the folder list.
- */
-export const SOLD_FOLDER_ID = '__sold__';
-export const DROPPED_FOLDER_ID = '__dropped__';
-
-/** Label for Archive, Sold, or Dropped. Null for a user folder or no folder. */
+/** "Hidden" for the built-in folder; null for a user folder or no folder. */
 export function builtInFolderName(
   id: string | null | undefined,
 ): string | null {
-  if (id === ARCHIVE_FOLDER_ID) return 'Archive';
-  if (id === SOLD_FOLDER_ID) return 'Sold';
-  if (id === DROPPED_FOLDER_ID) return 'Dropped';
-  return null;
+  return id === HIDDEN_FOLDER_ID ? 'Hidden' : null;
 }
 
-/** Archive, Sold, and Dropped stay out of the usual domain list. */
+/** True for the built-in Hidden folder. */
 export function isHiddenFolder(id: string | null | undefined): boolean {
-  return builtInFolderName(id) !== null;
+  return id === HIDDEN_FOLDER_ID;
 }
 
 /**
@@ -860,17 +870,23 @@ export interface DombotApi {
   /** Upsert many purchase rows. A bad row is reported; the rest still save. */
   importPurchases: (rows: PurchaseInput[]) => Promise<PurchaseImportResult>;
 
-  /** Every portfolio add, remove, and move. History is never deleted. */
-  getPortfolioChanges: () => Promise<PortfolioChange[]>;
-  /**
-   * Close one alert. A removal dismissed this way is filed in Archive.
-   * Sold and Dropped file the name in those folders. A move or an arrival
-   * only accepts `dismissed`.
-   */
-  resolvePortfolioChange: (
-    id: string,
-    resolution: Exclude<PortfolioChangeResolution, 'returned'>,
-  ) => Promise<PortfolioChange[]>;
+  // Domain history (docs/storage-model.md). Each change returns the whole log.
+  /** Every domain event, oldest first. */
+  getDomainEvents: () => Promise<DomainEvent[]>;
+  /** Mark a name Dropped or Archived; `resolves` closes the alert it answers. */
+  setDisposition: (
+    domainName: string,
+    type: 'dropped' | 'archived',
+    resolves?: string,
+  ) => Promise<DomainEvent[]>;
+  /** "Move back to Owned": undo the Sold, Dropped, or Archived event. */
+  restoreOwned: (domainName: string) => Promise<DomainEvent[]>;
+  /** Acknowledge a sync alert with no action, or bring it back. */
+  setAlertDismissed: (id: string, dismissed: boolean) => Promise<DomainEvent[]>;
+  /** Undo one of your own events. Sync events can't be deleted. */
+  deleteUserEvent: (id: string) => Promise<DomainEvent[]>;
+  /** Delete everything DomBot holds about a name. */
+  deleteDomain: (domainName: string) => Promise<DomainEvent[]>;
   /** This registrar's registration fee for a name that just arrived. */
   getRegistrationQuote: (
     registrar: RegistrarName,

@@ -18,7 +18,7 @@ import { createFolder, getFolders } from '../services/folders';
 import { setStoredCredentials } from '../services/credentials';
 import { getRegistrarClient } from '../services/registrars';
 import { sealBundle } from '../../shared/bundle-seal';
-import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
+import { HIDDEN_FOLDER_ID } from '../../shared/ipc';
 import { bumpRevision, getRevisions } from '../revision';
 import { onCoreEvent } from '../events';
 
@@ -200,7 +200,7 @@ describe('export → import', () => {
     });
     expect(getFolders()).toEqual({
       folders: [{ id: 'f1', name: 'Keep', description: '', color: 'red' }],
-      assignments: { 'a.com': 'f1', 'b.com': ARCHIVE_FOLDER_ID },
+      assignments: { 'a.com': 'f1', 'b.com': HIDDEN_FOLDER_ID },
     });
     for (const old of ['credentials', 'cache-portfolio', 'pricing-overrides'])
       expect(await store.list(old)).toEqual({});
@@ -215,5 +215,22 @@ describe('export → import', () => {
     expect(() => parseBundle(JSON.stringify({ ...v4, version: 6 }))).toThrow(
       /newer DomBot/,
     );
+  });
+
+  it("moves a v4 file's Archive folder assignments to Hidden", async () => {
+    const v4 = {
+      ...buildBundle(APP),
+      version: 4,
+      namespaces: {
+        ...buildBundle(APP).namespaces,
+        'domain-folders': { 'a.com': '__archive__', 'b.com': 'f1' },
+      },
+    };
+    await importBundle(JSON.stringify(v4));
+    await flushWrites();
+    expect(await store.list('domain-folders')).toEqual({
+      'a.com': HIDDEN_FOLDER_ID,
+      'b.com': 'f1',
+    });
   });
 });

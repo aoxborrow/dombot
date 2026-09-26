@@ -55,9 +55,20 @@ export function putEvents(list: DomainEvent[]): void {
 
 /** Deletes an event and any notes attached to it. */
 export function deleteEvent(id: string): void {
-  void events.delete(id);
+  deleteDomainEvents([id]);
+}
+
+/**
+ * Deletes events and the notes attached to them. With `domain`, also that
+ * name's own note (Delete: nothing about the name is kept).
+ */
+export function deleteDomainEvents(ids: string[], domain?: string): void {
+  const gone = new Set(ids);
+  for (const id of gone) void events.delete(id);
   for (const note of Object.values(notes.all())) {
-    if (note.eventId === id) void notes.delete(note.id);
+    const attached = note.eventId !== null && gone.has(note.eventId);
+    const ownNote = domain !== undefined && note.domain === domain;
+    if (attached || ownNote) void notes.delete(note.id);
   }
 }
 
