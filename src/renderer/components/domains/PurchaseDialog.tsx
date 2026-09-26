@@ -145,7 +145,7 @@ export function PurchaseDialog({
       await savePurchase({
         domainName: domain.domainName,
         ...(registered && !clear ? { kind: 'registered' as const } : {}),
-        ...(resolves && !clear ? { resolves } : {}),
+        ...(resolves ? { resolves } : {}),
         purchaseDate,
         amount: canonical,
         currency: canonical ? currency : null,
@@ -274,14 +274,18 @@ export function PurchaseDialog({
           </div>
         ) : (
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={saving || filling}
-              onClick={() => setConfirmClear(true)}
-            >
-              Clear
-            </Button>
+            {/* Answering an arrival starts a new holding: there's nothing to
+                clear, and Clear would delete the previous purchase instead. */}
+            {!resolves && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving || filling}
+                onClick={() => setConfirmClear(true)}
+              >
+                Clear
+              </Button>
+            )}
             <Button
               type="button"
               disabled={saving || filling}
