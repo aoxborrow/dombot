@@ -6,6 +6,7 @@ import {
   Menu,
   RefreshCw,
   Settings as SettingsIcon,
+  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,8 @@ import { Toaster } from '@/components/ui/sonner';
  * props for the strip.
  */
 type NavTab = Omit<ComponentProps<typeof TabLink>, 'metric'> & {
+  // Required here: the phone menu shows every page's icon.
+  icon: LucideIcon;
   metric?: keyof TabMetrics;
 };
 

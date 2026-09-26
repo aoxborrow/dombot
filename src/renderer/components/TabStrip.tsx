@@ -32,84 +32,86 @@ const PILL_FROM: Record<Breakpoint, string> = {
 };
 
 /**
- * Browser-style tabs along the bottom of the header. Unselected tabs form a
- * muted strip on the header's `bg-tab-bar`; the selected tab stands 2px proud
- * in the page background with no bottom border, so it reads as attached to the
- * content below. Children are `TabLink`s; the header should be `items-end`.
+ * Browser-style tabs. Unselected tabs form a muted strip; the selected tab
+ * stands 2px proud in the page background with no bottom border, so it reads
+ * as attached to the content below.
+ *
+ * The parent supplies the band the tabs sit in: an `items-end` flex row with
+ * a bottom border and `bg-tab-bar` (the app header, or any bordered bar in a
+ * page). The strip overlaps that border by 1px so the selected tab covers it.
+ * Children are `TabLink`s (route tabs) or `TabButton`s (in-page state).
  */
 export function TabStrip({
   children,
   className,
   style,
+  'aria-label': ariaLabel,
 }: {
   children: ReactNode;
   className?: string;
   style?: CSSProperties;
+  'aria-label'?: string;
 }) {
   return (
-    // -mb-px overlaps the header's bottom border, which the selected tab
-    // covers with its background-coloured bottom border.
-    <nav className={cn('-mb-px flex items-end', className)} style={style}>
+    <nav
+      aria-label={ariaLabel}
+      className={cn('-mb-px flex items-end', className)}
+      style={style}
+    >
       {children}
     </nav>
   );
 }
 
-const tabClass = (isActive: boolean) =>
-  cn(
-    // A 2px gap between neighbouring tabs shows the header shell between them.
-    'relative ml-0.5 inline-flex items-center gap-2 border px-3 text-base leading-none font-medium transition-colors first:ml-0 xl:px-[18px]',
-    isActive
-      ? 'z-10 h-[38px] rounded-t-[6px] border-border border-b-background bg-background text-foreground'
-      : 'h-[36px] rounded-t-[7px] border-tab-border border-b-transparent bg-tab text-tab-foreground shadow-[inset_0_-1px_2px_-1px_var(--tab-shadow)] hover:text-foreground',
-  );
-
-/** One tab: a route link with an icon, a label, and an optional metric pill. */
-export function TabLink({
-  to,
-  end,
-  icon: Icon,
-  label,
-  metric,
-  iconOnlyBelow,
-  pillFrom,
-  className,
-  iconClassName,
-}: {
-  to: string;
-  /** Match the route exactly (for `/`). */
-  end?: boolean;
-  icon: LucideIcon;
+/** What a tab shows, shared by `TabLink` and `TabButton`. */
+interface TabProps {
+  /** Optional; a tab can be a label alone. */
+  icon?: LucideIcon;
   label: string;
+  /** The pill after the label; null or omitted shows none. */
   metric?: TabMetric | null;
-  /** Hide the label below this breakpoint; the icon alone stays. */
+  /** Hide the label below this breakpoint; the icon alone stays. Needs an icon. */
   iconOnlyBelow?: Breakpoint;
   /** Hide the pill below this breakpoint. */
   pillFrom?: Breakpoint;
   className?: string;
   iconClassName?: string;
-}) {
+}
+
+const tabClass = (
+  isActive: boolean,
+  { iconOnlyBelow, className }: Pick<TabProps, 'iconOnlyBelow' | 'className'>,
+) =>
+  cn(
+    // A 2px gap between neighbouring tabs shows the bar between them.
+    'relative ml-0.5 inline-flex items-center gap-2 border px-3 text-base leading-none font-medium whitespace-nowrap transition-colors first:ml-0 xl:px-[18px]',
+    isActive
+      ? 'z-10 h-[38px] rounded-t-[6px] border-border border-b-background bg-background text-foreground'
+      : 'h-[36px] rounded-t-[7px] border-tab-border border-b-transparent bg-tab text-tab-foreground shadow-[inset_0_-1px_2px_-1px_var(--tab-shadow)] hover:text-foreground',
+    iconOnlyBelow && ICON_ONLY_PAD[iconOnlyBelow],
+    className,
+  );
+
+function TabContent({
+  icon: Icon,
+  label,
+  metric,
+  iconOnlyBelow,
+  pillFrom,
+  iconClassName,
+}: TabProps) {
   return (
-    <NavLink
-      to={to}
-      end={end}
-      title={iconOnlyBelow ? label : undefined}
-      className={({ isActive }) =>
-        cn(
-          tabClass(isActive),
-          iconOnlyBelow && ICON_ONLY_PAD[iconOnlyBelow],
-          className,
-        )
-      }
-    >
-      <Icon
-        aria-hidden
-        className={cn(
-          'size-[15px] shrink-0 opacity-80',
-          iconOnlyBelow ? ICON_TIGHTEN[iconOnlyBelow] : '-mr-0.5',
-          iconClassName,
-        )}
-      />
+    <>
+      {Icon && (
+        <Icon
+          aria-hidden
+          className={cn(
+            'size-[15px] shrink-0 opacity-80',
+            iconOnlyBelow ? ICON_TIGHTEN[iconOnlyBelow] : '-mr-0.5',
+            iconClassName,
+          )}
+        />
+      )}
       {iconOnlyBelow ? (
         <span className={LABEL_FROM[iconOnlyBelow]}>{label}</span>
       ) : (
@@ -119,7 +121,51 @@ export function TabLink({
         metric={metric ?? null}
         className={pillFrom && PILL_FROM[pillFrom]}
       />
+    </>
+  );
+}
+
+/** A tab that navigates to a route and is selected while that route is. */
+export function TabLink({
+  to,
+  end,
+  ...tab
+}: TabProps & {
+  to: string;
+  /** Match the route exactly (for `/`). */
+  end?: boolean;
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      title={tab.iconOnlyBelow ? tab.label : undefined}
+      className={({ isActive }) => tabClass(isActive, tab)}
+    >
+      <TabContent {...tab} />
     </NavLink>
+  );
+}
+
+/** A tab for in-page state: selected by the `active` prop, not the route. */
+export function TabButton({
+  active,
+  onClick,
+  ...tab
+}: TabProps & {
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      title={tab.iconOnlyBelow ? tab.label : undefined}
+      className={tabClass(active, tab)}
+    >
+      <TabContent {...tab} />
+    </button>
   );
 }
 
