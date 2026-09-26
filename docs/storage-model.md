@@ -312,10 +312,12 @@ is limited to the first requests after deploying this release.
 - **Venues.** Once marketplaces are set up, a sale or purchase gets a
   `venueId` pointing at a venue record (Afternic, Sedo, …) that holds the
   commission rate, so fees are derived rather than entered per sale.
-- **Installments.** Start with an `installments` flag on a `sold` event. If
-  the payment schedule needs recording, each payment becomes its own event
-  pointing at the sale (`saleId`), the same way `resolves` points a `sold`
-  at the `removed` it closes. Both steps only add fields or events.
+- **Installments.** A sale paid in installments stays one `sold` event;
+  individual payments aren't recorded. The event gains the terms (e.g. number
+  of payments and period) so the dashboard can show the schedule.
+- **Exchange rates.** Totals across currencies need a rate per event. Each
+  event already has its `date` and `currency`, so historical rates can be
+  looked up later without changing stored events.
 - **Manual domains importer.** A CSV importer for `manual-domains`, designed
   separately. The purchase CSV (#99, reworked in #100) needs its own review
   before it merges.
