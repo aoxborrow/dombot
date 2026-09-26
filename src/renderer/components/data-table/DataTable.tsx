@@ -170,9 +170,9 @@ export function DataTable<T>({
                       selection.setMany(keys, !allSelected)
                     }
                     aria-label={selection.allLabel}
-                    // On the grey header the default fill reads as disabled;
-                    // the page background makes it look clickable.
-                    className="border-muted-foreground/40 bg-background dark:bg-background"
+                    // On the grey header the default fill reads as disabled:
+                    // match the row checkboxes' fill, a touch darker.
+                    className="bg-[color-mix(in_oklab,var(--background),black_4%)] dark:bg-[color-mix(in_oklab,var(--background),white_3%)]"
                   />
                 </TableHead>
               )}
