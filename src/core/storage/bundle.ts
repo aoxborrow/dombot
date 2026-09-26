@@ -39,9 +39,9 @@ export const BUNDLE_FORMAT = 'dombot-data';
 // v4 renames namespaces and keys folders and prices by domain name
 // (docs/storage-model.md); v1–v3 files are upgraded on import. Namespaces
 // flagged `local` (meta, …) never travel.
-// v5 adds the domain history (`domain-events`, `domain-notes`). A v4 build
-// would skip those namespaces and silently drop the history, so it must
-// refuse the file. Rule: any release that adds a non-cache namespace bumps
+// v5 adds the domain history (`domain-events`, `domain-notes`,
+// `registrar-last-sync`). A v4 build would skip those namespaces and silently
+// drop the history, so it must refuse the file. Rule: any release that adds a non-cache namespace bumps
 // this version.
 export const BUNDLE_VERSION = 5;
 

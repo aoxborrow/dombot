@@ -17,6 +17,7 @@ import {
   setDisposition,
 } from './domain-history';
 import { assignFolder, getFolders } from './folders';
+import { clearAll } from './cache';
 import { getPurchases, setPurchase, setSale } from './purchases';
 
 let store: MemoryDocStore;
@@ -34,9 +35,9 @@ const holding = (names: string[], known = true) => [
 
 describe('domain history', () => {
   it('starts tracking on the first sync, then records what changes', async () => {
-    expect(recordSync([], holding(['a.com']))).toEqual([]);
+    expect(recordSync(holding(['a.com']))).toEqual([]);
     expect(trackedAccountIds().has(acct())).toBe(true);
-    const events = recordSync(holding(['a.com']), holding(['b.com']));
+    const events = recordSync(holding(['b.com']));
     expect(events.map((e) => [e.type, e.domain])).toEqual([
       ['removed', 'a.com'],
       ['added', 'b.com'],
@@ -45,9 +46,22 @@ describe('domain history', () => {
     expect(Object.keys(await store.list('domain-events'))).toHaveLength(2);
   });
 
+  it('still sees a change made while the cache was cleared', async () => {
+    recordSync(holding(['a.com', 'b.com']));
+    clearAll();
+    const events = recordSync(holding(['b.com']));
+    expect(events.map((e) => [e.type, e.domain])).toEqual([
+      ['removed', 'a.com'],
+    ]);
+    await flushWrites();
+    expect(await store.get('registrar-last-sync', acct())).toMatchObject({
+      names: ['b.com'],
+    });
+  });
+
   it('labels a departure, and Move back to Owned undoes the label', () => {
-    recordSync([], holding(['a.com']));
-    const [left] = recordSync(holding(['a.com']), holding([]));
+    recordSync(holding(['a.com']));
+    const [left] = recordSync(holding([]));
     const owner = () => ownershipByDomain(listEvents()).get('a.com');
     expect(owner()?.label).toBe('left');
     setDisposition('a.com', 'dropped', left.id);
@@ -59,8 +73,8 @@ describe('domain history', () => {
   });
 
   it('marks a name Sold with no details, dated today, closing its alert', () => {
-    recordSync([], holding(['a.com']));
-    const [left] = recordSync(holding(['a.com']), holding([]));
+    recordSync(holding(['a.com']));
+    const [left] = recordSync(holding([]));
     setSale({
       domainName: 'a.com',
       saleDate: null,
@@ -93,8 +107,8 @@ describe('domain history', () => {
       currency: 'USD',
       notes: '',
     });
-    recordSync([], holding([]));
-    const [arrived] = recordSync(holding([]), holding(['a.com']));
+    recordSync(holding([]));
+    const [arrived] = recordSync(holding(['a.com']));
     setPurchase({
       domainName: 'a.com',
       purchaseDate: '2025-01-01',
@@ -112,8 +126,8 @@ describe('domain history', () => {
   });
 
   it('dismisses an alert and brings it back', () => {
-    recordSync([], holding([]));
-    const [added] = recordSync(holding([]), holding(['a.com']));
+    recordSync(holding([]));
+    const [added] = recordSync(holding(['a.com']));
     setAlertDismissed(added.id, true);
     expect(listEvents()[0].dismissed).toBe(true);
     setAlertDismissed(added.id, false);

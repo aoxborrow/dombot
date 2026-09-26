@@ -65,6 +65,7 @@ set passed to `EncryptedDocStore`.
 | `credentials`                            | `registrar-credentials` | sealed | account id                 | API keys                                          |
 | `proxies`                                | `registrar-proxies`     | sealed | proxy id                   | proxy profiles                                    |
 | `registrar-state`                        | `registrars`            |        | fixed keys                 | which registrars are switched on                  |
+| —                                        | `registrar-last-sync`   |        | account id                 | names each account's last sync saw                |
 | —                                        | `manual-domains`        |        | name                       | names you add that no connected registrar reports |
 | —                                        | `domain-notes`          |        | note id                    | notes on a domain, or on one of its events        |
 | `domain-purchases` + `portfolio-changes` | `domain-events`         |        | event id                   | purchases, sales, arrivals, moves, drops          |
@@ -191,14 +192,14 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   `registrar-accounts` record, also shown as "Tracking changes since" on the
   Activity page.
 - **The baseline travels with the history.** The marker, the list sync diffs
-  against (`registrar-domains`), and `domain-events` must move together, so
-  the marker lives in an exported namespace, never `meta` (which is `local`).
-  After an import or a remote Pull, the next sync continues the imported
-  history instead of re-baselining (missing real changes) or diffing against
-  a list that doesn't match the imported events (inventing `added` and
-  `removed`). One exception: `registrar-domains` is a cache, so after Clear
-  cache an account has no list to diff against, and its next sync re-baselines
-  silently rather than reporting every name as added.
+  against, and `domain-events` must move together, so all three live in
+  exported namespaces, never `meta` (which is `local`). The list is
+  `registrar-last-sync` (each account's names as its last successful sync saw
+  them), not the `registrar-domains` cache, so Clear cache can't make sync
+  miss a change. After an import or a remote Pull, the next sync continues the
+  imported history instead of re-baselining (missing real changes) or diffing
+  against a list that doesn't match the imported events (inventing `added`
+  and `removed`).
 - **CSV import is idempotent.** A purchase row that matches an existing event
   on (domain, type, `date`, amount, currency) is skipped, so importing the same
   file twice doesn't double-count.
@@ -405,8 +406,8 @@ data; with remote sync (#89), pushing to a not-yet-upgraded instance and
 pulling back would then lose it locally too. The bump makes the older build
 refuse the file with "made by a newer DomBot".
 
-- **v5** adds the domain history (`domain-events`, `domain-notes`, and later
-  `manual-domains`). A v4 file imports into v5 unchanged; it just has no
+- **v5** adds the domain history (`domain-events`, `domain-notes`,
+  `registrar-last-sync`, and later `manual-domains`). A v4 file imports into v5 unchanged; it just has no
   history.
 - **v4** renamed the namespaces. `parseBundle` accepts v1–v3 by mapping old
   names to new ones and re-keying folders and prices, the same way the

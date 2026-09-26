@@ -18,7 +18,11 @@ export interface AccountHoldings {
   names: string[];
   /** The pull in this sync succeeded (after-list only). */
   synced: boolean;
-  /** A cached list existed (false after Clear cache, or a new account). */
+  /**
+   * Before-list only: a list from the account's last sync exists. False when
+   * DomBot has no record of what it held (an import from before these were
+   * kept); that sync starts over quietly.
+   */
   known: boolean;
 }
 
@@ -137,7 +141,7 @@ export function diffSync(
       continue;
     }
     const was = prev.get(h.accountId);
-    // After Clear cache there's no list to compare with: start over quietly.
+    // No record of what it held last time: start over quietly.
     if (!was?.known) continue;
     const wasNames = names(was);
     for (const name of wasNames)

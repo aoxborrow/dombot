@@ -178,7 +178,7 @@ describe('diffSync', () => {
     ).toMatchObject({ archived: true, label: 'sold', event: sold });
   });
 
-  it('starts over quietly when the cached list was cleared', () => {
+  it('starts over quietly when there is no record of the last sync', () => {
     const result = run(
       [account('dynadot', [], false, false)],
       [account('dynadot', ['a.com', 'b.com'])],

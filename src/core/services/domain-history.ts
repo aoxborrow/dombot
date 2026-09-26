@@ -1,4 +1,4 @@
-import { assertDomainName } from '../../shared/domain-name';
+import { assertDomainName, toAscii } from '../../shared/domain-name';
 import {
   DomainEventSource,
   DomainEventType,
@@ -18,17 +18,45 @@ import {
 } from './domain-events';
 import { assignFolder } from './folders';
 import { setManualPrice } from './pricing';
+import { Namespace } from '../storage/namespace';
 
 // Ownership history on top of the event log: what sync saw, and what you say
 // happened (docs/storage-model.md, "Owned, Archive, and Hidden"). Purchases
 // and sales are in purchases.ts; this is everything else.
 
-/** Record what a sync changed. The first sync of an account is a starting point. */
-export function recordSync(
-  before: AccountHoldings[],
-  after: AccountHoldings[],
-): DomainEvent[] {
+/**
+ * What each account's last successful sync saw, keyed by account id. Sync
+ * compares against this, not the registrar cache, so "Clear cache" can't make
+ * it miss a change; and it's exported, so it travels with `domain-events` and
+ * `trackedSince` and an imported history carries on where it left off.
+ */
+interface LastSync {
+  /** `toAscii` names. */
+  names: string[];
+  /** ms epoch. */
+  syncedAt: number;
+}
+export const LAST_SYNC_NAMESPACE = 'registrar-last-sync';
+const lastSync = new Namespace<LastSync>(LAST_SYNC_NAMESPACE);
+
+/**
+ * Record what a sync changed, given every active account's names now
+ * (`synced` marks the accounts this sync pulled). The first sync of an
+ * account is a starting point.
+ */
+export function recordSync(after: AccountHoldings[]): DomainEvent[] {
   const now = Date.now();
+  const before: AccountHoldings[] = after.map((h) => {
+    // Guard against a hand-edited or imported record that isn't a list.
+    const names = lastSync.get(h.accountId)?.names;
+    const known = Array.isArray(names);
+    return {
+      accountId: h.accountId,
+      names: known ? names.filter((n) => typeof n === 'string') : [],
+      synced: false,
+      known,
+    };
+  });
   const { events, newlyTracked } = diffSync(
     before,
     after,
@@ -39,6 +67,14 @@ export function recordSync(
   );
   putEvents(events);
   markAccountsTracked(newlyTracked, now);
+  void lastSync.setMany(
+    after
+      .filter((h) => h.synced)
+      .map((h) => [
+        h.accountId,
+        { names: [...new Set(h.names.map(toAscii))].sort(), syncedAt: now },
+      ]),
+  );
   return events;
 }
 

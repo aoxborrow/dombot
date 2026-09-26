@@ -619,8 +619,7 @@ function writeRenewalQuote(
 
 /** Domain names currently cached for one account. `synced` is true only after
  * a successful pull in this batch — a failure keeps the old list and is not a
- * starting point and not a diff. `known` is false when there's no cached list
- * to compare with (a new account, or after Clear cache). */
+ * starting point and not a diff. */
 function holdingsOf(
   account: RegistrarAccount,
   synced: boolean,
@@ -640,16 +639,14 @@ function holdingsOf(
 
 /** Pull these accounts, then record arrivals, departures, and moves. */
 async function syncAccounts(accounts: RegistrarAccount[]): Promise<void> {
-  const before = getActiveAccounts().map((account) =>
-    holdingsOf(account, false),
-  );
   await Promise.all(accounts.map((account) => syncRegistrarInto(account)));
   const attempted = new Set(accounts.map((account) => account.id));
   const after = getActiveAccounts().map((account) =>
     holdingsOf(account, attempted.has(account.id)),
   );
   try {
-    recordSync(before, after);
+    // Compared with what the last sync saw (registrar-last-sync), not the cache.
+    recordSync(after);
   } catch (err) {
     console.error('[domain-history] recording the sync failed', err);
   }
