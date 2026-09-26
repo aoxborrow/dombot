@@ -38,7 +38,7 @@ export default function Activity() {
   const events = useAppStore((s) => s.domainEvents);
   const registrars = useAppStore((s) => s.registrars);
   const settings = useAppStore((s) => s.settings);
-  const setAlertDismissed = useAppStore((s) => s.setAlertDismissed);
+  const setAlertsDismissed = useAppStore((s) => s.setAlertsDismissed);
   const deleteUserEvent = useAppStore((s) => s.deleteUserEvent);
   const [params, setParams] = useSearchParams();
   const reviewOnly = params.get('review') === '1';
@@ -174,7 +174,7 @@ export default function Activity() {
                             onClick={() =>
                               void (
                                 status.undo === 'dismissal'
-                                  ? setAlertDismissed(e.id, false)
+                                  ? setAlertsDismissed([e.id], false)
                                   : deleteUserEvent(closer!.id)
                               ).then(() =>
                                 toast.success(

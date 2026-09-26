@@ -9,16 +9,16 @@ import { ownershipByDomain } from '../../shared/ownership';
 import { listAccounts, trackedAccountIds } from './accounts';
 import { listEvents, nameNote } from './domain-events';
 import {
-  deleteDomain,
+  deleteDomains,
   deleteUserEvent,
   recordSync,
   restoreOwned,
-  setAlertDismissed,
-  setDisposition,
+  setAlertsDismissed,
+  setDispositions,
 } from './domain-history';
 import { assignFolder, getFolders } from './folders';
 import { clearAll } from './cache';
-import { getPurchases, setPurchase, setSale } from './purchases';
+import { getPurchases, markSold, setPurchase, setSale } from './purchases';
 
 let store: MemoryDocStore;
 beforeEach(async () => {
@@ -64,12 +64,12 @@ describe('domain history', () => {
     const [left] = recordSync(holding([]));
     const owner = () => ownershipByDomain(listEvents()).get('a.com');
     expect(owner()?.label).toBe('left');
-    setDisposition('a.com', 'dropped', left.id);
+    setDispositions([{ domainName: 'a.com', resolves: left.id }], 'dropped');
     expect(owner()?.label).toBe('dropped');
-    restoreOwned('a.com');
+    restoreOwned(['a.com']);
     expect(owner()?.label).toBe('left');
     // A sync departure has nothing of yours to undo.
-    expect(() => restoreOwned('a.com')).toThrow(/isn't marked/);
+    expect(() => restoreOwned(['a.com'])).toThrow(/isn't marked/);
   });
 
   it('marks a name Sold with no details, dated today, closing its alert', () => {
@@ -128,9 +128,9 @@ describe('domain history', () => {
   it('dismisses an alert and brings it back', () => {
     recordSync(holding([]));
     const [added] = recordSync(holding(['a.com']));
-    setAlertDismissed(added.id, true);
+    setAlertsDismissed([added.id], true);
     expect(listEvents()[0].dismissed).toBe(true);
-    setAlertDismissed(added.id, false);
+    setAlertsDismissed([added.id], false);
     expect(listEvents()[0].dismissed).toBe(false);
   });
 
@@ -143,11 +143,51 @@ describe('domain history', () => {
       notes: 'mine',
     });
     assignFolder('a.com', '__hidden__');
-    deleteDomain('A.com');
+    deleteDomains(['A.com']);
     expect(listEvents()).toEqual([]);
     expect(nameNote('a.com')).toBeUndefined();
     expect(getFolders().assignments['a.com']).toBeUndefined();
     await flushWrites();
     expect(await store.list('domain-notes')).toEqual({});
+  });
+
+  it('marks many names at once, on the date you pick', async () => {
+    recordSync(holding(['a.com', 'b.com', 'c.com']));
+    const left = recordSync(holding(['c.com']));
+    const openA = left.find((e) => e.domain === 'a.com')!;
+    setDispositions(
+      [{ domainName: 'a.com', resolves: openA.id }, { domainName: 'b.com' }],
+      'dropped',
+      '2026-09-01',
+    );
+    const owner = ownershipByDomain(listEvents());
+    expect(owner.get('a.com')?.label).toBe('dropped');
+    expect(owner.get('b.com')?.label).toBe('dropped');
+    const dropped = listEvents().filter((e) => e.type === 'dropped');
+    expect(dropped.map((e) => e.date)).toEqual(['2026-09-01', '2026-09-01']);
+    expect(dropped[0].resolves).toBe(openA.id);
+    await flushWrites();
+    expect(Object.keys(await store.list('domain-events'))).toHaveLength(4);
+  });
+
+  it('marks many names Sold with no price, dated today by default', () => {
+    markSold([{ domainName: 'a.com' }, { domainName: 'b.com' }]);
+    const sold = listEvents().filter((e) => e.type === 'sold');
+    expect(sold).toHaveLength(2);
+    expect(
+      sold.every((e) => !e.amount && /^\d{4}-\d{2}-\d{2}$/.test(e.date!)),
+    ).toBe(true);
+    expect(getPurchases()['a.com']).toMatchObject({ saleAmount: null });
+  });
+
+  it('moves back to Owned only the names you labeled', () => {
+    recordSync(holding(['a.com', 'b.com']));
+    recordSync(holding([]));
+    setDispositions([{ domainName: 'a.com' }], 'archived');
+    // b.com only left on its own: nothing of yours to undo, so it's skipped.
+    expect(restoreOwned(['a.com', 'b.com'])).toBe(1);
+    const owner = ownershipByDomain(listEvents());
+    expect(owner.get('a.com')?.label).toBe('left');
+    expect(owner.get('b.com')?.label).toBe('left');
   });
 });

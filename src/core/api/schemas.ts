@@ -130,3 +130,12 @@ export const purchaseImport = z.array(purchaseInput).max(10000);
 export const eventId = z.string().min(1).max(80);
 
 export const disposition = z.enum(['dropped', 'archived']);
+
+/** Names to act on, each with the sync alert the action answers. */
+export const ownershipItems = z
+  .array(z.object({ domainName, resolves: eventId.optional() }).strict())
+  .min(1)
+  .max(5000);
+
+/** A `YYYY-MM-DD` day from a dialog; blank or null means today. */
+export const optionalDay = z.string().max(40).nullable().optional();

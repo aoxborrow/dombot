@@ -135,15 +135,17 @@ const api: DombotApi = {
   importPurchases: (rows) =>
     ipcRenderer.invoke(IpcChannels.importPurchases, rows),
   getDomainEvents: () => ipcRenderer.invoke(IpcChannels.getDomainEvents),
-  setDisposition: (domainName, type, resolves) =>
-    ipcRenderer.invoke(IpcChannels.setDisposition, domainName, type, resolves),
-  restoreOwned: (domainName) =>
-    ipcRenderer.invoke(IpcChannels.restoreOwned, domainName),
-  setAlertDismissed: (id, dismissed) =>
-    ipcRenderer.invoke(IpcChannels.setAlertDismissed, id, dismissed),
+  setDispositions: (items, type, date) =>
+    ipcRenderer.invoke(IpcChannels.setDispositions, items, type, date),
+  markSold: (items, date) =>
+    ipcRenderer.invoke(IpcChannels.markSold, items, date),
+  restoreOwned: (domainNames) =>
+    ipcRenderer.invoke(IpcChannels.restoreOwned, domainNames),
+  setAlertsDismissed: (ids, dismissed) =>
+    ipcRenderer.invoke(IpcChannels.setAlertsDismissed, ids, dismissed),
   deleteUserEvent: (id) => ipcRenderer.invoke(IpcChannels.deleteUserEvent, id),
-  deleteDomain: (domainName) =>
-    ipcRenderer.invoke(IpcChannels.deleteDomain, domainName),
+  deleteDomains: (domainNames) =>
+    ipcRenderer.invoke(IpcChannels.deleteDomains, domainNames),
   lookupRegistrations: (domainNames) =>
     ipcRenderer.invoke(IpcChannels.lookupRegistrations, domainNames),
   getRegistrationQuote: (registrar, domainName, accountId) =>

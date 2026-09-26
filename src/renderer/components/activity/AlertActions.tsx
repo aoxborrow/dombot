@@ -9,6 +9,7 @@ import type { Domain, RegistrarMeta } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { PurchaseDialog } from '../domains/PurchaseDialog';
 import { SaleDialog } from '../domains/SaleDialog';
+import { DispositionDialog } from '../actions/OwnershipDialogs';
 import { Button } from '@/components/ui/button';
 
 /** A Domain for the purchase and sale dialogs, from an alert. */
@@ -60,9 +61,10 @@ export function AlertActions({
 }) {
   const portfolio = useAppStore((s) => s.portfolio);
   const registrars = useAppStore((s) => s.registrars);
-  const setDisposition = useAppStore((s) => s.setDisposition);
-  const setAlertDismissed = useAppStore((s) => s.setAlertDismissed);
-  const [dialog, setDialog] = useState<'sale' | 'purchase' | null>(null);
+  const setAlertsDismissed = useAppStore((s) => s.setAlertsDismissed);
+  const [dialog, setDialog] = useState<
+    'sale' | 'purchase' | 'dropped' | 'archived' | null
+  >(null);
   const name = toUnicode(event.domain);
   const button = (label: string, onClick: () => void) => (
     <Button type="button" size={size} variant="outline" onClick={onClick}>
@@ -70,19 +72,13 @@ export function AlertActions({
     </Button>
   );
   const dismiss = () =>
-    void setAlertDismissed(event.id, true).then(() =>
+    void setAlertsDismissed([event.id], true).then(() =>
       toast.success(`Dismissed ${name}`, {
         action: {
           label: 'Undo',
-          onClick: () => void setAlertDismissed(event.id, false),
+          onClick: () => void setAlertsDismissed([event.id], false),
         },
       }),
-    );
-  const label = (type: 'dropped' | 'archived') =>
-    void setDisposition(name, type, event.id).then(() =>
-      toast.success(
-        type === 'dropped' ? `Marked ${name} as Dropped` : `Archived ${name}`,
-      ),
     );
 
   return (
@@ -91,8 +87,8 @@ export function AlertActions({
         {event.type === DomainEventType.Removed ? (
           <>
             {button('Sold…', () => setDialog('sale'))}
-            {button('Dropped', () => label('dropped'))}
-            {button('Archive', () => label('archived'))}
+            {button('Dropped…', () => setDialog('dropped'))}
+            {button('Archive…', () => setDialog('archived'))}
           </>
         ) : (
           button('Record purchase…', () => setDialog('purchase'))
@@ -104,6 +100,13 @@ export function AlertActions({
           domain={alertDomain(event, portfolio, registrars)}
           mode="mark"
           resolves={event.id}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {(dialog === 'dropped' || dialog === 'archived') && (
+        <DispositionDialog
+          type={dialog}
+          items={[{ domainName: name, resolves: event.id }]}
           onClose={() => setDialog(null)}
         />
       )}

@@ -9,10 +9,10 @@ made so far and the order of the work.
 Builds on the domain event log (`docs/storage-model.md`). The work lands as
 PRs stacked on #106 (branch `domain-events`) while #106 is open.
 
-Status: phase 1 (sync errors) is merged into `domain-events` (#113), and so
-is the change that makes arrivals the lowest-priority alert. How sync errors
-show in the bell is revisited with the bell redesign (phase 6). Everything
-else is planned.
+Status: phase 1 (sync errors, #113) is merged into `domain-events`, and so
+is the change that makes arrivals the lowest-priority alert. Phase 2 (the
+table, #114) and phase 3 (action dialogs) are in review. How sync errors show
+in the bell is revisited with the bell redesign (phase 6).
 
 ## Goals
 
@@ -146,6 +146,9 @@ work.
   bar, Activity rows, and the Activity bulk bar.
 - **Dates default to today.** Every date field in an action dialog starts at
   today's date; you change it if the event happened on another day.
+- **Move back to Owned** is one click for a single name (it's reversible);
+  for a selection it goes through the dialog, which says how many names only
+  left on their own and stay in Archive.
 - **Batch APIs underneath.** For example
   `setDispositions(items: {domain, resolves?}[], type)` writes one
   `putEvents` batch instead of one call per name. The same goes for dismiss,

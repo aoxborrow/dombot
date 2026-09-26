@@ -123,11 +123,12 @@ export const IpcChannels = {
   setSale: 'purchases:setSale',
   importPurchases: 'purchases:import',
   getDomainEvents: 'domainEvents:list',
-  setDisposition: 'domainEvents:setDisposition',
+  setDispositions: 'domainEvents:setDispositions',
+  markSold: 'domainEvents:markSold',
   restoreOwned: 'domainEvents:restoreOwned',
-  setAlertDismissed: 'domainEvents:setAlertDismissed',
+  setAlertsDismissed: 'domainEvents:setAlertsDismissed',
   deleteUserEvent: 'domainEvents:deleteUserEvent',
-  deleteDomain: 'domainEvents:deleteDomain',
+  deleteDomains: 'domainEvents:deleteDomains',
   getRegistrationQuote: 'pricing:registrationQuote',
   lookupRegistrations: 'registration:lookup',
   getRevisions: 'events:getRevisions',
@@ -290,6 +291,12 @@ export interface PurchaseInput {
 }
 
 /** Sale date, sale amount, and the shared notes field. Does not change what you paid. */
+/** A name to act on, and the sync alert the action answers, if any. */
+export interface OwnershipItem {
+  domainName: string;
+  resolves?: string;
+}
+
 export interface SaleInput {
   domainName: string;
   saleDate: string | null;
@@ -873,20 +880,34 @@ export interface DombotApi {
   // Domain history (docs/storage-model.md). Each change returns the whole log.
   /** Every domain event, oldest first. */
   getDomainEvents: () => Promise<DomainEvent[]>;
-  /** Mark a name Dropped or Archived; `resolves` closes the alert it answers. */
-  setDisposition: (
-    domainName: string,
+  /**
+   * Mark names Dropped or Archived on `date` (blank: today). Each `resolves`
+   * closes the alert it answers.
+   */
+  setDispositions: (
+    items: OwnershipItem[],
     type: 'dropped' | 'archived',
-    resolves?: string,
+    date?: string | null,
   ) => Promise<DomainEvent[]>;
-  /** "Move back to Owned": undo the Sold, Dropped, or Archived event. */
-  restoreOwned: (domainName: string) => Promise<DomainEvent[]>;
-  /** Acknowledge a sync alert with no action, or bring it back. */
-  setAlertDismissed: (id: string, dismissed: boolean) => Promise<DomainEvent[]>;
+  /** Mark names Sold with no price, dated `date` (blank: today). */
+  markSold: (
+    items: OwnershipItem[],
+    date?: string | null,
+  ) => Promise<DomainEvent[]>;
+  /**
+   * "Move back to Owned": undo each name's Sold, Dropped, or Archived event.
+   * Names that only left on their own are skipped.
+   */
+  restoreOwned: (domainNames: string[]) => Promise<DomainEvent[]>;
+  /** Acknowledge sync alerts with no action, or bring them back. */
+  setAlertsDismissed: (
+    ids: string[],
+    dismissed: boolean,
+  ) => Promise<DomainEvent[]>;
   /** Undo one of your own events. Sync events can't be deleted. */
   deleteUserEvent: (id: string) => Promise<DomainEvent[]>;
-  /** Delete everything DomBot holds about a name. */
-  deleteDomain: (domainName: string) => Promise<DomainEvent[]>;
+  /** Delete everything DomBot holds about each name. */
+  deleteDomains: (domainNames: string[]) => Promise<DomainEvent[]>;
   /** This registrar's registration fee for a name that just arrived. */
   getRegistrationQuote: (
     registrar: RegistrarName,
