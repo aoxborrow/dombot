@@ -109,11 +109,22 @@ export function describeEvent(
   }
 }
 
+export interface AlertStatus {
+  text: string;
+  open: boolean;
+  /**
+   * What Undo does: bring back a dismissal you made, or delete the event you
+   * answered it with. Null when sync closed it on its own: undoing that would
+   * put it back in Needs review with nothing to decide.
+   */
+  undo: 'dismissal' | 'answer' | null;
+}
+
 /** A short status for an alert row: what closed it, or that it's waiting. */
 export function alertStatus(
   e: DomainEvent,
   closedBy: DomainEvent | undefined,
-): { text: string; open: boolean } | null {
+): AlertStatus | null {
   if (e.type !== DomainEventType.Removed && e.type !== DomainEventType.Added)
     return null;
   if (closedBy) {
@@ -123,10 +134,20 @@ export function alertStatus(
         : closedBy.type === DomainEventType.Moved
           ? 'Was a move'
           : VERB[closedBy.type];
-    return { text, open: false };
+    const yours = closedBy.source === DomainEventSource.User;
+    return { text, open: false, undo: yours ? 'answer' : null };
   }
-  if (e.dismissed) return { text: 'Dismissed', open: false };
-  return { text: 'Needs review', open: true };
+  if (e.dismissed) {
+    // Dismissed when sync wrote it (never edited since): a name that came
+    // back, or one that left after you'd already labeled it.
+    if (e.updatedAt === null) {
+      const text =
+        e.type === DomainEventType.Added ? 'Came back' : 'Already labeled';
+      return { text, open: false, undo: null };
+    }
+    return { text: 'Dismissed', open: false, undo: 'dismissal' };
+  }
+  return { text: 'Needs review', open: true, undo: null };
 }
 
 export const SOURCE_LABEL: Record<DomainEvent['source'], string> = {

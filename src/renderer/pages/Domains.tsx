@@ -2150,7 +2150,11 @@ export default function Domains() {
               Delete <span className="font-mono">{deleteFor.domainName}</span>?
             </>
           }
-          description="This removes everything DomBot holds about the name: its purchase and sale, notes, activity, folder, and price. If a connected registrar still has it, the next sync brings it back as a new name with no history."
+          description={
+            deleteFor.departed
+              ? 'This removes the name and everything DomBot holds about it: its purchase and sale, notes, activity, folder, and price.'
+              : 'This clears everything DomBot holds about the name: its purchase and sale, notes, activity, folder, and price. It stays in your list while a connected registrar has it, with no history.'
+          }
           actionLabel="Delete"
           onConfirm={() => {
             const name = deleteFor.domainName;

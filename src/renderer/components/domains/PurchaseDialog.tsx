@@ -68,7 +68,10 @@ export function PurchaseDialog({
   const formatId: NumberFormatId =
     settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
-  const existing = purchases[toAscii(domain.domainName)];
+  const record = purchases[toAscii(domain.domainName)];
+  // Answering an arrival records a new holding: start blank rather than from
+  // the previous purchase. The note belongs to the name, so it still shows.
+  const existing = resolves ? undefined : record;
 
   const [date, setDate] = useState(existing?.purchaseDate ?? '');
   const [amount, setAmount] = useState(
@@ -81,7 +84,7 @@ export function PurchaseDialog({
       : '',
   );
   const [currency, setCurrency] = useState(existing?.currency ?? preferred);
-  const [notes, setNotes] = useState(existing?.notes ?? '');
+  const [notes, setNotes] = useState(record?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
   const [feeNote, setFeeNote] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

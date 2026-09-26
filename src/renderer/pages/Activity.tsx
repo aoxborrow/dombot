@@ -166,15 +166,14 @@ export default function Activity() {
                     ) : status ? (
                       <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                         {status.text}
-                        {(e.dismissed ||
-                          (closer && closer.source === 'user')) && (
+                        {status.undo && (
                           <Button
                             type="button"
                             size="xs"
                             variant="ghost"
                             onClick={() =>
                               void (
-                                e.dismissed && !closer
+                                status.undo === 'dismissal'
                                   ? setAlertDismissed(e.id, false)
                                   : deleteUserEvent(closer!.id)
                               ).then(() =>
