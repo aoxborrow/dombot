@@ -11,7 +11,8 @@ PRs stacked on #106 (branch `domain-events`) while #106 is open.
 
 Status: phase 1 (sync errors, #113) is merged into `domain-events`, and so
 is the change that makes arrivals the lowest-priority alert. Phase 2 (the
-table, #114) and phase 3 (action dialogs) are in review. How sync errors show
+table, #114), phase 3 (action dialogs, #116), and phase 4 (the
+notification model, `src/shared/notifications.ts`) are in review. How sync errors show
 in the bell is revisited with the bell redesign (phase 6).
 
 ## Goals

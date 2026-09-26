@@ -5,12 +5,12 @@ import { toast } from 'sonner';
 import { toUnicode } from '../../shared/domain-name';
 import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
 import { AlertActions } from '../components/activity/AlertActions';
+import { notifications } from '../../shared/notifications';
 import {
   SOURCE_LABEL,
   alertStatus,
   describeEvent,
   resolutions,
-  reviewItems,
   trackingSince,
 } from '../lib/activity';
 import { useAppStore } from '../store/app';
@@ -48,7 +48,10 @@ export default function Activity() {
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
 
   const closedBy = useMemo(() => resolutions(events), [events]);
-  const reviewCount = useMemo(() => reviewItems(events).length, [events]);
+  const reviewCount = useMemo(
+    () => notifications(events, []).length,
+    [events],
+  );
   const since = trackingSince(registrars);
 
   const rows = useMemo(() => {
