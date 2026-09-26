@@ -12,6 +12,7 @@ import type {
   DomainPurchase,
   DomainTarget,
   DomainEvent,
+  OwnershipItem,
   PurchaseImportResult,
   PurchaseInput,
   RegistrationLookup,
@@ -209,19 +210,24 @@ interface AppState {
    */
   domainEvents: DomainEvent[];
   loadDomainEvents: () => Promise<void>;
-  /** Mark a name Dropped or Archived; `resolves` closes the alert it answers. */
-  setDisposition: (
-    domainName: string,
+  /**
+   * Mark names Dropped or Archived on `date` (blank: today). Each `resolves`
+   * closes the alert it answers.
+   */
+  setDispositions: (
+    items: OwnershipItem[],
     type: 'dropped' | 'archived',
-    resolves?: string,
+    date?: string | null,
   ) => Promise<void>;
+  /** Mark names Sold with no price, dated `date` (blank: today). */
+  markSold: (items: OwnershipItem[], date?: string | null) => Promise<void>;
   /** "Move back to Owned": undo Sold, Dropped, or Archived. */
-  restoreOwned: (domainName: string) => Promise<void>;
-  setAlertDismissed: (id: string, dismissed: boolean) => Promise<void>;
+  restoreOwned: (domainNames: string[]) => Promise<void>;
+  setAlertsDismissed: (ids: string[], dismissed: boolean) => Promise<void>;
   /** Undo one of your own events. */
   deleteUserEvent: (id: string) => Promise<void>;
-  /** Delete everything DomBot holds about a name. */
-  deleteDomain: (domainName: string) => Promise<void>;
+  /** Delete everything DomBot holds about each name. */
+  deleteDomains: (domainNames: string[]) => Promise<void>;
 
   // Row selection for bulk actions, keyed `${registrar}:${domainName}`. Lives
   // here (not in the page) so it survives tab switches; pruned when the
@@ -715,24 +721,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadDomainEvents: async () => {
     set({ domainEvents: await window.api.getDomainEvents() });
   },
-  setDisposition: async (domainName, type, resolves) => {
+  setDispositions: async (items, type, date) => {
     set({
-      domainEvents: await window.api.setDisposition(domainName, type, resolves),
+      domainEvents: await window.api.setDispositions(items, type, date),
     });
   },
-  restoreOwned: async (domainName) => {
-    set({ domainEvents: await window.api.restoreOwned(domainName) });
+  markSold: async (items, date) => {
+    set({ domainEvents: await window.api.markSold(items, date) });
     await get().loadPurchases();
   },
-  setAlertDismissed: async (id, dismissed) => {
-    set({ domainEvents: await window.api.setAlertDismissed(id, dismissed) });
+  restoreOwned: async (domainNames) => {
+    set({ domainEvents: await window.api.restoreOwned(domainNames) });
+    await get().loadPurchases();
+  },
+  setAlertsDismissed: async (ids, dismissed) => {
+    set({ domainEvents: await window.api.setAlertsDismissed(ids, dismissed) });
   },
   deleteUserEvent: async (id) => {
     set({ domainEvents: await window.api.deleteUserEvent(id) });
     await get().loadPurchases();
   },
-  deleteDomain: async (domainName) => {
-    set({ domainEvents: await window.api.deleteDomain(domainName) });
+  deleteDomains: async (domainNames) => {
+    set({ domainEvents: await window.api.deleteDomains(domainNames) });
     await Promise.all([
       get().loadPurchases(),
       get().loadFolders(),

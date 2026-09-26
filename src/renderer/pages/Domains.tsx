@@ -44,7 +44,12 @@ import { DomainEventType } from '../../shared/domain-events';
 import { ownershipByDomain, type ArchiveLabel } from '../../shared/ownership';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { ARCHIVE_LABEL, archiveRows } from '../lib/domain-history';
-import { ConfirmDialog } from '../components/ConfirmDialog';
+import {
+  DeleteDomainsDialog,
+  DispositionDialog,
+  MarkSoldDialog,
+  RestoreOwnedDialog,
+} from '../components/actions/OwnershipDialogs';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
@@ -71,7 +76,7 @@ import {
   EmailForwardingDialog,
   UrlForwardingDialog,
 } from '../components/domains/ForwardingDialogs';
-import { BulkBar } from '../components/domains/BulkBar';
+import { BulkBar, type OwnershipAction } from '../components/domains/BulkBar';
 import { BulkActionDialog } from '../components/domains/BulkActionDialog';
 import { defaultBulkOp } from '../lib/bulk';
 import { usePreferences } from '../lib/preferences';
@@ -700,9 +705,7 @@ export default function Domains() {
     domainEvents,
     registrationLookups,
     loadRegistrationLookups,
-    setDisposition,
     restoreOwned,
-    deleteDomain,
   } = useAppStore();
 
   // Ownership per name, and each name's open "left your accounts" alert (a
@@ -732,11 +735,13 @@ export default function Domains() {
   );
   const [purchaseFor, setPurchaseFor] = useState<Domain | null>(null);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
-  const [markSold, setMarkSold] = useState<Domain[] | null>(null);
-  const [markIndex, setMarkIndex] = useState(0);
-  const markSaved = useRef(0);
-  const markAdvanced = useRef(false);
-  const [deleteFor, setDeleteFor] = useState<Domain | null>(null);
+  // Mark as Sold for one name: the sale dialog, which takes the price.
+  const [markSoldFor, setMarkSoldFor] = useState<Domain | null>(null);
+  // The ownership dialogs, for one name (row menu) or the selection.
+  const [ownershipDialog, setOwnershipDialog] = useState<{
+    action: OwnershipAction;
+    domains: Domain[];
+  } | null>(null);
   // The Registrar column carries the account too: a nickname always shows in
   // parens; an unnamed account shows its number only when the registrar has
   // siblings to tell apart. `null` from accountNumber() means a real nickname.
@@ -1267,22 +1272,24 @@ export default function Domains() {
     });
   }
 
-  // Ownership actions from the row menu. A name sync saw leave has an open
-  // alert; the label you pick closes it.
-  function markDisposition(d: Domain, type: 'dropped' | 'archived') {
-    const name = toAscii(d.domainName);
-    void setDisposition(d.domainName, type, openRemoval.get(name)).then(() =>
-      toast.success(
-        `${type === 'dropped' ? 'Marked' : 'Archived'} ${d.domainName}${
-          type === 'dropped' ? ' as Dropped' : ''
-        }`,
-      ),
-    );
+  // Ownership actions. A name sync saw leave has an open alert; the label
+  // you pick closes it.
+  const ownershipItems = (ds: Domain[]) =>
+    ds.map((d) => ({
+      domainName: d.domainName,
+      resolves: openRemoval.get(toAscii(d.domainName)),
+    }));
+
+  function openOwnership(action: OwnershipAction, ds: Domain[]) {
+    if (action === 'sold' && ds.length === 1) setMarkSoldFor(ds[0]);
+    else setOwnershipDialog({ action, domains: ds });
   }
 
+  // Undoing one name's label is one click (and reversible); many go through
+  // the dialog.
   function moveBackToOwned(d: Domain) {
     const label = archiveLabelOf(d);
-    void restoreOwned(d.domainName).then(() =>
+    void restoreOwned([d.domainName]).then(() =>
       toast.success(
         d.departed && label
           ? `Undid ${ARCHIVE_LABEL[label]} for ${d.domainName}`
@@ -1291,33 +1298,12 @@ export default function Domains() {
     );
   }
 
-  function finishMarkQueue() {
-    const saved = markSaved.current;
-    markSaved.current = 0;
-    setMarkSold(null);
-    setMarkIndex(0);
-    if (saved > 0)
-      toast.success(`Marked ${saved} domain${saved === 1 ? '' : 's'} as Sold`);
-  }
-
-  // The sale dialog records the sold event itself; this just walks the queue.
-  function onMarkSaved() {
-    if (!markSold) return;
-    const domain = markSold[markIndex];
-    markAdvanced.current = true;
-    markSaved.current += 1;
-    setSelectedMany([domainKey(domain)], false);
-    if (markIndex + 1 < markSold.length) setMarkIndex((index) => index + 1);
-    else finishMarkQueue();
-  }
-
-  function onMarkClose() {
-    if (markAdvanced.current) {
-      markAdvanced.current = false;
-      return;
-    }
-    finishMarkQueue();
-  }
+  // After a bulk ownership action the names leave this view: clear them.
+  const clearDone = (ds: Domain[]) =>
+    setSelectedMany(
+      ds.map((d) => domainKey(d)),
+      false,
+    );
 
   // Lazily fetch full detail for the rows actually on screen. Keyed on the
   // visible domains' identities so it re-runs on page/sort/filter changes;
@@ -1415,15 +1401,11 @@ export default function Domains() {
             onEditSale={() => setSaleFor(d)}
             onAssignFolder={(folderId) => applyFolders([d], folderId)}
             archive={archiveLabelOf(d)}
-            onMarkSold={() => {
-              markSaved.current = 0;
-              setMarkIndex(0);
-              setMarkSold([d]);
-            }}
-            onMarkDropped={() => markDisposition(d, 'dropped')}
-            onMarkArchived={() => markDisposition(d, 'archived')}
+            onMarkSold={() => openOwnership('sold', [d])}
+            onMarkDropped={() => openOwnership('dropped', [d])}
+            onMarkArchived={() => openOwnership('archived', [d])}
             onRestoreOwned={() => moveBackToOwned(d)}
-            onDelete={() => setDeleteFor(d)}
+            onDelete={() => openOwnership('delete', [d])}
           />
         </div>
       );
@@ -1727,6 +1709,8 @@ export default function Domains() {
           onViewJob={() => {
             if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });
           }}
+          archiveView={archiveView}
+          onOwnership={(action) => openOwnership(action, selectedDomains)}
         />
       </div>
 
@@ -1814,44 +1798,55 @@ export default function Domains() {
       {saleFor && (
         <SaleDialog domain={saleFor} onClose={() => setSaleFor(null)} />
       )}
-      {markSold && markSold[markIndex] && (
+      {markSoldFor && (
         <SaleDialog
-          key={`${domainKey(markSold[markIndex])}:${markIndex}`}
-          domain={markSold[markIndex]}
+          domain={markSoldFor}
           mode="mark"
-          resolves={openRemoval.get(toAscii(markSold[markIndex].domainName))}
-          step={
-            markSold.length > 1
-              ? { current: markIndex + 1, total: markSold.length }
-              : undefined
-          }
-          onSaved={onMarkSaved}
-          onClose={onMarkClose}
+          resolves={openRemoval.get(toAscii(markSoldFor.domainName))}
+          onSaved={() => clearDone([markSoldFor])}
+          onClose={() => setMarkSoldFor(null)}
         />
       )}
-      {deleteFor && (
-        <ConfirmDialog
-          title={
-            <>
-              Delete <span className="font-mono">{deleteFor.domainName}</span>?
-            </>
-          }
-          description={
-            deleteFor.departed
-              ? 'This removes the name and everything DomBot holds about it: its purchase and sale, notes, activity, folder, and price.'
-              : 'This clears everything DomBot holds about the name: its purchase and sale, notes, activity, folder, and price. It stays in your list while a connected registrar has it, with no history.'
-          }
-          actionLabel="Delete"
-          onConfirm={() => {
-            const name = deleteFor.domainName;
-            void deleteDomain(name).then(() =>
-              toast.success(`Deleted ${name}`),
+      {ownershipDialog &&
+        (() => {
+          const { action, domains: ds } = ownershipDialog;
+          const close = () => setOwnershipDialog(null);
+          const done = () => clearDone(ds);
+          if (action === 'dropped' || action === 'archived')
+            return (
+              <DispositionDialog
+                type={action}
+                items={ownershipItems(ds)}
+                onDone={done}
+                onClose={close}
+              />
             );
-            setDeleteFor(null);
-          }}
-          onClose={() => setDeleteFor(null)}
-        />
-      )}
+          if (action === 'sold')
+            return (
+              <MarkSoldDialog
+                items={ownershipItems(ds)}
+                onDone={done}
+                onClose={close}
+              />
+            );
+          if (action === 'restore')
+            return (
+              <RestoreOwnedDialog
+                names={ds.map((d) => d.domainName)}
+                restorable={
+                  ds.filter((d) => {
+                    const o = ownership.get(toAscii(d.domainName));
+                    return o?.event && o.event.source !== 'sync';
+                  }).length
+                }
+                onDone={done}
+                onClose={close}
+              />
+            );
+          return (
+            <DeleteDomainsDialog domains={ds} onDone={done} onClose={close} />
+          );
+        })()}
       {renewFor && (
         <RenewDialog
           domain={renewFor}

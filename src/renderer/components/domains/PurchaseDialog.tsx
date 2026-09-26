@@ -11,14 +11,8 @@ import {
 } from '../../../shared/money';
 import { useAppStore } from '../../store/app';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
+import { ActionHeader, todayInput } from '../actions/ActionDialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -73,7 +67,11 @@ export function PurchaseDialog({
   // the previous purchase. The note belongs to the name, so it still shows.
   const existing = resolves ? undefined : record;
 
-  const [date, setDate] = useState(existing?.purchaseDate ?? '');
+  // A new purchase starts dated today; editing one keeps what's stored.
+  const recorded = !!(existing?.purchaseDate || existing?.amount);
+  const [date, setDate] = useState(
+    recorded ? (existing?.purchaseDate ?? '') : todayInput,
+  );
   const [amount, setAmount] = useState(
     existing?.amount
       ? formatAmountInput(
@@ -163,14 +161,14 @@ export function PurchaseDialog({
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-mono">{domain.domainName}</DialogTitle>
-          <DialogDescription>
-            Purchase date, amount, and notes for this name. Kept even if it
-            leaves the account.
-          </DialogDescription>
-        </DialogHeader>
+        <ActionHeader
+          title={recorded ? 'Edit purchase' : 'Record purchase'}
+          names={[domain.domainName]}
+        />
         <div className="flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            What you paid and when. Kept even if the name leaves the account.
+          </p>
           <div
             className={
               justRegistered
@@ -274,12 +272,14 @@ export function PurchaseDialog({
           </div>
         ) : (
           <DialogFooter>
-            {/* Answering an arrival starts a new holding: there's nothing to
-                clear, and Clear would delete the previous purchase instead. */}
-            {!resolves && (
+            {/* Clear only when there's a purchase to clear. Answering an
+                arrival starts a new holding: Clear would delete the previous
+                purchase instead. */}
+            {recorded && !resolves && (
               <Button
                 type="button"
                 variant="outline"
+                className="sm:mr-auto"
                 disabled={saving || filling}
                 onClick={() => setConfirmClear(true)}
               >
@@ -288,10 +288,18 @@ export function PurchaseDialog({
             )}
             <Button
               type="button"
+              variant="outline"
+              disabled={saving || filling}
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
               disabled={saving || filling}
               onClick={() => void save(false)}
             >
-              Save
+              {recorded ? 'Save' : 'Record purchase'}
             </Button>
           </DialogFooter>
         )}

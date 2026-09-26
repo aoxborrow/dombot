@@ -11,14 +11,8 @@ import {
 } from '../../../shared/money';
 import { useAppStore } from '../../store/app';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
+import { ActionHeader, todayInput } from '../actions/ActionDialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,15 +32,12 @@ import {
 export function SaleDialog({
   domain,
   mode = 'edit',
-  step,
   resolves,
   onSaved,
   onClose,
 }: {
   domain: Domain;
   mode?: 'edit' | 'mark';
-  /** 1-based place in a bulk Mark as Sold run. */
-  step?: { current: number; total: number };
   /** The "left your accounts" alert this sale answers, if any. */
   resolves?: string;
   /** Runs after the sale is stored. */
@@ -61,7 +52,10 @@ export function SaleDialog({
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
   const existing = purchases[toAscii(domain.domainName)];
 
-  const [date, setDate] = useState(existing?.saleDate ?? '');
+  // A new sale starts dated today; editing one keeps what's stored.
+  const [date, setDate] = useState(
+    mode === 'mark' ? todayInput : (existing?.saleDate ?? ''),
+  );
   const [amount, setAmount] = useState(
     existing?.saleAmount
       ? formatAmountInput(
@@ -111,19 +105,16 @@ export function SaleDialog({
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-mono">{domain.domainName}</DialogTitle>
-          <DialogDescription>
-            {mode === 'mark'
-              ? `Add the sale date, amount, and notes. Mark as Sold moves this name to Archive. The registrar account is not changed.${
-                  step && step.total > 1
-                    ? ` ${step.current} of ${step.total}.`
-                    : ''
-                }`
-              : 'This name is marked Sold. Add what you sold it for, the date, and any notes. Notes are the same notes kept for this name.'}
-          </DialogDescription>
-        </DialogHeader>
+        <ActionHeader
+          title={mode === 'mark' ? 'Mark as Sold' : 'Edit sale'}
+          names={[domain.domainName]}
+        />
         <div className="flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            {mode === 'mark'
+              ? 'Moves to Archive as Sold. Nothing changes at the registrar.'
+              : 'What you sold it for and when.'}
+          </p>
           <div className="flex flex-col gap-3 rounded-md border bg-muted/40 p-3">
             <div className="flex flex-col gap-2">
               <Label htmlFor="sale-date">Sale date</Label>

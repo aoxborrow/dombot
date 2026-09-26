@@ -195,6 +195,37 @@ export function setSale(input: SaleInput): DomainPurchase | null {
 }
 
 /**
+ * Mark names Sold with no price, in one write: each gets a sale dated `date`
+ * (today when blank). Each `resolves` closes the sync alert it answers. The
+ * price can be added later from the name's row.
+ */
+export function markSold(
+  items: { domainName: string; resolves?: string }[],
+  date?: string | null,
+): void {
+  const day = parsePurchaseDate(date ?? '', 'Sale date') ?? localDay();
+  const now = Date.now();
+  putEvents(
+    items.map((item) =>
+      withResolves(
+        newEvent(
+          {
+            domain: assertDomainName(item.domainName),
+            type: DomainEventType.Sold,
+            source: DomainEventSource.User,
+            date: day,
+            amount: null,
+            currency: null,
+          },
+          now,
+        ),
+        item.resolves,
+      ),
+    ),
+  );
+}
+
+/**
  * Upsert many purchase rows with one write for the events and one for the
  * notes. One bad row is reported and the rest still save; a later row for the
  * same name wins. A row's note replaces the name's note only when it has one,

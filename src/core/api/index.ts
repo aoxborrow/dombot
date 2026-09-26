@@ -20,14 +20,15 @@ import {
   getPurchases,
   importPurchases,
   setPurchase,
+  markSold,
   setSale,
 } from '../services/purchases';
 import {
-  deleteDomain,
+  deleteDomains,
   deleteUserEvent,
   restoreOwned,
-  setAlertDismissed,
-  setDisposition,
+  setAlertsDismissed,
+  setDispositions,
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
 import { lookupRegistrations } from '../services/registration-lookup';
@@ -377,21 +378,31 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   // ── Domain history (events) ───────────────────────────────────────────────
   // Every change returns the whole log, so the caller refreshes in one call.
   getDomainEvents: method(none, async () => listEvents()),
-  setDisposition: method(
-    z.tuple([s.domainName, s.disposition, s.eventId.optional()]),
-    async (domainName, type, resolves) => {
-      setDisposition(domainName, type, resolves);
+  setDispositions: method(
+    z.tuple([s.ownershipItems, s.disposition, s.optionalDay]),
+    async (items, type, date) => {
+      setDispositions(items, type, date);
       return listEvents();
     },
   ),
-  restoreOwned: method(z.tuple([s.domainName]), async (domainName) => {
-    restoreOwned(domainName);
-    return listEvents();
-  }),
-  setAlertDismissed: method(
-    z.tuple([s.eventId, z.boolean()]),
-    async (id, dismissed) => {
-      setAlertDismissed(id, dismissed);
+  markSold: method(
+    z.tuple([s.ownershipItems, s.optionalDay]),
+    async (items, date) => {
+      markSold(items, date);
+      return listEvents();
+    },
+  ),
+  restoreOwned: method(
+    z.tuple([s.domainNameList.min(1)]),
+    async (domainNames) => {
+      restoreOwned(domainNames);
+      return listEvents();
+    },
+  ),
+  setAlertsDismissed: method(
+    z.tuple([z.array(s.eventId).min(1).max(5000), z.boolean()]),
+    async (ids, dismissed) => {
+      setAlertsDismissed(ids, dismissed);
       return listEvents();
     },
   ),
@@ -399,10 +410,13 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     deleteUserEvent(id);
     return listEvents();
   }),
-  deleteDomain: method(z.tuple([s.domainName]), async (domainName) => {
-    deleteDomain(domainName);
-    return listEvents();
-  }),
+  deleteDomains: method(
+    z.tuple([s.domainNameList.min(1)]),
+    async (domainNames) => {
+      deleteDomains(domainNames);
+      return listEvents();
+    },
+  ),
 
   // ── Events (polling) ──────────────────────────────────────────────────────
   getRevisions: method(none, async () => getRevisions()),
