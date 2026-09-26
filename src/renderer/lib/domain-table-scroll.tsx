@@ -31,6 +31,9 @@ export function DomainTableScroll({
     let hideTimer = 0;
     let dragging: { axis: 'y' | 'x'; start: number; scroll: number } | null =
       null;
+    // Free travel for each thumb, kept from the last place() for dragging.
+    let vTravel = 0;
+    let hTravel = 0;
 
     const place = () => {
       const {
@@ -43,16 +46,24 @@ export function DomainTableScroll({
       } = el;
       const both =
         scrollHeight > clientHeight + 1 && scrollWidth > clientWidth + 1;
-      const vRoom = clientHeight - GAP * 2 - (both ? 12 : 0);
+      // The column names stick to the top, so the vertical track starts
+      // under them and sizes to the body rows alone.
+      const header = el.querySelector('thead')?.offsetHeight ?? 0;
+      const vRoom = clientHeight - header - GAP * 2 - (both ? 12 : 0);
       const hRoom = clientWidth - GAP * 2 - (both ? 12 : 0);
 
       if (scrollHeight <= clientHeight + 1) {
         vertical.hidden = true;
       } else {
         vertical.hidden = false;
-        const size = Math.max(MIN_THUMB, (clientHeight / scrollHeight) * vRoom);
+        const size = Math.max(
+          MIN_THUMB,
+          ((clientHeight - header) / (scrollHeight - header)) * vRoom,
+        );
         const max = Math.max(0, vRoom - size);
+        vTravel = max;
         const top = (scrollTop / (scrollHeight - clientHeight)) * max;
+        vertical.style.top = `${header + GAP}px`;
         vertical.style.height = `${size}px`;
         vertical.style.transform = `translateY(${top}px)`;
       }
@@ -63,6 +74,7 @@ export function DomainTableScroll({
         horizontal.hidden = false;
         const size = Math.max(MIN_THUMB, (clientWidth / scrollWidth) * hRoom);
         const max = Math.max(0, hRoom - size);
+        hTravel = max;
         const left = (scrollLeft / (scrollWidth - clientWidth)) * max;
         horizontal.style.width = `${size}px`;
         horizontal.style.transform = `translateX(${left}px)`;
@@ -101,13 +113,13 @@ export function DomainTableScroll({
       if (!dragging) return;
       const { scrollHeight, scrollWidth, clientHeight, clientWidth } = el;
       if (dragging.axis === 'y') {
-        const room = clientHeight - vertical.offsetHeight;
+        const room = vTravel;
         const span = scrollHeight - clientHeight;
         if (room > 0)
           el.scrollTop =
             dragging.scroll + ((event.clientY - dragging.start) * span) / room;
       } else {
-        const room = clientWidth - horizontal.offsetWidth;
+        const room = hTravel;
         const span = scrollWidth - clientWidth;
         if (room > 0)
           el.scrollLeft =
@@ -132,6 +144,8 @@ export function DomainTableScroll({
     host.addEventListener('pointerleave', scheduleHide);
     const observer = new ResizeObserver(place);
     observer.observe(el);
+    const thead = el.querySelector('thead');
+    if (thead) observer.observe(thead);
     place();
 
     return () => {
