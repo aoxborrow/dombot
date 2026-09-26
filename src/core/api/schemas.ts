@@ -13,6 +13,8 @@ export const registrarName = z.enum(registrarNames);
 
 export const domainName = z.string().trim().min(1).max(253);
 
+export const domainNameList = z.array(domainName).max(2000);
+
 export const accountId = z.string().min(1).max(100).optional();
 
 export const domainTarget = z.object({
@@ -84,6 +86,8 @@ export const appSettingsPatch = z
     autoSyncIntervalMinutes: z.number(),
     recentNameservers: z.array(z.array(z.string())),
     mcpEnabled: z.boolean(),
+    preferredCurrency: z.string(),
+    numberFormat: z.enum(['us', 'eu-dot', 'fr', 'si', 'ch', 'ch-comma']),
   })
   .partial()
   .strict();
@@ -95,3 +99,34 @@ export const credentialValues = z.record(z.string(), z.string());
 export const domainKey = z.string().trim().min(3).max(300);
 
 export const uuid = z.string().uuid();
+
+/** One domain's purchase date, amount, currency, and notes. */
+export const purchaseInput = z
+  .object({
+    domainName: z.string().trim().min(1).max(253),
+    kind: z.enum(['registered', 'purchased']).optional(),
+    resolves: z.string().min(1).max(80).optional(),
+    purchaseDate: z.string().nullable(),
+    amount: z.string().nullable(),
+    currency: z.string().nullable(),
+    notes: z.string().max(4000),
+  })
+  .strict();
+
+export const saleInput = z
+  .object({
+    domainName: z.string().trim().min(1).max(253),
+    saleDate: z.string().nullable(),
+    amount: z.string().nullable(),
+    currency: z.string().nullable(),
+    notes: z.string().max(4000),
+    resolves: z.string().min(1).max(80).optional(),
+    mark: z.boolean().optional(),
+  })
+  .strict();
+
+export const purchaseImport = z.array(purchaseInput).max(10000);
+
+export const eventId = z.string().min(1).max(80);
+
+export const disposition = z.enum(['dropped', 'archived']);

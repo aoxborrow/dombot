@@ -520,7 +520,7 @@ describe('multi-account storage, routing and portable migration', () => {
   it('round trips current desktop/web encrypted storage and imports legacy v1 without re-entering credentials', async () => {
     const company = await twoAccounts();
     const text = exportBundle({ ...APP, platform: 'darwin' });
-    expect(JSON.parse(text).version).toBe(4);
+    expect(JSON.parse(text).version).toBe(5);
     const raw = new MemoryDocStore();
     const key = crypto.getRandomValues(new Uint8Array(32));
     configureStore(new EncryptedDocStore(raw, await aesGcmCipher(key)));

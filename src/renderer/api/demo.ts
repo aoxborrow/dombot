@@ -10,7 +10,11 @@ import {
   type CoreMethodName,
 } from '../../core/api';
 import { setAppIdentity } from '../../core/app-info';
-import { installDemo, type DemoInstallation } from '../../core/demo';
+import {
+  installDemo,
+  type DemoInstallation,
+  type DemoWorld,
+} from '../../core/demo';
 import { onCoreEvent } from '../../core/events';
 import { setBulkAutoDrive } from '../../core/services/bulk-jobs';
 import { getPortfolio } from '../../core/services/registrars';
@@ -64,11 +68,49 @@ export interface DemoApiOptions {
   latencyMs?: number;
   /** Portfolio size. Default: the seed's. */
   size?: number;
+  /**
+   * After the baseline sync, drop one sample name, move one between accounts,
+   * and add one. The browser demo uses this so the alerts can be clicked
+   * without touching a real registrar.
+   */
+  sampleChanges?: boolean;
 }
 
 export interface DemoApi {
   api: DombotApi;
   demo: DemoInstallation;
+}
+
+/** One arrival, one departure, and one move, after the baseline sync. */
+function stageSampleChanges(world: DemoWorld): void {
+  const records = world.all();
+  const godaddy = records.filter((record) => record.registrar === 'godaddy');
+  const porkbun = records.filter((record) => record.registrar === 'porkbun');
+  if (godaddy.length < 2 || porkbun.length < 1) return;
+
+  world.remove(godaddy[godaddy.length - 1].domainName);
+
+  const moving = godaddy[0];
+  world.remove(moving.domainName);
+  world.add({
+    ...moving,
+    registrar: porkbun[0].registrar,
+    accountId: porkbun[0].accountId,
+  });
+
+  const now = new Date();
+  const host = godaddy[1];
+  world.remove('just-registered.com');
+  world.add({
+    ...host,
+    domainName: 'just-registered.com',
+    createdDate: now,
+    expirationDate: new Date(now.getTime() + 365.25 * 24 * 60 * 60 * 1000),
+    nameservers: [...host.nameservers],
+    dnsRecords: [],
+    emailForwards: [],
+    domainForwards: [],
+  });
 }
 
 /**
@@ -87,6 +129,10 @@ export async function createDemoApi(
   // looks like the real thing.
   const demo = await installDemo({ latencyMs: 0, size: options.size });
   await getPortfolio(true);
+  if (options.sampleChanges) {
+    stageSampleChanges(demo.world);
+    await getPortfolio(true);
+  }
   demo.setLatency(options.latencyMs ?? 150);
 
   const table: ApiTable = { ...coreMethods, ...demoMethods };

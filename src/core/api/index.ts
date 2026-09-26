@@ -17,6 +17,21 @@ import {
 } from '../services/folders';
 import { setManualPrice } from '../services/pricing';
 import {
+  getPurchases,
+  importPurchases,
+  setPurchase,
+  setSale,
+} from '../services/purchases';
+import {
+  deleteDomain,
+  deleteUserEvent,
+  restoreOwned,
+  setAlertDismissed,
+  setDisposition,
+} from '../services/domain-history';
+import { listEvents } from '../services/domain-events';
+import { lookupRegistrations } from '../services/registration-lookup';
+import {
   getRegistrarCatalog,
   connectRegistrarAccount,
   removeRegistrarAccount,
@@ -27,6 +42,7 @@ import {
   getDomainDetail,
   getPortfolio,
   getPortfolioPricing,
+  getRegistrationQuote,
   getRegistrarClient,
   getRegistrarCredentialValues,
   getRegistrarFeatures,
@@ -337,6 +353,55 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     // No-op on a host that never started the timer.
     restartAutoSync();
     return next;
+  }),
+
+  // ── Purchase records ──────────────────────────────────────────────────────
+  getPurchases: method(none, async () => getPurchases()),
+  setPurchase: method(z.tuple([s.purchaseInput]), async (input) =>
+    setPurchase(input),
+  ),
+  setSale: method(z.tuple([s.saleInput]), async (input) => setSale(input)),
+  importPurchases: method(z.tuple([s.purchaseImport]), async (rows) =>
+    importPurchases(rows),
+  ),
+
+  lookupRegistrations: method(z.tuple([s.domainNameList]), async (names) =>
+    lookupRegistrations(names),
+  ),
+  getRegistrationQuote: method(
+    z.tuple([s.registrarName, s.domainName, s.accountId]),
+    async (registrar, domainName, accountId) =>
+      getRegistrationQuote(registrar, domainName, accountId),
+  ),
+
+  // ── Domain history (events) ───────────────────────────────────────────────
+  // Every change returns the whole log, so the caller refreshes in one call.
+  getDomainEvents: method(none, async () => listEvents()),
+  setDisposition: method(
+    z.tuple([s.domainName, s.disposition, s.eventId.optional()]),
+    async (domainName, type, resolves) => {
+      setDisposition(domainName, type, resolves);
+      return listEvents();
+    },
+  ),
+  restoreOwned: method(z.tuple([s.domainName]), async (domainName) => {
+    restoreOwned(domainName);
+    return listEvents();
+  }),
+  setAlertDismissed: method(
+    z.tuple([s.eventId, z.boolean()]),
+    async (id, dismissed) => {
+      setAlertDismissed(id, dismissed);
+      return listEvents();
+    },
+  ),
+  deleteUserEvent: method(z.tuple([s.eventId]), async (id) => {
+    deleteUserEvent(id);
+    return listEvents();
+  }),
+  deleteDomain: method(z.tuple([s.domainName]), async (domainName) => {
+    deleteDomain(domainName);
+    return listEvents();
   }),
 
   // ── Events (polling) ──────────────────────────────────────────────────────

@@ -18,7 +18,7 @@ import { createFolder, getFolders } from '../services/folders';
 import { setStoredCredentials } from '../services/credentials';
 import { getRegistrarClient } from '../services/registrars';
 import { sealBundle } from '../../shared/bundle-seal';
-import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
+import { HIDDEN_FOLDER_ID } from '../../shared/ipc';
 import { bumpRevision, getRevisions } from '../revision';
 import { onCoreEvent } from '../events';
 
@@ -50,7 +50,7 @@ describe('buildBundle', () => {
     );
     expect(b.namespaces.meta).toBeUndefined();
     expect(b.namespaces.auth).toBeUndefined();
-    expect(b.version).toBe(4);
+    expect(b.version).toBe(5);
     expect(b.namespaces['registrar-credentials'].godaddy).toEqual({
       apiToken: 'k',
     });
@@ -200,9 +200,37 @@ describe('export → import', () => {
     });
     expect(getFolders()).toEqual({
       folders: [{ id: 'f1', name: 'Keep', description: '', color: 'red' }],
-      assignments: { 'a.com': 'f1', 'b.com': ARCHIVE_FOLDER_ID },
+      assignments: { 'a.com': 'f1', 'b.com': HIDDEN_FOLDER_ID },
     });
     for (const old of ['credentials', 'cache-portfolio', 'pricing-overrides'])
       expect(await store.list(old)).toEqual({});
+  });
+
+  it('imports a v4 file (no history yet) and refuses one newer than v5', async () => {
+    await seed();
+    const v4 = { ...buildBundle(APP), version: 4 };
+    await importBundle(JSON.stringify(v4));
+    expect(getFolders().folders.map((f) => f.name)).toEqual(['Keepers']);
+    expect(buildBundle(APP).version).toBe(5);
+    expect(() => parseBundle(JSON.stringify({ ...v4, version: 6 }))).toThrow(
+      /newer DomBot/,
+    );
+  });
+
+  it("moves a v4 file's Archive folder assignments to Hidden", async () => {
+    const v4 = {
+      ...buildBundle(APP),
+      version: 4,
+      namespaces: {
+        ...buildBundle(APP).namespaces,
+        'domain-folders': { 'a.com': '__archive__', 'b.com': 'f1' },
+      },
+    };
+    await importBundle(JSON.stringify(v4));
+    await flushWrites();
+    expect(await store.list('domain-folders')).toEqual({
+      'a.com': HIDDEN_FOLDER_ID,
+      'b.com': 'f1',
+    });
   });
 });

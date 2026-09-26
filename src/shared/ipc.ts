@@ -13,6 +13,10 @@ import type {
   EmailForward,
   RegistrarName,
 } from '@aoxborrow/registrar-client';
+import type { NumberFormatId } from './money';
+import type { DomainEvent } from './domain-events';
+
+export type { DomainEvent, DomainNote } from './domain-events';
 
 /** Account identity is supplied by Dombot, never by a registrar response. */
 export interface RegistrarAccount {
@@ -21,10 +25,30 @@ export interface RegistrarAccount {
   label: string;
   /** The proxy profile this account's API traffic goes through; absent = direct. */
   proxyId?: string;
+  /**
+   * ms epoch of the first successful sync: from then on, sync records what
+   * arrives, leaves, or moves. Absent until then. Exported with the account,
+   * so an imported history carries on where it left off.
+   */
+  trackedSince?: number;
 }
 export type Domain = ProviderDomain & {
   accountId?: string;
   accountLabel?: string;
+  /**
+   * Set on a row DomBot kept after the name left the registrar (Sold, Dropped,
+   * or Archive). It is not at the registrar, so registrar actions do not apply.
+   */
+  departed?: boolean;
+  /**
+   * Public registration lookup is still in flight. History shows a skeleton
+   * for registrar, created, and expires until it lands.
+   */
+  registrationPending?: boolean;
+  /** RDAP says nobody holds the name. Those three cells are a dash. */
+  unregistered?: boolean;
+  /** Current registrar from RDAP, which may not be an account of yours. */
+  registrationRegistrar?: string;
 };
 
 /** The one proxy the app manages, and the saved accounts routed through it. */
@@ -94,6 +118,18 @@ export const IpcChannels = {
   assignFolder: 'folders:assign',
   getSettings: 'settings:get',
   updateSettings: 'settings:update',
+  getPurchases: 'purchases:list',
+  setPurchase: 'purchases:set',
+  setSale: 'purchases:setSale',
+  importPurchases: 'purchases:import',
+  getDomainEvents: 'domainEvents:list',
+  setDisposition: 'domainEvents:setDisposition',
+  restoreOwned: 'domainEvents:restoreOwned',
+  setAlertDismissed: 'domainEvents:setAlertDismissed',
+  deleteUserEvent: 'domainEvents:deleteUserEvent',
+  deleteDomain: 'domainEvents:deleteDomain',
+  getRegistrationQuote: 'pricing:registrationQuote',
+  lookupRegistrations: 'registration:lookup',
   getRevisions: 'events:getRevisions',
 } as const;
 
@@ -188,6 +224,87 @@ export interface AppSettings {
    * Settings → MCP. `DOMBOT_MCP_ENABLED=0` forces it off regardless.
    */
   mcpEnabled: boolean;
+  /**
+   * Default currency for a new purchase amount. Does not rewrite amounts
+   * already saved. Fresh install is USD.
+   */
+  preferredCurrency: string;
+  /**
+   * How amounts are grouped on screen (thousands separator and decimal mark).
+   * Separate from which currency the money is in. Fresh install is US style.
+   */
+  numberFormat: NumberFormatId;
+}
+
+/** The registrar's registration fee for one name. `amount` is null when unknown. */
+export interface RegistrationQuote {
+  amount: string | null;
+  currency: string;
+}
+
+/**
+ * Public registration record for a name you no longer hold. Refreshed from
+ * RDAP so created and expires stay current. `registered: false` means the
+ * name is free.
+ */
+export interface RegistrationLookup {
+  registered: boolean;
+  registrar: string | null;
+  /** ISO timestamp, or null. */
+  created: string | null;
+  expires: string | null;
+  checkedAt: string;
+}
+
+/**
+ * Money and notes for one domain name. Purchase fields are what you paid.
+ * Sale fields are what you got when you marked it Sold. Notes are one box
+ * for the name, shared by both. Amounts are plain decimals, or null.
+ * A sale is stored here even though no column lists it yet.
+ */
+export interface DomainPurchase {
+  purchaseDate: string | null;
+  amount: string | null;
+  currency: string | null;
+  notes: string;
+  /** Absent on records saved before a sale could be stored. */
+  saleDate?: string | null;
+  saleAmount?: string | null;
+  saleCurrency?: string | null;
+}
+
+/** One purchase record to save or import. `domainName` is not stored on the record. */
+export interface PurchaseInput {
+  domainName: string;
+  /** Hand-registered vs. bought; omitted keeps what's stored (default purchased). */
+  kind?: 'registered' | 'purchased';
+  /**
+   * The sync `added` alert this answers. Records a new purchase (a new
+   * holding) instead of editing the latest one, and closes the alert.
+   */
+  resolves?: string;
+  purchaseDate: string | null;
+  amount: string | null;
+  currency: string | null;
+  notes: string;
+}
+
+/** Sale date, sale amount, and the shared notes field. Does not change what you paid. */
+export interface SaleInput {
+  domainName: string;
+  saleDate: string | null;
+  amount: string | null;
+  currency: string | null;
+  notes: string;
+  /** The sync `removed` alert this answers; closes it. */
+  resolves?: string;
+  /** Mark as Sold: record the sale even with no date or amount (dated today). */
+  mark?: boolean;
+}
+
+export interface PurchaseImportResult {
+  updated: number;
+  errors: string[];
 }
 
 /** One input in a registrar's credential form. */
@@ -212,6 +329,8 @@ export interface RegistrarSync {
   lastError: string | null;
   /** Domains held from the last successful sync. */
   domainCount: number;
+  /** When sync started recording this account's changes (ms epoch), or null. */
+  trackedSince: number | null;
 }
 
 /** Metadata that drives the Settings > Registrars form. Help copy is not
@@ -487,14 +606,29 @@ export const FOLDER_COLORS: FolderColor[] = [
 ];
 
 /**
- * Reserved id for the built-in "Archive" folder. Assigning a domain to it
- * archives the domain, dropping it from the table by default; it's surfaced
- * again by selecting Archive in the Folder filter. Not a real folder — it isn't
- * stored in the folders list and has no color — but it's a valid assignment
- * target. The stored value was historically `'__hidden__'`; the folders store
- * migrates that legacy value to this one on load.
+ * The built-in Hidden folder: names you still own but don't want in the usual
+ * list (personal names, expiring ones you're letting go). Not stored in the
+ * folders list and has no color, but a valid assignment target; like any
+ * folder, a name is in it or in one other folder, never both. Hidden names
+ * stay out of Owned until the folder filter selects Hidden.
+ *
+ * Before the domain history work the same idea was the Archive folder
+ * (`'__archive__'`, and before that `'__hidden__'`); migration 2 moves those
+ * assignments here. Archive is now an ownership action, not a folder.
  */
-export const ARCHIVE_FOLDER_ID = '__archive__';
+export const HIDDEN_FOLDER_ID = '__hidden__';
+
+/** "Hidden" for the built-in folder; null for a user folder or no folder. */
+export function builtInFolderName(
+  id: string | null | undefined,
+): string | null {
+  return id === HIDDEN_FOLDER_ID ? 'Hidden' : null;
+}
+
+/** True for the built-in Hidden folder. */
+export function isHiddenFolder(id: string | null | undefined): boolean {
+  return id === HIDDEN_FOLDER_ID;
+}
 
 /**
  * Future per-folder configuration that cascades to the folder's domains. Kept
@@ -725,6 +859,47 @@ export interface DombotApi {
   /** Patch app settings; applied live (e.g. reschedules the background sync).
    * Returns the updated settings. */
   updateSettings: (patch: Partial<AppSettings>) => Promise<AppSettings>;
+
+  // Purchase records (keyed by domain name; not cleared by Sync or Clear cache)
+  /** Every saved purchase record, keyed by the normalized domain name. */
+  getPurchases: () => Promise<Record<string, DomainPurchase>>;
+  /** Save one name's purchase fields. Null deletes the record (all fields empty). Keeps any sale already stored. */
+  setPurchase: (input: PurchaseInput) => Promise<DomainPurchase | null>;
+  /** Save what a sold name went for, and the shared notes. Keeps what you paid. */
+  setSale: (input: SaleInput) => Promise<DomainPurchase | null>;
+  /** Upsert many purchase rows. A bad row is reported; the rest still save. */
+  importPurchases: (rows: PurchaseInput[]) => Promise<PurchaseImportResult>;
+
+  // Domain history (docs/storage-model.md). Each change returns the whole log.
+  /** Every domain event, oldest first. */
+  getDomainEvents: () => Promise<DomainEvent[]>;
+  /** Mark a name Dropped or Archived; `resolves` closes the alert it answers. */
+  setDisposition: (
+    domainName: string,
+    type: 'dropped' | 'archived',
+    resolves?: string,
+  ) => Promise<DomainEvent[]>;
+  /** "Move back to Owned": undo the Sold, Dropped, or Archived event. */
+  restoreOwned: (domainName: string) => Promise<DomainEvent[]>;
+  /** Acknowledge a sync alert with no action, or bring it back. */
+  setAlertDismissed: (id: string, dismissed: boolean) => Promise<DomainEvent[]>;
+  /** Undo one of your own events. Sync events can't be deleted. */
+  deleteUserEvent: (id: string) => Promise<DomainEvent[]>;
+  /** Delete everything DomBot holds about a name. */
+  deleteDomain: (domainName: string) => Promise<DomainEvent[]>;
+  /** This registrar's registration fee for a name that just arrived. */
+  getRegistrationQuote: (
+    registrar: RegistrarName,
+    domainName: string,
+    accountId?: string,
+  ) => Promise<RegistrationQuote>;
+  /**
+   * Current public registration for names on History. Cached for a day.
+   * A name missing from the result could not be looked up.
+   */
+  lookupRegistrations: (
+    domainNames: string[],
+  ) => Promise<Record<string, RegistrationLookup>>;
 
   // Events (polling)
   /** Current change counters — see `Revisions`. */

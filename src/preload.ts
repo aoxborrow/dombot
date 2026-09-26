@@ -129,6 +129,30 @@ const api: DombotApi = {
   getSettings: () => ipcRenderer.invoke(IpcChannels.getSettings),
   updateSettings: (patch) =>
     ipcRenderer.invoke(IpcChannels.updateSettings, patch),
+  getPurchases: () => ipcRenderer.invoke(IpcChannels.getPurchases),
+  setPurchase: (input) => ipcRenderer.invoke(IpcChannels.setPurchase, input),
+  setSale: (input) => ipcRenderer.invoke(IpcChannels.setSale, input),
+  importPurchases: (rows) =>
+    ipcRenderer.invoke(IpcChannels.importPurchases, rows),
+  getDomainEvents: () => ipcRenderer.invoke(IpcChannels.getDomainEvents),
+  setDisposition: (domainName, type, resolves) =>
+    ipcRenderer.invoke(IpcChannels.setDisposition, domainName, type, resolves),
+  restoreOwned: (domainName) =>
+    ipcRenderer.invoke(IpcChannels.restoreOwned, domainName),
+  setAlertDismissed: (id, dismissed) =>
+    ipcRenderer.invoke(IpcChannels.setAlertDismissed, id, dismissed),
+  deleteUserEvent: (id) => ipcRenderer.invoke(IpcChannels.deleteUserEvent, id),
+  deleteDomain: (domainName) =>
+    ipcRenderer.invoke(IpcChannels.deleteDomain, domainName),
+  lookupRegistrations: (domainNames) =>
+    ipcRenderer.invoke(IpcChannels.lookupRegistrations, domainNames),
+  getRegistrationQuote: (registrar, domainName, accountId) =>
+    ipcRenderer.invoke(
+      IpcChannels.getRegistrationQuote,
+      registrar,
+      domainName,
+      accountId,
+    ),
 
   // Events (polling)
   getRevisions: () => ipcRenderer.invoke(IpcChannels.getRevisions),

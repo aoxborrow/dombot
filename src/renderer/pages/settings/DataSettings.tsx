@@ -26,6 +26,7 @@ import {
 } from '../../../shared/bundle-seal';
 import { isDemo } from '../../lib/platform';
 import { useAppStore } from '../../store/app';
+import { ImportPurchasesButton } from '../../components/domains/ImportPurchasesButton';
 import { SettingsCard } from './SettingsCard';
 
 /** Auto-sync interval choices (minutes). `0` disables the background sync. */
@@ -118,7 +119,8 @@ export default function DataSettings() {
         </div>
       </SettingsCard>
 
-      <DataBundleCard />
+      <ExportCard />
+      <ImportCard />
 
       <SettingsCard title="Cached data" contentClassName="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
@@ -146,24 +148,12 @@ export default function DataSettings() {
 }
 
 /**
- * Export / import of the whole store as one JSON file: the backup for a
- * self-hosted instance (its data is unreadable without the root secret), the
- * way to move from the desktop app to a web instance, and what secret
- * rotation round-trips through. Optionally sealed with a passphrase, since
- * the file holds registrar API keys.
+ * Backup of the whole store as one JSON file. Optionally sealed with a
+ * passphrase, since the file holds registrar API keys.
  */
-function DataBundleCard() {
+function ExportCard() {
   const [exportPass, setExportPass] = useState('');
   const [exporting, setExporting] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [pending, setPending] = useState<{
-    name: string;
-    text: string;
-    sealed: boolean;
-  } | null>(null);
-  const [importPass, setImportPass] = useState('');
-  const [importing, setImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
 
   const onExport = async () => {
     setExporting(true);
@@ -184,6 +174,52 @@ function DataBundleCard() {
       setExporting(false);
     }
   };
+
+  return (
+    <SettingsCard title="Export" contentClassName="flex flex-col gap-3">
+      <p className="text-sm text-muted-foreground">
+        Export everything — registrar keys, portfolio, folders, prices,
+        settings, and MCP pairings — as one JSON file. Use it as a backup or
+        to move to another DomBot. Leave the passphrase blank and anyone who
+        opens the file can read your registrar API keys. Type one and the file
+        is locked: Import asks for that same passphrase, and DomBot does not
+        keep a copy. If you forget it, the backup cannot be opened.
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="export-pass" className="text-xs">
+            Passphrase (optional)
+          </Label>
+          <PasswordInput
+            id="export-pass"
+            autoComplete="new-password"
+            className="w-56"
+            value={exportPass}
+            onChange={(e) => setExportPass(e.target.value)}
+          />
+        </div>
+        <Button onClick={() => void onExport()} disabled={exporting}>
+          {exporting ? 'Exporting…' : 'Export data'}
+        </Button>
+      </div>
+    </SettingsCard>
+  );
+}
+
+/**
+ * Restore a full backup, or bring in purchase fields from a spreadsheet.
+ * The full import replaces the store. The spreadsheet does not.
+ */
+function ImportCard() {
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [pending, setPending] = useState<{
+    name: string;
+    text: string;
+    sealed: boolean;
+  } | null>(null);
+  const [importPass, setImportPass] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const onPick = async (file: File | undefined) => {
     if (!file) return;
@@ -220,40 +256,16 @@ function DataBundleCard() {
   };
 
   return (
-    <SettingsCard
-      title="Export & import"
-      contentClassName="flex flex-col gap-5"
-    >
+    <SettingsCard title="Import" contentClassName="flex flex-col gap-5">
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">
-          Export everything — registrar keys, portfolio, folders, prices,
-          settings, and MCP pairings — as one JSON file. Use it as a backup or
-          to move to another DomBot. The file contains your API keys, so
-          consider a passphrase.
-        </p>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="export-pass" className="text-xs">
-              Passphrase (optional)
-            </Label>
-            <PasswordInput
-              id="export-pass"
-              autoComplete="new-password"
-              className="w-56"
-              value={exportPass}
-              onChange={(e) => setExportPass(e.target.value)}
-            />
-          </div>
-          <Button onClick={() => void onExport()} disabled={exporting}>
-            {exporting ? 'Exporting…' : 'Export data'}
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 border-t pt-5">
-        <p className="text-sm text-muted-foreground">
-          Import a DomBot data file. This <b>replaces</b> everything stored here
-          with the file&apos;s contents.
+          Import replaces everything stored here with a backup file: registrar
+          keys, the saved domain list, folders, prices, purchase records,
+          settings, and MCP pairings. It does not contact your registrars. The
+          next Sync does. Names in the file that an account no longer has will
+          leave the list then, and names an account has that the file does not
+          will appear. Purchase records are kept either way, including for
+          names that are not in the list.
         </p>
         <div>
           <input
@@ -274,6 +286,21 @@ function DataBundleCard() {
             Import data…
           </Button>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-3 border-t pt-5">
+        <p className="text-sm text-muted-foreground">
+          Import a spreadsheet of what you paid. Download the sample to see
+          the columns and three sample filled-in rows, then replace those rows with
+          your own names. This does not replace your registrar keys or domain
+          list. A row with the purchase cells blank is left alone. A name that
+          is not in the list still keeps its purchase record.
+        </p>
+        <ImportPurchasesButton
+          onResult={(text, error) =>
+            error ? toast.error(text) : toast.success(text)
+          }
+        />
       </div>
 
       <Dialog

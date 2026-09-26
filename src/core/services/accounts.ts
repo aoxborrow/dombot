@@ -148,6 +148,23 @@ export async function setAccountProxy(
   await store.set(id, proxyId ? { ...account, proxyId } : account);
 }
 
+/** Accounts whose changes sync records (see `trackedSince`). */
+export function trackedAccountIds(): Set<string> {
+  const out = new Set<string>();
+  for (const a of Object.values(store.all()))
+    if (typeof a.trackedSince === 'number') out.add(a.id);
+  return out;
+}
+
+/** Starts tracking changes for accounts that just synced for the first time. */
+export function markAccountsTracked(ids: string[], now: number): void {
+  for (const id of ids) {
+    const account = store.get(id) ?? listAccounts().find((a) => a.id === id);
+    if (!account || typeof account.trackedSince === 'number') continue;
+    void store.set(id, { ...account, trackedSince: now });
+  }
+}
+
 export async function removeAccountRecord(id: string): Promise<void> {
   const account = accountById(id);
   // Tombstones prevent default IDs (and old queued work) from being reused.
@@ -177,7 +194,8 @@ export function validateAccountRecords(records: Record<string, unknown>): void {
         (typeof a.proxyId !== 'string' ||
           !a.proxyId ||
           a.proxyId.length > 64)) ||
-      (a.removed !== undefined && typeof a.removed !== 'boolean')
+      (a.removed !== undefined && typeof a.removed !== 'boolean') ||
+      (a.trackedSince !== undefined && typeof a.trackedSince !== 'number')
     ) {
       throw new Error(`Invalid account metadata for "${key}".`);
     }

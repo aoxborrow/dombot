@@ -9,6 +9,7 @@ import {
 import {
   CalendarClock,
   Globe,
+  History,
   Menu,
   RefreshCw,
   Settings as SettingsIcon,
@@ -25,6 +26,7 @@ import {
 import { useAppStore } from './store/app';
 import Domains from './pages/Domains';
 import Renewals from './pages/Renewals';
+import Activity from './pages/Activity';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
 import DemoBanner from './components/DemoBanner';
@@ -34,6 +36,7 @@ import SyncControl, {
   SyncStatusMini,
   useSyncState,
 } from './components/SyncControl';
+import { ActivityBell } from './components/activity/ActivityBell';
 import { Toaster } from '@/components/ui/sonner';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -55,6 +58,10 @@ export default function App() {
     (s) => s.applyPortfolioCacheUpdate,
   );
   const loadFolders = useAppStore((s) => s.loadFolders);
+  const loadSettings = useAppStore((s) => s.loadSettings);
+  const loadPurchases = useAppStore((s) => s.loadPurchases);
+  const loadDomainEvents = useAppStore((s) => s.loadDomainEvents);
+  const loadRegistrars = useAppStore((s) => s.loadRegistrars);
   const attachBulk = useAppStore((s) => s.attachBulk);
   const applyBulkProgress = useAppStore((s) => s.applyBulkProgress);
   const applyBulkFinished = useAppStore((s) => s.applyBulkFinished);
@@ -71,7 +78,18 @@ export default function App() {
   // cache hydration, so the Domains table paints folder chips immediately.
   useEffect(() => {
     void loadFolders();
-  }, [loadFolders]);
+    void loadSettings();
+    void loadPurchases();
+    void loadDomainEvents();
+    // The bell lists sync errors from any page.
+    void loadRegistrars();
+  }, [
+    loadFolders,
+    loadSettings,
+    loadPurchases,
+    loadDomainEvents,
+    loadRegistrars,
+  ]);
 
   // An MCP tool write mutates the on-disk cache out of band; re-read it and
   // overlay the change so an open Domains table updates live, without a Sync.
@@ -131,6 +149,10 @@ export default function App() {
             <CalendarClock className="size-[18px]" />
             Renewals
           </NavLink>
+          <NavLink to="/activity" className={navLinkClass}>
+            <History className="size-[18px]" />
+            Activity
+          </NavLink>
           <NavLink to="/settings" className={navLinkClass}>
             <SettingsIcon className="size-[18px]" />
             Settings
@@ -142,7 +164,10 @@ export default function App() {
             control shows, balancing the logo so the centered nav stays
             centered. */}
         <div className="flex flex-1 items-center justify-end gap-2">
-          <SyncStatusMini className="mr-2 sm:hidden" />
+          <span className="mr-2 inline-flex items-center gap-2.5 sm:hidden">
+            <ActivityBell />
+            <SyncStatusMini />
+          </span>
           <MobileNav />
           <div className="hidden sm:block">
             <SyncControl />
@@ -157,6 +182,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Domains />} />
           <Route path="/renewals" element={<Renewals />} />
+          <Route path="/activity" element={<Activity />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
@@ -176,11 +202,12 @@ export default function App() {
 const MOBILE_NAV = [
   { to: '/', label: 'Domains', icon: Globe },
   { to: '/renewals', label: 'Renewals', icon: CalendarClock },
+  { to: '/activity', label: 'Activity', icon: History },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ] as const;
 
 /**
- * Phone-only hamburger: the three primary destinations in a dropdown, since the
+ * Phone-only hamburger: the primary destinations in a dropdown, since the
  * labeled nav doesn't fit a narrow header. Hidden at sm+, where the centered nav
  * takes over. The active route is checked.
  */

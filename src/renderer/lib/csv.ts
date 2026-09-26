@@ -3,7 +3,12 @@ import { toAscii } from '../../shared/domain-name';
 // Builds the Domains-page CSV export. Kept separate from the page component so
 // the column model and formatting are easy to read and test in isolation.
 
-import { ARCHIVE_FOLDER_ID, type Domain, type Folder } from '../../shared/ipc';
+import {
+  builtInFolderName,
+  type Domain,
+  type DomainPurchase,
+  type Folder,
+} from '../../shared/ipc';
 
 /** id → nicely capitalized registrar name, e.g. dynadot → "Dynadot". */
 type RegistrarLabels = Record<string, string>;
@@ -65,15 +70,24 @@ const CSV_COLUMNS: CsvColumn[] = [
   { header: 'TLD', value: (d) => tldOf(d.domainName) },
   {
     header: 'Registrar',
-    value: (d, labels) => labels[d.registrar] ?? d.registrar,
+    value: (d, labels) =>
+      d.unregistered
+        ? '—'
+        : (d.registrationRegistrar ?? labels[d.registrar] ?? d.registrar),
   },
   {
     header: 'Folder',
     value: (d, _labels, folderName) => folderName(d),
   },
   { header: 'Status', value: (d) => d.status },
-  { header: 'Created', value: (d) => isoDate(d.createdDate) },
-  { header: 'Expires', value: (d) => isoDate(d.expirationDate) },
+  {
+    header: 'Created',
+    value: (d) => (d.unregistered ? '—' : isoDate(d.createdDate)),
+  },
+  {
+    header: 'Expires',
+    value: (d) => (d.unregistered ? '—' : isoDate(d.expirationDate)),
+  },
   {
     header: 'Days Until Expiry',
     numeric: true,
@@ -97,22 +111,51 @@ export function domainsToCsv(
   labels: RegistrarLabels,
   folders: Folder[],
   assignments: Record<string, string>,
+  purchases: Record<string, DomainPurchase> = {},
 ): string {
   const nameById = new Map(folders.map((f) => [f.id, f.name]));
   // The assigned folder's name, "Archive" for the built-in archive folder, or
   // empty when unassigned or the folder is gone.
   const folderName = (d: Domain): string => {
     const id = assignments[toAscii(d.domainName)];
-    if (id === ARCHIVE_FOLDER_ID) return 'Archive';
-    return nameById.get(id ?? '') ?? '';
+    return builtInFolderName(id) ?? nameById.get(id ?? '') ?? '';
   };
 
-  const rows: string[] = [CSV_COLUMNS.map((c) => csvField(c.header)).join(',')];
+  const purchaseOf = (d: Domain) => purchases[toAscii(d.domainName)];
+  const columns: CsvColumn[] = [
+    ...CSV_COLUMNS,
+    {
+      header: 'Sale date',
+      value: (d) => purchaseOf(d)?.saleDate ?? '',
+    },
+    {
+      header: 'Sale amount',
+      numeric: true,
+      value: (d) => purchaseOf(d)?.saleAmount ?? '',
+    },
+    {
+      header: 'Sale currency',
+      value: (d) => purchaseOf(d)?.saleCurrency ?? '',
+    },
+    {
+      header: 'Purchase date',
+      value: (d) => purchaseOf(d)?.purchaseDate ?? '',
+    },
+    {
+      header: 'Purchase amount',
+      numeric: true,
+      value: (d) => purchaseOf(d)?.amount ?? '',
+    },
+    { header: 'Currency', value: (d) => purchaseOf(d)?.currency ?? '' },
+    { header: 'Notes', value: (d) => purchaseOf(d)?.notes ?? '' },
+  ];
+
+  const rows: string[] = [columns.map((c) => csvField(c.header)).join(',')];
   for (const d of domains) {
     rows.push(
-      CSV_COLUMNS.map((c) =>
-        csvField(c.value(d, labels, folderName), c.numeric),
-      ).join(','),
+      columns
+        .map((c) => csvField(c.value(d, labels, folderName), c.numeric))
+        .join(','),
     );
   }
   return rows.join('\r\n');

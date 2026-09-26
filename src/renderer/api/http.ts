@@ -392,6 +392,18 @@ export function createHttpApi(): DombotApi {
 
     getSettings: m('getSettings'),
     updateSettings: m('updateSettings'),
+    getPurchases: m('getPurchases'),
+    setPurchase: m('setPurchase'),
+    setSale: m('setSale'),
+    importPurchases: m('importPurchases'),
+    getDomainEvents: m('getDomainEvents'),
+    setDisposition: m('setDisposition'),
+    restoreOwned: m('restoreOwned'),
+    setAlertDismissed: m('setAlertDismissed'),
+    deleteUserEvent: m('deleteUserEvent'),
+    deleteDomain: m('deleteDomain'),
+    getRegistrationQuote: m('getRegistrationQuote'),
+    lookupRegistrations: m('lookupRegistrations'),
 
     getRevisions: m('getRevisions'),
   };

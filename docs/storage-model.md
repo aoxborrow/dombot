@@ -1,7 +1,10 @@
 # Storage model
 
-Status: storage conventions implemented (naming, flags, name-keyed folders and
-prices, migration, bundle v4); domain events and manual domains not yet.
+Status: implemented except where noted: storage conventions (#102), and the
+domain history on `domain-events` (#106): purchases and sales as events, sync
+events and alerts, Owned / Archive, the Hidden folder, the Activity page and
+the bell. Not yet: manual domains (#108), the lookup-recorded automatic drop
+(waits on the central RDAP module, #105), and `renewed` events (#107).
 
 A naming and keying standard for everything DomBot persists, a domain event
 history that replaces the separate purchase and portfolio-change stores
@@ -62,6 +65,7 @@ set passed to `EncryptedDocStore`.
 | `credentials`                            | `registrar-credentials` | sealed | account id                 | API keys                                          |
 | `proxies`                                | `registrar-proxies`     | sealed | proxy id                   | proxy profiles                                    |
 | `registrar-state`                        | `registrars`            |        | fixed keys                 | which registrars are switched on                  |
+| —                                        | `registrar-last-sync`   |        | account id                 | names each account's last sync saw                |
 | —                                        | `manual-domains`        |        | name                       | names you add that no connected registrar reports |
 | —                                        | `domain-notes`          |        | note id                    | notes on a domain, or on one of its events        |
 | `domain-purchases` + `portfolio-changes` | `domain-events`         |        | event id                   | purchases, sales, arrivals, moves, drops          |
@@ -107,9 +111,9 @@ export const DomainEventType = {
   Registered: 'registered', // hand-registered as a new name
   Purchased: 'purchased', // bought from someone (aftermarket, private)
   Sold: 'sold',
-  Renewed: 'renewed', // written by sync when the expiry moves forward (future)
-  Dropped: 'dropped', // let it expire
-  Archived: 'archived', // no longer tracked as active, kept for reference
+  Renewed: 'renewed', // renewals DomBot makes or sync sees (#107)
+  Dropped: 'dropped', // you let it go; or the lookup found it gone (see below)
+  Archived: 'archived', // no longer yours, reason unspecified
   // Something sync saw.
   Added: 'added', // the name appeared in an account
   Removed: 'removed', // the name is gone from an account
@@ -122,6 +126,7 @@ export const DomainEventSource = {
   User: 'user',
   Sync: 'sync',
   Import: 'import',
+  Lookup: 'lookup', // the registration check (the automatic drop only)
 } as const;
 export type DomainEventSource =
   (typeof DomainEventSource)[keyof typeof DomainEventSource];
@@ -130,7 +135,7 @@ interface DomainEvent {
   id: string; // time-sortable (ULID-style), also the storage key
   domain: string; // toAscii(name)
   type: DomainEventType;
-  date: string; // YYYY-MM-DD, the day it happened; user-editable
+  date: string | null; // YYYY-MM-DD, the day it happened; user-editable (null: a purchase or sale recorded without its day)
   createdAt: number; // ms epoch, when DomBot recorded it
   updatedAt: number | null; // ms epoch, last edit
   source: DomainEventSource;
@@ -166,7 +171,9 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
 - **Currencies are a fixed list.** `CURRENCIES` in `src/shared/currencies.ts`
   holds every active ISO 4217 code with its decimal places, and `CurrencyCode`
   is derived from it. A static list, not `Intl.supportedValuesOf`, so Electron,
-  browsers, and the Worker all accept the same codes.
+  browsers, and the Worker all accept the same codes. Recently withdrawn codes
+  (HRK, BGN, ANG, …) stay on it so a purchase recorded in one stays valid; the
+  picker lists them last.
 - **Notes point at events, not the other way round.** An event has no text;
   a `domain-notes` record can reference it (see below).
 - **Amount and currency travel together.** Both set or both null, as #99
@@ -177,39 +184,159 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   disappeared from an account; they don't say why. The user events say what
   happened (`purchased`, `sold`, `dropped`), usually resolving a sync one.
 - **Sync writes, you resolve.** A sync that no longer sees a name writes
-  `removed` (`source: 'sync'`). Marking it Sold writes `sold` with
-  `resolves: <removed id>`; Dropped and Archive work the same way. #100's
-  baselining (the first sync of an account creates no alerts) carries over as a
-  small per-account marker in `domain-events` or `meta`.
-- **Sold, Dropped, and Archive are views,** derived from each name's latest
-  event, not folders that events have to keep in step with.
+  `removed` (`source: 'sync'`) and raises an alert. Marking it Sold writes
+  `sold` with `resolves: <removed id>`; Dropped writes `dropped` the same
+  way; Dismiss sets `dismissed` on the `removed` event and records nothing
+  else. #100's baselining (the first sync of an account creates no alerts)
+  carries over as a `trackedSince` timestamp on the account's
+  `registrar-accounts` record, also shown as "Tracking changes since" on the
+  Activity page.
+- **The baseline travels with the history.** The marker, the list sync diffs
+  against, and `domain-events` must move together, so all three live in
+  exported namespaces, never `meta` (which is `local`). The list is
+  `registrar-last-sync` (each account's names as its last successful sync saw
+  them), not the `registrar-domains` cache, so Clear cache can't make sync
+  miss a change. After an import or a remote Pull, the next sync continues the
+  imported history instead of re-baselining (missing real changes) or diffing
+  against a list that doesn't match the imported events (inventing `added`
+  and `removed`).
 - **CSV import is idempotent.** A purchase row that matches an existing event
   on (domain, type, `date`, amount, currency) is skipped, so importing the same
   file twice doesn't double-count.
 - **Merge-ready.** Ids are unique across instances, so a later remote sync can
   union `domain-events` by id instead of overwriting it.
 
+## Owned, Archive, and Hidden
+
+The Domains page switches between **Owned** and **Archive**. Archive is a list
+of domains you no longer own, not a timeline; the timeline is the Activity page
+(below).
+
+Two separate questions, which the old Hidden → Archive folder had merged:
+
+- **Do you still own it?** Owned or Archive, from events.
+- **Do you want to see it?** The built-in Hidden folder.
+
+### Owned and Archive
+
+A name is in **Archive** once its latest ownership event is `sold`,
+`dropped`, `archived`, or an unresolved `removed`. Everything else is
+**Owned**. Archive is derived from events, never from a folder.
+
+- **Three manual actions: Sold, Dropped, Archived.** Each moves the name to
+  Archive at once, whatever its registration status (a sale in progress, a
+  name you've decided not to renew that is still in your account). Sold also
+  records the price. Archived is the same as Dropped without saying why.
+  "Move back to Owned" deletes that event (user events are editable).
+- **A sync that no longer sees a name** writes `removed`, which also moves the
+  name to Archive, shown as "Left your accounts" until you label it (Sold,
+  Dropped, Archived) or dismiss the alert. It never marks the name Dropped,
+  so someone who manages names elsewhere and doesn't sync for months comes
+  back to unlabeled names, never to wrong labels.
+- **The one automatic label.** The registration check (`rdap-lookups`) writes
+  `dropped` with `source: 'lookup'` only when both hold:
+  1. RDAP gives a definite "not registered": a 404 from the registry's own RDAP
+     server. A network error, timeout, any other status, or a 404 from the
+     `rdap.org` redirector itself (which may mean it has no server for that
+     TLD) counts as unknown and changes nothing.
+  2. Today is past the name's last expiry date as DomBot knew it (from the
+     registrar data before the name left).
+
+  A real registration can't be missing before it expires, so a faulty lookup
+  can't drop a name you still hold.
+
+- **No derived "transferred" label.** RDAP only shows the registrar; an expired
+  name sold or auctioned at the same registrar never changes registrar, and
+  the registrant is redacted under GDPR (and registrar-scoped where present),
+  so ownership can't be read from it.
+- **All RDAP goes through one module.** Every registration lookup in the app
+  uses a single central RDAP client, so bootstrap, caching, rate limits, and
+  the "definite not registered" rule live in one place.
+
+### Delete
+
+**Delete** removes everything DomBot holds about a name: its events, notes,
+folder, price override, and manual-domain entry. It's for mistakes and names
+you never want to see again, not for recording what happened (that's Sold,
+Dropped, or Archived). If a connected registrar still reports the name, the
+next sync brings it back as a fresh name with no history.
+
+### Hidden
+
+**Hidden** is a built-in folder, like Archive was before it became an
+ownership action. It's for names you still own but don't want in the default
+list: personal names, or expiring ones you're letting go and don't want to
+mark. A name is in one folder at most, so hiding it moves it out of its
+current folder into Hidden. Hidden names are left out of Owned by default and
+come back with the folder filter; they still sync and still raise alerts.
+
+## Activity and alerts
+
+### Activity page
+
+A top-level **Activity** page (beside Domains and Renewals) lists every domain
+event in one table, newest first: date, domain, what happened, account(s),
+amount, source (you, sync, import, lookup), and status. It filters by event
+type, domain, account, date range, and "Needs review", and reuses the Domains
+table's sorting, paging, and sticky header. A domain's row menu gets "Activity",
+which opens the same table filtered to that name.
+
+- **One row per event.** A resolved alert keeps its outcome ("Sold", "Came
+  back", "Dismissed") with Undo, so a misclick is visible and fixable; the
+  resolving event is its own row too. Nothing disappears.
+- **Review actions inline.** `removed`: Sold, Dropped, Archived, Dismiss.
+  `added`: Record purchase (the dialog offers the registration fee), Dismiss.
+  Both need review, but an arrival only asks what you paid, so it's the
+  lowest-priority alert (dismiss or ignore one you don't care about). `moved`
+  is info only.
+- **Your own actions are rows too** (purchases, sales, imports), so Activity is
+  the ledger the financial dashboard will build on.
+- **Existing portfolios start empty.** An account's first sync only records a
+  starting point, so Activity says "Tracking changes since <date>" instead of
+  inventing past `added` events.
+
+### The bell
+
+The header bell always opens a dropdown, and never goes away (it shows at zero
+too). It groups items by severity:
+
+- **Error:** registrar sync failures, expired or rejected credentials.
+- **Needs review:** unresolved `removed` events, with their actions.
+- **New names:** unresolved `added` events, with their actions. The
+  lowest-priority alert: listed after departures, and never enough on their
+  own to color the badge.
+- **Info:** `moved` events and other recent results.
+
+Its badge counts errors plus review items and takes the color of the most
+severe one: red for errors, amber for departures, gray when only new names
+are waiting. "View all activity" opens the Activity page. This replaces #100's
+Portfolio changes popover.
+
 ## Manual domains and notes
 
-`manual-domains` holds names you own that no connected registrar reports —
-typed in, or imported from a CSV:
+`manual-domains` (#108, after this release) will hold names you own that no
+connected registrar reports — typed in, or imported from a CSV:
 
 ```ts
 interface ManualDomain {
-  registrar?: string; // free-text label, e.g. "Epik (no API)"
-  expiresAt?: string | null;
-  createdAt?: string | null;
+  registrar: RegistrarName | null; // a registrar DomBot knows, or null
+  registrarLabel?: string | null; // free text otherwise, e.g. "Epik"
+  expirationDate?: string | null; // YYYY-MM-DD
+  createdDate?: string | null; // YYYY-MM-DD, registration date
   autoRenew?: boolean | null;
-  addedAt: string;
+  addedAt: number; // ms epoch
+  updatedAt: number | null; // ms epoch
 }
 ```
 
 They join the Domains table beside the registrar list and take folders,
 prices, notes, and events like any other name. Clear cache never touches them.
-If a connected registrar later reports the same name, sync removes the
-`manual-domains` entry and the registrar's row takes over. Notes, events,
-folders, and prices are keyed by name, not by the manual entry, so they carry
-straight across; the name never leaves the table, it only changes source.
+Adding one writes `added` (`source: 'user'`, or `'import'` from a CSV) with no
+account. If a connected registrar later reports the same name, sync removes
+the `manual-domains` entry, the registrar's row takes over, and the diff
+records a `moved` from no account. Notes, events, folders, and prices are
+keyed by name, not by the manual entry, so they carry straight across; the
+name never leaves the table, it only changes source.
 
 `domain-notes` holds note records, keyed by note id, for any domain:
 
@@ -271,19 +398,36 @@ copy-then-clear makes that safe, and the only exposure is a write landing in
 a new namespace in the moment another isolate is still copying into it, which
 is limited to the first requests after deploying this release.
 
-## Data bundle v4
+**Migration 2** (ships with the domain history work):
 
-- Exports write the new names and `version: 4`.
-- `parseBundle` accepts v1–v3 by mapping old names to new ones and re-keying
-  folders and prices, the same way the migration does. Every existing backup
-  still imports.
-- An older DomBot refuses a v4 file ("made by a newer DomBot") instead of
-  silently skipping namespaces it doesn't know. For remote sync (#89) that's
-  the safe failure.
-- Namespaces flagged `local` are never exported and never replaced by an
-  import; today that's `meta`, and `remote-sync` (#89) will join it. (`auth`
-  was on the old never-exported list but no namespace by that name exists; an
-  unknown namespace in a file is skipped anyway.)
+1. Every `domain-folders` entry pointing at `__archive__` is repointed at the
+   Hidden folder (`__hidden__`). Archive began as Hidden, and that's what
+   these assignments mean: names you still own and don't want to see. Archive
+   leaves the folder model and becomes an ownership action.
+2. Set `schemaVersion = 2`. A v4 bundle from before this release gets the same
+   step on import.
+
+## Data bundle versions
+
+**Rule:** any release that adds a namespace that isn't a cache bumps
+`BUNDLE_VERSION`. An older build skips namespaces it doesn't know, so without
+the bump it would import a newer file "successfully" and silently drop that
+data; with remote sync (#89), pushing to a not-yet-upgraded instance and
+pulling back would then lose it locally too. The bump makes the older build
+refuse the file with "made by a newer DomBot".
+
+- **v6** (planned, #108) adds `manual-domains`.
+- **v5** adds the domain history (`domain-events`, `domain-notes`,
+  `registrar-last-sync`). A v4 file imports into v5 unchanged; it just has no
+  history.
+- **v4** renamed the namespaces. `parseBundle` accepts v1–v3 by mapping old
+  names to new ones and re-keying folders and prices, the same way the
+  migration does, so every existing backup still imports.
+
+Namespaces flagged `local` are never exported and never replaced by an
+import; today that's `meta`, and `remote-sync` (#89) will join it. (`auth`
+was on the old never-exported list but no namespace by that name exists; an
+unknown namespace in a file is skipped anyway.)
 
 ## Rollout
 
@@ -292,7 +436,7 @@ is limited to the first requests after deploying this release.
    flags, renames, name-keyed folders and prices, `runMigrations`, bundle v4.
    Independent of #99 and #100.
 2. **Domain history PR:** #99 and #100 combined and reworked onto
-   `domain-events`, `domain-notes`, and `manual-domains`, on top of step 1.
+   `domain-events` and `domain-notes`, on top of step 1.
    Neither has shipped, so their data needs no migration. Bundle
    re-validation from the #99 branch carries over to `domain-events`.
 
@@ -306,18 +450,24 @@ is limited to the first requests after deploying this release.
 
 - **Every domain change writes an event.** Review each place that changes a
   domain — registrar sync, bulk edits, nameserver and auto-renew changes, MCP
-  tool writes, renewals seen when the expiry moves forward — and have it append
-  to `domain-events`. The first domain-history PR only needs purchases, sales,
-  and the sync-detected arrivals, departures, and moves.
-- **Venues.** Once marketplaces are set up, a sale or purchase gets a
-  `venueId` pointing at a venue record (Afternic, Sedo, …) that holds the
-  commission rate, so fees are derived rather than entered per sale.
-- **Installments.** A sale paid in installments stays one `sold` event;
-  individual payments aren't recorded. The event gains the terms (e.g. number
-  of payments and period) so the dashboard can show the schedule.
+  tool writes (#111), renewals DomBot makes or sync sees (#107) — and have it
+  append to `domain-events`. The first domain-history PR only needs purchases,
+  sales, and the sync-detected arrivals, departures, and moves.
+- **Bulk review (#108).** The Activity page gets bulk tools (Dismiss, Record
+  purchase, Dropped, Archived across many rows) for large imports and long
+  gaps between syncs.
+- **Venues (#109).** `registered`, `purchased`, and `sold` get a `venueId`.
+  The list is every registrar DomBot supports, then built-in marketplaces
+  (Afternic, Sedo, …), then custom venues. Each venue holds dated commission
+  rates, so fees are derived rather than entered per sale, and a rate change
+  never rewrites a past one.
+- **Installments (#110).** A sale paid in installments stays one `sold` event;
+  individual payments aren't recorded. The event gains the terms (number of
+  payments, frequency, down payment) and, if the plan ends early, whether it
+  was paid off or defaulted, so the dashboard can show the schedule.
 - **Exchange rates.** Totals across currencies need a rate per event. Each
   event already has its `date` and `currency`, so historical rates can be
   looked up later without changing stored events.
-- **Manual domains importer.** A CSV importer for `manual-domains`, designed
-  separately. The purchase CSV (#99, reworked in #100) needs its own review
-  before it merges.
+- **Manual domains (#108)**, with a CSV importer. The purchase CSV (#99,
+  reworked in #100) needs its own review before it merges.
+- **Financial dashboard (#112)**, built on all of the above.
