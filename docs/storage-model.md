@@ -3,8 +3,8 @@
 Status: implemented except where noted: storage conventions (#102), and the
 domain history on `domain-events` (#106): purchases and sales as events, sync
 events and alerts, Owned / Archive, the Hidden folder, the Activity page and
-the bell. Not yet: manual domains, the lookup-recorded automatic drop (waits
-on the central RDAP module, #105), and `renewed` events.
+the bell. Not yet: manual domains (#108), the lookup-recorded automatic drop
+(waits on the central RDAP module, #105), and `renewed` events (#107).
 
 A naming and keying standard for everything DomBot persists, a domain event
 history that replaces the separate purchase and portfolio-change stores
@@ -111,7 +111,7 @@ export const DomainEventType = {
   Registered: 'registered', // hand-registered as a new name
   Purchased: 'purchased', // bought from someone (aftermarket, private)
   Sold: 'sold',
-  Renewed: 'renewed', // written by sync when the expiry moves forward (future)
+  Renewed: 'renewed', // renewals DomBot makes or sync sees (#107)
   Dropped: 'dropped', // you let it go; or the lookup found it gone (see below)
   Archived: 'archived', // no longer yours, reason unspecified
   // Something sync saw.
@@ -308,25 +308,29 @@ Portfolio changes popover.
 
 ## Manual domains and notes
 
-`manual-domains` holds names you own that no connected registrar reports —
-typed in, or imported from a CSV:
+`manual-domains` (#108, after this release) will hold names you own that no
+connected registrar reports — typed in, or imported from a CSV:
 
 ```ts
 interface ManualDomain {
-  registrar?: string; // free-text label, e.g. "Epik (no API)"
-  expiresAt?: string | null;
-  createdAt?: string | null;
+  registrar: RegistrarName | null; // a registrar DomBot knows, or null
+  registrarLabel?: string | null; // free text otherwise, e.g. "Epik"
+  expirationDate?: string | null; // YYYY-MM-DD
+  createdDate?: string | null; // YYYY-MM-DD, registration date
   autoRenew?: boolean | null;
-  addedAt: string;
+  addedAt: number; // ms epoch
+  updatedAt: number | null; // ms epoch
 }
 ```
 
 They join the Domains table beside the registrar list and take folders,
 prices, notes, and events like any other name. Clear cache never touches them.
-If a connected registrar later reports the same name, sync removes the
-`manual-domains` entry and the registrar's row takes over. Notes, events,
-folders, and prices are keyed by name, not by the manual entry, so they carry
-straight across; the name never leaves the table, it only changes source.
+Adding one writes `added` (`source: 'user'`, or `'import'` from a CSV) with no
+account. If a connected registrar later reports the same name, sync removes
+the `manual-domains` entry, the registrar's row takes over, and the diff
+records a `moved` from no account. Notes, events, folders, and prices are
+keyed by name, not by the manual entry, so they carry straight across; the
+name never leaves the table, it only changes source.
 
 `domain-notes` holds note records, keyed by note id, for any domain:
 
@@ -406,8 +410,9 @@ data; with remote sync (#89), pushing to a not-yet-upgraded instance and
 pulling back would then lose it locally too. The bump makes the older build
 refuse the file with "made by a newer DomBot".
 
+- **v6** (planned, #108) adds `manual-domains`.
 - **v5** adds the domain history (`domain-events`, `domain-notes`,
-  `registrar-last-sync`, and later `manual-domains`). A v4 file imports into v5 unchanged; it just has no
+  `registrar-last-sync`). A v4 file imports into v5 unchanged; it just has no
   history.
 - **v4** renamed the namespaces. `parseBundle` accepts v1–v3 by mapping old
   names to new ones and re-keying folders and prices, the same way the
@@ -425,7 +430,7 @@ unknown namespace in a file is skipped anyway.)
    flags, renames, name-keyed folders and prices, `runMigrations`, bundle v4.
    Independent of #99 and #100.
 2. **Domain history PR:** #99 and #100 combined and reworked onto
-   `domain-events`, `domain-notes`, and `manual-domains`, on top of step 1.
+   `domain-events` and `domain-notes`, on top of step 1.
    Neither has shipped, so their data needs no migration. Bundle
    re-validation from the #99 branch carries over to `domain-events`.
 
@@ -439,18 +444,25 @@ unknown namespace in a file is skipped anyway.)
 
 - **Every domain change writes an event.** Review each place that changes a
   domain — registrar sync, bulk edits, nameserver and auto-renew changes, MCP
-  tool writes, renewals seen when the expiry moves forward — and have it append
-  to `domain-events`. The first domain-history PR only needs purchases, sales,
-  and the sync-detected arrivals, departures, and moves.
-- **Venues.** Once marketplaces are set up, a sale or purchase gets a
-  `venueId` pointing at a venue record (Afternic, Sedo, …) that holds the
-  commission rate, so fees are derived rather than entered per sale.
-- **Installments.** A sale paid in installments stays one `sold` event;
-  individual payments aren't recorded. The event gains the terms (e.g. number
-  of payments and period) so the dashboard can show the schedule.
+  tool writes (#111), renewals DomBot makes or sync sees (#107) — and have it
+  append to `domain-events`. The first domain-history PR only needs purchases,
+  sales, and the sync-detected arrivals, departures, and moves.
+- **Alert priority and bulk review (#108).** Arrivals become the
+  lowest-priority alert, below errors and departures, and the Activity page
+  gets bulk tools (Dismiss, Record purchase, Dropped, Archived across many
+  rows) for large imports and long gaps between syncs.
+- **Venues (#109).** `registered`, `purchased`, and `sold` get a `venueId`.
+  The list is every registrar DomBot supports, then built-in marketplaces
+  (Afternic, Sedo, …), then custom venues. Each venue holds dated commission
+  rates, so fees are derived rather than entered per sale, and a rate change
+  never rewrites a past one.
+- **Installments (#110).** A sale paid in installments stays one `sold` event;
+  individual payments aren't recorded. The event gains the terms (number of
+  payments, frequency, down payment) and, if the plan ends early, whether it
+  was paid off or defaulted, so the dashboard can show the schedule.
 - **Exchange rates.** Totals across currencies need a rate per event. Each
   event already has its `date` and `currency`, so historical rates can be
   looked up later without changing stored events.
-- **Manual domains importer.** A CSV importer for `manual-domains`, designed
-  separately. The purchase CSV (#99, reworked in #100) needs its own review
-  before it merges.
+- **Manual domains (#108)**, with a CSV importer. The purchase CSV (#99,
+  reworked in #100) needs its own review before it merges.
+- **Financial dashboard (#112)**, built on all of the above.
