@@ -189,26 +189,30 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
 - **Merge-ready.** Ids are unique across instances, so a later remote sync can
   union `domain-events` by id instead of overwriting it.
 
-## Owned, History, and Hidden
+## Owned, Archive, and Hidden
+
+The Domains page switches between **Owned** and **Archive**. Archive is a list
+of domains you no longer own, not a timeline; the timeline is the Activity page
+(below).
 
 Two separate questions, which the old Hidden → Archive folder had merged:
 
-- **Do you still own it?** Owned or History, from events.
+- **Do you still own it?** Owned or Archive, from events.
 - **Do you want to see it?** The built-in Hidden folder.
 
-### Owned and History
+### Owned and Archive
 
-A name is in **History** once its latest ownership event is `sold`,
+A name is in **Archive** once its latest ownership event is `sold`,
 `dropped`, `archived`, or an unresolved `removed`. Everything else is
-**Owned**. History is derived from events, never from a folder.
+**Owned**. Archive is derived from events, never from a folder.
 
 - **Three manual actions: Sold, Dropped, Archived.** Each moves the name to
-  History at once, whatever its registration status (a sale in progress, a
+  Archive at once, whatever its registration status (a sale in progress, a
   name you've decided not to renew that is still in your account). Sold also
   records the price. Archived is the same as Dropped without saying why.
   "Move back to Owned" deletes that event (user events are editable).
 - **A sync that no longer sees a name** writes `removed`, which also moves the
-  name to History, shown as "Left your accounts" until you label it (Sold,
+  name to Archive, shown as "Left your accounts" until you label it (Sold,
   Dropped, Archived) or dismiss the alert. It never marks the name Dropped,
   so someone who manages names elsewhere and doesn't sync for months comes
   back to unlabeled names, never to wrong labels.
@@ -248,6 +252,42 @@ list: personal names, or expiring ones you're letting go and don't want to
 mark. A name is in one folder at most, so hiding it moves it out of its
 current folder into Hidden. Hidden names are left out of Owned by default and
 come back with the folder filter; they still sync and still raise alerts.
+
+## Activity and alerts
+
+### Activity page
+
+A top-level **Activity** page (beside Domains and Renewals) lists every domain
+event in one table, newest first: date, domain, what happened, account(s),
+amount, source (you, sync, import, lookup), and status. It filters by event
+type, domain, account, date range, and "Needs review", and reuses the Domains
+table's sorting, paging, and sticky header. A domain's row menu gets "Activity",
+which opens the same table filtered to that name.
+
+- **One row per event.** A resolved row keeps its outcome ("Left GoDaddy →
+  Sold, $2,500", "Dismissed"), with the resolving event nested under it and
+  undoable, so a misclick is visible and fixable. Nothing disappears.
+- **Review actions inline.** `removed`: Sold, Dropped, Archived, Dismiss.
+  `added`: Record purchase, Record registration, Dismiss. Both need review
+  (dismiss or ignore an arrival you don't care about). `moved` is info only.
+- **Your own actions are rows too** (purchases, sales, imports), so Activity is
+  the ledger the financial dashboard will build on.
+- **Existing portfolios start empty.** An account's first sync only records a
+  starting point, so Activity says "Tracking changes since <date>" instead of
+  inventing past `added` events.
+
+### The bell
+
+The header bell always opens a dropdown, and never goes away (it shows at zero
+too). It groups items by severity:
+
+- **Error:** registrar sync failures, expired or rejected credentials.
+- **Needs review:** unresolved `removed` and `added` events, with their actions.
+- **Info:** `moved` events and other recent results.
+
+Its badge counts errors plus review items and takes the color of the most
+severe one. "View all activity" opens the Activity page. This replaces #100's
+Portfolio changes popover.
 
 ## Manual domains and notes
 
