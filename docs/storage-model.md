@@ -184,7 +184,18 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   `sold` with `resolves: <removed id>`; Dropped writes `dropped` the same
   way; Dismiss sets `dismissed` on the `removed` event and records nothing
   else. #100's baselining (the first sync of an account creates no alerts)
-  carries over as a small per-account marker.
+  carries over as a `trackedSince` timestamp on the account's
+  `registrar-accounts` record, also shown as "Tracking changes since" on the
+  Activity page.
+- **The baseline travels with the history.** The marker, the list sync diffs
+  against (`registrar-domains`), and `domain-events` must move together, so
+  the marker lives in an exported namespace, never `meta` (which is `local`).
+  After an import or a remote Pull, the next sync continues the imported
+  history instead of re-baselining (missing real changes) or diffing against
+  a list that doesn't match the imported events (inventing `added` and
+  `removed`). One exception: `registrar-domains` is a cache, so after Clear
+  cache an account has no list to diff against, and its next sync re-baselines
+  silently rather than reporting every name as added.
 - **CSV import is idempotent.** A purchase row that matches an existing event
   on (domain, type, `date`, amount, currency) is skipped, so importing the same
   file twice doesn't double-count.
@@ -382,19 +393,26 @@ is limited to the first requests after deploying this release.
 2. Set `schemaVersion = 2`. A v4 bundle from before this release gets the same
    step on import.
 
-## Data bundle v4
+## Data bundle versions
 
-- Exports write the new names and `version: 4`.
-- `parseBundle` accepts v1–v3 by mapping old names to new ones and re-keying
-  folders and prices, the same way the migration does. Every existing backup
-  still imports.
-- An older DomBot refuses a v4 file ("made by a newer DomBot") instead of
-  silently skipping namespaces it doesn't know. For remote sync (#89) that's
-  the safe failure.
-- Namespaces flagged `local` are never exported and never replaced by an
-  import; today that's `meta`, and `remote-sync` (#89) will join it. (`auth`
-  was on the old never-exported list but no namespace by that name exists; an
-  unknown namespace in a file is skipped anyway.)
+**Rule:** any release that adds a namespace that isn't a cache bumps
+`BUNDLE_VERSION`. An older build skips namespaces it doesn't know, so without
+the bump it would import a newer file "successfully" and silently drop that
+data; with remote sync (#89), pushing to a not-yet-upgraded instance and
+pulling back would then lose it locally too. The bump makes the older build
+refuse the file with "made by a newer DomBot".
+
+- **v5** adds the domain history (`domain-events`, `domain-notes`, and later
+  `manual-domains`). A v4 file imports into v5 unchanged; it just has no
+  history.
+- **v4** renamed the namespaces. `parseBundle` accepts v1–v3 by mapping old
+  names to new ones and re-keying folders and prices, the same way the
+  migration does, so every existing backup still imports.
+
+Namespaces flagged `local` are never exported and never replaced by an
+import; today that's `meta`, and `remote-sync` (#89) will join it. (`auth`
+was on the old never-exported list but no namespace by that name exists; an
+unknown namespace in a file is skipped anyway.)
 
 ## Rollout
 

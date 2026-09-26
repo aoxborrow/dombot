@@ -39,11 +39,15 @@ export const BUNDLE_FORMAT = 'dombot-data';
 // v4 renames namespaces and keys folders and prices by domain name
 // (docs/storage-model.md); v1–v3 files are upgraded on import. Namespaces
 // flagged `local` (meta, …) never travel.
-export const BUNDLE_VERSION = 4;
+// v5 adds the domain history (`domain-events`, `domain-notes`). A v4 build
+// would skip those namespaces and silently drop the history, so it must
+// refuse the file. Rule: any release that adds a non-cache namespace bumps
+// this version.
+export const BUNDLE_VERSION = 5;
 
 export interface DataBundle {
   format: typeof BUNDLE_FORMAT;
-  version: 1 | 2 | 3 | typeof BUNDLE_VERSION;
+  version: 1 | 2 | 3 | 4 | typeof BUNDLE_VERSION;
   exportedAt: string;
   /** Which DomBot wrote it (informational). */
   app: { version: string; platform: string };
@@ -85,7 +89,7 @@ export function parseBundle(text: string): DataBundle {
   if (!head || head.format !== BUNDLE_FORMAT) {
     throw new BundleError('Not a DomBot data file.');
   }
-  if (![1, 2, 3, BUNDLE_VERSION].includes(head.version as number)) {
+  if (![1, 2, 3, 4, BUNDLE_VERSION].includes(head.version as number)) {
     throw new BundleError(
       `This file was made by a newer DomBot (format v${String(head.version)}). Update and try again.`,
     );
@@ -103,12 +107,13 @@ export function parseBundle(text: string): DataBundle {
       throw new BundleError(`Malformed namespace "${ns}" in this file.`);
     }
   }
-  // Older files use the pre-v4 names and account-scoped keys; bring them up
-  // to date first so every check below sees one layout.
-  if ((head.version as number) < BUNDLE_VERSION) {
+  // Files before v4 use the old names and account-scoped keys; bring them up
+  // to date first so every check below sees one layout. (v4 has the current
+  // names and simply has no history yet.)
+  if ((head.version as number) < 4) {
     head.namespaces = upgradeLegacyNamespaces(head.namespaces);
-    head.version = BUNDLE_VERSION;
   }
+  head.version = BUNDLE_VERSION;
   try {
     validateAccountRecords(head.namespaces['registrar-accounts'] ?? {});
   } catch (err) {
