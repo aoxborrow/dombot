@@ -4,7 +4,7 @@ import { domainKey } from '../../shared/account-key';
 // the column model and formatting are easy to read and test in isolation.
 
 import {
-  ARCHIVE_FOLDER_ID,
+  builtInFolderName,
   type Domain,
   type DomainPurchase,
   type Folder,
@@ -71,15 +71,24 @@ const CSV_COLUMNS: CsvColumn[] = [
   { header: 'TLD', value: (d) => tldOf(d.domainName) },
   {
     header: 'Registrar',
-    value: (d, labels) => labels[d.registrar] ?? d.registrar,
+    value: (d, labels) =>
+      d.unregistered
+        ? '—'
+        : (d.registrationRegistrar ?? labels[d.registrar] ?? d.registrar),
   },
   {
     header: 'Folder',
     value: (d, _labels, folderName) => folderName(d),
   },
   { header: 'Status', value: (d) => d.status },
-  { header: 'Created', value: (d) => isoDate(d.createdDate) },
-  { header: 'Expires', value: (d) => isoDate(d.expirationDate) },
+  {
+    header: 'Created',
+    value: (d) => (d.unregistered ? '—' : isoDate(d.createdDate)),
+  },
+  {
+    header: 'Expires',
+    value: (d) => (d.unregistered ? '—' : isoDate(d.expirationDate)),
+  },
   {
     header: 'Days Until Expiry',
     numeric: true,
@@ -110,13 +119,25 @@ export function domainsToCsv(
   // empty when unassigned or the folder is gone.
   const folderName = (d: Domain): string => {
     const id = assignments[domainKey(d)];
-    if (id === ARCHIVE_FOLDER_ID) return 'Archive';
-    return nameById.get(id ?? '') ?? '';
+    return builtInFolderName(id) ?? nameById.get(id ?? '') ?? '';
   };
 
   const purchaseOf = (d: Domain) => purchases[purchaseKey(d.domainName)];
   const columns: CsvColumn[] = [
     ...CSV_COLUMNS,
+    {
+      header: 'Sale date',
+      value: (d) => purchaseOf(d)?.saleDate ?? '',
+    },
+    {
+      header: 'Sale amount',
+      numeric: true,
+      value: (d) => purchaseOf(d)?.saleAmount ?? '',
+    },
+    {
+      header: 'Sale currency',
+      value: (d) => purchaseOf(d)?.saleCurrency ?? '',
+    },
     {
       header: 'Purchase date',
       value: (d) => purchaseOf(d)?.purchaseDate ?? '',

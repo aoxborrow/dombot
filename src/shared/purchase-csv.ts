@@ -61,6 +61,20 @@ function parseCsv(text: string): string[][] {
   return rows.filter((r) => r.some((cell) => cell.trim() !== ''));
 }
 
+/**
+ * A starter file for Import purchases. The three rows show a dollar amount
+ * with cents, a yen amount with no decimals, and a note with the date and
+ * price left blank. Replace them with real names before importing.
+ */
+export function purchaseCsvSample(): string {
+  return [
+    'Domain,Purchase date,Purchase amount,Currency,Notes',
+    'example.com,2024-03-15,12.99,USD,"Hand registered, GoDaddy"',
+    'shop.example,2019-11-02,5000,JPY,Yen has no decimal places',
+    'notes.example,,,,"Date and price unknown"',
+  ].join('\n');
+}
+
 function headerIndex(headers: string[], names: string[]): number {
   return headers.findIndex((h) => names.includes(h.trim().toLowerCase()));
 }

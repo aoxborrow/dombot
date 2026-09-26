@@ -1,17 +1,24 @@
-import { Archive, Check } from 'lucide-react';
-import { ARCHIVE_FOLDER_ID, type Folder } from '../../../shared/ipc';
+import { Archive, BadgeDollarSign, Check, CircleOff } from 'lucide-react';
+import {
+  ARCHIVE_FOLDER_ID,
+  DROPPED_FOLDER_ID,
+  SOLD_FOLDER_ID,
+  type Folder,
+} from '../../../shared/ipc';
 import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
 import { FolderOffIcon } from '../icons/FolderOffIcon';
 import { cn } from '@/lib/utils';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 /**
- * The shared body of every folder-assignment menu: the user's folders, then the
- * built-in "None" (clear) and "Archive" (drops the domain from the table). Used
- * by the Folder cell menu, the row ⋯ submenu, and the bulk-actions submenu — the
- * caller supplies the surrounding {@link DropdownMenuContent} / SubContent so it
- * keeps its own width, trigger, and alignment.
+ * The shared body of every folder-assignment menu: the user's folders, then
+ * None, then Sold, Dropped, and Archive. The row menu and the bulk Folder
+ * submenu use the same list. The caller supplies the surrounding menu so it
+ * keeps its own width and trigger.
  *
  * Pass `selected` (a folder id, {@link ARCHIVE_FOLDER_ID}, or `null` for None) to
  * mark the current assignment with a check — omit it for the bulk menu, where
@@ -68,8 +75,27 @@ export function FolderMenuItems({
           <Check className="size-3.5 shrink-0 text-muted-foreground" />
         )}
       </DropdownMenuItem>
-      {/* Archive is a built-in folder: assigning to it drops the domain from the
-          table until "Archive" is picked in the Folder filter. */}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        className="gap-2.5"
+        onSelect={() => onAssign(SOLD_FOLDER_ID)}
+      >
+        <BadgeDollarSign className="size-4 shrink-0" aria-hidden />
+        <span className="flex-1">Sold</span>
+        {showChecks && selected === SOLD_FOLDER_ID && (
+          <Check className="size-3.5 shrink-0 text-muted-foreground" />
+        )}
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        className="gap-2.5"
+        onSelect={() => onAssign(DROPPED_FOLDER_ID)}
+      >
+        <CircleOff className="size-4 shrink-0" aria-hidden />
+        <span className="flex-1">Dropped</span>
+        {showChecks && selected === DROPPED_FOLDER_ID && (
+          <Check className="size-3.5 shrink-0 text-muted-foreground" />
+        )}
+      </DropdownMenuItem>
       <DropdownMenuItem
         className="gap-2.5"
         onSelect={() => onAssign(ARCHIVE_FOLDER_ID)}

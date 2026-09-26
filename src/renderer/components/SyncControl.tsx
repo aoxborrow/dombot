@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
+import { PortfolioChangesButton } from './PortfolioChanges';
 
 /** Minimum gap between manual syncs — the button is disabled during it so a fresh
  * pull can't be hammered (every sync re-queries every registrar). */
@@ -100,6 +101,7 @@ export default function SyncControl() {
 
   return (
     <div className="flex shrink-0 items-center gap-2.5">
+      <PortfolioChangesButton />
       {/* The "ago" caption is dropped between sm and md, where the header has
           no room for it beside the nav (the Sync button's tooltip still has the
           timestamp). */}

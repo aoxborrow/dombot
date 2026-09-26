@@ -394,7 +394,12 @@ export function createHttpApi(): DombotApi {
     updateSettings: m('updateSettings'),
     getPurchases: m('getPurchases'),
     setPurchase: m('setPurchase'),
+    setSale: m('setSale'),
     importPurchases: m('importPurchases'),
+    getPortfolioChanges: m('getPortfolioChanges'),
+    resolvePortfolioChange: m('resolvePortfolioChange'),
+    getRegistrationQuote: m('getRegistrationQuote'),
+    lookupRegistrations: m('lookupRegistrations'),
 
     getRevisions: m('getRevisions'),
   };

@@ -98,6 +98,9 @@ describe('domainsToCsv', () => {
       'Privacy',
       'Nameservers',
       'Last Synced',
+      'Sale date',
+      'Sale amount',
+      'Sale currency',
       'Purchase date',
       'Purchase amount',
       'Currency',
@@ -143,9 +146,22 @@ describe('domainsToCsv', () => {
           amount: '1000000.00',
           currency: 'USD',
           notes: 'bought, early',
+          saleDate: '2024-06-01',
+          saleAmount: '2500.00',
+          saleCurrency: 'USD',
         },
       },
     );
+    const headers = fields(rows(csv)[0]);
+    expect(headers.indexOf('Sale date')).toBeLessThan(
+      headers.indexOf('Purchase date'),
+    );
+    expect(headers.indexOf('Sale amount')).toBeLessThan(
+      headers.indexOf('Purchase amount'),
+    );
+    expect(col(csv, 1, 'Sale date')).toBe('2024-06-01');
+    expect(col(csv, 1, 'Sale amount')).toBe('2500.00');
+    expect(col(csv, 1, 'Sale currency')).toBe('USD');
     expect(col(csv, 1, 'Purchase date')).toBe('2019-04-01');
     expect(col(csv, 1, 'Purchase amount')).toBe('1000000.00');
     expect(col(csv, 1, 'Currency')).toBe('USD');
@@ -162,6 +178,20 @@ describe('domainsToCsv', () => {
     expect(col(csv, 1, 'Created')).toBe('');
     expect(col(csv, 1, 'Expires')).toBe('');
     expect(col(csv, 1, 'Days Until Expiry')).toBe('');
+  });
+
+  it('writes a dash when a former name is unregistered', () => {
+    const d = domain({
+      domainName: 'gone.com',
+      registrar: 'godaddy',
+      createdDate: new Date('2020-01-01T00:00:00Z'),
+      expirationDate: new Date('2026-01-01T00:00:00Z'),
+      unregistered: true,
+    });
+    const csv = domainsToCsv([d], { godaddy: 'GoDaddy' }, [], {});
+    expect(col(csv, 1, 'Registrar')).toBe('—');
+    expect(col(csv, 1, 'Created')).toBe('—');
+    expect(col(csv, 1, 'Expires')).toBe('—');
   });
 
   it('falls back to the raw registrar id when there is no label', () => {

@@ -20,18 +20,27 @@ import {
   getPurchases,
   importPurchases,
   setPurchase,
+  setSale,
 } from '../services/purchases';
+import {
+  baselineAccountsIfUnset,
+  getPortfolioChanges,
+  resolvePortfolioChange,
+} from '../services/portfolio-changes';
+import { lookupRegistrations } from '../services/registration-lookup';
 import {
   getRegistrarCatalog,
   connectRegistrarAccount,
   removeRegistrarAccount,
   resolveDomainAccount,
   getCachedDetail,
+  cachedSyncedAccountIds,
   getCachedPortfolio,
   getConfiguredRegistrars,
   getDomainDetail,
   getPortfolio,
   getPortfolioPricing,
+  getRegistrationQuote,
   getRegistrarClient,
   getRegistrarCredentialValues,
   getRegistrarFeatures,
@@ -185,6 +194,10 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   exportData: method(none, async () => exportBundle(getAppIdentity())),
   importData: method(z.tuple([z.string()]), async (text) => {
     const result = await importBundle(text);
+    // A backup from before portfolio history has no baselines. Mark the
+    // restored accounts as already seen so the next Sync reports real
+    // differences instead of treating the whole list as a first sync.
+    baselineAccountsIfUnset(cachedSyncedAccountIds());
     // Durable before we say so: the caller reloads on the strength of it.
     await flushWrites();
     return result;
@@ -359,8 +372,26 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   setPurchase: method(z.tuple([s.purchaseInput]), async (input) =>
     setPurchase(input),
   ),
+  setSale: method(z.tuple([s.saleInput]), async (input) => setSale(input)),
   importPurchases: method(z.tuple([s.purchaseImport]), async (rows) =>
     importPurchases(rows),
+  ),
+
+  lookupRegistrations: method(z.tuple([s.domainNameList]), async (names) =>
+    lookupRegistrations(names),
+  ),
+  getRegistrationQuote: method(
+    z.tuple([s.registrarName, s.domainName, s.accountId]),
+    async (registrar, domainName, accountId) =>
+      getRegistrationQuote(registrar, domainName, accountId),
+  ),
+  getPortfolioChanges: method(none, async () => getPortfolioChanges()),
+  resolvePortfolioChange: method(
+    z.tuple([z.string().min(1).max(80), s.portfolioChangeResolution]),
+    async (id, resolution) => {
+      resolvePortfolioChange(id, resolution);
+      return getPortfolioChanges();
+    },
   ),
 
   // ── Events (polling) ──────────────────────────────────────────────────────

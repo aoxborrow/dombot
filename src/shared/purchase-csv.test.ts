@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePurchaseCsv } from './purchase-csv';
+import { parsePurchaseCsv, purchaseCsvSample } from './purchase-csv';
 
 describe('parsePurchaseCsv', () => {
   it('reads the export columns and skips rows with nothing filled in', () => {
@@ -48,6 +48,35 @@ describe('parsePurchaseCsv', () => {
     );
     expect(parsed.rows.map((r) => r.domainName)).toEqual(['ok.com']);
     expect(parsed.errors[0]).toMatch(/bad.com/);
+  });
+
+  it('the sample file imports as three different shapes', () => {
+    const parsed = parsePurchaseCsv(purchaseCsvSample());
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.skipped).toBe(0);
+    expect(parsed.rows).toEqual([
+      {
+        domainName: 'example.com',
+        purchaseDate: '2024-03-15',
+        amount: '12.99',
+        currency: 'USD',
+        notes: 'Hand registered, GoDaddy',
+      },
+      {
+        domainName: 'shop.example',
+        purchaseDate: '2019-11-02',
+        amount: '5000',
+        currency: 'JPY',
+        notes: 'Yen has no decimal places',
+      },
+      {
+        domainName: 'notes.example',
+        purchaseDate: null,
+        amount: null,
+        currency: null,
+        notes: 'Date and price unknown',
+      },
+    ]);
   });
 
   it('ignores the other columns of a full domain export', () => {

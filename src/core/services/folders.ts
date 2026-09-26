@@ -1,5 +1,8 @@
 import {
   ARCHIVE_FOLDER_ID,
+  DROPPED_FOLDER_ID,
+  SOLD_FOLDER_ID,
+  isHiddenFolder,
   type Folder,
   type FolderInput,
   type FolderPatch,
@@ -92,6 +95,7 @@ export function updateFolder(id: string, patch: FolderPatch): void {
 
 /** Deletes a folder and drops every assignment pointing at it. */
 export function deleteFolder(id: string): void {
+  if (isHiddenFolder(id)) return;
   const current = load();
   const folders = current.folders.filter((f) => f.id !== id);
   const assignments: Record<string, string> = {};
@@ -111,6 +115,8 @@ export function assignFolder(domainKey: string, folderId: string | null): void {
   const valid =
     folderId !== null &&
     (folderId === ARCHIVE_FOLDER_ID ||
+      folderId === SOLD_FOLDER_ID ||
+      folderId === DROPPED_FOLDER_ID ||
       current.folders.some((f) => f.id === folderId));
   if (valid) {
     assignments[domainKey] = folderId;

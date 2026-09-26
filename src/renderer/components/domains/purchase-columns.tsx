@@ -38,6 +38,7 @@ function PurchaseCell({
   align = 'left',
   title,
   empty = false,
+  editLabel = 'Purchase details',
   children,
 }: {
   domain: Domain;
@@ -45,6 +46,7 @@ function PurchaseCell({
   align?: 'left' | 'right';
   title?: string;
   empty?: boolean;
+  editLabel?: string;
   children: ReactNode;
 }) {
   return (
@@ -52,7 +54,7 @@ function PurchaseCell({
       type="button"
       title={title}
       aria-label={
-        empty ? `Purchase details for ${domain.domainName}` : undefined
+        empty ? `${editLabel} for ${domain.domainName}` : undefined
       }
       className={cn(
         'block w-[calc(100%+1rem)] cursor-pointer px-2 py-3 -mx-2 -my-3 hover:text-brand compact:-my-[9px] compact:py-[9px]',
@@ -70,19 +72,99 @@ function PurchaseCell({
   );
 }
 
-/** Purchase date, amount, and notes columns for the Domains table. */
+/** Purchase date, amount, and notes. History also gets sold date and amount first. */
 export function purchaseColumns({
   purchases,
   preferredCurrency,
   numberFormat,
   onEdit,
+  onEditSale,
+  showSale = false,
+  isSold,
 }: {
   purchases: Record<string, DomainPurchase>;
   preferredCurrency: string;
   numberFormat: NumberFormatId;
   onEdit: (domain: Domain) => void;
+  onEditSale?: (domain: Domain) => void;
+  /** History view: sold date and sold amount, before the purchase columns. */
+  showSale?: boolean;
+  isSold?: (domain: Domain) => boolean;
 }): PurchaseColumn[] {
+  const sale: PurchaseColumn[] = showSale
+    ? [
+        {
+          key: 'saleDate',
+          label: 'Sold',
+          hideOnMobile: true,
+          render: (d) => {
+            const date = recordOf(purchases, d)?.saleDate;
+            const text = date || '—';
+            if (!onEditSale || !isSold?.(d)) {
+              return (
+                <span className={!date ? 'text-muted-foreground' : undefined}>
+                  {text}
+                </span>
+              );
+            }
+            return (
+              <PurchaseCell
+                domain={d}
+                onEdit={onEditSale}
+                empty={!date}
+                editLabel="Sale details"
+              >
+                {text}
+              </PurchaseCell>
+            );
+          },
+          sortValue: (d) => recordOf(purchases, d)?.saleDate ?? null,
+        },
+        {
+          key: 'saleAmount',
+          label: 'Sold for',
+          align: 'right',
+          render: (d) => {
+            const record = recordOf(purchases, d);
+            const text =
+              record?.saleAmount && record.saleCurrency
+                ? formatMoney(
+                    record.saleAmount,
+                    record.saleCurrency,
+                    preferredCurrency,
+                    numberFormat,
+                  )
+                : null;
+            const shown = text || '—';
+            if (!onEditSale || !isSold?.(d)) {
+              return (
+                <span className={!text ? 'text-muted-foreground' : undefined}>
+                  {shown}
+                </span>
+              );
+            }
+            return (
+              <PurchaseCell
+                domain={d}
+                onEdit={onEditSale}
+                align="right"
+                empty={!text}
+                editLabel="Sale details"
+              >
+                {shown}
+              </PurchaseCell>
+            );
+          },
+          sortValue: (d) => {
+            const amount = recordOf(purchases, d)?.saleAmount;
+            return amount == null ? null : Number(amount);
+          },
+        },
+      ]
+    : [];
+
   return [
+    ...sale,
     {
       key: 'purchaseDate',
       label: 'Purchased',
