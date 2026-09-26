@@ -627,6 +627,18 @@ function AccountCard({
           )}
         </div>
 
+        {/* The last sync's error, open or collapsed: this card is where the
+            banner, the status bar, and the bell send you. */}
+        {configured && enabled && !syncing && sync.lastError && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 border-t border-destructive/30 bg-destructive/10 px-5 py-2.5 text-sm"
+          >
+            <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <span className="min-w-0 break-words">{sync.lastError}</span>
+          </div>
+        )}
+
         <CollapsibleContent className="border-t px-5 py-4">
           {loading && !error && (
             <p role="status" className="mb-3 text-sm text-muted-foreground">
@@ -672,12 +684,6 @@ function AccountCard({
               >
                 {saving ? 'Saving…' : 'Save'}
               </Button>
-              {configured && !syncing && sync.lastError && (
-                <span className="flex min-w-0 items-center gap-1.5 text-sm text-destructive">
-                  <CircleX className="size-4 shrink-0" />
-                  {sync.lastError}
-                </span>
-              )}
               <Button
                 type="button"
                 variant="outline"
@@ -1123,7 +1129,8 @@ function HelpLink({ link }: { link: HelpLinkData }) {
  *  - not configured → "Needs credentials" badge
  *  - configured but disabled → "Disabled" badge
  *  - configured + last sync ok → green "Last synced <ago> · N domains"
- *  - configured + last sync errored → amber "Sync failed" (error in tooltip)
+ *  - configured + last sync errored → red "Sync failed" (the error is shown
+ *    under the card header)
  *  - configured + never synced → amber "Not synced yet"
  *  - a sync in flight → muted "Syncing…"
  */
@@ -1157,9 +1164,9 @@ function SyncStatus({
   const { lastSyncedAt, lastError, domainCount } = meta.sync;
   if (lastError) {
     return (
-      <span className="flex items-center gap-1.5" title={lastError}>
-        <span className="size-2 shrink-0 rounded-full bg-amber-500 dark:bg-amber-400" />
-        <span className="text-[13px] font-medium text-amber-600 dark:text-amber-400">
+      <span className="flex items-center gap-1.5">
+        <CircleX className="size-3.5 shrink-0 text-destructive" />
+        <span className="text-[13px] font-medium text-destructive">
           Sync failed
         </span>
       </span>

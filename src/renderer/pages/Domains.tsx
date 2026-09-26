@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
   BadgeDollarSign,
@@ -39,6 +39,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   TriangleAlert,
+  CircleAlert,
   X,
 } from 'lucide-react';
 import type {
@@ -1501,29 +1502,36 @@ export default function Domains() {
           </Alert>
         )}
 
+        {/* Which accounts failed; the errors themselves are on their cards
+            in Settings → Registrars. */}
         {portfolioErrors.length > 0 && (
-          <Alert>
-            <TriangleAlert />
+          <Alert variant="error">
+            <CircleAlert />
             <AlertTitle>
               {portfolioErrors.length}{' '}
               {multipleAccounts.size > 0 ? 'account' : 'registrar'}
-              {portfolioErrors.length === 1 ? '' : 's'} failed to load
+              {portfolioErrors.length === 1 ? '' : 's'} failed to sync
             </AlertTitle>
             <AlertDescription>
-              <ul className="flex flex-col gap-0.5">
-                {portfolioErrors.map((e) => (
-                  <li key={e.accountId ?? e.registrar}>
-                    <span className="font-medium text-foreground">
-                      {accountTitle(
-                        registrarLabel(e.registrar, portfolioRegistrarLabels),
-                        e.accountLabel,
-                        multipleAccounts.has(e.registrar),
-                      )}
-                    </span>
-                    : {e.message}
-                  </li>
-                ))}
-              </ul>
+              <p>
+                {new Intl.ListFormat(undefined, { type: 'conjunction' }).format(
+                  portfolioErrors.map((e) =>
+                    accountTitle(
+                      registrarLabel(e.registrar, portfolioRegistrarLabels),
+                      e.accountLabel,
+                      multipleAccounts.has(e.registrar),
+                    ),
+                  ),
+                )}
+                : {portfolioErrors.length === 1 ? 'its' : 'their'} domains may
+                be missing or out of date.
+              </p>
+              <Link
+                to="/settings?tab=registrars"
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Open registrar settings
+              </Link>
             </AlertDescription>
           </Alert>
         )}

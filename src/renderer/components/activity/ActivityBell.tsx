@@ -104,23 +104,22 @@ export function ActivityBell() {
           {problems.length > 0 && (
             <Section title="Sync errors">
               {problems.map((p) => (
-                <div key={p.accountId} className="flex gap-2 text-sm">
-                  <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
-                  <div className="min-w-0">
-                    <p className="font-medium">{p.account}</p>
-                    <p className="break-words text-xs text-muted-foreground">
-                      {p.message}
-                    </p>
-                    <Link
-                      to="/settings?tab=registrars"
-                      className="text-xs underline underline-offset-4"
-                      onClick={close}
-                    >
-                      Open Settings
-                    </Link>
-                  </div>
-                </div>
+                <p
+                  key={p.accountId}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <CircleAlert className="size-4 shrink-0 text-destructive" />
+                  <span className="font-medium">{p.account}</span>
+                  <span className="text-muted-foreground">sync failed</span>
+                </p>
               ))}
+              <Link
+                to="/settings?tab=registrars"
+                className="text-sm underline underline-offset-4"
+                onClick={close}
+              >
+                Open registrar settings
+              </Link>
             </Section>
           )}
           {departures.length > 0 && (
