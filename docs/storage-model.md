@@ -67,7 +67,6 @@ set passed to `EncryptedDocStore`.
 | `domain-purchases` + `portfolio-changes` | `domain-events`         |        | event id                   | purchases, sales, arrivals, moves, drops          |
 | `folders` (`assignments` key)            | `domain-folders`        |        | name                       | name → folder id                                  |
 | `folders` (`folders` key)                | `folders`               |        | folder id                  | folder definitions                                |
-| `__archive__` folder assignments         | `domain-hidden`         |        | name                       | names hidden from the default list                |
 | `pricing-overrides`                      | `domain-prices`         |        | name                       | your manual renewal price                         |
 | `settings`, `bulk-jobs`, `mcp`           | _(unchanged)_           |        |                            | app-level                                         |
 | `meta`                                   | _(unchanged)_           | local  |                            | this install only                                 |
@@ -110,6 +109,7 @@ export const DomainEventType = {
   Sold: 'sold',
   Renewed: 'renewed', // written by sync when the expiry moves forward (future)
   Dropped: 'dropped', // you let it go; or the lookup found it gone (see below)
+  Archived: 'archived', // no longer yours, reason unspecified
   // Something sync saw.
   Added: 'added', // the name appeared in an account
   Removed: 'removed', // the name is gone from an account
@@ -194,24 +194,25 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
 Two separate questions, which the old Hidden → Archive folder had merged:
 
 - **Do you still own it?** Owned or History, from events.
-- **Do you want to see it?** Hidden or not, a per-name preference.
+- **Do you want to see it?** The built-in Hidden folder.
 
 ### Owned and History
 
-A name is in **History** once its latest ownership event is `sold` or
-`dropped`. Everything else is **Owned**, including a name that has left your
-accounts but that you haven't resolved yet: it shows in the alerts until you
-do. History is derived from events, never from a folder.
+A name is in **History** once its latest ownership event is `sold`,
+`dropped`, `archived`, or an unresolved `removed`. Everything else is
+**Owned**. History is derived from events, never from a folder.
 
-- **Two manual actions, Sold and Dropped.** Either moves the name to History
-  at once, whatever its registration status: a sale in progress, or a name
-  you've decided not to renew that is still in your account. Sold also records
-  the price. "Move back to Owned" deletes that event (user events are editable).
-- **Nothing else changes ownership on its own.** A name that leaves your
-  accounts only raises a `removed` alert. Someone who manages names elsewhere
-  and doesn't sync for months comes back to a list of alerts, never to names
-  wrongly marked Dropped.
-- **The one automatic case.** The registration check (`rdap-lookups`) writes
+- **Three manual actions: Sold, Dropped, Archived.** Each moves the name to
+  History at once, whatever its registration status (a sale in progress, a
+  name you've decided not to renew that is still in your account). Sold also
+  records the price. Archived is the same as Dropped without saying why.
+  "Move back to Owned" deletes that event (user events are editable).
+- **A sync that no longer sees a name** writes `removed`, which also moves the
+  name to History, shown as "Left your accounts" until you label it (Sold,
+  Dropped, Archived) or dismiss the alert. It never marks the name Dropped,
+  so someone who manages names elsewhere and doesn't sync for months comes
+  back to unlabeled names, never to wrong labels.
+- **The one automatic label.** The registration check (`rdap-lookups`) writes
   `dropped` with `source: 'lookup'` only when both hold:
   1. RDAP gives a definite "not registered": a 404 from the registry's own RDAP
      server. A network error, timeout, any other status, or a 404 from the
@@ -227,15 +228,26 @@ do. History is derived from events, never from a folder.
   name sold or auctioned at the same registrar never changes registrar, and
   the registrant is redacted under GDPR (and registrar-scoped where present),
   so ownership can't be read from it.
+- **All RDAP goes through one module.** Every registration lookup in the app
+  uses a single central RDAP client, so bootstrap, caching, rate limits, and
+  the "definite not registered" rule live in one place.
+
+### Delete
+
+**Delete** removes everything DomBot holds about a name: its events, notes,
+folder, price override, and manual-domain entry. It's for mistakes and names
+you never want to see again, not for recording what happened (that's Sold,
+Dropped, or Archived). If a connected registrar still reports the name, the
+next sync brings it back as a fresh name with no history.
 
 ### Hidden
 
-`domain-hidden` holds names you still own but don't want in the default list:
-personal names, or expiring ones you're letting go and don't want to bother
-marking. It's a view preference, not an event, and independent of folders, so
-a name can be in "Personal" and hidden. Hide and unhide from the row menu or
-in bulk; a "Show hidden" filter brings them back. Hidden names still sync and
-still raise alerts.
+**Hidden** is a built-in folder, like Archive was before it became an
+ownership action. It's for names you still own but don't want in the default
+list: personal names, or expiring ones you're letting go and don't want to
+mark. A name is in one folder at most, so hiding it moves it out of its
+current folder into Hidden. Hidden names are left out of Owned by default and
+come back with the folder filter; they still sync and still raise alerts.
 
 ## Manual domains and notes
 
@@ -321,10 +333,10 @@ is limited to the first requests after deploying this release.
 
 **Migration 2** (ships with the domain history work):
 
-1. Every `domain-folders` entry pointing at `__archive__` becomes a
-   `domain-hidden` entry and is removed from `domain-folders`. Archive began
-   as Hidden, and that's what these assignments mean: names you still own and
-   don't want to see. Archive leaves the folder model.
+1. Every `domain-folders` entry pointing at `__archive__` is repointed at the
+   Hidden folder (`__hidden__`). Archive began as Hidden, and that's what
+   these assignments mean: names you still own and don't want to see. Archive
+   leaves the folder model and becomes an ownership action.
 2. Set `schemaVersion = 2`. A v4 bundle from before this release gets the same
    step on import.
 
