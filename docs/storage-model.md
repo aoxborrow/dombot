@@ -139,6 +139,7 @@ interface DomainEvent {
   toAccountId?: string | null; // moved
   amount?: string | null; // canonical decimal, e.g. "19.99", "1500" (money.ts)
   currency?: CurrencyCode | null; // ISO 4217, from CURRENCIES
+  years?: number | null; // registered, purchased, renewed: term length
   resolves?: string; // a user event closing a sync-detected one
   dismissed?: boolean; // sync alert acknowledged with no action
 }
@@ -168,8 +169,10 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   browsers, and the Worker all accept the same codes.
 - **Notes point at events, not the other way round.** An event has no text;
   a `domain-notes` record can reference it (see below).
-- **No counterparty yet.** A marketplace or buyer field can be added later
-  without touching stored data.
+- **Amount and currency travel together.** Both set or both null, as #99
+  already enforces.
+- **`years` spreads a cost.** A 3-year renewal's amount covers three years, so
+  a yearly view divides by `years` instead of charging it all to one year.
 - **You vs. sync.** `added` and `removed` only say that a name appeared in or
   disappeared from an account; they don't say why. The user events say what
   happened (`purchased`, `sold`, `dropped`), usually resolving a sync one.
@@ -306,6 +309,13 @@ is limited to the first requests after deploying this release.
   tool writes, renewals seen when the expiry moves forward — and have it append
   to `domain-events`. The first domain-history PR only needs purchases, sales,
   and the sync-detected arrivals, departures, and moves.
+- **Venues.** Once marketplaces are set up, a sale or purchase gets a
+  `venueId` pointing at a venue record (Afternic, Sedo, …) that holds the
+  commission rate, so fees are derived rather than entered per sale.
+- **Installments.** Start with an `installments` flag on a `sold` event. If
+  the payment schedule needs recording, each payment becomes its own event
+  pointing at the sale (`saleId`), the same way `resolves` points a `sold`
+  at the `removed` it closes. Both steps only add fields or events.
 - **Manual domains importer.** A CSV importer for `manual-domains`, designed
   separately. The purchase CSV (#99, reworked in #100) needs its own review
   before it merges.
