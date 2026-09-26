@@ -10,8 +10,9 @@ Builds on the domain event log (`docs/storage-model.md`). The work lands as
 PRs stacked on #106 (branch `domain-events`) while #106 is open.
 
 Status: phase 1 (sync errors) is merged into `domain-events` (#113), and so
-is the change that makes arrivals the lowest-priority alert. Everything else
-is planned.
+is the change that makes arrivals the lowest-priority alert. How sync errors
+show in the bell is revisited with the bell redesign (phase 6). Everything
+else is planned.
 
 ## Goals
 
@@ -143,6 +144,8 @@ work.
   - Delete.
 - **Shared by every entry point:** the Domains row menu, the Domains bulk
   bar, Activity rows, and the Activity bulk bar.
+- **Dates default to today.** Every date field in an action dialog starts at
+  today's date; you change it if the event happened on another day.
 - **Batch APIs underneath.** For example
   `setDispositions(items: {domain, resolves?}[], type)` writes one
   `putEvents` batch instead of one call per name. The same goes for dismiss,
@@ -161,7 +164,7 @@ work.
     Archived, Renewed.
   - Account: a registrar account.
   - Source: You, Registrar sync, Import, Lookup (later Agent).
-  - Date range.
+  - Date: presets only — last 7, 14, 30, 90, or 180 days.
 
 ### Columns
 
@@ -249,6 +252,9 @@ Phases 2 and 3 are independent of each other, and 4 only needs the event log.
 
 - **Record purchase in bulk:** one price for many names, or leave the price
   blank and mark them only as registered or purchased?
-- **Date filter:** presets (last 7 or 30 days, this year) or a free range?
-- **Sold in bulk without a price:** record the sale dated today with no
-  amount, like single "Mark as Sold" does now.
+
+Decided:
+
+- **Date filter:** presets only (7, 14, 30, 90, 180 days).
+- **Dates in action dialogs** default to today, so Sold in bulk without a
+  price is a sale dated today with no amount.
