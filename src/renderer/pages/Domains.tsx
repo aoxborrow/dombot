@@ -11,7 +11,8 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { SyncErrorsAlert } from '../components/SyncErrorsAlert';
 import {
   Archive,
   BadgeDollarSign,
@@ -1501,31 +1502,27 @@ export default function Domains() {
           </Alert>
         )}
 
+        {/* Which accounts failed; the errors themselves are on their cards
+            in Settings → Registrars. */}
         {portfolioErrors.length > 0 && (
-          <Alert>
-            <TriangleAlert />
-            <AlertTitle>
-              {portfolioErrors.length}{' '}
-              {multipleAccounts.size > 0 ? 'account' : 'registrar'}
-              {portfolioErrors.length === 1 ? '' : 's'} failed to load
-            </AlertTitle>
-            <AlertDescription>
-              <ul className="flex flex-col gap-0.5">
-                {portfolioErrors.map((e) => (
-                  <li key={e.accountId ?? e.registrar}>
-                    <span className="font-medium text-foreground">
-                      {accountTitle(
-                        registrarLabel(e.registrar, portfolioRegistrarLabels),
-                        e.accountLabel,
-                        multipleAccounts.has(e.registrar),
-                      )}
-                    </span>
-                    : {e.message}
-                  </li>
-                ))}
-              </ul>
-            </AlertDescription>
-          </Alert>
+          <SyncErrorsAlert
+            label={`${multipleAccounts.size > 0 ? 'Account' : 'Registrar'}${portfolioErrors.length === 1 ? '' : 's'} failed to sync`}
+            names={portfolioErrors.map((e) =>
+              accountTitle(
+                registrarLabel(e.registrar, portfolioRegistrarLabels),
+                e.accountLabel,
+                multipleAccounts.has(e.registrar),
+              ),
+            )}
+            action={
+              <Link
+                to="/settings?tab=registrars"
+                className="font-medium whitespace-nowrap underline underline-offset-4"
+              >
+                Open registrar settings
+              </Link>
+            }
+          />
         )}
 
         {/* The table always renders — even before a load or with no registrars
