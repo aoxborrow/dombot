@@ -67,6 +67,7 @@ set passed to `EncryptedDocStore`.
 | `domain-purchases` + `portfolio-changes` | `domain-events`         |        | event id                   | purchases, sales, arrivals, moves, drops          |
 | `folders` (`assignments` key)            | `domain-folders`        |        | name                       | name → folder id                                  |
 | `folders` (`folders` key)                | `folders`               |        | folder id                  | folder definitions                                |
+| `__archive__` folder assignments         | `domain-hidden`         |        | name                       | names hidden from the default list                |
 | `pricing-overrides`                      | `domain-prices`         |        | name                       | your manual renewal price                         |
 | `settings`, `bulk-jobs`, `mcp`           | _(unchanged)_           |        |                            | app-level                                         |
 | `meta`                                   | _(unchanged)_           | local  |                            | this install only                                 |
@@ -108,8 +109,7 @@ export const DomainEventType = {
   Purchased: 'purchased', // bought from someone (aftermarket, private)
   Sold: 'sold',
   Renewed: 'renewed', // written by sync when the expiry moves forward (future)
-  Dropped: 'dropped', // let it expire
-  Archived: 'archived', // no longer tracked as active, kept for reference
+  Dropped: 'dropped', // you let it go; or the lookup found it gone (see below)
   // Something sync saw.
   Added: 'added', // the name appeared in an account
   Removed: 'removed', // the name is gone from an account
@@ -122,6 +122,7 @@ export const DomainEventSource = {
   User: 'user',
   Sync: 'sync',
   Import: 'import',
+  Lookup: 'lookup', // the registration check (the automatic drop only)
 } as const;
 export type DomainEventSource =
   (typeof DomainEventSource)[keyof typeof DomainEventSource];
@@ -177,17 +178,64 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   disappeared from an account; they don't say why. The user events say what
   happened (`purchased`, `sold`, `dropped`), usually resolving a sync one.
 - **Sync writes, you resolve.** A sync that no longer sees a name writes
-  `removed` (`source: 'sync'`). Marking it Sold writes `sold` with
-  `resolves: <removed id>`; Dropped and Archive work the same way. #100's
-  baselining (the first sync of an account creates no alerts) carries over as a
-  small per-account marker in `domain-events` or `meta`.
-- **Sold, Dropped, and Archive are views,** derived from each name's latest
-  event, not folders that events have to keep in step with.
+  `removed` (`source: 'sync'`) and raises an alert. Marking it Sold writes
+  `sold` with `resolves: <removed id>`; Dropped writes `dropped` the same
+  way; Dismiss sets `dismissed` on the `removed` event and records nothing
+  else. #100's baselining (the first sync of an account creates no alerts)
+  carries over as a small per-account marker.
 - **CSV import is idempotent.** A purchase row that matches an existing event
   on (domain, type, `date`, amount, currency) is skipped, so importing the same
   file twice doesn't double-count.
 - **Merge-ready.** Ids are unique across instances, so a later remote sync can
   union `domain-events` by id instead of overwriting it.
+
+## Owned, History, and Hidden
+
+Two separate questions, which the old Hidden → Archive folder had merged:
+
+- **Do you still own it?** Owned or History, from events.
+- **Do you want to see it?** Hidden or not, a per-name preference.
+
+### Owned and History
+
+A name is in **History** once its latest ownership event is `sold` or
+`dropped`. Everything else is **Owned**, including a name that has left your
+accounts but that you haven't resolved yet: it shows in the alerts until you
+do. History is derived from events, never from a folder.
+
+- **Two manual actions, Sold and Dropped.** Either moves the name to History
+  at once, whatever its registration status: a sale in progress, or a name
+  you've decided not to renew that is still in your account. Sold also records
+  the price. "Move back to Owned" deletes that event (user events are editable).
+- **Nothing else changes ownership on its own.** A name that leaves your
+  accounts only raises a `removed` alert. Someone who manages names elsewhere
+  and doesn't sync for months comes back to a list of alerts, never to names
+  wrongly marked Dropped.
+- **The one automatic case.** The registration check (`rdap-lookups`) writes
+  `dropped` with `source: 'lookup'` only when both hold:
+  1. RDAP gives a definite "not registered": a 404 from the registry's own RDAP
+     server. A network error, timeout, any other status, or a 404 from the
+     `rdap.org` redirector itself (which may mean it has no server for that
+     TLD) counts as unknown and changes nothing.
+  2. Today is past the name's last expiry date as DomBot knew it (from the
+     registrar data before the name left).
+
+  A real registration can't be missing before it expires, so a faulty lookup
+  can't drop a name you still hold.
+
+- **No derived "transferred" label.** RDAP only shows the registrar; an expired
+  name sold or auctioned at the same registrar never changes registrar, and
+  the registrant is redacted under GDPR (and registrar-scoped where present),
+  so ownership can't be read from it.
+
+### Hidden
+
+`domain-hidden` holds names you still own but don't want in the default list:
+personal names, or expiring ones you're letting go and don't want to bother
+marking. It's a view preference, not an event, and independent of folders, so
+a name can be in "Personal" and hidden. Hide and unhide from the row menu or
+in bulk; a "Show hidden" filter brings them back. Hidden names still sync and
+still raise alerts.
 
 ## Manual domains and notes
 
@@ -270,6 +318,15 @@ subrequest limit. Two Worker isolates booting at once can both run it;
 copy-then-clear makes that safe, and the only exposure is a write landing in
 a new namespace in the moment another isolate is still copying into it, which
 is limited to the first requests after deploying this release.
+
+**Migration 2** (ships with the domain history work):
+
+1. Every `domain-folders` entry pointing at `__archive__` becomes a
+   `domain-hidden` entry and is removed from `domain-folders`. Archive began
+   as Hidden, and that's what these assignments mean: names you still own and
+   don't want to see. Archive leaves the folder model.
+2. Set `schemaVersion = 2`. A v4 bundle from before this release gets the same
+   step on import.
 
 ## Data bundle v4
 
