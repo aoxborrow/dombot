@@ -437,12 +437,18 @@ initiating instance's Worker), which is what makes web-to-web work without CORS
   (accounts, domains, events, notes) and the newest `domain-events` id/date;
   it is cheap because event ids sort by time. The renderer keeps the password
   in form state until the dialog closes, so the confirmed Push/Pull mints its
-  own token again rather than a token outliving the call.
+  own token again rather than a token outliving the call. Preview makes
+  outbound calls too, so it goes through the **same dedicated route** as
+  Push/Pull (below), never the locked `/api` dispatch: hydrate → lock → local
+  summary → unlock, with the token mint, `/auth/status` and remote
+  `dataSummary` calls all outside the lock. (`dataSummary` on the _target_ is
+  an ordinary locked `/api` method; it does no outbound I/O.)
 - **Desktop: quiesce registrar sync around the import.** Before
   `importBundle`, wait for (or cancel) any in-flight registrar sync so it
   can't diff the old list into the new history (see _Don't let a registrar
   sync straddle an import_). On the web host the store lock already does this.
-- **Locking + hydration (web host).** Do **not** run this as a plain locked core
+- **Locking + hydration (web host).** Applies to all three initiator methods
+  (`syncPreview`, `syncPush`, `syncPull`). Do **not** run them as plain locked core
   method: `/api/:method` holds `withRequestLock` for the whole call, which would
   stall the instance for the network round trip and deadlock a same-origin/
   `wrangler dev` target (see _Topologies_). But the standard `/api` wrapper also
@@ -457,7 +463,7 @@ initiating instance's Worker), which is what makes web-to-web work without CORS
   fetch first) → lock → export/import → `flushWrites` → unlock, with the network
   call never inside the lock. On desktop there is no isolate lock, but keep the
   same shape.
-- **Wiring.** Expose `syncPush` / `syncPull` to the renderer the usual way —
+- **Wiring.** Expose `syncPreview` / `syncPush` / `syncPull` to the renderer the usual way —
   `src/shared/ipc.ts` (`DombotApi` + `IpcChannels`), `src/preload.ts` (Electron
   IPC → main process), `src/renderer/api/http.ts` for the web build (pointing at
   the dedicated route rather than the generic `/api/<name>` dispatch), and the
@@ -467,8 +473,7 @@ initiating instance's Worker), which is what makes web-to-web work without CORS
   instead of silently dropping it.
 - A host-local `remote-sync` namespace holding only `remoteSyncUrl` (non-
   secret), flagged `local` so it is never exported and a Pull doesn't clobber
-  it. **No secret
-  is stored, so no sealing is needed** (see _Secret model_).
+  it. **No secret is stored, so no sealing is needed** (see _Secret model_).
 
 UI:
 
