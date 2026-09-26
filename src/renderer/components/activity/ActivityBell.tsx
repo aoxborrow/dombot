@@ -8,13 +8,11 @@ import type { DomainEvent } from '../../../shared/domain-events';
 import type { RegistrarMeta } from '../../../shared/ipc';
 import type { NumberFormatId } from '../../../shared/money';
 import {
-  bellBadge,
-  describeEvent,
-  recentMoves,
-  reviewQueues,
-  syncProblems,
-  type BadgeTone,
-} from '../../lib/activity';
+  notificationBadge,
+  notifications,
+  type Severity,
+} from '../../../shared/notifications';
+import { describeEvent, recentMoves, syncProblems } from '../../lib/activity';
 import { AlertActions } from './AlertActions';
 import { cn } from '@/lib/utils';
 import {
@@ -27,10 +25,10 @@ const WEEK = 7 * 24 * 60 * 60 * 1000;
 const DEPARTURES_SHOWN = 5;
 const ARRIVALS_SHOWN = 3;
 
-const TONE: Record<BadgeTone, string> = {
+const TONE: Record<Severity, string> = {
   error: 'bg-destructive text-white',
-  review: 'bg-amber-500 text-white dark:bg-amber-400 dark:text-black',
-  quiet: 'bg-muted-foreground text-background',
+  high: 'bg-amber-500 text-white dark:bg-amber-400 dark:text-black',
+  low: 'bg-muted-foreground text-background',
 };
 
 function when(ms: number): string {
@@ -58,16 +56,25 @@ export function ActivityBell() {
   const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
 
-  const { departures, arrivals } = useMemo(
-    () => reviewQueues(events),
-    [events],
-  );
   const problems = useMemo(() => syncProblems(registrars), [registrars]);
+  const list = useMemo(
+    () => notifications(events, problems),
+    [events, problems],
+  );
+  const { departures, arrivals } = useMemo(() => {
+    const byId = new Map(events.map((e) => [e.id, e]));
+    const of = (kind: 'departure' | 'arrival') =>
+      list
+        .filter((n) => n.kind === kind && n.eventId)
+        .map((n) => byId.get(n.eventId!)!)
+        .filter(Boolean);
+    return { departures: of('departure'), arrivals: of('arrival') };
+  }, [events, list]);
   const moves = useMemo(
     () => recentMoves(events, mountedAt - WEEK).slice(0, 3),
     [events, mountedAt],
   );
-  const badge = bellBadge(problems.length, departures.length, arrivals.length);
+  const badge = notificationBadge(list);
   const count = badge?.count ?? 0;
   const close = () => setOpen(false);
 
@@ -88,7 +95,7 @@ export function ActivityBell() {
             <span
               className={cn(
                 'absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums',
-                TONE[badge.tone],
+                TONE[badge.severity],
               )}
             >
               {badge.count}
