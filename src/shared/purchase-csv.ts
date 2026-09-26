@@ -1,7 +1,7 @@
 import type { PurchaseInput } from './ipc';
+import { assertDomainName } from './domain-name';
 import {
   DEFAULT_CURRENCY,
-  assertDomainName,
   currencyInfo,
   parseCanonicalAmount,
   parsePurchaseDate,

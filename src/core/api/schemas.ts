@@ -104,6 +104,7 @@ export const uuid = z.string().uuid();
 export const purchaseInput = z
   .object({
     domainName: z.string().trim().min(1).max(253),
+    kind: z.enum(['registered', 'purchased']).optional(),
     purchaseDate: z.string().nullable(),
     amount: z.string().nullable(),
     currency: z.string().nullable(),

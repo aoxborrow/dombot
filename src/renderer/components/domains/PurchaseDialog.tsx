@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toAscii } from '../../../shared/domain-name';
 import type { Domain, RegistrarName } from '../../../shared/ipc';
 import {
   DEFAULT_CURRENCY,
@@ -6,7 +7,6 @@ import {
   formatAmountInput,
   parseLocalizedAmount,
   parsePurchaseDate,
-  purchaseKey,
   type NumberFormatId,
 } from '../../../shared/money';
 import { useAppStore } from '../../store/app';
@@ -65,7 +65,7 @@ export function PurchaseDialog({
   const formatId: NumberFormatId =
     settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
-  const existing = purchases[purchaseKey(domain.domainName)];
+  const existing = purchases[toAscii(domain.domainName)];
 
   const [date, setDate] = useState(existing?.purchaseDate ?? '');
   const [amount, setAmount] = useState(
@@ -84,6 +84,9 @@ export function PurchaseDialog({
   const [saving, setSaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [filling, setFilling] = useState(false);
+  // Filled from the registrar's registration date and fee: a registration,
+  // not a purchase from someone.
+  const [registered, setRegistered] = useState(false);
 
   async function fillJustRegistered() {
     setError(null);
@@ -97,6 +100,7 @@ export function PurchaseDialog({
         domain.accountId,
       );
       setDate(day);
+      setRegistered(true);
       if (!quote.amount) {
         const name =
           registrars?.find((r) => r.name === domain.registrar)?.displayName ??
@@ -134,10 +138,12 @@ export function PurchaseDialog({
     try {
       await savePurchase({
         domainName: domain.domainName,
+        ...(registered && !clear ? { kind: 'registered' as const } : {}),
         purchaseDate,
         amount: canonical,
         currency: canonical ? currency : null,
-        notes: clear ? '' : notes,
+        // Clear removes the purchase only; the note belongs to the name.
+        notes,
       });
       if (!clear) onSaved?.();
       onClose();
@@ -236,9 +242,9 @@ export function PurchaseDialog({
         {confirmClear ? (
           <div className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
             <p className="text-sm">
-              Remove the purchase date, amount, and notes for{' '}
+              Remove the purchase date and amount for{' '}
               <span className="font-mono font-medium">{domain.domainName}</span>
-              ?
+              ? The notes stay.
             </p>
             <div className="flex justify-end gap-2">
               <Button

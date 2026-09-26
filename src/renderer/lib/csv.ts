@@ -9,7 +9,6 @@ import {
   type DomainPurchase,
   type Folder,
 } from '../../shared/ipc';
-import { purchaseKey } from '../../shared/money';
 
 /** id → nicely capitalized registrar name, e.g. dynadot → "Dynadot". */
 type RegistrarLabels = Record<string, string>;
@@ -122,7 +121,7 @@ export function domainsToCsv(
     return builtInFolderName(id) ?? nameById.get(id ?? '') ?? '';
   };
 
-  const purchaseOf = (d: Domain) => purchases[purchaseKey(d.domainName)];
+  const purchaseOf = (d: Domain) => purchases[toAscii(d.domainName)];
   const columns: CsvColumn[] = [
     ...CSV_COLUMNS,
     {

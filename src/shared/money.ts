@@ -1,7 +1,16 @@
 /**
- * Currency codes, symbols, and the on-screen number formats. Amounts are
+ * Currency names, symbols, and the on-screen number formats. Amounts are
  * stored as a plain decimal string plus an ISO 4217 code — never converted.
+ * Which codes exist and how many decimals each takes come from the fixed list
+ * in currencies.ts; Intl only supplies display names and symbols.
  */
+
+import {
+  CURRENCIES,
+  CURRENCY_CODES,
+  WITHDRAWN_CURRENCIES,
+  type CurrencyCode,
+} from './currencies';
 
 export const NUMBER_FORMATS = [
   { id: 'us', label: '1,234.56', group: ',', decimal: '.' },
@@ -24,7 +33,7 @@ export const PINNED_CURRENCIES = ['USD', 'EUR', 'GBP', 'CNY', 'JPY'] as const;
 const ALWAYS_SHOW_CODE = new Set(['JPY', 'CNY']);
 
 export interface CurrencyInfo {
-  code: string;
+  code: CurrencyCode;
   name: string;
   symbol: string;
   decimals: number;
@@ -32,14 +41,6 @@ export interface CurrencyInfo {
 
 let cached: CurrencyInfo[] | null = null;
 let symbolOwners: Map<string, Set<string>> | null = null;
-
-function currencyCodes(): string[] {
-  try {
-    return Intl.supportedValuesOf('currency');
-  } catch {
-    return [...PINNED_CURRENCIES];
-  }
-}
 
 function symbolOf(code: string): string {
   try {
@@ -54,27 +55,14 @@ function symbolOf(code: string): string {
   }
 }
 
-function decimalsOf(code: string): number {
-  try {
-    return (
-      new Intl.NumberFormat('en', {
-        style: 'currency',
-        currency: code,
-      }).resolvedOptions().maximumFractionDigits ?? 2
-    );
-  } catch {
-    return 2;
-  }
-}
-
 export function currencies(): CurrencyInfo[] {
   if (cached) return cached;
   const names = new Intl.DisplayNames(['en'], { type: 'currency' });
-  cached = currencyCodes().map((code) => ({
+  cached = CURRENCY_CODES.map((code) => ({
     code,
     name: names.of(code) ?? code,
     symbol: symbolOf(code),
-    decimals: decimalsOf(code),
+    decimals: CURRENCIES[code],
   }));
   symbolOwners = new Map();
   for (const c of cached) {
@@ -121,7 +109,12 @@ export function searchCurrencies(query: string): CurrencyInfo[] {
             c.code as (typeof PINNED_CURRENCIES)[number],
           ),
       )
-      .sort((a, b) => a.code.localeCompare(b.code));
+      .sort(
+        (a, b) =>
+          Number(WITHDRAWN_CURRENCIES.has(a.code)) -
+            Number(WITHDRAWN_CURRENCIES.has(b.code)) ||
+          a.code.localeCompare(b.code),
+      );
     return [...pinned, ...rest];
   }
   return all
@@ -260,17 +253,4 @@ export function parsePurchaseDate(
     throw new Error(`${label} is not a real calendar day.`);
   }
   return s;
-}
-
-/** Key purchase records by the domain name, not the registrar account. */
-export function purchaseKey(domainName: string): string {
-  return domainName.trim().replace(/\.$/, '').toLowerCase();
-}
-
-export function assertDomainName(domainName: string): string {
-  const key = purchaseKey(domainName);
-  if (!key.includes('.') || /\s/.test(key) || key.length > 253) {
-    throw new Error(`“${domainName.trim() || 'row'}” is not a domain name.`);
-  }
-  return key;
 }

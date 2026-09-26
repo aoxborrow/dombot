@@ -269,6 +269,8 @@ export interface DomainPurchase {
 /** One purchase record to save or import. `domainName` is not stored on the record. */
 export interface PurchaseInput {
   domainName: string;
+  /** Hand-registered vs. bought; omitted keeps what's stored (default purchased). */
+  kind?: 'registered' | 'purchased';
   purchaseDate: string | null;
   amount: string | null;
   currency: string | null;

@@ -12,6 +12,13 @@ import { PROXIES_NAMESPACE, parseProxy } from '../../shared/proxy';
 import { migrateLegacyProxies } from '../services/proxies';
 import { sanitizeBundleDiagnostics } from './sanitize-diagnostics';
 import { upgradeLegacyNamespaces } from './migrations';
+import {
+  EVENTS_NAMESPACE,
+  NOTES_NAMESPACE,
+  cleanEntries,
+  cleanEvent,
+  cleanNote,
+} from '../services/domain-events';
 import { CREDENTIALS_NAMESPACE } from './names';
 
 // A portable copy of everything DomBot stores — registrar keys, portfolio
@@ -107,6 +114,23 @@ export function parseBundle(text: string): DataBundle {
   } catch (err) {
     throw new BundleError(err instanceof Error ? err.message : String(err));
   }
+  // Events and notes are user data the screens read directly, so re-check
+  // every record the way the services would have written it; a record that
+  // doesn't hold is dropped (and logged) rather than failing the import.
+  const events = head.namespaces[EVENTS_NAMESPACE];
+  if (events)
+    head.namespaces[EVENTS_NAMESPACE] = cleanEntries(
+      EVENTS_NAMESPACE,
+      events,
+      cleanEvent,
+    );
+  const notes = head.namespaces[NOTES_NAMESPACE];
+  if (notes)
+    head.namespaces[NOTES_NAMESPACE] = cleanEntries(
+      NOTES_NAMESPACE,
+      notes,
+      cleanNote,
+    );
   // Validate every proxy profile, and every account's pointer to one, so an
   // import can't smuggle in a private/reserved-IP or otherwise malformed proxy
   // or leave an account pointing at nothing.

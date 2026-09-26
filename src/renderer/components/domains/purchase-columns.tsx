@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react';
+import { toAscii } from '../../../shared/domain-name';
 import type { Domain, DomainPurchase } from '../../../shared/ipc';
-import {
-  formatMoney,
-  purchaseKey,
-  type NumberFormatId,
-} from '../../../shared/money';
+import { formatMoney, type NumberFormatId } from '../../../shared/money';
 import { cn } from '@/lib/utils';
 
 type Labels = Record<string, string>;
@@ -22,7 +19,7 @@ function recordOf(
   purchases: Record<string, DomainPurchase>,
   domain: Domain,
 ): DomainPurchase | undefined {
-  return purchases[purchaseKey(domain.domainName)];
+  return purchases[toAscii(domain.domainName)];
 }
 
 function preview(notes: string): string {
@@ -53,9 +50,7 @@ function PurchaseCell({
     <button
       type="button"
       title={title}
-      aria-label={
-        empty ? `${editLabel} for ${domain.domainName}` : undefined
-      }
+      aria-label={empty ? `${editLabel} for ${domain.domainName}` : undefined}
       className={cn(
         'block w-[calc(100%+1rem)] cursor-pointer px-2 py-3 -mx-2 -my-3 hover:text-brand compact:-my-[9px] compact:py-[9px]',
         align === 'right' ? 'text-right' : 'text-left',

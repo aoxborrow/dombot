@@ -131,7 +131,7 @@ interface DomainEvent {
   id: string; // time-sortable (ULID-style), also the storage key
   domain: string; // toAscii(name)
   type: DomainEventType;
-  date: string; // YYYY-MM-DD, the day it happened; user-editable
+  date: string | null; // YYYY-MM-DD, the day it happened; user-editable (null: a purchase or sale recorded without its day)
   createdAt: number; // ms epoch, when DomBot recorded it
   updatedAt: number | null; // ms epoch, last edit
   source: DomainEventSource;
@@ -167,7 +167,9 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
 - **Currencies are a fixed list.** `CURRENCIES` in `src/shared/currencies.ts`
   holds every active ISO 4217 code with its decimal places, and `CurrencyCode`
   is derived from it. A static list, not `Intl.supportedValuesOf`, so Electron,
-  browsers, and the Worker all accept the same codes.
+  browsers, and the Worker all accept the same codes. Recently withdrawn codes
+  (HRK, BGN, ANG, …) stay on it so a purchase recorded in one stays valid; the
+  picker lists them last.
 - **Notes point at events, not the other way round.** An event has no text;
   a `domain-notes` record can reference it (see below).
 - **Amount and currency travel together.** Both set or both null, as #99

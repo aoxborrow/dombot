@@ -1,4 +1,4 @@
-import { purchaseKey } from './money';
+import { toAscii } from './domain-name';
 
 /** A name left an account, arrived, or moved between the user's own accounts. */
 export type PortfolioChangeKind = 'added' | 'removed' | 'moved';
@@ -56,7 +56,7 @@ function indexAccounts(rows: AccountHoldings[]): Map<string, IndexedAccount> {
     const names = new Set<string>();
     const display = new Map<string, string>();
     for (const raw of row.names) {
-      const key = purchaseKey(raw);
+      const key = toAscii(raw);
       if (!key) continue;
       names.add(key);
       if (!display.has(key)) display.set(key, raw.trim().replace(/\.$/, ''));
@@ -82,7 +82,7 @@ function findOpen(
     (change) =>
       !change.resolved &&
       change.kind === kind &&
-      purchaseKey(change.domainName) === name,
+      toAscii(change.domainName) === name,
   );
 }
 

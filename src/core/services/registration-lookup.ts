@@ -1,5 +1,5 @@
 import type { RegistrationLookup } from '../../shared/ipc';
-import { purchaseKey } from '../../shared/money';
+import { toAscii } from '../../shared/domain-name';
 import { Namespace } from '../storage/namespace';
 
 // Public registration data for names that have left your accounts. History
@@ -31,8 +31,9 @@ function fresh(row: RegistrationLookup | undefined, now: number): boolean {
 }
 
 function eventDate(doc: RdapDoc, action: string): string | null {
-  const date = doc.events?.find((event) => event.eventAction === action)
-    ?.eventDate;
+  const date = doc.events?.find(
+    (event) => event.eventAction === action,
+  )?.eventDate;
   if (!date || Number.isNaN(Date.parse(date))) return null;
   return date;
 }
@@ -50,10 +51,13 @@ function registrarOf(doc: RdapDoc): string | null {
 async function queryRdap(name: string): Promise<RegistrationLookup | null> {
   let response: Response;
   try {
-    response = await fetch(`https://rdap.org/domain/${encodeURIComponent(name)}`, {
-      redirect: 'follow',
-      headers: { accept: 'application/rdap+json, application/json' },
-    });
+    response = await fetch(
+      `https://rdap.org/domain/${encodeURIComponent(name)}`,
+      {
+        redirect: 'follow',
+        headers: { accept: 'application/rdap+json, application/json' },
+      },
+    );
   } catch {
     return null;
   }
@@ -111,7 +115,9 @@ export async function lookupRegistrations(
   const now = Date.now();
   const keys = [
     ...new Set(
-      domainNames.map((name) => purchaseKey(name)).filter((name) => name.includes('.')),
+      domainNames
+        .map((name) => toAscii(name))
+        .filter((name) => name.includes('.')),
     ),
   ];
   const out: Record<string, RegistrationLookup> = {};

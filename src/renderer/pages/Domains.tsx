@@ -67,11 +67,7 @@ import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { purchaseColumns } from '../components/domains/purchase-columns';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
-import {
-  DEFAULT_CURRENCY,
-  DEFAULT_NUMBER_FORMAT,
-  purchaseKey,
-} from '../../shared/money';
+import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
 import { NameserversCell } from '../components/domains/NameserversCell';
 import { AuthCodeDialog } from '../components/domains/AuthCodeDialog';
 import { RenewDialog } from '../components/domains/RenewDialog';
@@ -835,7 +831,7 @@ export default function Domains() {
     if (!historyView) return listed;
     return listed.map((d) => {
       if (!d.departed) return d;
-      const lookup = registrationLookups[purchaseKey(d.domainName)];
+      const lookup = registrationLookups[toAscii(d.domainName)];
       if (!lookup) return { ...d, registrationPending: true };
       if (!lookup.registered) {
         return {

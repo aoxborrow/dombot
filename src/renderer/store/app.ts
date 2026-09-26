@@ -1,6 +1,5 @@
 import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
-import { purchaseKey } from '../../shared/money';
 import { create } from 'zustand';
 import type {
   AppInfo,
@@ -661,7 +660,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   savePurchase: async (input) => {
     const saved = await window.api.setPurchase(input);
-    const key = purchaseKey(input.domainName);
+    const key = toAscii(input.domainName);
     set((state) => {
       const purchases = { ...state.purchases };
       if (saved) purchases[key] = saved;
@@ -671,7 +670,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   saveSale: async (input) => {
     const saved = await window.api.setSale(input);
-    const key = purchaseKey(input.domainName);
+    const key = toAscii(input.domainName);
     set((state) => {
       const purchases = { ...state.purchases };
       if (saved) purchases[key] = saved;

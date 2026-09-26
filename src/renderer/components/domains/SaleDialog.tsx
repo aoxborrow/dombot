@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toAscii } from '../../../shared/domain-name';
 import type { Domain } from '../../../shared/ipc';
 import {
   DEFAULT_CURRENCY,
@@ -6,7 +7,6 @@ import {
   formatAmountInput,
   parseLocalizedAmount,
   parsePurchaseDate,
-  purchaseKey,
   type NumberFormatId,
 } from '../../../shared/money';
 import { useAppStore } from '../../store/app';
@@ -56,7 +56,7 @@ export function SaleDialog({
   const formatId: NumberFormatId =
     settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
-  const existing = purchases[purchaseKey(domain.domainName)];
+  const existing = purchases[toAscii(domain.domainName)];
 
   const [date, setDate] = useState(existing?.saleDate ?? '');
   const [amount, setAmount] = useState(
