@@ -1,7 +1,10 @@
 # Storage model
 
-Status: storage conventions implemented (naming, flags, name-keyed folders and
-prices, migration, bundle v4); domain events and manual domains not yet.
+Status: implemented except where noted: storage conventions (#102), and the
+domain history on `domain-events` (#106): purchases and sales as events, sync
+events and alerts, Owned / Archive, the Hidden folder, the Activity page and
+the bell. Not yet: manual domains, the lookup-recorded automatic drop (waits
+on the central RDAP module, #105), and `renewed` events.
 
 A naming and keying standard for everything DomBot persists, a domain event
 history that replaces the separate purchase and portfolio-change stores
@@ -277,11 +280,11 @@ type, domain, account, date range, and "Needs review", and reuses the Domains
 table's sorting, paging, and sticky header. A domain's row menu gets "Activity",
 which opens the same table filtered to that name.
 
-- **One row per event.** A resolved row keeps its outcome ("Left GoDaddy →
-  Sold, $2,500", "Dismissed"), with the resolving event nested under it and
-  undoable, so a misclick is visible and fixable. Nothing disappears.
+- **One row per event.** A resolved alert keeps its outcome ("Sold", "Came
+  back", "Dismissed") with Undo, so a misclick is visible and fixable; the
+  resolving event is its own row too. Nothing disappears.
 - **Review actions inline.** `removed`: Sold, Dropped, Archived, Dismiss.
-  `added`: Record purchase, Record registration, Dismiss. Both need review
+  `added`: Record purchase (the dialog offers the registration fee), Dismiss. Both need review
   (dismiss or ignore an arrival you don't care about). `moved` is info only.
 - **Your own actions are rows too** (purchases, sales, imports), so Activity is
   the ledger the financial dashboard will build on.
