@@ -193,7 +193,7 @@ export default function App() {
         {/* Desktop: the tab strip, right-justified inside the same max-w-4xl
             container the pages use, so the last tab's right edge tracks the
             page content edge. It only shifts left of that edge when the window
-            is too narrow to also fit the header actions (see stripInset). On
+            is too narrow to also fit the header actions (STRIP_INSET). On
             phones it collapses into the hamburger menu (MobileNav). */}
         <div className="hidden flex-1 pr-(--scrollbar-gutter) sm:block">
           <div className="mx-auto flex w-full max-w-4xl justify-end">
