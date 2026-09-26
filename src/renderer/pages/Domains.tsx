@@ -1,16 +1,8 @@
 import { accountNumber, accountTitle } from '../../shared/account-label';
-import { DomainTableScroll } from '../lib/domain-table-scroll';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SyncErrorsAlert } from '../components/SyncErrorsAlert';
 import {
@@ -19,16 +11,9 @@ import {
   CircleOff,
   DoorOpen,
   EyeOff,
-  ArrowDown,
-  ArrowUp,
   Building2,
   CalendarClock,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  ChevronsUpDown,
   CircleCheck,
   CircleX,
   ExternalLink,
@@ -89,11 +74,12 @@ import {
 import { BulkBar } from '../components/domains/BulkBar';
 import { BulkActionDialog } from '../components/domains/BulkActionDialog';
 import { defaultBulkOp } from '../lib/bulk';
-import { PAGE_SIZES, usePreferences } from '../lib/preferences';
+import { usePreferences } from '../lib/preferences';
+import { DataTable, type DataColumn } from '../components/data-table/DataTable';
+import { paginate, sortRows } from '../components/data-table/table-state';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import {
@@ -103,22 +89,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import {} from '@/components/ui/table';
 
 // Which `refreshTick` the detail fetch has already force-refreshed. Module-level
 // so it PERSISTS across Domains remounts (switching to another tab and back): a
@@ -924,7 +895,6 @@ export default function Domains() {
   const [pageSize, setPageSize] = useState(
     () => usePreferences.getState().pageSize,
   );
-  const density = usePreferences((s) => s.density);
   const [page, setPage] = useState(0);
   // Phones only: the filter chips collapse behind a "Filters" toggle (they're
   // always shown at sm+). Search and Reset stay visible.
@@ -1223,7 +1193,6 @@ export default function Domains() {
     });
 
     const col = columns.find((c) => c.key === sortKey) ?? columns[0];
-    const dir = sortDir === 'asc' ? 1 : -1;
     // Renewal isn't a Domain field — sort it from the pricing map.
     const valueOf = (d: Domain): SortValue | null => {
       if (sortKey === RENEWAL) {
@@ -1241,19 +1210,7 @@ export default function Domains() {
       }
       return col.sortValue(d, portfolioRegistrarLabels);
     };
-    return rows.sort((a, b) => {
-      const av = valueOf(a);
-      const bv = valueOf(b);
-      // Nulls/blanks always sort last, independent of direction.
-      const aEmpty = av === null || av === '';
-      const bEmpty = bv === null || bv === '';
-      if (aEmpty && bEmpty) return 0;
-      if (aEmpty) return 1;
-      if (bEmpty) return -1;
-      if (av < bv) return -1 * dir;
-      if (av > bv) return 1 * dir;
-      return 0;
-    });
+    return sortRows(rows, valueOf, sortDir);
   }, [
     shown,
     columns,
@@ -1274,45 +1231,10 @@ export default function Domains() {
     pricing,
   ]);
 
-  // Derive the effective page: if filters shrink the result below the current
-  // page, `safePage` clamps it without needing to write back to state (every
-  // read and the pager buttons use `safePage`, so it stays self-correcting).
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1);
+  // The rows on screen (the table pages the same way), for lazy detail loads.
+  const { start, end } = paginate(filtered.length, page, pageSize);
+  const visible = filtered.slice(start, end);
 
-  const start = safePage * pageSize;
-  const visible = filtered.slice(start, start + pageSize);
-
-  // Header checkbox reflects the whole filtered set (across pages): fully checked
-  // when every filtered row is selected, indeterminate when only some are.
-  const allFilteredSelected =
-    filtered.length > 0 && filtered.every((d) => selected.has(domainKey(d)));
-  const someFilteredSelected =
-    !allFilteredSelected && filtered.some((d) => selected.has(domainKey(d)));
-  const toggleSelectAll = () =>
-    setSelectedMany(
-      filtered.map((d) => domainKey(d)),
-      !allFilteredSelected,
-    );
-  // The row whose checkbox was last clicked without Shift. Shift-click checks
-  // that row through the clicked one, in the current table order.
-  const selectionAnchor = useRef<string | null>(null);
-  const selectRow = (key: string, shift: boolean) => {
-    const anchor = selectionAnchor.current;
-    if (shift && anchor) {
-      const keys = filtered.map((d) => domainKey(d));
-      const from = keys.indexOf(anchor);
-      const to = keys.indexOf(key);
-      if (from !== -1 && to !== -1) {
-        const lo = Math.min(from, to);
-        const hi = Math.max(from, to);
-        setSelectedMany(keys.slice(lo, hi + 1), true);
-        return;
-      }
-    }
-    toggleSelected(key);
-    selectionAnchor.current = key;
-  };
   // The selected domains as merged rows, for the bulk bar and dialog.
   const selectedDomains = useMemo(
     () => shown.filter((d) => selected.has(domainKey(d))),
@@ -1464,6 +1386,101 @@ export default function Domains() {
         err instanceof Error ? err.message : 'Export failed',
         true,
       );
+    }
+  }
+
+  // Table columns: the data columns, with Folder (Status in Archive) after
+  // the domain and Renewal before Auto-renew. Cells show a placeholder while
+  // their data loads, and a dash where a departed name has none.
+  const renderCell = (col: Column, d: Domain) => {
+    const registration =
+      col.key === 'registrar' ||
+      col.key === 'createdDate' ||
+      col.key === 'expirationDate';
+    if (col.key === 'domainName') {
+      // The row's "⋯" menu lives in the Domain cell, pinned to its right edge.
+      return (
+        <div className="flex items-center justify-between gap-2">
+          {col.render(d, portfolioRegistrarLabels)}
+          <RowActionsMenu
+            domain={d}
+            folders={folders}
+            folderId={folderAssignments[toAscii(d.domainName)]}
+            onRefresh={() => refreshDomain(d)}
+            onUrlForwarding={() => setUrlForwardingFor(d)}
+            onEmailForwarding={() => setEmailForwardingFor(d)}
+            onAuthCode={() => setAuthCodeFor(d)}
+            onRenew={() => setRenewFor(d)}
+            onEditPurchase={() => setPurchaseFor(d)}
+            onEditSale={() => setSaleFor(d)}
+            onAssignFolder={(folderId) => applyFolders([d], folderId)}
+            archive={archiveLabelOf(d)}
+            onMarkSold={() => {
+              markSaved.current = 0;
+              setMarkIndex(0);
+              setMarkSold([d]);
+            }}
+            onMarkDropped={() => markDisposition(d, 'dropped')}
+            onMarkArchived={() => markDisposition(d, 'archived')}
+            onRestoreOwned={() => moveBackToOwned(d)}
+            onDelete={() => setDeleteFor(d)}
+          />
+        </div>
+      );
+    }
+    if (d.registrationPending && registration)
+      return <CellSkeleton align={col.align} />;
+    if (d.unregistered && registration)
+      return <span className="text-muted-foreground">—</span>;
+    if (col.key === 'registrar' && d.registrationRegistrar)
+      return <span>{d.registrationRegistrar}</span>;
+    if (d.departed && (col.detail || col.key === 'autoRenew'))
+      return <span className="text-muted-foreground/50">—</span>;
+    if (col.detail && enriching[domainKey(d)] === true)
+      return <CellSkeleton align={col.align} />;
+    return col.render(d, portfolioRegistrarLabels);
+  };
+  const dataColumns: DataColumn<Domain>[] = [];
+  for (const col of tableColumns) {
+    dataColumns.push({
+      key: col.key,
+      label: col.label,
+      align: col.align,
+      compact: col.compact,
+      hideOnMobile: col.hideOnMobile,
+      headClassName: col.key === 'autoRenew' ? 'pl-[8px]' : undefined,
+      cellClassName: col.key === 'autoRenew' ? 'pl-[6px]' : undefined,
+      cell: (d) => renderCell(col, d),
+    });
+    if (col.key === 'domainName') {
+      dataColumns.push({
+        key: FOLDER,
+        label: archiveView ? 'Status' : 'Folder',
+        headClassName: 'pl-3 compact:pl-2',
+        cellClassName: 'p-0!',
+        cell: (d) =>
+          archiveView ? (
+            <ArchiveStatusCell label={archiveLabelOf(d)} />
+          ) : (
+            <FolderCell
+              folders={folders}
+              folderId={folderAssignments[toAscii(d.domainName)]}
+              onAssign={(folderId) => applyFolders([d], folderId)}
+            />
+          ),
+      });
+    }
+    if (col.key === 'expirationDate' && !archiveView) {
+      dataColumns.push({
+        key: RENEWAL,
+        label: 'Renewal',
+        align: 'right',
+        headClassName: 'w-0',
+        cellClassName: 'w-0 pr-3',
+        cell: (d) => (
+          <RenewalCell info={pricing[domainKey(d)]} loading={pricingLoading} />
+        ),
+      });
     }
   }
 
@@ -1713,382 +1730,54 @@ export default function Domains() {
         />
       </div>
 
-      <div className="mt-[13px] flex min-h-36 min-w-0 flex-1 flex-col gap-[13px]">
-        {/* Table. This region scrolls; the column names stick to its top and
-            move sideways with the columns. Overlay bars sit on the host. */}
-        <DomainTableScroll
-          className={cn(
-            // Row height is set by the cells' vertical padding around one line of
-            // text (icon buttons overlap into it with negative margins, so they
-            // don't drive it): 45px normal, ~36px compact. align-top keeps
-            // inline-level cell content (checkbox, switch, inline-flex spans)
-            // from adding baseline descent under the line box.
-            'domain-table-scroll absolute inset-0 overflow-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 [&_td]:py-3 [&_td>*]:align-top compact:[&_td]:py-[9px]',
-            density === 'compact' && 'compact',
-          )}
-        >
-          {/* Slightly smaller body text when compact (headers keep their own
-              sizes); cells with an explicit size opt down separately. */}
-          <Table scrollable={false} className="compact:text-xs">
-            <TableHeader className="sticky top-0 z-10 bg-muted [&_th]:bg-muted">
-              <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
-                {/* Checkbox column reads as part of the Domain column: no
-                    divider between them (the wrapper draws td/th borders). */}
-                <TableHead className="w-9 border-r-0! pl-3">
-                  <Checkbox
-                    checked={
-                      allFilteredSelected
-                        ? true
-                        : someFilteredSelected
-                          ? 'indeterminate'
-                          : false
-                    }
-                    onCheckedChange={toggleSelectAll}
-                    aria-label="Select all domains"
-                  />
-                </TableHead>
-                {tableColumns.map((col, i) => {
-                  const active = col.key === sortKey;
-                  const Icon = !active
-                    ? ChevronsUpDown
-                    : sortDir === 'asc'
-                      ? ArrowUp
-                      : ArrowDown;
-                  return (
-                    <Fragment key={col.key}>
-                      <TableHead
-                        className={cn(
-                          col.align === 'right' && 'text-right',
-                          col.align === 'center' && 'text-center',
-                          col.compact && 'w-0 px-1.5',
-                          col.key === 'autoRenew' && 'pl-[8px]',
-                          col.key === 'domainName' && 'border-l-0! pl-3',
-                          col.hideOnMobile && 'hidden sm:table-cell',
-                        )}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => toggleSort(col.key)}
-                          className={cn(
-                            'inline-flex items-center gap-1 select-none hover:text-foreground',
-                            // The narrow flag columns: nudge label + chevron
-                            // right so the label sits visually over the icons.
-                            col.compact && 'gap-0.5 translate-x-0.5',
-                            active && 'text-foreground',
-                          )}
-                        >
-                          {col.label}
-                          <Icon className="size-3.5 opacity-70" />
-                        </button>
-                      </TableHead>
-                      {/* Folder sits right after the domain name, before Registrar. */}
-                      {i === 0 && (
-                        <TableHead className="pl-3 compact:pl-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleSort(FOLDER)}
-                            className={cn(
-                              'inline-flex select-none items-center gap-1 hover:text-foreground',
-                              sortKey === FOLDER && 'text-foreground',
-                            )}
-                          >
-                            {archiveView ? 'Status' : 'Folder'}
-                            {(() => {
-                              const FdIcon =
-                                sortKey !== FOLDER
-                                  ? ChevronsUpDown
-                                  : sortDir === 'asc'
-                                    ? ArrowUp
-                                    : ArrowDown;
-                              return <FdIcon className="size-3.5 opacity-70" />;
-                            })()}
-                          </button>
-                        </TableHead>
-                      )}
-                      {/* Renewal price sits right before the Auto-Renew flag.
-                          History has no renewal column. */}
-                      {col.key === 'expirationDate' && !archiveView && (
-                        <TableHead className="w-0 text-right">
-                          <button
-                            type="button"
-                            onClick={() => toggleSort(RENEWAL)}
-                            className={cn(
-                              'inline-flex select-none items-center gap-1 hover:text-foreground',
-                              sortKey === RENEWAL && 'text-foreground',
-                            )}
-                          >
-                            Renewal
-                            {(() => {
-                              const RnIcon =
-                                sortKey !== RENEWAL
-                                  ? ChevronsUpDown
-                                  : sortDir === 'asc'
-                                    ? ArrowUp
-                                    : ArrowDown;
-                              return <RnIcon className="size-3.5 opacity-70" />;
-                            })()}
-                          </button>
-                        </TableHead>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.map((d) => {
-                const key = domainKey(d);
-                const loadingDetail = enriching[key] === true;
-                return (
-                  // Rows highlight on hover but aren't themselves clickable —
-                  // the only click target is the Folder cell, which opens the
-                  // folder-assignment menu.
-                  <TableRow
-                    key={key}
-                    className={cn(selected.has(key) && 'bg-muted/50')}
-                  >
-                    {/* Selection checkbox. */}
-                    <TableCell className="w-9 border-r-0! pl-3">
-                      <Checkbox
-                        checked={selected.has(key)}
-                        onMouseDown={(e) => {
-                          if (e.shiftKey) e.preventDefault();
-                        }}
-                        onClick={(e) => {
-                          if (!e.shiftKey) return;
-                          // Skip the checkbox's own toggle; the range is applied
-                          // below, and preventDefault keeps that toggle from
-                          // also firing.
-                          e.preventDefault();
-                          selectRow(key, true);
-                        }}
-                        onCheckedChange={() => selectRow(key, false)}
-                        aria-label={`Select ${d.domainName}`}
-                      />
-                    </TableCell>
-                    {tableColumns.map((col, i) => (
-                      <Fragment key={col.key}>
-                        <TableCell
-                          className={cn(
-                            col.align === 'right' && 'text-right',
-                            col.align === 'center' && 'text-center',
-                            col.compact && 'w-0 px-1.5',
-                            col.key === 'autoRenew' && 'pl-[6px]',
-                            col.key === 'domainName' && 'border-l-0! pl-3',
-                            col.hideOnMobile && 'hidden sm:table-cell',
-                          )}
-                        >
-                          {col.key === 'domainName' ? (
-                            // The row's "⋯" menu lives in the Domain cell,
-                            // pinned to its right edge.
-                            <div className="flex items-center justify-between gap-2">
-                              {col.render(d, portfolioRegistrarLabels)}
-                              <RowActionsMenu
-                                domain={d}
-                                folders={folders}
-                                folderId={
-                                  folderAssignments[toAscii(d.domainName)]
-                                }
-                                onRefresh={() => refreshDomain(d)}
-                                onUrlForwarding={() => setUrlForwardingFor(d)}
-                                onEmailForwarding={() =>
-                                  setEmailForwardingFor(d)
-                                }
-                                onAuthCode={() => setAuthCodeFor(d)}
-                                onRenew={() => setRenewFor(d)}
-                                onEditPurchase={() => setPurchaseFor(d)}
-                                onEditSale={() => setSaleFor(d)}
-                                onAssignFolder={(folderId) =>
-                                  applyFolders([d], folderId)
-                                }
-                                archive={archiveLabelOf(d)}
-                                onMarkSold={() => {
-                                  markSaved.current = 0;
-                                  setMarkIndex(0);
-                                  setMarkSold([d]);
-                                }}
-                                onMarkDropped={() =>
-                                  markDisposition(d, 'dropped')
-                                }
-                                onMarkArchived={() =>
-                                  markDisposition(d, 'archived')
-                                }
-                                onRestoreOwned={() => moveBackToOwned(d)}
-                                onDelete={() => setDeleteFor(d)}
-                              />
-                            </div>
-                          ) : d.registrationPending &&
-                            (col.key === 'registrar' ||
-                              col.key === 'createdDate' ||
-                              col.key === 'expirationDate') ? (
-                            <CellSkeleton align={col.align} />
-                          ) : d.unregistered &&
-                            (col.key === 'registrar' ||
-                              col.key === 'createdDate' ||
-                              col.key === 'expirationDate') ? (
-                            <span className="text-muted-foreground">—</span>
-                          ) : col.key === 'registrar' &&
-                            d.registrationRegistrar ? (
-                            <span>{d.registrationRegistrar}</span>
-                          ) : d.departed &&
-                            (col.detail || col.key === 'autoRenew') ? (
-                            <span className="text-muted-foreground/50">—</span>
-                          ) : col.detail && loadingDetail ? (
-                            <CellSkeleton align={col.align} />
-                          ) : (
-                            col.render(d, portfolioRegistrarLabels)
-                          )}
-                        </TableCell>
-                        {i === 0 && (
-                          <TableCell className="p-0!">
-                            {archiveView ? (
-                              <ArchiveStatusCell label={archiveLabelOf(d)} />
-                            ) : (
-                              <FolderCell
-                                folders={folders}
-                                folderId={
-                                  folderAssignments[toAscii(d.domainName)]
-                                }
-                                onAssign={(folderId) =>
-                                  applyFolders([d], folderId)
-                                }
-                              />
-                            )}
-                          </TableCell>
-                        )}
-                        {col.key === 'expirationDate' && !archiveView && (
-                          <TableCell className="w-0 text-right pr-3">
-                            <RenewalCell
-                              info={pricing[key]}
-                              loading={pricingLoading}
-                            />
-                          </TableCell>
-                        )}
-                      </Fragment>
-                    ))}
-                  </TableRow>
-                );
-              })}
-              {visible.length === 0 && (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell
-                    colSpan={tableColumns.length + (archiveView ? 2 : 3)}
-                    className="h-40 text-center text-muted-foreground"
-                  >
-                    {noneConfigured ? (
-                      <div className="flex flex-col items-center gap-3 py-4">
-                        <div>
-                          <p className="font-medium text-foreground">
-                            No registrars configured
-                          </p>
-                          <p className="mt-0.5">
-                            Add API credentials for a registrar to load your
-                            domains into this table.
-                          </p>
-                        </div>
-                        <Button
-                          onClick={() => navigate('/settings?tab=registrars')}
-                        >
-                          <Plug />
-                          Configure registrars
-                        </Button>
-                      </div>
-                    ) : archiveView && archiveCount === 0 ? (
-                      'Names you mark Sold, Dropped, or Archived, and names that leave your accounts, show up here.'
-                    ) : portfolio.length === 0 ? (
-                      hasLoaded ? (
-                        'No domains found in any configured registrar.'
-                      ) : (
-                        'Click “Sync domains” to load your portfolio.'
-                      )
-                    ) : (
-                      'No domains match the current filters.'
-                    )}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </DomainTableScroll>
-
-        {/* Pagination stays under the table, outside the scroll, so the row
-            count and page buttons stay on screen. On phones the controls stack
-            above the rows-per-page select (flex-col-reverse). */}
-        <div className="flex shrink-0 flex-col-reverse gap-3 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span>Rows per page</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => {
-                setPageSize(Number(v));
-                setPage(0);
-              }}
-            >
-              <SelectTrigger size="sm" className="w-[80px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {PAGE_SIZES.map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center justify-between gap-3 sm:justify-start">
-            <span>
-              {filtered.length === 0
-                ? '0 of 0'
-                : `${start + 1}–${Math.min(start + pageSize, filtered.length)} of ${filtered.length}`}
-            </span>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon-sm"
-                disabled={safePage === 0}
-                onClick={() => setPage(0)}
-                aria-label="First page"
-              >
-                <ChevronsLeft />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                disabled={safePage === 0}
-                onClick={() => setPage(safePage - 1)}
-                aria-label="Previous page"
-              >
-                <ChevronLeft />
-              </Button>
-              <span className="px-2">
-                {safePage + 1} / {pageCount}
-              </span>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                disabled={safePage >= pageCount - 1}
-                onClick={() => setPage(safePage + 1)}
-                aria-label="Next page"
-              >
-                <ChevronRight />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                disabled={safePage >= pageCount - 1}
-                onClick={() => setPage(pageCount - 1)}
-                aria-label="Last page"
-              >
-                <ChevronsRight />
+      <DataTable
+        className="mt-[13px]"
+        rows={filtered}
+        columns={dataColumns}
+        rowKey={domainKey}
+        sort={{ key: sortKey, dir: sortDir }}
+        onSort={toggleSort}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        selection={{
+          selected,
+          toggle: toggleSelected,
+          setMany: setSelectedMany,
+          allLabel: 'Select all domains',
+          rowLabel: (d) => `Select ${d.domainName}`,
+        }}
+        empty={
+          noneConfigured ? (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <div>
+                <p className="font-medium text-foreground">
+                  No registrars configured
+                </p>
+                <p className="mt-0.5">
+                  Add API credentials for a registrar to load your domains into
+                  this table.
+                </p>
+              </div>
+              <Button onClick={() => navigate('/settings?tab=registrars')}>
+                <Plug />
+                Configure registrars
               </Button>
             </div>
-          </div>
-        </div>
-      </div>
+          ) : archiveView && archiveCount === 0 ? (
+            'Names you mark Sold, Dropped, or Archived, and names that leave your accounts, show up here.'
+          ) : portfolio.length === 0 ? (
+            hasLoaded ? (
+              'No domains found in any configured registrar.'
+            ) : (
+              'Click “Sync domains” to load your portfolio.'
+            )
+          ) : (
+            'No domains match the current filters.'
+          )
+        }
+      />
 
       {authCodeFor && (
         <AuthCodeDialog
