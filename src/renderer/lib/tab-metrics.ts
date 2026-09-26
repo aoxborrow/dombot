@@ -18,18 +18,18 @@ function usdCompact(n: number): string {
   return `$${k < 10 ? k.toFixed(1).replace(/\.0$/, '') : Math.round(k)}k`;
 }
 
-/**
- * The headline number each top-level tab shows in its pill: Domains → portfolio
- * size, Renewals → known annual renewal spend, Settings → accounts whose last sync failed (only shown when
- * there are any). `null` hides the pill.
- */
-export function useTabMetrics(): {
+export interface TabMetrics {
   domains: TabMetric | null;
   renewals: TabMetric | null;
-  markets: TabMetric | null;
-  sales: TabMetric | null;
   settings: TabMetric | null;
-} {
+}
+
+/**
+ * The headline number each top-level tab shows in its pill: Domains → portfolio
+ * size, Renewals → known annual renewal spend, Settings → accounts whose last
+ * sync failed (only shown when there are any). `null` hides the pill.
+ */
+export function useTabMetrics(): TabMetrics {
   const portfolio = useAppStore((s) => s.portfolio);
   const pricing = useAppStore((s) => s.pricing);
   const registrars = useAppStore((s) => s.registrars);
@@ -62,16 +62,6 @@ export function useTabMetrics(): {
           }
         : null;
 
-    // Placeholder figures for the stub pages until they have real data.
-    const markets = { value: '89%', title: 'Placeholder' };
-    const sales = { value: '$35.7k', title: 'Placeholder' };
-
-    return {
-      domains,
-      renewals,
-      markets,
-      sales,
-      settings,
-    };
+    return { domains, renewals, settings };
   }, [portfolio, pricing, registrars]);
 }

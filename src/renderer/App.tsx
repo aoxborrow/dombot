@@ -1,20 +1,11 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
-import {
-  NavLink,
-  Route,
-  Routes,
-  useLocation,
-  useNavigate,
-} from 'react-router-dom';
+import { useEffect, useLayoutEffect, useRef, type ComponentProps } from 'react';
+import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   CalendarClock,
   Globe,
-  History,
   Menu,
   RefreshCw,
   Settings as SettingsIcon,
-  Store,
-  Tag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -28,66 +19,65 @@ import {
 import { useAppStore } from './store/app';
 import Domains from './pages/Domains';
 import Renewals from './pages/Renewals';
-import Placeholder from './pages/Placeholder';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
 import DemoBanner from './components/DemoBanner';
 import StatusBar from './components/StatusBar';
 import { isDemo } from './lib/platform';
-import { useTabMetrics, type TabMetric } from './lib/tab-metrics';
-import { SyncStatusMini, useSyncState } from './components/SyncControl';
+import { useTabMetrics, type TabMetrics } from './lib/tab-metrics';
+import { TabLink, TabPill, TabStrip } from './components/TabStrip';
+import SyncControl, {
+  SyncStatusMini,
+  useSyncState,
+} from './components/SyncControl';
 import { Toaster } from '@/components/ui/sonner';
 
 /**
- * Browser-style tab strip filling the header's full height. Inactive tabs form
- * a shared muted strip with hairline dividers; the active tab is in the page
- * background with no bottom border, so it reads as attached to the content
- * below.
+ * The top-level pages, shared by the header's tab strip and the phone menu.
+ * `metric` names the tab's pill in `useTabMetrics`; the rest are `TabLink`
+ * props for the strip.
  */
-const tabClass = ({ isActive }: { isActive: boolean }) =>
-  cn(
-    // A 2px gap between neighbouring tabs shows the header shell between them.
-    // Padding widens at xl; pills and the Settings label drop out at
-    // narrower widths (see TabPill and the Settings tab) so all five tabs fit.
-    'relative ml-0.5 inline-flex items-center gap-2 border px-3 text-base font-medium leading-none transition-colors first:ml-0 xl:px-[18px] [&>svg]:-mr-0.5 [&>svg]:opacity-80',
-    isActive
-      ? // The selected tab stands 2px proud of the strip, in the page
-        // background so it merges into the content.
-        'z-10 h-[38px] rounded-t-[6px] border-border border-b-background bg-background text-foreground'
-      : // Light mode uses a shade deeper than --muted/--border so the strip
-        // reads against the white page; dark mode keeps the tokens.
-        'h-[36px] rounded-t-[7px] border-[oklch(0.88_0_0)] border-b-transparent bg-[oklch(0.915_0_0)] text-[oklch(0.45_0_0)] shadow-[inset_0_-1px_2px_-1px_rgba(0,0,0,0.14)] hover:text-foreground dark:border-white/6 dark:bg-muted dark:text-muted-foreground dark:shadow-[inset_0_-1px_2px_-1px_rgba(0,0,0,0.35)]',
-  );
+type NavTab = Omit<ComponentProps<typeof TabLink>, 'metric'> & {
+  metric?: keyof TabMetrics;
+};
 
-/** The metric pill inside a tab (count, spend, or an alert-tinted issue count). */
-function TabPill({
-  metric,
-  className,
-  compactHide = false,
-}: {
-  metric: TabMetric | null;
-  className?: string;
-  /** Hide below lg so the strip fits narrower windows; Domains keeps its
-   *  count down to md. */
-  compactHide?: boolean;
-}) {
-  if (!metric) return null;
-  return (
-    <span
-      title={metric.title}
-      className={cn(
-        'h-5 items-center rounded-full px-2 text-xs font-medium tabular-nums',
-        compactHide ? 'hidden lg:inline-flex' : 'inline-flex',
-        metric.alert
-          ? 'bg-destructive/12 text-destructive'
-          : 'bg-foreground/8 text-muted-foreground',
-        className,
-      )}
-    >
-      {metric.value}
-    </span>
-  );
-}
+const NAV_TABS: NavTab[] = [
+  {
+    to: '/',
+    end: true,
+    label: 'Domains',
+    icon: Globe,
+    metric: 'domains',
+    pillFrom: 'md',
+  },
+  {
+    to: '/renewals',
+    label: 'Renewals',
+    icon: CalendarClock,
+    metric: 'renewals',
+    pillFrom: 'lg',
+  },
+  {
+    to: '/settings',
+    label: 'Settings',
+    icon: SettingsIcon,
+    metric: 'settings',
+    iconOnlyBelow: 'md',
+    pillFrom: 'lg',
+    // The gear is drawn smaller than the other icons, so it's bumped up.
+    iconClassName: 'size-[17px]',
+  },
+];
+
+/**
+ * How far the tab strip shifts left of the page content edge so it keeps 16px
+ * clear of the header actions (which sit in the header's right padding): zero
+ * while the centered container's side margin already leaves room, otherwise
+ * the shortfall. Only matters at sm+, where the strip shows (px-6 header, the
+ * scrollbar gutter, a max-w-4xl container).
+ */
+const STRIP_INSET =
+  'max(0px, var(--header-actions, 0px) + 16px - var(--scrollbar-gutter, 0px) - max(0px, (100vw - 48px - var(--scrollbar-gutter, 0px) - 56rem) / 2))';
 
 export default function App() {
   const hydrateFromCache = useAppStore((s) => s.hydrateFromCache);
@@ -105,21 +95,35 @@ export default function App() {
   // box and shifts the centered page container left by half the gutter. The
   // header doesn't scroll, so it can't reserve one — instead measure the
   // gutter and pad the header's tab container by the same amount, keeping the
-  // Settings tab flush with the page's content edge. Re-measured on resize in
-  // case the platform swaps overlay/classic scrollbars.
+  // last tab flush with the page's content edge. Re-measured on resize in
+  // case the platform swaps overlay/classic scrollbars. The header actions'
+  // width is measured too, so the tab strip can keep clear of them
+  // (STRIP_INSET); it changes with the sync state's caption.
   const mainRef = useRef<HTMLElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
+    const root = document.documentElement.style;
     const measure = () => {
-      const el = mainRef.current;
-      if (!el) return;
-      document.documentElement.style.setProperty(
-        '--scrollbar-gutter',
-        `${el.offsetWidth - el.clientWidth}px`,
-      );
+      const main = mainRef.current;
+      const actions = actionsRef.current;
+      if (main) {
+        root.setProperty(
+          '--scrollbar-gutter',
+          `${main.offsetWidth - main.clientWidth}px`,
+        );
+      }
+      if (actions) {
+        root.setProperty('--header-actions', `${actions.offsetWidth}px`);
+      }
     };
     measure();
+    const observer = new ResizeObserver(measure);
+    if (actionsRef.current) observer.observe(actionsRef.current);
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
   }, []);
 
   // Restore the last-cached portfolio, detail, and pricing on launch so the app
@@ -158,13 +162,10 @@ export default function App() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-      {/* Demo banner temporarily disabled while iterating on the header. */}
-      {false && isDemo() && <DemoBanner />}
-      {/* Header shell: a light grey just off-white in light mode, a very dark
-          grey a step darker than the tab strip in dark mode. It shows behind
-          the logo and, via the top padding, above the tabs so their tops (and
-          the selected tab's rounded corners) are visible. */}
-      <header className="relative flex h-12 items-end border-b bg-[oklch(0.955_0_0)] px-4 sm:px-6 dark:bg-[oklch(0.2_0_0)]">
+      {isDemo() && <DemoBanner />}
+      {/* Header shell, in the tab bar color, showing behind the logo and above
+          the tabs so their tops (and the selected tab's corners) are visible. */}
+      <header className="relative flex h-12 items-end border-b bg-tab-bar px-4 sm:px-6">
         {/* Logo, pinned to the left edge and vertically centered (nudged up
             1px, since the mark is bottom-heavy), out of the tab strip's flow. */}
         <div className="absolute inset-y-0 left-4 flex items-center sm:left-6">
@@ -190,64 +191,35 @@ export default function App() {
           </button>
         </div>
         {/* Desktop: the tab strip, right-justified inside the same max-w-4xl
-            container the Settings page uses, so the Settings tab's right edge
-            tracks that page's content edge at every width. On phones it
-            collapses into the hamburger menu (MobileNav). */}
+            container the pages use, so the last tab's right edge tracks the
+            page content edge. It only shifts left of that edge when the window
+            is too narrow to also fit the header actions (see stripInset). On
+            phones it collapses into the hamburger menu (MobileNav). */}
         <div className="hidden flex-1 pr-(--scrollbar-gutter) sm:block">
           <div className="mx-auto flex w-full max-w-4xl justify-end">
-            <nav className="-mb-px flex items-end">
-              <NavLink to="/" end className={tabClass}>
-                <Globe className="size-[15px]" />
-                Domains
-                {/* Count hidden below md so all six tabs fit. */}
-                <TabPill metric={metrics.domains} className="max-md:hidden" />
-              </NavLink>
-              <NavLink to="/markets" className={tabClass}>
-                <Store className="size-[15px]" />
-                Markets
-                <TabPill metric={metrics.markets} compactHide />
-              </NavLink>
-              <NavLink to="/sales" className={tabClass}>
-                <Tag className="size-[15px]" />
-                Sales
-                <TabPill metric={metrics.sales} compactHide />
-              </NavLink>
-              <NavLink to="/renewals" className={tabClass}>
-                <CalendarClock className="size-[15px]" />
-                Renewals
-                <TabPill metric={metrics.renewals} compactHide />
-              </NavLink>
-              {/* Icon-only below lg (like Settings' gear) so six tabs fit. */}
-              <NavLink
-                to="/activity"
-                className={(state) => cn(tabClass(state), 'max-lg:px-3.5')}
-                title="Activity"
-              >
-                <History className="size-[15px] max-lg:mr-0!" />
-                <span className="hidden lg:inline">Activity</span>
-              </NavLink>
-              {/* Below md the Settings tab is just its gear: even padding, a
-                  touch wider, and the gear's label-tightening margin dropped.
-                  From lg, where the other tabs show pills, 4px extra on the
-                  right so it doesn't read as short beside them. */}
-              <NavLink
-                to="/settings"
-                className={(state) =>
-                  cn(tabClass(state), 'max-md:px-3.5 lg:pr-4 xl:pr-[22px]')
-                }
-              >
-                <SettingsIcon className="size-[17px] mr-0! md:-mr-[3px]!" />
-                <span className="hidden md:inline">Settings</span>
-                <TabPill metric={metrics.settings} compactHide />
-              </NavLink>
-            </nav>
+            <TabStrip style={{ marginRight: STRIP_INSET }}>
+              {NAV_TABS.map(({ metric, ...tab }) => (
+                <TabLink
+                  key={tab.to}
+                  {...tab}
+                  metric={metric ? metrics[metric] : null}
+                />
+              ))}
+            </TabStrip>
           </div>
         </div>
-        {/* Phones: a compact sync status, right-justified to the left of the
-            hamburger (the Sync action lives inside the menu). */}
-        <div className="ml-auto flex items-center gap-2 self-center sm:hidden">
-          <SyncStatusMini className="mr-2" />
+        {/* Header actions, pinned right and vertically centered like the logo.
+            Desktop: the Sync control. Phones: a compact sync status beside the
+            hamburger, whose menu holds the Sync action. */}
+        <div
+          ref={actionsRef}
+          className="absolute inset-y-0 right-4 flex items-center gap-2 sm:right-6"
+        >
+          <SyncStatusMini className="mr-2 sm:hidden" />
           <MobileNav />
+          <div className="hidden sm:block">
+            <SyncControl />
+          </div>
         </div>
       </header>
 
@@ -262,34 +234,7 @@ export default function App() {
         >
           <Routes>
             <Route path="/" element={<Domains />} />
-            <Route
-              path="/markets"
-              element={
-                <Placeholder
-                  title="Markets"
-                  description="Marketplace listings and demand."
-                />
-              }
-            />
-            <Route
-              path="/sales"
-              element={
-                <Placeholder
-                  title="Sales"
-                  description="Domains you've sold and offers received."
-                />
-              }
-            />
             <Route path="/renewals" element={<Renewals />} />
-            <Route
-              path="/activity"
-              element={
-                <Placeholder
-                  title="Activity"
-                  description="Changes across your portfolio."
-                />
-              }
-            />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
@@ -313,27 +258,8 @@ export default function App() {
   );
 }
 
-const MOBILE_NAV = [
-  { to: '/', label: 'Domains', icon: Globe, metric: 'domains' },
-  { to: '/markets', label: 'Markets', icon: Store, metric: 'markets' },
-  { to: '/sales', label: 'Sales', icon: Tag, metric: 'sales' },
-  {
-    to: '/renewals',
-    label: 'Renewals',
-    icon: CalendarClock,
-    metric: 'renewals',
-  },
-  { to: '/activity', label: 'Activity', icon: History, metric: null },
-  {
-    to: '/settings',
-    label: 'Settings',
-    icon: SettingsIcon,
-    metric: 'settings',
-  },
-] as const;
-
 /**
- * Phone-only hamburger: the three primary destinations in a dropdown, since the
+ * Phone-only hamburger: the primary destinations in a dropdown, since the
  * labeled nav doesn't fit a narrow header. Hidden at sm+, where the centered nav
  * takes over. The active route is checked.
  */
@@ -363,7 +289,7 @@ function MobileNav() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        {MOBILE_NAV.map(({ to, label, icon: Icon, metric }) => {
+        {NAV_TABS.map(({ to, label, icon: Icon, metric }) => {
           const active = isActive(to);
           return (
             <DropdownMenuItem
