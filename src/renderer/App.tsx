@@ -150,9 +150,10 @@ export default function App() {
         </div>
       </header>
 
-      {/* Fills the height between the header and the status bar and scrolls
-          on its own, so the status bar never covers the end of a page. */}
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-3 pb-4 sm:px-6 sm:pt-[21px]">
+      {/* The window never scrolls: header and status bar stay put and this
+          area between them scrolls when a page is taller. Its scrollbar gutter
+          is always reserved so pages of different heights line up. */}
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] px-4 pt-3 pb-4 sm:px-6 sm:pt-[21px]">
         <Routes>
           <Route path="/" element={<Domains />} />
           <Route path="/renewals" element={<Renewals />} />

@@ -174,11 +174,6 @@
   * {
     @apply border-border outline-ring/50;
   }
-  /* Always reserve the scrollbar gutter so navigating between pages of
-   * differing height doesn't shift the layout horizontally. */
-  html {
-    scrollbar-gutter: stable;
-  }
   /* Domain table: native bars are off. Overlay thumbs fade in on hover or scroll. */
   .domain-table-scroll {
     scrollbar-width: none;
