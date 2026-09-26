@@ -12,12 +12,44 @@ import { accountName } from './domain-history';
 // "Activity and alerts"): what needs review, what went wrong, and how to say
 // what each event means.
 
-export type Severity = 'error' | 'review' | 'info';
-
 /** Alerts still waiting on you, newest first: `removed` and `added`. */
 export function reviewItems(events: DomainEvent[]): DomainEvent[] {
   const resolved = resolvedIds(events);
   return events.filter((e) => isOpenAlert(e, resolved)).reverse();
+}
+
+/**
+ * Open alerts by priority, newest first. A name that left needs a decision
+ * (sold? dropped?); a name that arrived only asks what you paid, so arrivals
+ * are the lowest-priority alert.
+ */
+export function reviewQueues(events: DomainEvent[]): {
+  departures: DomainEvent[];
+  arrivals: DomainEvent[];
+} {
+  const departures: DomainEvent[] = [];
+  const arrivals: DomainEvent[] = [];
+  for (const e of reviewItems(events)) {
+    (e.type === DomainEventType.Removed ? departures : arrivals).push(e);
+  }
+  return { departures, arrivals };
+}
+
+/** The bell badge's color: the most urgent kind of item waiting. */
+export type BadgeTone = 'error' | 'review' | 'quiet';
+
+/**
+ * The bell badge: everything waiting, colored by the most urgent. Arrivals
+ * alone never color it. Null when nothing is waiting.
+ */
+export function bellBadge(
+  errors: number,
+  departures: number,
+  arrivals: number,
+): { count: number; tone: BadgeTone } | null {
+  const count = errors + departures + arrivals;
+  if (!count) return null;
+  return { count, tone: errors ? 'error' : departures ? 'review' : 'quiet' };
 }
 
 /** Recent moves between your accounts, newest first (info only). */

@@ -285,8 +285,10 @@ which opens the same table filtered to that name.
   back", "Dismissed") with Undo, so a misclick is visible and fixable; the
   resolving event is its own row too. Nothing disappears.
 - **Review actions inline.** `removed`: Sold, Dropped, Archived, Dismiss.
-  `added`: Record purchase (the dialog offers the registration fee), Dismiss. Both need review
-  (dismiss or ignore an arrival you don't care about). `moved` is info only.
+  `added`: Record purchase (the dialog offers the registration fee), Dismiss.
+  Both need review, but an arrival only asks what you paid, so it's the
+  lowest-priority alert (dismiss or ignore one you don't care about). `moved`
+  is info only.
 - **Your own actions are rows too** (purchases, sales, imports), so Activity is
   the ledger the financial dashboard will build on.
 - **Existing portfolios start empty.** An account's first sync only records a
@@ -299,11 +301,15 @@ The header bell always opens a dropdown, and never goes away (it shows at zero
 too). It groups items by severity:
 
 - **Error:** registrar sync failures, expired or rejected credentials.
-- **Needs review:** unresolved `removed` and `added` events, with their actions.
+- **Needs review:** unresolved `removed` events, with their actions.
+- **New names:** unresolved `added` events, with their actions. The
+  lowest-priority alert: listed after departures, and never enough on their
+  own to color the badge.
 - **Info:** `moved` events and other recent results.
 
 Its badge counts errors plus review items and takes the color of the most
-severe one. "View all activity" opens the Activity page. This replaces #100's
+severe one: red for errors, amber for departures, gray when only new names
+are waiting. "View all activity" opens the Activity page. This replaces #100's
 Portfolio changes popover.
 
 ## Manual domains and notes
@@ -447,10 +453,9 @@ unknown namespace in a file is skipped anyway.)
   tool writes (#111), renewals DomBot makes or sync sees (#107) — and have it
   append to `domain-events`. The first domain-history PR only needs purchases,
   sales, and the sync-detected arrivals, departures, and moves.
-- **Alert priority and bulk review (#108).** Arrivals become the
-  lowest-priority alert, below errors and departures, and the Activity page
-  gets bulk tools (Dismiss, Record purchase, Dropped, Archived across many
-  rows) for large imports and long gaps between syncs.
+- **Bulk review (#108).** The Activity page gets bulk tools (Dismiss, Record
+  purchase, Dropped, Archived across many rows) for large imports and long
+  gaps between syncs.
 - **Venues (#109).** `registered`, `purchased`, and `sold` get a `venueId`.
   The list is every registrar DomBot supports, then built-in marketplaces
   (Afternic, Sedo, …), then custom venues. Each venue holds dated commission
