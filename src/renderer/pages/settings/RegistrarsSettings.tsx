@@ -33,7 +33,6 @@ import { useAppStore } from '../../store/app';
 import { Link } from 'react-router-dom';
 import { isDemo } from '../../lib/platform';
 import { timeAgo } from '../../lib/time';
-import { SyncErrorsAlert } from '../../components/SyncErrorsAlert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -69,24 +68,6 @@ import {
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 const idOf = (account: RegistrarMeta) => account.accountId ?? account.name;
-const cardId = (account: RegistrarMeta) => `registrar-account-${idOf(account)}`;
-
-/**
- * Scrolls the page's own scroll area to a card. (`scrollIntoView` would also
- * scroll the app shell's overflow-hidden ancestors and shift the whole
- * window.)
- */
-function scrollToCard(id: string) {
-  const card = document.getElementById(id);
-  let area = card?.parentElement ?? null;
-  while (area && !/auto|scroll/.test(getComputedStyle(area).overflowY)) {
-    area = area.parentElement;
-  }
-  if (!card || !area) return;
-  const top =
-    card.getBoundingClientRect().top - area.getBoundingClientRect().top;
-  area.scrollTo({ top: area.scrollTop + top - 16, behavior: 'smooth' });
-}
 const plural = (n: number) => `${n} domain${n === 1 ? '' : 's'}`;
 
 export default function RegistrarsSettings() {
@@ -129,10 +110,14 @@ export default function RegistrarsSettings() {
         .sort((a, b) => a.displayName.localeCompare(b.displayName)),
     [catalog],
   );
-  const cards = useMemo(
-    () => accountCards(sortedCatalog, registrars ?? []),
-    [sortedCatalog, registrars],
-  );
+  // Accounts whose last sync failed float to the top, where their errors
+  // can't be missed; the rest keep their order.
+  const cards = useMemo(() => {
+    const all = accountCards(sortedCatalog, registrars ?? []);
+    const failed = ({ account }: (typeof all)[number]) =>
+      account.configured && account.enabled && account.sync.lastError != null;
+    return [...all.filter(failed), ...all.filter((c) => !failed(c))];
+  }, [sortedCatalog, registrars]);
   const loaded = registrars !== null && catalog.length > 0;
 
   const startDraft = (provider: RegistrarDefinition) =>
@@ -168,11 +153,6 @@ export default function RegistrarsSettings() {
       .finally(() => mark(false));
   };
 
-  const failed = cards.filter(
-    ({ account }) =>
-      account.configured && account.enabled && account.sync.lastError != null,
-  );
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
@@ -194,32 +174,6 @@ export default function RegistrarsSettings() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {/* Failed accounts can be far down the list: name them up top, each
-            a jump to its card and the error there. */}
-        {failed.length > 0 && (
-          <SyncErrorsAlert
-            names={failed.map(({ provider, account, hasSiblings }) => {
-              const name = accountTitle(
-                provider.displayName,
-                account.accountLabel,
-                hasSiblings,
-              );
-              return {
-                key: name,
-                node: (
-                  <button
-                    type="button"
-                    className="underline underline-offset-4"
-                    onClick={() => scrollToCard(cardId(account))}
-                  >
-                    {name}
-                  </button>
-                ),
-              };
-            })}
-            detail="The error is on each account below."
-          />
-        )}
         {loadError && (
           <p role="alert" className="text-sm text-destructive">
             {loadError}
@@ -366,6 +320,11 @@ function AccountCard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const syncing = syncingHere || firstSync;
+  const syncFailed =
+    account.configured &&
+    account.enabled &&
+    !syncing &&
+    account.sync.lastError != null;
 
   useEffect(() => {
     if (!open) return;
@@ -516,10 +475,7 @@ function AccountCard({
   const hasNickname = !isAutoLabel(currentLabel);
 
   return (
-    <Card
-      id={cardId(account)}
-      className="gap-0 overflow-hidden rounded-md py-0"
-    >
+    <Card className="gap-0 overflow-hidden rounded-md py-0">
       <Collapsible open={open} onOpenChange={setOpen}>
         {/* Header row: the name + sync status expand the card; the Sync button
             sits outside the triggers so it works even while collapsed. */}
@@ -552,7 +508,7 @@ function AccountCard({
                 }
               />
             </div>
-            <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2.5 text-left sm:flex-none">
+            <CollapsibleTrigger className="flex min-w-0 items-center gap-2.5 text-left">
               <span
                 className={cn(
                   'flex min-w-0 items-center gap-2.5 font-medium',
@@ -565,9 +521,7 @@ function AccountCard({
                   name={provider.name}
                   label={provider.displayName}
                 />
-                <span className="whitespace-nowrap">
-                  {provider.displayName}
-                </span>
+                <span className="truncate">{provider.displayName}</span>
                 {suffix && nickname === null && (
                   <span className="-ml-1 flex min-w-0 items-center gap-1.5 font-normal text-muted-foreground">
                     {/* The bullet is its own item so the gap is equal on both
@@ -589,7 +543,7 @@ function AccountCard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-6 shrink-0 text-muted-foreground/60 hover:text-foreground sm:-ml-2.5"
+                  className="-ml-2.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground"
                   disabled={busy}
                   aria-label={
                     hasNickname
@@ -629,8 +583,17 @@ function AccountCard({
                   }}
                 />
               ))}
+            {/* On phones a failure sits beside the name, not on a line of
+                its own (short, so the name still fits with the card open);
+                desktop shows "Sync failed" in the status slot. */}
+            {syncFailed && (
+              <span className="flex shrink-0 items-center gap-1 text-[13px] font-medium whitespace-nowrap text-destructive sm:hidden">
+                <CircleX className="size-3.5" />
+                Failed
+              </span>
+            )}
             <CollapsibleTrigger
-              className="shrink-0 sm:order-last"
+              className="ml-auto shrink-0 sm:order-last sm:ml-0"
               aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
             >
               <ChevronDown
@@ -654,7 +617,10 @@ function AccountCard({
             <CollapsibleTrigger
               tabIndex={-1}
               aria-hidden
-              className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-left max-sm:w-full sm:flex-1"
+              className={cn(
+                'flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-left max-sm:w-full sm:flex-1',
+                syncFailed && 'max-sm:hidden',
+              )}
             >
               <SyncStatus meta={account} syncing={syncing} />
             </CollapsibleTrigger>
@@ -682,10 +648,10 @@ function AccountCard({
 
         {/* The last sync's error, open or collapsed: this card is where the
             banner, the status bar, and the bell send you. */}
-        {configured && enabled && !syncing && sync.lastError && (
+        {syncFailed && (
           <div
             role="alert"
-            className="mx-5 mb-3 -mt-1 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
+            className="mx-5 mt-0.5 mb-[18px] flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
           >
             <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
             <span className="min-w-0 break-words">{sync.lastError}</span>

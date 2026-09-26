@@ -1506,15 +1506,14 @@ export default function Domains() {
             in Settings → Registrars. */}
         {portfolioErrors.length > 0 && (
           <SyncErrorsAlert
-            names={portfolioErrors.map((e) => {
-              const name = accountTitle(
+            label={`${multipleAccounts.size > 0 ? 'Account' : 'Registrar'}${portfolioErrors.length === 1 ? '' : 's'} failed to sync`}
+            names={portfolioErrors.map((e) =>
+              accountTitle(
                 registrarLabel(e.registrar, portfolioRegistrarLabels),
                 e.accountLabel,
                 multipleAccounts.has(e.registrar),
-              );
-              return { key: name, node: name };
-            })}
-            detail={`${portfolioErrors.length === 1 ? 'Its' : 'Their'} domains may be missing or out of date.`}
+              ),
+            )}
             action={
               <Link
                 to="/settings?tab=registrars"

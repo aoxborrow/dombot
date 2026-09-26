@@ -50,7 +50,7 @@ export default function Settings() {
   const setTab = (v: string) => setParams({ tab: v }, { replace: true });
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 sm:gap-7">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 sm:gap-7">
       <h1 className="text-2xl font-bold sm:text-[32px]">Settings</h1>
 
       <Tabs

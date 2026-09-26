@@ -113,13 +113,6 @@ export function ActivityBell() {
                   <span className="text-muted-foreground">sync failed</span>
                 </p>
               ))}
-              <Link
-                to="/settings?tab=registrars"
-                className="text-sm underline underline-offset-4"
-                onClick={close}
-              >
-                Open registrar settings
-              </Link>
             </Section>
           )}
           {departures.length > 0 && (
