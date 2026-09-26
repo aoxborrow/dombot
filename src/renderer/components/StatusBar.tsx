@@ -14,8 +14,8 @@ import {
 } from '../lib/platform';
 
 /**
- * App-wide bottom status bar (VS Code style): a thin bar fixed across the
- * viewport bottom, with page content scrolling underneath it. Surfaces the
+ * App-wide bottom status bar (VS Code style): a thin bar across the bottom of
+ * the window, below the scrolling page area. Surfaces the
  * embedded MCP server's status on the left (a link into MCP settings) — on the
  * web build, preceded by the session status and a sign-out link — and the
  * last-synced time plus a Sync Domains link on the right. Shown on every route.
@@ -76,7 +76,7 @@ export default function StatusBar() {
   const showRefreshed = portfolioLoadedAt !== null && configuredCount > 0;
 
   return (
-    <footer className="fixed inset-x-0 bottom-0 z-40 flex h-[29px] items-center justify-between gap-4 border-t bg-background px-4 text-xs text-muted-foreground select-none">
+    <footer className="relative z-40 flex h-[29px] shrink-0 items-center justify-between gap-4 border-t bg-background px-4 text-xs text-muted-foreground select-none">
       <div className="flex items-center gap-4">
         {isWeb() && <SessionStatus />}
         <button

@@ -150,9 +150,9 @@ export default function App() {
         </div>
       </header>
 
-      {/* Extra bottom padding clears the fixed status bar (h-6) so the last
-          row of a page is never hidden behind it. */}
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-3 pb-14 sm:px-6 sm:pt-[21px]">
+      {/* Fills the height between the header and the status bar and scrolls
+          on its own, so the status bar never covers the end of a page. */}
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-3 pb-4 sm:px-6 sm:pt-[21px]">
         <Routes>
           <Route path="/" element={<Domains />} />
           <Route path="/renewals" element={<Renewals />} />
