@@ -14,7 +14,7 @@ import { Namespace } from './storage/namespace';
 
 export type RevisionKind = keyof Revisions;
 
-const store = new Namespace<number>('meta');
+const store = new Namespace<number>('meta', { local: true });
 
 const KEYS: Record<RevisionKind, string> = {
   portfolio: 'rev:portfolio',

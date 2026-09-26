@@ -2,11 +2,18 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
-function Table({ className, ...props }: React.ComponentProps<'table'>) {
+function Table({
+  className,
+  scrollable = true,
+  ...props
+}: React.ComponentProps<'table'> & {
+  /** When false, a parent owns the sideways scroll (so a sticky header can work). */
+  scrollable?: boolean;
+}) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn('relative w-full', scrollable && 'overflow-x-auto')}
     >
       <table
         data-slot="table"

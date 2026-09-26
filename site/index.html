@@ -43,12 +43,14 @@
     <nav class="nav-links" id="nav-menu" aria-label="Primary">
       <a href="#registrars">Registrars</a>
       <a href="#mcp">MCP</a>
-      <a href="#features">Features</a>
-      <a href="https://demo.dombot.ai/">Demo</a>
-      <a href="#download">Download</a>
       <a href="#selfhost">Self-host</a>
       <a href="#faq">FAQ</a>
-      <a href="https://github.com/aoxborrow/dombot">GitHub</a>
+      <a class="nav-gh" href="https://github.com/aoxborrow/dombot" target="_blank" rel="noopener" aria-label="DomBot on GitHub" title="GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+        <span>GitHub</span>
+      </a>
+      <a class="btn nav-cta" href="https://demo.dombot.ai/" target="_blank" rel="noopener">Demo</a>
+      <a class="btn btn-primary nav-cta" href="#download">Download</a>
     </nav>
   </div>
 </div>
@@ -61,13 +63,13 @@
     <div>
       <span class="eyebrow">Desktop + Self-hosted + MCP</span>
       <h1>All your domains,<br>from all your registrars,<br>in one app + MCP.</h1>
-      <p class="lede"><strong>DomBot pulls your whole domain portfolio</strong> — scattered across GoDaddy, Dynadot, Cloudflare, and more — into one app, and serves the same portfolio to your AI agents through a built-in MCP server. <strong>Built for professional domain investors. <span class="nowrap">Free and <a href="https://github.com/aoxborrow/dombot">open source</a>.</span></strong></p>
+      <p class="lede"><strong>DomBot pulls your whole domain portfolio</strong> — scattered across GoDaddy, Dynadot, Cloudflare, and more — into one app, and serves the same portfolio to your AI agents through a built-in MCP server. <strong>Built for professional domain investors. <span class="nowrap">Free and <a href="https://github.com/aoxborrow/dombot" target="_blank" rel="noopener">open source</a>.</span></strong></p>
       <div class="hero-cta">
         <a class="btn btn-primary" id="hero-dl" href="#download">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
           <span id="hero-dl-label">Download</span>
         </a>
-        <a class="btn" href="https://demo.dombot.ai/">
+        <a class="btn" href="https://demo.dombot.ai/" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
           View demo
         </a>
@@ -257,7 +259,7 @@
 
     <ol class="steps">
       <li>
-        <b>Click deploy.</b><span class="step-sub">Cloudflare copies DomBot into your account and walks you through the setup.</span>
+        <b>One-click deploy.</b><span class="step-sub">Cloudflare copies DomBot into your account and walks you through the setup.</span>
         <div class="step-action">
           <a class="btn btn-primary" href="https://deploy.workers.cloudflare.com/?url=https://github.com/aoxborrow/dombot">Deploy to Cloudflare</a>
         </div>
@@ -296,7 +298,7 @@
       </div>
       <div class="faq-item">
         <h3>Do you take suggestions? How do I contribute?</h3>
-        <p>Yes, please. Issues and pull requests are accepted at <a href="https://github.com/aoxborrow/dombot">github.com/aoxborrow/dombot</a>.</p>
+        <p>Yes, please. Issues and pull requests are accepted at <a href="https://github.com/aoxborrow/dombot" target="_blank" rel="noopener">github.com/aoxborrow/dombot</a>.</p>
       </div>
     </div>
   </div>
@@ -304,19 +306,48 @@
 
 <!-- ═══════════════ FOOTER ═══════════════ -->
 <footer>
-  <div class="wrap foot-in">
-    <a class="brand" href="#top" aria-label="DomBot">
-      <svg viewBox="0 0 32 32" fill="var(--accent-ink)" aria-hidden="true">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+      <a class="brand" href="#top" aria-label="DomBot">
+        <svg viewBox="0 0 32 32" fill="var(--accent-ink)" aria-hidden="true">
         <path d="m25 6h-18c-1.06087 0-2.07828.42143-2.82843 1.17157-.75014.75015-1.17157 1.76756-1.17157 2.82843v14c0 1.0609.42143 2.0783 1.17157 2.8284.75015.7502 1.76756 1.1716 2.82843 1.1716h18c1.0609 0 2.0783-.4214 2.8284-1.1716.7502-.7501 1.1716-1.7675 1.1716-2.8284v-14c0-1.06087-.4214-2.07828-1.1716-2.82843-.7501-.75014-1.7675-1.17157-2.8284-1.17157zm2 18c0 .5304-.2107 1.0391-.5858 1.4142s-.8838.5858-1.4142.5858h-18c-.53043 0-1.03914-.2107-1.41421-.5858-.37508-.3751-.58579-.8838-.58579-1.4142v-14c0-.53043.21071-1.03914.58579-1.41421.37507-.37508.88378-.58579 1.41421-.58579h18c.5304 0 1.0391.21071 1.4142.58579.3751.37507.5858.88378.5858 1.41421zm-6.5-7h-9c-.9283 0-1.8185.3687-2.47487 1.0251-.65638.6564-1.02513 1.5466-1.02513 2.4749s.36875 1.8185 1.02513 2.4749c.65637.6564 1.54657 1.0251 2.47487 1.0251h9c.9283 0 1.8185-.3687 2.4749-1.0251s1.0251-1.5466 1.0251-2.4749-.3687-1.8185-1.0251-2.4749-1.5466-1.0251-2.4749-1.0251zm-3.5 2v3h-2v-3zm-7 1.5c0-.3978.158-.7794.4393-1.0607s.6629-.4393 1.0607-.4393h1.5v3h-1.5c-.3978 0-.7794-.158-1.0607-.4393s-.4393-.6629-.4393-1.0607zm10.5 1.5h-1.5v-3h1.5c.3978 0 .7794.158 1.0607.4393s.4393.6629.4393 1.0607-.158.7794-.4393 1.0607-.6629.4393-1.0607.4393z"/>
         <circle cx="10.5" cy="12" r="2"/>
         <circle cx="21.5" cy="12" r="2"/>
-      </svg>
-      <span class="brand-name"><span class="brand-dom">Dom</span><span class="brand-bot">Bot</span></span>
-    </a>
-    <div class="foot-links">
-      <a href="https://github.com/aoxborrow/dombot">GitHub</a>
+        </svg>
+        <span class="brand-name"><span class="brand-dom">Dom</span><span class="brand-bot">Bot</span></span>
+      </a>
+        <p class="foot-tag">Open-Source Domain Portfolio Manager</p>
+        <div class="foot-social">
+          <a href="https://github.com/aoxborrow/dombot" target="_blank" rel="noopener" aria-label="DomBot on GitHub" title="GitHub"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></a>
+          <a href="https://x.com/aoxborrow" target="_blank" rel="noopener" aria-label="@aoxborrow on X" title="X"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+        </div>
+      </div>
+      <nav class="foot-col" aria-label="Product">
+        <h3>Product</h3>
+        <a href="#download">Download</a>
+        <a href="https://demo.dombot.ai/" target="_blank" rel="noopener">Live demo</a>
+        <a href="https://github.com/aoxborrow/dombot/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <nav class="foot-col" aria-label="Docs">
+        <h3>Docs</h3>
+        <a href="https://github.com/aoxborrow/dombot/blob/main/docs/self-hosting.md" target="_blank" rel="noopener">Self-hosting guide</a>
+        <a href="https://github.com/aoxborrow/dombot/blob/main/docs/mcp-tools.md" target="_blank" rel="noopener">MCP tools</a>
+        <a href="https://github.com/aoxborrow/dombot/blob/main/SECURITY.md" target="_blank" rel="noopener">Security</a>
+      </nav>
+      <nav class="foot-col" aria-label="Open source">
+        <h3>Open source</h3>
+        <a href="https://github.com/aoxborrow/dombot" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/aoxborrow/dombot/issues" target="_blank" rel="noopener">Report an issue</a>
+        <a href="https://github.com/aoxborrow/registrar-client" target="_blank" rel="noopener">registrar-client</a>
+        <a href="https://github.com/sponsors/aoxborrow" target="_blank" rel="noopener">Sponsor</a>
+      </nav>
     </div>
-    <span class="foot-note">built by <a href="https://x.com/aoxborrow" target="_blank" rel="noopener">@aoxborrow</a></span>
+    <div class="foot-bar">
+      <span>Licensed <a href="https://github.com/aoxborrow/dombot/blob/main/LICENSE" target="_blank" rel="noopener">AGPL-3.0</a></span>
+      <span>built by <a href="https://x.com/aoxborrow" target="_blank" rel="noopener">@aoxborrow</a></span>
+    </div>
   </div>
 </footer>
 

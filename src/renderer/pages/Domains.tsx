@@ -1,6 +1,8 @@
 import { accountNumber, accountTitle } from '../../shared/account-label';
+import { DomainTableScroll } from '../lib/domain-table-scroll';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
+import { toAscii } from '../../shared/domain-name';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -894,7 +896,7 @@ export default function Domains() {
     let noFolder = 0;
     let archived = 0;
     for (const d of portfolio) {
-      const id = folderAssignments[domainKey(d)];
+      const id = folderAssignments[toAscii(d.domainName)];
       if (id === ARCHIVE_FOLDER_ID) {
         archived += 1;
       } else if (id && folders.some((f) => f.id === id)) {
@@ -995,7 +997,7 @@ export default function Domains() {
       // folder filter active, keep only domains whose bucket is selected. With no
       // folder filter, drop the Archive bucket (that's the whole point of it).
       {
-        const id = folderAssignments[domainKey(d)];
+        const id = folderAssignments[toAscii(d.domainName)];
         const bucket =
           id === ARCHIVE_FOLDER_ID
             ? ARCHIVE_FOLDER_ID
@@ -1019,7 +1021,7 @@ export default function Domains() {
         return pricing[domainKey(d)]?.renewal ?? null;
       }
       if (sortKey === FOLDER) {
-        const id = folderAssignments[domainKey(d)];
+        const id = folderAssignments[toAscii(d.domainName)];
         return folders.find((f) => f.id === id)?.name.toLowerCase() ?? null;
       }
       return col.sortValue(d, portfolioRegistrarLabels);
@@ -1075,6 +1077,25 @@ export default function Domains() {
       filtered.map((d) => domainKey(d)),
       !allFilteredSelected,
     );
+  // The row whose checkbox was last clicked without Shift. Shift-click checks
+  // that row through the clicked one, in the current table order.
+  const selectionAnchor = useRef<string | null>(null);
+  const selectRow = (key: string, shift: boolean) => {
+    const anchor = selectionAnchor.current;
+    if (shift && anchor) {
+      const keys = filtered.map((d) => domainKey(d));
+      const from = keys.indexOf(anchor);
+      const to = keys.indexOf(key);
+      if (from !== -1 && to !== -1) {
+        const lo = Math.min(from, to);
+        const hi = Math.max(from, to);
+        setSelectedMany(keys.slice(lo, hi + 1), true);
+        return;
+      }
+    }
+    toggleSelected(key);
+    selectionAnchor.current = key;
+  };
   // The selected domains as merged rows, for the bulk bar and dialog.
   const selectedDomains = useMemo(
     () => merged.filter((d) => selected.has(domainKey(d))),
@@ -1089,7 +1110,7 @@ export default function Domains() {
     );
   };
   const bulkAssignFolder = (folderId: string | null) => {
-    const keys = selectedDomains.map((d) => domainKey(d));
+    const keys = selectedDomains.map((d) => d.domainName);
     void Promise.all(keys.map((k) => assignFolder(k, folderId))).then(() =>
       toast.success(
         folderId === ARCHIVE_FOLDER_ID
@@ -1173,7 +1194,10 @@ export default function Domains() {
   }
 
   return (
-    <div className="mx-auto flex max-w-[1400px] flex-col gap-[13px]">
+    <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col">
+      {/* Title and filters scroll away on a short screen so the column names
+          and the row-count bar keep a slice of the page. */}
+      <div className="flex min-h-0 flex-col gap-[13px] overflow-y-auto">
       <div>
         <h1 className="text-2xl font-bold sm:text-[32px]">Domains</h1>
         <p className="-mt-0.5 text-sm text-muted-foreground">
@@ -1224,7 +1248,6 @@ export default function Domains() {
           configured — so its toolbar and structure stay put; the empty body row
           carries the contextual prompt (configure a registrar / refresh / no
           matches). */}
-      <>
         {/* Toolbar: search and filters flow inline and wrap together as equal
               items. Extra top margin separates it from the title/refresh row
               above. */}
@@ -1406,23 +1429,26 @@ export default function Domains() {
             if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });
           }}
         />
+      </div>
 
-        {/* Table */}
-        <div
+      <div className="mt-[13px] flex min-h-36 min-w-0 flex-1 flex-col gap-[13px]">
+        {/* Table. This region scrolls; the column names stick to its top and
+            move sideways with the columns. Overlay bars sit on the host. */}
+        <DomainTableScroll
           className={cn(
             // Row height is set by the cells' vertical padding around one line of
             // text (icon buttons overlap into it with negative margins, so they
             // don't drive it): 45px normal, ~36px compact. align-top keeps
             // inline-level cell content (checkbox, switch, inline-flex spans)
             // from adding baseline descent under the line box.
-            'overflow-x-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 [&_td]:py-3 [&_td>*]:align-top compact:[&_td]:py-[9px]',
+            'domain-table-scroll absolute inset-0 overflow-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 [&_td]:py-3 [&_td>*]:align-top compact:[&_td]:py-[9px]',
             density === 'compact' && 'compact',
           )}
         >
           {/* Slightly smaller body text when compact (headers keep their own
               sizes); cells with an explicit size opt down separately. */}
-          <Table className="compact:text-xs">
-            <TableHeader>
+          <Table scrollable={false} className="compact:text-xs">
+            <TableHeader className="sticky top-0 z-10 bg-muted [&_th]:bg-muted">
               <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
                 {/* Checkbox column reads as part of the Domain column: no
                     divider between them (the wrapper draws td/th borders). */}
@@ -1542,7 +1568,18 @@ export default function Domains() {
                     <TableCell className="w-9 border-r-0! pl-3">
                       <Checkbox
                         checked={selected.has(key)}
-                        onCheckedChange={() => toggleSelected(key)}
+                        onMouseDown={(e) => {
+                          if (e.shiftKey) e.preventDefault();
+                        }}
+                        onClick={(e) => {
+                          if (!e.shiftKey) return;
+                          // Skip the checkbox's own toggle; the range is applied
+                          // below, and preventDefault keeps that toggle from
+                          // also firing.
+                          e.preventDefault();
+                          selectRow(key, true);
+                        }}
+                        onCheckedChange={() => selectRow(key, false)}
                         aria-label={`Select ${d.domainName}`}
                       />
                     </TableCell>
@@ -1566,7 +1603,9 @@ export default function Domains() {
                               <RowActionsMenu
                                 domain={d}
                                 folders={folders}
-                                folderId={folderAssignments[key]}
+                                folderId={
+                                  folderAssignments[toAscii(d.domainName)]
+                                }
                                 onRefresh={() => refreshDomain(d)}
                                 onUrlForwarding={() => setUrlForwardingFor(d)}
                                 onEmailForwarding={() =>
@@ -1575,7 +1614,7 @@ export default function Domains() {
                                 onAuthCode={() => setAuthCodeFor(d)}
                                 onRenew={() => setRenewFor(d)}
                                 onAssignFolder={(folderId) =>
-                                  void assignFolder(key, folderId)
+                                  void assignFolder(d.domainName, folderId)
                                 }
                               />
                             </div>
@@ -1589,9 +1628,11 @@ export default function Domains() {
                           <TableCell className="p-0!">
                             <FolderCell
                               folders={folders}
-                              folderId={folderAssignments[key]}
+                              folderId={
+                                folderAssignments[toAscii(d.domainName)]
+                              }
                               onAssign={(folderId) =>
-                                void assignFolder(key, folderId)
+                                void assignFolder(d.domainName, folderId)
                               }
                             />
                           </TableCell>
@@ -1647,11 +1688,12 @@ export default function Domains() {
               )}
             </TableBody>
           </Table>
-        </div>
+        </DomainTableScroll>
 
-        {/* Pagination. On phones the controls stack above the rows-per-page
-            select (flex-col-reverse), which reads better than side-by-side. */}
-        <div className="flex flex-col-reverse gap-3 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        {/* Pagination stays under the table, outside the scroll, so the row
+            count and page buttons stay on screen. On phones the controls stack
+            above the rows-per-page select (flex-col-reverse). */}
+        <div className="flex shrink-0 flex-col-reverse gap-3 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <span>Rows per page</span>
             <Select
@@ -1725,7 +1767,7 @@ export default function Domains() {
             </div>
           </div>
         </div>
-      </>
+      </div>
 
       {authCodeFor && (
         <AuthCodeDialog

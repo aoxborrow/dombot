@@ -18,7 +18,7 @@ export interface ProxyRoute {
   ip: string;
 }
 
-export const PROXIES_NAMESPACE = 'proxies';
+export const PROXIES_NAMESPACE = 'registrar-proxies';
 export const DEFAULT_PROXY_ID = 'default';
 
 /** Public IPv4 literals only: no loopback, private, link-local or reserved ranges. */

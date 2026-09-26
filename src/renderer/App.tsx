@@ -9,6 +9,7 @@ import {
 import {
   CalendarClock,
   Globe,
+  History,
   Menu,
   RefreshCw,
   Settings as SettingsIcon,
@@ -156,7 +157,7 @@ export default function App() {
   }, [attachBulk, applyBulkProgress, applyBulkFinished]);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       {/* Demo banner temporarily disabled while iterating on the header. */}
       {false && isDemo() && <DemoBanner />}
       {/* Header shell: a light grey just off-white in light mode, a very dark
@@ -215,6 +216,10 @@ export default function App() {
                 Renewals
                 <TabPill metric={metrics.renewals} compactHide />
               </NavLink>
+              <NavLink to="/activity" className={tabClass}>
+                <History className="size-[15px]" />
+                Activity
+              </NavLink>
               {/* Below md the Settings tab is just its gear: even padding, a
                   touch wider, and the gear's label-tightening margin dropped.
                   From lg, where the other tabs show pills, 4px extra on the
@@ -243,13 +248,11 @@ export default function App() {
       {/* The content area is the scroll container, not the document, so the
           header always spans the full window and the scrollbar sits below it.
           The gutter is reserved inside <main> so content doesn't shift
-          horizontally between pages that do and don't scroll.
-          Extra bottom padding clears the fixed status bar so the last row of a
-          page is never hidden behind it. */}
+          horizontally between pages that do and don't scroll. */}
       <div className="relative flex min-h-0 flex-1 flex-col">
         <main
           ref={mainRef}
-          className="flex-1 overflow-y-auto px-4 pt-[22px] pb-14 [scrollbar-gutter:stable] sm:px-6 sm:pt-[31px]"
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-[22px] pb-4 [scrollbar-gutter:stable] sm:px-6 sm:pt-[31px]"
         >
           <Routes>
             <Route path="/" element={<Domains />} />
@@ -272,6 +275,15 @@ export default function App() {
               }
             />
             <Route path="/renewals" element={<Renewals />} />
+            <Route
+              path="/activity"
+              element={
+                <Placeholder
+                  title="Activity"
+                  description="Changes across your portfolio."
+                />
+              }
+            />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
@@ -305,6 +317,7 @@ const MOBILE_NAV = [
     icon: CalendarClock,
     metric: 'renewals',
   },
+  { to: '/activity', label: 'Activity', icon: History, metric: null },
   {
     to: '/settings',
     label: 'Settings',

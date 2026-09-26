@@ -144,8 +144,8 @@ describe('folder resolution', () => {
     domain({ domainName: 'h.com', registrar: 'dynadot' }),
   ];
   const assignments = {
-    'dynadot:a.com': 'f1',
-    'dynadot:h.com': ARCHIVE_FOLDER_ID,
+    'a.com': 'f1',
+    'h.com': ARCHIVE_FOLDER_ID,
   };
 
   it('matches by folder id', () =>

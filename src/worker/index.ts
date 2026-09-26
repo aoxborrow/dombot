@@ -31,6 +31,7 @@ import {
 import { deriveEncryptionKey, parseRootSecret } from './keys';
 import { withRequestLock } from './lock';
 import { D1DocStore } from './storage/d1-doc-store';
+import { runMigrations } from '../core/storage/migrations';
 import { configureProxyTransport } from '../core/services/proxy-transport';
 import { migrateLegacyProxies } from '../core/services/proxies';
 import { workerProxyFetch } from './proxy-transport';
@@ -75,7 +76,12 @@ function bootOnce(env: Env): Promise<Boot> {
     setAppIdentity({ version: APP_VERSION, platform: 'web' });
     const root = parseRootSecret(env.DOMBOT_SECRET);
     const cipher = await aesGcmCipher(await deriveEncryptionKey(root));
-    configureStore(new EncryptedDocStore(new D1DocStore(env.DB), cipher));
+    const raw = new D1DocStore(env.DB);
+    const store = new EncryptedDocStore(raw, cipher);
+    configureStore(store);
+    // Once per isolate, before any request hydrates: every request awaits
+    // this boot. Renames copy raw rows, so values move still sealed.
+    await runMigrations(raw, store);
     configureProxyTransport(workerProxyFetch);
     return { auth: await buildAuthConfig(env, root) };
   })().catch((err) => {

@@ -61,12 +61,8 @@ describe('invoke', () => {
     ).rejects.toBeInstanceOf(ApiValidationError);
     // The message names the method and is short enough to show a user.
     await expect(
-      invoke('setManualPrice', coreMethods.setManualPrice, [
-        'nope',
-        'a.com',
-        1,
-      ]),
-    ).rejects.toThrow(/^Invalid arguments to setManualPrice \(0: /);
+      invoke('setManualPrice', coreMethods.setManualPrice, ['a.com', 'nope']),
+    ).rejects.toThrow(/^Invalid arguments to setManualPrice \(1: /);
   });
 
   it('runs handlers against the store', async () => {
@@ -74,15 +70,15 @@ describe('invoke', () => {
       { name: 'Keep', description: '', color: 'teal' },
     ]);
     await invoke('assignFolder', coreMethods.assignFolder, [
-      'dynadot:a.com',
+      'A.com',
       folder.id,
     ]);
     await invoke('updateSettings', coreMethods.updateSettings, [
       { autoSyncIntervalMinutes: 60 },
     ]);
     await flushWrites();
-    expect(await store.get('folders', 'assignments')).toEqual({
-      'dynadot:a.com': folder.id,
+    expect(await store.list('domain-folders')).toEqual({
+      'a.com': folder.id,
     });
     expect(await store.get('settings', 'autoSyncIntervalMinutes')).toBe(60);
     expect(

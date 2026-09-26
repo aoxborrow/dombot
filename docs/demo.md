@@ -77,6 +77,13 @@ provider behind `getRegistrarClient()`.
    `site/vite.config.ts`). The release workflow rewrites and commits that
    file right after publishing, and that push is what rebuilds the site.
 
+   Page metadata: the shared `index.html` carries only what the desktop app
+   needs, so `vite.demo.config.mts` injects the demo's `<head>` at build
+   time (title, description, canonical, Open Graph / Twitter card, favicon)
+   with the same copy as the marketing site. The favicon is
+   `site/public/favicon.svg`, bundled as an asset; the sharing image is the
+   site's `og-image.png`, referenced by its dombot.ai URL.
+
 Linked from the site's nav and hero and from the README.
 
 Open: whether visitor changes persist across reloads (`localStorage` mirror

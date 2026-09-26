@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FsDocStore } from './fs-doc-store';
 import { migrateLegacyCredentials } from './migrate';
+import { runMigrations } from '../../core/storage/migrations';
 import { MemoryDocStore } from '../../core/storage/doc-store';
 
 let dir: string;
@@ -15,6 +16,35 @@ afterEach(() => {
 });
 
 describe('FsDocStore', () => {
+  it("renames an old install's namespace files in place", async () => {
+    const store = new FsDocStore(dir);
+    await store.put('cache-portfolio', 'dynadot', { fetchedAt: 1 });
+    await store.put('pricing-overrides', 'dynadot:a.com', 12);
+    await store.put('folders', 'folders', []);
+    await store.put('folders', 'assignments', { 'dynadot:a.com': 'f1' });
+    await runMigrations(store, store);
+    const files = fs.readdirSync(dir).sort();
+    expect(files).toEqual([
+      'domain-folders.json',
+      'domain-prices.json',
+      'folders.json',
+      'meta.json',
+      'registrar-domains.json',
+    ]);
+    expect(await store.list('domain-prices')).toEqual({ 'a.com': 12 });
+    expect(await store.list('folders')).toEqual({ folders: [] });
+  });
+
+  it('writes a batch of keys into the namespace file at once', async () => {
+    const store = new FsDocStore(dir);
+    await store.put('purchases', 'a.com', 1);
+    await store.putMany('purchases', [
+      ['b.com', 2],
+      ['a.com', 3],
+    ]);
+    expect(await store.list('purchases')).toEqual({ 'a.com': 3, 'b.com': 2 });
+  });
+
   it('keeps one {key: value} JSON file per namespace', async () => {
     const store = new FsDocStore(dir);
     await store.put('settings', 'autoSyncIntervalMinutes', 60);
@@ -93,7 +123,7 @@ describe('migrateLegacyCredentials', () => {
   it('is a no-op without a legacy file', async () => {
     const store = new MemoryDocStore();
     expect(await migrateLegacyCredentials(dir, store, noDecrypt)).toBe(true);
-    expect(await store.list('credentials')).toEqual({});
+    expect(await store.list('registrar-credentials')).toEqual({});
   });
 
   it('imports a plaintext legacy blob and renames it', async () => {
@@ -104,7 +134,7 @@ describe('migrateLegacyCredentials', () => {
     );
     const store = new MemoryDocStore();
     expect(await migrateLegacyCredentials(dir, store, noDecrypt)).toBe(true);
-    expect(await store.list('credentials')).toEqual({
+    expect(await store.list('registrar-credentials')).toEqual({
       dynadot: { apiKey: 'k' },
     });
     expect(fs.existsSync(legacy)).toBe(false);
@@ -120,7 +150,9 @@ describe('migrateLegacyCredentials', () => {
         b[0] === 0x01 ? JSON.stringify({ gandi: { token: 't' } }) : null,
     };
     expect(await migrateLegacyCredentials(dir, store, reader)).toBe(true);
-    expect(await store.get('credentials', 'gandi')).toEqual({ token: 't' });
+    expect(await store.get('registrar-credentials', 'gandi')).toEqual({
+      token: 't',
+    });
   });
 
   it('leaves an unreadable blob in place to retry later', async () => {
@@ -129,6 +161,6 @@ describe('migrateLegacyCredentials', () => {
     const store = new MemoryDocStore();
     expect(await migrateLegacyCredentials(dir, store, noDecrypt)).toBe(false);
     expect(fs.existsSync(legacy)).toBe(true);
-    expect(await store.list('credentials')).toEqual({});
+    expect(await store.list('registrar-credentials')).toEqual({});
   });
 });

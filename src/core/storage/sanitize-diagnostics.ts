@@ -1,15 +1,16 @@
 import type { DocStore } from './doc-store';
 import { redactRegistrarMessage } from '../services/registrar-errors';
 import { PROXIES_NAMESPACE, proxySecrets } from '../../shared/proxy';
+import { CREDENTIALS_NAMESPACE } from './names';
 
-const DIAGNOSTIC_NAMESPACES = ['cache-portfolio', 'bulk-jobs'];
+const DIAGNOSTIC_NAMESPACES = ['registrar-domains', 'bulk-jobs'];
 
 /** Also remove leaked diagnostics from older backups, not just new requests. */
 export function sanitizeBundleDiagnostics(
   data: Record<string, Record<string, unknown>>,
 ): void {
   const credentials: Record<string, string> = {};
-  for (const bag of Object.values(data.credentials ?? {})) {
+  for (const bag of Object.values(data[CREDENTIALS_NAMESPACE] ?? {})) {
     if (!bag || typeof bag !== 'object') continue;
     for (const value of Object.values(bag)) {
       if (typeof value === 'string' && value)
@@ -47,7 +48,7 @@ export async function sanitizeStoredDiagnostics(
   store: DocStore,
 ): Promise<void> {
   const data: Record<string, Record<string, unknown>> = {
-    credentials: await store.list('credentials'),
+    [CREDENTIALS_NAMESPACE]: await store.list(CREDENTIALS_NAMESPACE),
     [PROXIES_NAMESPACE]: await store.list(PROXIES_NAMESPACE),
   };
   for (const name of DIAGNOSTIC_NAMESPACES) data[name] = await store.list(name);
