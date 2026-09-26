@@ -615,12 +615,7 @@ function PriceEditor({
   domains: Domain[];
   labels: RegistrarLabels;
   pricing: ReturnType<typeof useAppStore.getState>['pricing'];
-  onSave: (
-    registrar: string,
-    domain: string,
-    price: number | null,
-    accountId?: string,
-  ) => Promise<void>;
+  onSave: (domain: string, price: number | null) => Promise<void>;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -674,12 +669,7 @@ function PriceEditorRow({
   label: string;
   current: number | null;
   isManual: boolean;
-  onSave: (
-    registrar: string,
-    domain: string,
-    price: number | null,
-    accountId?: string,
-  ) => Promise<void>;
+  onSave: (domain: string, price: number | null) => Promise<void>;
 }) {
   const [value, setValue] = useState(current != null ? String(current) : '');
   const [saving, setSaving] = useState(false);
@@ -692,12 +682,7 @@ function PriceEditorRow({
     if (invalid) return;
     setSaving(true);
     try {
-      await onSave(
-        domain.registrar,
-        domain.domainName,
-        parsed,
-        domain.accountId,
-      );
+      await onSave(domain.domainName, parsed);
     } finally {
       setSaving(false);
     }

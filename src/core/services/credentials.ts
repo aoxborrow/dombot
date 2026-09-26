@@ -1,4 +1,5 @@
 import type { RegistrarCredentials } from '@aoxborrow/registrar-client';
+import { CREDENTIALS_NAMESPACE } from '../storage/names';
 import { Namespace } from '../storage/namespace';
 import { serialByKey } from './serial-by-key';
 
@@ -12,7 +13,7 @@ import { serialByKey } from './serial-by-key';
 // fail, which `setStoredCredentials` surfaces to the caller so the Settings
 // save shows the error instead of silently storing keys in the clear.
 
-export const CREDENTIALS_NAMESPACE = 'credentials';
+export { CREDENTIALS_NAMESPACE };
 
 const store = new Namespace<RegistrarCredentials>(CREDENTIALS_NAMESPACE);
 const saveInOrder = serialByKey();

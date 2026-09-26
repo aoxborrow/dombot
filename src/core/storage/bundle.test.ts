@@ -18,6 +18,7 @@ import { createFolder, getFolders } from '../services/folders';
 import { setStoredCredentials } from '../services/credentials';
 import { getRegistrarClient } from '../services/registrars';
 import { sealBundle } from '../../shared/bundle-seal';
+import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
 import { bumpRevision, getRevisions } from '../revision';
 import { onCoreEvent } from '../events';
 
@@ -39,17 +40,20 @@ async function seed() {
 }
 
 describe('buildBundle', () => {
-  it('captures every namespace except auth and meta', async () => {
+  it('captures every namespace except local ones (meta)', async () => {
     await seed();
     const b = buildBundle(APP);
     expect(b.format).toBe(BUNDLE_FORMAT);
     expect(b.app).toEqual(APP);
     expect(Object.keys(b.namespaces).sort()).toEqual(
-      expect.arrayContaining(['credentials', 'folders', 'settings']),
+      expect.arrayContaining(['registrar-credentials', 'folders', 'settings']),
     );
     expect(b.namespaces.meta).toBeUndefined();
     expect(b.namespaces.auth).toBeUndefined();
-    expect(b.namespaces.credentials.godaddy).toEqual({ apiToken: 'k' });
+    expect(b.version).toBe(4);
+    expect(b.namespaces['registrar-credentials'].godaddy).toEqual({
+      apiToken: 'k',
+    });
   });
 });
 
@@ -123,7 +127,7 @@ describe('export → import', () => {
     ).toThrow(/Malformed/);
   });
 
-  it('empties namespaces the file leaves out (nothing survives but auth/meta)', async () => {
+  it('empties namespaces the file leaves out (nothing survives but meta)', async () => {
     await seed();
     const text = JSON.stringify({
       format: BUNDLE_FORMAT,
@@ -135,7 +139,7 @@ describe('export → import', () => {
     await importBundle(text);
     await flushWrites();
     expect(getFolders().folders).toEqual([]);
-    expect(await store.list('credentials')).toEqual({});
+    expect(await store.list('registrar-credentials')).toEqual({});
     expect(await store.list('folders')).toEqual({});
     expect(getSettings().mcpEnabled).toBe(true);
     // Revision counters (meta) are still there.
@@ -155,5 +159,50 @@ describe('export → import', () => {
     await flushWrites();
     expect(await store.list('future-thing')).toEqual({});
     expect(getSettings().mcpEnabled).toBe(true);
+  });
+
+  it('upgrades a v3 file: old names, account-scoped folders and prices', async () => {
+    const text = JSON.stringify({
+      format: BUNDLE_FORMAT,
+      version: 3,
+      exportedAt: 'x',
+      app: APP,
+      namespaces: {
+        credentials: { godaddy: { apiToken: 'k' } },
+        'cache-portfolio': { godaddy: { fetchedAt: 1, data: { domains: [] } } },
+        'tld-rates': { 'godaddy:com': 8.99 },
+        'pricing-overrides': {
+          'godaddy:Münich.de': 40,
+          'acct-2:xn--mnich-kva.de': 99,
+        },
+        folders: {
+          folders: [{ id: 'f1', name: 'Keep', description: '', color: 'red' }],
+          assignments: { 'godaddy:a.com': 'f1', 'godaddy:b.com': '__hidden__' },
+        },
+      },
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await importBundle(text);
+    warn.mockRestore();
+    await flushWrites();
+    expect(await store.list('registrar-credentials')).toEqual({
+      godaddy: { apiToken: 'k' },
+    });
+    expect(Object.keys(await store.list('registrar-domains'))).toEqual([
+      'godaddy',
+    ]);
+    expect(await store.list('registrar-tld-rates')).toEqual({
+      'godaddy:com': 8.99,
+    });
+    // Keyed by name; the second account's entry for the same name is dropped.
+    expect(await store.list('domain-prices')).toEqual({
+      'xn--mnich-kva.de': 40,
+    });
+    expect(getFolders()).toEqual({
+      folders: [{ id: 'f1', name: 'Keep', description: '', color: 'red' }],
+      assignments: { 'a.com': 'f1', 'b.com': ARCHIVE_FOLDER_ID },
+    });
+    for (const old of ['credentials', 'cache-portfolio', 'pricing-overrides'])
+      expect(await store.list(old)).toEqual({});
   });
 });

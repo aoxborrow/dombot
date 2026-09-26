@@ -8,10 +8,10 @@ import type { DocStore } from '../../core/storage/doc-store';
 // credentials namespace needs it, and there's no reason the others shouldn't
 // have it too.
 //
-// The file names match the pre-DocStore layout (`cache-portfolio.json`,
-// `folders.json`, `settings.json`, …) and so do their shapes, so an existing
-// install reads its old files unchanged. Only credentials moved (see
-// migrate.ts).
+// One file per namespace, named after it (`registrar-domains.json`,
+// `folders.json`, `settings.json`, …). Installs from before the storage
+// model (docs/storage-model.md) are renamed in place by runMigrations
+// (core/storage/migrations.ts); pre-DocStore credentials by migrate.ts.
 
 const FILE_MODE = 0o600;
 
@@ -59,6 +59,13 @@ export class FsDocStore implements DocStore {
   async put(ns: string, key: string, value: unknown): Promise<void> {
     const data = this.read(ns);
     data[key] = value;
+    this.write(ns, data);
+  }
+
+  async putMany(ns: string, entries: [string, unknown][]): Promise<void> {
+    if (entries.length === 0) return;
+    const data = this.read(ns);
+    for (const [key, value] of entries) data[key] = value;
     this.write(ns, data);
   }
 

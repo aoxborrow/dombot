@@ -12,6 +12,12 @@ export interface DocStore {
   get(ns: string, key: string): Promise<unknown | null>;
   /** Stores (creates or replaces) a JSON-serializable value. */
   put(ns: string, key: string, value: unknown): Promise<void>;
+  /**
+   * Stores many values in one namespace in as few round trips as the store
+   * allows: one file write on desktop, batched statements on D1. A CSV import
+   * or a bundle restore goes through here instead of one `put` per row.
+   */
+  putMany(ns: string, entries: [string, unknown][]): Promise<void>;
   /** Removes one key. No-op when absent. */
   delete(ns: string, key: string): Promise<void>;
   /** Atomically remove and return an entry; one caller wins across hosts. */
@@ -46,6 +52,11 @@ export class MemoryDocStore implements DocStore {
 
   async put(ns: string, key: string, value: unknown): Promise<void> {
     this.ns(ns).set(key, structuredClone(value));
+  }
+
+  async putMany(ns: string, entries: [string, unknown][]): Promise<void> {
+    const m = this.ns(ns);
+    for (const [key, value] of entries) m.set(key, structuredClone(value));
   }
 
   async delete(ns: string, key: string): Promise<void> {

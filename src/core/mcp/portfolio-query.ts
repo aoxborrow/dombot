@@ -4,7 +4,7 @@
 // the cache reads (merged domains, folders, assignments).
 
 import type { Domain } from '../../shared/ipc';
-import { domainKey } from '../../shared/account-key';
+import { toAscii } from '../../shared/domain-name';
 import { ARCHIVE_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
 
 export const DEFAULT_LIMIT = 50;
@@ -122,7 +122,7 @@ export function queryPortfolio(
   args: QueryArgs,
 ): QueryResult {
   const folderNameFor = (d: Domain): string | null => {
-    const id = assignments[domainKey(d)];
+    const id = assignments[toAscii(d.domainName)];
     if (!id) return null;
     if (id === ARCHIVE_FOLDER_ID) return 'Archive';
     return folders.find((f) => f.id === id)?.name ?? null;
@@ -151,7 +151,7 @@ export function queryPortfolio(
     if (suffix != null && !d.domainName.toLowerCase().endsWith(suffix))
       return false;
     if (folderId !== undefined) {
-      if (assignments[domainKey(d)] !== folderId) return false;
+      if (assignments[toAscii(d.domainName)] !== folderId) return false;
     }
     if (nameNeedle && !d.domainName.toLowerCase().includes(nameNeedle))
       return false;

@@ -1,20 +1,18 @@
 import { STALE_AFTER_MS as SHARED_STALE_AFTER_MS } from '../../shared/ipc';
-import { Namespace } from '../storage/namespace';
+import { Namespace, clearCacheNamespaces } from '../storage/namespace';
 
 // Generic, timestamped cache for domain data (portfolio, per-domain detail).
 // Every entry carries a `fetchedAt` so the UI can show when data was last
 // refreshed and flag anything past the staleness threshold.
 //
-// One storage namespace per cache (`cache-portfolio`, `cache-detail`), each a
-// map of key → entry. The dataset is at most a few hundred domains, so the
+// One storage namespace per cache (`registrar-domains`, `registrar-details`),
+// each a map of key → entry, flagged `cache` so "Clear cache" empties them. The dataset is at most a few hundred domains, so the
 // whole namespace lives in memory (see storage/namespace.ts).
 //
 // This layer is deliberately type-agnostic — it stores and returns plain JSON.
 // Callers that hold Date fields (domains) revive them on read; see registrars.ts.
 
-/** Cache namespaces. `clearAll` iterates these, so keep the list complete. */
-export const CACHE_NAMESPACES = ['portfolio', 'detail'] as const;
-export type CacheNamespace = (typeof CACHE_NAMESPACES)[number];
+export type CacheNamespace = 'portfolio' | 'detail';
 
 /** A cached value plus when it was fetched (ms epoch). */
 export interface CacheEntry<T> {
@@ -31,8 +29,8 @@ export interface CacheEntry<T> {
 export const STALE_AFTER_MS = SHARED_STALE_AFTER_MS;
 
 const stores: Record<CacheNamespace, Namespace<CacheEntry<unknown>>> = {
-  portfolio: new Namespace('cache-portfolio'),
-  detail: new Namespace('cache-detail'),
+  portfolio: new Namespace('registrar-domains', { cache: true }),
+  detail: new Namespace('registrar-details', { cache: true }),
 };
 
 /** The cached entry for `key`, or null when absent. Age is not considered. */
@@ -98,7 +96,8 @@ export function clearNamespace(ns: CacheNamespace): void {
   void stores[ns].clear();
 }
 
-/** Drops every namespace's cache. */
+/** "Clear cache": drops every namespace flagged `cache`, including the ones
+ *  owned by other services (`registrar-tld-rates`). */
 export function clearAll(): void {
-  for (const ns of CACHE_NAMESPACES) clearNamespace(ns);
+  clearCacheNamespaces();
 }
