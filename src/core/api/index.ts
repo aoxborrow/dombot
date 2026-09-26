@@ -17,6 +17,11 @@ import {
 } from '../services/folders';
 import { setManualPrice } from '../services/pricing';
 import {
+  getPurchases,
+  importPurchases,
+  setPurchase,
+} from '../services/purchases';
+import {
   getRegistrarCatalog,
   connectRegistrarAccount,
   removeRegistrarAccount,
@@ -348,6 +353,15 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     restartAutoSync();
     return next;
   }),
+
+  // ── Purchase records ──────────────────────────────────────────────────────
+  getPurchases: method(none, async () => getPurchases()),
+  setPurchase: method(z.tuple([s.purchaseInput]), async (input) =>
+    setPurchase(input),
+  ),
+  importPurchases: method(z.tuple([s.purchaseImport]), async (rows) =>
+    importPurchases(rows),
+  ),
 
   // ── Events (polling) ──────────────────────────────────────────────────────
   getRevisions: method(none, async () => getRevisions()),

@@ -98,6 +98,10 @@ describe('domainsToCsv', () => {
       'Privacy',
       'Nameservers',
       'Last Synced',
+      'Purchase date',
+      'Purchase amount',
+      'Currency',
+      'Notes',
     ]);
   });
 
@@ -123,6 +127,29 @@ describe('domainsToCsv', () => {
     expect(col(csv, 1, 'Privacy')).toBe('No');
     expect(col(csv, 1, 'Nameservers')).toBe('ns1.example.net; ns2.example.net');
     expect(col(csv, 1, 'Created')).toBe('2020-01-01');
+    expect(col(csv, 1, 'Purchase date')).toBe('');
+  });
+
+  it('writes purchase fields as a plain amount and ISO date', () => {
+    const d = domain({ domainName: 'Example.COM' });
+    const csv = domainsToCsv(
+      [d],
+      {},
+      [],
+      {},
+      {
+        'example.com': {
+          purchaseDate: '2019-04-01',
+          amount: '1000000.00',
+          currency: 'USD',
+          notes: 'bought, early',
+        },
+      },
+    );
+    expect(col(csv, 1, 'Purchase date')).toBe('2019-04-01');
+    expect(col(csv, 1, 'Purchase amount')).toBe('1000000.00');
+    expect(col(csv, 1, 'Currency')).toBe('USD');
+    expect(col(csv, 1, 'Notes')).toBe('bought, early');
   });
 
   it('leaves date columns blank for null dates', () => {

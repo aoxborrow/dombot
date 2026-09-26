@@ -135,6 +135,10 @@ const api: DombotApi = {
   getSettings: () => ipcRenderer.invoke(IpcChannels.getSettings),
   updateSettings: (patch) =>
     ipcRenderer.invoke(IpcChannels.updateSettings, patch),
+  getPurchases: () => ipcRenderer.invoke(IpcChannels.getPurchases),
+  setPurchase: (input) => ipcRenderer.invoke(IpcChannels.setPurchase, input),
+  importPurchases: (rows) =>
+    ipcRenderer.invoke(IpcChannels.importPurchases, rows),
 
   // Events (polling)
   getRevisions: () => ipcRenderer.invoke(IpcChannels.getRevisions),

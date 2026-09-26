@@ -13,6 +13,7 @@ import type {
   EmailForward,
   RegistrarName,
 } from '@aoxborrow/registrar-client';
+import type { NumberFormatId } from './money';
 
 /** Account identity is supplied by Dombot, never by a registrar response. */
 export interface RegistrarAccount {
@@ -94,6 +95,9 @@ export const IpcChannels = {
   assignFolder: 'folders:assign',
   getSettings: 'settings:get',
   updateSettings: 'settings:update',
+  getPurchases: 'purchases:list',
+  setPurchase: 'purchases:set',
+  importPurchases: 'purchases:import',
   getRevisions: 'events:getRevisions',
 } as const;
 
@@ -188,6 +192,38 @@ export interface AppSettings {
    * Settings → MCP. `DOMBOT_MCP_ENABLED=0` forces it off regardless.
    */
   mcpEnabled: boolean;
+  /**
+   * Default currency for a new purchase amount. Does not rewrite amounts
+   * already saved. Fresh install is USD.
+   */
+  preferredCurrency: string;
+  /**
+   * How amounts are grouped on screen (thousands separator and decimal mark).
+   * Separate from which currency the money is in. Fresh install is US style.
+   */
+  numberFormat: NumberFormatId;
+}
+
+/** What you paid for a domain name. Amount is a plain decimal, or null. */
+export interface DomainPurchase {
+  purchaseDate: string | null;
+  amount: string | null;
+  currency: string | null;
+  notes: string;
+}
+
+/** One purchase record to save or import. `domainName` is not stored on the record. */
+export interface PurchaseInput {
+  domainName: string;
+  purchaseDate: string | null;
+  amount: string | null;
+  currency: string | null;
+  notes: string;
+}
+
+export interface PurchaseImportResult {
+  updated: number;
+  errors: string[];
 }
 
 /** One input in a registrar's credential form. */
@@ -728,6 +764,14 @@ export interface DombotApi {
   /** Patch app settings; applied live (e.g. reschedules the background sync).
    * Returns the updated settings. */
   updateSettings: (patch: Partial<AppSettings>) => Promise<AppSettings>;
+
+  // Purchase records (keyed by domain name; not cleared by Sync or Clear cache)
+  /** Every saved purchase record, keyed by the normalized domain name. */
+  getPurchases: () => Promise<Record<string, DomainPurchase>>;
+  /** Save one name's purchase fields. Null deletes the record (all fields empty). */
+  setPurchase: (input: PurchaseInput) => Promise<DomainPurchase | null>;
+  /** Upsert many purchase rows. A bad row is reported; the rest still save. */
+  importPurchases: (rows: PurchaseInput[]) => Promise<PurchaseImportResult>;
 
   // Events (polling)
   /** Current change counters — see `Revisions`. */

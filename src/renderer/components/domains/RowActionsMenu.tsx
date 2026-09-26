@@ -5,6 +5,7 @@ import {
   KeyRound,
   Link2,
   Mail,
+  Receipt,
   RefreshCw,
 } from 'lucide-react';
 import type { Domain, Folder } from '../../../shared/ipc';
@@ -41,6 +42,7 @@ export function RowActionsMenu({
   onEmailForwarding,
   onAuthCode,
   onRenew,
+  onEditPurchase,
   onAssignFolder,
 }: {
   domain: Domain;
@@ -51,6 +53,7 @@ export function RowActionsMenu({
   onEmailForwarding: () => void;
   onAuthCode: () => void;
   onRenew: () => void;
+  onEditPurchase: () => void;
   onAssignFolder: (folderId: string | null) => void;
 }) {
   const key = domainKey(domain);
@@ -104,6 +107,11 @@ export function RowActionsMenu({
             />
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={onEditPurchase}>
+          <Receipt className="text-muted-foreground" />
+          Purchase & notes
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={urlReason !== null}
