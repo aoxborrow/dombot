@@ -68,7 +68,7 @@ function TabPill({
   metric: TabMetric | null;
   className?: string;
   /** Hide below lg so the strip fits narrower windows; Domains keeps its
-   *  count at every width. */
+   *  count down to md. */
   compactHide?: boolean;
 }) {
   if (!metric) return null;
@@ -199,7 +199,8 @@ export default function App() {
               <NavLink to="/" end className={tabClass}>
                 <Globe className="size-[15px]" />
                 Domains
-                <TabPill metric={metrics.domains} />
+                {/* Count hidden below md so all six tabs fit. */}
+                <TabPill metric={metrics.domains} className="max-md:hidden" />
               </NavLink>
               <NavLink to="/markets" className={tabClass}>
                 <Store className="size-[15px]" />
@@ -216,9 +217,14 @@ export default function App() {
                 Renewals
                 <TabPill metric={metrics.renewals} compactHide />
               </NavLink>
-              <NavLink to="/activity" className={tabClass}>
-                <History className="size-[15px]" />
-                Activity
+              {/* Icon-only below lg (like Settings' gear) so six tabs fit. */}
+              <NavLink
+                to="/activity"
+                className={(state) => cn(tabClass(state), 'max-lg:px-3.5')}
+                title="Activity"
+              >
+                <History className="size-[15px] max-lg:mr-0!" />
+                <span className="hidden lg:inline">Activity</span>
               </NavLink>
               {/* Below md the Settings tab is just its gear: even padding, a
                   touch wider, and the gear's label-tightening margin dropped.
