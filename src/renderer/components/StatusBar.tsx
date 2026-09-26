@@ -127,9 +127,11 @@ export default function StatusBar() {
               onClick={() => navigate('/settings?tab=registrars')}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-sm hover:text-foreground',
+                // A warning color stays that color on hover, just brighter.
                 failedCount > 0
-                  ? 'text-destructive'
-                  : !allSynced && 'text-amber-600 dark:text-amber-400',
+                  ? 'text-destructive hover:text-destructive hover:brightness-125'
+                  : !allSynced &&
+                      'text-amber-600 hover:text-amber-600 hover:brightness-125 dark:text-amber-400 dark:hover:text-amber-400',
               )}
               title={
                 noneConfigured
