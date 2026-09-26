@@ -12,6 +12,7 @@ import {
   useState,
 } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { SyncErrorsAlert } from '../components/SyncErrorsAlert';
 import {
   Archive,
   BadgeDollarSign,
@@ -39,7 +40,6 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   TriangleAlert,
-  CircleAlert,
   X,
 } from 'lucide-react';
 import type {
@@ -1505,35 +1505,25 @@ export default function Domains() {
         {/* Which accounts failed; the errors themselves are on their cards
             in Settings → Registrars. */}
         {portfolioErrors.length > 0 && (
-          <Alert variant="error">
-            <CircleAlert />
-            <AlertTitle>
-              {portfolioErrors.length}{' '}
-              {multipleAccounts.size > 0 ? 'account' : 'registrar'}
-              {portfolioErrors.length === 1 ? '' : 's'} failed to sync
-            </AlertTitle>
-            <AlertDescription>
-              <p>
-                {new Intl.ListFormat(undefined, { type: 'conjunction' }).format(
-                  portfolioErrors.map((e) =>
-                    accountTitle(
-                      registrarLabel(e.registrar, portfolioRegistrarLabels),
-                      e.accountLabel,
-                      multipleAccounts.has(e.registrar),
-                    ),
-                  ),
-                )}
-                : {portfolioErrors.length === 1 ? 'its' : 'their'} domains may
-                be missing or out of date.
-              </p>
+          <SyncErrorsAlert
+            names={portfolioErrors.map((e) => {
+              const name = accountTitle(
+                registrarLabel(e.registrar, portfolioRegistrarLabels),
+                e.accountLabel,
+                multipleAccounts.has(e.registrar),
+              );
+              return { key: name, node: name };
+            })}
+            detail={`${portfolioErrors.length === 1 ? 'Its' : 'Their'} domains may be missing or out of date.`}
+            action={
               <Link
                 to="/settings?tab=registrars"
-                className="font-medium text-foreground underline underline-offset-4"
+                className="font-medium whitespace-nowrap underline underline-offset-4"
               >
                 Open registrar settings
               </Link>
-            </AlertDescription>
-          </Alert>
+            }
+          />
         )}
 
         {/* The table always renders — even before a load or with no registrars

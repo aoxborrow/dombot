@@ -33,6 +33,7 @@ import { useAppStore } from '../../store/app';
 import { Link } from 'react-router-dom';
 import { isDemo } from '../../lib/platform';
 import { timeAgo } from '../../lib/time';
+import { SyncErrorsAlert } from '../../components/SyncErrorsAlert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -68,6 +69,24 @@ import {
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 const idOf = (account: RegistrarMeta) => account.accountId ?? account.name;
+const cardId = (account: RegistrarMeta) => `registrar-account-${idOf(account)}`;
+
+/**
+ * Scrolls the page's own scroll area to a card. (`scrollIntoView` would also
+ * scroll the app shell's overflow-hidden ancestors and shift the whole
+ * window.)
+ */
+function scrollToCard(id: string) {
+  const card = document.getElementById(id);
+  let area = card?.parentElement ?? null;
+  while (area && !/auto|scroll/.test(getComputedStyle(area).overflowY)) {
+    area = area.parentElement;
+  }
+  if (!card || !area) return;
+  const top =
+    card.getBoundingClientRect().top - area.getBoundingClientRect().top;
+  area.scrollTo({ top: area.scrollTop + top - 16, behavior: 'smooth' });
+}
 const plural = (n: number) => `${n} domain${n === 1 ? '' : 's'}`;
 
 export default function RegistrarsSettings() {
@@ -149,6 +168,11 @@ export default function RegistrarsSettings() {
       .finally(() => mark(false));
   };
 
+  const failed = cards.filter(
+    ({ account }) =>
+      account.configured && account.enabled && account.sync.lastError != null,
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
@@ -170,6 +194,32 @@ export default function RegistrarsSettings() {
       </div>
 
       <div className="flex flex-col gap-3">
+        {/* Failed accounts can be far down the list: name them up top, each
+            a jump to its card and the error there. */}
+        {failed.length > 0 && (
+          <SyncErrorsAlert
+            names={failed.map(({ provider, account, hasSiblings }) => {
+              const name = accountTitle(
+                provider.displayName,
+                account.accountLabel,
+                hasSiblings,
+              );
+              return {
+                key: name,
+                node: (
+                  <button
+                    type="button"
+                    className="underline underline-offset-4"
+                    onClick={() => scrollToCard(cardId(account))}
+                  >
+                    {name}
+                  </button>
+                ),
+              };
+            })}
+            detail="The error is on each account below."
+          />
+        )}
         {loadError && (
           <p role="alert" className="text-sm text-destructive">
             {loadError}
@@ -466,7 +516,10 @@ function AccountCard({
   const hasNickname = !isAutoLabel(currentLabel);
 
   return (
-    <Card className="gap-0 overflow-hidden rounded-md py-0">
+    <Card
+      id={cardId(account)}
+      className="gap-0 overflow-hidden rounded-md py-0"
+    >
       <Collapsible open={open} onOpenChange={setOpen}>
         {/* Header row: the name + sync status expand the card; the Sync button
             sits outside the triggers so it works even while collapsed. */}
@@ -632,7 +685,7 @@ function AccountCard({
         {configured && enabled && !syncing && sync.lastError && (
           <div
             role="alert"
-            className="flex items-start gap-2 border-t border-destructive/30 bg-destructive/10 px-5 py-2.5 text-sm"
+            className="mx-5 mb-3 -mt-1 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
           >
             <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
             <span className="min-w-0 break-words">{sync.lastError}</span>
