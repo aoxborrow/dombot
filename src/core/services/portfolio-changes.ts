@@ -5,6 +5,7 @@ import {
   type PortfolioChange,
   type PortfolioChangeResolution,
 } from '../../shared/ipc';
+import { toAscii } from '../../shared/domain-name';
 import {
   diffHoldings,
   type AccountHoldings,
@@ -56,9 +57,8 @@ function releaseHiddenFolder(
   domainName: string,
 ): void {
   if (!accountId) return;
-  const key = `${accountId}:${domainName}`;
-  const folderId = getFolders().assignments[key];
-  if (folderId && HIDDEN.has(folderId)) assignFolder(key, null);
+  const folderId = getFolders().assignments[toAscii(domainName)];
+  if (folderId && HIDDEN.has(folderId)) assignFolder(domainName, null);
 }
 
 /**
@@ -107,7 +107,7 @@ function filedResolution(
   domainName: string,
 ): UserResolution | null {
   if (!accountId) return null;
-  const folderId = getFolders().assignments[`${accountId}:${domainName}`];
+  const folderId = getFolders().assignments[toAscii(domainName)];
   if (folderId === SOLD_FOLDER_ID) return 'sold';
   if (folderId === DROPPED_FOLDER_ID) return 'dropped';
   if (folderId === ARCHIVE_FOLDER_ID) return 'archive';
@@ -171,6 +171,6 @@ export function resolvePortfolioChange(
 
   const folderId = folderFor(next);
   if (folderId && change.fromAccountId) {
-    assignFolder(`${change.fromAccountId}:${change.domainName}`, folderId);
+    assignFolder(change.domainName, folderId);
   }
 }

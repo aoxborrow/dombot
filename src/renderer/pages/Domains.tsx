@@ -1,6 +1,7 @@
 import { accountNumber, accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
+import { toAscii } from '../../shared/domain-name';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -764,7 +765,8 @@ export default function Domains() {
       onEdit: setPurchaseFor,
       onEditSale: setSaleFor,
       showSale: historyView,
-      isSold: (d) => folderAssignments[domainKey(d)] === SOLD_FOLDER_ID,
+      isSold: (d) =>
+        folderAssignments[toAscii(d.domainName)] === SOLD_FOLDER_ID,
     });
     base.splice(purchasedAt + 1, 0, ...extra);
     return base;
@@ -1011,72 +1013,72 @@ export default function Domains() {
   // only Sold, Dropped, and Archive — that switch is how those names appear.
   const { ownedFolderOptions, historyFolderOptions, ownedCount, historyCount } =
     useMemo(() => {
-    const counts: Record<string, number> = {};
-    let noFolder = 0;
-    let archived = 0;
-    let sold = 0;
-    let dropped = 0;
-    for (const d of listed) {
-      const id = folderAssignments[domainKey(d)];
-      if (id === ARCHIVE_FOLDER_ID) archived += 1;
-      else if (id === SOLD_FOLDER_ID) sold += 1;
-      else if (id === DROPPED_FOLDER_ID) dropped += 1;
-      else if (id && folders.some((f) => f.id === id)) {
-        counts[id] = (counts[id] ?? 0) + 1;
-      } else {
-        noFolder += 1;
+      const counts: Record<string, number> = {};
+      let noFolder = 0;
+      let archived = 0;
+      let sold = 0;
+      let dropped = 0;
+      for (const d of listed) {
+        const id = folderAssignments[toAscii(d.domainName)];
+        if (id === ARCHIVE_FOLDER_ID) archived += 1;
+        else if (id === SOLD_FOLDER_ID) sold += 1;
+        else if (id === DROPPED_FOLDER_ID) dropped += 1;
+        else if (id && folders.some((f) => f.id === id)) {
+          counts[id] = (counts[id] ?? 0) + 1;
+        } else {
+          noFolder += 1;
+        }
       }
-    }
-    const opts = folders.map((f) => ({
-      value: f.id,
-      label: f.name,
-      count: counts[f.id] ?? 0,
-      icon: (
-        <FolderIcon
-          className={cn('size-4 shrink-0', folderColorStyle(f.color).text)}
-          aria-hidden
-        />
-      ),
-    }));
-    opts.push({
-      value: NONE,
-      label: 'None',
-      count: noFolder,
-      icon: (
-        <FolderOffIcon
-          className="size-4 shrink-0 text-muted-foreground/50"
-          aria-hidden
-        />
-      ),
-    });
-    const historyOptions = [
-      {
-        value: SOLD_FOLDER_ID,
-        label: 'Sold',
-        count: sold,
-        icon: <BadgeDollarSign className="size-4 shrink-0" aria-hidden />,
-      },
-      {
-        value: DROPPED_FOLDER_ID,
-        label: 'Dropped',
-        count: dropped,
-        icon: <CircleOff className="size-4 shrink-0" aria-hidden />,
-      },
-      {
-        value: ARCHIVE_FOLDER_ID,
-        label: 'Archive',
-        count: archived,
-        icon: <Archive className="size-4 shrink-0" aria-hidden />,
-      },
-    ];
-    const userFolderCount = Object.values(counts).reduce((n, c) => n + c, 0);
-    return {
-      ownedFolderOptions: opts,
-      historyFolderOptions: historyOptions,
-      ownedCount: noFolder + userFolderCount,
-      historyCount: archived + sold + dropped,
-    };
-  }, [listed, folders, folderAssignments]);
+      const opts = folders.map((f) => ({
+        value: f.id,
+        label: f.name,
+        count: counts[f.id] ?? 0,
+        icon: (
+          <FolderIcon
+            className={cn('size-4 shrink-0', folderColorStyle(f.color).text)}
+            aria-hidden
+          />
+        ),
+      }));
+      opts.push({
+        value: NONE,
+        label: 'None',
+        count: noFolder,
+        icon: (
+          <FolderOffIcon
+            className="size-4 shrink-0 text-muted-foreground/50"
+            aria-hidden
+          />
+        ),
+      });
+      const historyOptions = [
+        {
+          value: SOLD_FOLDER_ID,
+          label: 'Sold',
+          count: sold,
+          icon: <BadgeDollarSign className="size-4 shrink-0" aria-hidden />,
+        },
+        {
+          value: DROPPED_FOLDER_ID,
+          label: 'Dropped',
+          count: dropped,
+          icon: <CircleOff className="size-4 shrink-0" aria-hidden />,
+        },
+        {
+          value: ARCHIVE_FOLDER_ID,
+          label: 'Archive',
+          count: archived,
+          icon: <Archive className="size-4 shrink-0" aria-hidden />,
+        },
+      ];
+      const userFolderCount = Object.values(counts).reduce((n, c) => n + c, 0);
+      return {
+        ownedFolderOptions: opts,
+        historyFolderOptions: historyOptions,
+        ownedCount: noFolder + userFolderCount,
+        historyCount: archived + sold + dropped,
+      };
+    }, [listed, folders, folderAssignments]);
 
   // Validate the price inputs, then derive the bounds actually applied. A field
   // error (or min > max) leaves the range unapplied until it's corrected.
@@ -1146,7 +1148,7 @@ export default function Domains() {
       // Sold / Dropped / Archive id, or "None". History shows only those three.
       // Owned hides them. A folder filter narrows further inside the view.
       {
-        const id = folderAssignments[domainKey(d)];
+        const id = folderAssignments[toAscii(d.domainName)];
         const bucket = isHiddenFolder(id)
           ? id!
           : id && folders.some((f) => f.id === id)
@@ -1172,7 +1174,7 @@ export default function Domains() {
         return pricing[domainKey(d)]?.renewal ?? null;
       }
       if (sortKey === FOLDER) {
-        const id = folderAssignments[domainKey(d)];
+        const id = folderAssignments[toAscii(d.domainName)];
         return (
           builtInFolderName(id)?.toLowerCase() ??
           folders.find((f) => f.id === id)?.name.toLowerCase() ??
@@ -1277,24 +1279,27 @@ export default function Domains() {
 
   function applyFolders(domainsToMove: Domain[], folderId: string | null) {
     const keys = domainsToMove.map((domain) => domainKey(domain));
-    void Promise.all(keys.map((key) => assignFolder(key, folderId))).then(
-      () => {
-        setSelectedMany(keys, false);
-        toast.success(folderMoveToast(folderId, keys.length));
-      },
-    );
+    void Promise.all(
+      domainsToMove.map((domain) => assignFolder(domain.domainName, folderId)),
+    ).then(() => {
+      setSelectedMany(keys, false);
+      toast.success(folderMoveToast(folderId, keys.length));
+    });
   }
 
   function requestFolder(domainsToMove: Domain[], folderId: string | null) {
     const changing = domainsToMove.filter(
-      (domain) => (folderAssignments[domainKey(domain)] ?? null) !== folderId,
+      (domain) =>
+        (folderAssignments[toAscii(domain.domainName)] ?? null) !== folderId,
     );
     const destinationName =
       folderId && !isHiddenFolder(folderId)
         ? (folders.find((folder) => folder.id === folderId)?.name ?? null)
         : null;
     const plan = planFolderMove(
-      changing.map((domain) => folderAssignments[domainKey(domain)] ?? null),
+      changing.map(
+        (domain) => folderAssignments[toAscii(domain.domainName)] ?? null,
+      ),
       folderId,
       changing.map((domain) => domain.domainName),
       destinationName,
@@ -1332,7 +1337,7 @@ export default function Domains() {
     const domain = markSold[markIndex];
     markAdvanced.current = true;
     markSaved.current += 1;
-    await assignFolder(domainKey(domain), SOLD_FOLDER_ID);
+    await assignFolder(domain.domainName, SOLD_FOLDER_ID);
     setSelectedMany([domainKey(domain)], false);
     if (markIndex + 1 < markSold.length) setMarkIndex((index) => index + 1);
     else finishMarkQueue();
@@ -1420,7 +1425,9 @@ export default function Domains() {
     <div className="mx-auto flex max-w-[1400px] flex-col gap-[13px]">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div>
-          <h1 className="text-2xl font-bold leading-none sm:text-[32px]">Domains</h1>
+          <h1 className="text-2xl font-bold leading-none sm:text-[32px]">
+            Domains
+          </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             {historyView
               ? `${historyCount} in Sold, Dropped, or Archived`
@@ -1834,7 +1841,9 @@ export default function Domains() {
                               <RowActionsMenu
                                 domain={d}
                                 folders={folders}
-                                folderId={folderAssignments[key]}
+                                folderId={
+                                  folderAssignments[toAscii(d.domainName)]
+                                }
                                 onRefresh={() => refreshDomain(d)}
                                 onUrlForwarding={() => setUrlForwardingFor(d)}
                                 onEmailForwarding={() =>
@@ -1875,7 +1884,9 @@ export default function Domains() {
                           <TableCell className="p-0!">
                             <FolderCell
                               folders={folders}
-                              folderId={folderAssignments[key]}
+                              folderId={
+                                folderAssignments[toAscii(d.domainName)]
+                              }
                               onAssign={(folderId) =>
                                 requestFolder([d], folderId)
                               }

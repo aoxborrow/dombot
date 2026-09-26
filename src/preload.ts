@@ -24,14 +24,8 @@ const api: DombotApi = {
   clearAllCaches: () => ipcRenderer.invoke(IpcChannels.clearAllCaches),
   getPortfolioPricing: () =>
     ipcRenderer.invoke(IpcChannels.getPortfolioPricing),
-  setManualPrice: (registrar, domain, price, accountId) =>
-    ipcRenderer.invoke(
-      IpcChannels.setManualPrice,
-      registrar,
-      domain,
-      price,
-      accountId,
-    ),
+  setManualPrice: (domain, price) =>
+    ipcRenderer.invoke(IpcChannels.setManualPrice, domain, price),
 
   // Registrars
   getDomainDetail: (registrar, domainName, refresh, accountId) =>
@@ -128,8 +122,8 @@ const api: DombotApi = {
   updateFolder: (id, patch) =>
     ipcRenderer.invoke(IpcChannels.updateFolder, id, patch),
   deleteFolder: (id) => ipcRenderer.invoke(IpcChannels.deleteFolder, id),
-  assignFolder: (domainKey, folderId) =>
-    ipcRenderer.invoke(IpcChannels.assignFolder, domainKey, folderId),
+  assignFolder: (domainName, folderId) =>
+    ipcRenderer.invoke(IpcChannels.assignFolder, domainName, folderId),
 
   // Settings
   getSettings: () => ipcRenderer.invoke(IpcChannels.getSettings),

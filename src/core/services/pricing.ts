@@ -1,3 +1,4 @@
+import { assertDomainName, toAscii } from '../../shared/domain-name';
 import type { RegistrarName } from '@aoxborrow/registrar-client';
 import { getBaseRenewal } from './base-pricing';
 import { Namespace } from '../storage/namespace';
@@ -7,7 +8,7 @@ import type { RenewalPricing } from '../../shared/ipc';
 // Renewal-price resolver backing the Renewals dashboard and the Domains renewal
 // column. Prices come from four layers, most-accurate first:
 //
-//   1. manual override — a price the user typed in (kept in pricing-overrides).
+//   1. manual override — a price the user typed in (kept in domain-prices).
 //   2. per-name API quote — only for registrars that price a *specific* domain,
 //      so the figure captures premium renewals. Gandi (its per-name price
 //      endpoint), Dynadot (its classic renew price-check quote), and GoDaddy
@@ -67,11 +68,13 @@ export interface RenewalQuote {
   currency: string;
 }
 
-// Manual per-domain renewal overrides, keyed `${accountId ?? registrar}:${domain}` (USD).
-const overrides = new Namespace<number>('pricing-overrides');
+// Manual per-domain renewal overrides (USD), keyed by `toAscii(domain)` so an
+// override follows the name when it moves between accounts.
+const overrides = new Namespace<number>('domain-prices');
 
 // Shopper annual renewal (USD) per account + TLD, keyed `${accountId ?? registrar}:${tld}`.
-const tldRates = new Namespace<number>('tld-rates');
+// Fetched during Sync, so "Clear cache" may drop it; the next Sync refills it.
+const tldRates = new Namespace<number>('registrar-tld-rates', { cache: true });
 
 /** Everything after the first dot, lowercased. "example.co.uk" → "co.uk". */
 export function tldOf(domain: string): string {
@@ -97,7 +100,7 @@ export function resolvePricing(
   quote?: RenewalQuote,
   accountId?: string,
 ): RenewalPricing {
-  const manual = overrides.get(`${accountId ?? registrar}:${domain}`);
+  const manual = overrides.get(toAscii(domain));
   if (typeof manual === 'number') {
     return {
       domain,
@@ -152,14 +155,10 @@ export function resolvePricing(
   };
 }
 
-/** Sets (number) or clears (null) a manual annual renewal price for a domain. */
-export function setManualPrice(
-  registrar: RegistrarName,
-  domain: string,
-  price: number | null,
-  accountId?: string,
-): void {
-  const key = `${accountId ?? registrar}:${domain}`;
+/** Sets (number) or clears (null) a manual annual renewal price for a domain,
+ *  whichever account holds it. */
+export function setManualPrice(domain: string, price: number | null): void {
+  const key = assertDomainName(domain);
   if (price === null || Number.isNaN(price)) {
     void overrides.delete(key);
   } else {

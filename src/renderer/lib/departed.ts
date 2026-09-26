@@ -5,6 +5,7 @@ import {
   SOLD_FOLDER_ID,
 } from '../../shared/ipc';
 import { domainKey } from '../../shared/account-key';
+import { toAscii } from '../../shared/domain-name';
 
 /**
  * Rows for names that left and were filed in Sold, Dropped, or Archive.
@@ -34,7 +35,7 @@ export function departedDomains(
     if (!folderId || !change.fromAccountId || !change.fromRegistrar) continue;
     const key = `${change.fromAccountId}:${change.domainName}`;
     if (liveKeys.has(key) || seen.has(key)) continue;
-    if (assignments[key] !== folderId) continue;
+    if (assignments[toAscii(change.domainName)] !== folderId) continue;
     seen.add(key);
     rows.push({
       registrar: change.fromRegistrar as Domain['registrar'],

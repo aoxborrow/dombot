@@ -206,9 +206,9 @@ describe('domainsToCsv', () => {
     const u = domain({ domainName: 'u.com' }); // unassigned
     const folders = [folder('f1', 'Clients')];
     const assignments = {
-      'dynadot:a.com': 'f1',
-      'dynadot:h.com': ARCHIVE_FOLDER_ID,
-      'dynadot:g.com': 'gone',
+      'a.com': 'f1',
+      'h.com': ARCHIVE_FOLDER_ID,
+      'g.com': 'gone',
     };
     const csv = domainsToCsv([a, h, g, u], {}, folders, assignments);
     expect(col(csv, 1, 'Folder')).toBe('Clients');

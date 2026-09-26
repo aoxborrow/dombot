@@ -97,9 +97,9 @@ interface DocStore {
 }
 ```
 
-Namespaces: `cache-portfolio`, `cache-detail`, `folders`, `settings`,
-`pricing-overrides`, `registrar-state`, `credentials`, `mcp`, `bulk-jobs`,
-`auth`, `meta`. Services keep their in-memory
+Namespaces are listed, with their names and flags, in
+[storage-model.md](storage-model.md) (they were renamed after this doc was
+written). Services keep their in-memory
 copies exactly as now; only `load`/`persist` change, and they become async
 (the IPC handlers are already async, so this is mechanical).
 

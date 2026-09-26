@@ -655,12 +655,13 @@ export type FolderPatch = Partial<
 
 /**
  * Everything the renderer restores on launch: the folder definitions plus the
- * domain→folder map (keyed `${accountId}:${domainName}`). Mirrors the shape of
- * CachedSnapshot. A domain absent from `assignments` is unassigned.
+ * domain→folder map, keyed `toAscii(domainName)` so a domain keeps its folder
+ * across accounts. Mirrors the shape of CachedSnapshot. A domain absent from
+ * `assignments` is unassigned.
  */
 export interface FoldersSnapshot {
   folders: Folder[];
-  /** domainKey → folderId. */
+  /** toAscii(domainName) → folderId. */
   assignments: Record<string, string>;
 }
 
@@ -702,13 +703,9 @@ export interface DombotApi {
    *  Computed locally (base rates + TLD rates + Sync-captured quotes +
    *  manual overrides). */
   getPortfolioPricing: () => Promise<Record<string, RenewalPricing>>;
-  /** Set (or clear, with null) a manual annual renewal price for a domain. */
-  setManualPrice: (
-    registrar: RegistrarName,
-    domain: string,
-    price: number | null,
-    accountId?: string,
-  ) => Promise<void>;
+  /** Set (or clear, with null) a manual annual renewal price for a domain.
+   *  Keyed by name, so it applies whichever account holds the domain. */
+  setManualPrice: (domain: string, price: number | null) => Promise<void>;
 
   // Registrars
   /**
@@ -842,7 +839,7 @@ export interface DombotApi {
   /** Delete a folder and drop every assignment pointing at it. */
   deleteFolder: (id: string) => Promise<void>;
   /** Assign a domain to a folder, or unassign it with a null folderId. */
-  assignFolder: (domainKey: string, folderId: string | null) => Promise<void>;
+  assignFolder: (domainName: string, folderId: string | null) => Promise<void>;
 
   // Settings
   /** Read the user-adjustable app settings. */

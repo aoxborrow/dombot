@@ -9,8 +9,10 @@ it('removes old plaintext diagnostic secrets without dropping cached domains', a
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dombot-sanitize-'));
   try {
     const store = new FsDocStore(dir);
-    await store.put('credentials', 'namesilo', { apiKey: 'FAKE_OLD_SECRET' });
-    await store.put('cache-portfolio', 'namesilo', {
+    await store.put('registrar-credentials', 'namesilo', {
+      apiKey: 'FAKE_OLD_SECRET',
+    });
+    await store.put('registrar-domains', 'namesilo', {
       fetchedAt: 1,
       data: {
         domains: [{ domainName: 'example.com' }],
@@ -23,7 +25,7 @@ it('removes old plaintext diagnostic secrets without dropping cached domains', a
     });
     await sanitizeStoredDiagnostics(store);
     const text = fs.readFileSync(
-      path.join(dir, 'cache-portfolio.json'),
+      path.join(dir, 'registrar-domains.json'),
       'utf8',
     );
     expect(text).not.toContain('FAKE_OLD_SECRET');
@@ -31,7 +33,7 @@ it('removes old plaintext diagnostic secrets without dropping cached domains', a
     expect(JSON.stringify(await store.list('bulk-jobs'))).not.toContain(
       'FAKE_OLD_SECRET',
     );
-    expect(await store.get('credentials', 'namesilo')).toEqual({
+    expect(await store.get('registrar-credentials', 'namesilo')).toEqual({
       apiKey: 'FAKE_OLD_SECRET',
     });
   } finally {

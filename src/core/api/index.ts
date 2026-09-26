@@ -206,19 +206,9 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   // ── Pricing ───────────────────────────────────────────────────────────────
   getPortfolioPricing: method(none, async () => getPortfolioPricing()),
   setManualPrice: method(
-    z.tuple([
-      s.registrarName,
-      s.domainName,
-      z.number().nullable(),
-      s.accountId,
-    ]),
-    async (registrar, domain, price, accountId) => {
-      setManualPrice(
-        registrar,
-        domain,
-        price,
-        resolveDomainAccount(registrar, domain, accountId).id,
-      );
+    z.tuple([s.domainName, z.number().nullable()]),
+    async (domain, price) => {
+      setManualPrice(domain, price);
     },
   ),
 
@@ -351,9 +341,9 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     deleteFolder(id);
   }),
   assignFolder: method(
-    z.tuple([s.domainKey, z.string().nullable()]),
-    async (domainKey, folderId) => {
-      assignFolder(domainKey, folderId);
+    z.tuple([s.domainName, z.string().nullable()]),
+    async (domainName, folderId) => {
+      assignFolder(domainName, folderId);
     },
   ),
 

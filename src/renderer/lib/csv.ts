@@ -1,5 +1,5 @@
 import { accountDisplayLabel } from '../../shared/account-label';
-import { domainKey } from '../../shared/account-key';
+import { toAscii } from '../../shared/domain-name';
 // Builds the Domains-page CSV export. Kept separate from the page component so
 // the column model and formatting are easy to read and test in isolation.
 
@@ -118,7 +118,7 @@ export function domainsToCsv(
   // The assigned folder's name, "Archive" for the built-in archive folder, or
   // empty when unassigned or the folder is gone.
   const folderName = (d: Domain): string => {
-    const id = assignments[domainKey(d)];
+    const id = assignments[toAscii(d.domainName)];
     return builtInFolderName(id) ?? nameById.get(id ?? '') ?? '';
   };
 

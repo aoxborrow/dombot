@@ -188,13 +188,13 @@ describe('multi-account storage, routing and portable migration', () => {
     writeEntry('detail', 'dynadot:legacy.com', {
       nameservers: ['ns.legacy.com'],
     });
-    setManualPrice('dynadot', 'legacy.com', 17);
+    setManualPrice('legacy.com', 17);
     const folder = createFolder({
       name: 'Keep',
       color: 'green',
       description: '',
     });
-    assignFolder('dynadot:legacy.com', folder.id);
+    assignFolder('legacy.com', folder.id);
     await flushWrites();
     await hydrateStores();
     expect(getCachedPortfolio()!.domains[0]).toMatchObject({
@@ -202,7 +202,7 @@ describe('multi-account storage, routing and portable migration', () => {
       accountLabel: 'Default',
     });
     expect(getPortfolioPricing()['dynadot:legacy.com'].renewal).toBe(17);
-    expect(getFolders().assignments['dynadot:legacy.com']).toBe(folder.id);
+    expect(getFolders().assignments['legacy.com']).toBe(folder.id);
     setRegistrarEnabled('dynadot', false);
     await flushWrites();
     await hydrateStores();
@@ -402,10 +402,8 @@ describe('multi-account storage, routing and portable migration', () => {
     ).toMatchObject({ expirationDate: new Date('2028-01-01') });
     expect(getCachedDetail()[domainKey(target)]).toBeDefined();
     await invoke('setManualPrice', coreMethods.setManualPrice, [
-      'dynadot',
       'company.com',
       19,
-      company.id,
     ]);
     expect(getPortfolioPricing()[domainKey(target)].renewal).toBe(19);
     const job = startBulk([target], {
@@ -522,17 +520,17 @@ describe('multi-account storage, routing and portable migration', () => {
   it('round trips current desktop/web encrypted storage and imports legacy v1 without re-entering credentials', async () => {
     const company = await twoAccounts();
     const text = exportBundle({ ...APP, platform: 'darwin' });
-    expect(JSON.parse(text).version).toBe(3);
+    expect(JSON.parse(text).version).toBe(4);
     const raw = new MemoryDocStore();
     const key = crypto.getRandomValues(new Uint8Array(32));
     configureStore(new EncryptedDocStore(raw, await aesGcmCipher(key)));
     await hydrateStores();
     await importBundle(text);
     await flushWrites();
-    expect(JSON.stringify(await raw.list('credentials'))).not.toContain(
-      'personal',
-    );
-    expect(await raw.get('credentials', company.id)).toMatchObject({
+    expect(
+      JSON.stringify(await raw.list('registrar-credentials')),
+    ).not.toContain('personal');
+    expect(await raw.get('registrar-credentials', company.id)).toMatchObject({
       __sealed: 1,
     });
     await hydrateStores();
@@ -542,7 +540,7 @@ describe('multi-account storage, routing and portable migration', () => {
       new EncryptedDocStore(
         new MemoryDocStore(),
         await aesGcmCipher(key),
-        new Set(['credentials']),
+        new Set(['registrar-credentials']),
       ),
     );
     await hydrateStores();
@@ -556,8 +554,8 @@ describe('multi-account storage, routing and portable migration', () => {
     const legacy = buildBundle(APP);
     legacy.version = 1;
     delete legacy.namespaces['registrar-accounts'];
-    delete legacy.namespaces.credentials[company.id];
-    delete legacy.namespaces['cache-portfolio'][company.id];
+    delete legacy.namespaces['registrar-credentials'][company.id];
+    delete legacy.namespaces['registrar-domains'][company.id];
     await importBundle(JSON.stringify(legacy));
     await flushWrites();
     expect(getCachedPortfolio()!.domains).toHaveLength(1);
@@ -566,7 +564,7 @@ describe('multi-account storage, routing and portable migration', () => {
     ).toMatchObject({ configured: true, accountLabel: 'Default' });
   });
 
-  it('keeps detail and prices separate for duplicate domain names across accounts', async () => {
+  it('keeps detail per account but shares a manual price by name', async () => {
     const company = await twoAccounts();
     for (const key of ['personal', 'company']) {
       fakes.providers
@@ -580,15 +578,15 @@ describe('multi-account storage, routing and portable migration', () => {
     await getPortfolio();
     await getDomainDetail('dynadot', 'shared.com', true, 'dynadot');
     await getDomainDetail('dynadot', 'shared.com', true, company.id);
-    setManualPrice('dynadot', 'shared.com', 10, 'dynadot');
-    setManualPrice('dynadot', 'shared.com', 20, company.id);
+    setManualPrice('shared.com', 20);
     expect(getCachedDetail()['dynadot:shared.com'].nameservers).toEqual([
       'ns.personal.com',
     ]);
     expect(getCachedDetail()[`${company.id}:shared.com`].nameservers).toEqual([
       'ns.company.com',
     ]);
-    expect(getPortfolioPricing()['dynadot:shared.com'].renewal).toBe(10);
+    // A manual price belongs to the name, so both accounts' copies show it.
+    expect(getPortfolioPricing()['dynadot:shared.com'].renewal).toBe(20);
     expect(getPortfolioPricing()[`${company.id}:shared.com`].renewal).toBe(20);
   });
 
@@ -618,7 +616,7 @@ describe('multi-account storage, routing and portable migration', () => {
           },
           open: async () => '',
         },
-        new Set(['credentials']),
+        new Set(['registrar-credentials']),
       ),
     );
     await hydrateStores();
@@ -629,7 +627,7 @@ describe('multi-account storage, routing and portable migration', () => {
       }),
     ).rejects.toThrow(/keyring unavailable/);
     expect(getStoredCredentials('dynadot')).toEqual({});
-    expect(await raw.get('credentials', 'dynadot')).toBeNull();
+    expect(await raw.get('registrar-credentials', 'dynadot')).toBeNull();
     await expect(flushWrites()).rejects.toThrow(/keyring unavailable/);
   });
 
@@ -852,7 +850,7 @@ describe('multi-account storage, routing and portable migration', () => {
       ]),
     ).rejects.toThrow(/Invalid API key/);
     expect(getRegistrarMetadata().filter((a) => a.saved)).toEqual([]);
-    expect(await disk.list('credentials')).toEqual({});
+    expect(await disk.list('registrar-credentials')).toEqual({});
     expect(await disk.list('registrar-accounts')).toEqual({});
     fakes.providers
       .get('bad')!
@@ -903,7 +901,7 @@ describe('multi-account storage, routing and portable migration', () => {
           },
           open: async () => '',
         },
-        new Set(['credentials']),
+        new Set(['registrar-credentials']),
       ),
     );
     await hydrateStores();
@@ -931,7 +929,7 @@ describe('multi-account storage, routing and portable migration', () => {
       ]),
     ).rejects.toThrow(/metadata write failed/);
     expect(getRegistrarMetadata().filter((a) => a.saved)).toEqual([]);
-    expect(await disk.list('credentials')).toEqual({});
+    expect(await disk.list('registrar-credentials')).toEqual({});
     await expect(flushWrites()).rejects.toThrow(/metadata write failed/);
   });
 
@@ -954,7 +952,9 @@ describe('multi-account storage, routing and portable migration', () => {
     await expect(flushWrites()).rejects.toThrow(/persistence unavailable/);
     expect(results.every((r) => r.status === 'rejected')).toBe(true);
     expect(getStoredCredentials('dynadot')).toEqual(original);
-    expect(await disk.get('credentials', 'dynadot')).toEqual(original);
+    expect(await disk.get('registrar-credentials', 'dynadot')).toEqual(
+      original,
+    );
   });
 
   it('publishes only one account when identical connection requests overlap', async () => {
@@ -978,7 +978,9 @@ describe('multi-account storage, routing and portable migration', () => {
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
     expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(1);
-    expect(Object.keys(await disk.list('credentials'))).toHaveLength(1);
+    expect(Object.keys(await disk.list('registrar-credentials'))).toHaveLength(
+      1,
+    );
   });
 
   it('rebuilds cached clients when another host changes persisted credentials', async () => {
@@ -987,7 +989,7 @@ describe('multi-account storage, routing and portable migration', () => {
       apiSecret: 'test-secret',
     });
     const old = getRegistrarClient('dynadot');
-    await disk.put('credentials', 'dynadot', {
+    await disk.put('registrar-credentials', 'dynadot', {
       apiKey: 'new',
       apiSecret: 'test-secret',
     });

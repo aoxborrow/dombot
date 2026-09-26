@@ -61,7 +61,7 @@ describe('portfolio change history', () => {
       resolved: true,
       resolution: 'archive',
     });
-    expect(getFolders().assignments[`dynadot:${removal.domainName}`]).toBe(
+    expect(getFolders().assignments[removal.domainName]).toBe(
       ARCHIVE_FOLDER_ID,
     );
     await flushWrites();
@@ -80,7 +80,7 @@ describe('portfolio change history', () => {
     const removal = getPortfolioChanges()[0];
     resolvePortfolioChange(removal.id, 'sold');
     expect(getPortfolioChanges()[0].resolution).toBe('sold');
-    expect(getFolders().assignments['dynadot:a.com']).toBe(SOLD_FOLDER_ID);
+    expect(getFolders().assignments['a.com']).toBe(SOLD_FOLDER_ID);
   });
 
   it('closes a departure on its own when the name was already filed', () => {
@@ -88,8 +88,8 @@ describe('portfolio change history', () => {
       [holding('dynadot', [])],
       [holding('dynadot', ['sold.com', 'dropped.com'])],
     );
-    assignFolder('dynadot:sold.com', SOLD_FOLDER_ID);
-    assignFolder('dynadot:dropped.com', DROPPED_FOLDER_ID);
+    assignFolder('sold.com', SOLD_FOLDER_ID);
+    assignFolder('dropped.com', DROPPED_FOLDER_ID);
     recordPortfolioDiff(
       [holding('dynadot', ['sold.com', 'dropped.com'])],
       [holding('dynadot', [])],
