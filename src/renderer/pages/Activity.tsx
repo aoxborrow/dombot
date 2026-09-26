@@ -357,7 +357,7 @@ export default function Activity() {
     },
     {
       key: 'account',
-      label: 'Account',
+      label: 'Registrar',
       cell: (e) =>
         e.type === DomainEventType.Moved ? (
           <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
@@ -508,7 +508,7 @@ export default function Activity() {
         }}
       />
       <MultiSelectFilter
-        label="Account"
+        label="Registrar"
         icon={Building2}
         options={accountOptions}
         selected={accounts}
@@ -768,7 +768,7 @@ export default function Activity() {
   );
 }
 
-/** Registrar logo and account name; "a removed account" when it's gone. */
+/** Registrar logo and account name (numbered or nicknamed when a registrar has several); "a removed account" when it's gone. */
 function AccountLabel({
   registrars,
   id,
