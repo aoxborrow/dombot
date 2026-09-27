@@ -46,6 +46,7 @@ import {
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import { accountName } from '../lib/domain-history';
+import { SEVERITY_DOT, SEVERITY_ROW_TINT } from '../lib/severity';
 import {
   SOURCE_LABEL,
   VERB,
@@ -70,12 +71,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-/** Open alerts stand out, by priority. */
-const ROW_TINT: Record<ReviewPriority, string> = {
-  high: 'bg-amber-500/[0.07] hover:bg-amber-500/[0.11] dark:bg-amber-400/[0.07] dark:hover:bg-amber-400/[0.11]',
-  low: 'bg-muted/25',
-};
 
 const PRIORITY_LABEL: Record<ReviewPriority, string> = {
   high: 'High',
@@ -214,6 +209,12 @@ export default function Activity() {
       value: p,
       label: PRIORITY_LABEL[p],
       count: counts[p],
+      icon: (
+        <span
+          className={cn('m-1 size-2 rounded-full', SEVERITY_DOT[p])}
+          aria-hidden
+        />
+      ),
     }));
   }, [events, resolved]);
 
@@ -433,12 +434,7 @@ export default function Activity() {
               title={`${PRIORITY_LABEL[priority]} priority`}
             >
               <span
-                className={cn(
-                  'size-2 rounded-full',
-                  priority === 'high'
-                    ? 'bg-amber-500 dark:bg-amber-400'
-                    : 'bg-muted-foreground/60',
-                )}
+                className={cn('size-2 rounded-full', SEVERITY_DOT[priority])}
                 aria-hidden
               />
               Needs review
@@ -753,7 +749,7 @@ export default function Activity() {
         rowClassName={(e, selected) => {
           // A selected row shows the selection, not its priority tint.
           const p = !selected && priorityOf(e);
-          return p ? ROW_TINT[p] : undefined;
+          return p ? SEVERITY_ROW_TINT[p] : undefined;
         }}
         empty={
           reviewOnly && !hasActiveFilters

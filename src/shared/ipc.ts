@@ -330,6 +330,9 @@ export interface RegistrarSync {
   lastSyncedAt: number | null;
   /** Error from the most recent sync attempt, or null when it succeeded. */
   lastError: string | null;
+  /** When that error happened (ms epoch); null when there's none, or it
+   *  predates this being recorded. */
+  lastErrorAt: number | null;
   /** Domains held from the last successful sync. */
   domainCount: number;
   /** When sync started recording this account's changes (ms epoch), or null. */

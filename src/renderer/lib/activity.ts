@@ -27,6 +27,7 @@ export function syncProblems(
       accountId: r.accountId ?? r.name,
       account: accountName(registrars, r.accountId ?? r.name) ?? r.displayName,
       message: r.sync.lastError!,
+      at: r.sync.lastErrorAt,
     }));
 }
 

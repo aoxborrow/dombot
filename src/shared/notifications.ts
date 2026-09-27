@@ -33,6 +33,8 @@ export interface SyncFailure {
   accountId: string;
   account: string;
   message: string;
+  /** When the sync failed (ms epoch), if known. */
+  at?: number | null;
 }
 
 export interface Notification {
@@ -40,7 +42,7 @@ export interface Notification {
   id: string;
   severity: Severity;
   kind: 'sync-error' | 'departure' | 'arrival';
-  /** ms epoch the event was recorded; null for a sync error (not tracked). */
+  /** ms epoch the event was recorded, or the sync failed; null if unknown. */
   at: number | null;
   accountId: string | null;
   /** `toAscii` name; null for a sync error. */
@@ -58,7 +60,7 @@ export function notifications(
     id: `sync:${f.accountId}`,
     severity: 'error',
     kind: 'sync-error',
-    at: null,
+    at: f.at ?? null,
     accountId: f.accountId,
     domain: null,
     eventId: null,

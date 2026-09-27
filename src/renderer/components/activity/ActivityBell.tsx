@@ -7,13 +7,14 @@ import {
   notificationBadge,
   notifications,
   type Notification,
-  type Severity,
 } from '../../../shared/notifications';
+import { SEVERITY_COUNT, SEVERITY_DOT } from '../../lib/severity';
 import { accountName } from '../../lib/domain-history';
 import { syncProblems } from '../../lib/activity';
 import { timeAgo } from '../../lib/time';
 import { useAppStore } from '../../store/app';
 import { EventTypeBadge } from './EventTypeBadge';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
   Popover,
@@ -24,18 +25,6 @@ import {
 
 /** Rows the dropdown shows before "and N more". */
 const SHOWN = 10;
-
-const BADGE_TONE: Record<Severity, string> = {
-  error: 'bg-destructive text-white',
-  high: 'bg-amber-500 text-white dark:bg-amber-400 dark:text-black',
-  low: 'bg-muted-foreground text-background',
-};
-
-const DOT_TONE: Record<Severity, string> = {
-  error: 'bg-destructive',
-  high: 'bg-amber-500 dark:bg-amber-400',
-  low: 'bg-muted-foreground/60',
-};
 
 /**
  * The header bell: a compact list of what needs you (docs/activity-redesign.md,
@@ -79,7 +68,7 @@ export function ActivityBell() {
             <span
               className={cn(
                 'absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums',
-                BADGE_TONE[badge.severity],
+                SEVERITY_COUNT[badge.severity],
               )}
             >
               {badge.count}
@@ -153,8 +142,8 @@ export function ActivityBell() {
 
 /**
  * One notification: severity dot, what happened, and when. A domain row opens
- * Activity on that name; a sync error only says which account failed (the
- * details are on its card in Settings → Registrars).
+ * Activity on that name; a sync error opens Settings → Registrars, where its
+ * card has the details (the message is also the row's tooltip).
  */
 function NotificationRow({
   n,
@@ -167,19 +156,38 @@ function NotificationRow({
 }) {
   const dot = (
     <span
-      className={cn('size-2 shrink-0 rounded-full', DOT_TONE[n.severity])}
+      className={cn('size-2 shrink-0 rounded-full', SEVERITY_DOT[n.severity])}
       aria-hidden
     />
   );
   if (n.kind === 'sync-error') {
+    // Opens Settings → Registrars, where the account's card has the error.
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 text-sm">
+      <Link
+        to="/settings?tab=registrars"
+        onClick={onNavigate}
+        className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
+        title={n.message}
+      >
         {dot}
-        <span className="min-w-0 truncate font-medium">
-          {account ?? n.message.split(':')[0]}
+        <Badge
+          variant="outline"
+          className="border-red-500/40 text-red-600 dark:text-red-400"
+        >
+          Error
+        </Badge>
+        <span className="min-w-0 flex-1 truncate">
+          <span className="font-medium">
+            {account ?? n.message.split(':')[0]}
+          </span>{' '}
+          <span className="text-muted-foreground">sync failed</span>
         </span>
-        <span className="shrink-0 text-muted-foreground">sync failed</span>
-      </div>
+        {n.at !== null && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {timeAgo(n.at)}
+          </span>
+        )}
+      </Link>
     );
   }
   const name = toUnicode(n.domain ?? '');

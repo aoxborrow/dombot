@@ -314,6 +314,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       meta?.sync ?? {
         lastSyncedAt: null,
         lastError: null,
+        lastErrorAt: null,
         domainCount: 0,
         trackedSince: null,
       }
