@@ -173,7 +173,10 @@ export function setSale(input: SaleInput): DomainPurchase | null {
   const { amount, currency } = parseAmount(input.amount, input.currency);
   // Marking a name Sold always records the sale, dated today if you left it blank.
   const date = typed ?? (input.mark && !amount ? localDay() : null);
-  const existing = holdings().get(domain)?.sale;
+  // Marking Sold, or answering an alert, records a new sale: a name that was
+  // sold, left, and came back keeps its earlier sale as history.
+  const existing =
+    input.mark || input.resolves ? undefined : holdings().get(domain)?.sale;
   const next = upsert(
     existing,
     {
