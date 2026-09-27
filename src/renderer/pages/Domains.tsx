@@ -1442,7 +1442,7 @@ export default function Domains() {
   }
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col">
+    <div className="flex min-h-0 w-full flex-1 flex-col">
       {/* Title and filters scroll away on a short screen so the column names
           and the row-count bar keep a slice of the page. The -m-1 p-1
           pair leaves room for focus rings, which the scroll box would clip. */}
