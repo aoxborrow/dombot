@@ -750,8 +750,9 @@ export default function Activity() {
           allLabel: 'Select all activity',
           rowLabel: (e) => `Select ${toUnicode(e.domain)} ${VERB[e.type]}`,
         }}
-        rowClassName={(e) => {
-          const p = priorityOf(e);
+        rowClassName={(e, selected) => {
+          // A selected row shows the selection, not its priority tint.
+          const p = !selected && priorityOf(e);
           return p ? ROW_TINT[p] : undefined;
         }}
         empty={
@@ -792,6 +793,7 @@ export default function Activity() {
           domain={alertDomain(dialog.event, portfolio, registrars)}
           justRegistered
           resolves={dialog.event.id}
+          onSaved={clearSelection}
           onClose={() => setDialog(null)}
         />
       )}

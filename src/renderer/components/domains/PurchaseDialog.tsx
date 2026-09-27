@@ -67,10 +67,12 @@ export function PurchaseDialog({
   // the previous purchase. The note belongs to the name, so it still shows.
   const existing = resolves ? undefined : record;
 
-  // A new purchase starts dated today; editing one keeps what's stored.
   const recorded = !!(existing?.purchaseDate || existing?.amount);
+  // Answering an arrival records a purchase, so it starts dated today. This is
+  // also the notes editor, so otherwise the date starts as stored (blank for a
+  // name with no purchase): saving only a note mustn't record a purchase.
   const [date, setDate] = useState(
-    recorded ? (existing?.purchaseDate ?? '') : todayInput,
+    resolves ? todayInput : (existing?.purchaseDate ?? ''),
   );
   const [amount, setAmount] = useState(
     existing?.amount

@@ -90,7 +90,8 @@ export function DataTable<T>({
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   selection?: TableSelection<T>;
-  rowClassName?: (row: T) => string | false | undefined;
+  /** Extra row classes. Leave selected rows alone so the selection shows. */
+  rowClassName?: (row: T, selected: boolean) => string | false | undefined;
   /** Shown in a single row when there are no rows. */
   empty: ReactNode;
   /** Extra classes on the outer container (e.g. spacing above). */
@@ -230,7 +231,7 @@ export function DataTable<T>({
                   key={key}
                   className={cn(
                     isSelected && 'bg-muted/50',
-                    rowClassName?.(row),
+                    rowClassName?.(row, isSelected),
                   )}
                 >
                   {selection && (
