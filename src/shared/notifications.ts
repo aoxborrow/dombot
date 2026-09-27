@@ -80,8 +80,13 @@ export function notifications(
       message: departure ? 'Left an account' : 'Arrived in an account',
     });
   }
+  // One sync stamps all its events with the same time, so ties fall back to
+  // the id: event ids are ULIDs, which sort in the order they were made.
   return out.sort(
-    (a, b) => RANK[a.severity] - RANK[b.severity] || (b.at ?? 0) - (a.at ?? 0),
+    (a, b) =>
+      RANK[a.severity] - RANK[b.severity] ||
+      (b.at ?? 0) - (a.at ?? 0) ||
+      (b.eventId ?? '').localeCompare(a.eventId ?? ''),
   );
 }
 
