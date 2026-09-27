@@ -32,10 +32,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 /**
- * The trailing "⋯" menu on each row (pinned to the right of the Domain cell): a
- * per-domain refresh, the actions that aren't a column (forwarding, auth code,
- * renew), a Folder submenu (a folder, Hidden, or None), and the ownership
- * states: Sold, Dropped, or Archived (the one it's in is disabled; a new one
+ * The trailing "⋯" menu on each row (pinned to the right of the Domain cell):
+ * for a name you own, a refresh, a Folder submenu (a folder, Hidden, or None),
+ * and the actions that aren't a column (forwarding, renew, auth code); then,
+ * for every name, Record purchase and the ownership states: Sold, Dropped, or Archived (the one it's in is disabled; a new one
  * replaces yours; Archive only for a name you own), "Move back
  * to Owned" for a labeled name an account still holds, and Delete. A name in
  * Archive gets no registrar actions: move it back to Owned first. Registrar-backed items the
@@ -117,6 +117,7 @@ export function RowActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
+        {/* Registrar and organizing actions: only for a name you own. */}
         {archive === null && (
           <>
             <DropdownMenuItem onSelect={onRefresh}>
@@ -124,10 +125,6 @@ export function RowActionsMenu({
               Refresh
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-          </>
-        )}
-        {archive === null && (
-          <>
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <FolderIcon className="text-muted-foreground" />
@@ -141,47 +138,6 @@ export function RowActionsMenu({
                 />
               </DropdownMenuSubContent>
             </DropdownMenuSub>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        <DropdownMenuItem onSelect={onEditPurchase}>
-          <Receipt className="text-muted-foreground" />
-          Purchase & notes
-        </DropdownMenuItem>
-        {archive === 'sold' && (
-          <DropdownMenuItem onSelect={onEditSale}>
-            <Receipt className="text-muted-foreground" />
-            Sale & notes
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={archive === 'sold'} onSelect={onMarkSold}>
-          <BadgeDollarSign className="text-muted-foreground" />
-          Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={archive === 'dropped'}
-          onSelect={onMarkDropped}
-        >
-          <CircleOff className="text-muted-foreground" />
-          Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
-        </DropdownMenuItem>
-        {/* Puts a name you own away without a reason. In Archive, Removed
-            already means "gone, no reason given". */}
-        {archive === null && (
-          <DropdownMenuItem onSelect={onMarkArchived}>
-            <Archive className="text-muted-foreground" />
-            Archive<span className="-ml-[6px] opacity-50">…</span>
-          </DropdownMenuItem>
-        )}
-        {!domain.departed && labeled && (
-          <DropdownMenuItem onSelect={onRestoreOwned}>
-            <Undo2 className="text-muted-foreground" />
-            Move back to Owned
-          </DropdownMenuItem>
-        )}
-        {archive === null && (
-          <>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               disabled={urlReason !== null}
@@ -216,7 +172,42 @@ export function RowActionsMenu({
               <KeyRound className="text-muted-foreground" />
               Get auth code<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
           </>
+        )}
+        {/* Ownership, in the same order as on Activity. Record purchase and
+            Mark as Sold open with what's saved (and the name's notes), so
+            a sold name's Mark as Sold edits its sale. */}
+        <DropdownMenuItem onSelect={onEditPurchase}>
+          <Receipt className="text-muted-foreground" />
+          Record purchase<span className="-ml-[6px] opacity-50">…</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={archive === 'sold' ? onEditSale : onMarkSold}
+        >
+          <BadgeDollarSign className="text-muted-foreground" />
+          Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={archive === 'dropped'}
+          onSelect={onMarkDropped}
+        >
+          <CircleOff className="text-muted-foreground" />
+          Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
+        </DropdownMenuItem>
+        {/* Puts a name you own away without a reason. In Archive, Removed
+            already means "gone, no reason given". */}
+        {archive === null && (
+          <DropdownMenuItem onSelect={onMarkArchived}>
+            <Archive className="text-muted-foreground" />
+            Archive<span className="-ml-[6px] opacity-50">…</span>
+          </DropdownMenuItem>
+        )}
+        {!domain.departed && labeled && (
+          <DropdownMenuItem onSelect={onRestoreOwned}>
+            <Undo2 className="text-muted-foreground" />
+            Move back to Owned
+          </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={onDelete}>

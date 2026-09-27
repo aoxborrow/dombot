@@ -802,8 +802,15 @@ export default function Activity() {
         (dialog.rows.length === 1 ? (
           <SaleDialog
             domain={alertDomain(dialog.rows[0].event, portfolio, registrars)}
-            mode="mark"
-            resolves={answers(dialog.rows[0].event)}
+            // Already Sold: edit that sale. Otherwise mark it.
+            mode={
+              stateOf(dialog.rows[0].event)?.label === 'sold' ? 'edit' : 'mark'
+            }
+            resolves={
+              stateOf(dialog.rows[0].event)?.label === 'sold'
+                ? undefined
+                : answers(dialog.rows[0].event)
+            }
             onSaved={clearSelection}
             onClose={() => setDialog(null)}
           />
@@ -875,10 +882,11 @@ function AccountLabel({
 }
 
 /**
- * A row's "⋯" menu: set the name's state, record a purchase, dismiss its
- * review, open it in Domains, or delete it. The state it's already in,
- * Archive for a name already in Archive, and Dismiss on a row that doesn't
- * need review are disabled.
+ * A row's "⋯" menu, in the same order as the Domains one: record a purchase,
+ * set the name's state, dismiss its review, open it in Domains, or delete it.
+ * Dropped when it's already Dropped, Archive for a name already in Archive,
+ * and Dismiss on a row that doesn't need review are disabled; a sold name's
+ * Mark as Sold edits its sale.
  */
 function RowMenu({
   row,
@@ -913,7 +921,12 @@ function RowMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem disabled={is('sold')} onSelect={() => set('sold')}>
+        <DropdownMenuItem onSelect={() => onDialog({ kind: 'purchase', row })}>
+          <ReceiptText className="text-muted-foreground" />
+          Record purchase…
+        </DropdownMenuItem>
+        {/* A sold name's Mark as Sold edits its sale. */}
+        <DropdownMenuItem onSelect={() => set('sold')}>
           <BadgeDollarSign className="text-muted-foreground" />
           Mark as Sold…
         </DropdownMenuItem>
@@ -932,10 +945,6 @@ function RowMenu({
         >
           <Archive className="text-muted-foreground" />
           Archive…
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onDialog({ kind: 'purchase', row })}>
-          <ReceiptText className="text-muted-foreground" />
-          Record purchase…
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!needsReview} onSelect={onDismiss}>

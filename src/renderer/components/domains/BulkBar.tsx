@@ -253,6 +253,7 @@ export function BulkBar({
                 <span className="-ml-[6px] opacity-50">…</span>
               </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"
               onSelect={() => onOwnership('delete')}
