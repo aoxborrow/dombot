@@ -1684,7 +1684,7 @@ export default function Domains() {
             hasLoaded ? (
               'No domains found in any configured registrar.'
             ) : (
-              'Click “Sync domains” to load your portfolio.'
+              'Your domains show up here after the first sync.'
             )
           ) : (
             'No domains match the current filters.'

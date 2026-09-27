@@ -33,10 +33,7 @@ import {
   TabStrip,
   type TabProps,
 } from './components/TabStrip';
-import SyncControl, {
-  SyncStatusMini,
-  useSyncState,
-} from './components/SyncControl';
+import { useSyncState } from './lib/sync-state';
 import { ActivityBell } from './components/activity/ActivityBell';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -53,7 +50,6 @@ const TAB_OPTIONS: Record<
   '/renewals': { metric: 'renewals', pillFrom: 'lg' },
   '/activity': { metric: 'activity', iconOnlyBelow: 'lg', pillFrom: 'lg' },
   '/settings': {
-    metric: 'settings',
     iconOnlyBelow: 'md',
     pillFrom: 'lg',
     // The gear is drawn smaller than the other icons, so it's bumped up.
@@ -169,19 +165,13 @@ export default function App() {
             );
           })}
         </TabStrip>
-        {/* Right side. Phones: a compact sync status, right-justified to the
-            left of the hamburger (the Sync action lives inside the menu).
-            Desktop: the hamburger and status are hidden and the full Sync
-            control shows. */}
+        {/* Right side: the bell, plus the hamburger on phones. Sync lives in
+            the status bar (and in the hamburger menu on phones). */}
         <div className="flex flex-1 items-center justify-end gap-2">
-          <span className="mr-2 inline-flex items-center gap-2.5 sm:hidden">
+          <span className="mr-2 inline-flex sm:mr-0">
             <ActivityBell />
-            <SyncStatusMini />
           </span>
           <MobileNav />
-          <div className="hidden sm:block">
-            <SyncControl />
-          </div>
         </div>
       </header>
 
@@ -275,8 +265,8 @@ function MobileNav() {
             </DropdownMenuItem>
           );
         })}
-        {/* The Sync action lives here on phones (the desktop header has its own
-            button); the last-synced time/errors show beside the hamburger. */}
+        {/* The Sync action lives here on phones; on wider screens it's in the
+            status bar. */}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={() => sync()}

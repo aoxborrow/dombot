@@ -8,7 +8,7 @@ export interface TabMetric {
   value: string;
   /** Longer form for the tooltip. */
   title: string;
-  /** Tinted red when the number is a problem count (Settings sync issues). */
+  /** Tinted red when the number is a problem count. */
   alert?: boolean;
 }
 
@@ -23,19 +23,17 @@ export interface TabMetrics {
   domains: TabMetric | null;
   renewals: TabMetric | null;
   activity: TabMetric | null;
-  settings: TabMetric | null;
 }
 
 /**
  * The headline number each top-level tab shows in its pill: Domains → portfolio
  * size, Renewals → known annual renewal spend, Activity → alerts that need
- * review, Settings → accounts whose last sync failed (Activity and Settings
- * only when there are any). `null` hides the pill.
+ * review (only when there are any). Settings has none: sync failures show in
+ * the bell and the status bar. `null` hides the pill.
  */
 export function useTabMetrics(): TabMetrics {
   const portfolio = useAppStore((s) => s.portfolio);
   const pricing = useAppStore((s) => s.pricing);
-  const registrars = useAppStore((s) => s.registrars);
   const events = useAppStore((s) => s.domainEvents);
 
   return useMemo(() => {
@@ -57,8 +55,7 @@ export function useTabMetrics(): TabMetrics {
           }
         : null;
 
-    // The same alerts as the header bell, without its sync errors (those
-    // count on Settings).
+    // The same alerts as the header bell, without its sync errors.
     const open = notifications(events, []).length;
     const activity =
       open > 0
@@ -68,20 +65,6 @@ export function useTabMetrics(): TabMetrics {
           }
         : null;
 
-    // Enabled accounts, for the Settings sync-issue count.
-    const configured = (registrars ?? []).filter(
-      (r) => r.configured && r.enabled,
-    );
-    const issues = configured.filter((r) => r.sync.lastError != null).length;
-    const settings =
-      issues > 0
-        ? {
-            value: String(issues),
-            title: `${issues} account${issues === 1 ? '' : 's'} failed to sync`,
-            alert: true,
-          }
-        : null;
-
-    return { domains, renewals, activity, settings };
-  }, [portfolio, pricing, registrars, events]);
+    return { domains, renewals, activity };
+  }, [portfolio, pricing, events]);
 }

@@ -33,6 +33,7 @@ import { useAppStore } from '../../store/app';
 import { Link } from 'react-router-dom';
 import { isDemo } from '../../lib/platform';
 import { timeAgo } from '../../lib/time';
+import { useSyncState } from '../../lib/sync-state';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -165,11 +166,16 @@ export default function RegistrarsSettings() {
           </p>
         </div>
         {loaded && cards.length > 0 && (
-          <AddAccountMenu
-            catalog={sortedCatalog}
-            disabled={draft !== null}
-            onPick={startDraft}
-          />
+          <div className="flex items-center gap-2">
+            {cards.filter((c) => c.account.enabled).length > 1 && (
+              <SyncAllButton />
+            )}
+            <AddAccountMenu
+              catalog={sortedCatalog}
+              disabled={draft !== null}
+              onPick={startDraft}
+            />
+          </div>
         )}
       </div>
 
@@ -203,6 +209,17 @@ export default function RegistrarsSettings() {
         )}
       </div>
     </div>
+  );
+}
+
+/** Syncs every enabled account at once, like the status bar's Sync. */
+function SyncAllButton() {
+  const { sync, syncing, disabled, title } = useSyncState();
+  return (
+    <Button variant="outline" onClick={sync} disabled={disabled} title={title}>
+      <RefreshCw className={cn(syncing && 'animate-spin')} />
+      {syncing ? 'Syncing…' : 'Sync all'}
+    </Button>
   );
 }
 
@@ -319,7 +336,9 @@ function AccountCard({
   const [proxyEnabled, setProxyEnabled] = useState(usesProxy);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const syncing = syncingHere || firstSync;
+  // A Sync all (or the automatic sync) covers every enabled account.
+  const syncingAll = useAppStore((s) => s.portfolioLoading) && account.enabled;
+  const syncing = syncingHere || firstSync || syncingAll;
   const syncFailed =
     account.configured &&
     account.enabled &&
