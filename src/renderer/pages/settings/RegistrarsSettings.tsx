@@ -154,6 +154,8 @@ export default function RegistrarsSettings() {
       .finally(() => mark(false));
   };
 
+  const enabledCount = cards.filter((c) => c.account.enabled).length;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -166,17 +168,18 @@ export default function RegistrarsSettings() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {/* The page's actions, right-aligned above the cards. */}
+        {/* Above the cards: Sync all on the left (it acts on the cards
+            below), the page's main action on the right. */}
         {loaded && cards.length > 0 && (
-          <div className="flex flex-wrap justify-end gap-2">
-            {cards.filter((c) => c.account.enabled).length > 1 && (
-              <SyncAllButton />
-            )}
-            <AddAccountMenu
-              catalog={sortedCatalog}
-              disabled={draft !== null}
-              onPick={startDraft}
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            {enabledCount > 1 && <SyncAllButton count={enabledCount} />}
+            <div className="ml-auto">
+              <AddAccountMenu
+                catalog={sortedCatalog}
+                disabled={draft !== null}
+                onPick={startDraft}
+              />
+            </div>
           </div>
         )}
         {loadError && (
@@ -211,13 +214,39 @@ export default function RegistrarsSettings() {
   );
 }
 
-/** Syncs every enabled account at once, like the status bar's Sync. */
-function SyncAllButton() {
-  const { sync, syncing, disabled, title } = useSyncState();
+/**
+ * Syncs every enabled account at once, like the status bar's Sync. Each card
+ * shows Syncing… while it runs, and a toast sums up the result.
+ */
+function SyncAllButton({ count }: { count: number }) {
+  const loadPortfolio = useAppStore((s) => s.loadPortfolio);
+  const { syncing, disabled, title } = useSyncState();
+  const run = async () => {
+    await loadPortfolio();
+    const { portfolioError, portfolioErrors, portfolio } =
+      useAppStore.getState();
+    if (portfolioError) toast.error(`Sync failed: ${portfolioError}`);
+    else if (portfolioErrors.length > 0)
+      toast.warning(
+        `${portfolioErrors.length} of ${count} failed to sync. The error is on ${portfolioErrors.length === 1 ? 'its card' : 'their cards'}.`,
+      );
+    else
+      toast.success(
+        `Synced ${count} registrars: ${portfolio.length.toLocaleString('en-US')} domains`,
+      );
+  };
   return (
-    <Button variant="outline" onClick={sync} disabled={disabled} title={title}>
+    <Button
+      variant="ghost"
+      onClick={() => void run()}
+      disabled={disabled}
+      title={title}
+      className="-ml-2.5 text-muted-foreground hover:text-foreground"
+    >
       <RefreshCw className={cn(syncing && 'animate-spin')} />
       {syncing ? 'Syncing…' : 'Sync all'}
+      {/* Room for the full label beside Add from sm up. */}
+      {!syncing && <span className="-ml-1 hidden sm:inline">registrars</span>}
     </Button>
   );
 }
