@@ -468,6 +468,6 @@ unknown namespace in a file is skipped anyway.)
 - **Exchange rates.** Totals across currencies need a rate per event. Each
   event already has its `date` and `currency`, so historical rates can be
   looked up later without changing stored events.
-- **Manual domains (#108)**, with a CSV importer. The purchase CSV (#99,
-  reworked in #100) needs its own review before it merges.
+- **Manual domains (#108)**, with a CSV importer. The purchase CSV import
+  (#99, reworked in #100) is held back in #122 for its own review.
 - **Financial dashboard (#112)**, built on all of the above.
