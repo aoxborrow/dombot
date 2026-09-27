@@ -7,6 +7,7 @@ import {
 } from '../storage/namespace';
 import { clearAll } from './cache';
 import { exportBundle, importBundle } from '../storage/bundle';
+import { ownershipByDomain } from '../../shared/ownership';
 import { listEvents } from './domain-events';
 import {
   getPurchases,
@@ -143,6 +144,26 @@ describe('purchases', () => {
         notes: '',
       }),
     ).toThrow(/no decimal/);
+  });
+
+  it('leaves a sold name in Archive when its purchase is imported', () => {
+    setSale({
+      domainName: 'sold.com',
+      saleDate: '2024-01-01',
+      amount: '500',
+      currency: 'USD',
+      notes: '',
+    });
+    importPurchases([
+      {
+        domainName: 'sold.com',
+        purchaseDate: '2020-01-01',
+        amount: '10',
+        currency: 'USD',
+        notes: '',
+      },
+    ]);
+    expect(ownershipByDomain(listEvents()).get('sold.com')?.label).toBe('sold');
   });
 
   it('imports the good rows when one row is bad', () => {
