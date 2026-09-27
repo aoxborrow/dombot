@@ -117,10 +117,6 @@ export function parsePurchaseCsv(
     const cells = table[i];
     const line = i + 1;
     const domainName = (cells[domainCol] ?? '').trim();
-    if (!domainName) {
-      skipped++;
-      continue;
-    }
     const dateRaw = dateCol === -1 ? '' : (cells[dateCol] ?? '').trim();
     const amountRaw = amountCol === -1 ? '' : (cells[amountCol] ?? '').trim();
     const currencyRaw =
@@ -131,6 +127,11 @@ export function parsePurchaseCsv(
     );
     if (!dateRaw && !amountRaw && !notes) {
       skipped++;
+      continue;
+    }
+    // Purchase details with no name to attach them to: say so, don't drop them.
+    if (!domainName) {
+      errors.push(`Row ${line}: the Domain cell is empty.`);
       continue;
     }
     try {

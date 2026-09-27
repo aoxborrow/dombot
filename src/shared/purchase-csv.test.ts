@@ -30,6 +30,14 @@ describe('parsePurchaseCsv', () => {
     ]);
   });
 
+  it('reports purchase details with no domain instead of skipping them', () => {
+    const parsed = parsePurchaseCsv(
+      'Domain,Purchase date,Purchase amount,Currency\n,2020-01-02,10,USD\n',
+    );
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.errors).toEqual(['Row 2: the Domain cell is empty.']);
+  });
+
   it('uses the preferred currency when the amount has no code', () => {
     const parsed = parsePurchaseCsv(
       'Domain,Purchase amount\nshop.co.uk,12.50\n',
