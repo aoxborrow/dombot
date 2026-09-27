@@ -12,7 +12,8 @@ const count = (n: number) => `${n} domain${n === 1 ? '' : 's'}`;
 const who = (items: { domainName: string }[]) =>
   items.length === 1 ? items[0].domainName : count(items.length);
 
-/** Mark as Dropped, or Archive (the same, without saying why). */
+/** Mark as Dropped (on a date, today by default), or Archive (now, without
+ *  saying why: just a confirmation). */
 export function DispositionDialog({
   type,
   items,
@@ -38,7 +39,7 @@ export function DispositionDialog({
       }
       actionLabel={dropped ? 'Mark as Dropped' : 'Archive'}
       onConfirm={async () => {
-        await setDispositions(items, type, date);
+        await setDispositions(items, type, dropped ? date : null);
         toast.success(
           dropped
             ? `Marked ${who(items)} as Dropped`
@@ -48,7 +49,9 @@ export function DispositionDialog({
       }}
       onClose={onClose}
     >
-      <DateField id="disposition-date" value={date} onChange={setDate} />
+      {dropped && (
+        <DateField id="disposition-date" value={date} onChange={setDate} />
+      )}
     </ActionDialog>
   );
 }

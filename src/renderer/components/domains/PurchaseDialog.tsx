@@ -68,12 +68,8 @@ export function PurchaseDialog({
   const existing = resolves ? undefined : record;
 
   const recorded = !!(existing?.purchaseDate || existing?.amount);
-  // Answering an arrival records a purchase, so it starts dated today. This is
-  // also the notes editor, so otherwise the date starts as stored (blank for a
-  // name with no purchase): saving only a note mustn't record a purchase.
-  const [date, setDate] = useState(
-    resolves ? todayInput : (existing?.purchaseDate ?? ''),
-  );
+  // The date starts as stored, or today when there's none yet.
+  const [date, setDate] = useState(existing?.purchaseDate || todayInput);
   const [amount, setAmount] = useState(
     existing?.amount
       ? formatAmountInput(
