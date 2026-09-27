@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, History } from 'lucide-react';
+import { History } from 'lucide-react';
+import { BellIcon } from '@heroicons/react/24/outline';
 import { toUnicode } from '../../../shared/domain-name';
 import {
   notificationBadge,
@@ -63,15 +64,16 @@ export function ActivityBell() {
         <button
           type="button"
           // No visible button: the bell brightens on hover, and the 32px box
-          // keeps the click area.
-          className="relative inline-flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:text-foreground"
+          // keeps the click area. Nudged down to line up with the tabs, which
+          // sit on the header's bottom edge (phones have no tabs).
+          className="relative inline-flex size-8 items-center sm:translate-y-[5px] justify-center rounded-md text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:text-foreground"
           aria-label={
             count
               ? `Notifications: ${count} item${count === 1 ? '' : 's'} need${count === 1 ? 's' : ''} attention`
               : 'Notifications'
           }
         >
-          <Bell className="size-5" />
+          <BellIcon className="size-[18px]" />
           {badge && (
             <span
               className={cn(
