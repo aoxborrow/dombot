@@ -26,6 +26,11 @@ const ICON_TIGHTEN: Record<Breakpoint, string> = {
   md: 'md:-mr-0.5',
   lg: 'lg:-mr-0.5',
 };
+// The no-pill padding (see tabClass) for the widths where pillFrom hides it.
+const NO_PILL_PAD: Record<Breakpoint, string> = {
+  md: 'max-md:pr-3.5',
+  lg: 'max-lg:pr-3.5',
+};
 const PILL_FROM: Record<Breakpoint, string> = {
   md: 'hidden md:inline-flex',
   lg: 'hidden lg:inline-flex',
@@ -36,9 +41,10 @@ const PILL_FROM: Record<Breakpoint, string> = {
  * stands 2px proud in the page background with no bottom border, so it reads
  * as attached to the content below.
  *
- * The parent supplies the band the tabs sit in: an `items-end` flex row with
- * a bottom border and `bg-tab-bar` (the app header, or any bordered bar in a
- * page). The strip overlaps that border by 1px so the selected tab covers it.
+ * The parent supplies the band the tabs sit in: a bar with a bottom border and
+ * `bg-tab-bar` (the app header, or any bordered bar in a page), with the strip
+ * aligned to its bottom edge. The strip overlaps that border by 1px so the
+ * selected tab covers it.
  * Children are `TabLink`s (route tabs) or `TabButton`s (in-page state).
  */
 export function TabStrip({
@@ -64,7 +70,7 @@ export function TabStrip({
 }
 
 /** What a tab shows, shared by `TabLink` and `TabButton`. */
-interface TabProps {
+export interface TabProps {
   /** Optional; a tab can be a label alone. */
   icon?: LucideIcon;
   label: string;
@@ -80,14 +86,23 @@ interface TabProps {
 
 const tabClass = (
   isActive: boolean,
-  { iconOnlyBelow, className }: Pick<TabProps, 'iconOnlyBelow' | 'className'>,
+  {
+    metric,
+    pillFrom,
+    iconOnlyBelow,
+    className,
+  }: Pick<TabProps, 'metric' | 'pillFrom' | 'iconOnlyBelow' | 'className'>,
 ) =>
   cn(
-    // A 2px gap between neighbouring tabs shows the bar between them.
-    'relative ml-0.5 inline-flex items-center gap-2 border px-3 text-base leading-none font-medium whitespace-nowrap transition-colors first:ml-0 xl:px-[18px]',
+    // A 4px gap between neighbouring tabs shows the bar between them.
+    'relative ml-1 inline-flex items-center gap-2 border px-3 text-base leading-none font-medium whitespace-nowrap transition-colors first:ml-0 xl:px-[18px]',
     isActive
       ? 'z-10 h-[38px] rounded-t-[6px] border-border border-b-background bg-background text-foreground'
       : 'h-[36px] rounded-t-[7px] border-tab-border border-b-transparent bg-tab text-tab-foreground shadow-[inset_0_-1px_2px_-1px_var(--tab-shadow)] hover:text-foreground',
+    // Wherever a tab shows no pill, 2px more on the right so it doesn't read
+    // short beside tabs that end in one.
+    !metric ? 'pr-3.5 xl:pr-5' : pillFrom && NO_PILL_PAD[pillFrom],
+    // Icon-only tabs keep even padding (applied last, so it wins).
     iconOnlyBelow && ICON_ONLY_PAD[iconOnlyBelow],
     className,
   );

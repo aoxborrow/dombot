@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type ComponentProps } from 'react';
+import { useEffect } from 'react';
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   CalendarClock,
@@ -6,7 +6,6 @@ import {
   Menu,
   RefreshCw,
   Settings as SettingsIcon,
-  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -26,7 +25,12 @@ import DemoBanner from './components/DemoBanner';
 import StatusBar from './components/StatusBar';
 import { isDemo } from './lib/platform';
 import { useTabMetrics, type TabMetrics } from './lib/tab-metrics';
-import { TabLink, TabPill, TabStrip } from './components/TabStrip';
+import {
+  TabLink,
+  TabPill,
+  TabStrip,
+  type TabProps,
+} from './components/TabStrip';
 import SyncControl, {
   SyncStatusMini,
   useSyncState,
@@ -34,53 +38,24 @@ import SyncControl, {
 import { Toaster } from '@/components/ui/sonner';
 
 /**
- * The top-level pages, shared by the header's tab strip and the phone menu.
- * `metric` names the tab's pill in `useTabMetrics`; the rest are `TabLink`
- * props for the strip.
+ * How each page shows as a header tab, by route: which metric its pill shows
+ * (a key of useTabMetrics) and how it compacts in narrower windows. Pages
+ * themselves are listed in NAV_ITEMS.
  */
-type NavTab = Omit<ComponentProps<typeof TabLink>, 'metric'> & {
-  // Required here: the phone menu shows every page's icon.
-  icon: LucideIcon;
-  metric?: keyof TabMetrics;
-};
-
-const NAV_TABS: NavTab[] = [
-  {
-    to: '/',
-    end: true,
-    label: 'Domains',
-    icon: Globe,
-    metric: 'domains',
-    pillFrom: 'md',
-  },
-  {
-    to: '/renewals',
-    label: 'Renewals',
-    icon: CalendarClock,
-    metric: 'renewals',
-    pillFrom: 'lg',
-  },
-  {
-    to: '/settings',
-    label: 'Settings',
-    icon: SettingsIcon,
+const TAB_OPTIONS: Record<
+  string,
+  { metric?: keyof TabMetrics } & Omit<TabProps, 'icon' | 'label' | 'metric'>
+> = {
+  '/': { metric: 'domains', pillFrom: 'md' },
+  '/renewals': { metric: 'renewals', pillFrom: 'lg' },
+  '/settings': {
     metric: 'settings',
     iconOnlyBelow: 'md',
     pillFrom: 'lg',
     // The gear is drawn smaller than the other icons, so it's bumped up.
     iconClassName: 'size-[17px]',
   },
-];
-
-/**
- * How far the tab strip shifts left of the page content edge so it keeps 16px
- * clear of the header actions (which sit in the header's right padding): zero
- * while the centered container's side margin already leaves room, otherwise
- * the shortfall. Only matters at sm+, where the strip shows (px-6 header, the
- * scrollbar gutter, a max-w-4xl container).
- */
-const STRIP_INSET =
-  'max(0px, var(--header-actions, 0px) + 16px - var(--scrollbar-gutter, 0px) - max(0px, (100vw - 48px - var(--scrollbar-gutter, 0px) - 56rem) / 2))';
+};
 
 export default function App() {
   const hydrateFromCache = useAppStore((s) => s.hydrateFromCache);
@@ -93,41 +68,6 @@ export default function App() {
   const applyBulkFinished = useAppStore((s) => s.applyBulkFinished);
   const navigate = useNavigate();
   const metrics = useTabMetrics();
-
-  // <main> reserves a scrollbar gutter (see below), which narrows its content
-  // box and shifts the centered page container left by half the gutter. The
-  // header doesn't scroll, so it can't reserve one — instead measure the
-  // gutter and pad the header's tab container by the same amount, keeping the
-  // last tab flush with the page's content edge. Re-measured on resize in
-  // case the platform swaps overlay/classic scrollbars. The header actions'
-  // width is measured too, so the tab strip can keep clear of them
-  // (STRIP_INSET); it changes with the sync state's caption.
-  const mainRef = useRef<HTMLElement>(null);
-  const actionsRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const root = document.documentElement.style;
-    const measure = () => {
-      const main = mainRef.current;
-      const actions = actionsRef.current;
-      if (main) {
-        root.setProperty(
-          '--scrollbar-gutter',
-          `${main.offsetWidth - main.clientWidth}px`,
-        );
-      }
-      if (actions) {
-        root.setProperty('--header-actions', `${actions.offsetWidth}px`);
-      }
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    if (actionsRef.current) observer.observe(actionsRef.current);
-    window.addEventListener('resize', measure);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-  }, []);
 
   // Restore the last-cached portfolio, detail, and pricing on launch so the app
   // opens fully populated with no network calls. The user
@@ -166,12 +106,11 @@ export default function App() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       {isDemo() && <DemoBanner />}
-      {/* Header shell, in the tab bar color, showing behind the logo and above
-          the tabs so their tops (and the selected tab's corners) are visible. */}
-      <header className="relative flex h-12 items-end border-b bg-tab-bar px-4 sm:px-6">
-        {/* Logo, pinned to the left edge and vertically centered (nudged up
-            1px, since the mark is bottom-heavy), out of the tab strip's flow. */}
-        <div className="absolute inset-y-0 left-4 flex items-center sm:left-6">
+      {/* Three columns: the logo, the tab strip (right-aligned, so it sits
+          against the actions), and the header actions. The tabs run along the
+          bottom edge, on the tab bar color that also shows above them. */}
+      <header className="grid h-12 grid-cols-[auto_1fr_auto] border-b bg-tab-bar px-4 sm:px-6">
+        <div className="flex flex-1 items-center">
           <button
             type="button"
             onClick={() => navigate('/')}
@@ -193,31 +132,29 @@ export default function App() {
             </span>
           </button>
         </div>
-        {/* Desktop: the tab strip, right-justified inside the same max-w-4xl
-            container the pages use, so the last tab's right edge tracks the
-            page content edge. It only shifts left of that edge when the window
-            is too narrow to also fit the header actions (STRIP_INSET). On
-            phones it collapses into the hamburger menu (MobileNav). */}
-        <div className="hidden flex-1 pr-(--scrollbar-gutter) sm:block">
-          <div className="mx-auto flex w-full max-w-4xl justify-end">
-            <TabStrip style={{ marginRight: STRIP_INSET }}>
-              {NAV_TABS.map(({ metric, ...tab }) => (
-                <TabLink
-                  key={tab.to}
-                  {...tab}
-                  metric={metric ? metrics[metric] : null}
-                />
-              ))}
-            </TabStrip>
-          </div>
-        </div>
-        {/* Header actions, pinned right and vertically centered like the logo.
-            Desktop: the Sync control. Phones: a compact sync status beside the
-            hamburger, whose menu holds the Sync action. */}
-        <div
-          ref={actionsRef}
-          className="absolute inset-y-0 right-4 flex items-center gap-2 sm:right-6"
-        >
+        {/* Desktop: the tab strip. On phones it collapses into the hamburger
+            menu on the right (MobileNav). */}
+        <TabStrip className="mr-4 hidden self-end justify-self-end sm:flex">
+          {NAV_ITEMS.map(({ to, label, icon }) => {
+            const { metric, ...options } = TAB_OPTIONS[to] ?? {};
+            return (
+              <TabLink
+                key={to}
+                to={to}
+                end={to === '/'}
+                label={label}
+                icon={icon}
+                metric={metric ? metrics[metric] : null}
+                {...options}
+              />
+            );
+          })}
+        </TabStrip>
+        {/* Right side. Phones: a compact sync status, right-justified to the
+            left of the hamburger (the Sync action lives inside the menu).
+            Desktop: the hamburger and status are hidden and the full Sync
+            control shows. */}
+        <div className="flex flex-1 items-center justify-end gap-2">
           <SyncStatusMini className="mr-2 sm:hidden" />
           <MobileNav />
           <div className="hidden sm:block">
@@ -226,28 +163,17 @@ export default function App() {
         </div>
       </header>
 
-      {/* The content area is the scroll container, not the document, so the
-          header always spans the full window and the scrollbar sits below it.
-          The gutter is reserved inside <main> so content doesn't shift
-          horizontally between pages that do and don't scroll. */}
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        <main
-          ref={mainRef}
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-[22px] pb-4 [scrollbar-gutter:stable] sm:px-6 sm:pt-[31px]"
-        >
-          <Routes>
-            <Route path="/" element={<Domains />} />
-            <Route path="/renewals" element={<Renewals />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </main>
-        {/* Scrolled content fades into the page background just under the
-            header, so rows don't cut off hard against the tab strip. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-2 bg-gradient-to-b from-background to-transparent"
-        />
-      </div>
+      {/* The window never scrolls: header and status bar stay put and this
+          area between them scrolls when a page is taller. Its scrollbar gutter
+          is always reserved so pages of different heights line up. The top 8px
+          fades out, so scrolled content doesn't cut off hard at the tabs. */}
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] [mask-image:linear-gradient(to_bottom,transparent,black_8px)] px-4 pt-[22px] pb-4 sm:px-6 sm:pt-[31px]">
+        <Routes>
+          <Route path="/" element={<Domains />} />
+          <Route path="/renewals" element={<Renewals />} />
+          <Route path="/settings" element={<Settings />} />
+        </Routes>
+      </main>
 
       {/* App-wide bottom status bar (MCP status + background-load lights). */}
       <StatusBar />
@@ -261,8 +187,14 @@ export default function App() {
   );
 }
 
+const NAV_ITEMS = [
+  { to: '/', label: 'Domains', icon: Globe },
+  { to: '/renewals', label: 'Renewals', icon: CalendarClock },
+  { to: '/settings', label: 'Settings', icon: SettingsIcon },
+] as const;
+
 /**
- * Phone-only hamburger: the primary destinations in a dropdown, since the
+ * Phone-only hamburger: the three primary destinations in a dropdown, since the
  * labeled nav doesn't fit a narrow header. Hidden at sm+, where the centered nav
  * takes over. The active route is checked.
  */
@@ -292,8 +224,9 @@ function MobileNav() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        {NAV_TABS.map(({ to, label, icon: Icon, metric }) => {
+        {NAV_ITEMS.map(({ to, label, icon: Icon }) => {
           const active = isActive(to);
+          const metric = TAB_OPTIONS[to]?.metric;
           return (
             <DropdownMenuItem
               key={to}
