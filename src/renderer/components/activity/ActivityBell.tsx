@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Bell, History } from 'lucide-react';
+import { Bell, History } from 'lucide-react';
 import { toUnicode } from '../../../shared/domain-name';
 import {
   notificationBadge,
@@ -87,27 +87,23 @@ export function ActivityBell() {
         className="flex max-h-[70vh] w-[340px] flex-col p-0"
       >
         <div className="flex items-center justify-between border-b px-3 py-2">
-          <p className="text-sm font-medium">Notifications</p>
-          {/* What needs review, when anything does; otherwise all activity. */}
-          {reviews > 0 ? (
-            <Link
-              to="/activity?review=1"
-              onClick={close}
-              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium hover:bg-foreground/5 dark:hover:bg-accent/50"
-            >
-              {reviews} need{reviews === 1 ? 's' : ''} review
-              <ArrowRight className="size-3.5 text-muted-foreground" />
-            </Link>
-          ) : (
-            <Link
-              to="/activity"
-              onClick={close}
-              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
-            >
-              <History className="size-3.5" />
-              All activity
-            </Link>
-          )}
+          <p className="text-sm font-medium">
+            Notifications
+            {reviews > 0 && (
+              <span className="font-normal text-muted-foreground">
+                {' '}
+                · {reviews} need{reviews === 1 ? 's' : ''} review
+              </span>
+            )}
+          </p>
+          <Link
+            to="/activity?review=1"
+            onClick={close}
+            className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
+          >
+            <History className="size-3.5" />
+            View activity
+          </Link>
         </div>
 
         {list.length === 0 ? (

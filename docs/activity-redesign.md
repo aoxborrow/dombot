@@ -209,9 +209,9 @@ rows each action skips.
 - **Body:** a compact list, one row per notification, errors first and then
   by severity and time. Each row shows a severity marker, the type badge, the
   domain (or account, for sync errors), and the time.
-- **No action buttons.** The header's right side says "5 need review" and
-  opens Activity filtered to Needs review; with nothing to review it says
-  "All activity". No footer.
+- **No action buttons.** The title reads "Notifications · 5 need review";
+  "View activity" at the top right always opens Activity on Needs review.
+  No footer.
 - **Capped at about eight rows.** More shows as "and N more".
 - **Recent moves drop out.** They're history, and Activity has them.
 - **Badge:** it counts notifications and takes the most severe color: red
