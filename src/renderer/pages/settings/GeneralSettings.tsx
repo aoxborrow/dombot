@@ -6,12 +6,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ModeToggle } from '@/components/mode-toggle';
+import { useEffect } from 'react';
 import {
   PAGE_SIZES,
   SORT_COLUMNS,
   usePreferences,
   type Preferences,
 } from '../../lib/preferences';
+import { NUMBER_FORMATS, type NumberFormatId } from '../../../shared/money';
+import { useAppStore } from '../../store/app';
+import { CurrencyPicker } from '../../components/domains/CurrencyPicker';
 import { SettingsCard } from './SettingsCard';
 
 const DENSITY_OPTIONS: { value: Preferences['density']; label: string }[] = [
@@ -34,6 +38,12 @@ export default function GeneralSettings() {
   const sortDir = usePreferences((s) => s.sortDir);
   const density = usePreferences((s) => s.density);
   const setPreferences = usePreferences((s) => s.setPreferences);
+  const settings = useAppStore((s) => s.settings);
+  const loadSettings = useAppStore((s) => s.loadSettings);
+  const saveMoneySettings = useAppStore((s) => s.saveMoneySettings);
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -141,6 +151,57 @@ export default function GeneralSettings() {
             </Select>
           </div>
         </div>
+      </SettingsCard>
+
+      <SettingsCard title="Money" contentClassName="flex flex-col gap-5">
+        <p className="text-sm text-muted-foreground">
+          Saved with your DomBot data, and included in Export data. The currency
+          is the default for a new amount. Amounts you already saved stay in the
+          currency they were recorded in.
+        </p>
+        {settings && (
+          <>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium">Preferred currency</p>
+              <div className="w-72">
+                <CurrencyPicker
+                  value={settings.preferredCurrency}
+                  onChange={(preferredCurrency) =>
+                    void saveMoneySettings({
+                      preferredCurrency,
+                      numberFormat: settings.numberFormat,
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 border-t pt-5">
+              <p className="text-sm text-muted-foreground">
+                How amounts are written. This does not change the currency.
+              </p>
+              <Select
+                value={settings.numberFormat}
+                onValueChange={(v) =>
+                  void saveMoneySettings({
+                    preferredCurrency: settings.preferredCurrency,
+                    numberFormat: v as NumberFormatId,
+                  })
+                }
+              >
+                <SelectTrigger className="w-52" aria-label="Number format">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {NUMBER_FORMATS.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
       </SettingsCard>
     </div>
   );

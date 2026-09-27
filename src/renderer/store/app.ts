@@ -9,7 +9,13 @@ import type {
   Domain,
   DomainOp,
   DomainOpResult,
+  DomainPurchase,
   DomainTarget,
+  DomainEvent,
+  OwnershipItem,
+  PurchaseInput,
+  RegistrationLookup,
+  SaleInput,
   Folder,
   FolderInput,
   FolderPatch,
@@ -180,6 +186,46 @@ interface AppState {
   rememberNameservers: (nameservers: string[]) => Promise<void>;
   /** Turn the embedded MCP server on or off; applied live in main. */
   setMcpEnabled: (enabled: boolean) => Promise<void>;
+  /** Save the preferred currency and the on-screen number format. */
+  saveMoneySettings: (
+    patch: Pick<AppSettings, 'preferredCurrency' | 'numberFormat'>,
+  ) => Promise<void>;
+
+  /** Purchase records keyed by normalized domain name. */
+  purchases: Record<string, DomainPurchase>;
+  loadPurchases: () => Promise<void>;
+  savePurchase: (input: PurchaseInput) => Promise<void>;
+  saveSale: (input: SaleInput) => Promise<void>;
+
+  /** Public registration for names on History, keyed by domain name. */
+  registrationLookups: Record<string, RegistrationLookup>;
+  loadRegistrationLookups: (domainNames: string[]) => Promise<void>;
+
+  /**
+   * The domain event log: purchases, sales, and what sync saw. Ownership
+   * (Owned / Archive) and the alerts are derived from it (shared/ownership.ts,
+   * shared/sync-diff.ts).
+   */
+  domainEvents: DomainEvent[];
+  loadDomainEvents: () => Promise<void>;
+  /**
+   * Mark names Dropped or Archived on `date` (blank: today). Each `resolves`
+   * closes the alert it answers.
+   */
+  setDispositions: (
+    items: OwnershipItem[],
+    type: 'dropped' | 'archived',
+    date?: string | null,
+  ) => Promise<void>;
+  /** Mark names Sold with no price, dated `date` (blank: today). */
+  markSold: (items: OwnershipItem[], date?: string | null) => Promise<void>;
+  /** "Move back to Owned": undo Sold, Dropped, or Archived. */
+  restoreOwned: (domainNames: string[]) => Promise<void>;
+  setAlertsDismissed: (ids: string[], dismissed: boolean) => Promise<void>;
+  /** Undo one of your own events. */
+  deleteUserEvent: (id: string) => Promise<void>;
+  /** Delete everything DomBot holds about each name. */
+  deleteDomains: (domainNames: string[]) => Promise<void>;
 
   // Row selection for bulk actions, keyed `${registrar}:${domainName}`. Lives
   // here (not in the page) so it survives tab switches; pruned when the
@@ -259,11 +305,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     // registrar's just-synced renewal prices show (local, no network).
     await get().loadRegistrars();
     await get().loadPricing();
+    await get().loadDomainEvents();
+    await get().loadFolders();
     const meta = get().registrars?.find(
       (r) => r.name === name && (!accountId || r.accountId === accountId),
     );
     return (
-      meta?.sync ?? { lastSyncedAt: null, lastError: null, domainCount: 0 }
+      meta?.sync ?? {
+        lastSyncedAt: null,
+        lastError: null,
+        domainCount: 0,
+        trackedSince: null,
+      }
     );
   },
 
@@ -286,6 +339,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     // status bar, and re-read pricing for the updated portfolio.
     await get().loadRegistrars();
     await get().loadPricing();
+    await get().loadDomainEvents();
+    await get().loadFolders();
   },
 
   hydrateFromCache: async () => {
@@ -354,6 +409,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         enriched,
       };
     });
+    await get().loadDomainEvents();
+    await get().loadFolders();
   },
 
   clearAllCaches: async () => {
@@ -406,6 +463,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       // prices are computed locally in main (no network).
       void get().loadRegistrars();
       void get().loadPricing();
+      void get().loadDomainEvents();
+      void get().loadFolders();
     } catch (err) {
       set({
         portfolioLoading: false,
@@ -463,6 +522,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   enrichVisible: async (domains, force = false) => {
     const todo = domains.filter((d) => {
       const key = domainKey(d);
+      // A name that already left the registrar has nothing to refresh.
+      if (d.departed) return false;
       // A forced refresh re-fetches on-screen rows regardless of prior state,
       // skipping only ones already in flight.
       if (force) return !enrichInFlight.has(key);
@@ -609,6 +670,76 @@ export const useAppStore = create<AppState>((set, get) => ({
       autoSyncIntervalMinutes: minutes,
     });
     set({ settings });
+  },
+  saveMoneySettings: async (patch) => {
+    const settings = await window.api.updateSettings(patch);
+    set({ settings });
+  },
+  purchases: {},
+  loadPurchases: async () => {
+    set({ purchases: await window.api.getPurchases() });
+  },
+  savePurchase: async (input) => {
+    const saved = await window.api.setPurchase(input);
+    void get().loadDomainEvents();
+    const key = toAscii(input.domainName);
+    set((state) => {
+      const purchases = { ...state.purchases };
+      if (saved) purchases[key] = saved;
+      else delete purchases[key];
+      return { purchases };
+    });
+  },
+  saveSale: async (input) => {
+    const saved = await window.api.setSale(input);
+    void get().loadDomainEvents();
+    const key = toAscii(input.domainName);
+    set((state) => {
+      const purchases = { ...state.purchases };
+      if (saved) purchases[key] = saved;
+      else delete purchases[key];
+      return { purchases };
+    });
+  },
+  registrationLookups: {},
+  loadRegistrationLookups: async (domainNames) => {
+    if (domainNames.length === 0) return;
+    const found = await window.api.lookupRegistrations(domainNames);
+    set((state) => ({
+      registrationLookups: { ...state.registrationLookups, ...found },
+    }));
+  },
+  domainEvents: [],
+  loadDomainEvents: async () => {
+    set({ domainEvents: await window.api.getDomainEvents() });
+  },
+  setDispositions: async (items, type, date) => {
+    set({
+      domainEvents: await window.api.setDispositions(items, type, date),
+    });
+  },
+  markSold: async (items, date) => {
+    set({ domainEvents: await window.api.markSold(items, date) });
+    await get().loadPurchases();
+  },
+  restoreOwned: async (domainNames) => {
+    set({ domainEvents: await window.api.restoreOwned(domainNames) });
+    await get().loadPurchases();
+  },
+  setAlertsDismissed: async (ids, dismissed) => {
+    set({ domainEvents: await window.api.setAlertsDismissed(ids, dismissed) });
+  },
+  deleteUserEvent: async (id) => {
+    set({ domainEvents: await window.api.deleteUserEvent(id) });
+    await get().loadPurchases();
+  },
+  deleteDomains: async (domainNames) => {
+    set({ domainEvents: await window.api.deleteDomains(domainNames) });
+    await Promise.all([
+      get().loadPurchases(),
+      get().loadFolders(),
+      get().loadPricing(),
+    ]);
   },
   setMcpEnabled: async (enabled) => {
     const settings = await window.api.updateSettings({ mcpEnabled: enabled });

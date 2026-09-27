@@ -1,5 +1,8 @@
 import {
+  Archive,
+  BadgeDollarSign,
   CalendarPlus,
+  CircleOff,
   ChevronDown,
   EyeOff,
   FileSpreadsheet,
@@ -10,6 +13,8 @@ import {
   Mail,
   RefreshCw,
   Server,
+  Trash2,
+  Undo2,
   X,
 } from 'lucide-react';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
@@ -29,6 +34,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+/** Ownership actions on the selection, each opening its dialog. */
+export type OwnershipAction =
+  'sold' | 'dropped' | 'archived' | 'restore' | 'delete';
+
 /**
  * The contextual bar above the table once rows are selected: the selection
  * summary, Clear, and the Bulk actions menu. The menu is a flat list of the
@@ -47,6 +56,8 @@ export function BulkBar({
   onAssignFolder,
   onKind,
   onViewJob,
+  archiveView,
+  onOwnership,
 }: {
   /** The selected domains (merged rows). */
   domains: Domain[];
@@ -59,6 +70,9 @@ export function BulkBar({
   /** Open the bulk dialog for an op kind (its value is chosen there). */
   onKind: (kind: DomainOpKind) => void;
   onViewJob: () => void;
+  /** Archive shows Move back to Owned instead of Sold, Dropped, Archive. */
+  archiveView: boolean;
+  onOwnership: (action: OwnershipAction) => void;
 }) {
   const bulk = useAppStore((s) => s.bulk);
   const running = bulk?.status === 'running';
@@ -198,6 +212,36 @@ export function BulkBar({
             <DropdownMenuItem onSelect={onExport}>
               <FileSpreadsheet className="text-muted-foreground" />
               Export CSV
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {archiveView ? (
+              <DropdownMenuItem onSelect={() => onOwnership('restore')}>
+                <Undo2 className="text-muted-foreground" />
+                Move back to Owned
+                <span className="-ml-[6px] opacity-50">…</span>
+              </DropdownMenuItem>
+            ) : (
+              <>
+                <DropdownMenuItem onSelect={() => onOwnership('sold')}>
+                  <BadgeDollarSign className="text-muted-foreground" />
+                  Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onOwnership('dropped')}>
+                  <CircleOff className="text-muted-foreground" />
+                  Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onOwnership('archived')}>
+                  <Archive className="text-muted-foreground" />
+                  Archive<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => onOwnership('delete')}
+            >
+              <Trash2 />
+              Delete<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

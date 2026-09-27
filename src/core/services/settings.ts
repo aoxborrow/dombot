@@ -1,4 +1,10 @@
 import type { AppSettings } from '../../shared/ipc';
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_NUMBER_FORMAT,
+  isIsoCurrency,
+  isNumberFormatId,
+} from '../../shared/money';
 import { Namespace } from '../storage/namespace';
 
 // User-adjustable settings, one storage key per setting in the `settings`
@@ -9,6 +15,8 @@ const DEFAULTS: AppSettings = {
   autoSyncIntervalMinutes: 24 * 60, // 24 hours
   recentNameservers: [],
   mcpEnabled: false,
+  preferredCurrency: DEFAULT_CURRENCY,
+  numberFormat: DEFAULT_NUMBER_FORMAT,
 };
 
 /** How many recent nameserver sets to keep. */
@@ -40,6 +48,12 @@ function normalize(raw: Partial<AppSettings>): AppSettings {
       typeof raw.mcpEnabled === 'boolean'
         ? raw.mcpEnabled
         : DEFAULTS.mcpEnabled,
+    preferredCurrency: isIsoCurrency(raw.preferredCurrency)
+      ? raw.preferredCurrency.trim().toUpperCase()
+      : DEFAULTS.preferredCurrency,
+    numberFormat: isNumberFormatId(raw.numberFormat)
+      ? raw.numberFormat
+      : DEFAULTS.numberFormat,
   };
 }
 

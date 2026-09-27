@@ -25,7 +25,12 @@ const account = (
   saved: true,
   configured: true,
   enabled: true,
-  sync: { lastSyncedAt: null, lastError: null, domainCount: 0 },
+  sync: {
+    lastSyncedAt: null,
+    lastError: null,
+    domainCount: 0,
+    trackedSince: null,
+  },
   ...overrides,
 });
 const catalog = [provider('dynadot'), provider('porkbun')];

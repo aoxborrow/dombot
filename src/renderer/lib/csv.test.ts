@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ARCHIVE_FOLDER_ID, type Domain, type Folder } from '../../shared/ipc';
+import { HIDDEN_FOLDER_ID, type Domain, type Folder } from '../../shared/ipc';
 import { csvFilename, domainsToCsv } from './csv';
 
 const NOW = new Date('2026-06-15T12:00:00Z');
@@ -98,6 +98,13 @@ describe('domainsToCsv', () => {
       'Privacy',
       'Nameservers',
       'Last Synced',
+      'Sale date',
+      'Sale amount',
+      'Sale currency',
+      'Purchase date',
+      'Purchase amount',
+      'Currency',
+      'Notes',
     ]);
   });
 
@@ -123,6 +130,42 @@ describe('domainsToCsv', () => {
     expect(col(csv, 1, 'Privacy')).toBe('No');
     expect(col(csv, 1, 'Nameservers')).toBe('ns1.example.net; ns2.example.net');
     expect(col(csv, 1, 'Created')).toBe('2020-01-01');
+    expect(col(csv, 1, 'Purchase date')).toBe('');
+  });
+
+  it('writes purchase fields as a plain amount and ISO date', () => {
+    const d = domain({ domainName: 'Example.COM' });
+    const csv = domainsToCsv(
+      [d],
+      {},
+      [],
+      {},
+      {
+        'example.com': {
+          purchaseDate: '2019-04-01',
+          amount: '1000000.00',
+          currency: 'USD',
+          notes: 'bought, early',
+          saleDate: '2024-06-01',
+          saleAmount: '2500.00',
+          saleCurrency: 'USD',
+        },
+      },
+    );
+    const headers = fields(rows(csv)[0]);
+    expect(headers.indexOf('Sale date')).toBeLessThan(
+      headers.indexOf('Purchase date'),
+    );
+    expect(headers.indexOf('Sale amount')).toBeLessThan(
+      headers.indexOf('Purchase amount'),
+    );
+    expect(col(csv, 1, 'Sale date')).toBe('2024-06-01');
+    expect(col(csv, 1, 'Sale amount')).toBe('2500.00');
+    expect(col(csv, 1, 'Sale currency')).toBe('USD');
+    expect(col(csv, 1, 'Purchase date')).toBe('2019-04-01');
+    expect(col(csv, 1, 'Purchase amount')).toBe('1000000.00');
+    expect(col(csv, 1, 'Currency')).toBe('USD');
+    expect(col(csv, 1, 'Notes')).toBe('bought, early');
   });
 
   it('leaves date columns blank for null dates', () => {
@@ -137,12 +180,26 @@ describe('domainsToCsv', () => {
     expect(col(csv, 1, 'Days Until Expiry')).toBe('');
   });
 
+  it('writes a dash when a former name is unregistered', () => {
+    const d = domain({
+      domainName: 'gone.com',
+      registrar: 'godaddy',
+      createdDate: new Date('2020-01-01T00:00:00Z'),
+      expirationDate: new Date('2026-01-01T00:00:00Z'),
+      unregistered: true,
+    });
+    const csv = domainsToCsv([d], { godaddy: 'GoDaddy' }, [], {});
+    expect(col(csv, 1, 'Registrar')).toBe('—');
+    expect(col(csv, 1, 'Created')).toBe('—');
+    expect(col(csv, 1, 'Expires')).toBe('—');
+  });
+
   it('falls back to the raw registrar id when there is no label', () => {
     const d = domain({ domainName: 'x.com', registrar: 'porkbun' });
     expect(col(domainsToCsv([d], {}, [], {}), 1, 'Registrar')).toBe('porkbun');
   });
 
-  it('resolves folder names, Archive, and blanks for unassigned/missing', () => {
+  it('resolves folder names, Hidden, and blanks for unassigned/missing', () => {
     const a = domain({ domainName: 'a.com' });
     const h = domain({ domainName: 'h.com' });
     const g = domain({ domainName: 'g.com' }); // assigned to a gone folder
@@ -150,12 +207,12 @@ describe('domainsToCsv', () => {
     const folders = [folder('f1', 'Clients')];
     const assignments = {
       'a.com': 'f1',
-      'h.com': ARCHIVE_FOLDER_ID,
+      'h.com': HIDDEN_FOLDER_ID,
       'g.com': 'gone',
     };
     const csv = domainsToCsv([a, h, g, u], {}, folders, assignments);
     expect(col(csv, 1, 'Folder')).toBe('Clients');
-    expect(col(csv, 2, 'Folder')).toBe('Archive');
+    expect(col(csv, 2, 'Folder')).toBe('Hidden');
     expect(col(csv, 3, 'Folder')).toBe('');
     expect(col(csv, 4, 'Folder')).toBe('');
   });

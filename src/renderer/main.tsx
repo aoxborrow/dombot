@@ -42,7 +42,7 @@ if (window.api) {
 } else if (__DOMBOT_DEMO__) {
   void (async () => {
     const { createDemoApi } = await import('./api/demo');
-    const { api } = await createDemoApi();
+    const { api } = await createDemoApi({ sampleChanges: true });
     window.api = api;
     markDemo();
     setSessionActive(true);

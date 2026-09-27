@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useAppStore } from '../store/app';
+import { notifications } from '../../shared/notifications';
 import { summarize } from './renewals';
 
 export interface TabMetric {
@@ -21,18 +22,21 @@ function usdCompact(n: number): string {
 export interface TabMetrics {
   domains: TabMetric | null;
   renewals: TabMetric | null;
+  activity: TabMetric | null;
   settings: TabMetric | null;
 }
 
 /**
  * The headline number each top-level tab shows in its pill: Domains → portfolio
- * size, Renewals → known annual renewal spend, Settings → accounts whose last
- * sync failed (only shown when there are any). `null` hides the pill.
+ * size, Renewals → known annual renewal spend, Activity → alerts that need
+ * review, Settings → accounts whose last sync failed (Activity and Settings
+ * only when there are any). `null` hides the pill.
  */
 export function useTabMetrics(): TabMetrics {
   const portfolio = useAppStore((s) => s.portfolio);
   const pricing = useAppStore((s) => s.pricing);
   const registrars = useAppStore((s) => s.registrars);
+  const events = useAppStore((s) => s.domainEvents);
 
   return useMemo(() => {
     const n = portfolio.length.toLocaleString('en-US');
@@ -53,6 +57,17 @@ export function useTabMetrics(): TabMetrics {
           }
         : null;
 
+    // The same alerts as the header bell, without its sync errors (those
+    // count on Settings).
+    const open = notifications(events, []).length;
+    const activity =
+      open > 0
+        ? {
+            value: open.toLocaleString('en-US'),
+            title: `${open.toLocaleString('en-US')} need${open === 1 ? 's' : ''} review`,
+          }
+        : null;
+
     // Enabled accounts, for the Settings sync-issue count.
     const configured = (registrars ?? []).filter(
       (r) => r.configured && r.enabled,
@@ -67,6 +82,6 @@ export function useTabMetrics(): TabMetrics {
           }
         : null;
 
-    return { domains, renewals, settings };
-  }, [portfolio, pricing, registrars]);
+    return { domains, renewals, activity, settings };
+  }, [portfolio, pricing, registrars, events]);
 }

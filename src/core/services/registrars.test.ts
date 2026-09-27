@@ -128,8 +128,10 @@ vi.mock('../dns', () => ({
   resolveNameservers: (d: string) => resolveNs(d),
 }));
 
+import { NotImplementedError } from '@aoxborrow/registrar-client';
 import {
   findRegistrarsForDomain,
+  getRegistrationQuote,
   getCachedPortfolio,
   getDomainDetail,
   getMergedPortfolio,
@@ -539,6 +541,34 @@ describe('GoDaddy shopper renewal quotes on sync', () => {
     // Unknown flags mean no per-name premium quotes, but the TLD still prices.
     expect(setTldRate.mock.calls).toEqual([['godaddy', 'io', 44, 'godaddy']]);
     expect(store.detail['godaddy:fancy.io']).toBeUndefined();
+  });
+});
+
+describe('getRegistrationQuote', () => {
+  it('returns no fee when the registrar has no pricing API', async () => {
+    clientMethods.getPricing.mockRejectedValue(
+      new NotImplementedError('spaceship: getPricing is not available'),
+    );
+    await expect(
+      getRegistrationQuote('dynadot', 'backyard.green'),
+    ).resolves.toEqual({
+      amount: null,
+      currency: 'USD',
+    });
+  });
+
+  it('returns the registration fee when the registrar quotes one', async () => {
+    clientMethods.getPricing.mockResolvedValue({
+      tld: 'green',
+      currency: 'USD',
+      registration: 4.5,
+    });
+    await expect(
+      getRegistrationQuote('dynadot', 'backyard.green'),
+    ).resolves.toEqual({
+      amount: '4.50',
+      currency: 'USD',
+    });
   });
 });
 

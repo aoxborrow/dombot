@@ -11,6 +11,10 @@ const alertVariants = cva(
         default: 'bg-card text-card-foreground',
         destructive:
           'bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 [&>svg]:text-current',
+        // Tinted, for problems that need action (a failed sync): louder than
+        // `destructive`, with body text kept readable.
+        error:
+          'border-destructive/40 bg-destructive/10 text-foreground *:data-[slot=alert-description]:text-foreground/80 [&>svg]:text-destructive',
       },
     },
     defaultVariants: {

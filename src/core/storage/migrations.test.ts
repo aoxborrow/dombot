@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryDocStore } from './doc-store';
 import { EncryptedDocStore, aesGcmCipher, type Cipher } from './encrypted';
 import { SCHEMA_VERSION, runMigrations } from './migrations';
-import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
+import { HIDDEN_FOLDER_ID } from '../../shared/ipc';
 
 let raw: MemoryDocStore;
 let cipher: Cipher;
@@ -49,7 +49,7 @@ describe('runMigrations', () => {
     const store = sealing(['registrar-credentials']);
     await runMigrations(raw, store);
     expect(await store.get('meta', 'schemaVersion')).toBe(SCHEMA_VERSION);
-    expect(await contents()).toEqual({ meta: { schemaVersion: 1 } });
+    expect(await contents()).toEqual({ meta: { schemaVersion: 2 } });
   });
 
   it('renames namespaces, re-keys folders and prices by name, and keeps secrets sealed', async () => {
@@ -86,7 +86,7 @@ describe('runMigrations', () => {
     });
     expect(await store.list('domain-folders')).toEqual({
       'a.com': 'f1',
-      'b.com': ARCHIVE_FOLDER_ID,
+      'b.com': HIDDEN_FOLDER_ID,
     });
     // Untouched namespaces stay put; old ones are gone.
     expect(await store.get('settings', 'mcpEnabled')).toBe(true);
@@ -101,7 +101,7 @@ describe('runMigrations', () => {
     ]) {
       expect(await raw.list(old)).toEqual({});
     }
-    expect(await store.get('meta', 'schemaVersion')).toBe(1);
+    expect(await store.get('meta', 'schemaVersion')).toBe(2);
 
     // A second run is a no-op.
     const before = await contents();
@@ -141,5 +141,20 @@ describe('runMigrations', () => {
       runMigrations(raw, new EncryptedDocStore(raw, cipher)),
     ).rejects.toThrow(/can't read folder assignments/);
     expect(await contents()).toEqual(before);
+  });
+
+  it('v2 moves Archive folder assignments to Hidden on a v1 store', async () => {
+    const store = sealing(['registrar-credentials']);
+    await store.put('meta', 'schemaVersion', 1);
+    await store.putMany('domain-folders', [
+      ['a.com', '__archive__'],
+      ['b.com', 'f1'],
+    ]);
+    await runMigrations(raw, store);
+    expect(await store.list('domain-folders')).toEqual({
+      'a.com': HIDDEN_FOLDER_ID,
+      'b.com': 'f1',
+    });
+    expect(await store.get('meta', 'schemaVersion')).toBe(2);
   });
 });

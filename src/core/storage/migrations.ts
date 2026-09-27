@@ -1,5 +1,5 @@
 import { isDomainKey, toAscii } from '../../shared/domain-name';
-import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
+import { HIDDEN_FOLDER_ID } from '../../shared/ipc';
 import type { DocStore } from './doc-store';
 
 // Storage schema migrations (docs/storage-model.md). Each host calls
@@ -8,7 +8,7 @@ import type { DocStore } from './doc-store';
 // one table of renames and one set of re-keying rules.
 
 /** The storage schema this build writes. Stored at `meta/schemaVersion`. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** v0 → v1: old namespace name → new. */
 export const RENAMED_NAMESPACES: Readonly<Record<string, string>> = {
@@ -26,8 +26,9 @@ const REKEYED_BY_NAME = new Set(['pricing-overrides']);
 
 // Folder assignments lived in `folders` under this key until v1.
 const LEGACY_ASSIGNMENTS_KEY = 'assignments';
-// The Archive folder's id before it became ARCHIVE_FOLDER_ID.
-const LEGACY_ARCHIVE_FOLDER_ID = '__hidden__';
+// The built-in "hide this name" folder was Archive (`__archive__`) between
+// the Hidden → Archive rename and v2, when it became Hidden again.
+const LEGACY_ARCHIVE_FOLDER_ID = '__archive__';
 
 /** `${accountId ?? registrar}:${domain}` → `toAscii(domain)`, or null when the
  *  key doesn't end in a domain name. */
@@ -60,17 +61,33 @@ export function rekeyByName<T>(
   return out;
 }
 
-/** The pre-v1 `folders/assignments` map, keyed by name, with the legacy
- *  Archive id normalized. */
+/** A folder id with the old Archive folder mapped to Hidden (v2). */
+export function hiddenFolderId(folderId: string): string {
+  return folderId === LEGACY_ARCHIVE_FOLDER_ID ? HIDDEN_FOLDER_ID : folderId;
+}
+
+/** The pre-v1 `folders/assignments` map, keyed by name, with the old
+ *  Archive folder mapped to Hidden. */
 export function assignmentsByName(raw: unknown): Record<string, string> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const ids: Record<string, string> = {};
   for (const [key, folderId] of Object.entries(raw)) {
     if (typeof folderId !== 'string') continue;
-    ids[key] =
-      folderId === LEGACY_ARCHIVE_FOLDER_ID ? ARCHIVE_FOLDER_ID : folderId;
+    ids[key] = hiddenFolderId(folderId);
   }
   return rekeyByName(ids, 'folder assignments');
+}
+
+/** v2 for a v4 bundle's `domain-folders`: Archive assignments become Hidden. */
+export function hiddenFolderAssignments(
+  entries: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(entries).map(([name, id]) => [
+      name,
+      typeof id === 'string' ? hiddenFolderId(id) : id,
+    ]),
+  );
 }
 
 /** A v1–v3 bundle's namespaces under the current names and keys. */
@@ -94,22 +111,34 @@ export function upgradeLegacyNamespaces(
 }
 
 /**
- * Brings a store written by an older DomBot up to SCHEMA_VERSION. Idempotent:
- * a step with nothing to move is skipped, and the version is recorded last.
+ * Brings a store written by an older DomBot up to SCHEMA_VERSION, one step
+ * at a time. Idempotent: a step with nothing to move is skipped, and the
+ * version is recorded after each step.
  *
  * `raw` is the store beneath any EncryptedDocStore. Renames copy values
  * exactly as stored, so a sealed value moves still sealed and a value the
  * cipher can't open right now (a locked keyring) is never dropped. `store` is
- * the host's configured store: the version marker goes through it, and so does
- * the one value that has to be read, the folder-assignment map.
+ * the host's configured store: the version marker goes through it, and so do
+ * the values that have to be read (folder assignments).
  */
 export async function runMigrations(
   raw: DocStore,
   store: DocStore,
 ): Promise<void> {
-  const version = await store.get('meta', 'schemaVersion');
-  if (typeof version === 'number' && version >= SCHEMA_VERSION) return;
+  const stored = await store.get('meta', 'schemaVersion');
+  const version = typeof stored === 'number' ? stored : 0;
+  if (version < 1) {
+    await migration1(raw, store);
+    await store.put('meta', 'schemaVersion', 1);
+  }
+  if (version < 2) {
+    await migration2(store);
+    await store.put('meta', 'schemaVersion', 2);
+  }
+}
 
+/** v1: namespace renames, and folders and prices keyed by name. */
+async function migration1(raw: DocStore, store: DocStore): Promise<void> {
   const assignments = await store.get('folders', LEGACY_ASSIGNMENTS_KEY);
   if (assignments === null) {
     if ((await raw.get('folders', LEGACY_ASSIGNMENTS_KEY)) !== null) {
@@ -133,6 +162,17 @@ export async function runMigrations(
     await raw.putMany(to, Object.entries(moved));
     await raw.clear(from);
   }
+}
 
-  await store.put('meta', 'schemaVersion', SCHEMA_VERSION);
+/** v2: the Archive folder becomes Hidden (Archive is now an ownership action). */
+async function migration2(store: DocStore): Promise<void> {
+  const entries = await store.list('domain-folders');
+  const moved = Object.entries(entries).filter(
+    ([, id]) => id === LEGACY_ARCHIVE_FOLDER_ID,
+  );
+  if (moved.length === 0) return;
+  await store.putMany(
+    'domain-folders',
+    moved.map(([name]) => [name, HIDDEN_FOLDER_ID]),
+  );
 }

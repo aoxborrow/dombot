@@ -10,10 +10,21 @@ import {
   type CoreMethodName,
 } from '../../core/api';
 import { setAppIdentity } from '../../core/app-info';
-import { installDemo, type DemoInstallation } from '../../core/demo';
+import {
+  installDemo,
+  type DemoInstallation,
+  type DemoWorld,
+} from '../../core/demo';
 import { onCoreEvent } from '../../core/events';
 import { setBulkAutoDrive } from '../../core/services/bulk-jobs';
-import { getPortfolio } from '../../core/services/registrars';
+import {
+  getMergedPortfolio,
+  getPortfolio,
+} from '../../core/services/registrars';
+import { listEvents } from '../../core/services/domain-events';
+import { localDay } from '../../shared/domain-events';
+import { setDispositions } from '../../core/services/domain-history';
+import { setPurchase, setSale } from '../../core/services/purchases';
 import { MemoryDocStore } from '../../core/storage/doc-store';
 import { configureStore, hydrateStores } from '../../core/storage/namespace';
 import pkg from '../../../package.json';
@@ -64,11 +75,100 @@ export interface DemoApiOptions {
   latencyMs?: number;
   /** Portfolio size. Default: the seed's. */
   size?: number;
+  /**
+   * After the baseline sync, drop one sample name, move one between accounts,
+   * and add one. The browser demo uses this so the alerts can be clicked
+   * without touching a real registrar.
+   */
+  sampleChanges?: boolean;
 }
 
 export interface DemoApi {
   api: DombotApi;
   demo: DemoInstallation;
+}
+
+/**
+ * Changes after the baseline sync, so every kind of alert shows: departures
+ * from several accounts, arrivals, and a move.
+ */
+function stageSampleChanges(world: DemoWorld): void {
+  const records = world.all();
+  const of = (registrar: string) =>
+    records.filter((record) => record.registrar === registrar);
+  const godaddy = of('godaddy');
+  const porkbun = of('porkbun');
+  if (godaddy.length < 3 || porkbun.length < 2) return;
+
+  // Departures: the last name in several accounts.
+  for (const registrar of ['godaddy', 'namecheap', 'cloudflare', 'dynadot']) {
+    const list = of(registrar);
+    if (list.length > 0) world.remove(list[list.length - 1].domainName);
+  }
+
+  const moving = godaddy[0];
+  world.remove(moving.domainName);
+  world.add({
+    ...moving,
+    registrar: porkbun[0].registrar,
+    accountId: porkbun[0].accountId,
+  });
+
+  // Arrivals: fresh registrations in two accounts.
+  const now = new Date();
+  const arrive = (domainName: string, host: (typeof records)[number]) => {
+    world.remove(domainName);
+    world.add({
+      ...host,
+      domainName,
+      createdDate: now,
+      expirationDate: new Date(now.getTime() + 365.25 * 24 * 60 * 60 * 1000),
+      nameservers: [...host.nameservers],
+      dnsRecords: [],
+      emailForwards: [],
+      domainForwards: [],
+    });
+  };
+  arrive('just-registered.com', godaddy[1]);
+  arrive('fresh-find.io', porkbun[1]);
+  arrive('new-brand.co', godaddy[2]);
+}
+
+/**
+ * Some answered alerts and recorded purchases, so Activity shows history
+ * beside what still needs review.
+ */
+function recordSampleHistory(): void {
+  const departures = listEvents().filter((e) => e.type === 'removed');
+  const [sold, dropped] = departures;
+  if (sold) {
+    setSale({
+      domainName: sold.domain,
+      saleDate: localDay(),
+      amount: '2500',
+      currency: 'USD',
+      notes: '',
+      mark: true,
+      resolves: sold.id,
+    });
+  }
+  if (dropped) {
+    setDispositions(
+      [{ domainName: dropped.domain, resolves: dropped.id }],
+      'dropped',
+    );
+  }
+  const owned = getMergedPortfolio().domains.map((d) => d.domainName);
+  const day = (daysAgo: number) => localDay(Date.now() - daysAgo * 86_400_000);
+  owned.slice(3, 5).forEach((domainName, i) =>
+    setPurchase({
+      domainName,
+      purchaseDate: day(20 + i * 40),
+      amount: i === 0 ? '1200' : '85',
+      currency: 'USD',
+      notes: '',
+    }),
+  );
 }
 
 /**
@@ -87,6 +187,11 @@ export async function createDemoApi(
   // looks like the real thing.
   const demo = await installDemo({ latencyMs: 0, size: options.size });
   await getPortfolio(true);
+  if (options.sampleChanges) {
+    stageSampleChanges(demo.world);
+    await getPortfolio(true);
+    recordSampleHistory();
+  }
   demo.setLatency(options.latencyMs ?? 150);
 
   const table: ApiTable = { ...coreMethods, ...demoMethods };

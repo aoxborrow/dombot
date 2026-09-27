@@ -17,6 +17,21 @@ import {
 } from '../services/folders';
 import { setManualPrice } from '../services/pricing';
 import {
+  getPurchases,
+  setPurchase,
+  markSold,
+  setSale,
+} from '../services/purchases';
+import {
+  deleteDomains,
+  deleteUserEvent,
+  restoreOwned,
+  setAlertsDismissed,
+  setDispositions,
+} from '../services/domain-history';
+import { listEvents } from '../services/domain-events';
+import { lookupRegistrations } from '../services/registration-lookup';
+import {
   getRegistrarCatalog,
   connectRegistrarAccount,
   removeRegistrarAccount,
@@ -27,6 +42,7 @@ import {
   getDomainDetail,
   getPortfolio,
   getPortfolioPricing,
+  getRegistrationQuote,
   getRegistrarClient,
   getRegistrarCredentialValues,
   getRegistrarFeatures,
@@ -338,6 +354,65 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     restartAutoSync();
     return next;
   }),
+
+  // ── Purchase records ──────────────────────────────────────────────────────
+  getPurchases: method(none, async () => getPurchases()),
+  setPurchase: method(z.tuple([s.purchaseInput]), async (input) =>
+    setPurchase(input),
+  ),
+  setSale: method(z.tuple([s.saleInput]), async (input) => setSale(input)),
+
+  lookupRegistrations: method(z.tuple([s.domainNameList]), async (names) =>
+    lookupRegistrations(names),
+  ),
+  getRegistrationQuote: method(
+    z.tuple([s.registrarName, s.domainName, s.accountId]),
+    async (registrar, domainName, accountId) =>
+      getRegistrationQuote(registrar, domainName, accountId),
+  ),
+
+  // ── Domain history (events) ───────────────────────────────────────────────
+  // Every change returns the whole log, so the caller refreshes in one call.
+  getDomainEvents: method(none, async () => listEvents()),
+  setDispositions: method(
+    z.tuple([s.ownershipItems, s.disposition, s.optionalDay]),
+    async (items, type, date) => {
+      setDispositions(items, type, date);
+      return listEvents();
+    },
+  ),
+  markSold: method(
+    z.tuple([s.ownershipItems, s.optionalDay]),
+    async (items, date) => {
+      markSold(items, date);
+      return listEvents();
+    },
+  ),
+  restoreOwned: method(
+    z.tuple([s.domainNameList.min(1)]),
+    async (domainNames) => {
+      restoreOwned(domainNames);
+      return listEvents();
+    },
+  ),
+  setAlertsDismissed: method(
+    z.tuple([z.array(s.eventId).min(1).max(5000), z.boolean()]),
+    async (ids, dismissed) => {
+      setAlertsDismissed(ids, dismissed);
+      return listEvents();
+    },
+  ),
+  deleteUserEvent: method(z.tuple([s.eventId]), async (id) => {
+    deleteUserEvent(id);
+    return listEvents();
+  }),
+  deleteDomains: method(
+    z.tuple([s.domainNameList.min(1)]),
+    async (domainNames) => {
+      deleteDomains(domainNames);
+      return listEvents();
+    },
+  ),
 
   // ── Events (polling) ──────────────────────────────────────────────────────
   getRevisions: method(none, async () => getRevisions()),

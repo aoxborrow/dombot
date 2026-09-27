@@ -35,7 +35,12 @@ const meta = (name: RegistrarMeta['name'], features: string[] = []) =>
     supportsSandbox: false,
     configured: true,
     enabled: true,
-    sync: { lastSyncedAt: null, lastError: null, domainCount: 0 },
+    sync: {
+      lastSyncedAt: null,
+      lastError: null,
+      domainCount: 0,
+      trackedSince: null,
+    },
     configFields: [],
     features,
   }) satisfies RegistrarMeta;

@@ -1,34 +1,24 @@
 import { accountNumber, accountTitle } from '../../shared/account-label';
-import { DomainTableScroll } from '../lib/domain-table-scroll';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { SyncErrorsAlert } from '../components/SyncErrorsAlert';
 import {
-  Archive,
-  ArrowDown,
-  ArrowUp,
+  EyeOff,
   Building2,
   CalendarClock,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  ChevronsUpDown,
   CircleCheck,
-  CircleX,
   ExternalLink,
   Globe,
   Plug,
-  Search,
   Server,
   ShieldBan,
   ShieldCheck,
   SlidersHorizontal,
   TriangleAlert,
-  X,
 } from 'lucide-react';
 import type {
   Domain,
@@ -38,7 +28,21 @@ import type {
 } from '../../shared/ipc';
 import { LockClosedIcon, LockOpenIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
-import { ARCHIVE_FOLDER_ID } from '../../shared/ipc';
+import {
+  HIDDEN_FOLDER_ID,
+  builtInFolderName,
+  isHiddenFolder,
+} from '../../shared/ipc';
+import { DomainEventType } from '../../shared/domain-events';
+import { ownershipByDomain, type ArchiveLabel } from '../../shared/ownership';
+import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
+import { ARCHIVE_LABEL, archiveRows } from '../lib/domain-history';
+import {
+  DeleteDomainsDialog,
+  DispositionDialog,
+  MarkSoldDialog,
+  RestoreOwnedDialog,
+} from '../components/actions/OwnershipDialogs';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
 import { nameserverGroup } from '../lib/nameservers';
@@ -51,8 +55,17 @@ import {
 import { FolderIcon } from '../components/icons/FolderIcon';
 import { FolderOffIcon } from '../components/icons/FolderOffIcon';
 import { FolderMenuItems } from '../components/domains/FolderMenuItems';
+import { OwnershipSwitch } from '../components/domains/OwnershipSwitch';
+import {
+  EventTypeBadge,
+  EventTypeDot,
+} from '../components/activity/EventTypeBadge';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
+import { purchaseColumns } from '../components/domains/purchase-columns';
+import { PurchaseDialog } from '../components/domains/PurchaseDialog';
+import { SaleDialog } from '../components/domains/SaleDialog';
+import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
 import { NameserversCell } from '../components/domains/NameserversCell';
 import { AuthCodeDialog } from '../components/domains/AuthCodeDialog';
 import { RenewDialog } from '../components/domains/RenewDialog';
@@ -60,39 +73,28 @@ import {
   EmailForwardingDialog,
   UrlForwardingDialog,
 } from '../components/domains/ForwardingDialogs';
-import { BulkBar } from '../components/domains/BulkBar';
+import { BulkBar, type OwnershipAction } from '../components/domains/BulkBar';
 import { BulkActionDialog } from '../components/domains/BulkActionDialog';
 import { defaultBulkOp } from '../lib/bulk';
-import { PAGE_SIZES, usePreferences } from '../lib/preferences';
+import { usePreferences } from '../lib/preferences';
+import { DataTable, type DataColumn } from '../components/data-table/DataTable';
+import { paginate, sortRows } from '../components/data-table/table-state';
+import {
+  MultiSelectFilter,
+  ResetButton,
+  SearchField,
+} from '../components/data-table/Toolbar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
-import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import {} from '@/components/ui/table';
 
 // Which `refreshTick` the detail fetch has already force-refreshed. Module-level
 // so it PERSISTS across Domains remounts (switching to another tab and back): a
@@ -218,8 +220,8 @@ function RenewalCell({
 
 /**
  * The Folder cell: a small colored folder icon plus the folder name when the
- * domain is in a folder, a muted "Archive" (box) for the built-in archive
- * folder, or a muted dash when unassigned. Display only — assigning is done from
+ * domain is in a folder, a muted "Hidden" for the built-in Hidden folder, or a
+ * muted dash when unassigned. Display only — assigning is done from
  * the row menu.
  */
 /**
@@ -237,9 +239,10 @@ function FolderCell({
   folderId: string | undefined;
   onAssign: (folderId: string | null) => void;
 }) {
-  const archived = folderId === ARCHIVE_FOLDER_ID;
+  const builtIn = builtInFolderName(folderId);
+  const BuiltInIcon = EyeOff;
   const current =
-    folderId && !archived ? folders.find((f) => f.id === folderId) : undefined;
+    folderId && !builtIn ? folders.find((f) => f.id === folderId) : undefined;
 
   return (
     <DropdownMenu>
@@ -251,10 +254,10 @@ function FolderCell({
           // never sets the row height.
           className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground compact:px-2 compact:py-[9px] compact:text-xs"
         >
-          {archived ? (
+          {builtIn ? (
             <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
-              <Archive className="size-4 shrink-0" />
-              Archive
+              <BuiltInIcon className="size-4 shrink-0" />
+              {builtIn}
               <ChevronDown
                 className="ml-auto size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                 aria-hidden
@@ -289,6 +292,23 @@ function FolderCell({
         onAssign={onAssign}
       />
     </DropdownMenu>
+  );
+}
+
+/**
+ * In Archive the Folder column shows why the name is there instead: its latest
+ * ownership event, as the same badge Activity shows (Sold, Dropped,
+ * Archived, or Removed: sync saw it go; label it from the row menu).
+ */
+function ArchiveStatusCell({ label }: { label: ArchiveLabel | null }) {
+  if (!label) return null;
+  return (
+    <span className="flex items-center px-3 py-3 compact:px-2 compact:py-[9px]">
+      <EventTypeBadge
+        type={label}
+        title={label === 'removed' ? 'Removed from registrar' : undefined}
+      />
+    </span>
   );
 }
 
@@ -436,6 +456,14 @@ function ShieldCheckFilled(props: React.ComponentProps<typeof ShieldCheck>) {
     />
   );
 }
+
+/** Not useful once a name has left: there is nothing to renew or reconfigure. */
+const ARCHIVE_HIDDEN_COLUMNS = new Set([
+  'autoRenew',
+  'privacy',
+  'locked',
+  'nameservers',
+]);
 
 const COLUMNS: Column[] = [
   {
@@ -621,16 +649,14 @@ function matchesExpiryOption(option: string, days: number | null): boolean {
   return days >= 0 && days <= Number(option);
 }
 
-/** Adds or removes `value` from a multi-select selection array. */
-function toggleValue(selected: string[], value: string): string[] {
-  return selected.includes(value)
-    ? selected.filter((v) => v !== value)
-    : [...selected, value];
-}
-
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function Domains() {
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  // Owned is what you hold; Archive is what you no longer own (Sold, Dropped,
+  // Archived, or Removed from registrar), read from the domain event log.
+  const archiveView = params.get('view') === 'archive';
   const {
     portfolio,
     portfolioErrors,
@@ -654,12 +680,48 @@ export default function Domains() {
     setSelectedMany,
     clearSelection,
     bulk,
+    purchases,
+    settings,
+    domainEvents,
+    registrationLookups,
+    loadRegistrationLookups,
+    restoreOwned,
   } = useAppStore();
+
+  // Ownership per name, and each name's open "removed from registrar" alert (a
+  // label chosen from the row closes it).
+  const ownership = useMemo(
+    () => ownershipByDomain(domainEvents),
+    [domainEvents],
+  );
+  const openRemoval = useMemo(() => {
+    const resolved = resolvedIds(domainEvents);
+    const out = new Map<string, string>();
+    for (const e of domainEvents) {
+      if (e.type === DomainEventType.Removed && isOpenAlert(e, resolved))
+        out.set(e.domain, e.id);
+    }
+    return out;
+  }, [domainEvents]);
+  const archiveLabelOf = useCallback(
+    (d: Domain): ArchiveLabel | null =>
+      ownership.get(toAscii(d.domainName))?.label ?? null,
+    [ownership],
+  );
 
   const multipleAccounts = useMemo(
     () => multiAccountRegistrars(registrars, portfolio),
     [registrars, portfolio],
   );
+  const [purchaseFor, setPurchaseFor] = useState<Domain | null>(null);
+  const [saleFor, setSaleFor] = useState<Domain | null>(null);
+  // Mark as Sold for one name: the sale dialog, which takes the price.
+  const [markSoldFor, setMarkSoldFor] = useState<Domain | null>(null);
+  // The ownership dialogs, for one name (row menu) or the selection.
+  const [ownershipDialog, setOwnershipDialog] = useState<{
+    action: OwnershipAction;
+    domains: Domain[];
+  } | null>(null);
   // The Registrar column carries the account too: a nickname always shows in
   // parens; an unnamed account shows its number only when the registrar has
   // siblings to tell apart. `null` from accountNumber() means a real nickname.
@@ -669,7 +731,7 @@ export default function Domains() {
       if (n === null) return label ?? '';
       return multipleAccounts.has(registrar) ? `#${n}` : '';
     };
-    return COLUMNS.map((c) =>
+    const base = COLUMNS.map((c) =>
       c.key === 'registrar'
         ? {
             ...c,
@@ -700,9 +762,24 @@ export default function Domains() {
           }
         : c,
     );
-  }, [multipleAccounts]);
+    const purchasedAt = base.findIndex((c) => c.key === 'createdDate');
+    const extra = purchaseColumns({
+      purchases,
+      preferredCurrency: settings?.preferredCurrency ?? DEFAULT_CURRENCY,
+      numberFormat: settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+      onEdit: setPurchaseFor,
+      onEditSale: setSaleFor,
+      showSale: archiveView,
+      isSold: (d) => ownership.get(toAscii(d.domainName))?.label === 'sold',
+    });
+    base.splice(purchasedAt + 1, 0, ...extra);
+    return base;
+  }, [multipleAccounts, purchases, settings, archiveView, ownership]);
 
-  const navigate = useNavigate();
+  const tableColumns = archiveView
+    ? columns.filter((col) => !ARCHIVE_HIDDEN_COLUMNS.has(col.key))
+    : columns;
+
   // Pricing is computed locally in main and arrives with the portfolio; the only
   // gap is the brief moment after a live Sync resets it before it's re-read.
   const pricingLoading =
@@ -734,6 +811,53 @@ export default function Domains() {
     [portfolio, enriched],
   );
 
+  // Names in Archive that no registrar reports any more. They're not in
+  // `merged`; the Archive view is what shows them.
+  const listed = useMemo(
+    () => [...merged, ...archiveRows(ownership, portfolio, registrars)],
+    [merged, ownership, portfolio, registrars],
+  );
+
+  // Archive asks RDAP for names that have left, so created and expires stay
+  // current and a free name can be shown as unregistered.
+  const departedKey = archiveView
+    ? listed
+        .filter((d) => d.departed)
+        .map((d) => d.domainName.toLowerCase())
+        .sort()
+        .join('\n')
+    : '';
+  useEffect(() => {
+    if (!departedKey) return;
+    void loadRegistrationLookups(departedKey.split('\n'));
+  }, [departedKey, loadRegistrationLookups]);
+
+  const shown = useMemo(() => {
+    if (!archiveView) return listed;
+    return listed.map((d) => {
+      if (!d.departed) return d;
+      const lookup = registrationLookups[toAscii(d.domainName)];
+      if (!lookup) return { ...d, registrationPending: true };
+      if (!lookup.registered) {
+        return {
+          ...d,
+          registrationPending: false,
+          unregistered: true,
+          createdDate: null,
+          expirationDate: null,
+        };
+      }
+      return {
+        ...d,
+        registrationPending: false,
+        unregistered: false,
+        registrationRegistrar: lookup.registrar ?? undefined,
+        createdDate: lookup.created ? new Date(lookup.created) : null,
+        expirationDate: lookup.expires ? new Date(lookup.expires) : null,
+      };
+    });
+  }, [listed, archiveView, registrationLookups]);
+
   const [search, setSearch] = useState('');
   // Multi-select filters; an empty array means "no filter" (show all).
   const [tld, setTld] = useState<string[]>([]);
@@ -756,7 +880,6 @@ export default function Domains() {
   const [pageSize, setPageSize] = useState(
     () => usePreferences.getState().pageSize,
   );
-  const density = usePreferences((s) => s.density);
   const [page, setPage] = useState(0);
   // Phones only: the filter chips collapse behind a "Filters" toggle (they're
   // always shown at sm+). Search and Reset stay visible.
@@ -886,56 +1009,78 @@ export default function Domains() {
     return { nsGroups: groups, nsKeysByDomain: keysByDomain };
   }, [merged]);
 
-  // Folder filter options: one per folder (with its assigned-domain count over
-  // the whole portfolio), a "None" bucket (no folder), and an always-present
-  // "Archive" bucket for the built-in archive folder. A dangling assignment (its
-  // folder was deleted) counts as None. `archivedCount` also lets the Folder
-  // filter show when the user has archived domains but no folders of their own.
-  const { folderOptions, archivedCount } = useMemo(() => {
-    const counts: Record<string, number> = {};
-    let noFolder = 0;
-    let archived = 0;
-    for (const d of portfolio) {
-      const id = folderAssignments[toAscii(d.domainName)];
-      if (id === ARCHIVE_FOLDER_ID) {
-        archived += 1;
-      } else if (id && folders.some((f) => f.id === id)) {
-        counts[id] = (counts[id] ?? 0) + 1;
-      } else {
-        noFolder += 1;
+  // Owned: the Folder filter offers the user's folders, None, and Hidden.
+  // Archive: the same control filters by status (Sold, Dropped, …).
+  const { ownedFolderOptions, archiveStatusOptions, ownedCount, archiveCount } =
+    useMemo(() => {
+      const counts: Record<string, number> = {};
+      const status: Record<ArchiveLabel, number> = {
+        sold: 0,
+        dropped: 0,
+        archived: 0,
+        removed: 0,
+      };
+      let noFolder = 0;
+      let hidden = 0;
+      for (const d of listed) {
+        const label = ownership.get(toAscii(d.domainName))?.label;
+        if (label) {
+          status[label] += 1;
+          continue;
+        }
+        const id = folderAssignments[toAscii(d.domainName)];
+        if (id === HIDDEN_FOLDER_ID) hidden += 1;
+        else if (id && folders.some((f) => f.id === id)) {
+          counts[id] = (counts[id] ?? 0) + 1;
+        } else {
+          noFolder += 1;
+        }
       }
-    }
-    const opts = folders.map((f) => ({
-      value: f.id,
-      label: f.name,
-      count: counts[f.id] ?? 0,
-      icon: (
-        <FolderIcon
-          className={cn('size-4 shrink-0', folderColorStyle(f.color).text)}
-          aria-hidden
-        />
-      ),
-    }));
-    opts.push({
-      value: NONE,
-      label: 'None',
-      count: noFolder,
-      icon: (
-        <FolderOffIcon
-          className="size-4 shrink-0 text-muted-foreground/50"
-          aria-hidden
-        />
-      ),
-    });
-    // Always offer Archive so it's a discoverable way to reveal archived domains.
-    opts.push({
-      value: ARCHIVE_FOLDER_ID,
-      label: 'Archive',
-      count: archived,
-      icon: <Archive className="size-4 shrink-0" aria-hidden />,
-    });
-    return { folderOptions: opts, archivedCount: archived };
-  }, [portfolio, folders, folderAssignments]);
+      const opts = folders.map((f) => ({
+        value: f.id,
+        label: f.name,
+        count: counts[f.id] ?? 0,
+        icon: (
+          <FolderIcon
+            className={cn('size-4 shrink-0', folderColorStyle(f.color).text)}
+            aria-hidden
+          />
+        ),
+      }));
+      opts.push({
+        value: NONE,
+        label: 'None',
+        count: noFolder,
+        icon: (
+          <FolderOffIcon
+            className="size-4 shrink-0 text-muted-foreground/50"
+            aria-hidden
+          />
+        ),
+      });
+      opts.push({
+        value: HIDDEN_FOLDER_ID,
+        label: 'Hidden',
+        count: hidden,
+        icon: <EyeOff className="size-4 shrink-0" aria-hidden />,
+      });
+      const statusOptions = (
+        ['sold', 'dropped', 'archived', 'removed'] as const
+      ).map((label) => ({
+        value: label,
+        label: ARCHIVE_LABEL[label],
+        count: status[label],
+        icon: <EventTypeDot type={label} />,
+      }));
+      const userFolderCount = Object.values(counts).reduce((n, c) => n + c, 0);
+      return {
+        ownedFolderOptions: opts,
+        archiveStatusOptions: statusOptions,
+        // Owned counts what shows by default: Hidden is left out.
+        ownedCount: noFolder + userFolderCount,
+        archiveCount: Object.values(status).reduce((n, c) => n + c, 0),
+      };
+    }, [listed, folders, folderAssignments, ownership]);
 
   // Validate the price inputs, then derive the bounds actually applied. A field
   // error (or min > max) leaves the range unapplied until it's corrected.
@@ -969,10 +1114,19 @@ export default function Domains() {
     setPage(0);
   }
 
+  function setListView(next: 'owned' | 'archive') {
+    setFolder([]);
+    setPage(0);
+    const nextParams = new URLSearchParams(params);
+    if (next === 'archive') nextParams.set('view', 'archive');
+    else nextParams.delete('view');
+    setParams(nextParams, { replace: true });
+  }
+
   // Filter → sort. Pagination is applied after, on the sorted result.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const rows = merged.filter((d) => {
+    const rows = shown.filter((d) => {
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
       if (tld.length > 0 && !tld.includes(tldOf(d.domainName))) return false;
       // The "Registrar" filter picks individual accounts (by account id).
@@ -992,55 +1146,53 @@ export default function Domains() {
         const keys = nsKeysByDomain.get(domainKey(d));
         if (!keys || !ns.some((k) => keys.has(k))) return false;
       }
-      // Folder: resolve each domain to a bucket — a real folder id, the built-in
-      // Archive id, or "None" (no folder, or a dangling assignment). With a
-      // folder filter active, keep only domains whose bucket is selected. With no
-      // folder filter, drop the Archive bucket (that's the whole point of it).
+      // Owned vs Archive comes from the event log. In Archive the filter is
+      // the status; in Owned it's the folder (a real folder, Hidden, or None),
+      // and Hidden stays out unless the filter picks it.
       {
-        const id = folderAssignments[toAscii(d.domainName)];
-        const bucket =
-          id === ARCHIVE_FOLDER_ID
-            ? ARCHIVE_FOLDER_ID
+        const label = archiveLabelOf(d);
+        if (archiveView) {
+          if (!label) return false;
+          if (folder.length > 0 && !folder.includes(label)) return false;
+        } else {
+          if (label) return false;
+          const id = folderAssignments[toAscii(d.domainName)];
+          const bucket = isHiddenFolder(id)
+            ? id!
             : id && folders.some((f) => f.id === id)
               ? id
               : NONE;
-        if (folder.length > 0) {
-          if (!folder.includes(bucket)) return false;
-        } else if (bucket === ARCHIVE_FOLDER_ID) {
-          return false;
+          if (folder.length > 0) {
+            if (!folder.includes(bucket)) return false;
+          } else if (isHiddenFolder(bucket)) {
+            return false;
+          }
         }
       }
       return true;
     });
 
     const col = columns.find((c) => c.key === sortKey) ?? columns[0];
-    const dir = sortDir === 'asc' ? 1 : -1;
     // Renewal isn't a Domain field — sort it from the pricing map.
     const valueOf = (d: Domain): SortValue | null => {
       if (sortKey === RENEWAL) {
         return pricing[domainKey(d)]?.renewal ?? null;
       }
       if (sortKey === FOLDER) {
+        const label = archiveLabelOf(d);
+        if (label) return ARCHIVE_LABEL[label].toLowerCase();
         const id = folderAssignments[toAscii(d.domainName)];
-        return folders.find((f) => f.id === id)?.name.toLowerCase() ?? null;
+        return (
+          builtInFolderName(id)?.toLowerCase() ??
+          folders.find((f) => f.id === id)?.name.toLowerCase() ??
+          null
+        );
       }
       return col.sortValue(d, portfolioRegistrarLabels);
     };
-    return rows.sort((a, b) => {
-      const av = valueOf(a);
-      const bv = valueOf(b);
-      // Nulls/blanks always sort last, independent of direction.
-      const aEmpty = av === null || av === '';
-      const bEmpty = bv === null || bv === '';
-      if (aEmpty && bEmpty) return 0;
-      if (aEmpty) return 1;
-      if (bEmpty) return -1;
-      if (av < bv) return -1 * dir;
-      if (av > bv) return 1 * dir;
-      return 0;
-    });
+    return sortRows(rows, valueOf, sortDir);
   }, [
-    merged,
+    shown,
     columns,
     portfolioRegistrarLabels,
     search,
@@ -1052,54 +1204,21 @@ export default function Domains() {
     folder,
     folders,
     folderAssignments,
+    archiveView,
+    archiveLabelOf,
     sortKey,
     sortDir,
     pricing,
   ]);
 
-  // Derive the effective page: if filters shrink the result below the current
-  // page, `safePage` clamps it without needing to write back to state (every
-  // read and the pager buttons use `safePage`, so it stays self-correcting).
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1);
+  // The rows on screen (the table pages the same way), for lazy detail loads.
+  const { start, end } = paginate(filtered.length, page, pageSize);
+  const visible = filtered.slice(start, end);
 
-  const start = safePage * pageSize;
-  const visible = filtered.slice(start, start + pageSize);
-
-  // Header checkbox reflects the whole filtered set (across pages): fully checked
-  // when every filtered row is selected, indeterminate when only some are.
-  const allFilteredSelected =
-    filtered.length > 0 && filtered.every((d) => selected.has(domainKey(d)));
-  const someFilteredSelected =
-    !allFilteredSelected && filtered.some((d) => selected.has(domainKey(d)));
-  const toggleSelectAll = () =>
-    setSelectedMany(
-      filtered.map((d) => domainKey(d)),
-      !allFilteredSelected,
-    );
-  // The row whose checkbox was last clicked without Shift. Shift-click checks
-  // that row through the clicked one, in the current table order.
-  const selectionAnchor = useRef<string | null>(null);
-  const selectRow = (key: string, shift: boolean) => {
-    const anchor = selectionAnchor.current;
-    if (shift && anchor) {
-      const keys = filtered.map((d) => domainKey(d));
-      const from = keys.indexOf(anchor);
-      const to = keys.indexOf(key);
-      if (from !== -1 && to !== -1) {
-        const lo = Math.min(from, to);
-        const hi = Math.max(from, to);
-        setSelectedMany(keys.slice(lo, hi + 1), true);
-        return;
-      }
-    }
-    toggleSelected(key);
-    selectionAnchor.current = key;
-  };
   // The selected domains as merged rows, for the bulk bar and dialog.
   const selectedDomains = useMemo(
-    () => merged.filter((d) => selected.has(domainKey(d))),
-    [merged, selected],
+    () => shown.filter((d) => selected.has(domainKey(d))),
+    [shown, selected],
   );
   // Bulk: re-fetch every selected domain's detail from its registrar, bypassing
   // the detail cache (their cells show skeletons while in flight).
@@ -1109,20 +1228,57 @@ export default function Domains() {
       toast.success(`Refreshed ${n} domain${n === 1 ? '' : 's'}`),
     );
   };
-  const bulkAssignFolder = (folderId: string | null) => {
-    const keys = selectedDomains.map((d) => d.domainName);
-    void Promise.all(keys.map((k) => assignFolder(k, folderId))).then(() =>
+  function applyFolders(domainsToMove: Domain[], folderId: string | null) {
+    const keys = domainsToMove.map((domain) => domainKey(domain));
+    void Promise.all(
+      domainsToMove.map((domain) => assignFolder(domain.domainName, folderId)),
+    ).then(() => {
+      setSelectedMany(keys, false);
+      const noun = `${keys.length} domain${keys.length === 1 ? '' : 's'}`;
       toast.success(
-        folderId === ARCHIVE_FOLDER_ID
-          ? `Archived ${keys.length} domain${keys.length === 1 ? '' : 's'}`
-          : folderId
-            ? `Moved ${keys.length} domain${keys.length === 1 ? '' : 's'} to ${
-                folders.find((f) => f.id === folderId)?.name ?? 'folder'
-              }`
-            : `Removed ${keys.length} domain${keys.length === 1 ? '' : 's'} from their folders`,
+        folderId === null
+          ? `Removed ${noun} from their folders`
+          : `Moved ${noun} to ${
+              builtInFolderName(folderId) ??
+              folders.find((folder) => folder.id === folderId)?.name ??
+              'folder'
+            }`,
+      );
+    });
+  }
+
+  // Ownership actions. A name sync saw leave has an open alert; the label
+  // you pick closes it.
+  const ownershipItems = (ds: Domain[]) =>
+    ds.map((d) => ({
+      domainName: d.domainName,
+      resolves: openRemoval.get(toAscii(d.domainName)),
+    }));
+
+  function openOwnership(action: OwnershipAction, ds: Domain[]) {
+    if (action === 'sold' && ds.length === 1) setMarkSoldFor(ds[0]);
+    else setOwnershipDialog({ action, domains: ds });
+  }
+
+  // Undoing one name's label is one click (and reversible); many go through
+  // the dialog.
+  function moveBackToOwned(d: Domain) {
+    const label = archiveLabelOf(d);
+    void restoreOwned([d.domainName]).then(() =>
+      toast.success(
+        d.departed && label
+          ? `Undid ${ARCHIVE_LABEL[label]} for ${d.domainName}`
+          : `Moved ${d.domainName} back to Owned`,
       ),
     );
-  };
+  }
+
+  // After a bulk ownership action the names leave this view: clear them.
+  const clearDone = (ds: Domain[]) =>
+    setSelectedMany(
+      ds.map((d) => domainKey(d)),
+      false,
+    );
 
   // Lazily fetch full detail for the rows actually on screen. Keyed on the
   // visible domains' identities so it re-runs on page/sort/filter changes;
@@ -1176,6 +1332,7 @@ export default function Domains() {
         portfolioRegistrarLabels,
         folders,
         folderAssignments,
+        purchases,
       );
       const result = await window.api.saveTextFile(csv, csvFilename());
       if (!result.saved) return; // user cancelled the dialog
@@ -1193,58 +1350,157 @@ export default function Domains() {
     }
   }
 
+  // Table columns: the data columns, with Folder (Status in Archive) after
+  // the domain and Renewal before Auto-renew. Cells show a placeholder while
+  // their data loads, and a dash where a departed name has none.
+  const renderCell = (col: Column, d: Domain) => {
+    const registration =
+      col.key === 'registrar' ||
+      col.key === 'createdDate' ||
+      col.key === 'expirationDate';
+    if (col.key === 'domainName') {
+      // The row's "⋯" menu lives in the Domain cell, pinned to its right edge.
+      return (
+        <div className="flex items-center justify-between gap-2">
+          {col.render(d, portfolioRegistrarLabels)}
+          <RowActionsMenu
+            domain={d}
+            folders={folders}
+            folderId={folderAssignments[toAscii(d.domainName)]}
+            onRefresh={() => refreshDomain(d)}
+            onUrlForwarding={() => setUrlForwardingFor(d)}
+            onEmailForwarding={() => setEmailForwardingFor(d)}
+            onAuthCode={() => setAuthCodeFor(d)}
+            onRenew={() => setRenewFor(d)}
+            onEditPurchase={() => setPurchaseFor(d)}
+            onEditSale={() => setSaleFor(d)}
+            onAssignFolder={(folderId) => applyFolders([d], folderId)}
+            archive={archiveLabelOf(d)}
+            onMarkSold={() => openOwnership('sold', [d])}
+            onMarkDropped={() => openOwnership('dropped', [d])}
+            onMarkArchived={() => openOwnership('archived', [d])}
+            onRestoreOwned={() => moveBackToOwned(d)}
+            onDelete={() => openOwnership('delete', [d])}
+          />
+        </div>
+      );
+    }
+    if (d.registrationPending && registration)
+      return <CellSkeleton align={col.align} />;
+    if (d.unregistered && registration)
+      return <span className="text-muted-foreground">—</span>;
+    if (col.key === 'registrar' && d.registrationRegistrar)
+      return <span>{d.registrationRegistrar}</span>;
+    if (d.departed && (col.detail || col.key === 'autoRenew'))
+      return <span className="text-muted-foreground/50">—</span>;
+    if (col.detail && enriching[domainKey(d)] === true)
+      return <CellSkeleton align={col.align} />;
+    return col.render(d, portfolioRegistrarLabels);
+  };
+  const dataColumns: DataColumn<Domain>[] = [];
+  for (const col of tableColumns) {
+    dataColumns.push({
+      key: col.key,
+      label: col.label,
+      align: col.align,
+      compact: col.compact,
+      hideOnMobile: col.hideOnMobile,
+      headClassName: col.key === 'autoRenew' ? 'pl-[8px]' : undefined,
+      cellClassName: col.key === 'autoRenew' ? 'pl-[6px]' : undefined,
+      cell: (d) => renderCell(col, d),
+    });
+    if (col.key === 'domainName') {
+      dataColumns.push({
+        key: FOLDER,
+        label: archiveView ? 'Status' : 'Folder',
+        headClassName: 'pl-3 compact:pl-2',
+        cellClassName: 'p-0!',
+        cell: (d) =>
+          archiveView ? (
+            <ArchiveStatusCell label={archiveLabelOf(d)} />
+          ) : (
+            <FolderCell
+              folders={folders}
+              folderId={folderAssignments[toAscii(d.domainName)]}
+              onAssign={(folderId) => applyFolders([d], folderId)}
+            />
+          ),
+      });
+    }
+    if (col.key === 'expirationDate' && !archiveView) {
+      dataColumns.push({
+        key: RENEWAL,
+        label: 'Renewal',
+        align: 'right',
+        headClassName: 'w-0',
+        cellClassName: 'w-0 pr-3',
+        cell: (d) => (
+          <RenewalCell info={pricing[domainKey(d)]} loading={pricingLoading} />
+        ),
+      });
+    }
+  }
+
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col">
       {/* Title and filters scroll away on a short screen so the column names
-          and the row-count bar keep a slice of the page. */}
-      <div className="flex min-h-0 flex-col gap-[13px] overflow-y-auto">
-      <div>
-        <h1 className="text-2xl font-bold sm:text-[32px]">Domains</h1>
-        <p className="-mt-0.5 text-sm text-muted-foreground">
-          {/* Always a count — "0 domains across 0 registrars" before a load or
-              when nothing is configured, never a call-to-action sentence. */}
-          {`${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
-            portfolioRegistrars.length === 1 ? '' : 's'
-          }`}
-        </p>
-      </div>
+          and the row-count bar keep a slice of the page. The -m-1 p-1
+          pair leaves room for focus rings, which the scroll box would clip. */}
+      <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div>
+            <h1 className="text-2xl font-bold leading-none sm:text-[32px]">
+              Domains
+            </h1>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              {archiveView
+                ? `${archiveCount} domain${archiveCount === 1 ? '' : 's'} you no longer own`
+                : `${portfolio.length} domain${portfolio.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
+                    portfolioRegistrars.length === 1 ? '' : 's'
+                  }`}
+            </p>
+          </div>
+          <OwnershipSwitch
+            archive={archiveView}
+            ownedCount={ownedCount}
+            archiveCount={archiveCount}
+            onOwned={() => setListView('owned')}
+            onArchive={() => setListView('archive')}
+          />
+        </div>
 
-      {portfolioError && (
-        <Alert variant="destructive">
-          <TriangleAlert />
-          <AlertTitle>Couldn’t load your portfolio</AlertTitle>
-          <AlertDescription>{portfolioError}</AlertDescription>
-        </Alert>
-      )}
+        {portfolioError && (
+          <Alert variant="destructive">
+            <TriangleAlert />
+            <AlertTitle>Couldn’t load your portfolio</AlertTitle>
+            <AlertDescription>{portfolioError}</AlertDescription>
+          </Alert>
+        )}
 
-      {portfolioErrors.length > 0 && (
-        <Alert>
-          <TriangleAlert />
-          <AlertTitle>
-            {portfolioErrors.length}{' '}
-            {multipleAccounts.size > 0 ? 'account' : 'registrar'}
-            {portfolioErrors.length === 1 ? '' : 's'} failed to load
-          </AlertTitle>
-          <AlertDescription>
-            <ul className="flex flex-col gap-0.5">
-              {portfolioErrors.map((e) => (
-                <li key={e.accountId ?? e.registrar}>
-                  <span className="font-medium text-foreground">
-                    {accountTitle(
-                      registrarLabel(e.registrar, portfolioRegistrarLabels),
-                      e.accountLabel,
-                      multipleAccounts.has(e.registrar),
-                    )}
-                  </span>
-                  : {e.message}
-                </li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
+        {/* Which accounts failed; the errors themselves are on their cards
+            in Settings → Registrars. */}
+        {portfolioErrors.length > 0 && (
+          <SyncErrorsAlert
+            label={`${multipleAccounts.size > 0 ? 'Account' : 'Registrar'}${portfolioErrors.length === 1 ? '' : 's'} failed to sync`}
+            names={portfolioErrors.map((e) =>
+              accountTitle(
+                registrarLabel(e.registrar, portfolioRegistrarLabels),
+                e.accountLabel,
+                multipleAccounts.has(e.registrar),
+              ),
+            )}
+            action={
+              <Link
+                to="/settings?tab=registrars"
+                className="font-medium whitespace-nowrap underline underline-offset-4"
+              >
+                Open registrar settings
+              </Link>
+            }
+          />
+        )}
 
-      {/* The table always renders — even before a load or with no registrars
+        {/* The table always renders — even before a load or with no registrars
           configured — so its toolbar and structure stay put; the empty body row
           carries the contextual prompt (configure a registrar / refresh / no
           matches). */}
@@ -1252,41 +1508,14 @@ export default function Domains() {
               items. Extra top margin separates it from the title/refresh row
               above. */}
         <div className="mt-1 flex flex-wrap items-center gap-3 sm:mt-3">
-          <div className="relative min-w-[140px] flex-1 max-sm:basis-full">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(0);
-              }}
-              placeholder="Search domains…"
-              // Room on the right for the clear button below.
-              className="pr-8 pl-8"
-            />
-            {/* Custom clear control in place of the native search-cancel
-                button (a blue ⓧ on macOS): a muted solid disc with the ✕ cut
-                out in the field's background, the same on every platform. */}
-            {search !== '' && (
-              <button
-                type="button"
-                aria-label="Clear search"
-                title="Clear search"
-                onClick={() => {
-                  setSearch('');
-                  setPage(0);
-                }}
-                className="absolute top-1/2 right-2.5 -translate-y-1/2 rounded-full text-muted-foreground opacity-70 hover:opacity-100"
-              >
-                <CircleX
-                  className="size-4 [&>path]:stroke-background"
-                  fill="currentColor"
-                  strokeWidth={2.5}
-                />
-              </button>
-            )}
-          </div>
+          <SearchField
+            value={search}
+            onChange={(value) => {
+              setSearch(value);
+              setPage(0);
+            }}
+            placeholder="Search domains…"
+          />
 
           {/* Phones only: a toggle that collapses the filter chips (below) so the
               toolbar doesn't wrap onto several lines. At sm+ the chips are always
@@ -1361,13 +1590,14 @@ export default function Domains() {
                 setPage(0);
               }}
             />
-            {/* Offer the Folder filter once there's anything to filter by —
-                    a folder of the user's own, or archived domains to reveal. */}
-            {(folders.length > 0 || archivedCount > 0) && (
+            {/* Owned: folders and Hidden. Archive: status. */}
+            {(!archiveView || archiveCount > 0) && (
               <MultiSelectFilter
-                label="Folder"
+                label={archiveView ? 'Status' : 'Folder'}
                 icon={FolderIcon}
-                options={folderOptions}
+                options={
+                  archiveView ? archiveStatusOptions : ownedFolderOptions
+                }
                 selected={folder}
                 onChange={(next) => {
                   setFolder(next);
@@ -1377,27 +1607,7 @@ export default function Domains() {
             )}
           </div>
 
-          {/* Reset button styled like the filters (no chevron); faded/
-                  disabled when nothing is active. On phones it stays beside the
-                  Filters toggle (sm:order-last pins it after the chips on
-                  desktop, its original spot). */}
-          <Button
-            variant="outline"
-            onClick={resetFilters}
-            disabled={!hasActiveFilters}
-            className={cn(
-              'gap-2 pr-[14px]! pl-[8px]! sm:order-last',
-              hasActiveFilters && 'border-[#4f9d6b] dark:border-[#4f9d6b]',
-            )}
-          >
-            <X
-              className={cn(
-                'size-[18px]',
-                hasActiveFilters ? 'text-[#4f9d6b]' : 'text-muted-foreground',
-              )}
-            />
-            Reset
-          </Button>
+          <ResetButton active={hasActiveFilters} onReset={resetFilters} />
 
           {exportNote && (
             <span
@@ -1421,353 +1631,66 @@ export default function Domains() {
           onClear={clearSelection}
           onRefresh={bulkRefresh}
           onExport={() => void exportCsv(selectedDomains)}
-          onAssignFolder={bulkAssignFolder}
+          onAssignFolder={(folderId) => applyFolders(selectedDomains, folderId)}
           onKind={(kind) =>
             setBulkDialog({ op: defaultBulkOp(kind, selectedDomains) })
           }
           onViewJob={() => {
             if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });
           }}
+          archiveView={archiveView}
+          onOwnership={(action) => openOwnership(action, selectedDomains)}
         />
       </div>
 
-      <div className="mt-[13px] flex min-h-36 min-w-0 flex-1 flex-col gap-[13px]">
-        {/* Table. This region scrolls; the column names stick to its top and
-            move sideways with the columns. Overlay bars sit on the host. */}
-        <DomainTableScroll
-          className={cn(
-            // Row height is set by the cells' vertical padding around one line of
-            // text (icon buttons overlap into it with negative margins, so they
-            // don't drive it): 45px normal, ~36px compact. align-top keeps
-            // inline-level cell content (checkbox, switch, inline-flex spans)
-            // from adding baseline descent under the line box.
-            'domain-table-scroll absolute inset-0 overflow-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 [&_td]:py-3 [&_td>*]:align-top compact:[&_td]:py-[9px]',
-            density === 'compact' && 'compact',
-          )}
-        >
-          {/* Slightly smaller body text when compact (headers keep their own
-              sizes); cells with an explicit size opt down separately. */}
-          <Table scrollable={false} className="compact:text-xs">
-            <TableHeader className="sticky top-0 z-10 bg-muted [&_th]:bg-muted">
-              <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
-                {/* Checkbox column reads as part of the Domain column: no
-                    divider between them (the wrapper draws td/th borders). */}
-                <TableHead className="w-9 border-r-0! pl-3">
-                  <Checkbox
-                    checked={
-                      allFilteredSelected
-                        ? true
-                        : someFilteredSelected
-                          ? 'indeterminate'
-                          : false
-                    }
-                    onCheckedChange={toggleSelectAll}
-                    aria-label="Select all domains"
-                  />
-                </TableHead>
-                {columns.map((col, i) => {
-                  const active = col.key === sortKey;
-                  const Icon = !active
-                    ? ChevronsUpDown
-                    : sortDir === 'asc'
-                      ? ArrowUp
-                      : ArrowDown;
-                  return (
-                    <Fragment key={col.key}>
-                      <TableHead
-                        className={cn(
-                          col.align === 'right' && 'text-right',
-                          col.align === 'center' && 'text-center',
-                          col.compact && 'w-0 px-1.5',
-                          col.key === 'autoRenew' && 'pl-[8px]',
-                          col.key === 'domainName' && 'border-l-0! pl-3',
-                          col.hideOnMobile && 'hidden sm:table-cell',
-                        )}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => toggleSort(col.key)}
-                          className={cn(
-                            'inline-flex items-center gap-1 select-none hover:text-foreground',
-                            // The narrow flag columns: nudge label + chevron
-                            // right so the label sits visually over the icons.
-                            col.compact && 'gap-0.5 translate-x-0.5',
-                            active && 'text-foreground',
-                          )}
-                        >
-                          {col.label}
-                          <Icon className="size-3.5 opacity-70" />
-                        </button>
-                      </TableHead>
-                      {/* Folder sits right after the domain name, before Registrar. */}
-                      {i === 0 && (
-                        <TableHead className="pl-3 compact:pl-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleSort(FOLDER)}
-                            className={cn(
-                              'inline-flex select-none items-center gap-1 hover:text-foreground',
-                              sortKey === FOLDER && 'text-foreground',
-                            )}
-                          >
-                            Folder
-                            {(() => {
-                              const FdIcon =
-                                sortKey !== FOLDER
-                                  ? ChevronsUpDown
-                                  : sortDir === 'asc'
-                                    ? ArrowUp
-                                    : ArrowDown;
-                              return <FdIcon className="size-3.5 opacity-70" />;
-                            })()}
-                          </button>
-                        </TableHead>
-                      )}
-                      {/* Renewal price sits right before the Auto-Renew flag. */}
-                      {col.key === 'expirationDate' && (
-                        <TableHead className="w-0 text-right">
-                          <button
-                            type="button"
-                            onClick={() => toggleSort(RENEWAL)}
-                            className={cn(
-                              'inline-flex select-none items-center gap-1 hover:text-foreground',
-                              sortKey === RENEWAL && 'text-foreground',
-                            )}
-                          >
-                            Renewal
-                            {(() => {
-                              const RnIcon =
-                                sortKey !== RENEWAL
-                                  ? ChevronsUpDown
-                                  : sortDir === 'asc'
-                                    ? ArrowUp
-                                    : ArrowDown;
-                              return <RnIcon className="size-3.5 opacity-70" />;
-                            })()}
-                          </button>
-                        </TableHead>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.map((d) => {
-                const key = domainKey(d);
-                const loadingDetail = enriching[key] === true;
-                return (
-                  // Rows highlight on hover but aren't themselves clickable —
-                  // the only click target is the Folder cell, which opens the
-                  // folder-assignment menu.
-                  <TableRow
-                    key={key}
-                    className={cn(selected.has(key) && 'bg-muted/50')}
-                  >
-                    {/* Selection checkbox. */}
-                    <TableCell className="w-9 border-r-0! pl-3">
-                      <Checkbox
-                        checked={selected.has(key)}
-                        onMouseDown={(e) => {
-                          if (e.shiftKey) e.preventDefault();
-                        }}
-                        onClick={(e) => {
-                          if (!e.shiftKey) return;
-                          // Skip the checkbox's own toggle; the range is applied
-                          // below, and preventDefault keeps that toggle from
-                          // also firing.
-                          e.preventDefault();
-                          selectRow(key, true);
-                        }}
-                        onCheckedChange={() => selectRow(key, false)}
-                        aria-label={`Select ${d.domainName}`}
-                      />
-                    </TableCell>
-                    {columns.map((col, i) => (
-                      <Fragment key={col.key}>
-                        <TableCell
-                          className={cn(
-                            col.align === 'right' && 'text-right',
-                            col.align === 'center' && 'text-center',
-                            col.compact && 'w-0 px-1.5',
-                            col.key === 'autoRenew' && 'pl-[6px]',
-                            col.key === 'domainName' && 'border-l-0! pl-3',
-                            col.hideOnMobile && 'hidden sm:table-cell',
-                          )}
-                        >
-                          {col.key === 'domainName' ? (
-                            // The row's "⋯" menu lives in the Domain cell,
-                            // pinned to its right edge.
-                            <div className="flex items-center justify-between gap-2">
-                              {col.render(d, portfolioRegistrarLabels)}
-                              <RowActionsMenu
-                                domain={d}
-                                folders={folders}
-                                folderId={
-                                  folderAssignments[toAscii(d.domainName)]
-                                }
-                                onRefresh={() => refreshDomain(d)}
-                                onUrlForwarding={() => setUrlForwardingFor(d)}
-                                onEmailForwarding={() =>
-                                  setEmailForwardingFor(d)
-                                }
-                                onAuthCode={() => setAuthCodeFor(d)}
-                                onRenew={() => setRenewFor(d)}
-                                onAssignFolder={(folderId) =>
-                                  void assignFolder(d.domainName, folderId)
-                                }
-                              />
-                            </div>
-                          ) : col.detail && loadingDetail ? (
-                            <CellSkeleton align={col.align} />
-                          ) : (
-                            col.render(d, portfolioRegistrarLabels)
-                          )}
-                        </TableCell>
-                        {i === 0 && (
-                          <TableCell className="p-0!">
-                            <FolderCell
-                              folders={folders}
-                              folderId={
-                                folderAssignments[toAscii(d.domainName)]
-                              }
-                              onAssign={(folderId) =>
-                                void assignFolder(d.domainName, folderId)
-                              }
-                            />
-                          </TableCell>
-                        )}
-                        {col.key === 'expirationDate' && (
-                          <TableCell className="w-0 text-right pr-3">
-                            <RenewalCell
-                              info={pricing[key]}
-                              loading={pricingLoading}
-                            />
-                          </TableCell>
-                        )}
-                      </Fragment>
-                    ))}
-                  </TableRow>
-                );
-              })}
-              {visible.length === 0 && (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell
-                    colSpan={columns.length + 5}
-                    className="h-40 text-center text-muted-foreground"
-                  >
-                    {noneConfigured ? (
-                      <div className="flex flex-col items-center gap-3 py-4">
-                        <div>
-                          <p className="font-medium text-foreground">
-                            No registrars configured
-                          </p>
-                          <p className="mt-0.5">
-                            Add API credentials for a registrar to load your
-                            domains into this table.
-                          </p>
-                        </div>
-                        <Button
-                          onClick={() => navigate('/settings?tab=registrars')}
-                        >
-                          <Plug />
-                          Configure registrars
-                        </Button>
-                      </div>
-                    ) : portfolio.length === 0 ? (
-                      hasLoaded ? (
-                        'No domains found in any configured registrar.'
-                      ) : (
-                        'Click “Sync domains” to load your portfolio.'
-                      )
-                    ) : (
-                      'No domains match the current filters.'
-                    )}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </DomainTableScroll>
-
-        {/* Pagination stays under the table, outside the scroll, so the row
-            count and page buttons stay on screen. On phones the controls stack
-            above the rows-per-page select (flex-col-reverse). */}
-        <div className="flex shrink-0 flex-col-reverse gap-3 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span>Rows per page</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => {
-                setPageSize(Number(v));
-                setPage(0);
-              }}
-            >
-              <SelectTrigger size="sm" className="w-[80px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {PAGE_SIZES.map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center justify-between gap-3 sm:justify-start">
-            <span>
-              {filtered.length === 0
-                ? '0 of 0'
-                : `${start + 1}–${Math.min(start + pageSize, filtered.length)} of ${filtered.length}`}
-            </span>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon-sm"
-                disabled={safePage === 0}
-                onClick={() => setPage(0)}
-                aria-label="First page"
-              >
-                <ChevronsLeft />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                disabled={safePage === 0}
-                onClick={() => setPage(safePage - 1)}
-                aria-label="Previous page"
-              >
-                <ChevronLeft />
-              </Button>
-              <span className="px-2">
-                {safePage + 1} / {pageCount}
-              </span>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                disabled={safePage >= pageCount - 1}
-                onClick={() => setPage(safePage + 1)}
-                aria-label="Next page"
-              >
-                <ChevronRight />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                disabled={safePage >= pageCount - 1}
-                onClick={() => setPage(pageCount - 1)}
-                aria-label="Last page"
-              >
-                <ChevronsRight />
+      <DataTable
+        className="mt-[13px]"
+        rows={filtered}
+        columns={dataColumns}
+        rowKey={domainKey}
+        sort={{ key: sortKey, dir: sortDir }}
+        onSort={toggleSort}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        selection={{
+          selected,
+          toggle: toggleSelected,
+          setMany: setSelectedMany,
+          allLabel: 'Select all domains',
+          rowLabel: (d) => `Select ${d.domainName}`,
+        }}
+        empty={
+          noneConfigured ? (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <div>
+                <p className="font-medium text-foreground">
+                  No registrars configured
+                </p>
+                <p className="mt-0.5">
+                  Add API credentials for a registrar to load your domains into
+                  this table.
+                </p>
+              </div>
+              <Button onClick={() => navigate('/settings?tab=registrars')}>
+                <Plug />
+                Configure registrars
               </Button>
             </div>
-          </div>
-        </div>
-      </div>
+          ) : archiveView && archiveCount === 0 ? (
+            'Names you mark Sold, Dropped, or Archived, and names that leave your accounts, show up here.'
+          ) : portfolio.length === 0 ? (
+            hasLoaded ? (
+              'No domains found in any configured registrar.'
+            ) : (
+              'Click “Sync domains” to load your portfolio.'
+            )
+          ) : (
+            'No domains match the current filters.'
+          )
+        }
+      />
 
       {authCodeFor && (
         <AuthCodeDialog
@@ -1795,6 +1718,64 @@ export default function Domains() {
           onClose={() => setBulkDialog(null)}
         />
       )}
+      {purchaseFor && (
+        <PurchaseDialog
+          domain={purchaseFor}
+          onClose={() => setPurchaseFor(null)}
+        />
+      )}
+      {saleFor && (
+        <SaleDialog domain={saleFor} onClose={() => setSaleFor(null)} />
+      )}
+      {markSoldFor && (
+        <SaleDialog
+          domain={markSoldFor}
+          mode="mark"
+          resolves={openRemoval.get(toAscii(markSoldFor.domainName))}
+          onSaved={() => clearDone([markSoldFor])}
+          onClose={() => setMarkSoldFor(null)}
+        />
+      )}
+      {ownershipDialog &&
+        (() => {
+          const { action, domains: ds } = ownershipDialog;
+          const close = () => setOwnershipDialog(null);
+          const done = () => clearDone(ds);
+          if (action === 'dropped' || action === 'archived')
+            return (
+              <DispositionDialog
+                type={action}
+                items={ownershipItems(ds)}
+                onDone={done}
+                onClose={close}
+              />
+            );
+          if (action === 'sold')
+            return (
+              <MarkSoldDialog
+                items={ownershipItems(ds)}
+                onDone={done}
+                onClose={close}
+              />
+            );
+          if (action === 'restore')
+            return (
+              <RestoreOwnedDialog
+                names={ds.map((d) => d.domainName)}
+                restorable={
+                  ds.filter((d) => {
+                    const o = ownership.get(toAscii(d.domainName));
+                    return o?.event && o.event.source !== 'sync';
+                  }).length
+                }
+                onDone={done}
+                onClose={close}
+              />
+            );
+          return (
+            <DeleteDomainsDialog domains={ds} onDone={done} onClose={close} />
+          );
+        })()}
       {renewFor && (
         <RenewDialog
           domain={renewFor}
@@ -1803,81 +1784,5 @@ export default function Domains() {
         />
       )}
     </div>
-  );
-}
-
-/**
- * A checkbox dropdown filter. The trigger shows the plural `label` plus a count
- * badge once anything is selected; an empty selection means "no filter". The
- * menu stays open while toggling so several can be picked at once.
- */
-function MultiSelectFilter({
-  label,
-  options,
-  selected,
-  onChange,
-  icon: Icon,
-}: {
-  label: string;
-  options: {
-    value: string;
-    label: string;
-    count?: number;
-    /** Optional leading icon shown before this option's label. */
-    icon?: React.ReactNode;
-  }[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-  /** Optional leading icon shown before the label in the trigger. */
-  icon?: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          aria-label={label}
-          className="gap-2 pr-[7px]!"
-        >
-          {Icon && <Icon className="size-4 text-muted-foreground" />}
-          {label}
-          {selected.length > 0 && (
-            <Badge className="bg-primary px-1.5 py-0 text-xs tabular-nums text-primary-foreground">
-              {selected.length}
-            </Badge>
-          )}
-          <ChevronDown className="size-4 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className="max-h-[320px] overflow-y-auto"
-      >
-        {options.length === 0 && (
-          <div className="px-2 py-1.5 text-sm text-muted-foreground">
-            No options
-          </div>
-        )}
-        {options.map((o) => (
-          <DropdownMenuCheckboxItem
-            key={o.value}
-            checked={selected.includes(o.value)}
-            // Keep the menu open so multiple options can be toggled in one go.
-            onSelect={(e) => e.preventDefault()}
-            onCheckedChange={() => onChange(toggleValue(selected, o.value))}
-          >
-            {o.icon && (
-              <span className="ml-0.5 mr-0.5 flex shrink-0">{o.icon}</span>
-            )}
-            <span className="flex-1 truncate">{o.label}</span>
-            {o.count != null && (
-              <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">
-                {o.count}
-              </span>
-            )}
-          </DropdownMenuCheckboxItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
