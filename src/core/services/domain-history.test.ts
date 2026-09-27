@@ -92,6 +92,26 @@ describe('domain history', () => {
     expect(ownershipByDomain(listEvents()).get('a.com')?.label).toBe('left');
   });
 
+  it('records a second sale when a sold name comes back and is sold again', () => {
+    const sell = (mark: boolean) =>
+      setSale({
+        domainName: 'a.com',
+        saleDate: mark ? null : '2022-01-01',
+        amount: mark ? null : '50',
+        currency: mark ? null : 'USD',
+        notes: '',
+        ...(mark ? { mark } : {}),
+      });
+    recordSync(holding(['a.com']));
+    sell(false);
+    recordSync(holding([]));
+    recordSync(holding(['a.com']));
+    expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
+    sell(true);
+    const sales = listEvents().filter((e) => e.type === 'sold');
+    expect(sales.map((e) => e.amount)).toEqual(['50.00', null]);
+  });
+
   it('records an arrival as a new purchase instead of editing the old one', () => {
     setPurchase({
       domainName: 'a.com',
