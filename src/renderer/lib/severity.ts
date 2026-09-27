@@ -4,8 +4,6 @@ import type { Severity } from '../../shared/notifications';
 // its count, and the Activity page's status dots and Priority filter. Red and
 // yellow from the Domains table's expiry ramp (see expiryColor there): a
 // removed name is as urgent as a sync error, an added one only needs a look.
-// Open rows share one neutral tint; the dot carries the priority, since
-// colored tints on the dark table turn muddy.
 
 /** A small status dot. */
 export const SEVERITY_DOT: Record<Severity, string> = {
@@ -21,6 +19,9 @@ export const SEVERITY_COUNT: Record<Severity, string> = {
   low: 'bg-yellow-400 text-black',
 };
 
-/** A table row that needs review, whatever its priority. */
-export const REVIEW_ROW_TINT =
-  'bg-foreground/[0.035] hover:bg-foreground/[0.06] dark:bg-foreground/[0.06] dark:hover:bg-foreground/[0.09]';
+/** A table row that needs review: a faint tint in its priority's color and
+ *  a 3px bar down its left edge (drawn on the first cell). */
+export const REVIEW_ROW_TINT: Record<Exclude<Severity, 'error'>, string> = {
+  high: 'bg-red-500/[0.06] hover:bg-red-500/[0.1] [&>td:first-child]:shadow-[inset_3px_0_0_var(--color-red-500)]',
+  low: 'bg-yellow-400/[0.05] hover:bg-yellow-400/[0.09] [&>td:first-child]:shadow-[inset_3px_0_0_var(--color-yellow-400)]',
+};

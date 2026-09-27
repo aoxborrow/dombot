@@ -749,7 +749,7 @@ export default function Activity() {
         rowClassName={(e, selected) => {
           // A selected row shows the selection, not its priority tint.
           const p = !selected && priorityOf(e);
-          return p ? REVIEW_ROW_TINT : undefined;
+          return p ? REVIEW_ROW_TINT[p] : undefined;
         }}
         empty={
           reviewOnly && !hasActiveFilters
