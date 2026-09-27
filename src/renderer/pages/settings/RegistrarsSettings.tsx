@@ -237,11 +237,13 @@ function SyncAllButton({ count }: { count: number }) {
   };
   return (
     <Button
-      variant="ghost"
+      variant="outline"
       onClick={() => void run()}
       disabled={disabled}
       title={title}
-      className="-ml-2.5 text-muted-foreground hover:text-foreground"
+      // Outlined in the brand green: a real button beside the solid green
+      // Add, without competing with it.
+      className="border-brand/60 text-brand hover:bg-brand/10 hover:text-brand dark:border-brand/60 dark:hover:bg-brand/15"
     >
       <RefreshCw className={cn(syncing && 'animate-spin')} />
       {syncing ? 'Syncing…' : 'Sync all'}
