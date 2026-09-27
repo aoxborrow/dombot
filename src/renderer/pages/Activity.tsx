@@ -46,7 +46,7 @@ import {
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import { accountName } from '../lib/domain-history';
-import { SEVERITY_DOT, SEVERITY_ROW_TINT } from '../lib/severity';
+import { REVIEW_ROW_TINT, SEVERITY_DOT } from '../lib/severity';
 import {
   SOURCE_LABEL,
   VERB,
@@ -749,7 +749,7 @@ export default function Activity() {
         rowClassName={(e, selected) => {
           // A selected row shows the selection, not its priority tint.
           const p = !selected && priorityOf(e);
-          return p ? SEVERITY_ROW_TINT[p] : undefined;
+          return p ? REVIEW_ROW_TINT : undefined;
         }}
         empty={
           reviewOnly && !hasActiveFilters

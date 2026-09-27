@@ -1,26 +1,26 @@
 import type { Severity } from '../../shared/notifications';
 
 // How urgent something is, in one set of colors wherever it shows: the bell,
-// its count, and the Activity page's status dots, row tints, and Priority
-// filter. Red, orange, and yellow from the Domains table's expiry ramp (see
-// expiryColor there). Red is kept for sync errors; event types use other hues.
+// its count, and the Activity page's status dots and Priority filter. Red and
+// yellow from the Domains table's expiry ramp (see expiryColor there): a
+// removed name is as urgent as a sync error, an added one only needs a look.
+// Open rows share one neutral tint; the dot carries the priority, since
+// colored tints on the dark table turn muddy.
 
 /** A small status dot. */
 export const SEVERITY_DOT: Record<Severity, string> = {
   error: 'bg-red-600 dark:bg-red-500',
-  high: 'bg-orange-500 dark:bg-orange-375',
+  high: 'bg-red-600 dark:bg-red-500',
   low: 'bg-yellow-500 dark:bg-yellow-400',
 };
 
 /** The bell's count bubble. */
 export const SEVERITY_COUNT: Record<Severity, string> = {
   error: 'bg-red-600 text-white dark:bg-red-500',
-  high: 'bg-orange-500 text-white dark:bg-orange-375 dark:text-black',
+  high: 'bg-red-600 text-white dark:bg-red-500',
   low: 'bg-yellow-400 text-black',
 };
 
-/** A table row that needs review. */
-export const SEVERITY_ROW_TINT: Record<Exclude<Severity, 'error'>, string> = {
-  high: 'bg-orange-500/[0.07] hover:bg-orange-500/[0.11] dark:bg-orange-375/[0.07] dark:hover:bg-orange-375/[0.11]',
-  low: 'bg-yellow-500/[0.07] hover:bg-yellow-500/[0.11] dark:bg-yellow-400/[0.05] dark:hover:bg-yellow-400/[0.09]',
-};
+/** A table row that needs review, whatever its priority. */
+export const REVIEW_ROW_TINT =
+  'bg-foreground/[0.035] hover:bg-foreground/[0.06]';
