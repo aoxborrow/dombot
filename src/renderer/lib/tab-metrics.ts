@@ -37,7 +37,12 @@ export function useTabMetrics(): TabMetrics {
   return useMemo(() => {
     const n = portfolio.length.toLocaleString('en-US');
     const domains =
-      portfolio.length > 0 ? { value: n, title: `${n} domains` } : null;
+      portfolio.length > 0
+        ? {
+            value: n,
+            title: `${n} domain${portfolio.length === 1 ? '' : 's'}`,
+          }
+        : null;
 
     const summary = summarize(portfolio, pricing);
     const renewals =
