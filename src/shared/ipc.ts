@@ -144,6 +144,8 @@ export const IpcEvents = {
    * store directly and don't rely on this.
    */
   portfolioChanged: 'portfolio:changed',
+  /** The app menu's Sync Now was chosen (desktop only). */
+  syncRequested: 'sync:requested',
   /** One bulk-job item finished (payload: BulkProgress). */
   bulkProgress: 'bulk:progress',
   /** A bulk job ended — done or cancelled (payload: the final BulkJob). */
@@ -841,6 +843,9 @@ export interface DombotApi {
   /** Subscribe to out-of-band portfolio/detail cache changes (from MCP writes).
    * Returns an unsubscribe function. */
   onPortfolioChanged: (callback: () => void) => () => void;
+  /** Subscribe to the app menu's Sync Now (desktop only; a no-op elsewhere).
+   * Returns an unsubscribe function. */
+  onSyncRequested: (callback: () => void) => () => void;
 
   // Folders
   /** The folder definitions plus the domain→folder map, read from disk. */

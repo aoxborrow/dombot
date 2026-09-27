@@ -1,7 +1,8 @@
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { CircleAlert, Clock, RefreshCw } from 'lucide-react';
+import { CircleAlert, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
@@ -94,8 +95,24 @@ export default function StatusBar() {
 function SyncStatus() {
   const navigate = useNavigate();
   const registrars = useAppStore((s) => s.registrars);
-  const { sync, syncing, disabled, title, lastSyncedAt, stale } =
-    useSyncState();
+  const state = useSyncState();
+  const { sync, syncing, disabled, title, lastSyncedAt, stale } = state;
+
+  // The desktop app menu's Sync Now does what the button does, or says why
+  // it can't (just synced, a bulk job running, nothing set up).
+  const latest = useRef(state);
+  latest.current = state;
+  useEffect(
+    () =>
+      window.api.onSyncRequested(() => {
+        const now = latest.current;
+        if (now.syncing) return;
+        if (now.disabled) toast.info(now.title);
+        else now.sync();
+      }),
+    [],
+  );
+
   // Hidden until the registrar metadata is known.
   if (registrars === null) return null;
 
@@ -171,12 +188,14 @@ function SyncStatus() {
       {lastSyncedAt !== null && enabled.length > 0 && !syncing && (
         <span
           className={cn(
-            'inline-flex items-center gap-1',
+            '-ml-1.5',
             stale && 'text-amber-600 dark:text-amber-400',
           )}
           title={`Last synced ${new Date(lastSyncedAt).toLocaleString()}`}
         >
-          <Clock className="size-3" aria-hidden />
+          <span aria-hidden className="mr-1.5 text-muted-foreground">
+            ·
+          </span>
           {timeAgo(lastSyncedAt)}
         </span>
       )}

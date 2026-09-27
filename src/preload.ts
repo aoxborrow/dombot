@@ -115,6 +115,11 @@ const api: DombotApi = {
     return () =>
       ipcRenderer.removeListener(IpcEvents.portfolioChanged, listener);
   },
+  onSyncRequested: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on(IpcEvents.syncRequested, listener);
+    return () => ipcRenderer.removeListener(IpcEvents.syncRequested, listener);
+  },
 
   // Folders
   getFolders: () => ipcRenderer.invoke(IpcChannels.getFolders),

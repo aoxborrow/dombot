@@ -156,17 +156,19 @@ export default function RegistrarsSettings() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0 flex-1 basis-80">
-          <h2 className="text-xl font-bold">Registrars</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Store API credentials for each registrar account. They&apos;re
-            encrypted at rest and used by both the app and the MCP server.
-            Saving syncs that account&apos;s domains automatically.
-          </p>
-        </div>
+      <div>
+        <h2 className="text-xl font-bold">Registrars</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Store API credentials for each registrar account. They&apos;re
+          encrypted at rest and used by both the app and the MCP server. Saving
+          syncs that account&apos;s domains automatically.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {/* The page's actions, right-aligned above the cards. */}
         {loaded && cards.length > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             {cards.filter((c) => c.account.enabled).length > 1 && (
               <SyncAllButton />
             )}
@@ -177,9 +179,6 @@ export default function RegistrarsSettings() {
             />
           </div>
         )}
-      </div>
-
-      <div className="flex flex-col gap-3">
         {loadError && (
           <p role="alert" className="text-sm text-destructive">
             {loadError}

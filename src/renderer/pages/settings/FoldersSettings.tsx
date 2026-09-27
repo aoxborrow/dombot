@@ -55,43 +55,44 @@ export default function FoldersSettings() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold">Folders</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Organize your domains into named, colored groups. Assign a domain to
-            a folder from the Domains table. Folders are saved with your other
-            DomBot settings.
-          </p>
-        </div>
-        <Button className="shrink-0" onClick={() => setCreating(true)}>
+      <div>
+        <h2 className="text-xl font-bold">Folders</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Organize your domains into named, colored groups. Assign a domain to a
+          folder from the Domains table. Folders are saved with your other
+          DomBot settings.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {/* The page's action, right-aligned above the list. */}
+        <Button className="self-end" onClick={() => setCreating(true)}>
           <Plus />
           New folder
         </Button>
+        {folders.length === 0 ? (
+          <Empty className="rounded-md border border-dashed">
+            <EmptyHeader>
+              <EmptyTitle>No folders yet</EmptyTitle>
+              <EmptyDescription>
+                Create your first folder to start organizing your domains.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {folders.map((f) => (
+              <FolderRow
+                key={f.id}
+                folder={f}
+                count={counts[f.id] ?? 0}
+                onEdit={() => setEditing(f)}
+                onDelete={() => setDeleting(f)}
+              />
+            ))}
+          </div>
+        )}
       </div>
-
-      {folders.length === 0 ? (
-        <Empty className="rounded-md border border-dashed">
-          <EmptyHeader>
-            <EmptyTitle>No folders yet</EmptyTitle>
-            <EmptyDescription>
-              Create your first folder to start organizing your domains.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <div className="flex flex-col gap-2.5">
-          {folders.map((f) => (
-            <FolderRow
-              key={f.id}
-              folder={f}
-              count={counts[f.id] ?? 0}
-              onEdit={() => setEditing(f)}
-              onDelete={() => setDeleting(f)}
-            />
-          ))}
-        </div>
-      )}
 
       {(creating || editing) && (
         <FolderFormDialog
