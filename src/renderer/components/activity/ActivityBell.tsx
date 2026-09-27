@@ -174,6 +174,8 @@ function NotificationRow({
   return (
     <Link
       to={`/activity?review=1&q=${encodeURIComponent(name)}`}
+      // Activity clears its other filters so this name shows.
+      state={{ fresh: true }}
       onClick={onNavigate}
       className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
       title={account ? `${name}, ${account}` : name}

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ComponentType } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import {
   Archive,
   ArrowRight,
@@ -146,6 +146,24 @@ export default function Activity() {
   const [dialog, setDialog] = useState<DialogState | null>(null);
   // "Last N days" is measured from when the page opened.
   const [openedAt] = useState(() => Date.now());
+
+  // The bell opens Activity on one name (review=1&q=name) with `fresh` state:
+  // clear the other filters, which live here rather than in the URL, so a
+  // leftover one can't hide that name when the page is already open.
+  const location = useLocation();
+  const [seenKey, setSeenKey] = useState(location.key);
+  if (location.key !== seenKey) {
+    setSeenKey(location.key);
+    if ((location.state as { fresh?: boolean } | null)?.fresh) {
+      setTypes([]);
+      setAccounts([]);
+      setSources([]);
+      setPriorities([]);
+      setDays([]);
+      setPage(0);
+      setSelected(new Set());
+    }
+  }
 
   const resolved = useMemo(() => resolvedIds(events), [events]);
   const closedBy = useMemo(() => resolutions(events), [events]);
