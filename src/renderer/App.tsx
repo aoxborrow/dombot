@@ -50,7 +50,6 @@ const TAB_OPTIONS: Record<
   '/renewals': { metric: 'renewals', pillFrom: 'lg' },
   '/activity': { metric: 'activity', pillFrom: 'lg' },
   '/settings': {
-    iconOnlyBelow: 'lg',
     pillFrom: 'lg',
     // The gear is drawn smaller than the other icons, so it's bumped up.
     iconClassName: 'size-[17px]',
@@ -168,7 +167,9 @@ export default function App() {
         </TabStrip>
         {/* Right side: the bell, plus the hamburger on phones. Sync lives in
             the status bar (and in the hamburger menu on phones). */}
-        <div className="flex items-center justify-end gap-2 sm:justify-start sm:pl-3">
+        {/* col-start-3 keeps it in the right column on phones, where the
+            hidden tab strip leaves the middle one empty. */}
+        <div className="col-start-3 flex items-center justify-end gap-2 sm:justify-start sm:pl-3">
           <span className="mr-2 inline-flex sm:mr-0">
             <ActivityBell />
           </span>

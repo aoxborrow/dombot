@@ -89,8 +89,8 @@ export default function StatusBar() {
  * The sync status, with one light for all of it: how many enabled accounts
  * synced (a link to Settings → Registrars), when, and the manual Sync button.
  * Red with an alert icon when an account failed, amber while some haven't
- * synced or the data is stale. On phones the words shorten and the button
- * moves to the menu.
+ * synced or the data is stale. Below lg the words shorten so they clear the
+ * centered theme toggle; on phones the button moves to the menu.
  */
 function SyncStatus() {
   const navigate = useNavigate();
@@ -184,8 +184,8 @@ function SyncStatus() {
         }
       >
         {light}
-        <span className="hidden sm:inline">{label}</span>
-        <span className="sm:hidden">{short}</span>
+        <span className="hidden lg:inline">{label}</span>
+        <span className="lg:hidden">{short}</span>
       </button>
       {lastSyncedAt !== null && enabled.length > 0 && !syncing && (
         <span
