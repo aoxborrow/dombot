@@ -571,7 +571,8 @@ export default function Activity() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col">
-      <div className="flex min-h-0 flex-col gap-[13px] overflow-y-auto">
+      {/* -m-1 p-1 leaves room for focus rings, which the scroll box would clip. */}
+      <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div>
             <h1 className="text-2xl font-bold leading-none sm:text-[32px]">

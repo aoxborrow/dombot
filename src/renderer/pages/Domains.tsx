@@ -1444,8 +1444,9 @@ export default function Domains() {
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col">
       {/* Title and filters scroll away on a short screen so the column names
-          and the row-count bar keep a slice of the page. */}
-      <div className="flex min-h-0 flex-col gap-[13px] overflow-y-auto">
+          and the row-count bar keep a slice of the page. The -m-1 p-1
+          pair leaves room for focus rings, which the scroll box would clip. */}
+      <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div>
             <h1 className="text-2xl font-bold leading-none sm:text-[32px]">
