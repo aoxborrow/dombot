@@ -74,7 +74,7 @@ import {
 /** Open alerts stand out, by priority. */
 const ROW_TINT: Record<ReviewPriority, string> = {
   high: 'bg-amber-500/[0.07] hover:bg-amber-500/[0.11] dark:bg-amber-400/[0.07] dark:hover:bg-amber-400/[0.11]',
-  low: 'bg-muted/40',
+  low: 'bg-muted/25',
 };
 
 const PRIORITY_LABEL: Record<ReviewPriority, string> = {
