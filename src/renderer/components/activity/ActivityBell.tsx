@@ -88,14 +88,26 @@ export function ActivityBell() {
       >
         <div className="flex items-center justify-between border-b px-3 py-2">
           <p className="text-sm font-medium">Notifications</p>
-          <Link
-            to="/activity"
-            onClick={close}
-            className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
-          >
-            <History className="size-3.5" />
-            Activity
-          </Link>
+          {/* What needs review, when anything does; otherwise all activity. */}
+          {reviews > 0 ? (
+            <Link
+              to="/activity?review=1"
+              onClick={close}
+              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium hover:bg-foreground/5 dark:hover:bg-accent/50"
+            >
+              {reviews} need{reviews === 1 ? 's' : ''} review
+              <ArrowRight className="size-3.5 text-muted-foreground" />
+            </Link>
+          ) : (
+            <Link
+              to="/activity"
+              onClick={close}
+              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
+            >
+              <History className="size-3.5" />
+              All activity
+            </Link>
+          )}
         </div>
 
         {list.length === 0 ? (
@@ -114,22 +126,17 @@ export function ActivityBell() {
               </li>
             ))}
             {list.length > SHOWN && (
-              <li className="px-3 py-1.5 text-xs text-muted-foreground">
-                and {list.length - SHOWN} more
+              <li>
+                <Link
+                  to="/activity?review=1"
+                  onClick={close}
+                  className="block px-3 py-1.5 text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
+                >
+                  and {list.length - SHOWN} more
+                </Link>
               </li>
             )}
           </ul>
-        )}
-
-        {reviews > 0 && (
-          <Link
-            to="/activity?review=1"
-            onClick={close}
-            className="flex items-center justify-between border-t px-3 py-2 text-sm font-medium hover:bg-foreground/5 dark:hover:bg-accent/50"
-          >
-            {reviews} need{reviews === 1 ? 's' : ''} review
-            <ArrowRight className="size-4 text-muted-foreground" />
-          </Link>
         )}
       </PopoverContent>
     </Popover>
