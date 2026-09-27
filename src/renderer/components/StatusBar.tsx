@@ -101,7 +101,9 @@ function SyncStatus() {
   // The desktop app menu's Sync Now does what the button does, or says why
   // it can't (just synced, a bulk job running, nothing set up).
   const latest = useRef(state);
-  latest.current = state;
+  useEffect(() => {
+    latest.current = state;
+  });
   useEffect(
     () =>
       window.api.onSyncRequested(() => {
