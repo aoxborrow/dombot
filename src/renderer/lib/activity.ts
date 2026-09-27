@@ -135,7 +135,7 @@ export function alertStatus(
 
 export const SOURCE_LABEL: Record<DomainEvent['source'], string> = {
   user: 'You',
-  sync: 'Registrar sync',
+  sync: 'Sync',
   import: 'Import',
   lookup: 'Lookup',
 };

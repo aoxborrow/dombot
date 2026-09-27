@@ -167,7 +167,7 @@ work.
   - Type: Added, Removed, Moved, Purchased, Registered, Sold, Dropped,
     Archived, Renewed.
   - Registrar: an account, labeled like the Domains table's Registrar filter.
-  - Source: You, Registrar sync, Import, Lookup (later Agent).
+  - Source: You, Sync, Import, Lookup (later Agent).
   - Date: presets only — last 7, 14, 30, 90, or 180 days.
 
 ### Columns
@@ -180,7 +180,7 @@ work.
 | Type      | A colored badge: Added, Removed, Moved, Sold, …                                                    |
 | Registrar | Registrar logo and account label; from → to for a move; blank when there's none                    |
 | Details   | Amount and currency, years, venue later                                                            |
-| Source    | You, Registrar sync, Import, Lookup (renamed from "By"; "Sync" becomes "Registrar sync")           |
+| Source    | You, Sync, Import, Lookup (renamed from "By")                                                    |
 | Status    | Priority badge for open alerts; the outcome for closed ones (Sold, Came back, Dismissed) with Undo |
 | Actions   | The fixed action set                                                                               |
 
