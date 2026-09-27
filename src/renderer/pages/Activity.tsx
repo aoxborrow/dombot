@@ -147,9 +147,10 @@ export default function Activity() {
   // "Last N days" is measured from when the page opened.
   const [openedAt] = useState(() => Date.now());
 
-  // The bell opens Activity on one name (review=1&q=name) with `fresh` state:
-  // clear the other filters, which live here rather than in the URL, so a
-  // leftover one can't hide that name when the page is already open.
+  // The bell opens Needs review (or one name in it) with `fresh` state: clear
+  // the other filters, page and selection, which live here rather than in the
+  // URL, so leftovers can't hide what the bell pointed at when the page is
+  // already open.
   const location = useLocation();
   const [seenKey, setSeenKey] = useState(location.key);
   if (location.key !== seenKey) {

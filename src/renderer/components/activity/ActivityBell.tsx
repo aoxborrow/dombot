@@ -98,6 +98,7 @@ export function ActivityBell() {
           </p>
           <Link
             to="/activity?review=1"
+            state={{ fresh: true }}
             onClick={close}
             className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
           >
@@ -125,6 +126,7 @@ export function ActivityBell() {
               <li>
                 <Link
                   to="/activity?review=1"
+                  state={{ fresh: true }}
                   onClick={close}
                   className="block px-3 py-1.5 text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
                 >
