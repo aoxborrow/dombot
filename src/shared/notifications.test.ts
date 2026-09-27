@@ -56,6 +56,17 @@ describe('notifications', () => {
       message: 'Porkbun: Bad key',
     });
   });
+
+  it('puts the newest first when one sync made them all', () => {
+    const list = notifications(
+      [
+        event({ id: 'E1', domain: 'first.com' }),
+        event({ id: 'E2', domain: 'second.com' }),
+      ],
+      [],
+    );
+    expect(list.map((n) => n.domain)).toEqual(['second.com', 'first.com']);
+  });
 });
 
 describe('notificationBadge', () => {
