@@ -79,7 +79,7 @@ export function RowActionsMenu({
   onDelete: () => void;
 }) {
   // Label a name you own, or one sync saw leave; undo one you labeled.
-  const canLabel = archive === null || archive === 'left';
+  const canLabel = archive === null || archive === 'removed';
   const key = domainKey(domain);
   const pending = useAppStore((s) => s.mutating[key] ?? false);
   const urlReason = useOpUnsupportedReason(domain.registrar, {
@@ -170,7 +170,7 @@ export function RowActionsMenu({
           <DropdownMenuItem onSelect={onRestoreOwned}>
             <Undo2 className="text-muted-foreground" />
             {/* Still in an account: back to Owned. Gone from every account:
-                undoing the label leaves it as "Left your accounts". */}
+                undoing the label leaves it as "Removed from registrar". */}
             {domain.departed
               ? `Undo ${archive === 'sold' ? 'Sold' : archive === 'dropped' ? 'Dropped' : 'Archived'}`
               : 'Move back to Owned'}

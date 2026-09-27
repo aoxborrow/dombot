@@ -64,12 +64,12 @@ export const VERB: Record<DomainEvent['type'], string> = {
   dropped: 'Dropped',
   archived: 'Archived',
   renewed: 'Renewed',
-  added: 'Arrived',
-  removed: 'Left',
+  added: 'Added',
+  removed: 'Removed',
   moved: 'Moved',
 };
 
-/** "Left GoDaddy", "Moved from GoDaddy to Porkbun #2", "Sold for $2,500". */
+/** "Removed from GoDaddy", "Moved from GoDaddy to Porkbun #2", "Sold for $2,500". */
 export function describeEvent(
   e: DomainEvent,
   registrars: RegistrarMeta[] | null,
@@ -80,9 +80,9 @@ export function describeEvent(
     accountName(registrars, id) ?? 'a removed account';
   switch (e.type) {
     case DomainEventType.Added:
-      return `Arrived at ${acct(e.accountId)}`;
+      return `Added to ${acct(e.accountId)}`;
     case DomainEventType.Removed:
-      return `Left ${acct(e.accountId)}`;
+      return `Removed from ${acct(e.accountId)}`;
     case DomainEventType.Moved:
       return `Moved from ${acct(e.fromAccountId)} to ${acct(e.toAccountId)}`;
     default: {

@@ -148,8 +148,8 @@ work.
 - **Dates default to today.** Every date field in an action dialog starts at
   today's date; you change it if the event happened on another day.
 - **Move back to Owned** is one click for a single name (it's reversible);
-  for a selection it goes through the dialog, which says how many names only
-  left on their own and stay in Archive.
+  for a selection it goes through the dialog, which says how many names were
+  only removed by their registrar and stay in Archive.
 - **Batch APIs underneath.** For example
   `setDispositions(items: {domain, resolves?}[], type)` writes one
   `putEvents` batch instead of one call per name. The same goes for dismiss,
@@ -164,7 +164,7 @@ work.
 - **Toolbar:** search on the left, filters on the right, then Reset.
 - **Filters:**
   - Priority: High, Low.
-  - Type: Arrived, Left, Moved, Purchased, Registered, Sold, Dropped,
+  - Type: Added, Removed, Moved, Purchased, Registered, Sold, Dropped,
     Archived, Renewed.
   - Registrar: an account, labeled like the Domains table's Registrar filter.
   - Source: You, Registrar sync, Import, Lookup (later Agent).
@@ -177,7 +177,7 @@ work.
 | ☐         | Selection                                                                                          |
 | Date      | The event's day; the exact time on hover                                                           |
 | Domain    | The name (Unicode)                                                                                 |
-| Type      | A colored badge: Arrived, Left, Moved, Sold, …                                                     |
+| Type      | A colored badge: Added, Removed, Moved, Sold, …                                                    |
 | Registrar | Registrar logo and account label; from → to for a move; blank when there's none                    |
 | Details   | Amount and currency, years, venue later                                                            |
 | Source    | You, Registrar sync, Import, Lookup (renamed from "By"; "Sync" becomes "Registrar sync")           |

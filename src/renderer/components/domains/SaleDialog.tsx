@@ -38,7 +38,7 @@ export function SaleDialog({
 }: {
   domain: Domain;
   mode?: 'edit' | 'mark';
-  /** The "left your accounts" alert this sale answers, if any. */
+  /** The "removed from registrar" alert this sale answers, if any. */
   resolves?: string;
   /** Runs after the sale is stored. */
   onSaved?: () => void | Promise<void>;

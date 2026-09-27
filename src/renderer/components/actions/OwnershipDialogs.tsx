@@ -102,7 +102,7 @@ export function RestoreOwnedDialog({
   onClose,
 }: {
   names: string[];
-  /** How many of `names` you labeled (the rest only left on their own). */
+  /** How many of `names` you labeled (the rest were only removed by their registrar). */
   restorable: number;
   onDone?: () => void;
   onClose: () => void;
@@ -115,10 +115,10 @@ export function RestoreOwnedDialog({
       names={names}
       description={
         restorable === 0
-          ? 'None of these is marked Sold, Dropped, or Archived. They left your accounts on their own; dismiss their alerts on the Activity page instead.'
+          ? 'None of these is marked Sold, Dropped, or Archived. Their registrars removed them; dismiss their alerts on the Activity page instead.'
           : `Undoes Sold, Dropped, or Archived${
               skipped > 0
-                ? `. ${count(skipped)} left your accounts on ${skipped === 1 ? 'its' : 'their'} own and will stay in Archive.`
+                ? `. ${count(skipped)} ${skipped === 1 ? 'was' : 'were'} removed by the registrar and will stay in Archive.`
                 : '.'
             }`
       }

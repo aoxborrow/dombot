@@ -299,12 +299,12 @@ const ARCHIVE_ICON: Record<ArchiveLabel, typeof Archive> = {
   sold: BadgeDollarSign,
   dropped: CircleOff,
   archived: Archive,
-  left: DoorOpen,
+  removed: DoorOpen,
 };
 
 /**
  * In Archive the Folder column shows why the name is there instead: Sold,
- * Dropped, Archived, or Left your accounts (sync saw it go; label it from the
+ * Dropped, Archived, or Removed from registrar (sync saw it go; label it from the
  * row menu). Display only.
  */
 function ArchiveStatusCell({ label }: { label: ArchiveLabel | null }) {
@@ -314,7 +314,7 @@ function ArchiveStatusCell({ label }: { label: ArchiveLabel | null }) {
     <span
       className={cn(
         'flex items-center gap-2 px-3 py-3 text-sm compact:px-2 compact:py-[9px] compact:text-xs',
-        label === 'left'
+        label === 'removed'
           ? 'text-amber-600 dark:text-amber-400'
           : 'text-muted-foreground',
       )}
@@ -668,7 +668,7 @@ export default function Domains() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   // Owned is what you hold; Archive is what you no longer own (Sold, Dropped,
-  // Archived, or Left your accounts), read from the domain event log.
+  // Archived, or Removed from registrar), read from the domain event log.
   const archiveView = params.get('view') === 'archive';
   const {
     portfolio,
@@ -701,7 +701,7 @@ export default function Domains() {
     restoreOwned,
   } = useAppStore();
 
-  // Ownership per name, and each name's open "left your accounts" alert (a
+  // Ownership per name, and each name's open "removed from registrar" alert (a
   // label chosen from the row closes it).
   const ownership = useMemo(
     () => ownershipByDomain(domainEvents),
@@ -1031,7 +1031,7 @@ export default function Domains() {
         sold: 0,
         dropped: 0,
         archived: 0,
-        left: 0,
+        removed: 0,
       };
       let noFolder = 0;
       let hidden = 0;
@@ -1082,7 +1082,7 @@ export default function Domains() {
           ['sold', BadgeDollarSign],
           ['dropped', CircleOff],
           ['archived', Archive],
-          ['left', DoorOpen],
+          ['removed', DoorOpen],
         ] as const
       ).map(([label, Icon]) => ({
         value: label,

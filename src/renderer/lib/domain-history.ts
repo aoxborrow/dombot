@@ -10,7 +10,7 @@ export const ARCHIVE_LABEL: Record<ArchiveLabel, string> = {
   sold: 'Sold',
   dropped: 'Dropped',
   archived: 'Archived',
-  left: 'Left your accounts',
+  removed: 'Removed from registrar',
 };
 
 /** "GoDaddy #2" for an account id, or null when it's gone from Settings. */

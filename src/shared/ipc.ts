@@ -896,7 +896,7 @@ export interface DombotApi {
   ) => Promise<DomainEvent[]>;
   /**
    * "Move back to Owned": undo each name's Sold, Dropped, or Archived event.
-   * Names that only left on their own are skipped.
+   * Names only removed by their registrar are skipped.
    */
   restoreOwned: (domainNames: string[]) => Promise<DomainEvent[]>;
   /** Acknowledge sync alerts with no action, or bring them back. */

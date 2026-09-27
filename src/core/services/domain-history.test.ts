@@ -63,11 +63,11 @@ describe('domain history', () => {
     recordSync(holding(['a.com']));
     const [left] = recordSync(holding([]));
     const owner = () => ownershipByDomain(listEvents()).get('a.com');
-    expect(owner()?.label).toBe('left');
+    expect(owner()?.label).toBe('removed');
     setDispositions([{ domainName: 'a.com', resolves: left.id }], 'dropped');
     expect(owner()?.label).toBe('dropped');
     restoreOwned(['a.com']);
-    expect(owner()?.label).toBe('left');
+    expect(owner()?.label).toBe('removed');
     // A sync departure has nothing of yours to undo.
     expect(() => restoreOwned(['a.com'])).toThrow(/isn't marked/);
   });
@@ -89,7 +89,7 @@ describe('domain history', () => {
     expect(sold.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     // Undoing the sale brings the alert back.
     deleteUserEvent(sold.id);
-    expect(ownershipByDomain(listEvents()).get('a.com')?.label).toBe('left');
+    expect(ownershipByDomain(listEvents()).get('a.com')?.label).toBe('removed');
   });
 
   it('records an arrival as a new purchase instead of editing the old one', () => {
@@ -187,7 +187,7 @@ describe('domain history', () => {
     // b.com only left on its own: nothing of yours to undo, so it's skipped.
     expect(restoreOwned(['a.com', 'b.com'])).toBe(1);
     const owner = ownershipByDomain(listEvents());
-    expect(owner.get('a.com')?.label).toBe('left');
-    expect(owner.get('b.com')?.label).toBe('left');
+    expect(owner.get('a.com')?.label).toBe('removed');
+    expect(owner.get('b.com')?.label).toBe('removed');
   });
 });

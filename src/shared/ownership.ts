@@ -5,8 +5,8 @@ import { DomainEventType, type DomainEvent } from './domain-events';
 // recorded (their ids), so marking a name Sold today counts after the sync
 // that saw it, whatever sale date you type.
 
-/** Why a name is in Archive. `left` is a sync removal you haven't labeled. */
-export type ArchiveLabel = 'sold' | 'dropped' | 'archived' | 'left';
+/** Why a name is in Archive. `removed` is a sync removal you haven't labeled. */
+export type ArchiveLabel = 'sold' | 'dropped' | 'archived' | 'removed';
 
 export interface Ownership {
   archived: boolean;
@@ -44,7 +44,7 @@ export function ownershipByDomain(
     } else if (e.type === DomainEventType.Removed) {
       // Leaving after you've said what happened keeps your label.
       if (!o.archived)
-        Object.assign(o, { archived: true, label: 'left', event: e });
+        Object.assign(o, { archived: true, label: 'removed', event: e });
     } else {
       Object.assign(o, { archived: false, label: null, event: null });
     }

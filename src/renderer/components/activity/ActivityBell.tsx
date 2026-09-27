@@ -135,7 +135,7 @@ export function ActivityBell() {
             </Section>
           )}
           {arrivals.length > 0 && (
-            <Section title="New names">
+            <Section title="Added">
               <AlertList
                 items={arrivals}
                 shown={ARRIVALS_SHOWN}
@@ -209,8 +209,8 @@ function AlertList({
             <span className="font-mono font-medium">{toUnicode(e.domain)}</span>{' '}
             <span className="text-muted-foreground">
               {describeEvent(e, registrars, numberFormat, preferred)
-                .replace(/^Arrived/, 'arrived')
-                .replace(/^Left/, 'left')}
+                .replace(/^Added/, 'added')
+                .replace(/^Removed/, 'removed')}
             </span>
           </p>
           <p className="text-xs text-muted-foreground">{when(e.createdAt)}</p>

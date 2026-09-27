@@ -215,7 +215,7 @@ describe('ownershipByDomain', () => {
     const left = e('E1', 'removed', { source: 'sync', accountId: 'dyn' });
     expect(ownershipByDomain([left]).get('a.com')).toMatchObject({
       archived: true,
-      label: 'left',
+      label: 'removed',
       lastAccountId: 'dyn',
     });
     const dropped = e('E2', 'dropped', { resolves: 'E1' });

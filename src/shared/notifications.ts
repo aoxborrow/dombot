@@ -77,7 +77,7 @@ export function notifications(
       accountId: e.accountId ?? null,
       domain: e.domain,
       eventId: e.id,
-      message: departure ? 'Left an account' : 'Arrived in an account',
+      message: departure ? 'Removed from an account' : 'Added to an account',
     });
   }
   return out.sort(

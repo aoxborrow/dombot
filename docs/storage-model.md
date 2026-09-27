@@ -229,7 +229,7 @@ A name is in **Archive** once its latest ownership event is `sold`,
   records the price. Archived is the same as Dropped without saying why.
   "Move back to Owned" deletes that event (user events are editable).
 - **A sync that no longer sees a name** writes `removed`, which also moves the
-  name to Archive, shown as "Left your accounts" until you label it (Sold,
+  name to Archive, shown as "Removed from registrar" until you label it (Sold,
   Dropped, Archived) or dismiss the alert. It never marks the name Dropped,
   so someone who manages names elsewhere and doesn't sync for months comes
   back to unlabeled names, never to wrong labels.
@@ -302,7 +302,7 @@ too). It groups items by severity:
 
 - **Error:** registrar sync failures, expired or rejected credentials.
 - **Needs review:** unresolved `removed` events, with their actions.
-- **New names:** unresolved `added` events, with their actions. The
+- **Added:** unresolved `added` events, with their actions. The
   lowest-priority alert: listed after departures, and never enough on their
   own to color the badge.
 - **Info:** `moved` events and other recent results.
