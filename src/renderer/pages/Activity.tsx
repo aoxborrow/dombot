@@ -41,7 +41,6 @@ import {
   MultiSelectFilter,
   ResetButton,
   SearchField,
-  SingleSelectFilter,
   ViewSwitch,
 } from '../components/data-table/Toolbar';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
@@ -135,7 +134,7 @@ export default function Activity() {
   const [accounts, setAccounts] = useState<string[]>([]);
   const [sources, setSources] = useState<string[]>([]);
   const [priorities, setPriorities] = useState<string[]>([]);
-  const [days, setDays] = useState<string | null>(null);
+  const [days, setDays] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortKey, setSortKey] = useState('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -199,12 +198,24 @@ export default function Activity() {
     }));
   }, [events, resolved]);
 
+  // Date windows are cumulative, so their counts overlap (a change from 3
+  // days ago counts in every window).
+  const dateOptions = useMemo(
+    () =>
+      DATE_OPTIONS.map((o) => ({
+        ...o,
+        count: events.filter((e) => withinDays(e, Number(o.value), openedAt))
+          .length,
+      })),
+    [events, openedAt],
+  );
+
   const activeGroups =
     (types.length > 0 ? 1 : 0) +
     (accounts.length > 0 ? 1 : 0) +
     (sources.length > 0 ? 1 : 0) +
     (priorities.length > 0 ? 1 : 0) +
-    (days ? 1 : 0);
+    (days.length > 0 ? 1 : 0);
   const hasActiveFilters = search.trim() !== '' || activeGroups > 0;
 
   function resetFilters() {
@@ -213,7 +224,7 @@ export default function Activity() {
     setAccounts([]);
     setSources([]);
     setPriorities([]);
-    setDays(null);
+    setDays([]);
     setPage(0);
   }
 
@@ -244,7 +255,12 @@ export default function Activity() {
         !eventAccounts(e).some((id) => accounts.includes(id))
       )
         return false;
-      if (days && !withinDays(e, Number(days), openedAt)) return false;
+      // Windows overlap, so any picked window means the widest one.
+      if (
+        days.length > 0 &&
+        !withinDays(e, Math.max(...days.map(Number)), openedAt)
+      )
+        return false;
       return true;
     });
     const rank = { high: 0, low: 1 };
@@ -483,6 +499,16 @@ export default function Activity() {
   const filterChips = (
     <>
       <MultiSelectFilter
+        label="Registrar"
+        icon={Building2}
+        options={accountOptions}
+        selected={accounts}
+        onChange={(next) => {
+          setAccounts(next);
+          setPage(0);
+        }}
+      />
+      <MultiSelectFilter
         label="Priority"
         icon={Flag}
         options={priorityOptions}
@@ -503,16 +529,6 @@ export default function Activity() {
         }}
       />
       <MultiSelectFilter
-        label="Registrar"
-        icon={Building2}
-        options={accountOptions}
-        selected={accounts}
-        onChange={(next) => {
-          setAccounts(next);
-          setPage(0);
-        }}
-      />
-      <MultiSelectFilter
         label="Source"
         icon={User}
         options={sourceOptions}
@@ -522,10 +538,10 @@ export default function Activity() {
           setPage(0);
         }}
       />
-      <SingleSelectFilter
+      <MultiSelectFilter
         label="Date"
         icon={CalendarClock}
-        options={DATE_OPTIONS}
+        options={dateOptions}
         selected={days}
         onChange={(next) => {
           setDays(next);

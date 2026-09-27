@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from 'react';
-import { Check, ChevronDown, CircleX, Search, X } from 'lucide-react';
+import { ChevronDown, CircleX, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -184,52 +183,6 @@ export function MultiSelectFilter({
               </span>
             )}
           </DropdownMenuCheckboxItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-/**
- * A one-choice dropdown filter (e.g. a date window), styled like the others.
- * Picking the chosen option again clears it; null means no filter.
- */
-export function SingleSelectFilter({
-  label,
-  options,
-  selected,
-  onChange,
-  icon,
-}: {
-  label: string;
-  options: FilterOption[];
-  selected: string | null;
-  onChange: (next: string | null) => void;
-  icon?: ComponentType<{ className?: string }>;
-}) {
-  const chosen = options.find((o) => o.value === selected);
-  return (
-    <DropdownMenu>
-      <FilterTrigger label={chosen?.label ?? label} icon={icon} />
-      <DropdownMenuContent align="start">
-        {options.map((o) => (
-          <DropdownMenuItem
-            key={o.value}
-            onSelect={() => onChange(o.value === selected ? null : o.value)}
-          >
-            <Check
-              className={cn(
-                'size-4',
-                o.value === selected ? 'opacity-100' : 'opacity-0',
-              )}
-            />
-            <span className="flex-1">{o.label}</span>
-            {o.count != null && (
-              <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">
-                {o.count}
-              </span>
-            )}
-          </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
