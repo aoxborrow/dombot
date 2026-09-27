@@ -27,7 +27,6 @@ import {
 } from '../../shared/notifications';
 import { resolvedIds } from '../../shared/sync-diff';
 import { RegistrarLogo } from '../components/RegistrarLogo';
-import { alertDomain } from '../components/activity/AlertActions';
 import {
   EventTypeBadge,
   EventTypeDot,
@@ -51,6 +50,7 @@ import { accountName } from '../lib/domain-history';
 import {
   SOURCE_LABEL,
   VERB,
+  alertDomain,
   alertStatus,
   eventAccounts,
   eventDay,
@@ -123,7 +123,14 @@ export default function Activity() {
   const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
 
-  const [search, setSearch] = useState('');
+  // The search lives in the URL, so the bell can open Activity on one name.
+  const search = useMemo(() => params.get('q') ?? '', [params]);
+  const setSearch = (value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set('q', value);
+    else next.delete('q');
+    setParams(next, { replace: true });
+  };
   const [types, setTypes] = useState<string[]>([]);
   const [accounts, setAccounts] = useState<string[]>([]);
   const [sources, setSources] = useState<string[]>([]);

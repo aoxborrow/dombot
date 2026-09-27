@@ -4,7 +4,8 @@ import {
   localDay,
   type DomainEvent,
 } from '../../shared/domain-events';
-import type { RegistrarMeta } from '../../shared/ipc';
+import type { Domain, RegistrarMeta } from '../../shared/ipc';
+import { toUnicode } from '../../shared/domain-name';
 import { formatMoney, type NumberFormatId } from '../../shared/money';
 import { accountName } from './domain-history';
 import type { SyncFailure } from '../../shared/notifications';
@@ -12,16 +13,6 @@ import type { SyncFailure } from '../../shared/notifications';
 // Helpers for the Activity page and the header bell (docs/storage-model.md,
 // "Activity and alerts"): what needs review, what went wrong, and how to say
 // what each event means.
-
-/** Recent moves between your accounts, newest first (info only). */
-export function recentMoves(
-  events: DomainEvent[],
-  since: number,
-): DomainEvent[] {
-  return events
-    .filter((e) => e.type === DomainEventType.Moved && e.createdAt >= since)
-    .reverse();
-}
 
 /** An account whose last sync failed (see shared/notifications.ts). */
 export type SyncProblem = SyncFailure;
@@ -178,4 +169,37 @@ export function eventDetails(
     );
   if (e.years) parts.push(`${e.years} yr`);
   return parts.length ? parts.join(' · ') : null;
+}
+
+/** A Domain for the purchase and sale dialogs, from an alert. */
+export function alertDomain(
+  e: DomainEvent,
+  portfolio: Domain[],
+  registrars: RegistrarMeta[] | null,
+): Domain {
+  const name = toUnicode(e.domain);
+  const live = portfolio.find(
+    (d) =>
+      d.domainName.toLowerCase() === name &&
+      (!e.accountId || d.accountId === e.accountId),
+  );
+  if (live) return live;
+  const meta = registrars?.find((r) => (r.accountId ?? r.name) === e.accountId);
+  return {
+    registrar: (meta?.name ?? '') as Domain['registrar'],
+    accountId: e.accountId ?? undefined,
+    accountLabel: meta?.accountLabel,
+    domainName: name,
+    status: '',
+    createdDate: null,
+    expirationDate: null,
+    renewalDate: null,
+    autoRenew: false,
+    locked: false,
+    privacy: false,
+    nameservers: [],
+    syncedAt: new Date(e.createdAt),
+    deleted: false,
+    departed: e.type === DomainEventType.Removed,
+  };
 }

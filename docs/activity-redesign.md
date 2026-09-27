@@ -10,10 +10,10 @@ Builds on the domain event log (`docs/storage-model.md`). The work lands as
 PRs stacked on #106 (branch `domain-events`) while #106 is open.
 
 Status: phase 1 (sync errors, #113) is merged into `domain-events`, and so
-is the change that makes arrivals the lowest-priority alert. Phase 2 (the
-table, #114), phase 3 (action dialogs, #116), and phase 4 (the
-notification model, #117), and phase 5 (the Activity page) are in review. How sync errors show
-in the bell is revisited with the bell redesign (phase 6).
+is the change that makes arrivals the lowest-priority alert. Phases 2 to 6
+are in review: the table (#114), action dialogs (#116), the notification
+model (#117), the Activity page (#118), and the bell. Phase 7 (the Domains
+row menu on Activity rows) is optional and not started.
 
 ## Goals
 

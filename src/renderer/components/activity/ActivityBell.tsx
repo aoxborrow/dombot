@@ -1,19 +1,18 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, CircleAlert } from 'lucide-react';
+import { ArrowRight, Bell, History } from 'lucide-react';
 import { toUnicode } from '../../../shared/domain-name';
-import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../../shared/money';
-import { useAppStore } from '../../store/app';
-import type { DomainEvent } from '../../../shared/domain-events';
-import type { RegistrarMeta } from '../../../shared/ipc';
-import type { NumberFormatId } from '../../../shared/money';
 import {
   notificationBadge,
   notifications,
+  type Notification,
   type Severity,
 } from '../../../shared/notifications';
-import { describeEvent, recentMoves, syncProblems } from '../../lib/activity';
-import { AlertActions } from './AlertActions';
+import { accountName } from '../../lib/domain-history';
+import { syncProblems } from '../../lib/activity';
+import { timeAgo } from '../../lib/time';
+import { useAppStore } from '../../store/app';
+import { EventTypeBadge } from './EventTypeBadge';
 import { cn } from '@/lib/utils';
 import {
   Popover,
@@ -21,61 +20,41 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 
-const WEEK = 7 * 24 * 60 * 60 * 1000;
-const DEPARTURES_SHOWN = 5;
-const ARRIVALS_SHOWN = 3;
+/** Rows the dropdown shows before "and N more". */
+const SHOWN = 8;
 
-const TONE: Record<Severity, string> = {
+const BADGE_TONE: Record<Severity, string> = {
   error: 'bg-destructive text-white',
   high: 'bg-amber-500 text-white dark:bg-amber-400 dark:text-black',
   low: 'bg-muted-foreground text-background',
 };
 
-function when(ms: number): string {
-  return new Date(ms).toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
-}
+const DOT_TONE: Record<Severity, string> = {
+  error: 'bg-destructive',
+  high: 'bg-amber-500 dark:bg-amber-400',
+  low: 'bg-muted-foreground/60',
+};
 
 /**
- * The header bell. Always there, and always opens the same dropdown, grouped
- * by severity: sync errors, then names that left (with their actions), then
- * new names (the lowest-priority alert: they only ask what you paid), then
- * recent moves between your accounts. The badge counts everything waiting and
- * takes the color of the most severe; new names alone leave it gray. "View
- * all activity" opens the Activity page, where nothing is ever lost.
+ * The header bell: a compact list of what needs you (docs/activity-redesign.md,
+ * "The bell"). Sync errors first, then names removed from a registrar, then
+ * names added, newest first. It only tells you; the actions are on the
+ * Activity page, which a row opens filtered to that name. The badge counts
+ * everything and takes the most severe color.
  */
 export function ActivityBell() {
   const events = useAppStore((s) => s.domainEvents);
   const registrars = useAppStore((s) => s.registrars);
-  const settings = useAppStore((s) => s.settings);
   const [open, setOpen] = useState(false);
-  // "Recent" is measured from when the header mounted; fine for a week window.
-  const [mountedAt] = useState(() => Date.now());
-  const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
-  const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
 
   const problems = useMemo(() => syncProblems(registrars), [registrars]);
   const list = useMemo(
     () => notifications(events, problems),
     [events, problems],
   );
-  const { departures, arrivals } = useMemo(() => {
-    const byId = new Map(events.map((e) => [e.id, e]));
-    const of = (kind: 'departure' | 'arrival') =>
-      list
-        .filter((n) => n.kind === kind && n.eventId)
-        .map((n) => byId.get(n.eventId!)!)
-        .filter(Boolean);
-    return { departures: of('departure'), arrivals: of('arrival') };
-  }, [events, list]);
-  const moves = useMemo(
-    () => recentMoves(events, mountedAt - WEEK).slice(0, 3),
-    [events, mountedAt],
-  );
   const badge = notificationBadge(list);
   const count = badge?.count ?? 0;
+  const reviews = list.filter((n) => n.severity !== 'error').length;
   const close = () => setOpen(false);
 
   return (
@@ -86,8 +65,8 @@ export function ActivityBell() {
           className="relative inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
           aria-label={
             count
-              ? `Activity: ${count} item${count === 1 ? '' : 's'} need${count === 1 ? 's' : ''} attention`
-              : 'Activity'
+              ? `Notifications: ${count} item${count === 1 ? '' : 's'} need${count === 1 ? 's' : ''} attention`
+              : 'Notifications'
           }
         >
           <Bell className="size-4" />
@@ -95,7 +74,7 @@ export function ActivityBell() {
             <span
               className={cn(
                 'absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums',
-                TONE[badge.severity],
+                BADGE_TONE[badge.severity],
               )}
             >
               {badge.count}
@@ -105,138 +84,105 @@ export function ActivityBell() {
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="flex max-h-[70vh] w-96 flex-col p-0"
+        className="flex max-h-[70vh] w-[340px] flex-col p-0"
       >
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          {problems.length > 0 && (
-            <Section title="Sync errors">
-              {problems.map((p) => (
-                <p
-                  key={p.accountId}
-                  className="flex items-center gap-2 text-sm"
-                >
-                  <CircleAlert className="size-4 shrink-0 text-destructive" />
-                  <span className="font-medium">{p.account}</span>
-                  <span className="text-muted-foreground">sync failed</span>
-                </p>
-              ))}
-            </Section>
-          )}
-          {departures.length > 0 && (
-            <Section title="Needs review">
-              <AlertList
-                items={departures}
-                shown={DEPARTURES_SHOWN}
-                registrars={registrars}
-                numberFormat={numberFormat}
-                preferred={preferred}
-                onNavigate={close}
-              />
-            </Section>
-          )}
-          {arrivals.length > 0 && (
-            <Section title="Added">
-              <AlertList
-                items={arrivals}
-                shown={ARRIVALS_SHOWN}
-                registrars={registrars}
-                numberFormat={numberFormat}
-                preferred={preferred}
-                onNavigate={close}
-              />
-            </Section>
-          )}
-          {moves.length > 0 && (
-            <Section title="Recent moves">
-              {moves.map((e) => (
-                <p key={e.id} className="text-sm">
-                  <span className="font-mono font-medium">
-                    {toUnicode(e.domain)}
-                  </span>{' '}
-                  <span className="text-muted-foreground">
-                    {describeEvent(
-                      e,
-                      registrars,
-                      numberFormat,
-                      preferred,
-                    ).replace(/^Moved/, 'moved')}
-                  </span>
-                </p>
-              ))}
-            </Section>
-          )}
-          {count === 0 && moves.length === 0 && (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              Nothing needs your attention.
-            </p>
-          )}
-        </div>
-        <div className="border-t px-4 py-2.5">
+        <div className="flex items-center justify-between border-b px-3 py-2">
+          <p className="text-sm font-medium">Notifications</p>
           <Link
             to="/activity"
-            className="text-sm underline underline-offset-4"
             onClick={close}
+            className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
           >
-            View all activity
+            <History className="size-3.5" />
+            Activity
           </Link>
         </div>
+
+        {list.length === 0 ? (
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+            Nothing needs your attention.
+          </p>
+        ) : (
+          <ul className="min-h-0 flex-1 overflow-y-auto py-1">
+            {list.slice(0, SHOWN).map((n) => (
+              <li key={n.id}>
+                <NotificationRow
+                  n={n}
+                  account={accountName(registrars, n.accountId)}
+                  onNavigate={close}
+                />
+              </li>
+            ))}
+            {list.length > SHOWN && (
+              <li className="px-3 py-1.5 text-xs text-muted-foreground">
+                and {list.length - SHOWN} more
+              </li>
+            )}
+          </ul>
+        )}
+
+        {reviews > 0 && (
+          <Link
+            to="/activity?review=1"
+            onClick={close}
+            className="flex items-center justify-between border-t px-3 py-2 text-sm font-medium hover:bg-foreground/5 dark:hover:bg-accent/50"
+          >
+            {reviews} need{reviews === 1 ? 's' : ''} review
+            <ArrowRight className="size-4 text-muted-foreground" />
+          </Link>
+        )}
       </PopoverContent>
     </Popover>
   );
 }
 
-/** Open alerts with their actions, and a link to the rest. */
-function AlertList({
-  items,
-  shown,
-  registrars,
-  numberFormat,
-  preferred,
+/**
+ * One notification: severity dot, what happened, and when. A domain row opens
+ * Activity on that name; a sync error only says which account failed (the
+ * details are on its card in Settings → Registrars).
+ */
+function NotificationRow({
+  n,
+  account,
   onNavigate,
 }: {
-  items: DomainEvent[];
-  shown: number;
-  registrars: RegistrarMeta[] | null;
-  numberFormat: NumberFormatId;
-  preferred: string;
+  n: Notification;
+  account: string | null;
   onNavigate: () => void;
 }) {
-  return (
-    <>
-      {items.slice(0, shown).map((e) => (
-        <div key={e.id} className="flex flex-col gap-1.5">
-          <p className="text-sm">
-            <span className="font-mono font-medium">{toUnicode(e.domain)}</span>{' '}
-            <span className="text-muted-foreground">
-              {describeEvent(e, registrars, numberFormat, preferred)
-                .replace(/^Added/, 'added')
-                .replace(/^Removed/, 'removed')}
-            </span>
-          </p>
-          <p className="text-xs text-muted-foreground">{when(e.createdAt)}</p>
-          <AlertActions event={e} size="xs" />
-        </div>
-      ))}
-      {items.length > shown && (
-        <Link
-          to="/activity?review=1"
-          className="text-sm underline underline-offset-4"
-          onClick={onNavigate}
-        >
-          {items.length - shown} more to review
-        </Link>
-      )}
-    </>
+  const dot = (
+    <span
+      className={cn('size-2 shrink-0 rounded-full', DOT_TONE[n.severity])}
+      aria-hidden
+    />
   );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
+  if (n.kind === 'sync-error') {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 text-sm">
+        {dot}
+        <span className="min-w-0 truncate font-medium">
+          {account ?? n.message.split(':')[0]}
+        </span>
+        <span className="shrink-0 text-muted-foreground">sync failed</span>
+      </div>
+    );
+  }
+  const name = toUnicode(n.domain ?? '');
   return (
-    <div className="flex flex-col gap-3 border-b px-4 py-3 last:border-b-0">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {title}
-      </p>
-      {children}
-    </div>
+    <Link
+      to={`/activity?review=1&q=${encodeURIComponent(name)}`}
+      onClick={onNavigate}
+      className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
+      title={account ? `${name}, ${account}` : name}
+    >
+      {dot}
+      <EventTypeBadge type={n.kind === 'departure' ? 'removed' : 'added'} />
+      <span className="min-w-0 flex-1 truncate font-mono">{name}</span>
+      {n.at !== null && (
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {timeAgo(n.at)}
+        </span>
+      )}
+    </Link>
   );
 }
