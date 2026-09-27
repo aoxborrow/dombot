@@ -178,6 +178,38 @@ describe('diffSync', () => {
     ).toMatchObject({ archived: true, label: 'sold', event: sold });
   });
 
+  it('keeps a Sold name labeled through a move and a purchase', () => {
+    const sold = newEvent(
+      { domain: 'a.com', type: 'sold', source: 'user', date: '2026-09-01' },
+      NOW,
+    );
+    const moved = newEvent(
+      {
+        domain: 'a.com',
+        type: 'moved',
+        source: 'sync',
+        date: '2026-09-02',
+        fromAccountId: 'porkbun',
+        toAccountId: 'dynadot',
+      },
+      NOW,
+    );
+    const bought = newEvent(
+      { domain: 'a.com', type: 'purchased', source: 'user', date: null },
+      NOW,
+    );
+    const result = run(
+      [account('dynadot', ['a.com'])],
+      [account('dynadot', [])],
+      [sold, moved, bought],
+      ['dynadot'],
+    );
+    expect(result.events[0]).toMatchObject({
+      type: 'removed',
+      dismissed: true,
+    });
+  });
+
   it('starts over quietly when there is no record of the last sync', () => {
     const result = run(
       [account('dynadot', [], false, false)],
