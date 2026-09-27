@@ -48,9 +48,9 @@ const TAB_OPTIONS: Record<
 > = {
   '/': { metric: 'domains', pillFrom: 'md' },
   '/renewals': { metric: 'renewals', pillFrom: 'lg' },
-  '/activity': { metric: 'activity', iconOnlyBelow: 'lg', pillFrom: 'lg' },
+  '/activity': { metric: 'activity', pillFrom: 'lg' },
   '/settings': {
-    iconOnlyBelow: 'md',
+    iconOnlyBelow: 'lg',
     pillFrom: 'lg',
     // The gear is drawn smaller than the other icons, so it's bumped up.
     iconClassName: 'size-[17px]',
@@ -121,10 +121,11 @@ export default function App() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       {isDemo() && <DemoBanner />}
-      {/* Three columns: the logo, the tab strip (right-aligned, so it sits
-          against the actions), and the header actions. The tabs run along the
-          bottom edge, on the tab bar color that also shows above them. */}
-      <header className="grid h-12 grid-cols-[auto_1fr_auto] border-b bg-tab-bar px-4 sm:px-6">
+      {/* Three columns: the logo, the tab strip (centered, so the two side
+          columns match), and the bell just right of the tabs. The tabs run
+          along the bottom edge, on the tab bar color that also shows above
+          them. */}
+      <header className="grid h-12 grid-cols-[1fr_auto_1fr] border-b bg-tab-bar px-4 sm:px-6">
         <div className="flex flex-1 items-center">
           <button
             type="button"
@@ -149,7 +150,7 @@ export default function App() {
         </div>
         {/* Desktop: the tab strip. On phones it collapses into the hamburger
             menu on the right (MobileNav). */}
-        <TabStrip className="mr-4 hidden self-end justify-self-end sm:flex">
+        <TabStrip className="hidden self-end sm:flex">
           {NAV_ITEMS.map(({ to, label, icon }) => {
             const { metric, ...options } = TAB_OPTIONS[to] ?? {};
             return (
@@ -167,7 +168,7 @@ export default function App() {
         </TabStrip>
         {/* Right side: the bell, plus the hamburger on phones. Sync lives in
             the status bar (and in the hamburger menu on phones). */}
-        <div className="flex flex-1 items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2 sm:justify-start sm:pl-3">
           <span className="mr-2 inline-flex sm:mr-0">
             <ActivityBell />
           </span>
