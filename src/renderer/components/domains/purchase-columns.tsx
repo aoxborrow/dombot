@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { toAscii } from '../../../shared/domain-name';
 import type { Domain, DomainPurchase } from '../../../shared/ipc';
 import { formatMoney, type NumberFormatId } from '../../../shared/money';
+import { NotesButton } from './NotesButton';
 import { cn } from '@/lib/utils';
 
 type Labels = Record<string, string>;
@@ -20,12 +21,6 @@ function recordOf(
   domain: Domain,
 ): DomainPurchase | undefined {
   return purchases[toAscii(domain.domainName)];
-}
-
-function preview(notes: string): string {
-  const line = notes.split(/\r?\n/)[0]?.trim() ?? '';
-  if (line.length <= 40) return line;
-  return `${line.slice(0, 40)}…`;
 }
 
 /** Fills the cell, including its padding, so one click anywhere opens the editor. */
@@ -204,19 +199,15 @@ export function purchaseColumns({
       key: 'purchaseNotes',
       label: 'Notes',
       hideOnMobile: true,
-      render: (d) => {
-        const notes = recordOf(purchases, d)?.notes ?? '';
-        return (
-          <PurchaseCell
-            domain={d}
-            onEdit={onEdit}
-            title={notes || undefined}
-            empty={!notes}
-          >
-            {notes ? preview(notes) : '—'}
-          </PurchaseCell>
-        );
-      },
+      // A sticky note: hover to read, click to edit (see NotesButton).
+      render: (d) => (
+        <span className="-my-2 flex">
+          <NotesButton
+            domainName={d.domainName}
+            notes={recordOf(purchases, d)?.notes ?? ''}
+          />
+        </span>
+      ),
       sortValue: (d) => recordOf(purchases, d)?.notes?.toLowerCase() || null,
     },
   ];

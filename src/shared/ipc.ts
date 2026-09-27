@@ -121,6 +121,7 @@ export const IpcChannels = {
   getPurchases: 'purchases:list',
   setPurchase: 'purchases:set',
   setSale: 'purchases:setSale',
+  setNotes: 'purchases:setNotes',
   getDomainEvents: 'domainEvents:list',
   setDispositions: 'domainEvents:setDispositions',
   markSold: 'domainEvents:markSold',
@@ -876,6 +877,11 @@ export interface DombotApi {
   setPurchase: (input: PurchaseInput) => Promise<DomainPurchase | null>;
   /** Save what a sold name went for, and the shared notes. Keeps what you paid. */
   setSale: (input: SaleInput) => Promise<DomainPurchase | null>;
+  /** Save a name's note alone; its purchase and sale stay. Blank deletes it. */
+  setNotes: (
+    domainName: string,
+    notes: string,
+  ) => Promise<DomainPurchase | null>;
 
   // Domain history (docs/storage-model.md). Each change returns the whole log.
   /** Every domain event, oldest first. */

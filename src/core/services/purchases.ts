@@ -166,6 +166,19 @@ function withResolves(e: DomainEvent, resolves: string | undefined) {
 }
 
 /**
+ * Save a name's note on its own, leaving its purchase and sale as they are.
+ * A blank note deletes it.
+ */
+export function setNotes(
+  domainName: string,
+  notes: string,
+): DomainPurchase | null {
+  const domain = assertDomainName(domainName);
+  setNameNote(domain, notes);
+  return purchaseOf(domain);
+}
+
+/**
  * Save what a name sold for, and its note. Blank date and amount delete the
  * sale; the purchase and note are kept.
  */

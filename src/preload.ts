@@ -137,6 +137,8 @@ const api: DombotApi = {
   getPurchases: () => ipcRenderer.invoke(IpcChannels.getPurchases),
   setPurchase: (input) => ipcRenderer.invoke(IpcChannels.setPurchase, input),
   setSale: (input) => ipcRenderer.invoke(IpcChannels.setSale, input),
+  setNotes: (domainName, notes) =>
+    ipcRenderer.invoke(IpcChannels.setNotes, domainName, notes),
   getDomainEvents: () => ipcRenderer.invoke(IpcChannels.getDomainEvents),
   setDispositions: (items, type, date) =>
     ipcRenderer.invoke(IpcChannels.setDispositions, items, type, date),
