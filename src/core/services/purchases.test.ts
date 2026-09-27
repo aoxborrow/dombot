@@ -8,12 +8,7 @@ import {
 import { clearAll } from './cache';
 import { exportBundle, importBundle } from '../storage/bundle';
 import { listEvents } from './domain-events';
-import {
-  getPurchases,
-  importPurchases,
-  setPurchase,
-  setSale,
-} from './purchases';
+import { getPurchases, setPurchase, setSale } from './purchases';
 
 let store: MemoryDocStore;
 beforeEach(async () => {
@@ -145,28 +140,6 @@ describe('purchases', () => {
     ).toThrow(/no decimal/);
   });
 
-  it('imports the good rows when one row is bad', () => {
-    const result = importPurchases([
-      {
-        domainName: 'ok.com',
-        purchaseDate: null,
-        amount: '10',
-        currency: 'EUR',
-        notes: '',
-      },
-      {
-        domainName: 'nope',
-        purchaseDate: null,
-        amount: '10',
-        currency: 'EUR',
-        notes: '',
-      },
-    ]);
-    expect(result.updated).toBe(1);
-    expect(result.errors).toHaveLength(1);
-    expect(getPurchases()['ok.com']?.currency).toBe('EUR');
-  });
-
   it('clearing a purchase keeps the note and the sale', () => {
     setPurchase({
       domainName: 'a.com',
@@ -243,32 +216,6 @@ describe('purchases', () => {
       saleDate: null,
       saleAmount: null,
     });
-  });
-
-  it('imports with one write per namespace, and importing twice changes nothing', async () => {
-    const putMany = vi.spyOn(store, 'putMany');
-    const rows = Array.from({ length: 300 }, (_, i) => ({
-      domainName: `n${i}.com`,
-      purchaseDate: '2020-01-01',
-      amount: String(i),
-      currency: 'USD',
-      notes: i === 0 ? 'first' : '',
-    }));
-    rows.push({ ...rows[1], amount: '999' });
-    expect(importPurchases(rows)).toEqual({ updated: 301, errors: [] });
-    await flushWrites();
-    expect(putMany.mock.calls.map(([ns]) => ns).sort()).toEqual([
-      'domain-events',
-      'domain-notes',
-    ]);
-    expect(listEvents()).toHaveLength(300);
-    expect(listEvents().every((e) => e.source === 'import')).toBe(true);
-    expect(getPurchases()['n1.com']?.amount).toBe('999.00');
-    expect(getPurchases()['n0.com']?.notes).toBe('first');
-
-    importPurchases(rows);
-    await flushWrites();
-    expect(listEvents()).toHaveLength(300);
   });
 
   it('re-checks events and notes arriving in a data bundle', async () => {

@@ -1,6 +1,5 @@
 import type {
   DomainPurchase,
-  PurchaseImportResult,
   PurchaseInput,
   SaleInput,
 } from '../../shared/ipc';
@@ -21,7 +20,6 @@ import {
   newEvent,
   putEvents,
   setNameNote,
-  setNameNotes,
 } from './domain-events';
 
 // What you paid for a name and what you sold it for, read from and written
@@ -223,49 +221,4 @@ export function markSold(
       ),
     ),
   );
-}
-
-/**
- * Upsert many purchase rows with one write for the events and one for the
- * notes. One bad row is reported and the rest still save; a later row for the
- * same name wins. A row's note replaces the name's note only when it has one,
- * and a row with a blank date and amount leaves the purchase alone.
- */
-export function importPurchases(rows: PurchaseInput[]): PurchaseImportResult {
-  const errors: string[] = [];
-  const current = holdings();
-  const writes = new Map<string, DomainEvent>();
-  const noteWrites = new Map<string, string>();
-  const now = Date.now();
-  let updated = 0;
-  for (const row of rows) {
-    try {
-      const domain = assertDomainName(row.domainName);
-      const date = parsePurchaseDate(row.purchaseDate ?? '');
-      const { amount, currency } = parseAmount(row.amount, row.currency);
-      const existing = writes.get(domain) ?? current.get(domain)?.acquisition;
-      const next = upsert(
-        existing,
-        {
-          domain,
-          type: existing?.type ?? DomainEventType.Purchased,
-          source: existing?.source ?? DomainEventSource.Import,
-          date,
-          amount,
-          currency,
-        },
-        now,
-      );
-      if (next) writes.set(domain, next);
-      if (row.notes?.trim()) noteWrites.set(domain, row.notes);
-      updated++;
-    } catch (err) {
-      const name = row.domainName?.trim() || 'row';
-      const message = err instanceof Error ? err.message : 'Invalid row.';
-      errors.push(`${name}: ${message}`);
-    }
-  }
-  putEvents([...writes.values()]);
-  setNameNotes([...noteWrites]);
-  return { updated, errors };
 }
