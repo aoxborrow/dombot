@@ -17,6 +17,7 @@ import { EventTypeBadge } from './EventTypeBadge';
 import { cn } from '@/lib/utils';
 import {
   Popover,
+  PopoverArrow,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
@@ -86,10 +87,15 @@ export function ActivityBell() {
           )}
         </button>
       </PopoverTrigger>
+      {/* Centered under the bell; Radix slides it along when the window
+          edge is too close, and the arrow keeps pointing at the bell. */}
       <PopoverContent
-        align="end"
+        align="center"
+        sideOffset={6}
+        collisionPadding={16}
         className="flex max-h-[70vh] w-[min(420px,calc(100vw-2rem))] flex-col p-0"
       >
+        <PopoverArrow />
         <div className="flex items-center justify-between border-b px-3 py-2">
           <p className="text-sm font-medium">
             Notifications
