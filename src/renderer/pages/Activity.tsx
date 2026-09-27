@@ -386,13 +386,16 @@ export default function Activity() {
     const closer = closedBy.get(e.id);
     return closer && closer.source === 'sync' ? undefined : e.id;
   };
-  /** One item per name, skipping names already in `label`. */
+  /** One item per name, skipping names already in `label` (for Archived,
+   *  any name already in Archive). */
   const itemsOf = (list: ActivityRow[], label?: string) => {
     const seen = new Set<string>();
     return list.flatMap(({ event: e }) => {
       if (seen.has(e.domain)) return [];
       seen.add(e.domain);
-      if (label && stateOf(e)?.label === label) return [];
+      const state = stateOf(e);
+      if (label && state?.label === label) return [];
+      if (label === 'archived' && state?.archived) return [];
       return [{ domainName: toUnicode(e.domain), resolves: answers(e) }];
     });
   };
@@ -874,8 +877,8 @@ function AccountLabel({
 /**
  * A row's "⋯" menu: set the name's state, record a purchase, dismiss its
  * review, open it in Domains, or delete it. The state it's already in,
- * Archive once it's Sold or Dropped, and Dismiss on a row that doesn't need
- * review are disabled.
+ * Archive for a name already in Archive, and Dismiss on a row that doesn't
+ * need review are disabled.
  */
 function RowMenu({
   row,
@@ -921,10 +924,10 @@ function RowMenu({
           <CircleOff className="text-muted-foreground" />
           Mark as Dropped…
         </DropdownMenuItem>
-        {/* Archive is "gone, no reason given": for a name you own or one
-            sync saw leave, not one already Sold or Dropped. */}
+        {/* Archive puts a name you own away without a reason. One already
+            in Archive (Removed means "gone, no reason given") can't use it. */}
         <DropdownMenuItem
-          disabled={!!state?.label && state.label !== 'removed'}
+          disabled={!!state?.archived}
           onSelect={() => set('archived')}
         >
           <Archive className="text-muted-foreground" />

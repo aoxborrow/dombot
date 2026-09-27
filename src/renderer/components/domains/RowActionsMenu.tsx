@@ -36,7 +36,7 @@ import {
  * per-domain refresh, the actions that aren't a column (forwarding, auth code,
  * renew), a Folder submenu (a folder, Hidden, or None), and the ownership
  * states: Sold, Dropped, or Archived (the one it's in is disabled; a new one
- * replaces yours; Archive only for an owned or just-removed name), "Move back
+ * replaces yours; Archive only for a name you own), "Move back
  * to Owned" for a labeled name an account still holds, and Delete. A name in
  * Archive gets no registrar actions: move it back to Owned first. Registrar-backed items the
  * registrar can't do are disabled with the reason as their tooltip. Disabled
@@ -166,9 +166,9 @@ export function RowActionsMenu({
           <CircleOff className="text-muted-foreground" />
           Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
-        {/* For a name you own, or one sync saw leave ("gone, no reason
-            given"). A Sold or Dropped one already says why. */}
-        {(archive === null || archive === 'removed') && (
+        {/* Puts a name you own away without a reason. In Archive, Removed
+            already means "gone, no reason given". */}
+        {archive === null && (
           <DropdownMenuItem onSelect={onMarkArchived}>
             <Archive className="text-muted-foreground" />
             Archive<span className="-ml-[6px] opacity-50">…</span>

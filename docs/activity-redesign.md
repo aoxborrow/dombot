@@ -198,6 +198,11 @@ work.
   need it. Setting a state replaces the one you'd set before (and answers the
   same alert), so changing your mind never adds rows or needs an Undo, and
   there's no "back to Needs review".
+- **Archive is for names you own:** it puts one away without a reason. A name
+  already in Archive can't use it; Removed is itself an end state ("left, no
+  reason given"), reached by dismissing its review. The Domains page follows
+  the same rules: its Archive view offers only Mark as Sold, Mark as Dropped,
+  Move back to Owned (for a name an account still holds), Export, and Delete.
 
 ### Bulk actions
 
