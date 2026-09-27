@@ -166,6 +166,44 @@ describe('purchases', () => {
     expect(ownershipByDomain(listEvents()).get('sold.com')?.label).toBe('sold');
   });
 
+  it('keeps stored fields when an import leaves their cells blank', () => {
+    setPurchase({
+      domainName: 'a.com',
+      purchaseDate: '2020-01-01',
+      amount: '10',
+      currency: 'USD',
+      notes: '',
+    });
+    importPurchases([
+      {
+        domainName: 'a.com',
+        purchaseDate: '2021-06-01',
+        amount: null,
+        currency: null,
+        notes: '',
+      },
+    ]);
+    expect(getPurchases()['a.com']).toMatchObject({
+      purchaseDate: '2021-06-01',
+      amount: '10.00',
+      currency: 'USD',
+    });
+    importPurchases([
+      {
+        domainName: 'a.com',
+        purchaseDate: null,
+        amount: '25',
+        currency: 'EUR',
+        notes: '',
+      },
+    ]);
+    expect(getPurchases()['a.com']).toMatchObject({
+      purchaseDate: '2021-06-01',
+      amount: '25.00',
+      currency: 'EUR',
+    });
+  });
+
   it('imports the good rows when one row is bad', () => {
     const result = importPurchases([
       {

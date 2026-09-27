@@ -231,8 +231,8 @@ export function markSold(
 /**
  * Upsert many purchase rows with one write for the events and one for the
  * notes. One bad row is reported and the rest still save; a later row for the
- * same name wins. A row's note replaces the name's note only when it has one,
- * and a row with a blank date and amount leaves the purchase alone.
+ * same name wins. A blank date, amount, or note keeps what's stored, so a
+ * row with all three blank leaves the name alone.
  */
 export function importPurchases(rows: PurchaseInput[]): PurchaseImportResult {
   const errors: string[] = [];
@@ -244,9 +244,18 @@ export function importPurchases(rows: PurchaseInput[]): PurchaseImportResult {
   for (const row of rows) {
     try {
       const domain = assertDomainName(row.domainName);
-      const date = parsePurchaseDate(row.purchaseDate ?? '');
-      const { amount, currency } = parseAmount(row.amount, row.currency);
+      const parsed = parseAmount(row.amount, row.currency);
       const existing = writes.get(domain) ?? current.get(domain)?.acquisition;
+      // A blank cell keeps what's stored, so a file with only dates (or only
+      // amounts) fills those in without wiping the rest.
+      const date =
+        parsePurchaseDate(row.purchaseDate ?? '') ?? existing?.date ?? null;
+      const { amount, currency } = parsed.amount
+        ? parsed
+        : {
+            amount: existing?.amount ?? null,
+            currency: existing?.currency ?? null,
+          };
       const next = upsert(
         existing,
         {
