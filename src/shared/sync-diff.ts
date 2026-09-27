@@ -92,8 +92,10 @@ export function diffSync(
         for (const [name, open] of map)
           if (open.id === e.resolves) map.delete(name);
     }
+    // The same ownership rule as shared/ownership.ts: only coming back to one
+    // of your accounts clears a label; purchases and moves don't.
     if (OWNERSHIP_ENDED.has(e.type)) disposed.add(e.domain);
-    else if (e.type !== DomainEventType.Removed) disposed.delete(e.domain);
+    else if (e.type === DomainEventType.Added) disposed.delete(e.domain);
     if (!isOpenAlert(e, resolved)) return;
     (e.type === DomainEventType.Removed ? openRemoved : openAdded).set(
       e.domain,
