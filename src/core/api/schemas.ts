@@ -125,8 +125,6 @@ export const saleInput = z
   })
   .strict();
 
-export const purchaseImport = z.array(purchaseInput).max(10000);
-
 export const eventId = z.string().min(1).max(80);
 
 export const disposition = z.enum(['dropped', 'archived']);

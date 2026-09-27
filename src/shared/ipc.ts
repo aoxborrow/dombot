@@ -121,7 +121,6 @@ export const IpcChannels = {
   getPurchases: 'purchases:list',
   setPurchase: 'purchases:set',
   setSale: 'purchases:setSale',
-  importPurchases: 'purchases:import',
   getDomainEvents: 'domainEvents:list',
   setDisposition: 'domainEvents:setDisposition',
   restoreOwned: 'domainEvents:restoreOwned',
@@ -300,11 +299,6 @@ export interface SaleInput {
   resolves?: string;
   /** Mark as Sold: record the sale even with no date or amount (dated today). */
   mark?: boolean;
-}
-
-export interface PurchaseImportResult {
-  updated: number;
-  errors: string[];
 }
 
 /** One input in a registrar's credential form. */
@@ -867,8 +861,6 @@ export interface DombotApi {
   setPurchase: (input: PurchaseInput) => Promise<DomainPurchase | null>;
   /** Save what a sold name went for, and the shared notes. Keeps what you paid. */
   setSale: (input: SaleInput) => Promise<DomainPurchase | null>;
-  /** Upsert many purchase rows. A bad row is reported; the rest still save. */
-  importPurchases: (rows: PurchaseInput[]) => Promise<PurchaseImportResult>;
 
   // Domain history (docs/storage-model.md). Each change returns the whole log.
   /** Every domain event, oldest first. */

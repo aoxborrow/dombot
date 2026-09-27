@@ -16,12 +16,7 @@ import {
   updateFolder,
 } from '../services/folders';
 import { setManualPrice } from '../services/pricing';
-import {
-  getPurchases,
-  importPurchases,
-  setPurchase,
-  setSale,
-} from '../services/purchases';
+import { getPurchases, setPurchase, setSale } from '../services/purchases';
 import {
   deleteDomain,
   deleteUserEvent,
@@ -361,9 +356,6 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     setPurchase(input),
   ),
   setSale: method(z.tuple([s.saleInput]), async (input) => setSale(input)),
-  importPurchases: method(z.tuple([s.purchaseImport]), async (rows) =>
-    importPurchases(rows),
-  ),
 
   lookupRegistrations: method(z.tuple([s.domainNameList]), async (names) =>
     lookupRegistrations(names),
