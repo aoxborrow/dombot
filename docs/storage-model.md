@@ -220,8 +220,11 @@ Two separate questions, which the old Hidden → Archive folder had merged:
 ### Owned and Archive
 
 A name is in **Archive** once its latest ownership event is `sold`,
-`dropped`, `archived`, or an unresolved `removed`. Everything else is
-**Owned**. Archive is derived from events, never from a folder.
+`dropped`, `archived`, or an unresolved `removed`; `added` brings it back.
+Everything else is **Owned**. Purchases, registrations, and moves between
+your accounts aren't ownership events, so recording what you paid for a sold
+name leaves it in Archive. Archive is derived from events, never from a
+folder.
 
 - **Three manual actions: Sold, Dropped, Archived.** Each moves the name to
   Archive at once, whatever its registration status (a sale in progress, a

@@ -1,7 +1,8 @@
 import { DomainEventType, type DomainEvent } from './domain-events';
 
-// Owned or Archive, read from a name's events (docs/storage-model.md,
-// "Owned, Archive, and Hidden"). Events are taken in the order they were
+// Owned or Archive, read from a name's ownership events (docs/storage-model.md,
+// "Owned, Archive, and Hidden"): sold, dropped, archived, and removed put it in
+// Archive; added brings it back. Events are taken in the order they were
 // recorded (their ids), so marking a name Sold today counts after the sync
 // that saw it, whatever sale date you type.
 
@@ -45,9 +46,13 @@ export function ownershipByDomain(
       // Leaving after you've said what happened keeps your label.
       if (!o.archived)
         Object.assign(o, { archived: true, label: 'left', event: e });
-    } else {
+    } else if (e.type === DomainEventType.Added) {
+      // Back in one of your accounts.
       Object.assign(o, { archived: false, label: null, event: null });
     }
+    // Purchases, registrations, and moves between your accounts don't change
+    // ownership: recording what you paid for a sold name, or moving it before
+    // the buyer takes it, leaves it in Archive.
     out.set(e.domain, o);
   }
   return out;
