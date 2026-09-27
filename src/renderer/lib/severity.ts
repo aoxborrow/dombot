@@ -23,4 +23,4 @@ export const SEVERITY_COUNT: Record<Severity, string> = {
 
 /** A table row that needs review, whatever its priority. */
 export const REVIEW_ROW_TINT =
-  'bg-foreground/[0.035] hover:bg-foreground/[0.06]';
+  'bg-foreground/[0.035] hover:bg-foreground/[0.06] dark:bg-foreground/[0.06] dark:hover:bg-foreground/[0.09]';

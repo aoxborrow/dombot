@@ -169,11 +169,9 @@ function NotificationRow({
         className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
         title={n.message}
       >
-        {dot}
-        <Badge
-          variant="outline"
-          className="border-red-500/40 text-red-600 dark:text-red-400"
-        >
+        {/* No dot: the solid pill is the signal, set apart from the
+            outlined event types below. */}
+        <Badge className="border-transparent bg-red-600 text-white dark:bg-red-500">
           Error
         </Badge>
         <span className="min-w-0 flex-1 truncate">
