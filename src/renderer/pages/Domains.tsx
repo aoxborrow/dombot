@@ -858,7 +858,9 @@ export default function Domains() {
     });
   }, [listed, archiveView, registrationLookups]);
 
-  const [search, setSearch] = useState('');
+  // Starts from ?q= so another page (Activity's Show in Domains) can open it
+  // on one name.
+  const [search, setSearch] = useState(() => params.get('q') ?? '');
   // Multi-select filters; an empty array means "no filter" (show all).
   const [tld, setTld] = useState<string[]>([]);
   // One "Registrar" filter, but its options are individual accounts (keyed by

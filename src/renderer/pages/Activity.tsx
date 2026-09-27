@@ -1,5 +1,5 @@
 import { useMemo, useState, type ComponentType } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
   ArrowRight,
@@ -8,10 +8,13 @@ import {
   CalendarClock,
   ChevronDown,
   CircleOff,
+  Ellipsis,
   Flag,
   ReceiptText,
   SlidersHorizontal,
+  SquareArrowOutUpRight,
   Tag,
+  Trash2,
   User,
   X,
 } from 'lucide-react';
@@ -25,6 +28,7 @@ import {
   reviewPriority,
   type ReviewPriority,
 } from '../../shared/notifications';
+import { ownershipByDomain, type Ownership } from '../../shared/ownership';
 import { resolvedIds } from '../../shared/sync-diff';
 import { RegistrarLogo } from '../components/RegistrarLogo';
 import {
@@ -32,6 +36,7 @@ import {
   EventTypeDot,
 } from '../components/activity/EventTypeBadge';
 import {
+  DeleteDomainsDialog,
   DispositionDialog,
   MarkSoldDialog,
 } from '../components/actions/OwnershipDialogs';
@@ -51,7 +56,6 @@ import {
   SOURCE_LABEL,
   VERB,
   alertDomain,
-  alertStatus,
   eventAccounts,
   eventDay,
   eventDetails,
@@ -94,16 +98,30 @@ const TYPE_ORDER: DomainEvent['type'][] = [
   'renewed',
 ];
 
+/**
+ * One row: an event, and what the row shows for it. When you answer a sync
+ * alert (a name that left or arrived), your answer takes the alert's row, so
+ * "Removed" becomes "Dropped" in place rather than adding a second row.
+ */
+interface ActivityRow {
+  /** The event the row is for; its id is the row's key. */
+  event: DomainEvent;
+  /** Your answer to it, or the event itself: the row's type, source, date,
+   *  and details. */
+  shown: DomainEvent;
+}
+
 type DialogState =
-  | { kind: 'sold' | 'dropped' | 'archived'; events: DomainEvent[] }
-  | { kind: 'purchase'; event: DomainEvent };
+  | { kind: 'sold' | 'dropped' | 'archived' | 'delete'; rows: ActivityRow[] }
+  | { kind: 'purchase'; row: ActivityRow };
 
 /**
  * Every domain event, newest first: what you recorded (purchases, sales,
- * labels) and what sync saw (arrivals, departures, moves). Open alerts are
- * tinted by priority and carry their actions; answered or dismissed ones keep
- * their outcome and can be undone, so nothing disappears. Select alerts to
- * act on many at once.
+ * labels) and what sync saw (arrivals, departures, moves). An alert you've
+ * answered shows your answer in its place. Open alerts are tinted by priority
+ * with a Dismiss beside "Needs review"; every row has a menu to set the name's
+ * state (Sold, Dropped, Archived), record a purchase, or delete it, and the
+ * same actions work in bulk on a selection.
  */
 export default function Activity() {
   const events = useAppStore((s) => s.domainEvents);
@@ -111,7 +129,7 @@ export default function Activity() {
   const portfolio = useAppStore((s) => s.portfolio);
   const settings = useAppStore((s) => s.settings);
   const setAlertsDismissed = useAppStore((s) => s.setAlertsDismissed);
-  const deleteUserEvent = useAppStore((s) => s.deleteUserEvent);
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const reviewOnly = params.get('review') === '1';
   const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
@@ -163,25 +181,42 @@ export default function Activity() {
 
   const resolved = useMemo(() => resolvedIds(events), [events]);
   const closedBy = useMemo(() => resolutions(events), [events]);
+  const ownership = useMemo(() => ownershipByDomain(events), [events]);
   const priorityOf = (e: DomainEvent) => reviewPriority(e, resolved);
+
+  // Your answer to an alert shows on the alert's row, not its own. (Sync's own
+  // closures, a name coming back or a move, stay rows of their own.)
+  const allRows = useMemo(() => {
+    const ids = new Set(events.map((e) => e.id));
+    const answerOf = (e: DomainEvent) => {
+      const answer = closedBy.get(e.id);
+      return answer && answer.source !== 'sync' ? answer : undefined;
+    };
+    return events
+      .filter(
+        (e) => !(e.resolves && e.source !== 'sync' && ids.has(e.resolves)),
+      )
+      .map((e): ActivityRow => ({ event: e, shown: answerOf(e) ?? e }));
+  }, [events, closedBy]);
   const reviewCount = useMemo(() => notifications(events, []).length, [events]);
   const since = trackingSince(registrars);
 
   // Filter options, with counts over every event.
   const typeOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const e of events) counts.set(e.type, (counts.get(e.type) ?? 0) + 1);
+    for (const { shown } of allRows)
+      counts.set(shown.type, (counts.get(shown.type) ?? 0) + 1);
     return TYPE_ORDER.filter((t) => counts.has(t)).map((t) => ({
       value: t,
       label: VERB[t],
       count: counts.get(t),
       icon: <EventTypeDot type={t} />,
     }));
-  }, [events]);
+  }, [allRows]);
   const accountOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const e of events)
-      for (const id of new Set(eventAccounts(e)))
+    for (const { event } of allRows)
+      for (const id of new Set(eventAccounts(event)))
         counts.set(id, (counts.get(id) ?? 0) + 1);
     return [...counts]
       .map(([value, count]) => ({
@@ -190,15 +225,15 @@ export default function Activity() {
         count,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [events, registrars]);
+  }, [allRows, registrars]);
   const sourceOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const e of events)
-      counts.set(e.source, (counts.get(e.source) ?? 0) + 1);
+    for (const { shown } of allRows)
+      counts.set(shown.source, (counts.get(shown.source) ?? 0) + 1);
     return (Object.keys(SOURCE_LABEL) as DomainEvent['source'][])
       .filter((s) => counts.has(s))
       .map((s) => ({ value: s, label: SOURCE_LABEL[s], count: counts.get(s) }));
-  }, [events]);
+  }, [allRows]);
   const priorityOptions = useMemo(() => {
     const counts = { high: 0, low: 0 };
     for (const e of events) {
@@ -224,10 +259,11 @@ export default function Activity() {
     () =>
       DATE_OPTIONS.map((o) => ({
         ...o,
-        count: events.filter((e) => withinDays(e, Number(o.value), openedAt))
-          .length,
+        count: allRows.filter((r) =>
+          withinDays(r.event, Number(o.value), openedAt),
+        ).length,
       })),
-    [events, openedAt],
+    [allRows, openedAt],
   );
 
   const activeGroups =
@@ -258,7 +294,7 @@ export default function Activity() {
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const filtered = events.filter((e) => {
+    const filtered = allRows.filter(({ event: e, shown }) => {
       if (q && !toUnicode(e.domain).includes(q) && !e.domain.includes(q))
         return false;
       const priority = reviewPriority(e, resolved);
@@ -268,8 +304,8 @@ export default function Activity() {
         (!priority || !priorities.includes(priority))
       )
         return false;
-      if (types.length > 0 && !types.includes(e.type)) return false;
-      if (sources.length > 0 && !sources.includes(e.source)) return false;
+      if (types.length > 0 && !types.includes(shown.type)) return false;
+      if (sources.length > 0 && !sources.includes(shown.source)) return false;
       if (
         accounts.length > 0 &&
         !eventAccounts(e).some((id) => accounts.includes(id))
@@ -284,16 +320,16 @@ export default function Activity() {
       return true;
     });
     const rank = { high: 0, low: 1 };
-    const valueOf = (e: DomainEvent): SortValue | null => {
+    const valueOf = ({ event: e, shown }: ActivityRow): SortValue | null => {
       switch (sortKey) {
         case 'domain':
           return toUnicode(e.domain);
         case 'type':
-          return VERB[e.type];
+          return VERB[shown.type];
         case 'account':
           return accountName(registrars, e.accountId ?? e.toAccountId) ?? '';
         case 'source':
-          return SOURCE_LABEL[e.source];
+          return SOURCE_LABEL[shown.source];
         case 'status': {
           const p = reviewPriority(e, resolved);
           return p ? rank[p] : 2;
@@ -305,7 +341,7 @@ export default function Activity() {
     };
     return sortRows(filtered, valueOf, sortDir);
   }, [
-    events,
+    allRows,
     search,
     resolved,
     reviewOnly,
@@ -329,21 +365,45 @@ export default function Activity() {
     }
   }
 
-  // Selection: only open alerts can be acted on in bulk.
-  const selectedEvents = events.filter((e) => selected.has(e.id));
-  const openSelected = selectedEvents.filter((e) => priorityOf(e));
-  const departures = openSelected.filter(
-    (e) => e.type === DomainEventType.Removed,
-  );
+  // Selection: any rows. State actions apply to each selected name once.
+  const selectedRows = allRows.filter((r) => selected.has(r.event.id));
+  const openSelected = selectedRows
+    .map((r) => r.event)
+    .filter((e) => priorityOf(e));
   const clearSelection = () => setSelected(new Set());
 
-  const itemsOf = (list: DomainEvent[]) =>
-    list.map((e) => ({ domainName: toUnicode(e.domain), resolves: e.id }));
+  const stateOf = (e: DomainEvent): Ownership | undefined =>
+    ownership.get(e.domain);
+  const held = (e: DomainEvent) =>
+    portfolio.some((d) => d.domainName.toLowerCase() === toUnicode(e.domain));
+  /** The alert a new state answers: the row's own, unless sync closed it. */
+  const answers = (e: DomainEvent) => {
+    if (
+      e.source !== 'sync' ||
+      (e.type !== DomainEventType.Removed && e.type !== DomainEventType.Added)
+    )
+      return undefined;
+    const closer = closedBy.get(e.id);
+    return closer && closer.source === 'sync' ? undefined : e.id;
+  };
+  /** One item per name, skipping names already in `label`. */
+  const itemsOf = (list: ActivityRow[], label?: string) => {
+    const seen = new Set<string>();
+    return list.flatMap(({ event: e }) => {
+      if (seen.has(e.domain)) return [];
+      seen.add(e.domain);
+      if (label && stateOf(e)?.label === label) return [];
+      return [{ domainName: toUnicode(e.domain), resolves: answers(e) }];
+    });
+  };
+  const namesOf = (list: ActivityRow[]) => [
+    ...new Map(list.map((r) => [r.event.domain, r.event])).values(),
+  ];
 
   function dismiss(list: DomainEvent[]) {
     const ids = list.map((e) => e.id);
     const what =
-      list.length === 1 ? toUnicode(list[0].domain) : `${list.length} alerts`;
+      list.length === 1 ? toUnicode(list[0].domain) : `${list.length} reviews`;
     void setAlertsDismissed(ids, true).then(() => {
       setSelected((current) => {
         const next = new Set(current);
@@ -359,11 +419,17 @@ export default function Activity() {
     });
   }
 
-  const columns: DataColumn<DomainEvent>[] = [
+  function showInDomains(e: DomainEvent) {
+    const next = new URLSearchParams({ q: toUnicode(e.domain) });
+    if (stateOf(e)?.archived) next.set('view', 'archive');
+    navigate(`/?${next}`);
+  }
+
+  const columns: DataColumn<ActivityRow>[] = [
     {
       key: 'date',
       label: 'Date',
-      cell: (e) => (
+      cell: ({ event: e }) => (
         <span
           className="font-mono text-muted-foreground tabular-nums"
           title={new Date(e.createdAt).toLocaleString()}
@@ -375,21 +441,32 @@ export default function Activity() {
     {
       key: 'domain',
       label: 'Domain',
-      cell: (e) => (
-        <span className="font-mono compact:text-[13px]">
-          {toUnicode(e.domain)}
-        </span>
+      // The row's "⋯" menu, pinned to the cell's right edge like Domains'.
+      cell: (row) => (
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-mono compact:text-[13px]">
+            {toUnicode(row.event.domain)}
+          </span>
+          <RowMenu
+            row={row}
+            state={stateOf(row.event)}
+            needsReview={!!priorityOf(row.event)}
+            onDialog={setDialog}
+            onDismiss={() => dismiss([row.event])}
+            onShow={() => showInDomains(row.event)}
+          />
+        </div>
       ),
     },
     {
       key: 'type',
       label: 'Type',
-      cell: (e) => <EventTypeBadge type={e.type} />,
+      cell: ({ shown }) => <EventTypeBadge type={shown.type} />,
     },
     {
       key: 'account',
       label: 'Registrar',
-      cell: (e) =>
+      cell: ({ event: e }) =>
         e.type === DomainEventType.Moved ? (
           <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
             <AccountLabel registrars={registrars} id={e.fromAccountId} />
@@ -407,8 +484,8 @@ export default function Activity() {
       label: 'Details',
       sortable: false,
       hideOnMobile: true,
-      cell: (e) =>
-        eventDetails(e, numberFormat, preferred) ?? (
+      cell: ({ shown }) =>
+        eventDetails(shown, numberFormat, preferred) ?? (
           <span className="text-muted-foreground/50">—</span>
         ),
     },
@@ -416,21 +493,23 @@ export default function Activity() {
       key: 'source',
       label: 'Source',
       hideOnMobile: true,
-      cell: (e) => (
+      cell: ({ shown }) => (
         <span className="whitespace-nowrap text-muted-foreground">
-          {SOURCE_LABEL[e.source]}
+          {SOURCE_LABEL[shown.source]}
         </span>
       ),
     },
     {
       key: 'status',
       label: 'Status',
-      cell: (e) => {
+      cellClassName: 'py-0! align-middle',
+      cell: ({ event: e }) => {
         const priority = priorityOf(e);
-        if (priority) {
-          return (
+        if (!priority) return null;
+        return (
+          <span className="inline-flex items-center gap-1 whitespace-nowrap">
             <span
-              className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium"
+              className="inline-flex items-center gap-1.5 font-medium"
               title={`${PRIORITY_LABEL[priority]} priority`}
             >
               <span
@@ -439,72 +518,17 @@ export default function Activity() {
               />
               Needs review
             </span>
-          );
-        }
-        const closer = closedBy.get(e.id);
-        const status = alertStatus(e, closer);
-        if (!status) return null;
-        return (
-          <span className="inline-flex items-center gap-1 whitespace-nowrap text-muted-foreground">
-            {status.text}
-            {status.undo && (
-              <Button
-                type="button"
-                size="xs"
-                variant="ghost"
-                className="-my-1"
-                onClick={() =>
-                  void (
-                    status.undo === 'dismissal'
-                      ? setAlertsDismissed([e.id], false)
-                      : deleteUserEvent(closer!.id)
-                  ).then(() =>
-                    toast.success(`${toUnicode(e.domain)} needs review again`),
-                  )
-                }
-              >
-                Undo
-              </Button>
-            )}
-          </span>
-        );
-      },
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      sortable: false,
-      cellClassName: 'py-0! align-middle',
-      cell: (e) => {
-        if (!priorityOf(e)) return null;
-        const left = e.type === DomainEventType.Removed;
-        return (
-          <span className="flex items-center gap-0.5">
-            <RowAction
-              icon={BadgeDollarSign}
-              label="Mark as Sold"
-              disabled={!left}
-              onClick={() => setDialog({ kind: 'sold', events: [e] })}
-            />
-            <RowAction
-              icon={CircleOff}
-              label="Mark as Dropped"
-              disabled={!left}
-              onClick={() => setDialog({ kind: 'dropped', events: [e] })}
-            />
-            <RowAction
-              icon={Archive}
-              label="Archive"
-              disabled={!left}
-              onClick={() => setDialog({ kind: 'archived', events: [e] })}
-            />
-            <RowAction
-              icon={ReceiptText}
-              label="Record purchase"
-              disabled={left}
-              onClick={() => setDialog({ kind: 'purchase', event: e })}
-            />
-            <RowAction icon={X} label="Dismiss" onClick={() => dismiss([e])} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 text-muted-foreground hover:text-foreground"
+              aria-label={`Dismiss review of ${toUnicode(e.domain)}`}
+              title="Dismiss review"
+              onClick={() => dismiss([e])}
+            >
+              <X className="size-3.5" />
+            </Button>
           </span>
         );
       },
@@ -594,7 +618,7 @@ export default function Activity() {
               {
                 id: 'all',
                 label: 'All',
-                count: events.length,
+                count: allRows.length,
                 active: !reviewOnly,
                 onClick: () => setView(false),
               },
@@ -679,34 +703,44 @@ export default function Activity() {
                 <BulkItem
                   icon={BadgeDollarSign}
                   label="Mark as Sold"
-                  count={departures.length}
+                  count={itemsOf(selectedRows, 'sold').length}
                   onSelect={() =>
-                    setDialog({ kind: 'sold', events: departures })
+                    setDialog({ kind: 'sold', rows: selectedRows })
                   }
                 />
                 <BulkItem
                   icon={CircleOff}
                   label="Mark as Dropped"
-                  count={departures.length}
+                  count={itemsOf(selectedRows, 'dropped').length}
                   onSelect={() =>
-                    setDialog({ kind: 'dropped', events: departures })
+                    setDialog({ kind: 'dropped', rows: selectedRows })
                   }
                 />
                 <BulkItem
                   icon={Archive}
                   label="Archive"
-                  count={departures.length}
+                  count={itemsOf(selectedRows, 'archived').length}
                   onSelect={() =>
-                    setDialog({ kind: 'archived', events: departures })
+                    setDialog({ kind: 'archived', rows: selectedRows })
                   }
                 />
                 <DropdownMenuSeparator />
                 <BulkItem
                   icon={X}
-                  label="Dismiss"
+                  label="Dismiss review"
                   count={openSelected.length}
                   immediate
                   onSelect={() => dismiss(openSelected)}
+                />
+                <DropdownMenuSeparator />
+                <BulkItem
+                  icon={Trash2}
+                  label="Delete"
+                  count={namesOf(selectedRows).length}
+                  destructive
+                  onSelect={() =>
+                    setDialog({ kind: 'delete', rows: selectedRows })
+                  }
                 />
               </DropdownMenuContent>
             </DropdownMenu>
@@ -718,7 +752,7 @@ export default function Activity() {
         className="mt-[13px]"
         rows={rows}
         columns={columns}
-        rowKey={(e) => e.id}
+        rowKey={(r) => r.event.id}
         sort={{ key: sortKey, dir: sortDir }}
         onSort={toggleSort}
         page={page}
@@ -744,11 +778,12 @@ export default function Activity() {
               return next;
             }),
           allLabel: 'Select all activity',
-          rowLabel: (e) => `Select ${toUnicode(e.domain)} ${VERB[e.type]}`,
+          rowLabel: (r) =>
+            `Select ${toUnicode(r.event.domain)} ${VERB[r.shown.type]}`,
         }}
-        rowClassName={(e, selected) => {
+        rowClassName={(r, selected) => {
           // A selected row shows the selection, not its priority tint.
-          const p = !selected && priorityOf(e);
+          const p = !selected && priorityOf(r.event);
           return p ? REVIEW_ROW_TINT[p] : undefined;
         }}
         empty={
@@ -761,17 +796,17 @@ export default function Activity() {
       />
 
       {dialog?.kind === 'sold' &&
-        (dialog.events.length === 1 ? (
+        (dialog.rows.length === 1 ? (
           <SaleDialog
-            domain={alertDomain(dialog.events[0], portfolio, registrars)}
+            domain={alertDomain(dialog.rows[0].event, portfolio, registrars)}
             mode="mark"
-            resolves={dialog.events[0].id}
+            resolves={answers(dialog.rows[0].event)}
             onSaved={clearSelection}
             onClose={() => setDialog(null)}
           />
         ) : (
           <MarkSoldDialog
-            items={itemsOf(dialog.events)}
+            items={itemsOf(dialog.rows, 'sold')}
             onDone={clearSelection}
             onClose={() => setDialog(null)}
           />
@@ -779,17 +814,32 @@ export default function Activity() {
       {(dialog?.kind === 'dropped' || dialog?.kind === 'archived') && (
         <DispositionDialog
           type={dialog.kind}
-          items={itemsOf(dialog.events)}
+          items={itemsOf(dialog.rows, dialog.kind)}
           onDone={clearSelection}
           onClose={() => setDialog(null)}
         />
       )}
       {dialog?.kind === 'purchase' && (
         <PurchaseDialog
-          domain={alertDomain(dialog.event, portfolio, registrars)}
-          justRegistered
-          resolves={dialog.event.id}
+          domain={alertDomain(dialog.row.event, portfolio, registrars)}
+          // An arrival you haven't answered: record it as a new purchase.
+          justRegistered={priorityOf(dialog.row.event) === 'low' || undefined}
+          resolves={
+            priorityOf(dialog.row.event) === 'low'
+              ? dialog.row.event.id
+              : undefined
+          }
           onSaved={clearSelection}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'delete' && (
+        <DeleteDomainsDialog
+          domains={namesOf(dialog.rows).map((e) => ({
+            domainName: toUnicode(e.domain),
+            departed: !held(e),
+          }))}
+          onDone={clearSelection}
           onClose={() => setDialog(null)}
         />
       )}
@@ -821,31 +871,82 @@ function AccountLabel({
   );
 }
 
-/** An icon action on an alert row; greyed out when it doesn't apply. */
-function RowAction({
-  icon: Icon,
-  label,
-  disabled = false,
-  onClick,
+/**
+ * A row's "⋯" menu: set the name's state, record a purchase, dismiss its
+ * review, open it in Domains, or delete it. The state it's already in, and
+ * Dismiss on a row that doesn't need review, are disabled.
+ */
+function RowMenu({
+  row,
+  state,
+  needsReview,
+  onDialog,
+  onDismiss,
+  onShow,
 }: {
-  icon: ComponentType<{ className?: string }>;
-  label: string;
-  disabled?: boolean;
-  onClick: () => void;
+  row: ActivityRow;
+  state: Ownership | undefined;
+  needsReview: boolean;
+  onDialog: (dialog: DialogState) => void;
+  onDismiss: () => void;
+  onShow: () => void;
 }) {
+  const name = toUnicode(row.event.domain);
+  const is = (label: string) => state?.label === label;
+  const set = (kind: 'sold' | 'dropped' | 'archived' | 'delete') =>
+    onDialog({ kind, rows: [row] });
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      className="size-7 text-muted-foreground hover:text-foreground"
-      disabled={disabled}
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-    >
-      <Icon className="size-4" />
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Actions for ${name}`}
+          title="Actions"
+          className="-my-2 text-muted-foreground hover:text-foreground compact:size-7"
+        >
+          <Ellipsis />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem disabled={is('sold')} onSelect={() => set('sold')}>
+          <BadgeDollarSign className="text-muted-foreground" />
+          Mark as Sold…
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={is('dropped')}
+          onSelect={() => set('dropped')}
+        >
+          <CircleOff className="text-muted-foreground" />
+          Mark as Dropped…
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={is('archived')}
+          onSelect={() => set('archived')}
+        >
+          <Archive className="text-muted-foreground" />
+          Archive…
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onDialog({ kind: 'purchase', row })}>
+          <ReceiptText className="text-muted-foreground" />
+          Record purchase…
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={!needsReview} onSelect={onDismiss}>
+          <X className="text-muted-foreground" />
+          Dismiss review
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onShow}>
+          <SquareArrowOutUpRight className="text-muted-foreground" />
+          Show in Domains
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onSelect={() => set('delete')}>
+          <Trash2 />
+          Delete…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -855,6 +956,7 @@ function BulkItem({
   label,
   count,
   immediate = false,
+  destructive = false,
   onSelect,
 }: {
   icon: ComponentType<{ className?: string }>;
@@ -862,11 +964,16 @@ function BulkItem({
   count: number;
   /** Runs at once instead of opening a dialog (no "…"). */
   immediate?: boolean;
+  destructive?: boolean;
   onSelect: () => void;
 }) {
   return (
-    <DropdownMenuItem disabled={count === 0} onSelect={onSelect}>
-      <Icon className="text-muted-foreground" />
+    <DropdownMenuItem
+      disabled={count === 0}
+      variant={destructive ? 'destructive' : 'default'}
+      onSelect={onSelect}
+    >
+      <Icon className={destructive ? undefined : 'text-muted-foreground'} />
       {label}
       {!immediate && <span className="-ml-[6px] opacity-50">…</span>}
       <span className="ml-auto text-xs tabular-nums text-muted-foreground">

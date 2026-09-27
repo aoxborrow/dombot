@@ -72,6 +72,29 @@ describe('domain history', () => {
     expect(() => restoreOwned(['a.com'])).toThrow(/isn't marked/);
   });
 
+  it('changing a label replaces yours and keeps answering the alert', () => {
+    recordSync(holding(['a.com']));
+    const [left] = recordSync(holding([]));
+    setDispositions([{ domainName: 'a.com', resolves: left.id }], 'dropped');
+    // Sold takes Dropped's place: one answer, still to the same alert.
+    markSold([{ domainName: 'a.com' }]);
+    const answers = () => listEvents().filter((e) => e.source === 'user');
+    expect(answers().map((e) => [e.type, e.resolves])).toEqual([
+      ['sold', left.id],
+    ]);
+    setDispositions([{ domainName: 'a.com' }], 'archived');
+    expect(answers().map((e) => [e.type, e.resolves])).toEqual([
+      ['archived', left.id],
+    ]);
+    // Setting the state it's already in changes nothing.
+    const before = answers()[0].id;
+    setDispositions([{ domainName: 'a.com' }], 'archived');
+    expect(answers().map((e) => e.id)).toEqual([before]);
+    expect(ownershipByDomain(listEvents()).get('a.com')?.label).toBe(
+      'archived',
+    );
+  });
+
   it('marks a name Sold with no details, dated today, closing its alert', () => {
     recordSync(holding(['a.com']));
     const [left] = recordSync(holding([]));
