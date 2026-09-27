@@ -26,7 +26,6 @@ import {
 } from '../../../shared/bundle-seal';
 import { isDemo } from '../../lib/platform';
 import { useAppStore } from '../../store/app';
-import { ImportPurchasesButton } from '../../components/domains/ImportPurchasesButton';
 import { SettingsCard } from './SettingsCard';
 
 /** Auto-sync interval choices (minutes). `0` disables the background sync. */
@@ -286,21 +285,6 @@ function ImportCard() {
             Import data…
           </Button>
         </div>
-      </div>
-
-      <div className="flex flex-col gap-3 border-t pt-5">
-        <p className="text-sm text-muted-foreground">
-          Import a spreadsheet of what you paid. Download the sample to see
-          the columns and three sample filled-in rows, then replace those rows with
-          your own names. This does not replace your registrar keys or domain
-          list. A row with the purchase cells blank is left alone. A name that
-          is not in the list still keeps its purchase record.
-        </p>
-        <ImportPurchasesButton
-          onResult={(text, error) =>
-            error ? toast.error(text) : toast.success(text)
-          }
-        />
       </div>
 
       <Dialog

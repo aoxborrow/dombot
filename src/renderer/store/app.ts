@@ -13,7 +13,6 @@ import type {
   DomainTarget,
   DomainEvent,
   OwnershipItem,
-  PurchaseImportResult,
   PurchaseInput,
   RegistrationLookup,
   SaleInput,
@@ -197,7 +196,6 @@ interface AppState {
   loadPurchases: () => Promise<void>;
   savePurchase: (input: PurchaseInput) => Promise<void>;
   saveSale: (input: SaleInput) => Promise<void>;
-  importPurchases: (rows: PurchaseInput[]) => Promise<PurchaseImportResult>;
 
   /** Public registration for names on History, keyed by domain name. */
   registrationLookups: Record<string, RegistrationLookup>;
@@ -702,12 +700,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       else delete purchases[key];
       return { purchases };
     });
-  },
-  importPurchases: async (rows) => {
-    const result = await window.api.importPurchases(rows);
-    set({ purchases: await window.api.getPurchases() });
-    void get().loadDomainEvents();
-    return result;
   },
   registrationLookups: {},
   loadRegistrationLookups: async (domainNames) => {
