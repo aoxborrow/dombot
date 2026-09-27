@@ -1262,16 +1262,11 @@ export default function Domains() {
     else setOwnershipDialog({ action, domains: ds });
   }
 
-  // Undoing one name's label is one click (and reversible); many go through
-  // the dialog.
+  // Moving one name back is one click (and reversible); many go through the
+  // dialog. Only a name an account still holds offers it.
   function moveBackToOwned(d: Domain) {
-    const label = archiveLabelOf(d);
     void restoreOwned([d.domainName]).then(() =>
-      toast.success(
-        d.departed && label
-          ? `Undid ${ARCHIVE_LABEL[label]} for ${d.domainName}`
-          : `Moved ${d.domainName} back to Owned`,
-      ),
+      toast.success(`Moved ${d.domainName} back to Owned`),
     );
   }
 
@@ -1764,12 +1759,12 @@ export default function Domains() {
             return (
               <RestoreOwnedDialog
                 names={ds.map((d) => d.domainName)}
-                restorable={
-                  ds.filter((d) => {
+                restorable={ds
+                  .filter((d) => {
                     const o = ownership.get(toAscii(d.domainName));
-                    return o?.event && o.event.source !== 'sync';
-                  }).length
-                }
+                    return !d.departed && o?.event && o.event.source !== 'sync';
+                  })
+                  .map((d) => d.domainName)}
                 onDone={done}
                 onClose={close}
               />

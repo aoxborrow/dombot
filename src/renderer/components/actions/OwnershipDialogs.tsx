@@ -92,22 +92,24 @@ export function MarkSoldDialog({
 }
 
 /**
- * Move back to Owned: undoes Sold, Dropped, or Archived. Names that only left
- * your accounts on their own have nothing to undo and are skipped.
+ * Move back to Owned: undoes Sold, Dropped, or Archived for names an account
+ * still holds. A name gone from every account keeps its state, so it's
+ * skipped.
  */
 export function RestoreOwnedDialog({
   names,
-  restorable,
+  restorable: restorableNames,
   onDone,
   onClose,
 }: {
   names: string[];
-  /** How many of `names` you labeled (the rest were only removed by their registrar). */
-  restorable: number;
+  /** Those of `names` that can go back: labeled by you, still in an account. */
+  restorable: string[];
   onDone?: () => void;
   onClose: () => void;
 }) {
   const restoreOwned = useAppStore((s) => s.restoreOwned);
+  const restorable = restorableNames.length;
   const skipped = names.length - restorable;
   return (
     <ActionDialog
@@ -115,17 +117,17 @@ export function RestoreOwnedDialog({
       names={names}
       description={
         restorable === 0
-          ? 'None of these is marked Sold, Dropped, or Archived. Their registrars removed them; dismiss their alerts on the Activity page instead.'
+          ? 'None of these is still in one of your accounts with a label to undo. A name that left your accounts stays Sold, Dropped, or Archived.'
           : `Undoes Sold, Dropped, or Archived${
               skipped > 0
-                ? `. ${count(skipped)} ${skipped === 1 ? 'was' : 'were'} removed by the registrar and will stay in Archive.`
+                ? `. ${count(skipped)} ${skipped === 1 ? 'isn’t' : 'aren’t'} in any of your accounts and will stay in Archive.`
                 : '.'
             }`
       }
       actionLabel="Move back to Owned"
       disabled={restorable === 0}
       onConfirm={async () => {
-        await restoreOwned(names);
+        await restoreOwned(restorableNames);
         toast.success(`Moved ${count(restorable)} back to Owned`);
         onDone?.();
       }}

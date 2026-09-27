@@ -35,8 +35,9 @@ import {
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell): a
  * per-domain refresh, the actions that aren't a column (forwarding, auth code,
  * renew), a Folder submenu (a folder, Hidden, or None), and the ownership
- * actions: Sold, Dropped, and Archived move a name to Archive; "Move back to
- * Owned" undoes yours; Delete forgets the name. Registrar-backed items the
+ * states, the same as on Activity: Sold, Dropped, or Archived (the one it's in
+ * is disabled; a new one replaces yours), "Move back to Owned" for a labeled
+ * name an account still holds, and Delete to forget the name. Registrar-backed items the
  * registrar can't do are disabled with the reason as their tooltip. Disabled
  * outright while a write for this row is in flight.
  */
@@ -78,8 +79,10 @@ export function RowActionsMenu({
   onRestoreOwned: () => void;
   onDelete: () => void;
 }) {
-  // Label a name you own, or one sync saw leave; undo one you labeled.
-  const canLabel = archive === null || archive === 'removed';
+  // A name you labeled that an account still holds can go back to Owned. One
+  // gone from every account stays Sold, Dropped, or Archived.
+  const labeled =
+    archive === 'sold' || archive === 'dropped' || archive === 'archived';
   const key = domainKey(domain);
   const pending = useAppStore((s) => s.mutating[key] ?? false);
   const urlReason = useOpUnsupportedReason(domain.registrar, {
@@ -151,29 +154,28 @@ export function RowActionsMenu({
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
-        {canLabel ? (
-          <>
-            <DropdownMenuItem onSelect={onMarkSold}>
-              <BadgeDollarSign className="text-muted-foreground" />
-              Mark sold<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onMarkDropped}>
-              <CircleOff className="text-muted-foreground" />
-              Mark dropped
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onMarkArchived}>
-              <Archive className="text-muted-foreground" />
-              Archive
-            </DropdownMenuItem>
-          </>
-        ) : (
-          <DropdownMenuItem onSelect={onRestoreOwned}>
+        <DropdownMenuItem disabled={archive === 'sold'} onSelect={onMarkSold}>
+          <BadgeDollarSign className="text-muted-foreground" />
+          Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={archive === 'dropped'}
+          onSelect={onMarkDropped}
+        >
+          <CircleOff className="text-muted-foreground" />
+          Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={archive === 'archived'}
+          onSelect={onMarkArchived}
+        >
+          <Archive className="text-muted-foreground" />
+          Archive<span className="-ml-[6px] opacity-50">…</span>
+        </DropdownMenuItem>
+        {!domain.departed && (
+          <DropdownMenuItem disabled={!labeled} onSelect={onRestoreOwned}>
             <Undo2 className="text-muted-foreground" />
-            {/* Still in an account: back to Owned. Gone from every account:
-                undoing the label leaves it as "Removed from registrar". */}
-            {domain.departed
-              ? `Undo ${archive === 'sold' ? 'Sold' : archive === 'dropped' ? 'Dropped' : 'Archived'}`
-              : 'Move back to Owned'}
+            Move back to Owned
           </DropdownMenuItem>
         )}
         {!domain.departed && (

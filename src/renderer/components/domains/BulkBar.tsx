@@ -70,7 +70,7 @@ export function BulkBar({
   /** Open the bulk dialog for an op kind (its value is chosen there). */
   onKind: (kind: DomainOpKind) => void;
   onViewJob: () => void;
-  /** Archive shows Move back to Owned instead of Sold, Dropped, Archive. */
+  /** Archive adds Move back to Owned (for names an account still holds). */
   archiveView: boolean;
   onOwnership: (action: OwnershipAction) => void;
 }) {
@@ -214,27 +214,24 @@ export function BulkBar({
               Export CSV
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {archiveView ? (
+            <DropdownMenuItem onSelect={() => onOwnership('sold')}>
+              <BadgeDollarSign className="text-muted-foreground" />
+              Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onOwnership('dropped')}>
+              <CircleOff className="text-muted-foreground" />
+              Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onOwnership('archived')}>
+              <Archive className="text-muted-foreground" />
+              Archive<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+            {archiveView && (
               <DropdownMenuItem onSelect={() => onOwnership('restore')}>
                 <Undo2 className="text-muted-foreground" />
                 Move back to Owned
                 <span className="-ml-[6px] opacity-50">…</span>
               </DropdownMenuItem>
-            ) : (
-              <>
-                <DropdownMenuItem onSelect={() => onOwnership('sold')}>
-                  <BadgeDollarSign className="text-muted-foreground" />
-                  Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onOwnership('dropped')}>
-                  <CircleOff className="text-muted-foreground" />
-                  Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onOwnership('archived')}>
-                  <Archive className="text-muted-foreground" />
-                  Archive<span className="-ml-[6px] opacity-50">…</span>
-                </DropdownMenuItem>
-              </>
             )}
             <DropdownMenuItem
               variant="destructive"
