@@ -172,16 +172,16 @@ work.
 
 ### Columns
 
-| Column    | Content                                                                          |
-| --------- | -------------------------------------------------------------------------------- |
-| ☐         | Selection                                                                        |
-| Date      | The event's day; the exact time on hover                                         |
-| Domain    | The name (Unicode), with the row's ⋯ menu at its right edge                      |
-| Type      | A badge colored by group: in (blue), sold (green), moved (purple), lost (gray)   |
+| Column    | Content                                                                         |
+| --------- | ------------------------------------------------------------------------------- |
+| ☐         | Selection                                                                       |
+| Date      | The event's day; the exact time on hover                                        |
+| Domain    | The name (Unicode), with the row's ⋯ menu at its right edge                     |
+| Type      | A badge colored by group: in (blue), sold (green), moved (purple), lost (gray)  |
 | Registrar | Registrar logo and account label; from → to for a move; blank when there's none |
-| Details   | Amount and currency, years, venue later                                          |
-| Source    | You, Sync, Import, Lookup (renamed from "By")                                    |
-| Status    | "Needs review" with a priority dot and an × to dismiss it; blank otherwise       |
+| Details   | Amount and currency, years, venue later                                         |
+| Source    | You, Sync, Import, Lookup (renamed from "By")                                   |
+| Status    | "Needs review" with a priority dot and an × to dismiss it; blank otherwise      |
 
 - **One row per thing that happened.** Answering an alert doesn't add a row:
   your answer takes the alert's row, so "Removed" becomes "Dropped" in place
