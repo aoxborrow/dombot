@@ -30,6 +30,10 @@ export interface DemoAccount {
   credentials: RegistrarCredentials;
   /** How many of the generated domains land here. */
   share: number;
+  /** Every call to this account fails this way, so the demo shows sync
+   *  errors: `auth` is a rejected key, `access` an account without API
+   *  access. Such an account holds no domains. */
+  failure?: 'auth' | 'access';
 }
 
 export interface DemoFolder {
@@ -54,8 +58,9 @@ export const DEFAULT_DEMO_SIZE = 524;
 const MAX_LABEL_REPEATS = 2;
 
 // ── the registrars in the demo ───────────────────────────────────────────────
-// Shares sum to 1. Gandi, NameSilo, NameBright and Name.com are left
-// unconfigured so the settings page shows both states.
+// Shares sum to 1. Gandi and NameBright are left unconfigured so the settings
+// page shows both states. NameSilo and Name.com are connected but always fail
+// to sync, so the bell, the status bar, and their cards show sync errors.
 
 const ACCOUNTS: Omit<DemoAccount, 'id'>[] = [
   {
@@ -109,6 +114,23 @@ const ACCOUNTS: Omit<DemoAccount, 'id'>[] = [
       apiSecret: 'demo_ss_secret_1a3c5e7b9d2f4a6c',
     },
     share: 0.04,
+  },
+  {
+    registrar: 'namesilo',
+    label: 'Default',
+    credentials: { apiKey: 'demo_nsl_expired_4d6f8a0c2e4b' },
+    share: 0,
+    failure: 'auth',
+  },
+  {
+    registrar: 'namecom',
+    label: 'Default',
+    credentials: {
+      username: 'demo-portfolio',
+      apiToken: 'demo_ncom_9b1d3f5a7c9e1b3d',
+    },
+    share: 0,
+    failure: 'access',
   },
 ];
 
@@ -872,7 +894,12 @@ export function generateDemoSeed(
   // Deal domains to accounts by share (largest remainder keeps the total exact).
   const quotas = accounts.map((a) => Math.floor(a.share * size));
   let left = size - quotas.reduce((n, q) => n + q, 0);
-  for (let i = 0; left > 0; i = (i + 1) % quotas.length, left--) quotas[i]++;
+  // Failing accounts (share 0) never get one.
+  for (let i = 0; left > 0; i = (i + 1) % quotas.length) {
+    if (accounts[i].share === 0) continue;
+    quotas[i]++;
+    left--;
+  }
 
   accounts.forEach((account, ai) => {
     for (let i = 0; i < quotas[ai]; i++) {

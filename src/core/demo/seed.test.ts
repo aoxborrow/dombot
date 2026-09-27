@@ -34,6 +34,10 @@ describe('generateDemoSeed', () => {
       expect(getBaseRenewal(r.registrar, tldOf(r.domainName))).not.toBeNull();
     }
     for (const a of seed.accounts) {
+      if (a.failure) {
+        expect(counts.has(a.id)).toBe(false); // always fails to sync
+        continue;
+      }
       expect(counts.get(a.id)).toBeGreaterThanOrEqual(
         Math.floor(a.share * DEFAULT_DEMO_SIZE),
       );
@@ -59,7 +63,9 @@ describe('generateDemoSeed', () => {
         ['expired', 'grace', 'redemption'].includes(r.status),
       ),
     ).toBe(true);
-    expect(seed.records.filter((r) => r.status === 'grace').length).toBeGreaterThan(0);
+    expect(
+      seed.records.filter((r) => r.status === 'grace').length,
+    ).toBeGreaterThan(0);
     expect(
       seed.records.filter((r) => r.status === 'redemption').length,
     ).toBeGreaterThan(0);

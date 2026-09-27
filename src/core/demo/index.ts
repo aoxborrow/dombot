@@ -63,9 +63,11 @@ export async function installDemo(
   const world = new DemoWorld(seed.records);
   let latencyMs = options.latencyMs ?? 0;
 
+  const failures = new Map(seed.accounts.map((a) => [a.id, a.failure]));
   configureRegistrarFactory((name: RegistrarName, _credentials, accountId) => {
     return new DemoRegistrar(name, accountId, world, {
       latencyMs: () => latencyMs,
+      failure: failures.get(accountId ?? name),
     });
   });
   resetRegistrarClients();
