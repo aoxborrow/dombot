@@ -212,7 +212,7 @@ rows each action skips.
 - **No action buttons.** The title reads "Notifications · 5 need review";
   "View activity" at the top right always opens Activity on Needs review.
   No footer.
-- **Capped at about eight rows.** More shows as "and N more".
+- **Capped at ten rows.** More shows as "and N more".
 - **Recent moves drop out.** They're history, and Activity has them.
 - **Badge:** it counts notifications and takes the most severe color: red
   for errors, amber for high, gray when only low-priority items are waiting.

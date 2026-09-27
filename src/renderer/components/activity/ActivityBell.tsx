@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/popover';
 
 /** Rows the dropdown shows before "and N more". */
-const SHOWN = 8;
+const SHOWN = 10;
 
 const BADGE_TONE: Record<Severity, string> = {
   error: 'bg-destructive text-white',
@@ -84,7 +84,7 @@ export function ActivityBell() {
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="flex max-h-[70vh] w-[340px] flex-col p-0"
+        className="flex max-h-[70vh] w-[min(420px,calc(100vw-2rem))] flex-col p-0"
       >
         <div className="flex items-center justify-between border-b px-3 py-2">
           <p className="text-sm font-medium">
