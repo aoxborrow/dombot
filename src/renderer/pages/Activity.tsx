@@ -29,6 +29,10 @@ import { resolvedIds } from '../../shared/sync-diff';
 import { RegistrarLogo } from '../components/RegistrarLogo';
 import { alertDomain } from '../components/activity/AlertActions';
 import {
+  EventTypeBadge,
+  EventTypeDot,
+} from '../components/activity/EventTypeBadge';
+import {
   DispositionDialog,
   MarkSoldDialog,
 } from '../components/actions/OwnershipDialogs';
@@ -67,19 +71,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-/** Type badge colors: arrivals green, departures amber, moves blue, … */
-const TYPE_STYLE: Record<DomainEvent['type'], string> = {
-  added: 'border-brand/40 text-brand-600 dark:text-brand',
-  removed: 'border-amber-500/40 text-amber-600 dark:text-amber-400',
-  moved: 'border-sky-500/40 text-sky-600 dark:text-sky-400',
-  registered: 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
-  purchased: 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
-  sold: 'border-violet-500/40 text-violet-600 dark:text-violet-400',
-  dropped: 'border-red-500/40 text-red-600 dark:text-red-400',
-  archived: 'border-border text-muted-foreground',
-  renewed: 'border-teal-500/40 text-teal-600 dark:text-teal-400',
-};
 
 /** Open alerts stand out, by priority. */
 const ROW_TINT: Record<ReviewPriority, string> = {
@@ -164,6 +155,7 @@ export default function Activity() {
       value: t,
       label: VERB[t],
       count: counts.get(t),
+      icon: <EventTypeDot type={t} />,
     }));
   }, [events]);
   const accountOptions = useMemo(() => {
@@ -349,11 +341,7 @@ export default function Activity() {
     {
       key: 'type',
       label: 'Type',
-      cell: (e) => (
-        <Badge variant="outline" className={TYPE_STYLE[e.type]}>
-          {VERB[e.type]}
-        </Badge>
-      ),
+      cell: (e) => <EventTypeBadge type={e.type} />,
     },
     {
       key: 'account',

@@ -220,7 +220,8 @@ export function DataTable<T>({
               })}
             </TableRow>
           </TableHeader>
-          <TableBody>
+          {/* The last row keeps its border: short tables don't fill the area. */}
+          <TableBody className="[&_tr:last-child]:border-b!">
             {visible.map((row) => {
               const key = rowKey(row);
               const isSelected = !!selection?.selected.has(key);

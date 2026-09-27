@@ -6,10 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SyncErrorsAlert } from '../components/SyncErrorsAlert';
 import {
-  Archive,
-  BadgeDollarSign,
-  CircleOff,
-  DoorOpen,
   EyeOff,
   Building2,
   CalendarClock,
@@ -60,6 +56,10 @@ import { FolderIcon } from '../components/icons/FolderIcon';
 import { FolderOffIcon } from '../components/icons/FolderOffIcon';
 import { FolderMenuItems } from '../components/domains/FolderMenuItems';
 import { OwnershipSwitch } from '../components/domains/OwnershipSwitch';
+import {
+  EventTypeBadge,
+  EventTypeDot,
+} from '../components/activity/EventTypeBadge';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { purchaseColumns } from '../components/domains/purchase-columns';
@@ -295,32 +295,19 @@ function FolderCell({
   );
 }
 
-const ARCHIVE_ICON: Record<ArchiveLabel, typeof Archive> = {
-  sold: BadgeDollarSign,
-  dropped: CircleOff,
-  archived: Archive,
-  removed: DoorOpen,
-};
-
 /**
- * In Archive the Folder column shows why the name is there instead: Sold,
- * Dropped, Archived, or Removed from registrar (sync saw it go; label it from the
- * row menu). Display only.
+ * In Archive the Folder column shows why the name is there instead: its latest
+ * ownership event, as the same badge Activity shows (Sold, Dropped,
+ * Archived, or Removed: sync saw it go; label it from the row menu).
  */
 function ArchiveStatusCell({ label }: { label: ArchiveLabel | null }) {
   if (!label) return null;
-  const Icon = ARCHIVE_ICON[label];
   return (
-    <span
-      className={cn(
-        'flex items-center gap-2 px-3 py-3 text-sm compact:px-2 compact:py-[9px] compact:text-xs',
-        label === 'removed'
-          ? 'text-amber-600 dark:text-amber-400'
-          : 'text-muted-foreground',
-      )}
-    >
-      <Icon className="size-4 shrink-0" aria-hidden />
-      <span className="truncate">{ARCHIVE_LABEL[label]}</span>
+    <span className="flex items-center px-3 py-3 compact:px-2 compact:py-[9px]">
+      <EventTypeBadge
+        type={label}
+        title={label === 'removed' ? 'Removed from registrar' : undefined}
+      />
     </span>
   );
 }
@@ -1078,17 +1065,12 @@ export default function Domains() {
         icon: <EyeOff className="size-4 shrink-0" aria-hidden />,
       });
       const statusOptions = (
-        [
-          ['sold', BadgeDollarSign],
-          ['dropped', CircleOff],
-          ['archived', Archive],
-          ['removed', DoorOpen],
-        ] as const
-      ).map(([label, Icon]) => ({
+        ['sold', 'dropped', 'archived', 'removed'] as const
+      ).map((label) => ({
         value: label,
         label: ARCHIVE_LABEL[label],
         count: status[label],
-        icon: <Icon className="size-4 shrink-0" aria-hidden />,
+        icon: <EventTypeDot type={label} />,
       }));
       const userFolderCount = Object.values(counts).reduce((n, c) => n + c, 0);
       return {

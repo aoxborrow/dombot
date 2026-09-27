@@ -22,6 +22,7 @@ import {
   getPortfolio,
 } from '../../core/services/registrars';
 import { listEvents } from '../../core/services/domain-events';
+import { localDay } from '../../shared/domain-events';
 import { setDispositions } from '../../core/services/domain-history';
 import { setPurchase, setSale } from '../../core/services/purchases';
 import { MemoryDocStore } from '../../core/storage/doc-store';
@@ -143,7 +144,7 @@ function recordSampleHistory(): void {
   if (sold) {
     setSale({
       domainName: sold.domain,
-      saleDate: new Date().toISOString().slice(0, 10),
+      saleDate: localDay(),
       amount: '2500',
       currency: 'USD',
       notes: '',
@@ -158,8 +159,7 @@ function recordSampleHistory(): void {
     );
   }
   const owned = getMergedPortfolio().domains.map((d) => d.domainName);
-  const day = (daysAgo: number) =>
-    new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
+  const day = (daysAgo: number) => localDay(Date.now() - daysAgo * 86_400_000);
   owned.slice(3, 5).forEach((domainName, i) =>
     setPurchase({
       domainName,
