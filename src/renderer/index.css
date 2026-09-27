@@ -59,6 +59,13 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Top tab strip (TabStrip): --tab-bar is the header shell behind the tabs;
+     unselected tabs sit a shade deeper than --muted so they read on white. */
+  --tab-bar: oklch(0.955 0 0);
+  --tab: oklch(0.915 0 0);
+  --tab-foreground: oklch(0.45 0 0);
+  --tab-border: oklch(0.88 0 0);
+  --tab-shadow: rgb(0 0 0 / 0.14);
   /* Floating menus: wide ambient layer + tight contact layer. */
   --dropdown-shadow:
     0 18px 50px 6px rgb(0 0 0 / 0.12), 0 4px 16px rgb(0 0 0 / 0.08);
@@ -101,6 +108,11 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --tab-bar: oklch(0.2 0 0);
+  --tab: var(--muted);
+  --tab-foreground: var(--muted-foreground);
+  --tab-border: oklch(1 0 0 / 6%);
+  --tab-shadow: rgb(0 0 0 / 0.35);
   --dropdown-shadow:
     0 18px 50px 6px rgb(0 0 0 / 0.75), 0 4px 16px rgb(0 0 0 / 0.6);
 }
@@ -143,6 +155,10 @@
   --color-primary: var(--primary);
   --color-brand: var(--brand);
   --color-flag-off: var(--flag-off);
+  --color-tab-bar: var(--tab-bar);
+  --color-tab: var(--tab);
+  --color-tab-foreground: var(--tab-foreground);
+  --color-tab-border: var(--tab-border);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
