@@ -60,19 +60,22 @@ export function SaleDialog({
     settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
   const existing = purchases[toAscii(domain.domainName)];
+  // Marking Sold, or answering an alert, records a new sale: start blank
+  // rather than from an earlier one. The note belongs to the name.
+  const sale = mode === 'mark' || resolves ? undefined : existing;
 
-  const [date, setDate] = useState(existing?.saleDate ?? '');
+  const [date, setDate] = useState(sale?.saleDate ?? '');
   const [amount, setAmount] = useState(
-    existing?.saleAmount
+    sale?.saleAmount
       ? formatAmountInput(
-          existing.saleAmount,
-          existing.saleCurrency ?? preferred,
+          sale.saleAmount,
+          sale.saleCurrency ?? preferred,
           formatId,
         )
       : '',
   );
   const [currency, setCurrency] = useState(
-    existing?.saleCurrency ?? existing?.currency ?? preferred,
+    sale?.saleCurrency ?? existing?.currency ?? preferred,
   );
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
