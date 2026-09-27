@@ -68,8 +68,18 @@ export function useSyncState() {
           }`
         : 'Click to sync your portfolio';
 
+  // Why a sync can't run now, short enough for a toast.
+  const reason = bulkRunning
+    ? 'A bulk action is running. Sync when it finishes.'
+    : noneConfigured
+      ? 'Add a registrar in Settings first.'
+      : tooSoon
+        ? 'Just synced. Try again in a minute.'
+        : null;
+
   return {
     sync: () => void loadPortfolio(),
+    reason,
     syncing: portfolioLoading,
     disabled: portfolioLoading || tooSoon || noneConfigured || bulkRunning,
     title,

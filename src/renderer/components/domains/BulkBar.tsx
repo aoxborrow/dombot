@@ -78,6 +78,9 @@ export function BulkBar({
   const running = bulk?.status === 'running';
 
   const registrarCount = new Set(domains.map((d) => d.registrar)).size;
+  // Registrar actions need a name an account still holds; Archive rows that
+  // left every account only get the ownership states, Export, and Delete.
+  const held = domains.filter((d) => !d.departed).length;
 
   if (domains.length === 0 && !running) return null;
 
@@ -133,82 +136,95 @@ export function BulkBar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuItem onSelect={onRefresh}>
-              <RefreshCw className="text-muted-foreground" />
-              Refresh
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <FolderIcon className="text-muted-foreground" />
-                Folder
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="max-h-[320px] w-52 overflow-y-auto">
-                <FolderMenuItems
-                  folders={folders}
-                  emptyState
-                  onAssign={onAssignFolder}
-                />
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('autoRenew')}
-            >
-              <RefreshCw className="text-muted-foreground" />
-              Auto-renew<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('privacy')}
-            >
-              <EyeOff className="text-muted-foreground" />
-              WHOIS privacy<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('lock')}
-            >
-              <Lock className="text-muted-foreground" />
-              Transfer lock<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('nameservers')}
-            >
-              <Server className="text-muted-foreground" />
-              Nameservers<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('urlForwarding')}
-            >
-              <Link2 className="text-muted-foreground" />
-              URL forwarding<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('emailForwarding')}
-            >
-              <Mail className="text-muted-foreground" />
-              Email forwarding<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('renew')}
-            >
-              <CalendarPlus className="text-muted-foreground" />
-              Renew<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('authCode')}
-            >
-              <KeyRound className="text-muted-foreground" />
-              Get auth codes<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
+            {held > 0 && (
+              <>
+                <DropdownMenuItem onSelect={onRefresh}>
+                  <RefreshCw className="text-muted-foreground" />
+                  Refresh
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            {!archiveView && (
+              <>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <FolderIcon className="text-muted-foreground" />
+                    Folder
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="max-h-[320px] w-52 overflow-y-auto">
+                    <FolderMenuItems
+                      folders={folders}
+                      emptyState
+                      onAssign={onAssignFolder}
+                    />
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            {held > 0 && (
+              <>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('autoRenew')}
+                >
+                  <RefreshCw className="text-muted-foreground" />
+                  Auto-renew<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('privacy')}
+                >
+                  <EyeOff className="text-muted-foreground" />
+                  WHOIS privacy<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('lock')}
+                >
+                  <Lock className="text-muted-foreground" />
+                  Transfer lock<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('nameservers')}
+                >
+                  <Server className="text-muted-foreground" />
+                  Nameservers<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('urlForwarding')}
+                >
+                  <Link2 className="text-muted-foreground" />
+                  URL forwarding<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('emailForwarding')}
+                >
+                  <Mail className="text-muted-foreground" />
+                  Email forwarding
+                  <span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('renew')}
+                >
+                  <CalendarPlus className="text-muted-foreground" />
+                  Renew<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('authCode')}
+                >
+                  <KeyRound className="text-muted-foreground" />
+                  Get auth codes<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuItem onSelect={onExport}>
               <FileSpreadsheet className="text-muted-foreground" />
               Export CSV
@@ -226,7 +242,7 @@ export function BulkBar({
               <Archive className="text-muted-foreground" />
               Archive<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
-            {archiveView && (
+            {archiveView && held > 0 && (
               <DropdownMenuItem onSelect={() => onOwnership('restore')}>
                 <Undo2 className="text-muted-foreground" />
                 Move back to Owned

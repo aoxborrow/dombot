@@ -1224,9 +1224,11 @@ export default function Domains() {
   );
   // Bulk: re-fetch every selected domain's detail from its registrar, bypassing
   // the detail cache (their cells show skeletons while in flight).
+  // Registrar actions act on the selected names an account still holds.
+  const selectedHeld = selectedDomains.filter((d) => !d.departed);
   const bulkRefresh = () => {
-    const n = selectedDomains.length;
-    void enrichVisible(selectedDomains, true).then(() =>
+    const n = selectedHeld.length;
+    void enrichVisible(selectedHeld, true).then(() =>
       toast.success(`Refreshed ${n} domain${n === 1 ? '' : 's'}`),
     );
   };
@@ -1630,7 +1632,7 @@ export default function Domains() {
           onExport={() => void exportCsv(selectedDomains)}
           onAssignFolder={(folderId) => applyFolders(selectedDomains, folderId)}
           onKind={(kind) =>
-            setBulkDialog({ op: defaultBulkOp(kind, selectedDomains) })
+            setBulkDialog({ op: defaultBulkOp(kind, selectedHeld) })
           }
           onViewJob={() => {
             if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });
@@ -1710,7 +1712,7 @@ export default function Domains() {
       {bulkDialog && (
         <BulkActionDialog
           initialOp={bulkDialog.op}
-          domains={selectedDomains}
+          domains={selectedHeld}
           jobId={bulkDialog.jobId}
           onClose={() => setBulkDialog(null)}
         />

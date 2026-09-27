@@ -109,7 +109,7 @@ function SyncStatus() {
       window.api.onSyncRequested(() => {
         const now = latest.current;
         if (now.syncing) return;
-        if (now.disabled) toast.info(now.title);
+        if (now.disabled) toast.info(now.reason ?? now.title);
         else now.sync();
       }),
     [],
