@@ -62,14 +62,16 @@ export function ActivityBell() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
+          // No visible button: the bell brightens on hover, and the 32px box
+          // keeps the click area.
+          className="relative inline-flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:text-foreground"
           aria-label={
             count
               ? `Notifications: ${count} item${count === 1 ? '' : 's'} need${count === 1 ? 's' : ''} attention`
               : 'Notifications'
           }
         >
-          <Bell className="size-4" />
+          <Bell className="size-5" />
           {badge && (
             <span
               className={cn(
