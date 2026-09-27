@@ -873,8 +873,9 @@ function AccountLabel({
 
 /**
  * A row's "⋯" menu: set the name's state, record a purchase, dismiss its
- * review, open it in Domains, or delete it. The state it's already in, and
- * Dismiss on a row that doesn't need review, are disabled.
+ * review, open it in Domains, or delete it. The state it's already in,
+ * Archive once it's Sold or Dropped, and Dismiss on a row that doesn't need
+ * review are disabled.
  */
 function RowMenu({
   row,
@@ -920,8 +921,10 @@ function RowMenu({
           <CircleOff className="text-muted-foreground" />
           Mark as Dropped…
         </DropdownMenuItem>
+        {/* Archive is "gone, no reason given": for a name you own or one
+            sync saw leave, not one already Sold or Dropped. */}
         <DropdownMenuItem
-          disabled={is('archived')}
+          disabled={!!state?.label && state.label !== 'removed'}
           onSelect={() => set('archived')}
         >
           <Archive className="text-muted-foreground" />

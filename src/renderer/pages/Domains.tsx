@@ -1638,6 +1638,7 @@ export default function Domains() {
             if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });
           }}
           archiveView={archiveView}
+          archiveLabelOf={archiveLabelOf}
           onOwnership={(action) => openOwnership(action, selectedDomains)}
         />
       </div>

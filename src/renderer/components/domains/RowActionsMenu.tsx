@@ -35,9 +35,10 @@ import {
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell): a
  * per-domain refresh, the actions that aren't a column (forwarding, auth code,
  * renew), a Folder submenu (a folder, Hidden, or None), and the ownership
- * states, the same as on Activity: Sold, Dropped, or Archived (the one it's in
- * is disabled; a new one replaces yours), "Move back to Owned" for a labeled
- * name an account still holds, and Delete to forget the name. Registrar-backed items the
+ * states: Sold, Dropped, or Archived (the one it's in is disabled; a new one
+ * replaces yours; Archive only for an owned or just-removed name), "Move back
+ * to Owned" for a labeled name an account still holds, and Delete. A name in
+ * Archive gets no registrar actions: move it back to Owned first. Registrar-backed items the
  * registrar can't do are disabled with the reason as their tooltip. Disabled
  * outright while a write for this row is in flight.
  */
@@ -116,7 +117,7 @@ export function RowActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        {!domain.departed && (
+        {archive === null && (
           <>
             <DropdownMenuItem onSelect={onRefresh}>
               <RefreshCw className="text-muted-foreground" />
@@ -165,20 +166,21 @@ export function RowActionsMenu({
           <CircleOff className="text-muted-foreground" />
           Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={archive === 'archived'}
-          onSelect={onMarkArchived}
-        >
-          <Archive className="text-muted-foreground" />
-          Archive<span className="-ml-[6px] opacity-50">…</span>
-        </DropdownMenuItem>
-        {!domain.departed && (
-          <DropdownMenuItem disabled={!labeled} onSelect={onRestoreOwned}>
+        {/* For a name you own, or one sync saw leave ("gone, no reason
+            given"). A Sold or Dropped one already says why. */}
+        {(archive === null || archive === 'removed') && (
+          <DropdownMenuItem onSelect={onMarkArchived}>
+            <Archive className="text-muted-foreground" />
+            Archive<span className="-ml-[6px] opacity-50">…</span>
+          </DropdownMenuItem>
+        )}
+        {!domain.departed && labeled && (
+          <DropdownMenuItem onSelect={onRestoreOwned}>
             <Undo2 className="text-muted-foreground" />
             Move back to Owned
           </DropdownMenuItem>
         )}
-        {!domain.departed && (
+        {archive === null && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem

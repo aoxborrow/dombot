@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
+import type { ArchiveLabel } from '../../../shared/ownership';
 import { useAppStore } from '../../store/app';
 import { bulkOpTitle } from '../../lib/bulk';
 import { FolderIcon } from '../icons/FolderIcon';
@@ -57,6 +58,7 @@ export function BulkBar({
   onKind,
   onViewJob,
   archiveView,
+  archiveLabelOf,
   onOwnership,
 }: {
   /** The selected domains (merged rows). */
@@ -72,15 +74,18 @@ export function BulkBar({
   onViewJob: () => void;
   /** Archive adds Move back to Owned (for names an account still holds). */
   archiveView: boolean;
+  /** Why a name is in Archive, or null while you own it. */
+  archiveLabelOf: (d: Domain) => ArchiveLabel | null;
   onOwnership: (action: OwnershipAction) => void;
 }) {
   const bulk = useAppStore((s) => s.bulk);
   const running = bulk?.status === 'running';
 
   const registrarCount = new Set(domains.map((d) => d.registrar)).size;
-  // Registrar actions need a name an account still holds; Archive rows that
-  // left every account only get the ownership states, Export, and Delete.
+  // Archive offers only the ownership states, Export, and Delete: to act on a
+  // name at its registrar, move it back to Owned first.
   const held = domains.filter((d) => !d.departed).length;
+  const anyRemoved = domains.some((d) => archiveLabelOf(d) === 'removed');
 
   if (domains.length === 0 && !running) return null;
 
@@ -136,7 +141,7 @@ export function BulkBar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
-            {held > 0 && (
+            {!archiveView && (
               <>
                 <DropdownMenuItem onSelect={onRefresh}>
                   <RefreshCw className="text-muted-foreground" />
@@ -163,7 +168,7 @@ export function BulkBar({
                 <DropdownMenuSeparator />
               </>
             )}
-            {held > 0 && (
+            {!archiveView && (
               <>
                 <DropdownMenuItem
                   disabled={running}
@@ -238,10 +243,14 @@ export function BulkBar({
               <CircleOff className="text-muted-foreground" />
               Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onOwnership('archived')}>
-              <Archive className="text-muted-foreground" />
-              Archive<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
+            {/* In Archive, only a name sync saw leave can use it: "gone, no
+                reason given". A Sold or Dropped one already says why. */}
+            {(!archiveView || anyRemoved) && (
+              <DropdownMenuItem onSelect={() => onOwnership('archived')}>
+                <Archive className="text-muted-foreground" />
+                Archive<span className="-ml-[6px] opacity-50">…</span>
+              </DropdownMenuItem>
+            )}
             {archiveView && held > 0 && (
               <DropdownMenuItem onSelect={() => onOwnership('restore')}>
                 <Undo2 className="text-muted-foreground" />

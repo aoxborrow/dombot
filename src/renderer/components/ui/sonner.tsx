@@ -6,8 +6,7 @@ import { useTheme } from '@/components/theme-provider';
  * App-wide toast host (shadcn's sonner wrapper). Mount once near the app root;
  * fire toasts from anywhere with `toast(...)` from 'sonner'. Colors key off our
  * CSS variables so it matches the current theme, and it follows the app's
- * `useTheme()` (our 'auto' maps to sonner's 'system'). No close button: toasts
- * leave on their own, and hovering keeps them.
+ * `useTheme()` (our 'auto' maps to sonner's 'system').
  */
 function Toaster({ ...props }: ToasterProps) {
   const { theme } = useTheme();
@@ -17,6 +16,7 @@ function Toaster({ ...props }: ToasterProps) {
     <Sonner
       theme={resolved}
       richColors
+      closeButton
       className="toaster group"
       style={
         {
@@ -27,6 +27,11 @@ function Toaster({ ...props }: ToasterProps) {
       }
       toastOptions={{
         classNames: {
+          // Room on the right for the close button.
+          toast: '!pr-9',
+          // The close button sits inside the toast's top right, in its color.
+          closeButton:
+            '!left-auto !right-2 !top-2 !size-5 !transform-none !border-0 !bg-transparent !text-current opacity-60 hover:!bg-current/10 hover:opacity-100',
           // An action (Undo) is a small outlined button in the toast's own
           // color, not sonner's solid white one.
           actionButton:
