@@ -268,11 +268,7 @@ function compute(
             ...(removal ? { resolves: removal, dismissed: true } : {}),
           }),
         );
-        change(
-          'Status',
-          userLabel ? LABEL[label!] : null,
-          userLabel ? 'Owned' : 'Owned (new name)',
-        );
+        change('Status', userLabel ? LABEL[label!] : null, 'Owned');
       }
     }
     // A name you put in Archive goes back to Owned with an `added`, which

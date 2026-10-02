@@ -350,13 +350,21 @@ describe('rows', () => {
         sale: { date: '2024-05-01', amount: '900.00', currency: 'USD' },
       },
     ]);
+    // Noted on the first row, the one the review shows.
     expect(r.issues).toEqual([
       {
-        line: 3,
+        line: 2,
         domain: 'example.com',
         level: 'warning',
-        message: 'Rows 2 and 3 disagree on notes; using row 3.',
+        message:
+          "Duplicate of row 3, which has a different note; using row 3's.",
       },
+    ]);
+    const same = run(
+      ['Domain,Notes', 'a.example,hi', 'a.example,hi'].join('\n'),
+    );
+    expect(same.issues.map((i) => [i.line, i.message])).toEqual([
+      [2, 'Duplicate of row 3; combined.'],
     ]);
   });
 

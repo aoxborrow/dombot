@@ -377,6 +377,26 @@ function rowWarnings(row: ImportRow, today: string): string[] {
 // currency.
 type Flat = Record<string, unknown>;
 
+/** A merge key as a field name for the duplicate warning. */
+const MERGE_FIELD: Record<string, string> = {
+  status: 'status',
+  folder: 'folder',
+  notes: 'note',
+  'registration.registrar': 'registrar',
+  'registration.registrarLabel': 'registrar',
+  'registration.createdDate': 'created date',
+  'registration.expirationDate': 'expiry',
+  'registration.autoRenew': 'auto-renew',
+  renewal: 'renewal price',
+  asking: 'asking price',
+  'purchase.type': 'purchase type',
+  'purchase.date': 'purchase date',
+  'purchase.money': 'purchase amount',
+  'purchase.years': 'purchase years',
+  'sale.date': 'sale date',
+  'sale.money': 'sale amount',
+};
+
 function flatten(row: ImportRow): Flat {
   const out: Flat = {};
   const put = (key: string, value: unknown) => {
@@ -527,19 +547,25 @@ export function buildRows(
       continue;
     }
     merged++;
+    // Noted on the name's first row, which is the one the review shows.
+    const disagree: string[] = [];
     for (const [key, value] of Object.entries(flat)) {
       const before = existing.flat[key];
       if (before !== undefined && !same(before, value)) {
-        issues.push({
-          line,
-          domain,
-          level: 'warning',
-          message: `Rows ${existing.from.get(key)} and ${line} disagree on ${key.replace(/\..*/, '')}; using row ${line}.`,
-        });
+        const field = MERGE_FIELD[key] ?? key;
+        if (!disagree.includes(field)) disagree.push(field);
       }
       existing.flat[key] = value;
       existing.from.set(key, line);
     }
+    issues.push({
+      line: existing.line,
+      domain,
+      level: 'warning',
+      message: disagree.length
+        ? `Duplicate of row ${line}, which has a different ${disagree.join(', ')}; using row ${line}'s.`
+        : `Duplicate of row ${line}; combined.`,
+    });
   }
 
   const rows = [...byName].map(([domain, r]) =>

@@ -1399,14 +1399,14 @@ function ReviewStep({
         ))}
         <div className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
           <Stat
-            label="Left out"
+            label="Ignored rows"
             count={built.skipped}
-            title="Blank rows, repeated header rows, and rows with no domain name in them. They aren't imported."
+            title="Blank rows, repeated header rows, and rows with no domain name in them. They aren't imported or shown."
           />
           <Stat
-            label="Merged"
+            label="Duplicates"
             count={built.merged}
-            title="Rows for a name that appeared earlier in the file, combined with it into one row."
+            title="Rows for a name that's already earlier in the file. Each is combined into that name's row, which has a warning saying so."
           />
           <NewFolders names={plan.newFolders} />
         </div>
