@@ -25,7 +25,10 @@
   },
   "canspace": {
     "name": "CanSpace",
-    "ianaIds": []
+    "ianaIds": [],
+    "names": [
+      "CanSpace Solutions Inc."
+    ]
   },
   "cih": {
     "name": "CIH",
@@ -41,7 +44,7 @@
   },
   "directnic": {
     "name": "Directnic",
-    "ianaIds": []
+    "ianaIds": [291]
   },
   "domaincom": {
     "name": "Domain.com",
@@ -49,7 +52,7 @@
   },
   "dotology": {
     "name": "Dotology",
-    "ianaIds": []
+    "ianaIds": [637]
   },
   "dotster": {
     "name": "Dotster",
@@ -286,11 +289,15 @@
   },
   "godaddy": {
     "name": "GoDaddy",
-    "ianaIds": [146, 440, 1659, 3786]
+    "ianaIds": [146, 440, 1659, 3786],
+    "names": [
+      "Uniregistrar Corp",
+      "Uniregistry"
+    ]
   },
   "helloco": {
     "name": "Hello.co",
-    "ianaIds": []
+    "ianaIds": [1924]
   },
   "hexonet": {
     "name": "Hexonet",
@@ -435,7 +442,7 @@
   },
   "regtons": {
     "name": "Regtons",
-    "ianaIds": []
+    "ianaIds": [1505]
   },
   "sav": {
     "name": "Sav",

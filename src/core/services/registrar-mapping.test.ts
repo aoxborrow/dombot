@@ -85,6 +85,21 @@ describe('resolveRegistrar', () => {
     )?.toMatchObject({ registrar: 'dynadot' });
   });
 
+  // WHOIS often has only the `Registrar:` string, or an ID we can't parse.
+  it.each([
+    ['GoDaddy.com, LLC', 'GoDaddy'],
+    ['Uniregistrar Corp', 'GoDaddy'],
+    ['Wild West Domains, LLC', 'GoDaddy'],
+    ['Google LLC', 'Squarespace'],
+    ['1&1 IONOS SE', 'IONOS'],
+    ['TurnCommerce, Inc. DBA NameBright.com', 'NameBright'],
+    ['CanSpace Solutions Inc.', 'CanSpace'],
+    ['DNC Holdings, Inc.', 'Directnic'],
+    ['Gransy, s.r.o.', 'Regtons'],
+  ])('maps the WHOIS string %s to %s', (name, label) => {
+    expect(resolveRegistrar({ name })?.label).toBe(label);
+  });
+
   it("falls back to IANA's name, then the raw name", () => {
     const unmapped = [...iana.keys()].find(
       (id) => !Object.values(mapping).some((e) => e.ianaIds.includes(id)),

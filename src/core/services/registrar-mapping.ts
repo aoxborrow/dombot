@@ -127,7 +127,9 @@ export function ianaRegistrarName(id: number): string | null {
 /**
  * The registrar to show for a lookup result, tried in order: the IANA ID; the
  * name, against our mapped names and the IANA names of mapped IDs; IANA's name
- * for an unmapped ID; the raw name. Null when there's neither.
+ * for an unmapped ID; the raw name. Null when there's neither. Works from a
+ * name alone, for WHOIS results with no `Registrar IANA ID:` line (or one we
+ * couldn't parse) and for ccTLDs.
  */
 export function resolveRegistrar(input: {
   ianaId?: number | null;
