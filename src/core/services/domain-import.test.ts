@@ -83,6 +83,30 @@ describe('importing domains', () => {
     expect(purchase.resolves).toBeUndefined();
   });
 
+  it('answers an imported arrival by editing its purchase, not adding one', () => {
+    apply([
+      row('example.com', {
+        purchase: { date: '2020-01-01', amount: '100.00', currency: 'USD' },
+      }),
+    ]);
+    const arrival = listEvents().find((e) => e.type === 'added')!;
+    setPurchase({
+      domainName: 'example.com',
+      resolves: arrival.id,
+      purchaseDate: '2020-01-01',
+      amount: '120.00',
+      currency: 'USD',
+      notes: '',
+    });
+    const purchases = listEvents().filter((e) => e.type === 'purchased');
+    expect(purchases).toHaveLength(1);
+    expect(purchases[0]).toMatchObject({
+      amount: '120.00',
+      resolves: arrival.id,
+    });
+    expect(openReviews()).toEqual([]);
+  });
+
   it('changes nothing the second time', async () => {
     const rows = [
       row('example.com', {

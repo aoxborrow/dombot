@@ -33,6 +33,7 @@ describe('purchases', () => {
       amount: '0.00',
       currency: 'USD',
       purchaseType: 'purchased',
+      acquisitionId: expect.any(String),
       notes: 'hand reg',
       saleDate: null,
       saleAmount: null,
