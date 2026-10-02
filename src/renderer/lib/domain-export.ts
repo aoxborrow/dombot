@@ -43,6 +43,7 @@ export async function exportAllDomains(): Promise<number | null> {
     purchases: s.purchases,
     askingPrices: s.askingPrices,
     pricing: s.pricing,
+    manualPrices: await window.api.getManualPrices(),
     archiveLabel: (name) => ownership.get(name)?.label ?? null,
     accountName: (d) =>
       accountName(s.registrars, d.accountId ?? d.registrar) ??
