@@ -73,6 +73,7 @@ import {
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { purchaseColumns } from '../components/domains/purchase-columns';
+import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { AskingPriceDialog } from '../components/domains/AskingPriceDialog';
 import { ManualDomainDialog } from '../components/domains/ManualDomainDialog';
@@ -760,6 +761,7 @@ export default function Domains() {
     [registrars, portfolio],
   );
   const [purchaseFor, setPurchaseFor] = useState<Domain | null>(null);
+  const [importing, setImporting] = useState(false);
   // Asking price for one name (its cell or row menu) or the selection.
   const [askingFor, setAskingFor] = useState<Domain[] | null>(null);
   // Edit details for a manual name.
@@ -1636,7 +1638,7 @@ export default function Domains() {
             <Button
               variant="outline"
               className="gap-2"
-              onClick={() => navigate('/import')}
+              onClick={() => setImporting(true)}
             >
               <Upload className="size-4" />
               Import
@@ -1909,7 +1911,7 @@ export default function Domains() {
                   <Plug />
                   Configure registrars
                 </Button>
-                <Button variant="outline" onClick={() => navigate('/import')}>
+                <Button variant="outline" onClick={() => setImporting(true)}>
                   <Upload />
                   Import domains
                 </Button>
@@ -1973,6 +1975,7 @@ export default function Domains() {
           onClose={() => setBulkNotesFor(null)}
         />
       )}
+      {importing && <ImportDomainsDialog onClose={() => setImporting(false)} />}
       {purchaseFor && (
         <PurchaseDialog
           domain={purchaseFor}

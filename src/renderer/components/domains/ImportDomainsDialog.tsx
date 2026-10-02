@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CircleAlert, FileUp, Info, Pencil, Upload } from 'lucide-react';
-import { decodeText, toCsv } from '../../shared/csv';
-import { domainsCsvTemplate } from '../../shared/domain-csv';
-import { newEventId } from '../../shared/domain-events';
+import { decodeText, toCsv } from '../../../shared/csv';
+import { domainsCsvTemplate } from '../../../shared/domain-csv';
+import { newEventId } from '../../../shared/domain-events';
 import {
   MAX_IMPORT_ROWS,
   buildRows,
@@ -14,29 +14,40 @@ import {
   type ImportContext,
   type ImportSetup,
   type ImportTable,
-} from '../../shared/domain-import';
-import { IMPORT_FIELDS, type ImportField } from '../../shared/import-columns';
+} from '../../../shared/domain-import';
+import {
+  IMPORT_FIELDS,
+  type ImportField,
+} from '../../../shared/import-columns';
 import type {
   ImportChange,
   ImportOutcome,
   ImportPlan,
   ImportRow,
-} from '../../shared/ipc';
-import { toUnicode } from '../../shared/domain-name';
-import { DataTable, type DataColumn } from '../components/data-table/DataTable';
-import { sortRows, type SortDir } from '../components/data-table/table-state';
-import { CurrencyPicker } from '../components/domains/CurrencyPicker';
+} from '../../../shared/ipc';
+import { toUnicode } from '../../../shared/domain-name';
+import { DataTable, type DataColumn } from '../data-table/DataTable';
+import { sortRows, type SortDir } from '../data-table/table-state';
+import { CurrencyPicker } from './CurrencyPicker';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
   formatAmountInput,
   formatMoney,
   parseLocalizedAmount,
-} from '../../shared/money';
-import { useAppStore } from '../store/app';
+} from '../../../shared/money';
+import { useAppStore } from '../../store/app';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -98,7 +109,7 @@ const RESULT_STYLE: Record<ImportOutcome['result'], string> = {
   history: 'border-purple-500/40 text-purple-600 dark:text-purple-400',
 };
 
-export default function Import() {
+export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const settings = useAppStore((s) => s.settings);
   const registrars = useAppStore((s) => s.registrars);
@@ -141,18 +152,6 @@ export default function Import() {
   const [filter, setFilter] = useState<Filter>('all');
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-
-  function startOver() {
-    setStep('choose');
-    setResult(null);
-    setPlan(null);
-    setBuilt(null);
-    setTable(null);
-    setSetup(null);
-    setFileName(null);
-    setError(null);
-    setManual((m) => ({ ...m, names: '' }));
-  }
 
   // ── choose ────────────────────────────────────────────────────────────────
 
@@ -418,140 +417,66 @@ export default function Import() {
           ? 'Review what changes. Nothing is saved until you import.'
           : 'Done.';
 
+  // Matching and reviewing want the room; choosing stays compact.
+  const wide = step === 'match' || step === 'review';
+  // Leaving after columns are matched or a plan is built throws work away.
+  const requestClose = () => {
+    if (busy) return;
+    if (
+      (step === 'match' || step === 'review') &&
+      !window.confirm('Close the import? Nothing has been imported yet.')
+    )
+      return;
+    onClose();
+  };
+  const back = () =>
+    setStep(
+      step === 'review' && source === 'file' && !setup?.format?.exact
+        ? 'match'
+        : 'choose',
+    );
+
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col">
-      {/* -m-1 p-1 leaves room for focus rings, which the scroll box would clip. */}
-      <div
+    <Dialog open onOpenChange={(next) => !next && requestClose()}>
+      <DialogContent
         className={cn(
-          '-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1',
-          step !== 'review' && 'flex-1',
+          'flex flex-col gap-0 p-0 max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:rounded-none',
+          wide
+            ? 'h-[90dvh] sm:max-w-[min(1200px,94vw)]'
+            : 'max-h-[92dvh] sm:max-w-2xl',
         )}
       >
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-          <div>
-            <h1 className="text-2xl font-bold leading-none sm:text-[32px]">
-              Import
-            </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              {description}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {step === 'choose' && source === 'manual' && (
-              <Button
-                type="button"
-                disabled={busy || splitNames(manual.names).length === 0}
-                onClick={() => void addManual()}
-              >
-                {busy
-                  ? 'Reading…'
-                  : `Review ${splitNames(manual.names).length.toLocaleString('en-US')} name${splitNames(manual.names).length === 1 ? '' : 's'}`}
-              </Button>
-            )}
-            {step === 'match' && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
+        <DialogHeader className="gap-3 border-b px-6 pt-5 pb-4">
+          <DialogTitle>Import domains</DialogTitle>
+          <Stepper
+            steps={
+              source === 'manual'
+                ? ['Add names', 'Review', 'Done']
+                : ['Upload', 'Match columns', 'Review', 'Done']
+            }
+            current={
+              step === 'choose'
+                ? 0
+                : step === 'match'
+                  ? 1
+                  : step === 'review'
+                    ? source === 'manual'
+                      ? 1
+                      : 2
+                    : source === 'manual'
+                      ? 2
+                      : 3
+            }
+          />
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
 
-                  onClick={() => setStep('choose')}
-                >
-                  Back
-                </Button>
-                <Button
-                  type="button"
-                  disabled={
-                    busy ||
-                    !setup ||
-                    (!setup.columns.includes('domain') &&
-                      !setup.columns.includes('idn'))
-                  }
-                  title={
-                    setup &&
-                    !setup.columns.includes('domain') &&
-                    !setup.columns.includes('idn')
-                      ? 'Choose the column with the domain names.'
-                      : undefined
-                  }
-                  onClick={() => table && setup && void preview(table, setup)}
-                >
-                  {busy ? 'Reading…' : 'Review'}
-                </Button>
-              </>
-            )}
-            {step === 'review' && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-
-                  disabled={busy}
-                  onClick={() =>
-                    setStep(
-                      source === 'manual' || setup?.format?.exact
-                        ? 'choose'
-                        : 'match',
-                    )
-                  }
-                >
-                  Back
-                </Button>
-                {(errors.length > 0 ||
-                  plan?.outcomes.some((o) => o.warnings.length > 0)) && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => void downloadIssues()}
-                  >
-                    Download issues
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  disabled={busy || toImport === 0}
-                  onClick={() => void runImport()}
-                >
-                  {busy && progress !== null
-                    ? 'Importing…'
-                    : toImport === 0
-                      ? 'Nothing to import'
-                      : `Import ${toImport.toLocaleString('en-US')} name${toImport === 1 ? '' : 's'}`}
-                </Button>
-              </>
-            )}
-            {step === 'done' && result && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-
-                  onClick={() => {
-                    navigate(`/activity?import=${result.importId}`);
-                  }}
-                >
-                  View in Activity
-                </Button>
-                {result.plan.counts.new > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      navigate(`/activity?review=1&import=${result.importId}`);
-                    }}
-                  >
-                    Review new names
-                  </Button>
-                )}
-                <Button type="button" onClick={startOver}>
-                  Import more
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className={cn('flex flex-col', step === 'choose' && 'max-w-2xl')}>
+        <div
+          className={cn(
+            'flex min-h-0 flex-1 flex-col px-6 py-4',
+            step === 'review' ? 'overflow-hidden' : 'overflow-y-auto',
+          )}
+        >
           {step === 'choose' && (
             <Tabs
               value={source}
@@ -666,7 +591,29 @@ export default function Import() {
               onFilter={setFilter}
             />
           )}
-
+          {step === 'review' && built && plan && (
+            <ReviewTable
+              rows={reviewRows(built, plan).filter((r) =>
+                filter === 'all'
+                  ? true
+                  : filter === 'errors'
+                    ? r.result === 'error'
+                    : r.result === filter,
+              )}
+              registrars={ctx.registrars}
+              money={(amount, currency) =>
+                // A 0 in the file clears the amount.
+                Number(amount) === 0
+                  ? 'Clear'
+                  : formatMoney(
+                      amount,
+                      currency,
+                      preferred,
+                      settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+                    )
+              }
+            />
+          )}
           {step === 'done' && result && (
             <div className="flex flex-col gap-3 py-2 text-sm">
               <p>
@@ -707,31 +654,147 @@ export default function Import() {
             </div>
           )}
         </div>
-      </div>
-      {step === 'review' && built && plan && (
-        <ReviewTable
-          rows={reviewRows(built, plan).filter((r) =>
-            filter === 'all'
-              ? true
-              : filter === 'errors'
-                ? r.result === 'error'
-                : r.result === filter,
-          )}
-          registrars={ctx.registrars}
-          money={(amount, currency) =>
-            // A 0 in the file clears the amount.
-            Number(amount) === 0
-              ? 'Clear'
-              : formatMoney(
-                  amount,
-                  currency,
-                  preferred,
-                  settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
-                )
-          }
-        />
-      )}
-    </div>
+
+        <DialogFooter className="flex-row items-center gap-2 border-t px-6 py-3 sm:justify-between">
+          <div className="flex gap-2">
+            {(step === 'choose' || step === 'match' || step === 'review') && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={step === 'choose' ? requestClose : back}
+              >
+                {step === 'choose' ? 'Cancel' : 'Back'}
+              </Button>
+            )}
+            {step === 'done' && result && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  onClose();
+                  navigate(`/activity?import=${result.importId}`);
+                }}
+              >
+                View in Activity
+              </Button>
+            )}
+          </div>
+          <div className="ml-auto flex gap-2">
+            {step === 'choose' && source === 'manual' && (
+              <Button
+                type="button"
+                disabled={busy || splitNames(manual.names).length === 0}
+                onClick={() => void addManual()}
+              >
+                {busy
+                  ? 'Reading…'
+                  : `Review ${splitNames(manual.names).length.toLocaleString('en-US')} name${splitNames(manual.names).length === 1 ? '' : 's'}`}
+              </Button>
+            )}
+            {step === 'match' && (
+              <Button
+                type="button"
+                disabled={
+                  busy ||
+                  !setup ||
+                  (!setup.columns.includes('domain') &&
+                    !setup.columns.includes('idn'))
+                }
+                title={
+                  setup &&
+                  !setup.columns.includes('domain') &&
+                  !setup.columns.includes('idn')
+                    ? 'Choose the column with the domain names.'
+                    : undefined
+                }
+                onClick={() => table && setup && void preview(table, setup)}
+              >
+                {busy ? 'Reading…' : 'Review'}
+              </Button>
+            )}
+            {step === 'review' && (
+              <>
+                {(errors.length > 0 ||
+                  plan?.outcomes.some((o) => o.warnings.length > 0)) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => void downloadIssues()}
+                  >
+                    Download issues
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  disabled={busy || toImport === 0}
+                  onClick={() => void runImport()}
+                >
+                  {busy && progress !== null
+                    ? 'Importing…'
+                    : toImport === 0
+                      ? 'Nothing to import'
+                      : `Import ${toImport.toLocaleString('en-US')} name${toImport === 1 ? '' : 's'}`}
+                </Button>
+              </>
+            )}
+            {step === 'done' && result && (
+              <>
+                {result.plan.counts.new > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      onClose();
+                      navigate(`/activity?review=1&import=${result.importId}`);
+                    }}
+                  >
+                    Review new names
+                  </Button>
+                )}
+                <Button type="button" onClick={onClose}>
+                  Done
+                </Button>
+              </>
+            )}
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The wizard's steps, with the current one marked. */
+function Stepper({ steps, current }: { steps: string[]; current: number }) {
+  return (
+    <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      {steps.map((label, i) => (
+        <li key={label} className="flex items-center gap-2">
+          {i > 0 && <span className="h-px w-4 bg-border" aria-hidden />}
+          <span
+            className={cn(
+              'flex items-center gap-1.5',
+              i === current
+                ? 'font-medium text-foreground'
+                : 'text-muted-foreground',
+            )}
+            aria-current={i === current ? 'step' : undefined}
+          >
+            <span
+              className={cn(
+                'flex size-5 items-center justify-center rounded-full border text-[11px] tabular-nums',
+                i < current && 'border-brand bg-brand text-white',
+                i === current && 'border-brand text-brand',
+              )}
+            >
+              {i < current ? '✓' : i + 1}
+            </span>
+            {label}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }
 

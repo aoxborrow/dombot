@@ -7,7 +7,6 @@ import {
   Menu,
   RefreshCw,
   Settings as SettingsIcon,
-  Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -22,7 +21,6 @@ import { useAppStore } from './store/app';
 import Domains from './pages/Domains';
 import Renewals from './pages/Renewals';
 import Activity from './pages/Activity';
-import Import from './pages/Import';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
 import DemoBanner from './components/DemoBanner';
@@ -51,7 +49,6 @@ const TAB_OPTIONS: Record<
   '/': { metric: 'domains', pillFrom: 'md' },
   '/renewals': { metric: 'renewals', pillFrom: 'lg' },
   '/activity': { metric: 'activity', pillFrom: 'lg' },
-  '/import': { iconOnlyBelow: 'md' },
   '/settings': {
     pillFrom: 'lg',
     // The gear is drawn smaller than the other icons, so it's bumped up.
@@ -192,7 +189,6 @@ export default function App() {
           <Route path="/" element={<Domains />} />
           <Route path="/renewals" element={<Renewals />} />
           <Route path="/activity" element={<Activity />} />
-          <Route path="/import" element={<Import />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
@@ -213,7 +209,6 @@ const NAV_ITEMS = [
   { to: '/', label: 'Domains', icon: Globe },
   { to: '/renewals', label: 'Renewals', icon: CalendarClock },
   { to: '/activity', label: 'Activity', icon: History },
-  { to: '/import', label: 'Import', icon: Upload },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ] as const;
 
