@@ -760,6 +760,45 @@ function message(err: unknown): string {
 
 // ── match ───────────────────────────────────────────────────────────────────
 
+/** TEMP (dev builds only): `count` made-up names for the Manual tab. */
+function sampleNames(count: number): string[] {
+  const a = [
+    'swift',
+    'blue',
+    'quiet',
+    'bold',
+    'golden',
+    'lucky',
+    'clever',
+    'noble',
+    'prime',
+    'lunar',
+    'amber',
+    'velvet',
+  ];
+  const b = [
+    'harbor',
+    'finch',
+    'forge',
+    'summit',
+    'meadow',
+    'beacon',
+    'falcon',
+    'grove',
+    'lantern',
+    'orbit',
+    'raven',
+    'willow',
+  ];
+  const tlds = ['com', 'net', 'io', 'co', 'ai', 'app'];
+  const names = new Set<string>();
+  while (names.size < count)
+    names.add(
+      `${a[Math.floor(Math.random() * a.length)]}${b[Math.floor(Math.random() * b.length)]}${Math.floor(Math.random() * 90) + 10}.${tlds[Math.floor(Math.random() * tlds.length)]}`,
+    );
+  return [...names];
+}
+
 /**
  * Names typed or pasted, plus what to apply to all of them: an asking price
  * (with minimum offer and floor) and a folder.
@@ -779,7 +818,19 @@ function ManualTab({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <Label htmlFor="import-names">Domains</Label>
+        <div className="flex items-baseline justify-between">
+          <Label htmlFor="import-names">Domains</Label>
+          {/* TEMP (dev builds only): fills sample names to test larger imports. */}
+          {import.meta.env.DEV && (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              onClick={() => onChange({ names: sampleNames(120).join('\n') })}
+            >
+              Dev: fill 120 names
+            </button>
+          )}
+        </div>
         <Textarea
           id="import-names"
           rows={7}
@@ -789,8 +840,8 @@ function ManualTab({
           onChange={(e) => onChange({ names: e.target.value })}
         />
         <p className="text-xs text-muted-foreground">
-          One per line, or separated by commas. Names already in DomBot get the
-          price and folder too.
+          One per line, or separated by commas or spaces. New names are added to
+          Owned. You review every change before anything is saved.
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -851,8 +902,9 @@ function ManualTab({
         </div>
       </div>
       <p className="-mt-1 text-xs text-muted-foreground">
-        Leave the prices blank to add the names without one. A folder that
-        doesn&apos;t exist yet is created.
+        The price and folder go on every name above, replacing what a name
+        already has. A blank field leaves it alone. A folder that doesn&apos;t
+        exist yet is created.
       </p>
     </div>
   );
