@@ -437,3 +437,22 @@ describe('rows', () => {
     ]);
   });
 });
+
+describe('the template', () => {
+  it('imports cleanly, as DomBot CSV', async () => {
+    const { domainsCsvTemplate } = await import('./domain-csv');
+    const r = run(domainsCsvTemplate());
+    expect(r.issues).toEqual([]);
+    expect(r.rows.map((x) => [x.domain, x.status])).toEqual([
+      ['example.com', 'owned'],
+      ['example.net', 'owned'],
+      ['example.org', 'sold'],
+    ]);
+    expect(r.rows[1].asking).toEqual({
+      amount: '4800.00',
+      minOffer: '1500.00',
+      floor: '2500.00',
+      currency: 'USD',
+    });
+  });
+});

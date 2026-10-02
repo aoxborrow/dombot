@@ -21,6 +21,7 @@ import {
   SlidersHorizontal,
   Tag,
   TriangleAlert,
+  Upload,
 } from 'lucide-react';
 import type {
   Domain,
@@ -70,6 +71,7 @@ import { purchaseColumns } from '../components/domains/purchase-columns';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { AskingPriceDialog } from '../components/domains/AskingPriceDialog';
 import { ManualDomainDialog } from '../components/domains/ManualDomainDialog';
+import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
 import { NameserversCell } from '../components/domains/NameserversCell';
@@ -743,6 +745,7 @@ export default function Domains() {
   const [askingFor, setAskingFor] = useState<Domain[] | null>(null);
   // Edit details for a manual name.
   const [detailsFor, setDetailsFor] = useState<Domain | null>(null);
+  const [importing, setImporting] = useState(false);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
   // Mark as Sold for one name: the sale dialog, which takes the price.
   const [markSoldFor, setMarkSoldFor] = useState<Domain | null>(null);
@@ -1484,11 +1487,7 @@ export default function Domains() {
     if (d.manual && col.key === 'autoRenew')
       return (
         <span className="text-muted-foreground">
-          {manualDomains[toAscii(d.domainName)]?.autoRenew == null
-            ? '—'
-            : d.autoRenew
-              ? 'On'
-              : 'Off'}
+          {d.autoRenewUnknown ? '—' : d.autoRenew ? 'On' : 'Off'}
         </span>
       );
     if ((d.departed || d.manual) && (col.detail || col.key === 'autoRenew'))
@@ -1561,6 +1560,14 @@ export default function Domains() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => setImporting(true)}
+            >
+              <Upload className="size-4" />
+              Import
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="gap-2">
@@ -1821,13 +1828,19 @@ export default function Domains() {
                 </p>
                 <p className="mt-0.5">
                   Add API credentials for a registrar to load your domains into
-                  this table.
+                  this table, or import them from a spreadsheet.
                 </p>
               </div>
-              <Button onClick={() => navigate('/settings?tab=registrars')}>
-                <Plug />
-                Configure registrars
-              </Button>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button onClick={() => navigate('/settings?tab=registrars')}>
+                  <Plug />
+                  Configure registrars
+                </Button>
+                <Button variant="outline" onClick={() => setImporting(true)}>
+                  <Upload />
+                  Import domains
+                </Button>
+              </div>
             </div>
           ) : archiveView && archiveCount === 0 ? (
             'Names you mark Sold, Dropped, or Archived, and names that leave your accounts, show up here.'
@@ -1869,6 +1882,7 @@ export default function Domains() {
           onClose={() => setBulkDialog(null)}
         />
       )}
+      {importing && <ImportDomainsDialog onClose={() => setImporting(false)} />}
       {detailsFor && (
         <ManualDomainDialog
           domain={detailsFor}

@@ -27,6 +27,10 @@ import {
 import { isDemo } from '../../lib/platform';
 import { useAppStore } from '../../store/app';
 import { SettingsCard } from './SettingsCard';
+import { Download, Upload } from 'lucide-react';
+import { domainsCsvTemplate } from '../../../shared/domain-csv';
+import { exportAllDomains } from '../../lib/domain-export';
+import { ImportDomainsDialog } from '../../components/domains/ImportDomainsDialog';
 
 /** Auto-sync interval choices (minutes). `0` disables the background sync. */
 const INTERVAL_OPTIONS: { label: string; minutes: number }[] = [
@@ -118,6 +122,7 @@ export default function DataSettings() {
         </div>
       </SettingsCard>
 
+      <SpreadsheetCard />
       <ExportCard />
       <ImportCard />
 
@@ -143,6 +148,70 @@ export default function DataSettings() {
         </div>
       </SettingsCard>
     </div>
+  );
+}
+
+/**
+ * Your domains as a spreadsheet: import names (with what you paid, sold for,
+ * and are asking) from any CSV, export them all as a DomBot CSV, or start
+ * from the template (docs/domain-import-export.md).
+ */
+function SpreadsheetCard() {
+  const [importing, setImporting] = useState(false);
+
+  async function onExport() {
+    try {
+      const n = await exportAllDomains();
+      if (n !== null) toast.success(`Exported ${n} name${n === 1 ? '' : 's'}`);
+    } catch (err) {
+      toast.error('Export failed', {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  async function onTemplate() {
+    try {
+      const result = await window.api.saveTextFile(
+        domainsCsvTemplate(),
+        'dombot-domains-template.csv',
+      );
+      if (result.saved) toast.success('Template downloaded');
+    } catch (err) {
+      toast.error('Download failed', {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return (
+    <SettingsCard title="Spreadsheet" contentClassName="flex flex-col gap-3">
+      <p className="text-sm text-muted-foreground">
+        Import domains from a CSV: a DomBot export, a registrar or marketplace
+        export, or your own list. You match the columns and review every change
+        before anything is saved, and names already here are only added to.
+        Export writes every name, Owned and Archive, one per row, in a file
+        DomBot can import again.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button className="gap-2" onClick={() => setImporting(true)}>
+          <Upload className="size-4" />
+          Import domains…
+        </Button>
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => void onExport()}
+        >
+          <Download className="size-4" />
+          Export all domains
+        </Button>
+        <Button variant="ghost" onClick={() => void onTemplate()}>
+          Download template
+        </Button>
+      </div>
+      {importing && <ImportDomainsDialog onClose={() => setImporting(false)} />}
+    </SettingsCard>
   );
 }
 
@@ -177,12 +246,13 @@ function ExportCard() {
   return (
     <SettingsCard title="Export" contentClassName="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground">
-        Export everything — registrar keys, portfolio, folders, prices,
-        settings, and MCP pairings — as one JSON file. Use it as a backup or
-        to move to another DomBot. Leave the passphrase blank and anyone who
-        opens the file can read your registrar API keys. Type one and the file
-        is locked: Import asks for that same passphrase, and DomBot does not
-        keep a copy. If you forget it, the backup cannot be opened.
+        Export everything — registrar keys, portfolio, manual domains, folders,
+        prices, asking prices, history, settings, and MCP pairings — as one JSON
+        file. Use it as a backup or to move to another DomBot. Leave the
+        passphrase blank and anyone who opens the file can read your registrar
+        API keys. Type one and the file is locked: Import asks for that same
+        passphrase, and DomBot does not keep a copy. If you forget it, the
+        backup cannot be opened.
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
@@ -259,12 +329,12 @@ function ImportCard() {
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">
           Import replaces everything stored here with a backup file: registrar
-          keys, the saved domain list, folders, prices, purchase records,
-          settings, and MCP pairings. It does not contact your registrars. The
-          next Sync does. Names in the file that an account no longer has will
-          leave the list then, and names an account has that the file does not
-          will appear. Purchase records are kept either way, including for
-          names that are not in the list.
+          keys, the saved domain list, manual domains, folders, prices, asking
+          prices, history, settings, and MCP pairings. It does not contact your
+          registrars. The next Sync does. Names in the file that an account no
+          longer has will leave the list then, and names an account has that the
+          file does not will appear. Purchase records are kept either way,
+          including for names that are not in the list.
         </p>
         <div>
           <input
