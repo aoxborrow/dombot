@@ -32,6 +32,8 @@ import {
 import { ownershipByDomain, type Ownership } from '../../shared/ownership';
 import { resolvedIds } from '../../shared/sync-diff';
 import { RegistrarLogo } from '../components/RegistrarLogo';
+import { NotesButton } from '../components/domains/NotesButton';
+import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
   EventTypeBadge,
   EventTypeDot,
@@ -48,6 +50,7 @@ import {
   ResetButton,
   SearchField,
   ViewSwitch,
+  FILTERING_BORDER,
 } from '../components/data-table/Toolbar';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
@@ -76,6 +79,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { StickyNoteIcon } from '../components/icons/StickyNoteIcon';
 
 const PRIORITY_LABEL: Record<ReviewPriority, string> = {
   high: 'High',
@@ -113,7 +117,10 @@ interface ActivityRow {
 }
 
 type DialogState =
-  | { kind: 'sold' | 'dropped' | 'archived' | 'delete'; rows: ActivityRow[] }
+  | {
+      kind: 'sold' | 'dropped' | 'archived' | 'delete' | 'notes';
+      rows: ActivityRow[];
+    }
   | { kind: 'purchase'; row: ActivityRow };
 
 /**
@@ -158,6 +165,9 @@ export default function Activity() {
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dialog, setDialog] = useState<DialogState | null>(null);
+  // The row (by event id) whose notes editor is open.
+  const [notesFor, setNotesFor] = useState<string | null>(null);
+  const purchases = useAppStore((s) => s.purchases);
   // "Last N days" is measured from when the page opened.
   const [openedAt] = useState(() => Date.now());
 
@@ -220,11 +230,21 @@ export default function Activity() {
       for (const id of new Set(eventAccounts(event)))
         counts.set(id, (counts.get(id) ?? 0) + 1);
     return [...counts]
-      .map(([value, count]) => ({
-        value,
-        label: accountName(registrars, value) ?? value,
-        count,
-      }))
+      .map(([value, count]) => {
+        const meta = registrars?.find((r) => (r.accountId ?? r.name) === value);
+        return {
+          value,
+          label: accountName(registrars, value) ?? value,
+          count,
+          icon: meta && (
+            <RegistrarLogo
+              name={meta.name as RegistrarName}
+              label={meta.displayName}
+              className="size-4"
+            />
+          ),
+        };
+      })
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [allRows, registrars]);
   const sourceOptions = useMemo(() => {
@@ -448,20 +468,32 @@ export default function Activity() {
     {
       key: 'domain',
       label: 'Domain',
-      // The row's "⋯" menu, pinned to the cell's right edge like Domains'.
+      // The row's "⋯" menu, pinned to the cell's right edge like Domains',
+      // with the name's sticky note (when it has one) just before it.
       cell: (row) => (
         <div className="flex items-center justify-between gap-2">
           <span className="font-mono compact:text-[13px]">
             {toUnicode(row.event.domain)}
           </span>
-          <RowMenu
-            row={row}
-            state={stateOf(row.event)}
-            needsReview={!!priorityOf(row.event)}
-            onDialog={setDialog}
-            onDismiss={() => dismiss([row.event])}
-            onShow={() => showInDomains(row.event)}
-          />
+          <div className="flex items-center">
+            <NotesButton
+              domainName={toUnicode(row.event.domain)}
+              notes={purchases[toAscii(row.event.domain)]?.notes ?? ''}
+              editing={notesFor === row.event.id}
+              onEditingChange={(open) =>
+                setNotesFor(open ? row.event.id : null)
+              }
+            />
+            <RowMenu
+              row={row}
+              state={stateOf(row.event)}
+              needsReview={!!priorityOf(row.event)}
+              onDialog={setDialog}
+              onNotes={() => setNotesFor(row.event.id)}
+              onDismiss={() => dismiss([row.event])}
+              onShow={() => showInDomains(row.event)}
+            />
+          </div>
         </div>
       ),
     },
@@ -647,7 +679,11 @@ export default function Activity() {
             variant="outline"
             onClick={() => setFiltersOpen((o) => !o)}
             aria-expanded={filtersOpen}
-            className="gap-2 sm:hidden"
+            // Green, like Reset, while it's open or a filter is set.
+            className={cn(
+              'gap-2 sm:hidden',
+              (filtersOpen || activeGroups > 0) && FILTERING_BORDER,
+            )}
           >
             <SlidersHorizontal className="size-4 text-muted-foreground" />
             Filters
@@ -663,12 +699,8 @@ export default function Activity() {
               )}
             />
           </Button>
-          <div
-            className={cn(
-              'flex-wrap items-center gap-3 max-sm:basis-full sm:contents',
-              filtersOpen ? 'flex' : 'hidden',
-            )}
-          >
+          {/* Inline after the Filters toggle, as on Domains. */}
+          <div className={filtersOpen ? 'contents' : 'hidden sm:contents'}>
             {filterChips}
           </div>
           <ResetButton active={hasActiveFilters} onReset={resetFilters} />
@@ -707,6 +739,15 @@ export default function Activity() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
+                <BulkItem
+                  icon={StickyNoteIcon}
+                  label="Notes"
+                  count={namesOf(selectedRows).length}
+                  onSelect={() =>
+                    setDialog({ kind: 'notes', rows: selectedRows })
+                  }
+                />
+                <DropdownMenuSeparator />
                 <BulkItem
                   icon={Receipt}
                   label="Mark as Sold"
@@ -847,6 +888,12 @@ export default function Activity() {
           onClose={() => setDialog(null)}
         />
       )}
+      {dialog?.kind === 'notes' && (
+        <BulkNotesDialog
+          domainNames={namesOf(dialog.rows).map((e) => e.domain)}
+          onClose={() => setDialog(null)}
+        />
+      )}
       {dialog?.kind === 'delete' && (
         <DeleteDomainsDialog
           domains={namesOf(dialog.rows).map((e) => ({
@@ -897,6 +944,7 @@ function RowMenu({
   state,
   needsReview,
   onDialog,
+  onNotes,
   onDismiss,
   onShow,
 }: {
@@ -904,6 +952,7 @@ function RowMenu({
   state: Ownership | undefined;
   needsReview: boolean;
   onDialog: (dialog: DialogState) => void;
+  onNotes: () => void;
   onDismiss: () => void;
   onShow: () => void;
 }) {
@@ -919,12 +968,16 @@ function RowMenu({
           size="icon-sm"
           aria-label={`Actions for ${name}`}
           title="Actions"
-          className="-my-2 text-muted-foreground hover:text-foreground compact:size-7"
+          className="-my-2 w-7 text-muted-foreground hover:text-foreground compact:h-7 compact:w-6"
         >
           <Ellipsis />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem onSelect={onNotes}>
+          <StickyNoteIcon className="text-muted-foreground" />
+          Notes…
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onDialog({ kind: 'purchase', row })}>
           <Calculator className="text-muted-foreground" />
           Purchase details…
