@@ -1,0 +1,3 @@
+# Scratch space: everything in temp/ stays out of git except this file.
+*
+!.gitignore

@@ -33,7 +33,7 @@
     "import/no-unresolved": "off",
     "react-hooks/set-state-in-effect": "off"
   },
-  "ignorePatterns": [".vite", "out", "dist", "node_modules"],
+  "ignorePatterns": [".vite", "out", "dist", "node_modules", "temp"],
   "overrides": [
     {
       "files": ["src/core/**/*.ts", "src/shared/**/*.ts"],
