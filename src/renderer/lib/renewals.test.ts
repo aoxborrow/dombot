@@ -233,6 +233,35 @@ describe('dueWithin', () => {
     });
     expect(dueWithin([at], {}, 10).count).toBe(1);
   });
+
+  it('lists renewals in other currencies beside the total', () => {
+    const usd = domain({
+      domainName: 'usd.com',
+      renewalDate: new Date('2026-06-20'),
+    });
+    const eur = domain({
+      domainName: 'eur.de',
+      renewalDate: new Date('2026-06-21'),
+    });
+    const [eurKey, eurPrice] = price(eur, 45);
+    const pricing = {
+      ...Object.fromEntries([price(usd, 12)]),
+      [eurKey]: { ...eurPrice, currency: 'EUR' },
+    };
+
+    expect(dueWithin([usd, eur], pricing, 30)).toEqual({
+      count: 2,
+      yearly: 12,
+      others: [{ currency: 'EUR', count: 1, yearly: 45 }],
+    });
+    const jun = upcomingByMonth([usd, eur], pricing, 1)[0];
+    expect(jun).toMatchObject({
+      count: 2,
+      priced: 2,
+      yearly: 12,
+      others: [{ currency: 'EUR', count: 1, yearly: 45 }],
+    });
+  });
 });
 
 describe('currencies', () => {

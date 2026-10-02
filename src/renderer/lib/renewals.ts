@@ -84,6 +84,18 @@ export function otherCurrencies(
   );
 }
 
+/** Adds a renewal in another currency to `totals` (kept largest count first). */
+function addOther(totals: CurrencyTotal[], currency: string, amount: number) {
+  const t = totals.find((o) => o.currency === currency);
+  if (t) {
+    t.count += 1;
+    t.yearly += amount;
+  } else totals.push({ currency, count: 1, yearly: amount });
+  totals.sort(
+    (a, b) => b.count - a.count || a.currency.localeCompare(b.currency),
+  );
+}
+
 /** A price with its currency symbol and up to two decimals, e.g. "$12.99" or "€9". */
 export function priceMoney(n: number, currency: string): string {
   try {
@@ -239,8 +251,10 @@ export interface MonthBucket {
   count: number;
   /** Domains renewing this month that have a known price. */
   priced: number;
-  /** Sum of known renewals due this month. */
+  /** Sum of known renewals due this month, in the page's currency. */
   yearly: number;
+  /** Renewals due this month priced in other currencies. */
+  others: CurrencyTotal[];
 }
 
 /** The date a domain next comes up for renewal (renewalDate ?? expirationDate). */
@@ -294,6 +308,7 @@ export function upcomingByMonth(
       count: 0,
       priced: 0,
       yearly: 0,
+      others: [],
     };
     buckets.push(bucket);
     index.set(key, bucket);
@@ -311,34 +326,37 @@ export function upcomingByMonth(
     const bucket = index.get(key);
     if (!bucket) continue;
     bucket.count += 1;
-    const value = renewalOf(d, pricing, currency);
-    if (value != null) {
-      bucket.priced += 1;
-      bucket.yearly += value;
-    }
+    const p = priceOf(d, pricing);
+    if (p?.renewal == null) continue;
+    bucket.priced += 1;
+    if (p.currency === currency) bucket.yearly += p.renewal;
+    else addOther(bucket.others, p.currency, p.renewal);
   }
   return buckets;
 }
 
 /**
  * Total known renewal cost in `currency` for domains due within the next
- * `days` days.
+ * `days` days, with any renewals priced in other currencies beside it.
  */
 export function dueWithin(
   domains: Domain[],
   pricing: Record<string, RenewalPricing>,
   days: number,
   currency = 'USD',
-): { count: number; yearly: number } {
+): { count: number; yearly: number; others: CurrencyTotal[] } {
   const cutoff = Date.now() + days * 86_400_000;
   let count = 0;
   let yearly = 0;
+  const others: CurrencyTotal[] = [];
   for (const d of domains) {
     const date = renewalDate(d);
     if (!date || date.getTime() > cutoff) continue;
     count += 1;
-    const value = renewalOf(d, pricing, currency);
-    if (value != null) yearly += value;
+    const p = priceOf(d, pricing);
+    if (p?.renewal == null) continue;
+    if (p.currency === currency) yearly += p.renewal;
+    else addOther(others, p.currency, p.renewal);
   }
-  return { count, yearly };
+  return { count, yearly, others };
 }
