@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { searchCurrencies, type CurrencyInfo } from '../../../shared/money';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +46,8 @@ export function CurrencyPicker({
           <span className="truncate">
             {selected ? `${selected.code} — ${selected.name}` : value}
           </span>
+          {/* The select's chevron, so it reads as a dropdown like one. */}
+          <ChevronDown className="size-4 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-2">

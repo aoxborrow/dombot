@@ -9,11 +9,13 @@ import { Badge } from '@/components/ui/badge';
 
 // Colored by group, and calm: urgency is the Activity status column's job
 // (lib/severity.ts), so no type uses red, orange, or yellow. Names coming in
-// (added, registered, purchased) are blue, sold green, moves purple, renewals
-// teal. Losing a name is neutral: removed in plain text, dropped and archived
-// muted gray.
+// (added, registered, purchased) are blue, sold green, and the changes to a
+// name you keep (renewed, moved) indigo. Losing a name is neutral: removed in
+// plain text, dropped and archived muted gray.
 const IN = 'border-sky-500/40 text-sky-600 dark:text-sky-400';
 const IN_DOT = 'bg-sky-500 dark:bg-sky-400';
+const KEPT = 'border-indigo-500/40 text-indigo-600 dark:text-indigo-400';
+const KEPT_DOT = 'bg-indigo-500 dark:bg-indigo-400';
 const GRAY = 'border-border text-muted-foreground';
 const GRAY_DOT = 'bg-muted-foreground/60';
 
@@ -25,8 +27,8 @@ const TYPE_STYLE: Record<DomainEvent['type'], string> = {
   dropped: GRAY,
   archived: GRAY,
   sold: 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
-  moved: 'border-purple-500/40 text-purple-600 dark:text-purple-400',
-  renewed: 'border-teal-500/40 text-teal-600 dark:text-teal-400',
+  moved: KEPT,
+  renewed: KEPT,
 };
 
 /** The same colors as a dot, for filter options. */
@@ -38,8 +40,8 @@ const TYPE_DOT: Record<DomainEvent['type'], string> = {
   dropped: GRAY_DOT,
   archived: GRAY_DOT,
   sold: 'bg-emerald-500 dark:bg-emerald-400',
-  moved: 'bg-purple-500 dark:bg-purple-400',
-  renewed: 'bg-teal-500 dark:bg-teal-400',
+  moved: KEPT_DOT,
+  renewed: KEPT_DOT,
 };
 
 export function EventTypeBadge({
