@@ -43,6 +43,7 @@ export function AskingPriceDialog({
     ? records[0]
     : undefined;
   const anyPriced = records.some(Boolean);
+  const mixed = domains.length > 1 && !shared && anyPriced;
 
   const [currency, setCurrency] = useState(shared?.currency ?? preferred);
   const shown = (value: string | null | undefined) =>
@@ -60,6 +61,18 @@ export function AskingPriceDialog({
       minOffer: string | null;
       floor: string | null;
     };
+    // A mixed selection opens blank, so a blank Save there would clear prices
+    // the names already have. Clearing them takes the Clear button.
+    if (
+      !clear &&
+      mixed &&
+      !amount.trim() &&
+      !minOffer.trim() &&
+      !floor.trim()
+    ) {
+      setError('Type an asking price, or use Clear to remove them all.');
+      return;
+    }
     if (!clear) {
       try {
         fields = {
@@ -103,7 +116,7 @@ export function AskingPriceDialog({
         <ActionHeader title="Asking price" names={names} />
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            {domains.length > 1 && !shared && anyPriced
+            {mixed
               ? 'These names have different prices. Saving gives them all the price below.'
               : 'What you would sell for. It isn’t listed anywhere.'}
           </p>
