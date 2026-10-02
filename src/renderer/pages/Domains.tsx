@@ -1402,6 +1402,7 @@ export default function Domains() {
         purchases,
         askingPrices,
         pricing,
+        manualPrices: await window.api.getManualPrices(),
         archiveLabel: (name) => ownership.get(name)?.label ?? null,
         accountName: (d) =>
           accountName(registrars, d.accountId ?? d.registrar) ??

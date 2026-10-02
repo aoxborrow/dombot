@@ -84,6 +84,7 @@ export const IpcChannels = {
   getBulkJob: 'bulk:get',
   stepBulk: 'bulk:step',
   getPortfolioPricing: 'pricing:getPortfolio',
+  getManualPrices: 'pricing:getManualPrices',
   setManualPrice: 'pricing:setManualPrice',
   openExternal: 'app:openExternal',
   saveTextFile: 'app:saveTextFile',
@@ -762,6 +763,9 @@ export interface DombotApi {
    *  Computed locally (base rates + TLD rates + Sync-captured quotes +
    *  manual overrides). */
   getPortfolioPricing: () => Promise<Record<string, RenewalPricing>>;
+  /** Every manual renewal price, keyed by the normalized domain name, for
+   *  names you own or not (the CSV export reads Archive names' prices here). */
+  getManualPrices: () => Promise<Record<string, RenewalPriceInput>>;
   /** Set (or clear, with null) a manual annual renewal price for a domain, in
    *  any currency. Keyed by name, so it applies whichever account holds it. */
   setManualPrice: (

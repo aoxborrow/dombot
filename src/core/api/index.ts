@@ -15,7 +15,7 @@ import {
   getFolders,
   updateFolder,
 } from '../services/folders';
-import { setManualPrice } from '../services/pricing';
+import { getManualPrices, setManualPrice } from '../services/pricing';
 import {
   getPurchases,
   setNotes,
@@ -205,6 +205,7 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
 
   // ── Pricing ───────────────────────────────────────────────────────────────
   getPortfolioPricing: method(none, async () => getPortfolioPricing()),
+  getManualPrices: method(none, async () => getManualPrices()),
   setManualPrice: method(
     z.tuple([s.domainName, s.renewalPriceInput.nullable()]),
     async (domain, price) => {
