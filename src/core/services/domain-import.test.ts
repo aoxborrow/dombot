@@ -303,6 +303,44 @@ describe('importing domains', () => {
     });
   });
 
+  it('clears an amount on a 0, and leaves it on a blank', () => {
+    apply([
+      row('a.com', {
+        renewal: { amount: '12.00', currency: 'USD' },
+        asking: { amount: '900.00', minOffer: '200.00', currency: 'USD' },
+        purchase: { date: '2020-01-01', amount: '50.00', currency: 'USD' },
+        sale: { date: '2024-01-01', amount: '700.00', currency: 'USD' },
+      }),
+    ]);
+    // Blank (absent) fields change nothing.
+    expect(planImport([row('a.com')]).outcomes[0].result).toBe('unchanged');
+    const plan = apply([
+      row('a.com', {
+        renewal: { amount: '0.00', currency: 'USD' },
+        asking: { minOffer: '0.00', currency: 'USD' },
+        purchase: { amount: '0.00', currency: 'USD' },
+        sale: { amount: '0.00', currency: 'USD' },
+      }),
+    ]);
+    expect(plan.outcomes[0].changes.map((c) => [c.field, c.to])).toEqual([
+      ['Purchase amount', null],
+      ['Sale amount', null],
+      ['Renewal price', null],
+      ['Asking price', '900.00 USD'],
+    ]);
+    expect(getManualPrices()['a.com']).toBeUndefined();
+    expect(getAskingPrices()['a.com']).toMatchObject({ amount: '900.00' });
+    expect(getAskingPrices()['a.com'].minOffer ?? null).toBeNull();
+    expect(getPurchases()['a.com']).toMatchObject({
+      purchaseDate: '2020-01-01',
+      amount: null,
+      saleDate: '2024-01-01',
+      saleAmount: null,
+    });
+    apply([row('a.com', { asking: { amount: '0.00', currency: 'USD' } })]);
+    expect(getAskingPrices()['a.com']).toBeUndefined();
+  });
+
   it('creates missing folders once, and knows Hidden', () => {
     const plan = apply([
       row('a.com', { folder: 'Brandables' }),

@@ -142,8 +142,8 @@ export interface MoneyCell {
  * A money cell: digits with any grouping and either decimal mark, and a
  * currency symbol or code before or after. When both `.` and `,` appear,
  * the last is the decimal mark; a single one followed by exactly three
- * digits is grouping. Negative amounts are errors. Zero reads as blank:
- * exports use it for "not set".
+ * digits is grouping. Negative amounts are errors. Zero is kept: it clears
+ * the stored amount, where a blank cell leaves it alone.
  */
 export function readMoney(raw: string, preferred: string): MoneyCell | null {
   let s = raw.trim();
@@ -202,7 +202,6 @@ export function readMoney(raw: string, preferred: string): MoneyCell | null {
     throw new Error(`${raw.trim()} is not an amount.`);
   }
   const value = `${int.replace(/^0+(?=\d)/, '') || '0'}${frac ? `.${frac}` : ''}`;
-  if (Number(value) === 0) return null;
   return { value, currency };
 }
 

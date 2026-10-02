@@ -244,10 +244,13 @@ function readRow(
       columnCurrency ??
       rowCurrency ??
       (hinted ? readCurrency(hinted, pref) : null);
-    const read = fields.map(
-      (f) =>
-        [f, at(f, () => readMoney(cells[f] ?? '', stated ?? pref))] as const,
-    );
+    // A 0 clears the stored amount, except in another site's export, where
+    // it means "not set" (Efty, Afternic).
+    const zeroIsBlank = !!setup.format && !setup.format.exact;
+    const read = fields.map((f) => {
+      const m = at(f, () => readMoney(cells[f] ?? '', stated ?? pref));
+      return [f, m && zeroIsBlank && Number(m.value) === 0 ? null : m] as const;
+    });
     if (read.every(([, m]) => !m)) return null;
     const named = read.map(([, m]) => m?.currency).filter(Boolean);
     if (new Set(named).size > 1)
@@ -308,9 +311,12 @@ function readRow(
   );
   if (asking) {
     const { askingPrice, minOffer, floorPrice } = asking.amounts;
-    if (askingPrice && minOffer && Number(minOffer) > Number(askingPrice))
+    // A zero asking price clears it, so it caps nothing.
+    const cap =
+      askingPrice && Number(askingPrice) > 0 ? Number(askingPrice) : null;
+    if (cap !== null && minOffer && Number(minOffer) > cap)
       throw new Error('The minimum offer is above the asking price.');
-    if (askingPrice && floorPrice && Number(floorPrice) > Number(askingPrice))
+    if (cap !== null && floorPrice && Number(floorPrice) > cap)
       throw new Error('The floor price is above the asking price.');
     row.asking = {
       ...(askingPrice ? { amount: askingPrice } : {}),

@@ -719,12 +719,15 @@ export default function Import() {
           )}
           registrars={ctx.registrars}
           money={(amount, currency) =>
-            formatMoney(
-              amount,
-              currency,
-              preferred,
-              settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
-            )
+            // A 0 in the file clears the amount.
+            Number(amount) === 0
+              ? 'Clear'
+              : formatMoney(
+                  amount,
+                  currency,
+                  preferred,
+                  settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+                )
           }
         />
       )}
@@ -882,8 +885,8 @@ function ManualTab({
       </div>
       <p className="-mt-1 text-xs text-muted-foreground">
         The price and folder go on every name above, replacing what a name
-        already has. A blank field leaves it alone. A folder that doesn&apos;t
-        exist yet is created.
+        already has. A blank field leaves it alone, and 0 clears it. A folder
+        that doesn&apos;t exist yet is created.
       </p>
     </div>
   );

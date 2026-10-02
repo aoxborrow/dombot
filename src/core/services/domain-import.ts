@@ -48,7 +48,7 @@ import { listAccounts } from './accounts';
 // nothing written. `importDomains` plans again against the current data and
 // writes it, one write per namespace. The rules:
 //
-// - a blank (absent) field keeps what's stored, and a zero amount was blank;
+// - a blank (absent) field keeps what's stored, and a zero amount clears it;
 // - names missing from the file are left alone, and nothing is deleted, but
 //   a sale replaces your Dropped or Archived label, as Mark as Sold does;
 // - a new manual name waits for review like a sync arrival, even with a
@@ -72,6 +72,9 @@ const clip = (text: string | undefined) =>
       ? `${text.slice(0, 57).trimEnd()}…`
       : text;
 
+/** A "0" in the file: clear the stored amount. */
+const isZero = (amount?: string | null) => !!amount && Number(amount) === 0;
+
 const money = (amount?: string | null, currency?: string | null) =>
   amount ? `${amount} ${currency ?? ''}`.trim() : null;
 
@@ -94,7 +97,8 @@ interface Writes {
   notes: [string, string][];
   /** Folder name → the names to put in it (by name, created if missing). */
   folders: [string, string][];
-  renewals: [string, RenewalPrice][];
+  /** null clears the name's renewal price. */
+  renewals: [string, RenewalPrice | null][];
   asking: AskingPriceInput[];
 }
 
@@ -169,7 +173,10 @@ function compute(
     const label = own?.label ?? null;
     const userLabel = label && label !== 'removed' ? own!.event : null;
     const holding = owned.get(key);
-    const rowSale = !!(row.sale?.date || row.sale?.amount);
+    const rowSale = !!(
+      row.sale?.date ||
+      (row.sale?.amount && !isZero(row.sale.amount))
+    );
     const buyBack = !!(
       row.purchase?.date &&
       holding?.sale?.date &&
@@ -294,7 +301,8 @@ function compute(
     if (p) {
       const existing = buyBack ? undefined : holding?.acquisition;
       if (!existing) {
-        if (p.date || p.amount) {
+        const amount = isZero(p.amount) ? undefined : p.amount;
+        if (p.date || amount) {
           writes.events.push(
             fresh({
               domain: key,
@@ -304,16 +312,16 @@ function compute(
                   : DomainEventType.Purchased,
               source: DomainEventSource.Import,
               date: p.date ?? null,
-              amount: p.amount ?? null,
-              currency: (p.amount
+              amount: amount ?? null,
+              currency: (amount
                 ? toCurrencyCode(p.currency ?? '')
                 : null) as CurrencyCode | null,
               ...(p.years ? { years: p.years } : {}),
             }),
           );
           if (p.date) change('Purchase date', null, p.date);
-          if (p.amount)
-            change('Purchase amount', null, money(p.amount, p.currency));
+          if (amount)
+            change('Purchase amount', null, money(amount, p.currency));
         }
       } else {
         const next: DomainEvent = { ...existing };
@@ -331,7 +339,17 @@ function compute(
           next.date = p.date;
           change('Purchase date', existing.date, p.date);
         }
-        if (
+        if (isZero(p.amount)) {
+          if (existing.amount) {
+            next.amount = null;
+            next.currency = null;
+            change(
+              'Purchase amount',
+              money(existing.amount, existing.currency),
+              null,
+            );
+          }
+        } else if (
           p.amount &&
           (p.amount !== existing.amount || p.currency !== existing.currency)
         ) {
@@ -382,7 +400,9 @@ function compute(
       change('Status', LABEL[label ?? ''] ?? 'Owned', LABEL[type]);
     };
     const s = row.sale;
-    if (s && rowSale) {
+    // A "0" sale amount alone clears the amount on a sale DomBot has.
+    const clearsSale = !!s && isZero(s.amount) && !!holding?.sale && !buyBack;
+    if (s && (rowSale || clearsSale)) {
       const existing = buyBack ? undefined : holding?.sale;
       if (existing) {
         const next: DomainEvent = { ...existing };
@@ -392,7 +412,18 @@ function compute(
           change('Sale date', existing.date, s.date);
           edited = true;
         }
-        if (
+        if (isZero(s.amount)) {
+          if (existing.amount) {
+            next.amount = null;
+            next.currency = null;
+            change(
+              'Sale amount',
+              money(existing.amount, existing.currency),
+              null,
+            );
+            edited = true;
+          }
+        } else if (
           s.amount &&
           (s.amount !== existing.amount || s.currency !== existing.currency)
         ) {
@@ -409,15 +440,16 @@ function compute(
       } else if (label === 'sold' && !buyBack) {
         // Sold already, with no sale on this holding: nothing to add to.
       } else {
+        const amount = isZero(s.amount) ? undefined : s.amount;
         label_(DomainEventType.Sold, {
           date: s.date ?? null,
-          amount: s.amount ?? null,
-          currency: (s.amount
+          amount: amount ?? null,
+          currency: (amount
             ? toCurrencyCode(s.currency ?? '')
             : null) as CurrencyCode | null,
         });
         if (s.date) change('Sale date', null, s.date);
-        if (s.amount) change('Sale amount', null, money(s.amount, s.currency));
+        if (amount) change('Sale amount', null, money(amount, s.currency));
       }
     } else if (row.status && row.status !== 'owned') {
       const status = row.status;
@@ -485,7 +517,13 @@ function compute(
       }
     }
 
-    if (row.renewal) {
+    if (row.renewal && isZero(row.renewal.amount)) {
+      const current = renewals[key];
+      if (current) {
+        writes.renewals.push([key, null]);
+        change('Renewal price', money(current.amount, current.currency), null);
+      }
+    } else if (row.renewal) {
       const current = renewals[key];
       const next = {
         amount: row.renewal.amount,
@@ -521,7 +559,16 @@ function compute(
             { ...fields, currency: row.asking.currency },
             now,
           );
-          if (next && !sameAskingPrice(current, next)) {
+          if (!next && current) {
+            writes.asking.push({
+              domainName: key,
+              amount: null,
+              minOffer: null,
+              floor: null,
+              currency: current.currency,
+            });
+            change('Asking price', askingText(current), null);
+          } else if (next && !sameAskingPrice(current, next)) {
             writes.asking.push({
               domainName: key,
               amount: next.amount,

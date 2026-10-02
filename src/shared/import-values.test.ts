@@ -66,9 +66,9 @@ describe('readMoney', () => {
     expect(readMoney('$10', 'EUR')?.currency).toBe('USD');
   });
 
-  it('reads zero and blank as no amount', () => {
-    expect(readMoney('0.00', 'USD')).toBeNull();
-    expect(readMoney('$0', 'USD')).toBeNull();
+  it('keeps zero (it clears an amount) and reads blank as none', () => {
+    expect(readMoney('0.00', 'USD')).toEqual({ value: '0.00', currency: null });
+    expect(readMoney('$0', 'USD')).toEqual({ value: '0', currency: 'USD' });
     expect(readMoney('  ', 'USD')).toBeNull();
   });
 

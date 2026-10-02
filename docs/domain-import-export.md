@@ -184,7 +184,8 @@ What didn't work, and what this plan does instead:
   `Amount (USD)` is what you paid. Here ambiguous headers never match
   automatically.
 - **Exports often write `0` to mean "not set"** (Efty's sold price,
-  Afternic's floor price). Here a zero amount always counts as blank.
+  Afternic's floor price). In a recognized marketplace export a zero counts
+  as blank; everywhere else a `0` clears the amount.
 
 ## The formats side by side
 
@@ -311,8 +312,8 @@ normalizes them before anything reaches the server.
 ### Import only adds and updates
 
 - Names missing from the file are left alone.
-- A blank cell never clears a stored value, and a zero amount counts as
-  blank.
+- A blank cell never clears a stored value. A `0` clears it (except in a
+  recognized marketplace export, where `0` means "not set").
 - Import never deletes a name, a purchase, a sale, or a note.
 - It replaces your Dropped or Archived label with Sold, the way Mark as Sold
   does, but it never replaces a Sold.
@@ -416,7 +417,8 @@ Money rules that keep bad data out:
 
 - **A negative amount is an error.** So is an amount with more decimal places
   than its currency allows (`JPY 500.50`). Money is never rounded silently.
-- **A zero amount is blank**, because exports use `0` to mean "not set".
+- **A zero amount clears the stored amount.** In a recognized marketplace
+  export it's blank instead, because those use `0` to mean "not set".
 - **A cell's own currency** (`€500`) must agree with its column's or row's
   currency. If it doesn't, that cell is an error.
 - **A minimum offer or floor above the asking price** is an error for the
@@ -1006,7 +1008,8 @@ Decided on 2026-10-02:
 4. **Every price has a currency**, renewal prices included.
 5. **No sale net for now.** It comes with venues and fees (#109).
 6. **`Domain` is exported in ASCII**, with the Unicode spelling in `IDN`.
-7. **A zero amount is the same as a blank cell.**
+7. **A `0` clears an amount; a blank cell leaves it.** (Revised 2026-10-02;
+   marketplace exports still read `0` as blank.)
 8. **PR #122 is closed, not merged.** The import engine replaces it.
 9. **Import only adds and updates.** It never removes names; a replace mode
    is a later option.

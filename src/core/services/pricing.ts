@@ -217,12 +217,14 @@ export function setTldRate(
   }
 }
 
-/** Sets many names' manual renewal prices in one write (an import). */
+/** Sets (or, with null, clears) many names' manual renewal prices (an import). */
 export function setManualPrices(
-  entries: [domain: string, RenewalPrice][],
+  entries: [domain: string, RenewalPrice | null][],
 ): void {
-  if (entries.length === 0) return;
-  void overrides.setMany(
-    entries.map(([domain, price]) => [assertDomainName(domain), price]),
-  );
+  const set: [string, RenewalPrice][] = [];
+  for (const [domain, price] of entries) {
+    if (price) set.push([assertDomainName(domain), price]);
+    else void overrides.delete(assertDomainName(domain));
+  }
+  if (set.length > 0) void overrides.setMany(set);
 }
