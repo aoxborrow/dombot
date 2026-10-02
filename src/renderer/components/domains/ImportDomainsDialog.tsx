@@ -127,7 +127,7 @@ const RESULT_LABEL: Record<ImportOutcome['result'], string> = {
 // change to one you keep indigo (renewed, moved), Archive neutral (removed),
 // and nothing to do muted gray. A skipped row is the one problem, in red.
 const RESULT_STYLE: Record<ImportOutcome['result'] | 'error', string> = {
-  new: 'border-sky-500/40 text-sky-600 dark:text-sky-400',
+  new: 'border-blue-700/30 text-blue-700 dark:border-blue-300/30 dark:text-blue-300',
   update: 'border-indigo-500/40 text-indigo-600 dark:text-indigo-400',
   unchanged: 'border-border text-muted-foreground',
   history: 'border-foreground/25 text-foreground',
@@ -1047,10 +1047,9 @@ function MatchStep({
   const [otherRegistrar, setOtherRegistrar] = useState(
     setup.defaults.registrar !== null && !knownRegistrar,
   );
+  /** A peek at a column: its first three different values. */
   const samples = (i: number) =>
-    table.rows
-      .map((r) => r.cells[i]?.trim())
-      .filter(Boolean)
+    [...new Set(table.rows.map((r) => r.cells[i]?.trim()).filter((v) => !!v))]
       .slice(0, 3)
       .join(' · ');
 
