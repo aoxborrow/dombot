@@ -2,6 +2,8 @@ import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
 import { create } from 'zustand';
 import type {
+  ManualDomain,
+  ManualDomainFields,
   AskingPrice,
   AskingPriceInput,
   AppInfo,
@@ -204,6 +206,17 @@ interface AppState {
   saveSale: (input: SaleInput) => Promise<void>;
   saveNotes: (domainName: string, notes: string) => Promise<void>;
 
+  /**
+   * Names you own that no connected account reports, keyed by normalized
+   * domain name. Reloaded with the event log, since a sync can take one over.
+   */
+  manualDomains: Record<string, ManualDomain>;
+  loadManualDomains: () => Promise<void>;
+  saveManualDomain: (
+    domainName: string,
+    fields: ManualDomainFields,
+  ) => Promise<void>;
+
   /** Asking prices keyed by normalized domain name. */
   askingPrices: Record<string, AskingPrice>;
   loadAskingPrices: () => Promise<void>;
@@ -361,7 +374,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Only hydrate before any live load — never clobber fresher data.
     if (get().portfolioSource !== null || get().portfolioLoading) return;
     const snapshot = await window.api.hydrateFromCache();
-    if (!snapshot.portfolio) return;
+    if (!snapshot.portfolio) {
+      // No registrar data, but manual names still have prices.
+      if (get().portfolioSource === null) set({ pricing: snapshot.pricing });
+      return;
+    }
     // Don't overwrite a live load that landed while this was awaiting.
     if (get().portfolioSource !== null) return;
 
@@ -397,7 +414,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         portfolioErrors: [],
         portfolioRegistrars: [],
         enriched: {},
-        pricing: {},
+        // Manual names keep their prices without registrar data.
+        pricing: snapshot.pricing,
       });
       return;
     }
@@ -446,6 +464,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       detailAllLoading: false,
       selected: new Set(),
     });
+    // Manual names aren't cache: re-read their prices.
+    await get().loadPricing();
   },
 
   loadPortfolio: async () => {
@@ -536,8 +556,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   enrichVisible: async (domains, force = false) => {
     const todo = domains.filter((d) => {
       const key = domainKey(d);
-      // A name that already left the registrar has nothing to refresh.
-      if (d.departed) return false;
+      // A name that already left the registrar, or one you added by hand, has
+      // no registrar to ask.
+      if (d.departed || d.manual) return false;
       // A forced refresh re-fetches on-screen rows regardless of prior state,
       // skipping only ones already in flight.
       if (force) return !enrichInFlight.has(key);
@@ -725,6 +746,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { purchases };
     });
   },
+  manualDomains: {},
+  loadManualDomains: async () => {
+    set({ manualDomains: await window.api.getManualDomains() });
+  },
+  saveManualDomain: async (domainName, fields) => {
+    set({
+      manualDomains: await window.api.updateManualDomain(domainName, fields),
+    });
+    void get().loadPricing();
+  },
   askingPrices: {},
   loadAskingPrices: async () => {
     set({ askingPrices: await window.api.getAskingPrices() });
@@ -742,7 +773,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   domainEvents: [],
   loadDomainEvents: async () => {
-    set({ domainEvents: await window.api.getDomainEvents() });
+    // A sync that writes events may also have taken manual names over.
+    const [domainEvents, manualDomains] = await Promise.all([
+      window.api.getDomainEvents(),
+      window.api.getManualDomains(),
+    ]);
+    set({ domainEvents, manualDomains });
   },
   setDispositions: async (items, type, date) => {
     set({
@@ -771,6 +807,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().loadFolders(),
       get().loadPricing(),
       get().loadAskingPrices(),
+      get().loadManualDomains(),
     ]);
   },
   setMcpEnabled: async (enabled) => {

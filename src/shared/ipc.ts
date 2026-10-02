@@ -49,7 +49,45 @@ export type Domain = ProviderDomain & {
   unregistered?: boolean;
   /** Current registrar from RDAP, which may not be an account of yours. */
   registrationRegistrar?: string;
+  /**
+   * A name you added that no connected account reports (`manual-domains`).
+   * Registrar actions don't apply; its registrar fields are yours to edit.
+   */
+  manual?: boolean;
+  /** A manual name's registrar as you typed it, when DomBot doesn't know it. */
+  manualRegistrarLabel?: string;
+  /** A manual name whose auto-renew you haven't set (`autoRenew` reads false). */
+  autoRenewUnknown?: boolean;
 };
+
+/**
+ * A name you own that no connected account reports, kept in
+ * `manual-domains` (docs/domain-import-export.md). Dates are `YYYY-MM-DD`.
+ */
+export interface ManualDomain {
+  /** A registrar DomBot knows (registrar-client's id), or null. */
+  registrar: string | null;
+  /** Free text when DomBot doesn't know the registrar, e.g. "Epik". */
+  registrarLabel?: string | null;
+  expirationDate?: string | null;
+  createdDate?: string | null;
+  autoRenew?: boolean | null;
+  /** ms epoch, when it was added. */
+  addedAt: number;
+  /** ms epoch, the last edit; null until edited. */
+  updatedAt: number | null;
+  /** The import that added it, if one did. */
+  importId?: string | null;
+}
+
+/** A manual name's registration fields, as edited. */
+export interface ManualDomainFields {
+  registrar: string | null;
+  registrarLabel: string | null;
+  createdDate: string | null;
+  expirationDate: string | null;
+  autoRenew: boolean | null;
+}
 
 /** The one proxy the app manages, and the saved accounts routed through it. */
 export interface ProxySettings {
@@ -123,6 +161,10 @@ export const IpcChannels = {
   setPurchase: 'purchases:set',
   setSale: 'purchases:setSale',
   setNotes: 'purchases:setNotes',
+  previewDomainImport: 'domainImport:preview',
+  importDomains: 'domainImport:apply',
+  getManualDomains: 'manualDomains:list',
+  updateManualDomain: 'manualDomains:update',
   getAskingPrices: 'askingPrices:list',
   setAskingPrices: 'askingPrices:set',
   getDomainEvents: 'domainEvents:list',
@@ -276,6 +318,8 @@ export interface DomainPurchase {
   purchaseType?: 'registered' | 'purchased';
   /** The purchase's term in years, when recorded. */
   purchaseYears?: number;
+  /** The purchase's event id: one newer than an arrival was recorded after it. */
+  acquisitionId?: string;
   notes: string;
   /** Absent on records saved before a sale could be stored. */
   saleDate?: string | null;
@@ -341,6 +385,80 @@ export interface AskingPrice {
 export interface RenewalPriceInput {
   amount: string;
   currency: string;
+}
+
+/**
+ * One name's row from an imported file, normalized
+ * (docs/domain-import-export.md, "Normalized rows"). Every value is already
+ * in stored form; an absent field was blank in the file and means "keep".
+ */
+export interface ImportRow {
+  /** The file line the row came from (the first, when rows were merged). */
+  line: number;
+  /** `toAscii(name)`. */
+  domain: string;
+  status?: 'owned' | 'sold' | 'dropped' | 'archived' | 'removed';
+  /** A folder name; "Hidden" is the built-in one. */
+  folder?: string;
+  notes?: string;
+  registration?: {
+    /** A registrar id DomBot knows. */
+    registrar?: string;
+    /** Free text, for a registrar DomBot doesn't know. */
+    registrarLabel?: string;
+    createdDate?: string;
+    expirationDate?: string;
+    autoRenew?: boolean;
+  };
+  renewal?: { amount: string; currency: string };
+  asking?: {
+    amount?: string;
+    minOffer?: string;
+    floor?: string;
+    currency: string;
+  };
+  purchase?: {
+    type?: 'registered' | 'purchased';
+    date?: string;
+    amount?: string;
+    currency?: string;
+    years?: number;
+  };
+  sale?: { date?: string; amount?: string; currency?: string };
+}
+
+/** How an import treats what DomBot already has. */
+export interface ImportOptions {
+  /** `update`: a value in the file replaces DomBot's. `fill`: only blanks are filled. */
+  policy: 'update' | 'fill';
+  /** Names in no account that end up Owned: add them, or record history only. */
+  notInAccounts: 'manual' | 'history';
+}
+
+export interface ImportChange {
+  field: string;
+  from: string | null;
+  to: string | null;
+}
+
+/** What an import does, or would do, to one name. */
+export interface ImportOutcome {
+  line: number;
+  domain: string;
+  /**
+   * `new`: added as a manual name. `update`: something changes.
+   * `unchanged`: nothing to do. `history`: events for a name not in Owned.
+   */
+  result: 'new' | 'update' | 'unchanged' | 'history';
+  changes: ImportChange[];
+  warnings: string[];
+}
+
+export interface ImportPlan {
+  outcomes: ImportOutcome[];
+  counts: Record<ImportOutcome['result'], number>;
+  /** Folders the import creates. */
+  newFolders: string[];
 }
 
 /** One name's asking price to save. All three amounts blank clears it. */
@@ -929,6 +1047,27 @@ export interface DombotApi {
     domainName: string,
     notes: string,
   ) => Promise<DomainPurchase | null>;
+
+  // Domain import (docs/domain-import-export.md)
+  /** What importing these normalized rows would change. Writes nothing. */
+  previewDomainImport: (
+    rows: ImportRow[],
+    options: ImportOptions,
+  ) => Promise<ImportPlan>;
+  /** Import the rows (a chunk of up to 10,000, under one `importId`). */
+  importDomains: (
+    rows: ImportRow[],
+    options: ImportOptions & { importId: string },
+  ) => Promise<ImportPlan & { importId: string }>;
+
+  // Manual domains (names no connected account reports)
+  /** Every manual name, keyed by the normalized domain name. */
+  getManualDomains: () => Promise<Record<string, ManualDomain>>;
+  /** Edit a manual name's registration fields. Returns every manual name. */
+  updateManualDomain: (
+    domainName: string,
+    fields: ManualDomainFields,
+  ) => Promise<Record<string, ManualDomain>>;
 
   // Asking prices (keyed by domain name; any name, synced or manual)
   /** Every asking price, keyed by the normalized domain name. */

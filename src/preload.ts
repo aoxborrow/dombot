@@ -140,6 +140,13 @@ const api: DombotApi = {
   setSale: (input) => ipcRenderer.invoke(IpcChannels.setSale, input),
   setNotes: (domainName, notes) =>
     ipcRenderer.invoke(IpcChannels.setNotes, domainName, notes),
+  previewDomainImport: (rows, options) =>
+    ipcRenderer.invoke(IpcChannels.previewDomainImport, rows, options),
+  importDomains: (rows, options) =>
+    ipcRenderer.invoke(IpcChannels.importDomains, rows, options),
+  getManualDomains: () => ipcRenderer.invoke(IpcChannels.getManualDomains),
+  updateManualDomain: (domainName, fields) =>
+    ipcRenderer.invoke(IpcChannels.updateManualDomain, domainName, fields),
   getAskingPrices: () => ipcRenderer.invoke(IpcChannels.getAskingPrices),
   setAskingPrices: (inputs) =>
     ipcRenderer.invoke(IpcChannels.setAskingPrices, inputs),

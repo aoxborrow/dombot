@@ -37,12 +37,12 @@ function orderKey(e: DomainEvent): string {
   return `${day}|${e.id}`;
 }
 
-interface Holding {
+export interface Holding {
   acquisition?: DomainEvent;
   sale?: DomainEvent;
 }
 
-function holdings(): Map<string, Holding> {
+export function holdings(): Map<string, Holding> {
   const out = new Map<string, Holding>();
   const sorted = listEvents().sort((a, b) =>
     orderKey(a).localeCompare(orderKey(b)),
@@ -68,6 +68,7 @@ function summaryOf(
   if (!h?.acquisition && !h?.sale && !notes) return null;
   const acquired = h?.acquisition;
   return {
+    ...(acquired ? { acquisitionId: acquired.id } : {}),
     purchaseDate: acquired?.date ?? null,
     amount: acquired?.amount ?? null,
     currency: acquired?.currency ?? null,
@@ -150,10 +151,16 @@ export function setPurchase(input: PurchaseInput): DomainPurchase | null {
   const domain = assertDomainName(input.domainName);
   const date = parsePurchaseDate(input.purchaseDate ?? '');
   const { amount, currency } = parseAmount(input.amount, input.currency);
-  // Answering an arrival alert records a new holding; otherwise edit the latest.
+  // Answering an arrival alert records a new holding, unless a purchase was
+  // already recorded since the name arrived (an import, or the Domains row):
+  // then it edits that one instead of adding a second. Otherwise edit the
+  // latest.
+  const latest = holdings().get(domain)?.acquisition;
   const existing = input.resolves
-    ? undefined
-    : holdings().get(domain)?.acquisition;
+    ? latest && latest.id > input.resolves
+      ? latest
+      : undefined
+    : latest;
   const type =
     input.kind === 'registered'
       ? DomainEventType.Registered
