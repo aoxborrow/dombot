@@ -35,6 +35,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { StickyNoteIcon } from '../icons/StickyNoteIcon';
 
 /** Ownership actions on the selection, each opening its dialog. */
 export type OwnershipAction =
@@ -56,6 +57,7 @@ export function BulkBar({
   onRefresh,
   onExport,
   onAssignFolder,
+  onNotes,
   onKind,
   onViewJob,
   archiveView,
@@ -70,6 +72,7 @@ export function BulkBar({
   onRefresh: () => void;
   onExport: () => void;
   onAssignFolder: (folderId: string | null) => void;
+  onNotes: () => void;
   /** Open the bulk dialog for an op kind (its value is chosen there). */
   onKind: (kind: DomainOpKind) => void;
   onViewJob: () => void;
@@ -239,6 +242,11 @@ export function BulkBar({
             <DropdownMenuItem onSelect={onExport}>
               <FileSpreadsheet className="text-muted-foreground" />
               Export CSV
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onNotes}>
+              <StickyNoteIcon className="text-muted-foreground" />
+              Notes<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => onOwnership('sold')}>

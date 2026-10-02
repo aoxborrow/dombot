@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { HoverCard } from 'radix-ui';
-import { StickyNote } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/app';
 import {
@@ -9,7 +8,6 @@ import {
   notesNearLimit,
   notesTextareaClass,
 } from './NotesLimit';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -18,30 +16,43 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
+import { StickyNoteIcon } from '../icons/StickyNoteIcon';
 
 /**
- * A name's note in a table cell: a sticky-note icon, yellow when there's a
- * note and faint when there isn't. Hovering shows the whole note; clicking
- * opens a small editor that saves the note alone (its purchase and sale stay
- * as they are). ⌘/Ctrl+Enter saves.
+ * A name's note, beside the row's "⋯" menu: a sticky-note icon, bright when
+ * there's a note. Without one it stays hidden until the row is hovered (or
+ * the editor is open), to keep the table quiet. Hovering shows the whole
+ * note; clicking opens a small editor that saves the note alone (its purchase
+ * and sale stay as they are). The row menu's "Notes…" opens the same editor
+ * through `editing`. ⌘/Ctrl+Enter saves.
  */
 export function NotesButton({
   domainName,
   notes,
+  editing,
+  onEditingChange,
 }: {
   domainName: string;
   notes: string;
+  editing: boolean;
+  onEditingChange: (editing: boolean) => void;
 }) {
   const saveNotes = useAppStore((s) => s.saveNotes);
-  const [editing, setEditing] = useState(false);
   const [hovering, setHovering] = useState(false);
   const [draft, setDraft] = useState(notes);
   const [saving, setSaving] = useState(false);
   const has = notes.trim() !== '';
 
+  // Start each edit from the saved note, however the editor was opened.
+  const [wasEditing, setWasEditing] = useState(editing);
+  if (editing !== wasEditing) {
+    setWasEditing(editing);
+    if (editing) setDraft(notes);
+  }
+
   const open = (next: boolean) => {
-    if (next) setDraft(notes);
-    setEditing(next);
+    onEditingChange(next);
     setHovering(false);
   };
 
@@ -49,13 +60,72 @@ export function NotesButton({
     setSaving(true);
     try {
       await saveNotes(domainName, draft.trim());
-      setEditing(false);
+      onEditingChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not save.');
     } finally {
       setSaving(false);
     }
   }
+
+  const editor = () => (
+    <PopoverContent
+      side="bottom"
+      sideOffset={6}
+      collisionPadding={16}
+      className="flex w-80 flex-col gap-2 p-3"
+      // The row menu hands focus back to its trigger as it closes, just
+      // after this opens; don't let that count as leaving the editor.
+      onFocusOutside={(e) => e.preventDefault()}
+      onOpenAutoFocus={(e) => {
+        // Focus the textarea, with the caret at the end.
+        e.preventDefault();
+        const el = (e.currentTarget as HTMLElement).querySelector('textarea');
+        el?.focus();
+        el?.setSelectionRange(el.value.length, el.value.length);
+      }}
+    >
+      <PopoverArrow />
+      <p className="text-sm font-medium">Notes</p>
+      <Textarea
+        className={notesTextareaClass}
+        value={draft}
+        maxLength={NOTES_MAX}
+        placeholder="Anything about this name"
+        aria-label={`Notes for ${domainName}`}
+        aria-describedby={
+          notesNearLimit(draft.length) ? 'notes-popover-limit' : undefined
+        }
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            void save();
+          }
+        }}
+      />
+      <NotesLimit notes={draft} id="notes-popover-limit" />
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={saving}
+          onClick={() => onEditingChange(false)}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          disabled={saving || draft.trim() === notes.trim()}
+          onClick={() => void save()}
+        >
+          Save
+        </Button>
+      </div>
+    </PopoverContent>
+  );
 
   return (
     <HoverCard.Root
@@ -70,86 +140,34 @@ export function NotesButton({
             <button
               type="button"
               aria-label={`${has ? 'Edit' : 'Add'} notes for ${domainName}`}
+              title={has ? undefined : 'Add notes'}
+              // Sized like the "⋯" beside it (a little narrower than a square
+              // so the two sit snug). Without a note it shows only on row
+              // hover, keyboard focus, or while its editor is open.
               className={cn(
-                'inline-flex size-7 items-center justify-center rounded-md outline-none hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring/50 dark:hover:bg-accent/50',
+                '-my-2 inline-flex h-8 w-7 shrink-0 items-center justify-center rounded-md outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 compact:h-7 compact:w-6 dark:hover:bg-accent/50',
                 has
-                  ? 'text-yellow-500 dark:text-yellow-400'
-                  : 'text-muted-foreground/30 hover:text-muted-foreground',
+                  ? 'text-foreground/55 hover:text-foreground dark:text-foreground/70 dark:hover:text-foreground'
+                  : 'text-foreground/40 opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100',
               )}
             >
-              <StickyNote
-                className="size-4"
-                fill={has ? 'currentColor' : 'none'}
-                fillOpacity={has ? 0.2 : 0}
-              />
+              <StickyNoteIcon className="size-4" />
             </button>
           </PopoverTrigger>
         </HoverCard.Trigger>
         <HoverCard.Portal>
+          {/* A light shadow: the menus' heavy drop shadow would spill down
+              over the icon just below and dim it. */}
           <HoverCard.Content
             side="top"
             sideOffset={6}
             collisionPadding={16}
-            className="z-50 max-w-xs rounded-md border bg-popover px-3 py-2 text-sm whitespace-pre-wrap text-popover-foreground shadow-dropdown"
+            className="z-50 max-w-xs rounded-md border bg-popover px-3 py-2 text-sm whitespace-pre-wrap text-popover-foreground shadow-md"
           >
             {notes}
           </HoverCard.Content>
         </HoverCard.Portal>
-        <PopoverContent
-          side="bottom"
-          sideOffset={6}
-          collisionPadding={16}
-          className="flex w-80 flex-col gap-2 p-3"
-          onOpenAutoFocus={(e) => {
-            // Focus the textarea, with the caret at the end.
-            e.preventDefault();
-            const el = (e.currentTarget as HTMLElement).querySelector(
-              'textarea',
-            );
-            el?.focus();
-            el?.setSelectionRange(el.value.length, el.value.length);
-          }}
-        >
-          <PopoverArrow />
-          <p className="text-sm font-medium">Notes</p>
-          <Textarea
-            className={notesTextareaClass}
-            value={draft}
-            maxLength={NOTES_MAX}
-            placeholder="Anything about this name"
-            aria-label={`Notes for ${domainName}`}
-            aria-describedby={
-              notesNearLimit(draft.length) ? 'notes-popover-limit' : undefined
-            }
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                void save();
-              }
-            }}
-          />
-          <NotesLimit notes={draft} id="notes-popover-limit" />
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={saving}
-              onClick={() => setEditing(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={saving || draft.trim() === notes.trim()}
-              onClick={() => void save()}
-            >
-              Save
-            </Button>
-          </div>
-        </PopoverContent>
+        {editor()}
       </Popover>
     </HoverCard.Root>
   );
