@@ -11,7 +11,8 @@ const registered = {
   entities: [
     {
       roles: ['registrar'],
-      vcardArray: ['vcard', [['fn', {}, 'text', 'Example Registrar']]],
+      publicIds: [{ type: 'IANA Registrar ID', identifier: '625' }],
+      vcardArray: ['vcard', [['fn', {}, 'text', 'Name.com, Inc.']]],
     },
   ],
 };
@@ -39,7 +40,10 @@ describe('lookupRegistrations', () => {
     const rows = await lookupRegistrations(['Held.com', 'free-name.com']);
     expect(rows['held.com']).toMatchObject({
       registered: true,
-      registrar: 'Example Registrar',
+      registrar: 'Name.com, Inc.',
+      registrarIanaId: 625,
+      registrarLabel: 'Name.com',
+      mappedRegistrar: 'namecom',
       created: '2010-01-02T00:00:00Z',
       expires: '2027-01-02T00:00:00Z',
     });
@@ -47,6 +51,52 @@ describe('lookupRegistrations', () => {
 
     await lookupRegistrations(['held.com', 'free-name.com']);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends a DomBot User-Agent', async () => {
+    let headers: Record<string, string> = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        headers = (init?.headers ?? {}) as Record<string, string>;
+        return new Response(JSON.stringify(registered), { status: 200 });
+      }),
+    );
+    await lookupRegistrations(['ua.com']);
+    expect(headers['user-agent']).toMatch(/^DomBot\//);
+  });
+
+  it('reads a nested reseller and shows it when mapped', async () => {
+    const viaReseller = {
+      ...registered,
+      entities: [
+        {
+          roles: ['registrar'],
+          publicIds: [{ type: 'IANA Registrar ID', identifier: '269' }],
+          vcardArray: ['vcard', [['fn', {}, 'text', 'Key-Systems GmbH']]],
+          entities: [
+            {
+              roles: ['reseller'],
+              vcardArray: ['vcard', [['fn', {}, 'text', 'iwantmyname']]],
+            },
+          ],
+        },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () => new Response(JSON.stringify(viaReseller), { status: 200 }),
+      ),
+    );
+    const rows = await lookupRegistrations(['resold.com']);
+    expect(rows['resold.com']).toMatchObject({
+      registrar: 'Key-Systems GmbH',
+      registrarIanaId: 269,
+      reseller: 'iwantmyname',
+      registrarLabel: 'iwantmyname',
+      mappedRegistrar: null,
+    });
   });
 
   it('leaves a name out when the lookup fails', async () => {
