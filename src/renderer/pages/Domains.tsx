@@ -828,19 +828,18 @@ export default function Domains() {
           }
         : c,
     );
-    const purchasedAt = base.findIndex((c) => c.key === 'createdDate');
+    const afterCreated = base.findIndex((c) => c.key === 'createdDate');
     const extra = purchaseColumns({
       purchases,
       preferredCurrency: settings?.preferredCurrency ?? DEFAULT_CURRENCY,
       numberFormat: settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
-      onEdit: setPurchaseFor,
       onEditSale: setSaleFor,
       showSale: archiveView,
       isSold: (d) => ownership.get(toAscii(d.domainName))?.label === 'sold',
       askingPrices,
       onEditAsking: (d) => setAskingFor([d]),
     });
-    base.splice(purchasedAt + 1, 0, ...extra);
+    base.splice(afterCreated + 1, 0, ...extra);
     return base;
   }, [
     multipleAccounts,

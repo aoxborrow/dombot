@@ -62,14 +62,14 @@ function PurchaseCell({
 }
 
 /**
- * Purchase date and amount. Archive also gets sold date and amount first;
- * Owned gets the asking price after what you paid.
+ * Money columns for the Domains table: Archive gets the sold date and
+ * amount, Owned gets the asking price. What you paid is edited from the row
+ * menu (Purchase details).
  */
 export function purchaseColumns({
   purchases,
   preferredCurrency,
   numberFormat,
-  onEdit,
   onEditSale,
   showSale = false,
   isSold,
@@ -79,12 +79,11 @@ export function purchaseColumns({
   purchases: Record<string, DomainPurchase>;
   preferredCurrency: string;
   numberFormat: NumberFormatId;
-  onEdit: (domain: Domain) => void;
   onEditSale?: (domain: Domain) => void;
-  /** History view: sold date and sold amount, before the purchase columns. */
+  /** Archive view: sold date and sold amount. */
   showSale?: boolean;
   isSold?: (domain: Domain) => boolean;
-  /** Owned view: the Asking column, after Paid. */
+  /** Owned view: the Asking column. */
   askingPrices?: Record<string, AskingPrice>;
   onEditAsking?: (domain: Domain) => void;
 }): PurchaseColumn[] {
@@ -210,48 +209,5 @@ export function purchaseColumns({
       ]
     : [];
 
-  return [
-    ...sale,
-    {
-      key: 'purchaseDate',
-      label: 'Purchased',
-      hideOnMobile: true,
-      render: (d) => {
-        const date = recordOf(purchases, d)?.purchaseDate;
-        return (
-          <PurchaseCell domain={d} onEdit={onEdit} empty={!date}>
-            {date || '—'}
-          </PurchaseCell>
-        );
-      },
-      sortValue: (d) => recordOf(purchases, d)?.purchaseDate ?? null,
-    },
-    {
-      key: 'purchaseAmount',
-      label: 'Paid',
-      align: 'right',
-      render: (d) => {
-        const record = recordOf(purchases, d);
-        const text =
-          record?.amount && record.currency
-            ? formatMoney(
-                record.amount,
-                record.currency,
-                preferredCurrency,
-                numberFormat,
-              )
-            : null;
-        return (
-          <PurchaseCell domain={d} onEdit={onEdit} align="right" empty={!text}>
-            {text || '—'}
-          </PurchaseCell>
-        );
-      },
-      sortValue: (d) => {
-        const amount = recordOf(purchases, d)?.amount;
-        return amount == null ? null : Number(amount);
-      },
-    },
-    ...asking,
-  ];
+  return [...sale, ...asking];
 }

@@ -25,8 +25,6 @@ export const SORT_COLUMNS: { key: string; label: string }[] = [
   { key: 'folder', label: 'Folder' },
   { key: 'registrar', label: 'Registrar' },
   { key: 'createdDate', label: 'Created' },
-  { key: 'purchaseDate', label: 'Purchased' },
-  { key: 'purchaseAmount', label: 'Paid' },
   { key: 'expirationDate', label: 'Expires' },
   { key: 'renewal', label: 'Renewal' },
   { key: 'autoRenew', label: 'Auto-renew' },
