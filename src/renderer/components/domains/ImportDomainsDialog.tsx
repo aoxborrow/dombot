@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CircleAlert, FileUp, Info, Upload } from 'lucide-react';
+import { CircleAlert, FileUp, Info, Pencil, Upload } from 'lucide-react';
 import { decodeText, toCsv } from '../../../shared/csv';
 import { domainsCsvTemplate } from '../../../shared/domain-csv';
 import { newEventId } from '../../../shared/domain-events';
@@ -24,7 +24,12 @@ import type {
   ImportOutcome,
   ImportPlan,
 } from '../../../shared/ipc';
-import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../../shared/money';
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_NUMBER_FORMAT,
+  formatAmountInput,
+  parseLocalizedAmount,
+} from '../../../shared/money';
 import { useAppStore } from '../../store/app';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -46,13 +51,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { CurrencyPicker } from './CurrencyPicker';
 
 // Import domains (docs/domain-import-export.md, "The Import domains dialog"):
-// choose a file (or paste names), match its columns, review every change,
-// then import. Reading and matching happen here, so the file never leaves
-// the device; the server previews and writes the normalized rows.
+// two tabs. Manual takes typed names plus an asking price and folder for all
+// of them; CSV upload takes a file and matches its columns. Both then review
+// every change before importing. Reading and matching happen here, so the
+// file never leaves the device; the server previews and writes the
+// normalized rows.
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 /** Rows per import request, under one import id (the Worker's write budget). */
@@ -62,6 +70,24 @@ const NONE = '__none__';
 const OTHER = '__other__';
 
 type Step = 'choose' | 'match' | 'review' | 'done';
+type Source = 'manual' | 'file';
+
+/** What the Manual tab applies to every name it adds. */
+interface ManualFields {
+  names: string;
+  amount: string;
+  minOffer: string;
+  floor: string;
+  currency: string;
+  folder: string;
+}
+
+/** Typed names, split on lines, commas, and spaces. */
+const splitNames = (text: string) =>
+  text
+    .split(/[\s,;]+/)
+    .map((n) => n.trim())
+    .filter(Boolean);
 type Filter = ImportOutcome['result'] | 'errors' | 'all';
 
 const RESULT_LABEL: Record<ImportOutcome['result'], string> = {
@@ -106,7 +132,15 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
     policy: 'update',
     notInAccounts: 'manual',
   });
-  const [pasted, setPasted] = useState('');
+  const [source, setSource] = useState<Source>('manual');
+  const [manual, setManual] = useState<ManualFields>({
+    names: '',
+    amount: '',
+    minOffer: '',
+    floor: '',
+    currency: preferred,
+    folder: '',
+  });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
@@ -164,12 +198,105 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
       return;
     }
     const s = guessSetup(t, ctx);
+    setSource('file');
     setFileName(name);
     setTable(t);
     setSetup(s);
     // DomBot's own export needs no matching.
     if (s.format?.exact) await preview(t, s);
     else setStep('match');
+  }
+
+  /**
+   * The Manual tab as a table DomBot's import reads: one row per name, with
+   * the same asking price and folder on each.
+   */
+  async function addManual() {
+    setError(null);
+    const formatId = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
+    let amount: string | null;
+    let minOffer: string | null;
+    let floor: string | null;
+    try {
+      amount = parseLocalizedAmount(
+        manual.amount,
+        manual.currency,
+        formatId,
+        'Asking price',
+      );
+      minOffer = parseLocalizedAmount(
+        manual.minOffer,
+        manual.currency,
+        formatId,
+        'Minimum offer',
+      );
+      floor = parseLocalizedAmount(
+        manual.floor,
+        manual.currency,
+        formatId,
+        'Floor price',
+      );
+    } catch (err) {
+      setError(message(err));
+      return;
+    }
+    if (amount && minOffer && Number(minOffer) > Number(amount)) {
+      setError('The minimum offer is above the asking price.');
+      return;
+    }
+    if (amount && floor && Number(floor) > Number(amount)) {
+      setError('The floor price is above the asking price.');
+      return;
+    }
+    const names = splitNames(manual.names);
+    const folder = manual.folder.trim();
+    const t: ImportTable = {
+      headers: [
+        'Domain',
+        'Asking price',
+        'Minimum offer',
+        'Floor price',
+        'Asking currency',
+        'Folder',
+      ],
+      rows: names.map((name, i) => ({
+        line: i + 1,
+        cells: [
+          name,
+          amount ?? '',
+          minOffer ?? '',
+          floor ?? '',
+          amount || minOffer || floor ? manual.currency : '',
+          folder,
+        ],
+      })),
+      headerless: false,
+    };
+    const s: ImportSetup = {
+      columns: [
+        'domain',
+        'askingPrice',
+        'minOffer',
+        'floorPrice',
+        'askingCurrency',
+        'folder',
+      ],
+      format: null,
+      dateOrder: 'mdy',
+      datesAmbiguous: false,
+      defaults: {
+        registrar: null,
+        currency: manual.currency,
+        folder: null,
+        status: null,
+        purchaseType: null,
+      },
+    };
+    setSource('manual');
+    setFileName(null);
+    setTable(t);
+    setSetup(s);
+    await preview(t, s);
   }
 
   async function onFile(file: File | undefined) {
@@ -241,7 +368,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
       setStep('done');
     } catch (err) {
       setError(
-        `${message(err)} Rows already imported stay; importing the file again finishes the rest.`,
+        `${message(err)} Rows already imported stay; importing again finishes the rest.`,
       );
     } finally {
       // Show what was written, even when a later chunk failed.
@@ -284,12 +411,19 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={(next) => !next && !busy && onClose()}>
-      <DialogContent className="flex max-h-[92dvh] flex-col sm:max-w-4xl max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:rounded-none">
+      <DialogContent
+        className={cn(
+          'flex max-h-[92dvh] flex-col max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:rounded-none',
+          step === 'choose' ? 'sm:max-w-2xl' : 'sm:max-w-4xl',
+        )}
+      >
         <DialogHeader>
           <DialogTitle>Import domains</DialogTitle>
           <DialogDescription>
             {step === 'choose' &&
-              'From a spreadsheet: a DomBot export, a registrar or marketplace export, or your own list.'}
+              (source === 'manual'
+                ? 'Type or paste names. The price and folder below apply to every one.'
+                : 'Upload a spreadsheet of your names, with any details it has.')}
             {step === 'match' && fileName && (
               <>
                 <span className="font-mono text-foreground">{fileName}</span>
@@ -306,82 +440,95 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
 
         <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6">
           {step === 'choose' && (
-            <div className="flex flex-col gap-4">
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragging(true);
-                }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragging(false);
-                  void onFile(e.dataTransfer.files[0]);
-                }}
-                className={cn(
-                  'flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-8 text-center',
-                  dragging && 'border-brand bg-brand/5',
-                )}
+            <Tabs
+              value={source}
+              onValueChange={(v) => {
+                setSource(v as Source);
+                setError(null);
+              }}
+              className="gap-4"
+            >
+              <TabsList
+                variant="line"
+                className="w-full justify-start border-b"
               >
-                <FileUp className="size-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Drop a CSV, TSV, or text file here, up to 10,000 rows.
-                </p>
-                <input
-                  ref={fileInput}
-                  type="file"
-                  accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values"
-                  className="hidden"
-                  onChange={(e) => {
-                    void onFile(e.target.files?.[0]);
-                    e.target.value = '';
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => fileInput.current?.click()}
-                >
+                <TabsTrigger value="manual" className="gap-2">
+                  <Pencil className="size-4" />
+                  Manual
+                </TabsTrigger>
+                <TabsTrigger value="file" className="gap-2">
                   <Upload className="size-4" />
-                  Choose a file
-                </Button>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="import-paste">
-                  Or paste names, one per line
-                </Label>
-                <Textarea
-                  id="import-paste"
-                  rows={5}
-                  className="font-mono text-sm"
-                  placeholder={'example.com\nexample.net'}
-                  value={pasted}
-                  onChange={(e) => setPasted(e.target.value)}
+                  CSV upload
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="manual">
+                <ManualTab
+                  fields={manual}
+                  onChange={(patch) => setManual((m) => ({ ...m, ...patch }))}
+                  folderNames={folders.map((f) => f.name)}
+                  placeholder={formatAmountInput(
+                    '0',
+                    manual.currency,
+                    settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+                  )}
                 />
-                <div>
+              </TabsContent>
+              <TabsContent value="file" className="flex flex-col gap-4">
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragging(true);
+                  }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragging(false);
+                    void onFile(e.dataTransfer.files[0]);
+                  }}
+                  className={cn(
+                    'flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-10 text-center',
+                    dragging && 'border-brand bg-brand/5',
+                  )}
+                >
+                  <FileUp className="size-8 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Drop a CSV, TSV, or text file here, up to 10,000 rows.
+                  </p>
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values"
+                    className="hidden"
+                    onChange={(e) => {
+                      void onFile(e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={!pasted.trim()}
-                    onClick={() => void open(pasted, 'Pasted names')}
+                    className="gap-2"
+                    onClick={() => fileInput.current?.click()}
                   >
-                    Continue
+                    <Upload className="size-4" />
+                    Choose a file
                   </Button>
                 </div>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Starting from scratch?{' '}
-                <button
-                  type="button"
-                  className="text-brand underline underline-offset-4"
-                  onClick={() => void onTemplate()}
-                >
-                  Download the template
-                </button>{' '}
-                for DomBot&apos;s columns and three example rows.
-              </p>
-            </div>
+                <p className="text-sm text-muted-foreground">
+                  Any spreadsheet with a domain column works: a DomBot export, a
+                  registrar or marketplace export, or your own list. You match
+                  its columns next.{' '}
+                  <button
+                    type="button"
+                    className="text-brand underline underline-offset-4"
+                    onClick={() => void onTemplate()}
+                  >
+                    Download the template
+                  </button>{' '}
+                  for DomBot&apos;s columns and three example rows.
+                </p>
+              </TabsContent>
+            </Tabs>
           )}
 
           {step === 'match' && table && setup && (
@@ -461,6 +608,17 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <DialogFooter className="gap-2">
+          {step === 'choose' && source === 'manual' && (
+            <Button
+              type="button"
+              disabled={busy || splitNames(manual.names).length === 0}
+              onClick={() => void addManual()}
+            >
+              {busy
+                ? 'Reading…'
+                : `Review ${splitNames(manual.names).length.toLocaleString('en-US')} name${splitNames(manual.names).length === 1 ? '' : 's'}`}
+            </Button>
+          )}
           {step === 'match' && (
             <>
               <Button
@@ -500,7 +658,11 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
                 className="sm:mr-auto"
                 disabled={busy}
                 onClick={() =>
-                  setStep(setup?.format?.exact ? 'choose' : 'match')
+                  setStep(
+                    source === 'manual' || setup?.format?.exact
+                      ? 'choose'
+                      : 'match',
+                  )
                 }
               >
                 Back
@@ -576,6 +738,104 @@ function message(err: unknown): string {
 }
 
 // ── match ───────────────────────────────────────────────────────────────────
+
+/**
+ * Names typed or pasted, plus what to apply to all of them: an asking price
+ * (with minimum offer and floor) and a folder.
+ */
+function ManualTab({
+  fields,
+  onChange,
+  folderNames,
+  placeholder,
+}: {
+  fields: ManualFields;
+  onChange: (patch: Partial<ManualFields>) => void;
+  folderNames: string[];
+  /** A zero in the number format and currency, e.g. "0.00". */
+  placeholder: string;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="import-names">Domains</Label>
+        <Textarea
+          id="import-names"
+          rows={7}
+          className="font-mono text-sm"
+          placeholder={'example.com\nexample.net'}
+          value={fields.names}
+          onChange={(e) => onChange({ names: e.target.value })}
+        />
+        <p className="text-xs text-muted-foreground">
+          One per line, or separated by commas. Names already in DomBot get the
+          price and folder too.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="import-asking">Asking price</Label>
+          <Input
+            id="import-asking"
+            inputMode="decimal"
+            placeholder={placeholder}
+            value={fields.amount}
+            onChange={(e) => onChange({ amount: e.target.value })}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="import-min-offer">Minimum offer</Label>
+          <Input
+            id="import-min-offer"
+            inputMode="decimal"
+            placeholder="Optional"
+            value={fields.minOffer}
+            onChange={(e) => onChange({ minOffer: e.target.value })}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="import-floor">Floor price</Label>
+          <Input
+            id="import-floor"
+            inputMode="decimal"
+            placeholder="Optional"
+            value={fields.floor}
+            onChange={(e) => onChange({ floor: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <Label>Currency</Label>
+          <CurrencyPicker
+            value={fields.currency}
+            onChange={(currency) => onChange({ currency })}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="import-manual-folder">Folder</Label>
+          <Input
+            id="import-manual-folder"
+            list="import-manual-folders"
+            placeholder="No folder"
+            value={fields.folder}
+            onChange={(e) => onChange({ folder: e.target.value })}
+          />
+          <datalist id="import-manual-folders">
+            {folderNames.map((f) => (
+              <option key={f} value={f} />
+            ))}
+            <option value="Hidden" />
+          </datalist>
+        </div>
+      </div>
+      <p className="-mt-1 text-xs text-muted-foreground">
+        Leave the prices blank to add the names without one. A folder that
+        doesn&apos;t exist yet is created.
+      </p>
+    </div>
+  );
+}
 
 function MatchStep({
   table,
@@ -894,7 +1154,7 @@ function ReviewStep({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="update">
-                Replace it with the file&apos;s
+                Replace it with the new value
               </SelectItem>
               <SelectItem value="fill">Keep it; only fill in blanks</SelectItem>
             </SelectContent>
