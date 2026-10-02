@@ -143,6 +143,8 @@ export default function Activity() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const reviewOnly = params.get('review') === '1';
+  // One import's rows (`?import=<id>`), from the import's result.
+  const importId = params.get('import');
   const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
 
@@ -298,10 +300,14 @@ export default function Activity() {
     (sources.length > 0 ? 1 : 0) +
     (priorities.length > 0 ? 1 : 0) +
     (days.length > 0 ? 1 : 0);
-  const hasActiveFilters = search.trim() !== '' || activeGroups > 0;
+  const hasActiveFilters =
+    search.trim() !== '' || activeGroups > 0 || importId !== null;
 
   function resetFilters() {
-    setSearch('');
+    const next = new URLSearchParams(params);
+    next.delete('q');
+    next.delete('import');
+    setParams(next, { replace: true });
     setTypes([]);
     setAccounts([]);
     setSources([]);
@@ -322,6 +328,8 @@ export default function Activity() {
     const q = search.trim().toLowerCase();
     const filtered = allRows.filter(({ event: e, shown }) => {
       if (q && !toUnicode(e.domain).includes(q) && !e.domain.includes(q))
+        return false;
+      if (importId && e.importId !== importId && shown.importId !== importId)
         return false;
       const priority = reviewPriority(e, resolved);
       if (reviewOnly && !priority) return false;
@@ -369,6 +377,7 @@ export default function Activity() {
   }, [
     allRows,
     search,
+    importId,
     resolved,
     reviewOnly,
     priorities,
@@ -644,9 +653,11 @@ export default function Activity() {
               Activity
             </h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              {since
-                ? `Tracking changes since ${new Date(since).toLocaleDateString(undefined, { dateStyle: 'medium' })}`
-                : 'Changes are tracked from each account’s first sync'}
+              {importId
+                ? 'What one import recorded. Reset shows everything.'
+                : since
+                  ? `Tracking changes since ${new Date(since).toLocaleDateString(undefined, { dateStyle: 'medium' })}`
+                  : 'Changes are tracked from each account’s first sync'}
             </p>
           </div>
           <ViewSwitch

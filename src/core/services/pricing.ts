@@ -216,3 +216,13 @@ export function setTldRate(
     void tldRates.set(key, price);
   }
 }
+
+/** Sets many names' manual renewal prices in one write (an import). */
+export function setManualPrices(
+  entries: [domain: string, RenewalPrice][],
+): void {
+  if (entries.length === 0) return;
+  void overrides.setMany(
+    entries.map(([domain, price]) => [assertDomainName(domain), price]),
+  );
+}

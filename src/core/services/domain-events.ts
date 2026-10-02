@@ -154,6 +154,28 @@ export function setNameNote(domain: string, text: string): void {
   if (note) void notes.set(note.id, note);
 }
 
+/** Sets many names' notes in one store write. Blank text is skipped. */
+export function setNameNotes(entries: [domain: string, text: string][]): void {
+  const now = Date.now();
+  const byDomain = new Map(
+    Object.values(notes.all())
+      .filter((n) => n.eventId === null)
+      .map((n) => [n.domain, n]),
+  );
+  const writes: [string, DomainNote][] = [];
+  for (const [domain, text] of entries) {
+    const key = toAscii(domain);
+    const trimmed = text.trim().slice(0, MAX_NOTE_LENGTH);
+    if (!trimmed) continue;
+    const note = nextNameNote(byDomain.get(key), key, trimmed, now);
+    if (note) {
+      byDomain.set(key, note);
+      writes.push([note.id, note]);
+    }
+  }
+  if (writes.length > 0) void notes.setMany(writes);
+}
+
 // ── import validation ───────────────────────────────────────────────────────
 
 const optionalId = (v: unknown) =>

@@ -81,3 +81,17 @@ export function assignFolder(
   if (valid) void assignments.set(key, folderId);
   else void assignments.delete(key);
 }
+
+/**
+ * Assigns many names to folders in one write (an import). Entries naming a
+ * folder that doesn't exist are skipped.
+ */
+export function assignFolders(
+  entries: [domain: string, folderId: string][],
+): void {
+  const ids = new Set(loadFolders().map((f) => f.id));
+  const writes = entries
+    .filter(([, id]) => id === HIDDEN_FOLDER_ID || ids.has(id))
+    .map(([domain, id]) => [assertDomainName(domain), id] as [string, string]);
+  if (writes.length > 0) void assignments.setMany(writes);
+}
