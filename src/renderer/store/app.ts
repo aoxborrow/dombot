@@ -414,7 +414,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         portfolioErrors: [],
         portfolioRegistrars: [],
         enriched: {},
-        pricing: {},
+        // Manual names keep their prices without registrar data.
+        pricing: snapshot.pricing,
       });
       return;
     }
@@ -463,6 +464,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       detailAllLoading: false,
       selected: new Set(),
     });
+    // Manual names aren't cache: re-read their prices.
+    await get().loadPricing();
   },
 
   loadPortfolio: async () => {

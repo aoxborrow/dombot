@@ -20,6 +20,7 @@ import {
   tldOf,
   upcomingByMonth,
   wholeMoney,
+  type CurrencyTotal,
   type Group,
   type MonthBucket,
 } from '../lib/renewals';
@@ -184,9 +185,7 @@ export default function Renewals() {
     () => summarize(portfolio, pricing, currency),
     [portfolio, pricing, currency],
   );
-  const othersNote = summary.others
-    .map((o) => `+ ${wholeMoney(o.yearly, o.currency)}`)
-    .join(' · ');
+  const othersNote = plusOthers(summary.others);
   const byRegistrar = useMemo(
     () =>
       groupBy(
@@ -293,7 +292,9 @@ export default function Renewals() {
           accentClass="text-amber-500"
           label="Due next 90 days"
           value={usd(due90.yearly)}
-          hint={`${due90.count} domain${due90.count === 1 ? '' : 's'} renewing`}
+          hint={`${due90.count} domain${due90.count === 1 ? '' : 's'} renewing${
+            due90.others.length ? ` · ${plusOthers(due90.others)}` : ''
+          }`}
         />
       </div>
 
@@ -412,6 +413,11 @@ function StatCard({
 
 // ── Monthly bar chart ────────────────────────────────────────────────────────
 
+/** Totals in other currencies, e.g. "+ €45 · + £12". */
+function plusOthers(others: CurrencyTotal[]): string {
+  return others.map((o) => `+ ${wholeMoney(o.yearly, o.currency)}`).join(' · ');
+}
+
 // The bars are all a single flat blue — the month labels already tell them
 // apart, so per-bar hues just added noise.
 const BAR_COLOR = '#35509e';
@@ -459,9 +465,9 @@ function MonthlyBarChart({
                     height: `${pct}%`,
                     backgroundColor: BAR_COLOR,
                   }}
-                  title={`${m.label}: ${usd(m.yearly)} · ${m.count} domain${
-                    m.count === 1 ? '' : 's'
-                  }`}
+                  title={`${m.label}: ${usd(m.yearly)}${
+                    m.others.length ? ` ${plusOthers(m.others)}` : ''
+                  } · ${m.count} domain${m.count === 1 ? '' : 's'}`}
                 />
                 {m.yearly > 0 && (
                   <span

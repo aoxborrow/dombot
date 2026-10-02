@@ -98,6 +98,7 @@ it('neutralizes formulas in exported account labels', () => {
       purchases: {},
       askingPrices: {},
       pricing: {},
+      manualPrices: {},
       archiveLabel: () => null,
       accountName: (d) => d.accountLabel ?? '',
     }),
