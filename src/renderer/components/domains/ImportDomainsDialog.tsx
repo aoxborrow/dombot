@@ -36,8 +36,8 @@ import type {
 import { toUnicode } from '../../../shared/domain-name';
 import { DataTable, type DataColumn } from '../data-table/DataTable';
 import { sortRows, type SortDir } from '../data-table/table-state';
-import { wholeAmount } from '../../../shared/bin-prices';
-import { BIN_HELP } from './BinPriceDialog';
+import { wholeAmount } from '../../../shared/list-prices';
+import { LIST_PRICE_HELP } from './ListPriceDialog';
 import { CurrencyPicker } from './CurrencyPicker';
 import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
@@ -350,7 +350,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
         'binPrice',
         'minOffer',
         'floorPrice',
-        'binCurrency',
+        'listCurrency',
         'folder',
       ],
       format: null,
@@ -452,7 +452,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
           store.loadPurchases(),
           store.loadFolders(),
           store.loadPricing(),
-          store.loadBinPrices(),
+          store.loadListPrices(),
         ]).catch(() => {});
       }
       setBusy(false);
@@ -496,13 +496,15 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
   // Matching and reviewing want the room; choosing stays compact.
   const wide = step === 'match' || step === 'review';
   // Leaving after columns are matched or a plan is built throws work away.
+  // Asked in the footer, not with window.confirm (which some browsers and
+  // embedded views answer "no" to without showing).
+  const [confirmingClose, setConfirmingClose] = useState(false);
   const requestClose = () => {
     if (busy) return;
-    if (
-      (step === 'match' || step === 'review') &&
-      !window.confirm('Close the import? Nothing has been imported yet.')
-    )
+    if ((step === 'match' || step === 'review') && !confirmingClose) {
+      setConfirmingClose(true);
       return;
+    }
     onClose();
   };
   const back = () =>
@@ -745,99 +747,119 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        <DialogFooter className="flex-row items-center gap-2 border-t px-6 py-3 sm:justify-between">
-          <div className="flex gap-2">
-            {(step === 'choose' || step === 'match' || step === 'review') && (
+        {confirmingClose ? (
+          <DialogFooter className="flex-row items-center gap-2 border-t px-6 py-3 sm:justify-between">
+            <p className="text-sm">
+              Close without importing? Your matching and review are lost.
+            </p>
+            <div className="ml-auto flex gap-2">
               <Button
                 type="button"
                 variant="outline"
-                disabled={busy}
-                onClick={step === 'choose' ? requestClose : back}
+                onClick={() => setConfirmingClose(false)}
               >
-                {step === 'choose' ? 'Cancel' : 'Back'}
+                Keep going
               </Button>
-            )}
-            {step === 'done' && result && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  onClose();
-                  navigate(`/activity?import=${result.importId}`);
-                }}
-              >
-                View in Activity
+              <Button type="button" variant="destructive" onClick={onClose}>
+                Close
               </Button>
-            )}
-          </div>
-          <div className="ml-auto flex gap-2">
-            {step === 'choose' && source === 'manual' && (
-              <Button
-                type="button"
-                disabled={busy || splitNames(manual.names).length === 0}
-                onClick={() => void addManual()}
-              >
-                {busy
-                  ? 'Reading…'
-                  : `Review ${splitNames(manual.names).length.toLocaleString('en-US')} name${splitNames(manual.names).length === 1 ? '' : 's'}`}
-              </Button>
-            )}
-            {step === 'match' && (
-              <Button
-                type="button"
-                disabled={
-                  busy ||
-                  !setup ||
-                  (!setup.columns.includes('domain') &&
-                    !setup.columns.includes('idn'))
-                }
-                title={
-                  setup &&
-                  !setup.columns.includes('domain') &&
-                  !setup.columns.includes('idn')
-                    ? 'Choose the column with the domain names.'
-                    : undefined
-                }
-                onClick={() => table && setup && void preview(table, setup)}
-              >
-                {busy ? 'Reading…' : 'Review'}
-              </Button>
-            )}
-            {step === 'review' && (
-              <>
-                {(errors.length > 0 ||
-                  plan?.outcomes.some((o) => o.warnings.length > 0)) && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => void downloadIssues()}
-                  >
-                    Download issues
-                  </Button>
-                )}
+            </div>
+          </DialogFooter>
+        ) : (
+          <DialogFooter className="flex-row items-center gap-2 border-t px-6 py-3 sm:justify-between">
+            <div className="flex gap-2">
+              {(step === 'choose' || step === 'match' || step === 'review') && (
                 <Button
                   type="button"
-                  disabled={busy || toImport === 0}
-                  onClick={() => void runImport()}
+                  variant="outline"
+                  disabled={busy}
+                  onClick={step === 'choose' ? requestClose : back}
                 >
-                  {busy && progress !== null
-                    ? `Importing… ${Math.round(progress * 100)}%`
-                    : toImport === 0
-                      ? 'Nothing to import'
-                      : `Import ${toImport.toLocaleString('en-US')} name${toImport === 1 ? '' : 's'}`}
+                  {step === 'choose' ? 'Cancel' : 'Back'}
                 </Button>
-              </>
-            )}
-            {step === 'done' && result && (
-              <>
-                <Button type="button" onClick={onClose}>
-                  Done
+              )}
+              {step === 'done' && result && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    onClose();
+                    navigate(`/activity?import=${result.importId}`);
+                  }}
+                >
+                  View in Activity
                 </Button>
-              </>
-            )}
-          </div>
-        </DialogFooter>
+              )}
+            </div>
+            <div className="ml-auto flex gap-2">
+              {step === 'choose' && source === 'manual' && (
+                <Button
+                  type="button"
+                  disabled={busy || splitNames(manual.names).length === 0}
+                  onClick={() => void addManual()}
+                >
+                  {busy
+                    ? 'Reading…'
+                    : `Review ${splitNames(manual.names).length.toLocaleString('en-US')} name${splitNames(manual.names).length === 1 ? '' : 's'}`}
+                </Button>
+              )}
+              {step === 'match' && (
+                <Button
+                  type="button"
+                  disabled={
+                    busy ||
+                    !setup ||
+                    (!setup.columns.includes('domain') &&
+                      !setup.columns.includes('idn'))
+                  }
+                  title={
+                    setup &&
+                    !setup.columns.includes('domain') &&
+                    !setup.columns.includes('idn')
+                      ? 'Choose the column with the domain names.'
+                      : undefined
+                  }
+                  onClick={() => table && setup && void preview(table, setup)}
+                >
+                  {busy ? 'Reading…' : 'Review'}
+                </Button>
+              )}
+              {step === 'review' && (
+                <>
+                  {(errors.length > 0 ||
+                    plan?.outcomes.some((o) => o.warnings.length > 0)) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => void downloadIssues()}
+                    >
+                      Download issues
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    disabled={busy || toImport === 0}
+                    onClick={() => void runImport()}
+                  >
+                    {busy && progress !== null
+                      ? `Importing… ${Math.round(progress * 100)}%`
+                      : toImport === 0
+                        ? 'Nothing to import'
+                        : `Import ${toImport.toLocaleString('en-US')} name${toImport === 1 ? '' : 's'}`}
+                  </Button>
+                </>
+              )}
+              {step === 'done' && result && (
+                <>
+                  <Button type="button" onClick={onClose}>
+                    Done
+                  </Button>
+                </>
+              )}
+            </div>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -1015,7 +1037,7 @@ function ManualTab({
         <div className="flex flex-col gap-2">
           <Label htmlFor="import-bin-price">BIN price</Label>
           <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
-            {BIN_HELP.amount}
+            {LIST_PRICE_HELP.amount}
           </p>
           <MoneyInput
             whole
@@ -1029,7 +1051,7 @@ function ManualTab({
         <div className="flex flex-col gap-2">
           <Label htmlFor="import-min-offer">Minimum offer</Label>
           <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
-            {BIN_HELP.minOffer}
+            {LIST_PRICE_HELP.minOffer}
           </p>
           <MoneyInput
             whole
@@ -1043,7 +1065,7 @@ function ManualTab({
         <div className="flex flex-col gap-2">
           <Label htmlFor="import-floor">Floor price</Label>
           <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
-            {BIN_HELP.floor}
+            {LIST_PRICE_HELP.floor}
           </p>
           <MoneyInput
             whole
@@ -1618,10 +1640,11 @@ function ReviewTable({
       field: 'BIN price',
       align: 'right',
       value: (r) =>
-        r.binPrice?.amount
-          ? money(r.binPrice.amount, r.binPrice.currency, true)
+        r.listPrice?.amount
+          ? money(r.listPrice.amount, r.listPrice.currency, true)
           : null,
-      sortValue: (r) => (r.binPrice?.amount ? Number(r.binPrice.amount) : null),
+      sortValue: (r) =>
+        r.listPrice?.amount ? Number(r.listPrice.amount) : null,
     },
     {
       key: 'minOffer',
@@ -1629,11 +1652,11 @@ function ReviewTable({
       field: 'BIN price',
       align: 'right',
       value: (r) =>
-        r.binPrice?.minOffer
-          ? money(r.binPrice.minOffer, r.binPrice.currency, true)
+        r.listPrice?.minOffer
+          ? money(r.listPrice.minOffer, r.listPrice.currency, true)
           : null,
       sortValue: (r) =>
-        r.binPrice?.minOffer ? Number(r.binPrice.minOffer) : null,
+        r.listPrice?.minOffer ? Number(r.listPrice.minOffer) : null,
     },
     {
       key: 'floor',
@@ -1641,10 +1664,10 @@ function ReviewTable({
       field: 'BIN price',
       align: 'right',
       value: (r) =>
-        r.binPrice?.floor
-          ? money(r.binPrice.floor, r.binPrice.currency, true)
+        r.listPrice?.floor
+          ? money(r.listPrice.floor, r.listPrice.currency, true)
           : null,
-      sortValue: (r) => (r.binPrice?.floor ? Number(r.binPrice.floor) : null),
+      sortValue: (r) => (r.listPrice?.floor ? Number(r.listPrice.floor) : null),
     },
     {
       key: 'renewal',

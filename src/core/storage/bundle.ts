@@ -20,7 +20,7 @@ import {
   cleanNote,
 } from '../services/domain-events';
 import { CREDENTIALS_NAMESPACE, RENEWAL_PRICES_NAMESPACE } from './names';
-import { BIN_PRICES_NAMESPACE, cleanBinPrice } from '../services/bin-prices';
+import { LIST_PRICES_NAMESPACE, cleanListPrice } from '../services/list-prices';
 import { cleanRenewalPrice } from '../services/pricing';
 import {
   MANUAL_DOMAINS_NAMESPACE,
@@ -49,7 +49,7 @@ export const BUNDLE_FORMAT = 'dombot-data';
 // `registrar-last-sync`). A v4 build would skip those namespaces and silently
 // drop the history, so it must refuse the file. Rule: any release that adds a non-cache namespace bumps
 // this version.
-// v6 adds `domain-bin-prices` (docs/domain-import-export.md).
+// v6 adds `domain-list-prices` (docs/domain-import-export.md).
 // v7 stores manual renewal prices with a currency (`domain-prices` values
 // become `{ amount, currency }`); an older build would read them as no price.
 // v8 adds `manual-domains`.
@@ -168,12 +168,12 @@ export function parseBundle(text: string): DataBundle {
       manual,
       cleanManualDomain,
     );
-  const binPrices = head.namespaces[BIN_PRICES_NAMESPACE];
-  if (binPrices)
-    head.namespaces[BIN_PRICES_NAMESPACE] = cleanEntries(
-      BIN_PRICES_NAMESPACE,
-      binPrices,
-      cleanBinPrice,
+  const listPrices = head.namespaces[LIST_PRICES_NAMESPACE];
+  if (listPrices)
+    head.namespaces[LIST_PRICES_NAMESPACE] = cleanEntries(
+      LIST_PRICES_NAMESPACE,
+      listPrices,
+      cleanListPrice,
     );
   // Validate every proxy profile, and every account's pointer to one, so an
   // import can't smuggle in a private/reserved-IP or otherwise malformed proxy

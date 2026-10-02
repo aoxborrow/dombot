@@ -4,8 +4,8 @@ import { create } from 'zustand';
 import type {
   ManualDomain,
   ManualDomainFields,
-  BinPrice,
-  BinPriceInput,
+  ListPrice,
+  ListPriceInput,
   AppInfo,
   AppSettings,
   BulkJob,
@@ -218,10 +218,10 @@ interface AppState {
   ) => Promise<void>;
 
   /** Asking prices keyed by normalized domain name. */
-  binPrices: Record<string, BinPrice>;
-  loadBinPrices: () => Promise<void>;
+  listPrices: Record<string, ListPrice>;
+  loadListPrices: () => Promise<void>;
   /** Set or clear (all amounts blank) asking prices in one write. */
-  saveBinPrices: (inputs: BinPriceInput[]) => Promise<void>;
+  saveListPrices: (inputs: ListPriceInput[]) => Promise<void>;
 
   /** Public registration for names on History, keyed by domain name. */
   registrationLookups: Record<string, RegistrationLookup>;
@@ -756,12 +756,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     void get().loadPricing();
   },
-  binPrices: {},
-  loadBinPrices: async () => {
-    set({ binPrices: await window.api.getBinPrices() });
+  listPrices: {},
+  loadListPrices: async () => {
+    set({ listPrices: await window.api.getListPrices() });
   },
-  saveBinPrices: async (inputs) => {
-    set({ binPrices: await window.api.setBinPrices(inputs) });
+  saveListPrices: async (inputs) => {
+    set({ listPrices: await window.api.setListPrices(inputs) });
   },
   registrationLookups: {},
   loadRegistrationLookups: async (domainNames) => {
@@ -806,7 +806,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().loadPurchases(),
       get().loadFolders(),
       get().loadPricing(),
-      get().loadBinPrices(),
+      get().loadListPrices(),
       get().loadManualDomains(),
     ]);
   },

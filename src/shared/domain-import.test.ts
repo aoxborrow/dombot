@@ -62,7 +62,7 @@ describe('reading a file', () => {
           autoRenew: true,
         },
         renewal: { amount: '9.00', currency: 'EUR' },
-        binPrice: { amount: '2500', minOffer: '500', currency: 'EUR' },
+        listPrice: { amount: '2500', minOffer: '500', currency: 'EUR' },
         purchase: {
           type: 'registered',
           date: '2024-03-15',
@@ -132,7 +132,7 @@ describe('reading a file', () => {
       'Sold Price': 'saleAmount',
       Notes: 'notes',
     });
-    expect(r.rows[0].binPrice).toEqual({
+    expect(r.rows[0].listPrice).toEqual({
       amount: '10000',
       minOffer: '5000',
       floor: '8000',
@@ -229,7 +229,7 @@ describe('reading a file', () => {
     );
     expect(r.setup.format?.id).toBe('sedo');
     expect(r.rows[0]).toMatchObject({
-      binPrice: { amount: '1850', currency: 'USD' },
+      listPrice: { amount: '1850', currency: 'USD' },
       registration: { registrar: 'namecom' },
     });
   });
@@ -266,7 +266,7 @@ describe('reading a file', () => {
       line: 2,
       domain: 'example.io',
       status: 'owned',
-      binPrice: { amount: '1000', currency: 'USD' },
+      listPrice: { amount: '1000', currency: 'USD' },
       purchase: { date: '2021-06-29' },
     });
     // Prices are whole: cents round, with a warning on the row.
@@ -290,7 +290,7 @@ describe('reading a file', () => {
         'example.io,1000.00,0.00,0.00,18250.00,Reference,Uncategorized,,"",,2,1,DEFAULT',
       ].join('\n'),
     );
-    expect(afternic.rows[0].binPrice).toEqual({
+    expect(afternic.rows[0].listPrice).toEqual({
       amount: '18250',
       minOffer: '1000',
       currency: 'USD',
@@ -309,7 +309,7 @@ describe('reading a file', () => {
       'Starting offer',
       'Description',
     ]);
-    expect(dan.rows[0].binPrice).toMatchObject({
+    expect(dan.rows[0].listPrice).toMatchObject({
       amount: '100',
       minOffer: '75',
     });
@@ -378,7 +378,7 @@ describe('rows', () => {
   it('reports a bad row and keeps the rest', () => {
     const r = run(
       [
-        'Domain,Purchase amount,Currency,Asking price,Minimum offer',
+        'Domain,Purchase amount,Currency,Price,Min offer',
         'www.example.com,10,USD,,',
         'example.com,10.5,JPY,,',
         'example.net,-5,USD,,',
@@ -489,7 +489,7 @@ describe('the template', () => {
       ['example.net', 'owned'],
       ['example.org', 'sold'],
     ]);
-    expect(r.rows[1].binPrice).toEqual({
+    expect(r.rows[1].listPrice).toEqual({
       amount: '4800',
       minOffer: '1500',
       floor: '2500',

@@ -238,7 +238,7 @@ things twice. So:
 ### Asking price is a core feature
 
 > Since renamed: the UI calls it the BIN price (editor titled "Pricing"),
-> the code `BinPrice`/`binPrices`, and the CSV columns `Price`, `Min offer`,
+> the code `ListPrice`/`listPrices` (the price, minimum offer, and floor), and the CSV columns `Price`, `Min offer`,
 > `Floor price`, and `Price currency`. Prices are whole amounts; an import
 > rounds cents with a warning.
 
@@ -249,7 +249,7 @@ things twice. So:
   - an optional minimum offer, the lowest offer you'll consider;
   - an optional floor, the lowest price you'd accept, never shown to buyers;
   - one currency for all three.
-- **It's keyed by name** in its own namespace (`domain-bin-prices`), like
+- **It's keyed by name** in its own namespace (`domain-list-prices`), like
   notes, folders, and renewal prices. So it follows a name between accounts,
   survives Clear cache, and travels in the backup. Delete removes it.
 - **It isn't a listing.** Setting a price doesn't list the name anywhere.
@@ -454,7 +454,7 @@ Importing the file back into the DomBot that exported it changes nothing.
 
 ## Storage
 
-### `domain-bin-prices`
+### `domain-list-prices`
 
 Keyed by `toAscii(name)`, exported, and not a cache. The storage model
 anticipates it: a new per-name field such as an asking price gets its own
@@ -476,7 +476,7 @@ interface AskingPrice {
   price is for sale, and a minimum offer (or no asking price) means offers
   are welcome. Marketplace exports will derive their selling options from
   that later.
-- **Bundle checks.** `cleanBinPrice` re-checks entries read from a bundle,
+- **Bundle checks.** `cleanListPrice` re-checks entries read from a bundle,
   the way `cleanEvent` does for events.
 
 ### `domain-prices` gains a currency
@@ -538,7 +538,7 @@ bundle.
 
 - **Each storage change bumps `BUNDLE_VERSION`** when it ships, in whatever
   order they land:
-  - `domain-bin-prices` (new);
+  - `domain-list-prices` (new);
   - `domain-prices` (new shape);
   - `manual-domains` (new).
 
@@ -740,7 +740,7 @@ lists its changes (field, before, after) and its warnings.
 | Notes         | The name's note (`eventId: null`). It's replaced.                                                                                                                                                                                                                                                                                                                                    |
 | Folder        | Assigned by name. Missing folders are created, and the preview lists them.                                                                                                                                                                                                                                                                                                           |
 | Renewal price | Set in `domain-prices`, with its currency.                                                                                                                                                                                                                                                                                                                                           |
-| Asking price  | Set in `domain-bin-prices`, for any name, synced or manual.                                                                                                                                                                                                                                                                                                                          |
+| Asking price  | Set in `domain-list-prices`, for any name, synced or manual.                                                                                                                                                                                                                                                                                                                         |
 
 **Event order.** A name's events are written in this order: added,
 acquisition, sale, label. Ids are monotonic, and `ownershipByDomain` reads
@@ -856,7 +856,7 @@ Copy follows the app's style: short, plain sentences, in sentence case.
 ## Phases
 
 1. **Asking price.**
-   - `domain-bin-prices`, `cleanBinPrice`, a bundle bump, the service,
+   - `domain-list-prices`, `cleanListPrice`, a bundle bump, the service,
      and the API.
    - The Domains column, the editor, the row menu item, the bulk actions,
      and the filter. Delete removes the record.

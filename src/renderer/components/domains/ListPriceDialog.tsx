@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { sameBinPrice } from '../../../shared/bin-prices';
+import { sameListPrice } from '../../../shared/list-prices';
 import { toAscii } from '../../../shared/domain-name';
 import type { Domain } from '../../../shared/ipc';
 import {
@@ -22,23 +22,23 @@ import { MoneyInput } from './MoneyInput';
  * number format from Settings; all three blank clears the price. A selection
  * opens with the price they share, or blank when they differ.
  */
-export function BinPriceDialog({
+export function ListPriceDialog({
   domains,
   onClose,
 }: {
   domains: Domain[];
   onClose: () => void;
 }) {
-  const binPrices = useAppStore((s) => s.binPrices);
+  const listPrices = useAppStore((s) => s.listPrices);
   const settings = useAppStore((s) => s.settings);
-  const saveBinPrices = useAppStore((s) => s.saveBinPrices);
+  const saveListPrices = useAppStore((s) => s.saveListPrices);
   const formatId: NumberFormatId =
     settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
 
   const names = domains.map((d) => d.domainName);
-  const records = domains.map((d) => binPrices[toAscii(d.domainName)]);
-  const shared = records.every((r) => sameBinPrice(r, records[0]))
+  const records = domains.map((d) => listPrices[toAscii(d.domainName)]);
+  const shared = records.every((r) => sameListPrice(r, records[0]))
     ? records[0]
     : undefined;
   const anyPriced = records.some(Boolean);
@@ -92,7 +92,7 @@ export function BinPriceDialog({
     }
     setSaving(true);
     try {
-      await saveBinPrices(
+      await saveListPrices(
         names.map((domainName) => ({ domainName, ...fields, currency })),
       );
       onClose();
@@ -117,7 +117,11 @@ export function BinPriceDialog({
             </p>
           )}
           <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-            <PriceField id="bin-price" label="BIN price" help={BIN_HELP.amount}>
+            <PriceField
+              id="bin-price"
+              label="BIN price"
+              help={LIST_PRICE_HELP.amount}
+            >
               <MoneyInput
                 whole
                 id="bin-price"
@@ -133,13 +137,13 @@ export function BinPriceDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <PriceField
-              id="bin-min-offer"
+              id="list-min-offer"
               label="Minimum offer"
-              help={BIN_HELP.minOffer}
+              help={LIST_PRICE_HELP.minOffer}
             >
               <MoneyInput
                 whole
-                id="bin-min-offer"
+                id="list-min-offer"
                 currency={currency}
                 value={minOffer}
                 placeholder="Optional"
@@ -147,13 +151,13 @@ export function BinPriceDialog({
               />
             </PriceField>
             <PriceField
-              id="bin-floor"
+              id="list-floor"
               label="Floor price"
-              help={BIN_HELP.floor}
+              help={LIST_PRICE_HELP.floor}
             >
               <MoneyInput
                 whole
-                id="bin-floor"
+                id="list-floor"
                 currency={currency}
                 value={floor}
                 placeholder="Optional"
@@ -201,7 +205,7 @@ export function BinPriceDialog({
 }
 
 /** The help line under each price's label, here and in Import. */
-export const BIN_HELP = {
+export const LIST_PRICE_HELP = {
   amount: 'The "Buy it now" price.',
   minOffer: 'The lowest offer you’ll consider.',
   floor: 'The lowest price you’d accept.',

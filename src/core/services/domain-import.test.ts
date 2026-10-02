@@ -12,7 +12,7 @@ import { domainsToCsv } from '../../shared/domain-csv';
 import { buildRows, guessSetup, readTable } from '../../shared/domain-import';
 import { manualRows } from '../../shared/manual-domains';
 import { listAccounts } from './accounts';
-import { getBinPrices } from './bin-prices';
+import { getListPrices } from './list-prices';
 import { listEvents, nameNotes } from './domain-events';
 import { recordSync, setDispositions } from './domain-history';
 import { importDomains, planImport } from './domain-import';
@@ -112,7 +112,7 @@ describe('importing domains', () => {
         folder: 'Premium',
         notes: 'keep',
         renewal: { amount: '9.00', currency: 'EUR' },
-        binPrice: { amount: '2500.00', currency: 'USD' },
+        listPrice: { amount: '2500.00', currency: 'USD' },
         purchase: { type: 'registered', date: '2020-01-01' },
         sale: { date: '2024-01-01', amount: '900.00', currency: 'USD' },
       }),
@@ -307,7 +307,7 @@ describe('importing domains', () => {
     apply([
       row('a.com', {
         renewal: { amount: '12.00', currency: 'USD' },
-        binPrice: { amount: '900.00', minOffer: '200.00', currency: 'USD' },
+        listPrice: { amount: '900.00', minOffer: '200.00', currency: 'USD' },
         purchase: { date: '2020-01-01', amount: '50.00', currency: 'USD' },
         sale: { date: '2024-01-01', amount: '700.00', currency: 'USD' },
       }),
@@ -317,7 +317,7 @@ describe('importing domains', () => {
     const plan = apply([
       row('a.com', {
         renewal: { amount: '0.00', currency: 'USD' },
-        binPrice: { minOffer: '0.00', currency: 'USD' },
+        listPrice: { minOffer: '0.00', currency: 'USD' },
         purchase: { amount: '0.00', currency: 'USD' },
         sale: { amount: '0.00', currency: 'USD' },
       }),
@@ -329,16 +329,16 @@ describe('importing domains', () => {
       ['BIN price', '900 USD'],
     ]);
     expect(getManualPrices()['a.com']).toBeUndefined();
-    expect(getBinPrices()['a.com']).toMatchObject({ amount: '900' });
-    expect(getBinPrices()['a.com'].minOffer ?? null).toBeNull();
+    expect(getListPrices()['a.com']).toMatchObject({ amount: '900' });
+    expect(getListPrices()['a.com'].minOffer ?? null).toBeNull();
     expect(getPurchases()['a.com']).toMatchObject({
       purchaseDate: '2020-01-01',
       amount: null,
       saleDate: '2024-01-01',
       saleAmount: null,
     });
-    apply([row('a.com', { binPrice: { amount: '0.00', currency: 'USD' } })]);
-    expect(getBinPrices()['a.com']).toBeUndefined();
+    apply([row('a.com', { listPrice: { amount: '0.00', currency: 'USD' } })]);
+    expect(getListPrices()['a.com']).toBeUndefined();
   });
 
   it('creates missing folders once, and knows Hidden', () => {
@@ -359,21 +359,21 @@ describe('importing domains', () => {
     apply([
       row('a.com', {
         renewal: { amount: '12.00', currency: 'GBP' },
-        binPrice: { amount: '900.00', minOffer: '200.00', currency: 'USD' },
+        listPrice: { amount: '900.00', minOffer: '200.00', currency: 'USD' },
       }),
     ]);
-    apply([row('a.com', { binPrice: { floor: '500.00', currency: 'USD' } })]);
+    apply([row('a.com', { listPrice: { floor: '500.00', currency: 'USD' } })]);
     expect(getManualPrices()['a.com']).toEqual({
       amount: '12.00',
       currency: 'GBP',
     });
-    expect(getBinPrices()['a.com']).toMatchObject({
+    expect(getListPrices()['a.com']).toMatchObject({
       amount: '900',
       minOffer: '200',
       floor: '500',
     });
     const plan = planImport([
-      row('a.com', { binPrice: { amount: '100.00', currency: 'USD' } }),
+      row('a.com', { listPrice: { amount: '100.00', currency: 'USD' } }),
     ]);
     expect(plan.outcomes[0].warnings[0]).toMatch(/BIN price left as is/);
   });
@@ -390,7 +390,7 @@ describe('importing domains', () => {
           autoRenew: true,
         },
         renewal: { amount: '9.00', currency: 'EUR' },
-        binPrice: { amount: '2500.00', floor: '1000.00', currency: 'EUR' },
+        listPrice: { amount: '2500.00', floor: '1000.00', currency: 'EUR' },
         purchase: {
           type: 'registered',
           date: '2019-04-02',
@@ -430,7 +430,7 @@ describe('importing domains', () => {
           folders,
           assignments,
           purchases: getPurchases(),
-          binPrices: getBinPrices(),
+          listPrices: getListPrices(),
           pricing: getPortfolioPricing(),
           manualPrices: getManualPrices(),
           archiveLabel: (name) => own.get(name)?.label ?? null,
@@ -498,7 +498,7 @@ describe('writing an import', () => {
         folder: 'Imported',
         notes: `note ${i}`,
         renewal: { amount: '10.00', currency: 'USD' },
-        binPrice: { amount: '500.00', currency: 'USD' },
+        listPrice: { amount: '500.00', currency: 'USD' },
         purchase: { date: '2020-01-01', amount: '9.00', currency: 'USD' },
       }),
     );

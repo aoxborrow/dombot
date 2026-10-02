@@ -172,8 +172,8 @@ export const IpcChannels = {
   importDomains: 'domainImport:apply',
   getManualDomains: 'manualDomains:list',
   updateManualDomain: 'manualDomains:update',
-  getBinPrices: 'binPrices:list',
-  setBinPrices: 'binPrices:set',
+  getListPrices: 'listPrices:list',
+  setListPrices: 'listPrices:set',
   getDomainEvents: 'domainEvents:list',
   setDispositions: 'domainEvents:setDispositions',
   markSold: 'domainEvents:markSold',
@@ -385,7 +385,7 @@ export interface SaleInput {
  * Your asking price for a name, synced or manual (docs/domain-import-export.md).
  * Amounts are canonical decimals, all in `currency`. At least one is set.
  */
-export interface BinPrice {
+export interface ListPrice {
   /** What you'd sell it for; null when only offers are set. */
   amount: string | null;
   /** The lowest offer you'll consider. */
@@ -430,7 +430,7 @@ export interface ImportRow {
     autoRenew?: boolean;
   };
   renewal?: { amount: string; currency: string };
-  binPrice?: {
+  listPrice?: {
     amount?: string;
     minOffer?: string;
     floor?: string;
@@ -473,7 +473,7 @@ export interface ImportPlan {
 }
 
 /** One name's asking price to save. All three amounts blank clears it. */
-export interface BinPriceInput {
+export interface ListPriceInput {
   domainName: string;
   amount: string | null;
   minOffer: string | null;
@@ -1079,12 +1079,14 @@ export interface DombotApi {
 
   // Asking prices (keyed by domain name; any name, synced or manual)
   /** Every asking price, keyed by the normalized domain name. */
-  getBinPrices: () => Promise<Record<string, BinPrice>>;
+  getListPrices: () => Promise<Record<string, ListPrice>>;
   /**
    * Set or clear (all amounts blank) asking prices in one write. Returns every
    * asking price afterwards.
    */
-  setBinPrices: (inputs: BinPriceInput[]) => Promise<Record<string, BinPrice>>;
+  setListPrices: (
+    inputs: ListPriceInput[],
+  ) => Promise<Record<string, ListPrice>>;
 
   // Domain history (docs/storage-model.md). Each change returns the whole log.
   /** Every domain event, oldest first. */

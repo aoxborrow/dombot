@@ -222,7 +222,7 @@ describe('export → import', () => {
       ...buildBundle(APP),
       namespaces: {
         ...buildBundle(APP).namespaces,
-        'domain-bin-prices': {
+        'domain-list-prices': {
           'a.com': { amount: '2500', currency: 'usd', updatedAt: 1 },
           'b.com': { amount: '-5', currency: 'USD', updatedAt: 1 },
           'Not A Name': { amount: '10', currency: 'USD', updatedAt: 1 },
@@ -237,7 +237,7 @@ describe('export → import', () => {
     };
     await importBundle(JSON.stringify(bundle));
     await flushWrites();
-    expect(await store.list('domain-bin-prices')).toEqual({
+    expect(await store.list('domain-list-prices')).toEqual({
       'a.com': { amount: '2500', currency: 'USD', updatedAt: 1 },
     });
   });

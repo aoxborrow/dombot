@@ -1,6 +1,6 @@
 import type {
-  BinPrice,
-  BinPriceInput,
+  ListPrice,
+  ListPriceInput,
   ImportChange,
   ImportOutcome,
   ImportPlan,
@@ -8,7 +8,7 @@ import type {
   ManualDomain,
 } from '../../shared/ipc';
 import { HIDDEN_FOLDER_ID, builtInFolderName } from '../../shared/ipc';
-import { sameBinPrice, toBinPrice } from '../../shared/bin-prices';
+import { sameListPrice, toListPrice } from '../../shared/list-prices';
 import { assertDomainName } from '../../shared/domain-name';
 import {
   DomainEventSource,
@@ -21,7 +21,7 @@ import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import type { RenewalPrice } from '../../shared/renewal-prices';
 import { toCurrencyCode, type CurrencyCode } from '../../shared/currencies';
 import { broadcastPortfolioChanged } from '../events';
-import { getBinPrices, setBinPrices } from './bin-prices';
+import { getListPrices, setListPrices } from './list-prices';
 import {
   deleteDomainEvents,
   listEvents,
@@ -78,7 +78,7 @@ const isZero = (amount?: string | null) => !!amount && Number(amount) === 0;
 const money = (amount?: string | null, currency?: string | null) =>
   amount ? `${amount} ${currency ?? ''}`.trim() : null;
 
-const binPriceText = (p: BinPrice | null | undefined) =>
+const listPriceText = (p: ListPrice | null | undefined) =>
   p
     ? [
         p.amount && `${p.amount} ${p.currency}`,
@@ -99,7 +99,7 @@ interface Writes {
   folders: [string, string][];
   /** null clears the name's renewal price. */
   renewals: [string, RenewalPrice | null][];
-  binPrice: BinPriceInput[];
+  listPrice: ListPriceInput[];
 }
 
 function compute(
@@ -114,7 +114,7 @@ function compute(
     notes: [],
     folders: [],
     renewals: [],
-    binPrice: [],
+    listPrice: [],
   };
 
   // The data as it stands.
@@ -143,7 +143,7 @@ function compute(
   );
   const newFolders = new Map<string, string>();
   const renewals = getManualPrices();
-  const binPrices = getBinPrices();
+  const listPrices = getListPrices();
 
   const fresh = (fields: Omit<DomainEvent, 'id' | 'createdAt' | 'updatedAt'>) =>
     newEvent(
@@ -538,11 +538,11 @@ function compute(
       }
     }
 
-    if (row.binPrice) {
-      const current = binPrices[key];
-      const sameCurrency = current?.currency === row.binPrice.currency;
+    if (row.listPrice) {
+      const current = listPrices[key];
+      const sameCurrency = current?.currency === row.listPrice.currency;
       const merge = (field: 'amount' | 'minOffer' | 'floor') =>
-        row.binPrice![field] ??
+        row.listPrice![field] ??
         (sameCurrency ? (current?.[field] ?? null) : null);
       const fields = {
         amount: merge('amount'),
@@ -551,28 +551,28 @@ function compute(
       };
       if (fields) {
         try {
-          const next = toBinPrice(
-            { ...fields, currency: row.binPrice.currency },
+          const next = toListPrice(
+            { ...fields, currency: row.listPrice.currency },
             now,
           );
           if (!next && current) {
-            writes.binPrice.push({
+            writes.listPrice.push({
               domainName: key,
               amount: null,
               minOffer: null,
               floor: null,
               currency: current.currency,
             });
-            change('BIN price', binPriceText(current), null);
-          } else if (next && !sameBinPrice(current, next)) {
-            writes.binPrice.push({
+            change('BIN price', listPriceText(current), null);
+          } else if (next && !sameListPrice(current, next)) {
+            writes.listPrice.push({
               domainName: key,
               amount: next.amount,
               minOffer: next.minOffer ?? null,
               floor: next.floor ?? null,
               currency: next.currency,
             });
-            change('BIN price', binPriceText(current), binPriceText(next));
+            change('BIN price', listPriceText(current), listPriceText(next));
           }
         } catch (err) {
           warnings.push(
@@ -652,7 +652,7 @@ export function importDomains(
     );
   }
   setManualPrices(writes.renewals);
-  if (writes.binPrice.length > 0) setBinPrices(writes.binPrice);
+  if (writes.listPrice.length > 0) setListPrices(writes.listPrice);
   broadcastPortfolioChanged();
   return { ...plan, importId: options.importId };
 }

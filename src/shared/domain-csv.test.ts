@@ -34,7 +34,7 @@ function ctx(partial: Partial<DomainCsvContext> = {}): DomainCsvContext {
     folders: [],
     assignments: {},
     purchases: {},
-    binPrices: {},
+    listPrices: {},
     pricing: {},
     manualPrices: {},
     archiveLabel: () => null,
@@ -125,7 +125,7 @@ describe('domainsToCsv', () => {
               saleCurrency: 'EUR',
             },
           },
-          binPrices: {
+          listPrices: {
             'xn--mnich-kva.de': {
               amount: '2500',
               minOffer: '500',

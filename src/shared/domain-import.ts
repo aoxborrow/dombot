@@ -1,5 +1,5 @@
 import type { CurrencyCode } from './currencies';
-import { wholeAmount } from './bin-prices';
+import { wholeAmount } from './list-prices';
 import { detectDelimiter, parseCsv, unguardCell } from './csv';
 import {
   FIELD_INFO,
@@ -308,7 +308,7 @@ function readRow(
       currency: renewal.currency,
     };
 
-  const bin = money(['binPrice', 'minOffer', 'floorPrice'], 'binCurrency');
+  const bin = money(['binPrice', 'minOffer', 'floorPrice'], 'listCurrency');
   if (bin) {
     // Prices are whole amounts: "4850.00" reads as 4850, cents are an error.
     const whole = (f: 'binPrice' | 'minOffer' | 'floorPrice') => {
@@ -329,7 +329,7 @@ function readRow(
       throw new Error('The minimum offer is above the BIN price.');
     if (cap !== null && floorPrice && Number(floorPrice) > cap)
       throw new Error('The floor price is above the BIN price.');
-    row.binPrice = {
+    row.listPrice = {
       ...(binPrice ? { amount: binPrice } : {}),
       ...(minOffer ? { minOffer } : {}),
       ...(floorPrice ? { floor: floorPrice } : {}),
@@ -399,7 +399,7 @@ const MERGE_FIELD: Record<string, string> = {
   'registration.expirationDate': 'expiry',
   'registration.autoRenew': 'auto-renew',
   renewal: 'renewal price',
-  binPrice: 'BIN price',
+  listPrice: 'price',
   'purchase.type': 'purchase type',
   'purchase.date': 'purchase date',
   'purchase.money': 'purchase amount',
@@ -419,7 +419,7 @@ function flatten(row: ImportRow): Flat {
   for (const [k, v] of Object.entries(row.registration ?? {}))
     put(`registration.${k}`, v);
   put('renewal', row.renewal);
-  put('binPrice', row.binPrice);
+  put('listPrice', row.listPrice);
   const { amount, currency, ...purchase } = row.purchase ?? {};
   for (const [k, v] of Object.entries(purchase)) put(`purchase.${k}`, v);
   if (amount) put('purchase.money', { amount, currency });
@@ -444,7 +444,7 @@ function unflatten(line: number, domain: string, flat: Flat): ImportRow {
   const registration = group('registration');
   if (registration) row.registration = registration;
   if (flat.renewal) row.renewal = flat.renewal as ImportRow['renewal'];
-  if (flat.binPrice) row.binPrice = flat.binPrice as ImportRow['binPrice'];
+  if (flat.listPrice) row.listPrice = flat.listPrice as ImportRow['listPrice'];
   const purchase = group('purchase');
   if (purchase) {
     const { money, ...rest } = purchase as { money?: object };

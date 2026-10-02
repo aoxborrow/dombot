@@ -75,10 +75,14 @@ import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { purchaseColumns } from '../components/domains/purchase-columns';
 import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
-import { BinPriceDialog } from '../components/domains/BinPriceDialog';
+import { ListPriceDialog } from '../components/domains/ListPriceDialog';
 import { ManualDomainDialog } from '../components/domains/ManualDomainDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
-import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_NUMBER_FORMAT,
+  formatMoney,
+} from '../../shared/money';
 import { NameserversCell } from '../components/domains/NameserversCell';
 import { AuthCodeDialog } from '../components/domains/AuthCodeDialog';
 import { RenewDialog } from '../components/domains/RenewDialog';
@@ -94,6 +98,7 @@ import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { paginate, sortRows } from '../components/data-table/table-state';
 import {
   MultiSelectFilter,
+  RangeFilter,
   ResetButton,
   SearchField,
   FILTERING_BORDER,
@@ -156,8 +161,6 @@ function nameCount(rows: Domain[]): number {
 }
 
 // Asking filter values: names with an asking price, and names without one.
-const PRICED = 'priced';
-const UNPRICED = 'unpriced';
 
 function tldOf(domainName: string): string {
   const dot = domainName.indexOf('.');
@@ -726,7 +729,7 @@ export default function Domains() {
     clearSelection,
     bulk,
     purchases,
-    binPrices,
+    listPrices,
     manualDomains,
     settings,
     domainEvents,
@@ -763,7 +766,7 @@ export default function Domains() {
   const [purchaseFor, setPurchaseFor] = useState<Domain | null>(null);
   const [importing, setImporting] = useState(false);
   // Asking price for one name (its cell or row menu) or the selection.
-  const [binPriceFor, setBinPriceFor] = useState<Domain[] | null>(null);
+  const [listPriceFor, setListPriceFor] = useState<Domain[] | null>(null);
   // Edit details for a manual name.
   const [detailsFor, setDetailsFor] = useState<Domain | null>(null);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
@@ -840,15 +843,15 @@ export default function Domains() {
       onEditSale: setSaleFor,
       showSale: archiveView,
       isSold: (d) => ownership.get(toAscii(d.domainName))?.label === 'sold',
-      binPrices,
-      onEditBinPrice: (d) => setBinPriceFor([d]),
+      listPrices,
+      onEditListPrice: (d) => setListPriceFor([d]),
     });
     base.splice(at + 1, 0, ...extra);
     return base;
   }, [
     multipleAccounts,
     purchases,
-    binPrices,
+    listPrices,
     settings,
     archiveView,
     ownership,
@@ -963,7 +966,11 @@ export default function Domains() {
   const [ns, setNs] = useState<string[]>([]);
   const [folder, setFolder] = useState<string[]>([]);
   // Owned only: names with or without an asking price.
-  const [pricingFilter, setPricingFilter] = useState<string[]>([]);
+  // BIN price range ("" is unbounded). A name without a price counts as $0,
+  // so a max of 0 finds the unpriced ones.
+  const [priceMin, setPriceMin] = useState('');
+  const [priceMax, setPriceMax] = useState('');
+  const pricingFilter = priceMin !== '' || priceMax !== '';
   // Sort and page size open at the Settings → General defaults; changes made
   // here last for this visit only.
   const [sortKey, setSortKey] = useState(
@@ -1086,15 +1093,6 @@ export default function Domains() {
   }, [portfolio, manualList, portfolioRegistrarLabels, multipleAccounts]);
   // Expiration windows are cumulative, so their counts intentionally overlap
   // (a domain due in 20 days matches the 30-, 60-, and 90-day options).
-  const binPriceOptions = useMemo(() => {
-    const priced = ownedRows.filter(
-      (d) => binPrices[toAscii(d.domainName)],
-    ).length;
-    return [
-      { value: PRICED, label: 'Has a price', count: priced },
-      { value: UNPRICED, label: 'No price', count: ownedRows.length - priced },
-    ];
-  }, [ownedRows, binPrices]);
 
   const expiryOptions = useMemo(
     () =>
@@ -1224,7 +1222,7 @@ export default function Domains() {
     expiry.length > 0 ||
     ns.length > 0 ||
     folder.length > 0 ||
-    pricingFilter.length > 0;
+    pricingFilter;
 
   // How many filter groups are narrowing the list (search excluded — it has its
   // own always-visible field). Drives the count badge on the mobile "Filters"
@@ -1235,7 +1233,7 @@ export default function Domains() {
     (ns.length > 0 ? 1 : 0) +
     (expiry.length > 0 ? 1 : 0) +
     (folder.length > 0 ? 1 : 0) +
-    (pricingFilter.length > 0 ? 1 : 0);
+    (pricingFilter ? 1 : 0);
 
   function resetFilters() {
     setSearch('');
@@ -1244,13 +1242,15 @@ export default function Domains() {
     setExpiry([]);
     setNs([]);
     setFolder([]);
-    setPricingFilter([]);
+    setPriceMin('');
+    setPriceMax('');
     setPage(0);
   }
 
   function setListView(next: 'owned' | 'archive') {
     setFolder([]);
-    setPricingFilter([]);
+    setPriceMin('');
+    setPriceMax('');
     setPage(0);
     const nextParams = new URLSearchParams(params);
     if (next === 'archive') nextParams.set('view', 'archive');
@@ -1281,9 +1281,10 @@ export default function Domains() {
         const keys = nsKeysByDomain.get(domainKey(d));
         if (!keys || !ns.some((k) => keys.has(k))) return false;
       }
-      if (pricingFilter.length > 0 && !archiveView) {
-        const priced = binPrices[toAscii(d.domainName)] ? PRICED : UNPRICED;
-        if (!pricingFilter.includes(priced)) return false;
+      if (pricingFilter && !archiveView) {
+        const price = Number(listPrices[toAscii(d.domainName)]?.amount ?? 0);
+        if (priceMin !== '' && price < Number(priceMin)) return false;
+        if (priceMax !== '' && price > Number(priceMax)) return false;
       }
       // Owned vs Archive comes from the event log. In Archive the filter is
       // the status; in Owned it's the folder (a real folder, Hidden, or None),
@@ -1344,7 +1345,9 @@ export default function Domains() {
     folders,
     folderAssignments,
     pricingFilter,
-    binPrices,
+    priceMin,
+    priceMax,
+    listPrices,
     archiveView,
     archiveLabelOf,
     sortKey,
@@ -1471,7 +1474,7 @@ export default function Domains() {
         folders,
         assignments: folderAssignments,
         purchases,
-        binPrices,
+        listPrices,
         pricing,
         manualPrices: await window.api.getManualPrices(),
         archiveLabel: (name) => ownership.get(name)?.label ?? null,
@@ -1529,7 +1532,7 @@ export default function Domains() {
               onNotes={() => setNotesFor(key)}
               onEditPurchase={() => setPurchaseFor(d)}
               onEditSale={() => setSaleFor(d)}
-              onEditBinPrice={() => setBinPriceFor([d])}
+              onEditListPrice={() => setListPriceFor([d])}
               onEditDetails={() => setDetailsFor(d)}
               onAssignFolder={(folderId) => applyFolders([d], folderId)}
               archive={archiveLabelOf(d)}
@@ -1829,15 +1832,27 @@ export default function Domains() {
               />
             )}
             {!archiveView && (
-              <MultiSelectFilter
-                label="Pricing"
+              <RangeFilter
+                label="BIN price"
                 icon={CashIcon}
-                options={binPriceOptions}
-                selected={pricingFilter}
-                onChange={(next) => {
-                  setPricingFilter(next);
+                min={priceMin}
+                max={priceMax}
+                onChange={(min, max) => {
+                  setPriceMin(min);
+                  setPriceMax(max);
                   setPage(0);
                 }}
+                currency={settings?.preferredCurrency ?? DEFAULT_CURRENCY}
+                format={(n) =>
+                  formatMoney(
+                    String(n),
+                    settings?.preferredCurrency ?? DEFAULT_CURRENCY,
+                    settings?.preferredCurrency ?? DEFAULT_CURRENCY,
+                    settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+                    true,
+                  )
+                }
+                hint="Names without a BIN price count as 0, so a max of 0 shows them."
               />
             )}
           </div>
@@ -1876,7 +1891,7 @@ export default function Domains() {
           }}
           archiveView={archiveView}
           onOwnership={(action) => openOwnership(action, selectedDomains)}
-          onBinPrice={() => setBinPriceFor(selectedDomains)}
+          onListPrice={() => setListPriceFor(selectedDomains)}
         />
       </div>
 
@@ -1967,10 +1982,10 @@ export default function Domains() {
           onClose={() => setDetailsFor(null)}
         />
       )}
-      {binPriceFor && (
-        <BinPriceDialog
-          domains={binPriceFor}
-          onClose={() => setBinPriceFor(null)}
+      {listPriceFor && (
+        <ListPriceDialog
+          domains={listPriceFor}
+          onClose={() => setListPriceFor(null)}
         />
       )}
       {bulkNotesFor && (

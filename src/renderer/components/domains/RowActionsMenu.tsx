@@ -60,7 +60,7 @@ export function RowActionsMenu({
   onNotes,
   onEditPurchase,
   onEditSale,
-  onEditBinPrice,
+  onEditListPrice,
   onEditDetails,
   onAssignFolder,
   archive,
@@ -81,7 +81,7 @@ export function RowActionsMenu({
   onNotes: () => void;
   onEditPurchase: () => void;
   onEditSale: () => void;
-  onEditBinPrice: () => void;
+  onEditListPrice: () => void;
   /** A manual name: edit its registrar, dates, and auto-renew. */
   onEditDetails: () => void;
   onAssignFolder: (folderId: string | null) => void;
@@ -228,7 +228,7 @@ export function RowActionsMenu({
           Purchase details<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
         {archive === null && (
-          <DropdownMenuItem onSelect={onEditBinPrice}>
+          <DropdownMenuItem onSelect={onEditListPrice}>
             <CashIcon className="text-muted-foreground" />
             Pricing<span className="-ml-[6px] opacity-50">…</span>
           </DropdownMenuItem>

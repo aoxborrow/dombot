@@ -31,7 +31,7 @@ import {
   setDispositions,
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
-import { getBinPrices, setBinPrices } from '../services/bin-prices';
+import { getListPrices, setListPrices } from '../services/list-prices';
 import { importDomains, planImport } from '../services/domain-import';
 import {
   getManualDomains,
@@ -395,10 +395,10 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   ),
 
   // ── Asking prices ─────────────────────────────────────────────────────────
-  getBinPrices: method(none, async () => getBinPrices()),
-  setBinPrices: method(z.tuple([s.binPriceInputs]), async (inputs) => {
-    setBinPrices(inputs);
-    return getBinPrices();
+  getListPrices: method(none, async () => getListPrices()),
+  setListPrices: method(z.tuple([s.listPriceInputs]), async (inputs) => {
+    setListPrices(inputs);
+    return getListPrices();
   }),
 
   lookupRegistrations: method(z.tuple([s.domainNameList]), async (names) =>

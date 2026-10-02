@@ -144,7 +144,7 @@ export const importRow = z
       .object({ amount: decimal, currency: currencyCode })
       .strict()
       .optional(),
-    binPrice: z
+    listPrice: z
       .object({
         amount: decimal.optional(),
         minOffer: decimal.optional(),
@@ -199,7 +199,7 @@ export const renewalPriceInput = z
   .strict();
 
 /** One name's asking price; every amount blank clears it. */
-export const binPriceInput = z
+export const listPriceInput = z
   .object({
     domainName: z.string().trim().min(1).max(253),
     amount: z.string().max(40).nullable(),
@@ -209,7 +209,7 @@ export const binPriceInput = z
   })
   .strict();
 
-export const binPriceInputs = z.array(binPriceInput).min(1).max(10000);
+export const listPriceInputs = z.array(listPriceInput).min(1).max(10000);
 
 /** A name's note, saved on its own. */
 export const noteText = z.string().max(4000);

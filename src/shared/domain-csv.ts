@@ -4,7 +4,7 @@ import { toCsv } from './csv';
 import { isIdn, toAscii, toUnicode } from './domain-name';
 import {
   builtInFolderName,
-  type BinPrice,
+  type ListPrice,
   type Domain,
   type DomainPurchase,
   type Folder,
@@ -29,7 +29,7 @@ export interface DomainCsvContext {
   /** `toAscii(name)` → the purchase and sale summary (`getPurchases`). */
   purchases: Record<string, DomainPurchase>;
   /** `toAscii(name)` → asking price. */
-  binPrices: Record<string, BinPrice>;
+  listPrices: Record<string, ListPrice>;
   /** `domainKey(row)` → renewal pricing (for the estimate). */
   pricing: Record<string, RenewalPricing>;
   /**
@@ -98,7 +98,7 @@ const registration = (r: NameRow, value: () => string) =>
   r.domain.unregistered ? '' : value();
 
 const purchase = (r: NameRow) => r.ctx.purchases[r.key];
-const binPrice = (r: NameRow) => r.ctx.binPrices[r.key];
+const binPrice = (r: NameRow) => r.ctx.listPrices[r.key];
 const pricing = (r: NameRow) => r.ctx.pricing[domainKey(r.domain)];
 const manualPrice = (r: NameRow) => r.ctx.manualPrices[r.key];
 

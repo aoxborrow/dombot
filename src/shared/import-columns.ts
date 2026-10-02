@@ -17,7 +17,7 @@ export type ImportField =
   | 'binPrice'
   | 'minOffer'
   | 'floorPrice'
-  | 'binCurrency'
+  | 'listCurrency'
   | 'purchaseType'
   | 'purchaseDate'
   | 'purchaseAmount'
@@ -170,7 +170,6 @@ export const IMPORT_FIELDS: ImportFieldInfo[] = [
     label: 'BIN price',
     kind: 'money',
     aliases: [
-      'asking price',
       'asking',
       'ask',
       'buy now price',
@@ -203,11 +202,11 @@ export const IMPORT_FIELDS: ImportFieldInfo[] = [
     aliases: ['floor'],
   },
   {
-    field: 'binCurrency',
+    field: 'listCurrency',
     header: 'Price currency',
     label: 'BIN price currency',
     kind: 'currency',
-    aliases: ['asking currency', 'bin currency'],
+    aliases: ['bin currency'],
   },
   {
     field: 'purchaseType',

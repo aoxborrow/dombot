@@ -73,7 +73,7 @@ set passed to `EncryptedDocStore`.
 | `folders` (`assignments` key)            | `domain-folders`        |        | name                       | name → folder id                                  |
 | `folders` (`folders` key)                | `folders`               |        | folder id                  | folder definitions                                |
 | `pricing-overrides`                      | `domain-prices`         |        | name                       | your manual renewal price, with its currency      |
-| —                                        | `domain-bin-prices`     |        | name                       | your asking price, minimum offer, and floor       |
+| —                                        | `domain-list-prices`    |        | name                       | your asking price, minimum offer, and floor       |
 | `settings`, `bulk-jobs`, `mcp`           | _(unchanged)_           |        |                            | app-level                                         |
 | `meta`                                   | _(unchanged)_           | local  |                            | this install only                                 |
 | — (#89)                                  | `remote-sync`           | local  |                            | the remote URL                                    |
@@ -435,7 +435,7 @@ refuse the file with "made by a newer DomBot".
 - **v7** stores manual renewal prices with a currency. An older build would
   read the new values as no price, so it must refuse the file. Rule: changing
   the shape of an exported namespace's values bumps the version too.
-- **v6** adds `domain-bin-prices`.
+- **v6** adds `domain-list-prices`.
 - **v5** adds the domain history (`domain-events`, `domain-notes`,
   `registrar-last-sync`). A v4 file imports into v5 unchanged; it just has no
   history.

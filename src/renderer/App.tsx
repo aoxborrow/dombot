@@ -64,7 +64,7 @@ export default function App() {
   const loadFolders = useAppStore((s) => s.loadFolders);
   const loadSettings = useAppStore((s) => s.loadSettings);
   const loadPurchases = useAppStore((s) => s.loadPurchases);
-  const loadBinPrices = useAppStore((s) => s.loadBinPrices);
+  const loadListPrices = useAppStore((s) => s.loadListPrices);
   const loadDomainEvents = useAppStore((s) => s.loadDomainEvents);
   const loadRegistrars = useAppStore((s) => s.loadRegistrars);
   const attachBulk = useAppStore((s) => s.attachBulk);
@@ -86,7 +86,7 @@ export default function App() {
     void loadFolders();
     void loadSettings();
     void loadPurchases();
-    void loadBinPrices();
+    void loadListPrices();
     void loadDomainEvents();
     // The bell lists sync errors from any page.
     void loadRegistrars();
@@ -94,7 +94,7 @@ export default function App() {
     loadFolders,
     loadSettings,
     loadPurchases,
-    loadBinPrices,
+    loadListPrices,
     loadDomainEvents,
     loadRegistrars,
   ]);

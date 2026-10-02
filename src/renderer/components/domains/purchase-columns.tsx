@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { toAscii } from '../../../shared/domain-name';
-import type { BinPrice, Domain, DomainPurchase } from '../../../shared/ipc';
+import type { ListPrice, Domain, DomainPurchase } from '../../../shared/ipc';
 import { formatMoney, type NumberFormatId } from '../../../shared/money';
 import { cn } from '@/lib/utils';
 
@@ -73,8 +73,8 @@ export function purchaseColumns({
   onEditSale,
   showSale = false,
   isSold,
-  binPrices,
-  onEditBinPrice,
+  listPrices,
+  onEditListPrice,
 }: {
   purchases: Record<string, DomainPurchase>;
   preferredCurrency: string;
@@ -84,13 +84,13 @@ export function purchaseColumns({
   showSale?: boolean;
   isSold?: (domain: Domain) => boolean;
   /** Owned view: the BIN price and Min offer columns. */
-  binPrices?: Record<string, BinPrice>;
-  onEditBinPrice?: (domain: Domain) => void;
+  listPrices?: Record<string, ListPrice>;
+  onEditListPrice?: (domain: Domain) => void;
 }): PurchaseColumn[] {
   // Owned view: BIN price and Min offer (Floor is in the editor), each
   // opening the same editor.
-  const binPriceOf = (d: Domain) => binPrices?.[toAscii(d.domainName)];
-  const binPriceColumn = (
+  const listPriceOf = (d: Domain) => listPrices?.[toAscii(d.domainName)];
+  const listPriceColumn = (
     key: string,
     label: string,
     field: 'amount' | 'minOffer' | 'floor',
@@ -101,12 +101,12 @@ export function purchaseColumns({
     align: 'right',
     hideOnMobile: true,
     render: (d) => {
-      const p = binPriceOf(d);
+      const p = listPriceOf(d);
       const value = p?.[field];
       return (
         <PurchaseCell
           domain={d}
-          onEdit={onEditBinPrice!}
+          onEdit={onEditListPrice!}
           align="right"
           empty={!value}
           editLabel={editLabel}
@@ -124,15 +124,15 @@ export function purchaseColumns({
       );
     },
     sortValue: (d) => {
-      const value = binPriceOf(d)?.[field];
+      const value = listPriceOf(d)?.[field];
       return value == null ? null : Number(value);
     },
   });
   const pricing: PurchaseColumn[] =
-    binPrices && onEditBinPrice && !showSale
+    listPrices && onEditListPrice && !showSale
       ? [
-          binPriceColumn('binPrice', 'BIN price', 'amount', 'BIN price'),
-          binPriceColumn('minOffer', 'Min offer', 'minOffer', 'Minimum offer'),
+          listPriceColumn('binPrice', 'BIN price', 'amount', 'BIN price'),
+          listPriceColumn('minOffer', 'Min offer', 'minOffer', 'Minimum offer'),
         ]
       : [];
   const sale: PurchaseColumn[] = showSale

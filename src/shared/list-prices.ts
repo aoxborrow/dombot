@@ -1,4 +1,4 @@
-import type { BinPrice } from './ipc';
+import type { ListPrice } from './ipc';
 import { toCurrencyCode } from './currencies';
 import { parseCanonicalAmount } from './money';
 
@@ -8,7 +8,7 @@ import { parseCanonicalAmount } from './money';
 // later the CSV import check a price the same way.
 
 /** The amounts of an asking price as typed or imported (canonical decimals). */
-export interface BinPriceFields {
+export interface ListPriceFields {
   amount: string | null | undefined;
   minOffer: string | null | undefined;
   floor: string | null | undefined;
@@ -46,10 +46,10 @@ function amountOf(
  * The record to store for these fields, or null when every amount is blank
  * (the price is cleared). Throws when a field doesn't hold.
  */
-export function toBinPrice(
-  fields: BinPriceFields,
+export function toListPrice(
+  fields: ListPriceFields,
   updatedAt: number,
-): BinPrice | null {
+): ListPrice | null {
   const blank = [fields.amount, fields.minOffer, fields.floor].every(
     (v) => !v?.trim(),
   );
@@ -86,9 +86,9 @@ export function toBinPrice(
 }
 
 /** True when two records hold the same price (ignoring when they were set). */
-export function sameBinPrice(
-  a: BinPrice | null | undefined,
-  b: BinPrice | null | undefined,
+export function sameListPrice(
+  a: ListPrice | null | undefined,
+  b: ListPrice | null | undefined,
 ): boolean {
   if (!a || !b) return !a && !b;
   return (
