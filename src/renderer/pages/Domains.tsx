@@ -46,6 +46,7 @@ import {
 } from '../components/actions/OwnershipDialogs';
 import { useAppStore } from '../store/app';
 import { csvFilename, domainsToCsv } from '../lib/csv';
+import { priceMoney } from '../lib/renewals';
 import { nameserverGroup } from '../lib/nameservers';
 import { folderColorStyle } from '../lib/folders';
 import {
@@ -188,11 +189,6 @@ const NONE = '__none__';
 
 const RENEWAL = 'renewal';
 
-/** Whole/decimal USD, e.g. "$12" or "$12.99". */
-function fmtUsd(n: number): string {
-  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
-}
-
 const SOURCE_LABEL: Record<RenewalPricing['source'], string> = {
   api: 'registrar quote',
   tld: 'account rate',
@@ -219,7 +215,7 @@ function RenewalCell({
       className="font-medium tabular-nums"
       title={`Renewal source: ${SOURCE_LABEL[info.source]}`}
     >
-      {fmtUsd(info.renewal)}
+      {priceMoney(info.renewal, info.currency)}
     </span>
   );
 }

@@ -13,10 +13,12 @@ import { useAppStore } from '../store/app';
 import {
   dueWithin,
   groupBy,
+  mainCurrency,
   priceOf,
   summarize,
   tldOf,
   upcomingByMonth,
+  wholeMoney,
   type Group,
   type MonthBucket,
 } from '../lib/renewals';
@@ -43,11 +45,6 @@ type RegistrarLabels = Record<string, string>;
 
 function registrarLabel(id: string, labels: RegistrarLabels): string {
   return labels[id] ?? id;
-}
-
-/** Whole-dollar USD, e.g. "$1,240". */
-function usd(n: number): string {
-  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
 /** Grouped count, e.g. "1,050". */
@@ -167,10 +164,20 @@ export default function Renewals() {
   // re-read after each Sync), so "loading" is just the brief gap before it lands.
   const pricingLoading = hasPortfolio && !hasPricing;
 
-  const summary = useMemo(
-    () => summarize(portfolio, pricing),
+  // Prices keep their own currency and are never converted: the totals are in
+  // the currency most names renew in, and any others are listed beside them.
+  const currency = useMemo(
+    () => mainCurrency(portfolio, pricing),
     [portfolio, pricing],
   );
+  const usd = (n: number) => wholeMoney(n, currency);
+  const summary = useMemo(
+    () => summarize(portfolio, pricing, currency),
+    [portfolio, pricing, currency],
+  );
+  const othersNote = summary.others
+    .map((o) => `+ ${wholeMoney(o.yearly, o.currency)}`)
+    .join(' · ');
   const byRegistrar = useMemo(
     () =>
       groupBy(
@@ -178,8 +185,9 @@ export default function Renewals() {
         pricing,
         (d) => d.registrar,
         (id) => registrarLabel(id, portfolioRegistrarLabels),
+        currency,
       ),
-    [portfolio, pricing, portfolioRegistrarLabels],
+    [portfolio, pricing, portfolioRegistrarLabels, currency],
   );
   const byTld = useMemo(
     () =>
@@ -188,16 +196,17 @@ export default function Renewals() {
         pricing,
         (d) => tldOf(d.domainName),
         (t) => (t ? `.${t}` : '—'),
+        currency,
       ),
-    [portfolio, pricing],
+    [portfolio, pricing, currency],
   );
   const months = useMemo(
-    () => upcomingByMonth(portfolio, pricing, 12),
-    [portfolio, pricing],
+    () => upcomingByMonth(portfolio, pricing, 12, currency),
+    [portfolio, pricing, currency],
   );
   const due90 = useMemo(
-    () => dueWithin(portfolio, pricing, 90),
-    [portfolio, pricing],
+    () => dueWithin(portfolio, pricing, 90, currency),
+    [portfolio, pricing, currency],
   );
 
   // Donut slices: registrar and TLD, each by domain count and by yearly spend.
@@ -268,7 +277,7 @@ export default function Renewals() {
           value={usd(summary.yearly)}
           hint={`${usd(monthly)}/mo · ${usd(summary.yearlyAutoRenew)} auto-renews, ${usd(
             summary.yearly - summary.yearlyAutoRenew,
-          )} manual`}
+          )} manual${othersNote ? ` · ${othersNote}` : ''}`}
         />
         <StatCard
           icon={CalendarClock}
@@ -281,7 +290,7 @@ export default function Renewals() {
 
       {/* Spend over time — sits between the totals and the composition donuts so
           the two rows of three never read as paired. */}
-      <MonthlyBarChart months={months} />
+      <MonthlyBarChart months={months} fmt={usd} />
 
       {/* Composition: two pairs (count + spend), one row per dimension. */}
       <div className="grid gap-4 md:grid-cols-2">
@@ -398,7 +407,14 @@ function StatCard({
 // apart, so per-bar hues just added noise.
 const BAR_COLOR = '#35509e';
 
-function MonthlyBarChart({ months }: { months: MonthBucket[] }) {
+function MonthlyBarChart({
+  months,
+  fmt: usd,
+}: {
+  months: MonthBucket[];
+  /** Whole amounts in the page's currency. */
+  fmt: (n: number) => string;
+}) {
   const max = Math.max(1, ...months.map((m) => m.yearly));
   const total = months.reduce((sum, m) => sum + m.yearly, 0);
   return (
@@ -615,7 +631,10 @@ function PriceEditor({
   domains: Domain[];
   labels: RegistrarLabels;
   pricing: ReturnType<typeof useAppStore.getState>['pricing'];
-  onSave: (domain: string, price: number | null) => Promise<void>;
+  onSave: (
+    domain: string,
+    price: { amount: string; currency: string } | null,
+  ) => Promise<void>;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -633,7 +652,7 @@ function PriceEditor({
               <TableHead>Registrar</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-[220px] text-right">
-                Annual price (USD)
+                Annual price
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -646,6 +665,7 @@ function PriceEditor({
                   domain={d}
                   label={registrarLabel(d.registrar, labels)}
                   current={p?.source === 'manual' ? p.renewal : null}
+                  currency={p?.currency ?? 'USD'}
                   isManual={p?.source === 'manual'}
                   onSave={onSave}
                 />
@@ -662,14 +682,20 @@ function PriceEditorRow({
   domain,
   label,
   current,
+  currency,
   isManual,
   onSave,
 }: {
   domain: Domain;
   label: string;
   current: number | null;
+  /** The price's currency (USD for a name with no price yet). */
+  currency: string;
   isManual: boolean;
-  onSave: (domain: string, price: number | null) => Promise<void>;
+  onSave: (
+    domain: string,
+    price: { amount: string; currency: string } | null,
+  ) => Promise<void>;
 }) {
   const [value, setValue] = useState(current != null ? String(current) : '');
   const [saving, setSaving] = useState(false);
@@ -682,7 +708,10 @@ function PriceEditorRow({
     if (invalid) return;
     setSaving(true);
     try {
-      await onSave(domain.domainName, parsed);
+      await onSave(
+        domain.domainName,
+        parsed === null ? null : { amount: String(parsed), currency },
+      );
     } finally {
       setSaving(false);
     }

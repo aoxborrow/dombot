@@ -71,7 +71,7 @@ set passed to `EncryptedDocStore`.
 | `domain-purchases` + `portfolio-changes` | `domain-events`         |        | event id                   | purchases, sales, arrivals, moves, drops          |
 | `folders` (`assignments` key)            | `domain-folders`        |        | name                       | name → folder id                                  |
 | `folders` (`folders` key)                | `folders`               |        | folder id                  | folder definitions                                |
-| `pricing-overrides`                      | `domain-prices`         |        | name                       | your manual renewal price                         |
+| `pricing-overrides`                      | `domain-prices`         |        | name                       | your manual renewal price, with its currency      |
 | —                                        | `domain-asking-prices`  |        | name                       | your asking price, minimum offer, and floor       |
 | `settings`, `bulk-jobs`, `mcp`           | _(unchanged)_           |        |                            | app-level                                         |
 | `meta`                                   | _(unchanged)_           | local  |                            | this install only                                 |
@@ -411,6 +411,14 @@ is limited to the first requests after deploying this release.
 2. Set `schemaVersion = 2`. A v4 bundle from before this release gets the same
    step on import.
 
+**Migration 3** (renewal prices in any currency, `docs/domain-import-export.md`):
+
+1. Every `domain-prices` value that's a bare number (the old USD form) becomes
+   `{ amount, currency: 'USD' }`, with the amount as a canonical decimal. A
+   value that doesn't hold is dropped.
+2. Set `schemaVersion = 3`. A bundle before v7 gets the same conversion on
+   import.
+
 ## Data bundle versions
 
 **Rule:** any release that adds a namespace that isn't a cache bumps
@@ -420,8 +428,10 @@ data; with remote sync (#89), pushing to a not-yet-upgraded instance and
 pulling back would then lose it locally too. The bump makes the older build
 refuse the file with "made by a newer DomBot".
 
-- **Planned:** a currency on `domain-prices`, and `manual-domains` (#108),
-  each with its own bump (`docs/domain-import-export.md`).
+- **Planned:** `manual-domains` (#108; `docs/domain-import-export.md`).
+- **v7** stores manual renewal prices with a currency. An older build would
+  read the new values as no price, so it must refuse the file. Rule: changing
+  the shape of an exported namespace's values bumps the version too.
 - **v6** adds `domain-asking-prices`.
 - **v5** adds the domain history (`domain-events`, `domain-notes`,
   `registrar-last-sync`). A v4 file imports into v5 unchanged; it just has no

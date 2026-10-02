@@ -31,7 +31,9 @@ describe('FsDocStore', () => {
       'meta.json',
       'registrar-domains.json',
     ]);
-    expect(await store.list('domain-prices')).toEqual({ 'a.com': 12 });
+    expect(await store.list('domain-prices')).toEqual({
+      'a.com': { amount: '12.00', currency: 'USD' },
+    });
     expect(await store.list('folders')).toEqual({ folders: [] });
   });
 

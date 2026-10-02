@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useAppStore } from '../store/app';
 import { notifications } from '../../shared/notifications';
-import { summarize } from './renewals';
+import { summarize, wholeMoney } from './renewals';
 
 export interface TabMetric {
   /** Short display value for the tab's pill, e.g. "1,050" or "$4.2k". */
@@ -12,11 +12,12 @@ export interface TabMetric {
   alert?: boolean;
 }
 
-/** Compact whole-dollar USD: "$820", "$4.2k", "$12k". */
-function usdCompact(n: number): string {
-  if (n < 1000) return `$${Math.round(n).toLocaleString('en-US')}`;
+/** Compact whole amount: "$820", "$4.2k", "€12k". */
+function compactMoney(n: number, currency: string): string {
+  if (n < 1000) return wholeMoney(n, currency);
   const k = n / 1000;
-  return `$${k < 10 ? k.toFixed(1).replace(/\.0$/, '') : Math.round(k)}k`;
+  const symbol = wholeMoney(0, currency).replace(/[\d\s.,]/g, '');
+  return `${symbol}${k < 10 ? k.toFixed(1).replace(/\.0$/, '') : Math.round(k)}k`;
 }
 
 export interface TabMetrics {
@@ -50,8 +51,8 @@ export function useTabMetrics(): TabMetrics {
     const renewals =
       summary.priced > 0
         ? {
-            value: usdCompact(summary.yearly),
-            title: `$${Math.round(summary.yearly).toLocaleString('en-US')} per year in renewals (${summary.priced} of ${summary.total} priced)`,
+            value: compactMoney(summary.yearly, summary.currency),
+            title: `${wholeMoney(summary.yearly, summary.currency)} per year in renewals (${summary.priced} of ${summary.total} priced)${summary.others.map((o) => `, plus ${wholeMoney(o.yearly, o.currency)}`).join('')}`,
           }
         : null;
 

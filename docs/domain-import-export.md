@@ -12,7 +12,8 @@ It also defines one DomBot CSV format: it exports every name on one line, and
 importing that file gets you back to the same data.
 
 Status: plan (2026-10-02), reviewed the same day (see "Settled in review").
-Phase 1 (asking price) is in progress. It takes over the CSV importer and the manual-domain storage
+Phases 1 (asking price, #128) and 2 (renewal prices in any currency) are
+in progress. It takes over the CSV importer and the manual-domain storage
 planned in #108. It replaces the purchase-only import in #122, which will be
 closed. It leaves room for venues (#109), installments (#110), MCP (#111),
 and the financial dashboard (#112). Storage follows `docs/storage-model.md`.

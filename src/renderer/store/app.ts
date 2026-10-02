@@ -26,6 +26,7 @@ import type {
   RegistrarMeta,
   RegistrarName,
   RegistrarSync,
+  RenewalPriceInput,
   RenewalPricing,
 } from '../../shared/ipc';
 
@@ -160,7 +161,10 @@ interface AppState {
   pricing: Record<string, RenewalPricing>;
   /** Re-read the whole-portfolio pricing map from main (local, no network). */
   loadPricing: () => Promise<void>;
-  setManualPrice: (domain: string, price: number | null) => Promise<void>;
+  setManualPrice: (
+    domain: string,
+    price: RenewalPriceInput | null,
+  ) => Promise<void>;
 
   // User-defined folders for organizing domains, plus the domain→folder map
   // (keyed `${registrar}:${domainName}`, the same key as `pricing`/`enriched`).

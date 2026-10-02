@@ -329,6 +329,15 @@ export interface AskingPrice {
   updatedAt: number;
 }
 
+/**
+ * Your yearly renewal price for a name, in any currency. Stored in
+ * `domain-prices`; the amount is a canonical decimal.
+ */
+export interface RenewalPriceInput {
+  amount: string;
+  currency: string;
+}
+
 /** One name's asking price to save. All three amounts blank clears it. */
 export interface AskingPriceInput {
   domainName: string;
@@ -447,7 +456,7 @@ export interface RenewalPricing {
   accountId?: string;
   domain: string;
   registrar: string;
-  /** Annual renewal price in USD, or null when unknown. */
+  /** Annual renewal price in `currency`, or null when unknown. */
   renewal: number | null;
   currency: string;
   source: PriceSource;
@@ -749,9 +758,12 @@ export interface DombotApi {
    *  Computed locally (base rates + TLD rates + Sync-captured quotes +
    *  manual overrides). */
   getPortfolioPricing: () => Promise<Record<string, RenewalPricing>>;
-  /** Set (or clear, with null) a manual annual renewal price for a domain.
-   *  Keyed by name, so it applies whichever account holds the domain. */
-  setManualPrice: (domain: string, price: number | null) => Promise<void>;
+  /** Set (or clear, with null) a manual annual renewal price for a domain, in
+   *  any currency. Keyed by name, so it applies whichever account holds it. */
+  setManualPrice: (
+    domain: string,
+    price: RenewalPriceInput | null,
+  ) => Promise<void>;
 
   // Registrars
   /**

@@ -91,7 +91,11 @@ export async function installDemo(
 
   for (const [key, price] of Object.entries(seed.manualPrices)) {
     const domainName = key.slice(key.indexOf(':') + 1);
-    if (world.get(domainName)) setManualPrice(domainName, price);
+    if (world.get(domainName))
+      setManualPrice(domainName, {
+        amount: price.toFixed(2),
+        currency: 'USD',
+      });
   }
 
   await flushWrites();

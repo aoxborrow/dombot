@@ -113,6 +113,11 @@ export const purchaseInput = z
   })
   .strict();
 
+/** A manual yearly renewal price, in any currency. */
+export const renewalPriceInput = z
+  .object({ amount: z.string().max(40), currency: z.string().max(10) })
+  .strict();
+
 /** One name's asking price; every amount blank clears it. */
 export const askingPriceInput = z
   .object({

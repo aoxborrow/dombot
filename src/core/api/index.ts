@@ -206,7 +206,7 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   // ── Pricing ───────────────────────────────────────────────────────────────
   getPortfolioPricing: method(none, async () => getPortfolioPricing()),
   setManualPrice: method(
-    z.tuple([s.domainName, z.number().nullable()]),
+    z.tuple([s.domainName, s.renewalPriceInput.nullable()]),
     async (domain, price) => {
       setManualPrice(domain, price);
     },

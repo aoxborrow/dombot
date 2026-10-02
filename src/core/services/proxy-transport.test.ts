@@ -436,7 +436,7 @@ describe('account persistence and routing', () => {
       'proxy-secret',
     );
     const bundle = exportBundle({ version: 'test', platform: 'web' });
-    expect(JSON.parse(bundle).version).toBe(6);
+    expect(JSON.parse(bundle).version).toBe(7);
 
     configureStore(new MemoryDocStore());
     await hydrateStores();

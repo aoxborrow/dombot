@@ -1,6 +1,9 @@
 import { domainKey } from '../../shared/account-key';
 // Pure aggregation over the portfolio + renewal pricing, for the Renewals
-// dashboard. No React, no IPC — just numbers in, numbers out. All money is USD.
+// dashboard. No React, no IPC — just numbers in, numbers out. A price carries
+// its own currency and DomBot never converts, so every total is in one
+// currency (`mainCurrency`) and the rest are listed beside it
+// (`otherCurrencies`).
 
 import type { Domain, RenewalPricing } from '../../shared/ipc';
 
@@ -17,13 +20,98 @@ export function priceOf(
   return pricing[priceKey(d)];
 }
 
-/** A known (non-null) annual renewal price for a domain, else null. */
+/** A known annual renewal price in `currency` for a domain, else null. */
 function renewalOf(
   d: Domain,
   pricing: Record<string, RenewalPricing>,
+  currency: string,
 ): number | null {
   const p = priceOf(d, pricing);
-  return p && p.renewal != null ? p.renewal : null;
+  return p && p.renewal != null && p.currency === currency ? p.renewal : null;
+}
+
+/** The currency most priced names renew in; USD when nothing is priced. */
+export function mainCurrency(
+  domains: Domain[],
+  pricing: Record<string, RenewalPricing>,
+): string {
+  const counts = new Map<string, number>();
+  for (const d of domains) {
+    const p = priceOf(d, pricing);
+    if (p?.renewal != null)
+      counts.set(p.currency, (counts.get(p.currency) ?? 0) + 1);
+  }
+  let best = 'USD';
+  let most = 0;
+  for (const [currency, n] of counts) {
+    if (n > most || (n === most && currency === 'USD')) {
+      best = currency;
+      most = n;
+    }
+  }
+  return best;
+}
+
+export interface CurrencyTotal {
+  currency: string;
+  /** Names priced in this currency. */
+  count: number;
+  /** Sum of their known annual renewals. */
+  yearly: number;
+}
+
+/** Known renewals in every currency but `currency`, largest count first. */
+export function otherCurrencies(
+  domains: Domain[],
+  pricing: Record<string, RenewalPricing>,
+  currency: string,
+): CurrencyTotal[] {
+  const totals = new Map<string, CurrencyTotal>();
+  for (const d of domains) {
+    const p = priceOf(d, pricing);
+    if (p?.renewal == null || p.currency === currency) continue;
+    const t = totals.get(p.currency) ?? {
+      currency: p.currency,
+      count: 0,
+      yearly: 0,
+    };
+    t.count += 1;
+    t.yearly += p.renewal;
+    totals.set(p.currency, t);
+  }
+  return [...totals.values()].sort(
+    (a, b) => b.count - a.count || a.currency.localeCompare(b.currency),
+  );
+}
+
+/** A price with its currency symbol and up to two decimals, e.g. "$12.99" or "€9". */
+export function priceMoney(n: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      currencyDisplay: 'narrowSymbol',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(n);
+  } catch {
+    return `${n.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${currency}`;
+  }
+}
+
+/** A whole amount with its currency symbol, e.g. "$1,240" or "€45". */
+export function wholeMoney(n: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      currencyDisplay: 'narrowSymbol',
+      maximumFractionDigits: 0,
+      minimumFractionDigits: 0,
+    }).format(Math.round(n));
+  } catch {
+    return `${Math.round(n).toLocaleString('en-US')} ${currency}`;
+  }
 }
 
 /** Everything after the first dot, lowercased. "example.co.uk" → "co.uk". */
@@ -33,9 +121,11 @@ export function tldOf(domainName: string): string {
 }
 
 export interface RenewalSummary {
+  /** The currency the yearly figures are in (see `mainCurrency`). */
+  currency: string;
   /** Total domains considered. */
   total: number;
-  /** Domains with a known price (any source). */
+  /** Domains with a known price (any source, any currency). */
   priced: number;
   /** Domains still without a price. */
   unpriced: number;
@@ -45,17 +135,20 @@ export interface RenewalSummary {
   tld: number;
   /** Priced domains using a manual override. */
   manual: number;
-  /** Sum of known annual renewals across all priced domains. */
+  /** Sum of known annual renewals in `currency`. */
   yearly: number;
   /** Committed spend: known renewals for auto-renew-on domains only. */
   yearlyAutoRenew: number;
-  /** Average annual renewal across priced domains (0 when none priced). */
+  /** Average annual renewal across domains priced in `currency`. */
   avgPerDomain: number;
+  /** Known renewals in other currencies, left out of the totals. */
+  others: CurrencyTotal[];
 }
 
 export function summarize(
   domains: Domain[],
   pricing: Record<string, RenewalPricing>,
+  currency: string = mainCurrency(domains, pricing),
 ): RenewalSummary {
   let priced = 0;
   let base = 0;
@@ -63,20 +156,25 @@ export function summarize(
   let manual = 0;
   let yearly = 0;
   let yearlyAutoRenew = 0;
+  let inCurrency = 0;
 
   for (const d of domains) {
     const p = priceOf(d, pricing);
-    const value = renewalOf(d, pricing);
-    if (value == null) continue;
+    if (p?.renewal == null) continue;
     priced += 1;
-    yearly += value;
-    if (d.autoRenew) yearlyAutoRenew += value;
+    const value = renewalOf(d, pricing, currency);
+    if (value != null) {
+      inCurrency += 1;
+      yearly += value;
+      if (d.autoRenew) yearlyAutoRenew += value;
+    }
     if (p?.source === 'base') base += 1;
     if (p?.source === 'tld') tld += 1;
     if (p?.source === 'manual') manual += 1;
   }
 
   return {
+    currency,
     total: domains.length,
     priced,
     unpriced: domains.length - priced,
@@ -85,7 +183,8 @@ export function summarize(
     manual,
     yearly,
     yearlyAutoRenew,
-    avgPerDomain: priced > 0 ? yearly / priced : 0,
+    avgPerDomain: inCurrency > 0 ? yearly / inCurrency : 0,
+    others: otherCurrencies(domains, pricing, currency),
   };
 }
 
@@ -94,18 +193,22 @@ export interface Group {
   label: string;
   /** Domains in the group. */
   count: number;
-  /** Domains in the group with a known price. */
+  /** Domains in the group with a known price in the currency. */
   priced: number;
-  /** Sum of known annual renewals in the group. */
+  /** Sum of known annual renewals in the group, in the currency. */
   yearly: number;
 }
 
-/** Groups domains by a key, summing known renewals; sorted by spend desc. */
+/**
+ * Groups domains by a key, summing known renewals in `currency`; sorted by
+ * spend desc.
+ */
 export function groupBy(
   domains: Domain[],
   pricing: Record<string, RenewalPricing>,
   keyOf: (d: Domain) => string,
   labelOf: (key: string) => string,
+  currency = 'USD',
 ): Group[] {
   const groups = new Map<string, Group>();
   for (const d of domains) {
@@ -116,7 +219,7 @@ export function groupBy(
       groups.set(key, g);
     }
     g.count += 1;
-    const value = renewalOf(d, pricing);
+    const value = renewalOf(d, pricing, currency);
     if (value != null) {
       g.priced += 1;
       g.yearly += value;
@@ -173,6 +276,7 @@ export function upcomingByMonth(
   domains: Domain[],
   pricing: Record<string, RenewalPricing>,
   months = 12,
+  currency = 'USD',
 ): MonthBucket[] {
   const now = new Date();
   const startY = now.getFullYear();
@@ -207,7 +311,7 @@ export function upcomingByMonth(
     const bucket = index.get(key);
     if (!bucket) continue;
     bucket.count += 1;
-    const value = renewalOf(d, pricing);
+    const value = renewalOf(d, pricing, currency);
     if (value != null) {
       bucket.priced += 1;
       bucket.yearly += value;
@@ -216,11 +320,15 @@ export function upcomingByMonth(
   return buckets;
 }
 
-/** Total known renewal cost for domains due within the next `days` days. */
+/**
+ * Total known renewal cost in `currency` for domains due within the next
+ * `days` days.
+ */
 export function dueWithin(
   domains: Domain[],
   pricing: Record<string, RenewalPricing>,
   days: number,
+  currency = 'USD',
 ): { count: number; yearly: number } {
   const cutoff = Date.now() + days * 86_400_000;
   let count = 0;
@@ -229,7 +337,7 @@ export function dueWithin(
     const date = renewalDate(d);
     if (!date || date.getTime() > cutoff) continue;
     count += 1;
-    const value = renewalOf(d, pricing);
+    const value = renewalOf(d, pricing, currency);
     if (value != null) yearly += value;
   }
   return { count, yearly };

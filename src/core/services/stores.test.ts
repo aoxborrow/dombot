@@ -105,13 +105,15 @@ describe('registrar-state', () => {
 
 describe('pricing overrides', () => {
   it('manual price wins, and clears with null', async () => {
-    setManualPrice('a.com', 12.5);
+    setManualPrice('a.com', { amount: '12.50', currency: 'USD' });
     expect(resolvePricing('dynadot', 'a.com')).toMatchObject({
       renewal: 12.5,
       source: 'manual',
     });
     await flushWrites();
-    expect(await store.list('domain-prices')).toEqual({ 'a.com': 12.5 });
+    expect(await store.list('domain-prices')).toEqual({
+      'a.com': { amount: '12.50', currency: 'USD' },
+    });
     setManualPrice('a.com', null);
     expect(resolvePricing('dynadot', 'a.com').source).not.toBe('manual');
   });
@@ -143,7 +145,7 @@ describe('cache', () => {
       fetchedAt: e.fetchedAt,
     });
     setTldRate('godaddy', 'com', 8.99);
-    setManualPrice('a.com', 5);
+    setManualPrice('a.com', { amount: '5.00', currency: 'USD' });
     await flushWrites();
     expect(await store.list('registrar-domains')).toEqual(readAll('portfolio'));
     clearAll();
@@ -151,7 +153,9 @@ describe('cache', () => {
     // prices stay.
     await flushWrites();
     expect(await store.list('registrar-tld-rates')).toEqual({});
-    expect(await store.list('domain-prices')).toEqual({ 'a.com': 5 });
+    expect(await store.list('domain-prices')).toEqual({
+      'a.com': { amount: '5.00', currency: 'USD' },
+    });
     expect(readEntry('portfolio', 'dynadot')).toBeNull();
     await flushWrites();
     expect(await store.list('registrar-domains')).toEqual({});

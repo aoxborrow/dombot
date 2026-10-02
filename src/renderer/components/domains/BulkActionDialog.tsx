@@ -64,6 +64,7 @@ import { NameserversEditor } from './NameserversEditor';
 import { UrlForwardingEditor } from './UrlForwardingEditor';
 import { EmailForwardingEditor } from './EmailForwardingEditor';
 import { useNameserverPresets } from './useNameserverPresets';
+import { priceMoney } from '../../lib/renewals';
 
 /**
  * The three-stage bulk dialog every bulk op uses:
@@ -584,11 +585,6 @@ function SkipExisting({
   );
 }
 
-/** Whole/decimal USD, e.g. "$12" or "$12.99". */
-function usd(n: number): string {
-  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
-}
-
 const MAX_YEARS = 10;
 
 /** Term picker plus the summed estimate across the domains that will run. */
@@ -603,15 +599,19 @@ function BulkRenew({
   domains: Domain[];
   pricing: ReturnType<typeof useAppStore.getState>['pricing'];
 }) {
+  // Summed per currency: prices aren't converted.
   let known = 0;
-  let total = 0;
+  const totals = new Map<string, number>();
   for (const d of domains) {
     const p = pricing[domainKey(d)];
     if (p?.renewal != null) {
       known += 1;
-      total += p.renewal * years;
+      totals.set(p.currency, (totals.get(p.currency) ?? 0) + p.renewal * years);
     }
   }
+  const total = [...totals]
+    .map(([currency, n]) => priceMoney(n, currency))
+    .join(' + ');
   const hasPorkbun = domains.some((d) => d.registrar === 'porkbun');
   return (
     <div className="flex flex-col gap-3">
@@ -643,7 +643,7 @@ function BulkRenew({
             <span className="text-muted-foreground">unknown</span>
           ) : (
             <>
-              {usd(total)}
+              {total}
               {known < domains.length && (
                 <span className="ml-1.5 text-xs text-muted-foreground">
                   for {known} of {domains.length} priced
