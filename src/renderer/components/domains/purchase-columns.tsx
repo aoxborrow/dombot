@@ -63,7 +63,7 @@ function PurchaseCell({
 
 /**
  * Money columns for the Domains table: Archive gets the sold date and
- * amount, Owned gets the asking price. What you paid is edited from the row
+ * amount, Owned gets the pricing (asking price, minimum offer, floor). What you paid is edited from the row
  * menu (Purchase details).
  */
 export function purchaseColumns({
@@ -83,58 +83,51 @@ export function purchaseColumns({
   /** Archive view: sold date and sold amount. */
   showSale?: boolean;
   isSold?: (domain: Domain) => boolean;
-  /** Owned view: the Asking column. */
+  /** Owned view: the Pricing, Min offer, and Floor columns. */
   askingPrices?: Record<string, AskingPrice>;
   onEditAsking?: (domain: Domain) => void;
 }): PurchaseColumn[] {
   const money = (amount: string, currency: string) =>
     formatMoney(amount, currency, preferredCurrency, numberFormat);
+  // Owned view: Pricing (the asking price), Min offer, and Floor, each
+  // opening the same editor.
+  const askingOf = (d: Domain) => askingPrices?.[toAscii(d.domainName)];
+  const askingColumn = (
+    key: string,
+    label: string,
+    field: 'amount' | 'minOffer' | 'floor',
+    editLabel: string,
+  ): PurchaseColumn => ({
+    key,
+    label,
+    align: 'right',
+    hideOnMobile: true,
+    render: (d) => {
+      const p = askingOf(d);
+      const value = p?.[field];
+      return (
+        <PurchaseCell
+          domain={d}
+          onEdit={onEditAsking!}
+          align="right"
+          empty={!value}
+          editLabel={editLabel}
+        >
+          {value ? money(value, p!.currency) : '—'}
+        </PurchaseCell>
+      );
+    },
+    sortValue: (d) => {
+      const value = askingOf(d)?.[field];
+      return value == null ? null : Number(value);
+    },
+  });
   const asking: PurchaseColumn[] =
     askingPrices && onEditAsking && !showSale
       ? [
-          {
-            key: 'askingPrice',
-            label: 'Asking',
-            align: 'right',
-            hideOnMobile: true,
-            render: (d) => {
-              const p = askingPrices[toAscii(d.domainName)];
-              const text = !p
-                ? null
-                : p.amount
-                  ? money(p.amount, p.currency)
-                  : p.minOffer
-                    ? `Offers from ${money(p.minOffer, p.currency)}`
-                    : `Floor ${money(p.floor ?? '0', p.currency)}`;
-              const details = p
-                ? [
-                    p.minOffer &&
-                      `Minimum offer ${money(p.minOffer, p.currency)}`,
-                    p.floor && `Floor ${money(p.floor, p.currency)}`,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')
-                : '';
-              return (
-                <PurchaseCell
-                  domain={d}
-                  onEdit={onEditAsking}
-                  align="right"
-                  empty={!text}
-                  editLabel="Asking price"
-                >
-                  {/* The details go on the text, so the button keeps the
-                      price as its name. */}
-                  <span title={details || undefined}>{text || '—'}</span>
-                </PurchaseCell>
-              );
-            },
-            sortValue: (d) => {
-              const p = askingPrices[toAscii(d.domainName)];
-              const value = p?.amount ?? p?.minOffer ?? p?.floor;
-              return value == null ? null : Number(value);
-            },
-          },
+          askingColumn('askingPrice', 'Pricing', 'amount', 'Asking price'),
+          askingColumn('minOffer', 'Min offer', 'minOffer', 'Minimum offer'),
+          askingColumn('floor', 'Floor', 'floor', 'Floor price'),
         ]
       : [];
   const sale: PurchaseColumn[] = showSale

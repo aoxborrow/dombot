@@ -36,6 +36,7 @@ import type {
 import { toUnicode } from '../../../shared/domain-name';
 import { DataTable, type DataColumn } from '../data-table/DataTable';
 import { sortRows, type SortDir } from '../data-table/table-state';
+import { ASKING_HELP } from './AskingPriceDialog';
 import { CurrencyPicker } from './CurrencyPicker';
 import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
@@ -1013,6 +1014,9 @@ function ManualTab({
       <div className="grid gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
         <div className="flex flex-col gap-2">
           <Label htmlFor="import-asking">Asking price</Label>
+          <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
+            {ASKING_HELP.amount}
+          </p>
           <MoneyInput
             id="import-asking"
             currency={fields.currency}
@@ -1023,6 +1027,9 @@ function ManualTab({
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="import-min-offer">Minimum offer</Label>
+          <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
+            {ASKING_HELP.minOffer}
+          </p>
           <MoneyInput
             id="import-min-offer"
             currency={fields.currency}
@@ -1033,6 +1040,9 @@ function ManualTab({
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="import-floor">Floor price</Label>
+          <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
+            {ASKING_HELP.floor}
+          </p>
           <MoneyInput
             id="import-floor"
             currency={fields.currency}
@@ -1043,6 +1053,9 @@ function ManualTab({
         </div>
         <div className="flex flex-col gap-2">
           <Label>Currency</Label>
+          <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
+            For all three.
+          </p>
           <CurrencyPicker
             compact
             value={fields.currency}
@@ -1597,7 +1610,7 @@ function ReviewTable({
     },
     {
       key: 'asking',
-      label: 'Asking',
+      label: 'Pricing',
       field: 'Asking price',
       align: 'right',
       value: (r) =>

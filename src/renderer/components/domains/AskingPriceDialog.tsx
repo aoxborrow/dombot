@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { sameAskingPrice } from '../../../shared/asking-prices';
 import { toAscii } from '../../../shared/domain-name';
 import type { Domain } from '../../../shared/ipc';
@@ -115,24 +115,36 @@ export function AskingPriceDialog({
       <DialogContent className="sm:max-w-md">
         <ActionHeader title="Asking price" names={names} />
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-muted-foreground">
-            {mixed
-              ? 'These names have different prices. Saving gives them all the price below.'
-              : 'What you would sell for. It isn’t listed anywhere.'}
-          </p>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="asking-amount">Asking price</Label>
-            <MoneyInput
+          {mixed && (
+            <p className="text-sm text-muted-foreground">
+              These names have different prices. Saving gives them all the price
+              below.
+            </p>
+          )}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+            <PriceField
               id="asking-amount"
-              currency={currency}
-              value={amount}
-              placeholder={placeholder}
-              onChange={(e) => setAmount(e.target.value)}
-            />
+              label="Asking price"
+              help={ASKING_HELP.amount}
+            >
+              <MoneyInput
+                id="asking-amount"
+                currency={currency}
+                value={amount}
+                placeholder={placeholder}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </PriceField>
+            <PriceField label="Currency" help="For all three prices.">
+              <CurrencyPicker compact value={currency} onChange={setCurrency} />
+            </PriceField>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="asking-min-offer">Minimum offer</Label>
+            <PriceField
+              id="asking-min-offer"
+              label="Minimum offer"
+              help={ASKING_HELP.minOffer}
+            >
               <MoneyInput
                 id="asking-min-offer"
                 currency={currency}
@@ -140,9 +152,12 @@ export function AskingPriceDialog({
                 placeholder="Optional"
                 onChange={(e) => setMinOffer(e.target.value)}
               />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="asking-floor">Floor price</Label>
+            </PriceField>
+            <PriceField
+              id="asking-floor"
+              label="Floor price"
+              help={ASKING_HELP.floor}
+            >
               <MoneyInput
                 id="asking-floor"
                 currency={currency}
@@ -150,15 +165,7 @@ export function AskingPriceDialog({
                 placeholder="Optional"
                 onChange={(e) => setFloor(e.target.value)}
               />
-            </div>
-          </div>
-          <p className="-mt-2 text-xs text-muted-foreground">
-            The minimum offer is the lowest offer you’ll consider. The floor is
-            the lowest price you’d accept, and is never shown to buyers.
-          </p>
-          <div className="flex flex-col gap-2">
-            <Label>Currency</Label>
-            <CurrencyPicker value={currency} onChange={setCurrency} />
+            </PriceField>
           </div>
           {error && (
             <p className="text-sm text-destructive" role="alert">
@@ -196,5 +203,33 @@ export function AskingPriceDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The help line under each price's label, here and in Import. */
+export const ASKING_HELP = {
+  amount: 'The "Buy it now" price.',
+  minOffer: 'The lowest offer you’ll consider.',
+  floor: 'The lowest price you’d accept.',
+} as const;
+
+/** A label, its one line of help, then the input. */
+function PriceField({
+  id,
+  label,
+  help,
+  children,
+}: {
+  id?: string;
+  label: string;
+  help: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <p className="-mt-0.5 text-xs text-muted-foreground">{help}</p>
+      {children}
+    </div>
   );
 }

@@ -1826,7 +1826,7 @@ export default function Domains() {
             )}
             {!archiveView && (
               <MultiSelectFilter
-                label="Asking"
+                label="Pricing"
                 icon={Tag}
                 options={askingOptions}
                 selected={asking}
