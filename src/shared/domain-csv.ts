@@ -90,8 +90,10 @@ function decimal(n: number, currency: string): string {
   return n.toFixed(places);
 }
 
-/** Registrar columns are blank for a name no account holds any more. */
+/** Columns you can know for a name you hold: blank once it's gone. */
 const held = (r: NameRow) => !r.domain.departed;
+/** Columns only a connected registrar reports: blank for manual names too. */
+const fromRegistrar = (r: NameRow) => !r.domain.departed && !r.domain.manual;
 const registration = (r: NameRow, value: () => string) =>
   r.domain.unregistered ? '' : value();
 
@@ -136,8 +138,9 @@ export const DOMAIN_CSV_COLUMNS: DomainCsvColumn[] = [
       registration(
         r,
         () =>
-          r.domain.registrationRegistrar ??
-          r.ctx.registrarLabels[r.domain.registrar] ??
+          r.domain.manualRegistrarLabel ||
+          r.domain.registrationRegistrar ||
+          r.ctx.registrarLabels[r.domain.registrar] ||
           r.domain.registrar,
       ),
   },
@@ -155,7 +158,8 @@ export const DOMAIN_CSV_COLUMNS: DomainCsvColumn[] = [
   {
     header: 'Auto-renew',
     importable: true,
-    value: (r) => (held(r) ? yesNo(r.domain.autoRenew) : ''),
+    value: (r) =>
+      held(r) && !r.domain.autoRenewUnknown ? yesNo(r.domain.autoRenew) : '',
   },
   {
     header: 'Renewal price',
@@ -279,32 +283,32 @@ export const DOMAIN_CSV_COLUMNS: DomainCsvColumn[] = [
   {
     header: 'Renewal date',
     importable: false,
-    value: (r) => (held(r) ? isoDate(r.domain.renewalDate) : ''),
+    value: (r) => (fromRegistrar(r) ? isoDate(r.domain.renewalDate) : ''),
   },
   {
     header: 'Locked',
     importable: false,
-    value: (r) => (held(r) ? yesNo(r.domain.locked) : ''),
+    value: (r) => (fromRegistrar(r) ? yesNo(r.domain.locked) : ''),
   },
   {
     header: 'Privacy',
     importable: false,
-    value: (r) => (held(r) ? yesNo(r.domain.privacy) : ''),
+    value: (r) => (fromRegistrar(r) ? yesNo(r.domain.privacy) : ''),
   },
   {
     header: 'Nameservers',
     importable: false,
-    value: (r) => (held(r) ? r.domain.nameservers.join('; ') : ''),
+    value: (r) => (fromRegistrar(r) ? r.domain.nameservers.join('; ') : ''),
   },
   {
     header: 'Registrar status',
     importable: false,
-    value: (r) => (held(r) ? r.domain.status : ''),
+    value: (r) => (fromRegistrar(r) ? r.domain.status : ''),
   },
   {
     header: 'Last synced',
     importable: false,
-    value: (r) => (held(r) ? isoDate(r.domain.syncedAt) : ''),
+    value: (r) => (fromRegistrar(r) ? isoDate(r.domain.syncedAt) : ''),
   },
   {
     header: 'Notes',
@@ -325,7 +329,7 @@ function nameRows(domains: Domain[], ctx: DomainCsvContext): NameRow[] {
   const byName = new Map<string, NameRow>();
   for (const d of domains) {
     const key = toAscii(d.domainName);
-    const account = d.departed ? '' : ctx.accountName(d);
+    const account = d.departed ? '' : d.manual ? 'Manual' : ctx.accountName(d);
     const existing = byName.get(key);
     if (!existing) {
       byName.set(key, {
@@ -367,4 +371,58 @@ export function domainsToCsv(domains: Domain[], ctx: DomainCsvContext): string {
 /** Timestamped default filename, e.g. "dombot-domains-2026-08-30.csv". */
 export function domainsCsvFilename(now: Date = new Date()): string {
   return `dombot-domains-${now.toISOString().slice(0, 10)}.csv`;
+}
+
+/**
+ * The template to fill in: the importable columns and three example rows (a
+ * hand-registered name with a renewal price, a purchased one with an asking
+ * price, folder, and note, and one sold in euros).
+ */
+export function domainsCsvTemplate(): string {
+  const headers = DOMAIN_CSV_COLUMNS.filter((c) => c.importable).map(
+    (c) => c.header,
+  );
+  const rows: Record<string, string>[] = [
+    {
+      Domain: 'example.com',
+      Status: 'Owned',
+      Registrar: 'Porkbun',
+      Created: '2024-03-15',
+      Expires: '2027-03-15',
+      'Auto-renew': 'Yes',
+      'Renewal price': '11.08',
+      'Renewal currency': 'USD',
+      'Purchase type': 'Registered',
+      'Purchase date': '2024-03-15',
+      'Purchase amount': '11.08',
+      'Purchase currency': 'USD',
+    },
+    {
+      Domain: 'example.net',
+      Status: 'Owned',
+      Folder: 'Brandables',
+      'Asking price': '4800.00',
+      'Minimum offer': '1500.00',
+      'Floor price': '2500.00',
+      'Asking currency': 'USD',
+      'Purchase type': 'Purchased',
+      'Purchase date': '2021-06-01',
+      'Purchase amount': '850.00',
+      'Purchase currency': 'USD',
+      Notes: 'Bought at auction',
+    },
+    {
+      Domain: 'example.org',
+      Status: 'Sold',
+      'Purchase type': 'Purchased',
+      'Purchase date': '2019-11-02',
+      'Purchase amount': '120.00',
+      'Purchase currency': 'EUR',
+      'Sale date': '2024-01-10',
+      'Sale amount': '3500.00',
+      'Sale currency': 'EUR',
+      Notes: 'Sold through escrow',
+    },
+  ];
+  return toCsv([headers, ...rows.map((r) => headers.map((h) => r[h] ?? ''))]);
 }

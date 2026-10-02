@@ -273,12 +273,13 @@ function readRow(
   const folderName =
     folder && !/^(\(no folder\)|none|-|—)$/i.test(folder)
       ? folder.slice(0, 100)
-      : setup.defaults.folder;
+      : setup.defaults.folder?.trim() || undefined;
   if (folderName) row.folder = folderName;
   const notes = cells.notes?.trim();
   if (notes) row.notes = notes.slice(0, 4000);
 
-  const registrarCell = cells.registrar?.trim() || setup.defaults.registrar;
+  const registrarCell =
+    cells.registrar?.trim() || setup.defaults.registrar?.trim();
   const registrar = registrarCell
     ? readRegistrar(registrarCell, ctx.registrars)
     : null;

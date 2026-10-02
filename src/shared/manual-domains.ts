@@ -31,6 +31,7 @@ export function manualRow(key: string, m: ManualDomain): Domain {
     deleted: false,
     manual: true,
     ...(m.registrar ? {} : { manualRegistrarLabel: m.registrarLabel ?? '' }),
+    ...(m.autoRenew == null ? { autoRenewUnknown: true } : {}),
   };
 }
 

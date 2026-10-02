@@ -56,6 +56,8 @@ export type Domain = ProviderDomain & {
   manual?: boolean;
   /** A manual name's registrar as you typed it, when DomBot doesn't know it. */
   manualRegistrarLabel?: string;
+  /** A manual name whose auto-renew you haven't set (`autoRenew` reads false). */
+  autoRenewUnknown?: boolean;
 };
 
 /**

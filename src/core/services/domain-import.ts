@@ -63,6 +63,14 @@ const LABEL: Record<string, string> = {
   removed: 'Removed',
 };
 
+/** A note, shortened for the preview. */
+const clip = (text: string | undefined) =>
+  text === undefined
+    ? null
+    : text.length > 60
+      ? `${text.slice(0, 57).trimEnd()}…`
+      : text;
+
 const money = (amount?: string | null, currency?: string | null) =>
   amount ? `${amount} ${currency ?? ''}`.trim() : null;
 
@@ -252,7 +260,7 @@ function compute(
             ...(removal ? { resolves: removal, dismissed: true } : {}),
           }),
         );
-        change('Added', null, 'Owned');
+        change('Status', null, 'Owned (new name)');
       }
     }
     // A name you labeled stays in Archive unless the row buys it back.
@@ -444,7 +452,7 @@ function compute(
     // ── your data about the name ──────────────────────────────────────────
     if (row.notes && row.notes !== notes[key] && allowed(notes[key])) {
       writes.notes.push([key, row.notes]);
-      change('Notes', notes[key] ? 'previous note' : null, 'note');
+      change('Notes', clip(notes[key]), clip(row.notes));
     }
 
     if (row.folder) {

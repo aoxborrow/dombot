@@ -4,6 +4,7 @@ import {
   DOMAIN_CSV_HEADERS,
   domainsToCsv,
   domainsCsvFilename,
+  domainsCsvTemplate,
   type DomainCsvContext,
 } from './domain-csv';
 import { HIDDEN_FOLDER_ID, type Domain, type Folder } from './ipc';
@@ -216,9 +217,50 @@ describe('domainsToCsv', () => {
     });
   });
 
+  it('writes a manual name: its own registrar, "Manual", no registrar-only values', () => {
+    const [row] = read(
+      domainsToCsv(
+        [
+          {
+            ...domain({ domainName: 'example.net', registrar: '' }),
+            manual: true,
+            manualRegistrarLabel: 'Epik',
+            autoRenewUnknown: true,
+            expirationDate: new Date(NOW + 10 * 86_400_000),
+          },
+        ],
+        ctx(),
+      ),
+    );
+    expect(row).toMatchObject({
+      Registrar: 'Epik',
+      Account: 'Manual',
+      'Auto-renew': '',
+      'Days until expiry': '10',
+      Locked: '',
+      Privacy: '',
+      'Registrar status': '',
+      'Last synced': '',
+    });
+  });
+
   it('names the file by day', () => {
     expect(domainsCsvFilename(new Date(NOW))).toBe(
       'dombot-domains-2026-06-15.csv',
     );
+  });
+});
+
+describe('domainsCsvTemplate', () => {
+  it('has the importable columns and three example rows', () => {
+    const [headers, ...rows] = parseCsv(domainsCsvTemplate());
+    expect(headers).toContain('Asking price');
+    expect(headers).not.toContain('Renewal estimate');
+    expect(headers).not.toContain('Last synced');
+    expect(rows.map((r) => r[0])).toEqual([
+      'example.com',
+      'example.net',
+      'example.org',
+    ]);
   });
 });
