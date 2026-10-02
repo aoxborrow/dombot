@@ -1,6 +1,6 @@
 import type {
-  AskingPrice,
-  AskingPriceInput,
+  BinPrice,
+  BinPriceInput,
   ImportChange,
   ImportOutcome,
   ImportPlan,
@@ -8,7 +8,7 @@ import type {
   ManualDomain,
 } from '../../shared/ipc';
 import { HIDDEN_FOLDER_ID, builtInFolderName } from '../../shared/ipc';
-import { sameAskingPrice, toAskingPrice } from '../../shared/asking-prices';
+import { sameBinPrice, toBinPrice } from '../../shared/bin-prices';
 import { assertDomainName } from '../../shared/domain-name';
 import {
   DomainEventSource,
@@ -21,7 +21,7 @@ import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import type { RenewalPrice } from '../../shared/renewal-prices';
 import { toCurrencyCode, type CurrencyCode } from '../../shared/currencies';
 import { broadcastPortfolioChanged } from '../events';
-import { getAskingPrices, setAskingPrices } from './asking-prices';
+import { getBinPrices, setBinPrices } from './bin-prices';
 import {
   deleteDomainEvents,
   listEvents,
@@ -78,7 +78,7 @@ const isZero = (amount?: string | null) => !!amount && Number(amount) === 0;
 const money = (amount?: string | null, currency?: string | null) =>
   amount ? `${amount} ${currency ?? ''}`.trim() : null;
 
-const askingText = (p: AskingPrice | null | undefined) =>
+const binPriceText = (p: BinPrice | null | undefined) =>
   p
     ? [
         p.amount && `${p.amount} ${p.currency}`,
@@ -99,7 +99,7 @@ interface Writes {
   folders: [string, string][];
   /** null clears the name's renewal price. */
   renewals: [string, RenewalPrice | null][];
-  asking: AskingPriceInput[];
+  binPrice: BinPriceInput[];
 }
 
 function compute(
@@ -114,7 +114,7 @@ function compute(
     notes: [],
     folders: [],
     renewals: [],
-    asking: [],
+    binPrice: [],
   };
 
   // The data as it stands.
@@ -143,7 +143,7 @@ function compute(
   );
   const newFolders = new Map<string, string>();
   const renewals = getManualPrices();
-  const asking = getAskingPrices();
+  const binPrices = getBinPrices();
 
   const fresh = (fields: Omit<DomainEvent, 'id' | 'createdAt' | 'updatedAt'>) =>
     newEvent(
@@ -538,11 +538,11 @@ function compute(
       }
     }
 
-    if (row.asking) {
-      const current = asking[key];
-      const sameCurrency = current?.currency === row.asking.currency;
+    if (row.binPrice) {
+      const current = binPrices[key];
+      const sameCurrency = current?.currency === row.binPrice.currency;
       const merge = (field: 'amount' | 'minOffer' | 'floor') =>
-        row.asking![field] ??
+        row.binPrice![field] ??
         (sameCurrency ? (current?.[field] ?? null) : null);
       const fields = {
         amount: merge('amount'),
@@ -551,32 +551,32 @@ function compute(
       };
       if (fields) {
         try {
-          const next = toAskingPrice(
-            { ...fields, currency: row.asking.currency },
+          const next = toBinPrice(
+            { ...fields, currency: row.binPrice.currency },
             now,
           );
           if (!next && current) {
-            writes.asking.push({
+            writes.binPrice.push({
               domainName: key,
               amount: null,
               minOffer: null,
               floor: null,
               currency: current.currency,
             });
-            change('Asking price', askingText(current), null);
-          } else if (next && !sameAskingPrice(current, next)) {
-            writes.asking.push({
+            change('BIN price', binPriceText(current), null);
+          } else if (next && !sameBinPrice(current, next)) {
+            writes.binPrice.push({
               domainName: key,
               amount: next.amount,
               minOffer: next.minOffer ?? null,
               floor: next.floor ?? null,
               currency: next.currency,
             });
-            change('Asking price', askingText(current), askingText(next));
+            change('BIN price', binPriceText(current), binPriceText(next));
           }
         } catch (err) {
           warnings.push(
-            `Asking price left as is: ${err instanceof Error ? err.message : 'not valid'}`,
+            `BIN price left as is: ${err instanceof Error ? err.message : 'not valid'}`,
           );
         }
       }
@@ -652,7 +652,7 @@ export function importDomains(
     );
   }
   setManualPrices(writes.renewals);
-  if (writes.asking.length > 0) setAskingPrices(writes.asking);
+  if (writes.binPrice.length > 0) setBinPrices(writes.binPrice);
   broadcastPortfolioChanged();
   return { ...plan, importId: options.importId };
 }

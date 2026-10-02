@@ -172,8 +172,8 @@ export const IpcChannels = {
   importDomains: 'domainImport:apply',
   getManualDomains: 'manualDomains:list',
   updateManualDomain: 'manualDomains:update',
-  getAskingPrices: 'askingPrices:list',
-  setAskingPrices: 'askingPrices:set',
+  getBinPrices: 'binPrices:list',
+  setBinPrices: 'binPrices:set',
   getDomainEvents: 'domainEvents:list',
   setDispositions: 'domainEvents:setDispositions',
   markSold: 'domainEvents:markSold',
@@ -385,7 +385,7 @@ export interface SaleInput {
  * Your asking price for a name, synced or manual (docs/domain-import-export.md).
  * Amounts are canonical decimals, all in `currency`. At least one is set.
  */
-export interface AskingPrice {
+export interface BinPrice {
   /** What you'd sell it for; null when only offers are set. */
   amount: string | null;
   /** The lowest offer you'll consider. */
@@ -430,7 +430,7 @@ export interface ImportRow {
     autoRenew?: boolean;
   };
   renewal?: { amount: string; currency: string };
-  asking?: {
+  binPrice?: {
     amount?: string;
     minOffer?: string;
     floor?: string;
@@ -473,7 +473,7 @@ export interface ImportPlan {
 }
 
 /** One name's asking price to save. All three amounts blank clears it. */
-export interface AskingPriceInput {
+export interface BinPriceInput {
   domainName: string;
   amount: string | null;
   minOffer: string | null;
@@ -1079,14 +1079,12 @@ export interface DombotApi {
 
   // Asking prices (keyed by domain name; any name, synced or manual)
   /** Every asking price, keyed by the normalized domain name. */
-  getAskingPrices: () => Promise<Record<string, AskingPrice>>;
+  getBinPrices: () => Promise<Record<string, BinPrice>>;
   /**
    * Set or clear (all amounts blank) asking prices in one write. Returns every
    * asking price afterwards.
    */
-  setAskingPrices: (
-    inputs: AskingPriceInput[],
-  ) => Promise<Record<string, AskingPrice>>;
+  setBinPrices: (inputs: BinPriceInput[]) => Promise<Record<string, BinPrice>>;
 
   // Domain history (docs/storage-model.md). Each change returns the whole log.
   /** Every domain event, oldest first. */

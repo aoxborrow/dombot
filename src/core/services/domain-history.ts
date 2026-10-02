@@ -21,7 +21,7 @@ import {
 } from './domain-events';
 import { assignFolder } from './folders';
 import { setManualPrice } from './pricing';
-import { deleteAskingPrices } from './asking-prices';
+import { deleteBinPrices } from './bin-prices';
 import { removeManualDomains, takeOverManual } from './manual-domains';
 import { Namespace } from '../storage/namespace';
 
@@ -225,7 +225,7 @@ export function deleteDomains(domainNames: string[]): void {
     );
     assignFolder(domain, null);
     setManualPrice(domain, null);
-    deleteAskingPrices([domain]);
+    deleteBinPrices([domain]);
     removeManualDomains([domain]);
   }
 }

@@ -1,4 +1,5 @@
 import type { CurrencyCode } from './currencies';
+import { wholeAmount } from './bin-prices';
 import { detectDelimiter, parseCsv, unguardCell } from './csv';
 import {
   FIELD_INFO,
@@ -211,6 +212,8 @@ function readRow(
   ctx: ImportContext,
   domain: string,
   line: number,
+  /** Warnings the row still imports with (a price rounded to whole). */
+  warnings: string[] = [],
 ): ImportRow {
   const pref = ctx.preferredCurrency;
   const date = (f: ImportField) =>
@@ -305,24 +308,32 @@ function readRow(
       currency: renewal.currency,
     };
 
-  const asking = money(
-    ['askingPrice', 'minOffer', 'floorPrice'],
-    'askingCurrency',
-  );
-  if (asking) {
-    const { askingPrice, minOffer, floorPrice } = asking.amounts;
+  const bin = money(['binPrice', 'minOffer', 'floorPrice'], 'binCurrency');
+  if (bin) {
+    // Prices are whole amounts: "4850.00" reads as 4850, cents are an error.
+    const whole = (f: 'binPrice' | 'minOffer' | 'floorPrice') => {
+      const value = bin.amounts[f];
+      if (!value) return undefined;
+      // Prices are whole amounts: cents round, with a warning on the row.
+      const rounded = String(Math.round(Number(value)));
+      if (Number(rounded) !== Number(value))
+        warnings.push(`${label(f)} ${value} was rounded to ${rounded}.`);
+      return wholeAmount(rounded, label(f)) ?? undefined;
+    };
+    const binPrice = whole('binPrice');
+    const minOffer = whole('minOffer');
+    const floorPrice = whole('floorPrice');
     // A zero asking price clears it, so it caps nothing.
-    const cap =
-      askingPrice && Number(askingPrice) > 0 ? Number(askingPrice) : null;
+    const cap = binPrice && Number(binPrice) > 0 ? Number(binPrice) : null;
     if (cap !== null && minOffer && Number(minOffer) > cap)
       throw new Error('The minimum offer is above the BIN price.');
     if (cap !== null && floorPrice && Number(floorPrice) > cap)
       throw new Error('The floor price is above the BIN price.');
-    row.asking = {
-      ...(askingPrice ? { amount: askingPrice } : {}),
+    row.binPrice = {
+      ...(binPrice ? { amount: binPrice } : {}),
       ...(minOffer ? { minOffer } : {}),
       ...(floorPrice ? { floor: floorPrice } : {}),
-      currency: asking.currency,
+      currency: bin.currency,
     };
   }
 
@@ -388,7 +399,7 @@ const MERGE_FIELD: Record<string, string> = {
   'registration.expirationDate': 'expiry',
   'registration.autoRenew': 'auto-renew',
   renewal: 'renewal price',
-  asking: 'asking price',
+  binPrice: 'BIN price',
   'purchase.type': 'purchase type',
   'purchase.date': 'purchase date',
   'purchase.money': 'purchase amount',
@@ -408,7 +419,7 @@ function flatten(row: ImportRow): Flat {
   for (const [k, v] of Object.entries(row.registration ?? {}))
     put(`registration.${k}`, v);
   put('renewal', row.renewal);
-  put('asking', row.asking);
+  put('binPrice', row.binPrice);
   const { amount, currency, ...purchase } = row.purchase ?? {};
   for (const [k, v] of Object.entries(purchase)) put(`purchase.${k}`, v);
   if (amount) put('purchase.money', { amount, currency });
@@ -433,7 +444,7 @@ function unflatten(line: number, domain: string, flat: Flat): ImportRow {
   const registration = group('registration');
   if (registration) row.registration = registration;
   if (flat.renewal) row.renewal = flat.renewal as ImportRow['renewal'];
-  if (flat.asking) row.asking = flat.asking as ImportRow['asking'];
+  if (flat.binPrice) row.binPrice = flat.binPrice as ImportRow['binPrice'];
   const purchase = group('purchase');
   if (purchase) {
     const { money, ...rest } = purchase as { money?: object };
@@ -522,8 +533,9 @@ export function buildRows(
       continue;
     }
     let row: ImportRow;
+    const warnings: string[] = [];
     try {
-      row = readRow(byField, hints, setup, ctx, domain, line);
+      row = readRow(byField, hints, setup, ctx, domain, line, warnings);
     } catch (err) {
       issues.push({
         line,
@@ -533,7 +545,7 @@ export function buildRows(
       });
       continue;
     }
-    for (const message of rowWarnings(row, ctx.today))
+    for (const message of [...warnings, ...rowWarnings(row, ctx.today)])
       issues.push({ line, domain, level: 'warning', message });
 
     const flat = flatten(row);

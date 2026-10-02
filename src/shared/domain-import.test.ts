@@ -41,7 +41,7 @@ describe('reading a file', () => {
   it('reads a DomBot export back in full', () => {
     const r = run(
       [
-        'Domain,IDN,Status,Folder,Registrar,Account,Created,Expires,Auto-renew,Renewal price,Renewal currency,Renewal estimate,Renewal estimate currency,Asking price,Minimum offer,Floor price,Asking currency,Purchase type,Purchase date,Purchase amount,Purchase currency,Purchase years,Sale date,Sale amount,Sale currency,TLD,Days until expiry,Renewal date,Locked,Privacy,Nameservers,Registrar status,Last synced,Notes',
+        'Domain,IDN,Status,Folder,Registrar,Account,Created,Expires,Auto-renew,Renewal price,Renewal currency,Renewal estimate,Renewal estimate currency,Price,Min offer,Floor price,Price currency,Purchase type,Purchase date,Purchase amount,Purchase currency,Purchase years,Sale date,Sale amount,Sale currency,TLD,Days until expiry,Renewal date,Locked,Privacy,Nameservers,Registrar status,Last synced,Notes',
         'xn--mnich-kva.de,münich.de,Owned,Premium,Dynadot,Dynadot,2020-01-01,2027-01-01,Yes,9.00,EUR,9.00,EUR,2500.00,500.00,,EUR,Registered,2024-03-15,1500,JPY,2,,,,de,200,,Yes,No,ns1.example.net,active,2026-06-01,"\'=hand reg, lucky"',
         'example.org,,Sold,,,,,,,,,,,,,,,Purchased,2019-11-02,85.00,USD,,2025-01-02,999.00,EUR,org,,,,,,,,',
       ].join('\r\n'),
@@ -62,7 +62,7 @@ describe('reading a file', () => {
           autoRenew: true,
         },
         renewal: { amount: '9.00', currency: 'EUR' },
-        asking: { amount: '2500.00', minOffer: '500.00', currency: 'EUR' },
+        binPrice: { amount: '2500', minOffer: '500', currency: 'EUR' },
         purchase: {
           type: 'registered',
           date: '2024-03-15',
@@ -121,7 +121,7 @@ describe('reading a file', () => {
     );
     expect(mapped(r)).toEqual({
       Domain: 'domain',
-      Price: 'askingPrice',
+      Price: 'binPrice',
       'Floor Price': 'floorPrice',
       'Min Offer': 'minOffer',
       Currency: 'currency',
@@ -132,10 +132,10 @@ describe('reading a file', () => {
       'Sold Price': 'saleAmount',
       Notes: 'notes',
     });
-    expect(r.rows[0].asking).toEqual({
-      amount: '10000.00',
-      minOffer: '5000.00',
-      floor: '8000.00',
+    expect(r.rows[0].binPrice).toEqual({
+      amount: '10000',
+      minOffer: '5000',
+      floor: '8000',
       currency: 'USD',
     });
     expect(r.rows[1]).toMatchObject({
@@ -229,7 +229,7 @@ describe('reading a file', () => {
     );
     expect(r.setup.format?.id).toBe('sedo');
     expect(r.rows[0]).toMatchObject({
-      asking: { amount: '1850.00', currency: 'USD' },
+      binPrice: { amount: '1850', currency: 'USD' },
       registration: { registrar: 'namecom' },
     });
   });
@@ -266,8 +266,15 @@ describe('reading a file', () => {
       line: 2,
       domain: 'example.io',
       status: 'owned',
-      asking: { amount: '999.99', currency: 'USD' },
+      binPrice: { amount: '1000', currency: 'USD' },
       purchase: { date: '2021-06-29' },
+    });
+    // Prices are whole: cents round, with a warning on the row.
+    expect(r.issues).toContainEqual({
+      line: 2,
+      domain: 'example.io',
+      level: 'warning',
+      message: 'BIN price 999.99 was rounded to 1000.',
     });
     expect(r.rows[1]).toMatchObject({
       status: 'sold',
@@ -283,9 +290,9 @@ describe('reading a file', () => {
         'example.io,1000.00,0.00,0.00,18250.00,Reference,Uncategorized,,"",,2,1,DEFAULT',
       ].join('\n'),
     );
-    expect(afternic.rows[0].asking).toEqual({
-      amount: '18250.00',
-      minOffer: '1000.00',
+    expect(afternic.rows[0].binPrice).toEqual({
+      amount: '18250',
+      minOffer: '1000',
       currency: 'USD',
     });
 
@@ -302,9 +309,9 @@ describe('reading a file', () => {
       'Starting offer',
       'Description',
     ]);
-    expect(dan.rows[0].asking).toMatchObject({
-      amount: '100.00',
-      minOffer: '75.00',
+    expect(dan.rows[0].binPrice).toMatchObject({
+      amount: '100',
+      minOffer: '75',
     });
 
     const uni = run(
@@ -482,10 +489,10 @@ describe('the template', () => {
       ['example.net', 'owned'],
       ['example.org', 'sold'],
     ]);
-    expect(r.rows[1].asking).toEqual({
-      amount: '4800.00',
-      minOffer: '1500.00',
-      floor: '2500.00',
+    expect(r.rows[1].binPrice).toEqual({
+      amount: '4800',
+      minOffer: '1500',
+      floor: '2500',
       currency: 'USD',
     });
   });

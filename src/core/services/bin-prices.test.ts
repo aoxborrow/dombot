@@ -7,7 +7,7 @@ import {
 } from '../storage/namespace';
 import { clearAll } from './cache';
 import { exportBundle, importBundle } from '../storage/bundle';
-import { getAskingPrices, setAskingPrices } from './asking-prices';
+import { getBinPrices, setBinPrices } from './bin-prices';
 import { deleteDomains } from './domain-history';
 
 let store: MemoryDocStore;
@@ -35,95 +35,98 @@ const price = (
   ...extra,
 });
 
-describe('asking prices', () => {
-  it('saves by domain name in canonical form and survives Clear cache', async () => {
-    setAskingPrices([
-      price('Münich.DE', '2500', {
+describe('BIN prices', () => {
+  it('saves by domain name as whole amounts and survives Clear cache', async () => {
+    setBinPrices([
+      price('Münich.DE', '2500.00', {
         minOffer: '500',
-        floor: '1000.5',
+        floor: '1000',
         currency: 'eur',
       }),
     ]);
-    expect(getAskingPrices()).toEqual({
+    expect(getBinPrices()).toEqual({
       'xn--mnich-kva.de': {
-        amount: '2500.00',
-        minOffer: '500.00',
-        floor: '1000.50',
+        amount: '2500',
+        minOffer: '500',
+        floor: '1000',
         currency: 'EUR',
         updatedAt: expect.any(Number),
       },
     });
     clearAll();
     await flushWrites();
-    expect(Object.keys(await store.list('domain-asking-prices'))).toEqual([
+    expect(Object.keys(await store.list('domain-bin-prices'))).toEqual([
       'xn--mnich-kva.de',
     ]);
   });
 
   it('keeps offers without a price, and reads zero as blank', () => {
-    setAskingPrices([price('a.com', '0', { minOffer: '250' })]);
-    expect(getAskingPrices()['a.com']).toMatchObject({
+    setBinPrices([price('a.com', '0', { minOffer: '250' })]);
+    expect(getBinPrices()['a.com']).toMatchObject({
       amount: null,
-      minOffer: '250.00',
+      minOffer: '250',
     });
   });
 
   it('clears a price when every amount is blank', () => {
-    setAskingPrices([price('a.com', '100')]);
-    setAskingPrices([price('a.com', null, { currency: null })]);
-    expect(getAskingPrices()).toEqual({});
+    setBinPrices([price('a.com', '100')]);
+    setBinPrices([price('a.com', null, { currency: null })]);
+    expect(getBinPrices()).toEqual({});
   });
 
   it('refuses a minimum offer or floor above the price, and writes nothing', () => {
     expect(() =>
-      setAskingPrices([
+      setBinPrices([
         price('a.com', '100'),
         price('b.com', '100', { minOffer: '200' }),
       ]),
     ).toThrow('b.com: The minimum offer is above the BIN price.');
     expect(() =>
-      setAskingPrices([price('b.com', '100', { floor: '101' })]),
+      setBinPrices([price('b.com', '100', { floor: '101' })]),
     ).toThrow('The floor price is above the BIN price.');
-    expect(getAskingPrices()).toEqual({});
+    expect(getBinPrices()).toEqual({});
   });
 
   it('checks the currency and its decimal places', () => {
     expect(() =>
-      setAskingPrices([price('a.com', '100', { currency: null })]),
+      setBinPrices([price('a.com', '100', { currency: null })]),
     ).toThrow('Choose a currency');
     expect(() =>
-      setAskingPrices([price('a.com', '500.5', { currency: 'JPY' })]),
+      setBinPrices([price('a.com', '500.5', { currency: 'JPY' })]),
     ).toThrow('JPY uses no decimal places.');
     expect(() =>
-      setAskingPrices([price('a.com', '-1', { currency: 'USD' })]),
-    ).toThrow("Asking price can't be negative.");
+      setBinPrices([price('a.com', '-1', { currency: 'USD' })]),
+    ).toThrow("BIN price can't be negative.");
+    expect(() =>
+      setBinPrices([price('a.com', '99.50', { currency: 'USD' })]),
+    ).toThrow('BIN price: use a whole amount.');
   });
 
   it('sets many names in one call and leaves unchanged ones alone', async () => {
-    setAskingPrices([price('a.com', '100'), price('b.com', '200')]);
-    const first = getAskingPrices()['a.com'].updatedAt;
+    setBinPrices([price('a.com', '100'), price('b.com', '200')]);
+    const first = getBinPrices()['a.com'].updatedAt;
     await new Promise((r) => setTimeout(r, 2));
-    setAskingPrices([price('a.com', '100'), price('b.com', '300')]);
-    expect(getAskingPrices()['a.com'].updatedAt).toBe(first);
-    expect(getAskingPrices()['b.com'].amount).toBe('300.00');
+    setBinPrices([price('a.com', '100'), price('b.com', '300')]);
+    expect(getBinPrices()['a.com'].updatedAt).toBe(first);
+    expect(getBinPrices()['b.com'].amount).toBe('300');
   });
 
   it('is removed by Delete', () => {
-    setAskingPrices([price('a.com', '100')]);
+    setBinPrices([price('a.com', '100')]);
     deleteDomains(['a.com']);
-    expect(getAskingPrices()).toEqual({});
+    expect(getBinPrices()).toEqual({});
   });
 
   it('travels in the data bundle', async () => {
-    setAskingPrices([price('a.com', '100', { floor: '80' })]);
+    setBinPrices([price('a.com', '100', { floor: '80' })]);
     const text = exportBundle({ version: 'test', platform: 'test' });
     configureStore(new MemoryDocStore());
     await hydrateStores();
-    expect(getAskingPrices()).toEqual({});
+    expect(getBinPrices()).toEqual({});
     await importBundle(text);
-    expect(getAskingPrices()['a.com']).toMatchObject({
-      amount: '100.00',
-      floor: '80.00',
+    expect(getBinPrices()['a.com']).toMatchObject({
+      amount: '100',
+      floor: '80',
       currency: 'USD',
     });
   });

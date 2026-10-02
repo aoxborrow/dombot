@@ -1,11 +1,10 @@
 import { useState, type ReactNode } from 'react';
-import { sameAskingPrice } from '../../../shared/asking-prices';
+import { sameBinPrice } from '../../../shared/bin-prices';
 import { toAscii } from '../../../shared/domain-name';
 import type { Domain } from '../../../shared/ipc';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
-  formatAmountInput,
   parseLocalizedAmount,
   type NumberFormatId,
 } from '../../../shared/money';
@@ -23,31 +22,32 @@ import { MoneyInput } from './MoneyInput';
  * number format from Settings; all three blank clears the price. A selection
  * opens with the price they share, or blank when they differ.
  */
-export function AskingPriceDialog({
+export function BinPriceDialog({
   domains,
   onClose,
 }: {
   domains: Domain[];
   onClose: () => void;
 }) {
-  const askingPrices = useAppStore((s) => s.askingPrices);
+  const binPrices = useAppStore((s) => s.binPrices);
   const settings = useAppStore((s) => s.settings);
-  const saveAskingPrices = useAppStore((s) => s.saveAskingPrices);
+  const saveBinPrices = useAppStore((s) => s.saveBinPrices);
   const formatId: NumberFormatId =
     settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
 
   const names = domains.map((d) => d.domainName);
-  const records = domains.map((d) => askingPrices[toAscii(d.domainName)]);
-  const shared = records.every((r) => sameAskingPrice(r, records[0]))
+  const records = domains.map((d) => binPrices[toAscii(d.domainName)]);
+  const shared = records.every((r) => sameBinPrice(r, records[0]))
     ? records[0]
     : undefined;
   const anyPriced = records.some(Boolean);
   const mixed = domains.length > 1 && !shared && anyPriced;
 
   const [currency, setCurrency] = useState(shared?.currency ?? preferred);
+  // Prices are whole amounts, typed as plain digits.
   const shown = (value: string | null | undefined) =>
-    value && shared ? formatAmountInput(value, shared.currency, formatId) : '';
+    value && shared ? String(Math.round(Number(value))) : '';
   const [amount, setAmount] = useState(shown(shared?.amount));
   const [minOffer, setMinOffer] = useState(shown(shared?.minOffer));
   const [floor, setFloor] = useState(shown(shared?.floor));
@@ -70,7 +70,7 @@ export function AskingPriceDialog({
       !minOffer.trim() &&
       !floor.trim()
     ) {
-      setError('Type an asking price, or use Clear to remove them all.');
+      setError('Type a BIN price, or use Clear to remove them all.');
       return;
     }
     if (!clear) {
@@ -92,7 +92,7 @@ export function AskingPriceDialog({
     }
     setSaving(true);
     try {
-      await saveAskingPrices(
+      await saveBinPrices(
         names.map((domainName) => ({ domainName, ...fields, currency })),
       );
       onClose();
@@ -103,7 +103,7 @@ export function AskingPriceDialog({
     }
   }
 
-  const placeholder = formatAmountInput('0', currency, formatId);
+  const placeholder = '0';
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
@@ -117,13 +117,10 @@ export function AskingPriceDialog({
             </p>
           )}
           <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-            <PriceField
-              id="asking-amount"
-              label="BIN price"
-              help={ASKING_HELP.amount}
-            >
+            <PriceField id="bin-price" label="BIN price" help={BIN_HELP.amount}>
               <MoneyInput
-                id="asking-amount"
+                whole
+                id="bin-price"
                 currency={currency}
                 value={amount}
                 placeholder={placeholder}
@@ -136,12 +133,13 @@ export function AskingPriceDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <PriceField
-              id="asking-min-offer"
+              id="bin-min-offer"
               label="Minimum offer"
-              help={ASKING_HELP.minOffer}
+              help={BIN_HELP.minOffer}
             >
               <MoneyInput
-                id="asking-min-offer"
+                whole
+                id="bin-min-offer"
                 currency={currency}
                 value={minOffer}
                 placeholder="Optional"
@@ -149,12 +147,13 @@ export function AskingPriceDialog({
               />
             </PriceField>
             <PriceField
-              id="asking-floor"
+              id="bin-floor"
               label="Floor price"
-              help={ASKING_HELP.floor}
+              help={BIN_HELP.floor}
             >
               <MoneyInput
-                id="asking-floor"
+                whole
+                id="bin-floor"
                 currency={currency}
                 value={floor}
                 placeholder="Optional"
@@ -202,7 +201,7 @@ export function AskingPriceDialog({
 }
 
 /** The help line under each price's label, here and in Import. */
-export const ASKING_HELP = {
+export const BIN_HELP = {
   amount: 'The "Buy it now" price.',
   minOffer: 'The lowest offer you’ll consider.',
   floor: 'The lowest price you’d accept.',

@@ -14,7 +14,6 @@ import {
   Receipt,
   RefreshCw,
   Server,
-  Tag,
   Trash2,
   Undo2,
   X,
@@ -36,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { StickyNoteIcon } from '../icons/StickyNoteIcon';
+import { CashIcon } from '../icons/CashIcon';
 
 /** Ownership actions on the selection, each opening its dialog. */
 export type OwnershipAction =
@@ -62,7 +62,7 @@ export function BulkBar({
   onViewJob,
   archiveView,
   onOwnership,
-  onAskingPrice,
+  onBinPrice,
 }: {
   /** The selected domains (merged rows). */
   domains: Domain[];
@@ -80,7 +80,7 @@ export function BulkBar({
   archiveView: boolean;
   onOwnership: (action: OwnershipAction) => void;
   /** Set or clear the selection's asking price. */
-  onAskingPrice: () => void;
+  onBinPrice: () => void;
 }) {
   const bulk = useAppStore((s) => s.bulk);
   const running = bulk?.status === 'running';
@@ -234,8 +234,8 @@ export function BulkBar({
               </>
             )}
             {!archiveView && (
-              <DropdownMenuItem onSelect={onAskingPrice}>
-                <Tag className="text-muted-foreground" />
+              <DropdownMenuItem onSelect={onBinPrice}>
+                <CashIcon className="text-muted-foreground" />
                 Pricing<span className="-ml-[6px] opacity-50">…</span>
               </DropdownMenuItem>
             )}

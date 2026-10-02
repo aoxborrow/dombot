@@ -36,7 +36,8 @@ import type {
 import { toUnicode } from '../../../shared/domain-name';
 import { DataTable, type DataColumn } from '../data-table/DataTable';
 import { sortRows, type SortDir } from '../data-table/table-state';
-import { ASKING_HELP } from './AskingPriceDialog';
+import { wholeAmount } from '../../../shared/bin-prices';
+import { BIN_HELP } from './BinPriceDialog';
 import { CurrencyPicker } from './CurrencyPicker';
 import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
@@ -45,7 +46,6 @@ import { MoneyInput } from './MoneyInput';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
-  formatAmountInput,
   formatMoney,
   parseLocalizedAmount,
 } from '../../../shared/money';
@@ -305,6 +305,9 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
         formatId,
         'Floor price',
       );
+      amount = wholeAmount(amount, 'BIN price');
+      minOffer = wholeAmount(minOffer, 'Minimum offer');
+      floor = wholeAmount(floor, 'Floor price');
     } catch (err) {
       setError(message(err));
       return;
@@ -325,7 +328,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
         'BIN price',
         'Minimum offer',
         'Floor price',
-        'Asking currency',
+        'BIN price currency',
         'Folder',
       ],
       rows: names.map((name, i) => ({
@@ -344,10 +347,10 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
     const s: ImportSetup = {
       columns: [
         'domain',
-        'askingPrice',
+        'binPrice',
         'minOffer',
         'floorPrice',
-        'askingCurrency',
+        'binCurrency',
         'folder',
       ],
       format: null,
@@ -449,7 +452,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
           store.loadPurchases(),
           store.loadFolders(),
           store.loadPricing(),
-          store.loadAskingPrices(),
+          store.loadBinPrices(),
         ]).catch(() => {});
       }
       setBusy(false);
@@ -580,11 +583,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
                   fields={manual}
                   onChange={(patch) => setManual((m) => ({ ...m, ...patch }))}
                   folders={folders}
-                  placeholder={formatAmountInput(
-                    '0',
-                    manual.currency,
-                    settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
-                  )}
+                  placeholder="0"
                 />
               </TabsContent>
               <TabsContent value="file" className="flex flex-col gap-4">
@@ -693,7 +692,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
                       : r.result === filter,
               )}
               registrars={ctx.registrars}
-              money={(amount, currency) =>
+              money={(amount, currency, whole) =>
                 // A 0 in the file clears the amount.
                 Number(amount) === 0
                   ? 'Clear'
@@ -702,6 +701,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
                       currency,
                       preferred,
                       settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+                      whole,
                     )
               }
             />
@@ -1013,12 +1013,13 @@ function ManualTab({
       </div>
       <div className="grid gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="import-asking">BIN price</Label>
+          <Label htmlFor="import-bin-price">BIN price</Label>
           <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
-            {ASKING_HELP.amount}
+            {BIN_HELP.amount}
           </p>
           <MoneyInput
-            id="import-asking"
+            whole
+            id="import-bin-price"
             currency={fields.currency}
             placeholder={placeholder}
             value={fields.amount}
@@ -1028,9 +1029,10 @@ function ManualTab({
         <div className="flex flex-col gap-2">
           <Label htmlFor="import-min-offer">Minimum offer</Label>
           <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
-            {ASKING_HELP.minOffer}
+            {BIN_HELP.minOffer}
           </p>
           <MoneyInput
+            whole
             id="import-min-offer"
             currency={fields.currency}
             placeholder="Optional"
@@ -1041,9 +1043,10 @@ function ManualTab({
         <div className="flex flex-col gap-2">
           <Label htmlFor="import-floor">Floor price</Label>
           <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
-            {ASKING_HELP.floor}
+            {BIN_HELP.floor}
           </p>
           <MoneyInput
+            whole
             id="import-floor"
             currency={fields.currency}
             placeholder="Optional"
@@ -1533,7 +1536,8 @@ function ReviewTable({
   registrars: ImportContext['registrars'];
   /** For each folder's color; a name that isn't one yet is created. */
   folders: Folder[];
-  money: (amount: string, currency: string) => string;
+  /** `whole` for prices, which have no cents. */
+  money: (amount: string, currency: string, whole?: boolean) => string;
 }) {
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>({
     key: 'line',
@@ -1609,31 +1613,38 @@ function ReviewTable({
             : 'Off',
     },
     {
-      key: 'asking',
+      key: 'binPrice',
       label: 'BIN price',
-      field: 'Asking price',
+      field: 'BIN price',
       align: 'right',
       value: (r) =>
-        r.asking?.amount ? money(r.asking.amount, r.asking.currency) : null,
-      sortValue: (r) => (r.asking?.amount ? Number(r.asking.amount) : null),
+        r.binPrice?.amount
+          ? money(r.binPrice.amount, r.binPrice.currency, true)
+          : null,
+      sortValue: (r) => (r.binPrice?.amount ? Number(r.binPrice.amount) : null),
     },
     {
       key: 'minOffer',
       label: 'Min offer',
-      field: 'Asking price',
+      field: 'BIN price',
       align: 'right',
       value: (r) =>
-        r.asking?.minOffer ? money(r.asking.minOffer, r.asking.currency) : null,
-      sortValue: (r) => (r.asking?.minOffer ? Number(r.asking.minOffer) : null),
+        r.binPrice?.minOffer
+          ? money(r.binPrice.minOffer, r.binPrice.currency, true)
+          : null,
+      sortValue: (r) =>
+        r.binPrice?.minOffer ? Number(r.binPrice.minOffer) : null,
     },
     {
       key: 'floor',
       label: 'Floor',
-      field: 'Asking price',
+      field: 'BIN price',
       align: 'right',
       value: (r) =>
-        r.asking?.floor ? money(r.asking.floor, r.asking.currency) : null,
-      sortValue: (r) => (r.asking?.floor ? Number(r.asking.floor) : null),
+        r.binPrice?.floor
+          ? money(r.binPrice.floor, r.binPrice.currency, true)
+          : null,
+      sortValue: (r) => (r.binPrice?.floor ? Number(r.binPrice.floor) : null),
     },
     {
       key: 'renewal',

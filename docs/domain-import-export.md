@@ -237,6 +237,11 @@ things twice. So:
 
 ### Asking price is a core feature
 
+> Since renamed: the UI calls it the BIN price (editor titled "Pricing"),
+> the code `BinPrice`/`binPrices`, and the CSV columns `Price`, `Min offer`,
+> `Floor price`, and `Price currency`. Prices are whole amounts; an import
+> rounds cents with a warning.
+
 - **Every name can have one**, synced or manual. You set it from the Domains
   table, the row menu, or in bulk, and an import can set it too.
 - **The record:**
@@ -244,7 +249,7 @@ things twice. So:
   - an optional minimum offer, the lowest offer you'll consider;
   - an optional floor, the lowest price you'd accept, never shown to buyers;
   - one currency for all three.
-- **It's keyed by name** in its own namespace (`domain-asking-prices`), like
+- **It's keyed by name** in its own namespace (`domain-bin-prices`), like
   notes, folders, and renewal prices. So it follows a name between accounts,
   survives Clear cache, and travels in the backup. Delete removes it.
 - **It isn't a listing.** Setting a price doesn't list the name anywhere.
@@ -356,10 +361,10 @@ connected account reports.
 | `Renewal currency`          | yes                    |                                                                                |
 | `Renewal estimate`          | no                     | the price DomBot uses: yours, a registrar quote, a TLD rate, or the base table |
 | `Renewal estimate currency` | no                     |                                                                                |
-| `Asking price`              | yes                    |                                                                                |
-| `Minimum offer`             | yes                    | the lowest offer you'll consider                                               |
+| `Price`                     | yes                    |                                                                                |
+| `Min offer`                 | yes                    | the lowest offer you'll consider                                               |
 | `Floor price`               | yes                    | the lowest price you'd accept; never shown to buyers                           |
-| `Asking currency`           | yes                    | one currency for all three                                                     |
+| `Price currency`            | yes                    | one currency for all three                                                     |
 | `Purchase type`             | yes                    | `Registered` or `Purchased`                                                    |
 | `Purchase date`             | yes                    |                                                                                |
 | `Purchase amount`           | yes                    |                                                                                |
@@ -449,7 +454,7 @@ Importing the file back into the DomBot that exported it changes nothing.
 
 ## Storage
 
-### `domain-asking-prices`
+### `domain-bin-prices`
 
 Keyed by `toAscii(name)`, exported, and not a cache. The storage model
 anticipates it: a new per-name field such as an asking price gets its own
@@ -471,7 +476,7 @@ interface AskingPrice {
   price is for sale, and a minimum offer (or no asking price) means offers
   are welcome. Marketplace exports will derive their selling options from
   that later.
-- **Bundle checks.** `cleanAskingPrice` re-checks entries read from a bundle,
+- **Bundle checks.** `cleanBinPrice` re-checks entries read from a bundle,
   the way `cleanEvent` does for events.
 
 ### `domain-prices` gains a currency
@@ -533,7 +538,7 @@ bundle.
 
 - **Each storage change bumps `BUNDLE_VERSION`** when it ships, in whatever
   order they land:
-  - `domain-asking-prices` (new);
+  - `domain-bin-prices` (new);
   - `domain-prices` (new shape);
   - `manual-domains` (new).
 
@@ -735,7 +740,7 @@ lists its changes (field, before, after) and its warnings.
 | Notes         | The name's note (`eventId: null`). It's replaced.                                                                                                                                                                                                                                                                                                                                    |
 | Folder        | Assigned by name. Missing folders are created, and the preview lists them.                                                                                                                                                                                                                                                                                                           |
 | Renewal price | Set in `domain-prices`, with its currency.                                                                                                                                                                                                                                                                                                                                           |
-| Asking price  | Set in `domain-asking-prices`, for any name, synced or manual.                                                                                                                                                                                                                                                                                                                       |
+| Asking price  | Set in `domain-bin-prices`, for any name, synced or manual.                                                                                                                                                                                                                                                                                                                          |
 
 **Event order.** A name's events are written in this order: added,
 acquisition, sale, label. Ids are monotonic, and `ownershipByDomain` reads
@@ -851,7 +856,7 @@ Copy follows the app's style: short, plain sentences, in sentence case.
 ## Phases
 
 1. **Asking price.**
-   - `domain-asking-prices`, `cleanAskingPrice`, a bundle bump, the service,
+   - `domain-bin-prices`, `cleanBinPrice`, a bundle bump, the service,
      and the API.
    - The Domains column, the editor, the row menu item, the bulk actions,
      and the filter. Delete removes the record.

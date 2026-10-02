@@ -25,7 +25,7 @@ import { listEvents } from '../../core/services/domain-events';
 import { localDay } from '../../shared/domain-events';
 import { setDispositions } from '../../core/services/domain-history';
 import { setPurchase, setSale } from '../../core/services/purchases';
-import { setAskingPrices } from '../../core/services/asking-prices';
+import { setBinPrices } from '../../core/services/bin-prices';
 import { setManualPrice } from '../../core/services/pricing';
 import { addManualDomains } from '../../core/services/manual-domains';
 import { MemoryDocStore } from '../../core/storage/doc-store';
@@ -178,7 +178,7 @@ function recordSampleHistory(): void {
  * Asking prices on a few names, so the Asking column has something in it,
  * and one renewal price in another currency.
  */
-function recordSampleAskingPrices(): void {
+function recordSampleBinPrices(): void {
   const owned = getMergedPortfolio().domains.map((d) => d.domainName);
   const samples = [
     { amount: '4800', minOffer: '1500', floor: '2500', currency: 'USD' },
@@ -186,7 +186,7 @@ function recordSampleAskingPrices(): void {
     { amount: '950', minOffer: null, floor: null, currency: 'EUR' },
     { amount: null, minOffer: '250', floor: null, currency: 'USD' },
   ];
-  setAskingPrices(
+  setBinPrices(
     samples
       .map((s, i) => ({ domainName: owned[i * 2], ...s }))
       .filter((s) => s.domainName),
@@ -242,7 +242,7 @@ export async function createDemoApi(
   // looks like the real thing.
   const demo = await installDemo({ latencyMs: 0, size: options.size });
   await getPortfolio(true);
-  recordSampleAskingPrices();
+  recordSampleBinPrices();
   recordSampleManualDomains();
   if (options.sampleChanges) {
     stageSampleChanges(demo.world);

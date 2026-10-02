@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { toAscii } from '../../../shared/domain-name';
-import type { AskingPrice, Domain, DomainPurchase } from '../../../shared/ipc';
+import type { BinPrice, Domain, DomainPurchase } from '../../../shared/ipc';
 import { formatMoney, type NumberFormatId } from '../../../shared/money';
 import { cn } from '@/lib/utils';
 
@@ -63,8 +63,8 @@ function PurchaseCell({
 
 /**
  * Money columns for the Domains table: Archive gets the sold date and
- * amount, Owned gets the pricing (asking price, minimum offer, floor). What you paid is edited from the row
- * menu (Purchase details).
+ * amount, Owned gets the BIN price and minimum offer. What you paid is edited
+ * from the row menu (Purchase details).
  */
 export function purchaseColumns({
   purchases,
@@ -73,8 +73,8 @@ export function purchaseColumns({
   onEditSale,
   showSale = false,
   isSold,
-  askingPrices,
-  onEditAsking,
+  binPrices,
+  onEditBinPrice,
 }: {
   purchases: Record<string, DomainPurchase>;
   preferredCurrency: string;
@@ -83,16 +83,14 @@ export function purchaseColumns({
   /** Archive view: sold date and sold amount. */
   showSale?: boolean;
   isSold?: (domain: Domain) => boolean;
-  /** Owned view: the Pricing, Min offer, and Floor columns. */
-  askingPrices?: Record<string, AskingPrice>;
-  onEditAsking?: (domain: Domain) => void;
+  /** Owned view: the BIN price and Min offer columns. */
+  binPrices?: Record<string, BinPrice>;
+  onEditBinPrice?: (domain: Domain) => void;
 }): PurchaseColumn[] {
-  const money = (amount: string, currency: string) =>
-    formatMoney(amount, currency, preferredCurrency, numberFormat);
-  // Owned view: Pricing (the asking price), Min offer, and Floor, each
+  // Owned view: BIN price and Min offer (Floor is in the editor), each
   // opening the same editor.
-  const askingOf = (d: Domain) => askingPrices?.[toAscii(d.domainName)];
-  const askingColumn = (
+  const binPriceOf = (d: Domain) => binPrices?.[toAscii(d.domainName)];
+  const binPriceColumn = (
     key: string,
     label: string,
     field: 'amount' | 'minOffer' | 'floor',
@@ -103,31 +101,38 @@ export function purchaseColumns({
     align: 'right',
     hideOnMobile: true,
     render: (d) => {
-      const p = askingOf(d);
+      const p = binPriceOf(d);
       const value = p?.[field];
       return (
         <PurchaseCell
           domain={d}
-          onEdit={onEditAsking!}
+          onEdit={onEditBinPrice!}
           align="right"
           empty={!value}
           editLabel={editLabel}
         >
-          {value ? money(value, p!.currency) : '—'}
+          {value
+            ? formatMoney(
+                value,
+                p!.currency,
+                preferredCurrency,
+                numberFormat,
+                true,
+              )
+            : '—'}
         </PurchaseCell>
       );
     },
     sortValue: (d) => {
-      const value = askingOf(d)?.[field];
+      const value = binPriceOf(d)?.[field];
       return value == null ? null : Number(value);
     },
   });
-  const asking: PurchaseColumn[] =
-    askingPrices && onEditAsking && !showSale
+  const pricing: PurchaseColumn[] =
+    binPrices && onEditBinPrice && !showSale
       ? [
-          askingColumn('askingPrice', 'BIN price', 'amount', 'BIN price'),
-          askingColumn('minOffer', 'Min offer', 'minOffer', 'Minimum offer'),
-          askingColumn('floor', 'Floor', 'floor', 'Floor price'),
+          binPriceColumn('binPrice', 'BIN price', 'amount', 'BIN price'),
+          binPriceColumn('minOffer', 'Min offer', 'minOffer', 'Minimum offer'),
         ]
       : [];
   const sale: PurchaseColumn[] = showSale
@@ -202,5 +207,5 @@ export function purchaseColumns({
       ]
     : [];
 
-  return [...sale, ...asking];
+  return [...sale, ...pricing];
 }

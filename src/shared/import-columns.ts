@@ -14,10 +14,10 @@ export type ImportField =
   | 'autoRenew'
   | 'renewalPrice'
   | 'renewalCurrency'
-  | 'askingPrice'
+  | 'binPrice'
   | 'minOffer'
   | 'floorPrice'
-  | 'askingCurrency'
+  | 'binCurrency'
   | 'purchaseType'
   | 'purchaseDate'
   | 'purchaseAmount'
@@ -165,11 +165,12 @@ export const IMPORT_FIELDS: ImportFieldInfo[] = [
     aliases: [],
   },
   {
-    field: 'askingPrice',
-    header: 'Asking price',
-    label: 'Asking price',
+    field: 'binPrice',
+    header: 'Price',
+    label: 'BIN price',
     kind: 'money',
     aliases: [
+      'asking price',
       'asking',
       'ask',
       'buy now price',
@@ -178,16 +179,15 @@ export const IMPORT_FIELDS: ImportFieldInfo[] = [
       'bin price',
       'buy it now',
       'list price',
-      'price',
     ],
   },
   {
     field: 'minOffer',
-    header: 'Minimum offer',
+    header: 'Min offer',
     label: 'Minimum offer',
     kind: 'money',
     aliases: [
-      'min offer',
+      'minimum offer',
       'minimum price',
       'min price',
       'starting offer',
@@ -203,11 +203,11 @@ export const IMPORT_FIELDS: ImportFieldInfo[] = [
     aliases: ['floor'],
   },
   {
-    field: 'askingCurrency',
-    header: 'Asking currency',
-    label: 'Asking currency',
+    field: 'binCurrency',
+    header: 'Price currency',
+    label: 'BIN price currency',
     kind: 'currency',
-    aliases: [],
+    aliases: ['asking currency', 'bin currency'],
   },
   {
     field: 'purchaseType',
@@ -404,7 +404,7 @@ export const KNOWN_FORMATS: KnownFormat[] = [
     requires: [
       n('Domain'),
       n('Purchase type'),
-      n('Asking currency'),
+      n('Price currency'),
       n('Sale amount'),
     ],
     exact: true,
@@ -459,7 +459,7 @@ export const KNOWN_FORMATS: KnownFormat[] = [
     fields: {
       [n('date_registered')]: 'createdDate',
       [n('folder_name')]: 'folder',
-      [n('buy_now_price')]: 'askingPrice',
+      [n('buy_now_price')]: 'binPrice',
       [n('status')]: null,
     },
     registrar: 'Sav',

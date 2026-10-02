@@ -4,7 +4,7 @@ import { toCsv } from './csv';
 import { isIdn, toAscii, toUnicode } from './domain-name';
 import {
   builtInFolderName,
-  type AskingPrice,
+  type BinPrice,
   type Domain,
   type DomainPurchase,
   type Folder,
@@ -29,7 +29,7 @@ export interface DomainCsvContext {
   /** `toAscii(name)` → the purchase and sale summary (`getPurchases`). */
   purchases: Record<string, DomainPurchase>;
   /** `toAscii(name)` → asking price. */
-  askingPrices: Record<string, AskingPrice>;
+  binPrices: Record<string, BinPrice>;
   /** `domainKey(row)` → renewal pricing (for the estimate). */
   pricing: Record<string, RenewalPricing>;
   /**
@@ -98,7 +98,7 @@ const registration = (r: NameRow, value: () => string) =>
   r.domain.unregistered ? '' : value();
 
 const purchase = (r: NameRow) => r.ctx.purchases[r.key];
-const asking = (r: NameRow) => r.ctx.askingPrices[r.key];
+const binPrice = (r: NameRow) => r.ctx.binPrices[r.key];
 const pricing = (r: NameRow) => r.ctx.pricing[domainKey(r.domain)];
 const manualPrice = (r: NameRow) => r.ctx.manualPrices[r.key];
 
@@ -194,27 +194,27 @@ export const DOMAIN_CSV_COLUMNS: DomainCsvColumn[] = [
     },
   },
   {
-    header: 'Asking price',
+    header: 'Price',
     importable: true,
     numeric: true,
-    value: (r) => asking(r)?.amount ?? '',
+    value: (r) => binPrice(r)?.amount ?? '',
   },
   {
-    header: 'Minimum offer',
+    header: 'Min offer',
     importable: true,
     numeric: true,
-    value: (r) => asking(r)?.minOffer ?? '',
+    value: (r) => binPrice(r)?.minOffer ?? '',
   },
   {
     header: 'Floor price',
     importable: true,
     numeric: true,
-    value: (r) => asking(r)?.floor ?? '',
+    value: (r) => binPrice(r)?.floor ?? '',
   },
   {
-    header: 'Asking currency',
+    header: 'Price currency',
     importable: true,
-    value: (r) => asking(r)?.currency ?? '',
+    value: (r) => binPrice(r)?.currency ?? '',
   },
   {
     header: 'Purchase type',
@@ -401,10 +401,10 @@ export function domainsCsvTemplate(): string {
       Domain: 'example.net',
       Status: 'Owned',
       Folder: 'Brandables',
-      'Asking price': '4800.00',
-      'Minimum offer': '1500.00',
-      'Floor price': '2500.00',
-      'Asking currency': 'USD',
+      Price: '4800',
+      'Min offer': '1500',
+      'Floor price': '2500',
+      'Price currency': 'USD',
       'Purchase type': 'Purchased',
       'Purchase date': '2021-06-01',
       'Purchase amount': '850.00',

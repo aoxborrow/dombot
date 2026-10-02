@@ -19,7 +19,6 @@ import {
   ShieldBan,
   ShieldCheck,
   SlidersHorizontal,
-  Tag,
   TriangleAlert,
   Upload,
 } from 'lucide-react';
@@ -62,6 +61,7 @@ import {
   targetOf,
   useOpUnsupportedReason,
 } from '../lib/domain-ops';
+import { CashIcon } from '../components/icons/CashIcon';
 import { FolderIcon } from '../components/icons/FolderIcon';
 import { FolderOffIcon } from '../components/icons/FolderOffIcon';
 import { FolderMenuItems } from '../components/domains/FolderMenuItems';
@@ -75,7 +75,7 @@ import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { purchaseColumns } from '../components/domains/purchase-columns';
 import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
-import { AskingPriceDialog } from '../components/domains/AskingPriceDialog';
+import { BinPriceDialog } from '../components/domains/BinPriceDialog';
 import { ManualDomainDialog } from '../components/domains/ManualDomainDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
@@ -726,7 +726,7 @@ export default function Domains() {
     clearSelection,
     bulk,
     purchases,
-    askingPrices,
+    binPrices,
     manualDomains,
     settings,
     domainEvents,
@@ -763,7 +763,7 @@ export default function Domains() {
   const [purchaseFor, setPurchaseFor] = useState<Domain | null>(null);
   const [importing, setImporting] = useState(false);
   // Asking price for one name (its cell or row menu) or the selection.
-  const [askingFor, setAskingFor] = useState<Domain[] | null>(null);
+  const [binPriceFor, setBinPriceFor] = useState<Domain[] | null>(null);
   // Edit details for a manual name.
   const [detailsFor, setDetailsFor] = useState<Domain | null>(null);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
@@ -828,7 +828,11 @@ export default function Domains() {
           }
         : c,
     );
-    const afterCreated = base.findIndex((c) => c.key === 'createdDate');
+    // Owned: pricing sits right after the name (and its Folder, added when
+    // the table is drawn). Archive: Sold and Sold for come after Created.
+    const at = base.findIndex(
+      (c) => c.key === (archiveView ? 'createdDate' : 'domainName'),
+    );
     const extra = purchaseColumns({
       purchases,
       preferredCurrency: settings?.preferredCurrency ?? DEFAULT_CURRENCY,
@@ -836,15 +840,15 @@ export default function Domains() {
       onEditSale: setSaleFor,
       showSale: archiveView,
       isSold: (d) => ownership.get(toAscii(d.domainName))?.label === 'sold',
-      askingPrices,
-      onEditAsking: (d) => setAskingFor([d]),
+      binPrices,
+      onEditBinPrice: (d) => setBinPriceFor([d]),
     });
-    base.splice(afterCreated + 1, 0, ...extra);
+    base.splice(at + 1, 0, ...extra);
     return base;
   }, [
     multipleAccounts,
     purchases,
-    askingPrices,
+    binPrices,
     settings,
     archiveView,
     ownership,
@@ -959,7 +963,7 @@ export default function Domains() {
   const [ns, setNs] = useState<string[]>([]);
   const [folder, setFolder] = useState<string[]>([]);
   // Owned only: names with or without an asking price.
-  const [asking, setAsking] = useState<string[]>([]);
+  const [pricingFilter, setPricingFilter] = useState<string[]>([]);
   // Sort and page size open at the Settings → General defaults; changes made
   // here last for this visit only.
   const [sortKey, setSortKey] = useState(
@@ -1082,15 +1086,15 @@ export default function Domains() {
   }, [portfolio, manualList, portfolioRegistrarLabels, multipleAccounts]);
   // Expiration windows are cumulative, so their counts intentionally overlap
   // (a domain due in 20 days matches the 30-, 60-, and 90-day options).
-  const askingOptions = useMemo(() => {
+  const binPriceOptions = useMemo(() => {
     const priced = ownedRows.filter(
-      (d) => askingPrices[toAscii(d.domainName)],
+      (d) => binPrices[toAscii(d.domainName)],
     ).length;
     return [
       { value: PRICED, label: 'Has a price', count: priced },
       { value: UNPRICED, label: 'No price', count: ownedRows.length - priced },
     ];
-  }, [ownedRows, askingPrices]);
+  }, [ownedRows, binPrices]);
 
   const expiryOptions = useMemo(
     () =>
@@ -1220,7 +1224,7 @@ export default function Domains() {
     expiry.length > 0 ||
     ns.length > 0 ||
     folder.length > 0 ||
-    asking.length > 0;
+    pricingFilter.length > 0;
 
   // How many filter groups are narrowing the list (search excluded — it has its
   // own always-visible field). Drives the count badge on the mobile "Filters"
@@ -1231,7 +1235,7 @@ export default function Domains() {
     (ns.length > 0 ? 1 : 0) +
     (expiry.length > 0 ? 1 : 0) +
     (folder.length > 0 ? 1 : 0) +
-    (asking.length > 0 ? 1 : 0);
+    (pricingFilter.length > 0 ? 1 : 0);
 
   function resetFilters() {
     setSearch('');
@@ -1240,13 +1244,13 @@ export default function Domains() {
     setExpiry([]);
     setNs([]);
     setFolder([]);
-    setAsking([]);
+    setPricingFilter([]);
     setPage(0);
   }
 
   function setListView(next: 'owned' | 'archive') {
     setFolder([]);
-    setAsking([]);
+    setPricingFilter([]);
     setPage(0);
     const nextParams = new URLSearchParams(params);
     if (next === 'archive') nextParams.set('view', 'archive');
@@ -1277,9 +1281,9 @@ export default function Domains() {
         const keys = nsKeysByDomain.get(domainKey(d));
         if (!keys || !ns.some((k) => keys.has(k))) return false;
       }
-      if (asking.length > 0 && !archiveView) {
-        const priced = askingPrices[toAscii(d.domainName)] ? PRICED : UNPRICED;
-        if (!asking.includes(priced)) return false;
+      if (pricingFilter.length > 0 && !archiveView) {
+        const priced = binPrices[toAscii(d.domainName)] ? PRICED : UNPRICED;
+        if (!pricingFilter.includes(priced)) return false;
       }
       // Owned vs Archive comes from the event log. In Archive the filter is
       // the status; in Owned it's the folder (a real folder, Hidden, or None),
@@ -1339,8 +1343,8 @@ export default function Domains() {
     folder,
     folders,
     folderAssignments,
-    asking,
-    askingPrices,
+    pricingFilter,
+    binPrices,
     archiveView,
     archiveLabelOf,
     sortKey,
@@ -1467,7 +1471,7 @@ export default function Domains() {
         folders,
         assignments: folderAssignments,
         purchases,
-        askingPrices,
+        binPrices,
         pricing,
         manualPrices: await window.api.getManualPrices(),
         archiveLabel: (name) => ownership.get(name)?.label ?? null,
@@ -1525,7 +1529,7 @@ export default function Domains() {
               onNotes={() => setNotesFor(key)}
               onEditPurchase={() => setPurchaseFor(d)}
               onEditSale={() => setSaleFor(d)}
-              onEditAsking={() => setAskingFor([d])}
+              onEditBinPrice={() => setBinPriceFor([d])}
               onEditDetails={() => setDetailsFor(d)}
               onAssignFolder={(folderId) => applyFolders([d], folderId)}
               archive={archiveLabelOf(d)}
@@ -1827,11 +1831,11 @@ export default function Domains() {
             {!archiveView && (
               <MultiSelectFilter
                 label="Pricing"
-                icon={Tag}
-                options={askingOptions}
-                selected={asking}
+                icon={CashIcon}
+                options={binPriceOptions}
+                selected={pricingFilter}
                 onChange={(next) => {
-                  setAsking(next);
+                  setPricingFilter(next);
                   setPage(0);
                 }}
               />
@@ -1872,7 +1876,7 @@ export default function Domains() {
           }}
           archiveView={archiveView}
           onOwnership={(action) => openOwnership(action, selectedDomains)}
-          onAskingPrice={() => setAskingFor(selectedDomains)}
+          onBinPrice={() => setBinPriceFor(selectedDomains)}
         />
       </div>
 
@@ -1963,10 +1967,10 @@ export default function Domains() {
           onClose={() => setDetailsFor(null)}
         />
       )}
-      {askingFor && (
-        <AskingPriceDialog
-          domains={askingFor}
-          onClose={() => setAskingFor(null)}
+      {binPriceFor && (
+        <BinPriceDialog
+          domains={binPriceFor}
+          onClose={() => setBinPriceFor(null)}
         />
       )}
       {bulkNotesFor && (

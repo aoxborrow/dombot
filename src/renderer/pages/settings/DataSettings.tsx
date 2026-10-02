@@ -250,7 +250,7 @@ function ExportCard() {
     <SettingsCard title="Export" contentClassName="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground">
         Export everything — registrar keys, portfolio, manual domains, folders,
-        prices, asking prices, history, settings, and MCP pairings — as one JSON
+        prices, BIN prices, history, settings, and MCP pairings — as one JSON
         file. Use it as a backup or to move to another DomBot. Leave the
         passphrase blank and anyone who opens the file can read your registrar
         API keys. Type one and the file is locked: Import asks for that same
@@ -332,7 +332,7 @@ function ImportCard() {
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">
           Import replaces everything stored here with a backup file: registrar
-          keys, the saved domain list, manual domains, folders, prices, asking
+          keys, the saved domain list, manual domains, folders, prices, BIN
           prices, history, settings, and MCP pairings. It does not contact your
           registrars. The next Sync does. Names in the file that an account no
           longer has will leave the list then, and names an account has that the

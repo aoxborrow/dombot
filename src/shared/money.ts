@@ -141,16 +141,22 @@ function groupDigits(intPart: string, group: string): string {
   return parts.join(group);
 }
 
-/** On-screen digits for a stored amount, without a currency symbol. */
+/**
+ * On-screen digits for a stored amount, without a currency symbol. `whole`
+ * shows no decimals (prices are whole amounts).
+ */
 export function formatAmountInput(
   canonical: string,
   currency: string,
   formatId: NumberFormatId,
+  whole = false,
 ): string {
   const info = currencyInfo(currency);
-  const decimals = info?.decimals ?? 2;
+  const decimals = whole ? 0 : (info?.decimals ?? 2);
   const format = numberFormatOf(formatId);
-  const [intRaw, fracRaw = ''] = canonical.split('.');
+  const [intRaw, fracRaw = ''] = whole
+    ? [String(Math.round(Number(canonical) || 0))]
+    : canonical.split('.');
   const intPart = intRaw.replace(/^0+(?=\d)/, '') || '0';
   const grouped = groupDigits(intPart, format.group);
   if (decimals === 0) return grouped;
@@ -167,10 +173,11 @@ export function formatMoney(
   currency: string,
   preferred: string,
   formatId: NumberFormatId,
+  whole = false,
 ): string {
   const info = currencyInfo(currency);
   const code = (info?.code ?? currency).toUpperCase();
-  const number = formatAmountInput(canonical, code, formatId);
+  const number = formatAmountInput(canonical, code, formatId, whole);
   const symbol = info?.symbol ?? '';
   const owners = symbol ? (symbolOwners?.get(symbol)?.size ?? 1) : 1;
   const showCode =

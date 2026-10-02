@@ -217,12 +217,12 @@ describe('export → import', () => {
     );
   });
 
-  it('keeps valid asking prices from a file and drops the rest', async () => {
+  it('keeps valid BIN prices from a file and drops the rest', async () => {
     const bundle = {
       ...buildBundle(APP),
       namespaces: {
         ...buildBundle(APP).namespaces,
-        'domain-asking-prices': {
+        'domain-bin-prices': {
           'a.com': { amount: '2500', currency: 'usd', updatedAt: 1 },
           'b.com': { amount: '-5', currency: 'USD', updatedAt: 1 },
           'Not A Name': { amount: '10', currency: 'USD', updatedAt: 1 },
@@ -237,8 +237,8 @@ describe('export → import', () => {
     };
     await importBundle(JSON.stringify(bundle));
     await flushWrites();
-    expect(await store.list('domain-asking-prices')).toEqual({
-      'a.com': { amount: '2500.00', currency: 'USD', updatedAt: 1 },
+    expect(await store.list('domain-bin-prices')).toEqual({
+      'a.com': { amount: '2500', currency: 'USD', updatedAt: 1 },
     });
   });
 

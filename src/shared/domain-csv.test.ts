@@ -34,7 +34,7 @@ function ctx(partial: Partial<DomainCsvContext> = {}): DomainCsvContext {
     folders: [],
     assignments: {},
     purchases: {},
-    askingPrices: {},
+    binPrices: {},
     pricing: {},
     manualPrices: {},
     archiveLabel: () => null,
@@ -125,10 +125,10 @@ describe('domainsToCsv', () => {
               saleCurrency: 'EUR',
             },
           },
-          askingPrices: {
+          binPrices: {
             'xn--mnich-kva.de': {
-              amount: '2500.00',
-              minOffer: '500.00',
+              amount: '2500',
+              minOffer: '500',
               currency: 'EUR',
               updatedAt: 1,
             },
@@ -144,10 +144,10 @@ describe('domainsToCsv', () => {
       IDN: 'münich.de',
       'Renewal price': '9.00',
       'Renewal currency': 'EUR',
-      'Asking price': '2500.00',
-      'Minimum offer': '500.00',
+      Price: '2500',
+      'Min offer': '500',
       'Floor price': '',
-      'Asking currency': 'EUR',
+      'Price currency': 'EUR',
       'Purchase type': 'Registered',
       'Purchase date': '2024-03-15',
       'Purchase amount': '1500',
@@ -254,7 +254,7 @@ describe('domainsToCsv', () => {
 describe('domainsCsvTemplate', () => {
   it('has the importable columns and three example rows', () => {
     const [headers, ...rows] = parseCsv(domainsCsvTemplate());
-    expect(headers).toContain('Asking price');
+    expect(headers).toContain('Price');
     expect(headers).not.toContain('Renewal estimate');
     expect(headers).not.toContain('Last synced');
     expect(rows.map((r) => r[0])).toEqual([

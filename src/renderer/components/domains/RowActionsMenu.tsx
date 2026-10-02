@@ -11,7 +11,6 @@ import {
   Mail,
   OctagonMinus,
   Receipt,
-  Tag,
   PencilLine,
   RefreshCw,
   Trash2,
@@ -36,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { StickyNoteIcon } from '../icons/StickyNoteIcon';
+import { CashIcon } from '../icons/CashIcon';
 
 /**
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell):
@@ -60,7 +60,7 @@ export function RowActionsMenu({
   onNotes,
   onEditPurchase,
   onEditSale,
-  onEditAsking,
+  onEditBinPrice,
   onEditDetails,
   onAssignFolder,
   archive,
@@ -81,7 +81,7 @@ export function RowActionsMenu({
   onNotes: () => void;
   onEditPurchase: () => void;
   onEditSale: () => void;
-  onEditAsking: () => void;
+  onEditBinPrice: () => void;
   /** A manual name: edit its registrar, dates, and auto-renew. */
   onEditDetails: () => void;
   onAssignFolder: (folderId: string | null) => void;
@@ -228,8 +228,8 @@ export function RowActionsMenu({
           Purchase details<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
         {archive === null && (
-          <DropdownMenuItem onSelect={onEditAsking}>
-            <Tag className="text-muted-foreground" />
+          <DropdownMenuItem onSelect={onEditBinPrice}>
+            <CashIcon className="text-muted-foreground" />
             Pricing<span className="-ml-[6px] opacity-50">…</span>
           </DropdownMenuItem>
         )}

@@ -96,7 +96,7 @@ it('neutralizes formulas in exported account labels', () => {
       folders: [],
       assignments: {},
       purchases: {},
-      askingPrices: {},
+      binPrices: {},
       pricing: {},
       manualPrices: {},
       archiveLabel: () => null,

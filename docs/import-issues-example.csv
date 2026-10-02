@@ -1,4 +1,4 @@
-Domain,Status,Folder,Registrar,Expires,Asking price,Minimum offer,Floor price,Asking currency,Purchase date,Purchase amount,Purchase currency,Purchase years,Sale date,Sale amount,Sale currency,Notes
+Domain,Status,Folder,Registrar,Expires,Price,Min offer,Floor price,Price currency,Purchase date,Purchase amount,Purchase currency,Purchase years,Sale date,Sale amount,Sale currency,Notes
 swiftharbor-example.com,Owned,,Porkbun,2027-01-15,1000,300,,USD,2015-01-10,150,USD,,,,,Clean row
 swiftfinch-example.net,Owned,Brandables,Namecheap,2027-02-15,,,,,2016-02-10,11.08,USD,1,,,,
 swiftforge-example.io,Owned,For sale,GoDaddy,2027-03-15,,,,,2017-03-10,160,USD,,,,,
