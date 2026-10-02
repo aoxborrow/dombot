@@ -6,6 +6,7 @@ import {
   localDay,
   type DomainEvent,
 } from '../../shared/domain-events';
+import type { CurrencyCode } from '../../shared/currencies';
 import { ownershipByDomain } from '../../shared/ownership';
 import { diffSync, type AccountHoldings } from '../../shared/sync-diff';
 import { markAccountsTracked, trackedAccountIds } from './accounts';
@@ -38,6 +39,12 @@ import { Namespace } from '../storage/namespace';
 interface LastSync {
   /** `toAscii` names. */
   names: string[];
+  /**
+   * `toAscii` name → expiry `YYYY-MM-DD`, for spotting renewals. Absent in a
+   * record from an older build: that account's next sync fills it in and
+   * records no renewals.
+   */
+  expirations?: Record<string, string>;
   /** ms epoch. */
   syncedAt: number;
 }
@@ -53,13 +60,17 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
   const now = Date.now();
   const before: AccountHoldings[] = after.map((h) => {
     // Guard against a hand-edited or imported record that isn't a list.
-    const names = lastSync.get(h.accountId)?.names;
+    const record = lastSync.get(h.accountId);
+    const names = record?.names;
     const known = Array.isArray(names);
     return {
       accountId: h.accountId,
       names: known ? names.filter((n) => typeof n === 'string') : [],
       synced: false,
       known,
+      expirations: cleanExpirations(record?.expirations),
+      syncedAt:
+        typeof record?.syncedAt === 'number' ? record.syncedAt : undefined,
     };
   });
   const diff = diffSync(
@@ -85,15 +96,90 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
     ...takeover.events,
   ];
   putEvents(events);
+  deleteDomainEvents(diff.retracted);
   markAccountsTracked(newlyTracked, now);
   void lastSync.setMany(
     after
       .filter((h) => h.synced)
       .map((h) => [
         h.accountId,
-        { names: [...new Set(h.names.map(toAscii))].sort(), syncedAt: now },
+        {
+          names: [...new Set(h.names.map(toAscii))].sort(),
+          expirations: h.expirations ?? {},
+          syncedAt: now,
+        },
       ]),
   );
+  return events;
+}
+
+/** A stored expirations map, or undefined when it's missing or malformed. */
+function cleanExpirations(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return undefined;
+  const out: Record<string, string> = {};
+  for (const [name, day] of Object.entries(value))
+    if (typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day))
+      out[name] = day;
+  return out;
+}
+
+/** A renewal DomBot made and the registrar confirmed. */
+export interface ConfirmedRenewal {
+  domainName: string;
+  accountId: string;
+  years: number;
+  /** The new expiry `YYYY-MM-DD`, when the registrar re-read it. */
+  expiration?: string | null;
+  /** What the registrar charged, when its response said. */
+  charge?: { amount: string; currency: CurrencyCode } | null;
+}
+
+/**
+ * Record confirmed renewals as `renewed` events, in one write, and move each
+ * name's expiry in its account's last-sync record so the next sync doesn't
+ * see the same jump again. The amount is only what the registrar charged;
+ * without it the event has none, and the price is estimated when read.
+ */
+export function recordRenewals(
+  renewals: ConfirmedRenewal[],
+  source: DomainEventSource = DomainEventSource.User,
+): DomainEvent[] {
+  if (renewals.length === 0) return [];
+  const now = Date.now();
+  const date = localDay(now);
+  const events = renewals.map((r) =>
+    newEvent(
+      {
+        domain: assertDomainName(r.domainName),
+        type: DomainEventType.Renewed,
+        source,
+        date,
+        accountId: r.accountId,
+        years: r.years,
+        ...(r.charge
+          ? { amount: r.charge.amount, currency: r.charge.currency }
+          : {}),
+      },
+      now,
+    ),
+  );
+  putEvents(events);
+
+  const moved = new Map<string, LastSync>();
+  for (const r of renewals) {
+    if (!r.expiration) continue;
+    const record = moved.get(r.accountId) ?? lastSync.get(r.accountId);
+    const expirations = cleanExpirations(record?.expirations);
+    if (!record || !expirations) continue;
+    const name = toAscii(r.domainName);
+    if (!(name in expirations)) continue;
+    moved.set(r.accountId, {
+      ...record,
+      expirations: { ...expirations, [name]: r.expiration },
+    });
+  }
+  if (moved.size > 0) void lastSync.setMany([...moved]);
   return events;
 }
 

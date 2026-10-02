@@ -58,7 +58,7 @@ describe('diffSync', () => {
 
   it('does not start tracking an account whose sync failed', () => {
     const result = run([], [account('dynadot', ['a.com'], false)]);
-    expect(result).toEqual({ events: [], newlyTracked: [] });
+    expect(result).toEqual({ events: [], newlyTracked: [], retracted: [] });
   });
 
   it('records a name leaving and a name arriving, dated by the sync', () => {
@@ -227,7 +227,11 @@ describe('diffSync', () => {
       [],
       ['dynadot'],
     );
-    expect(result).toEqual({ events: [], newlyTracked: ['porkbun'] });
+    expect(result).toEqual({
+      events: [],
+      newlyTracked: ['porkbun'],
+      retracted: [],
+    });
   });
 });
 
@@ -258,5 +262,158 @@ describe('ownershipByDomain', () => {
     expect(ownershipByDomain([left, dropped, back]).get('a.com')).toMatchObject(
       { archived: false, label: null, lastAccountId: 'pork' },
     );
+  });
+
+  describe('renewals', () => {
+    const LAST = NOW - 86_400_000;
+    const at = (
+      accountId: string,
+      expirations: Record<string, string> | undefined,
+      synced = true,
+    ): AccountHoldings => ({
+      ...account(accountId, Object.keys(expirations ?? {}), synced),
+      expirations,
+      syncedAt: LAST,
+    });
+    const renewed = (
+      domain: string,
+      source: DomainEvent['source'],
+      years: number,
+      createdAt: number,
+      id = `R${createdAt}`,
+    ): DomainEvent => ({
+      id,
+      domain,
+      type: 'renewed',
+      source,
+      date: null,
+      createdAt,
+      updatedAt: null,
+      accountId: 'dynadot',
+      years,
+    });
+
+    it('records an expiry a year or more later as a renewal', () => {
+      const result = run(
+        [at('dynadot', { 'a.com': '2026-10-01', 'b.com': '2026-11-01' })],
+        [at('dynadot', { 'a.com': '2027-10-01', 'b.com': '2029-11-01' })],
+        [],
+        ['dynadot'],
+      );
+      expect(
+        result.events.map((e) => [e.type, e.domain, e.years, e.accountId]),
+      ).toEqual([
+        ['renewed', 'a.com', 1, 'dynadot'],
+        ['renewed', 'b.com', 3, 'dynadot'],
+      ]);
+      expect(result.events[0]).toMatchObject({
+        source: 'sync',
+        date: localDay(NOW),
+      });
+      expect(result.events[0].amount).toBeUndefined();
+    });
+
+    it('records nothing for a small shift', () => {
+      const result = run(
+        [at('dynadot', { 'a.com': '2026-10-01', 'b.com': '2026-10-01' })],
+        [at('dynadot', { 'a.com': '2026-10-02', 'b.com': '2027-03-01' })],
+        [],
+        ['dynadot'],
+      );
+      expect(result.events).toEqual([]);
+    });
+
+    it('records nothing when the last sync kept no expiries', () => {
+      const result = run(
+        [at('dynadot', undefined)].map((h) => ({ ...h, names: ['a.com'] })),
+        [at('dynadot', { 'a.com': '2027-10-01' })],
+        [],
+        ['dynadot'],
+      );
+      expect(result.events).toEqual([]);
+    });
+
+    it('skips a jump a DomBot renewal since the last sync already covers', () => {
+      const result = run(
+        [at('dynadot', { 'a.com': '2026-10-01' })],
+        [at('dynadot', { 'a.com': '2027-10-01' })],
+        [renewed('a.com', 'user', 1, NOW - 1000)],
+        ['dynadot'],
+      );
+      expect(result.events).toEqual([]);
+    });
+
+    it('still records a renewal when the earlier one was before the last sync', () => {
+      const result = run(
+        [at('dynadot', { 'a.com': '2026-10-01' })],
+        [at('dynadot', { 'a.com': '2027-10-01' })],
+        [renewed('a.com', 'sync', 1, LAST - 365 * 86_400_000)],
+        ['dynadot'],
+      );
+      expect(brief(result.events)).toEqual([
+        { type: 'renewed', domain: 'a.com', accountId: 'dynadot' },
+      ]);
+    });
+
+    it('retracts the sync renewal when the expiry moves back', () => {
+      const jump = renewed('a.com', 'sync', 1, LAST - 1000);
+      const result = run(
+        [at('dynadot', { 'a.com': '2027-10-01' })],
+        [at('dynadot', { 'a.com': '2026-10-01' })],
+        [jump],
+        ['dynadot'],
+      );
+      expect(result.events).toEqual([]);
+      expect(result.retracted).toEqual([jump.id]);
+    });
+
+    it('never retracts a renewal you made', () => {
+      const result = run(
+        [at('dynadot', { 'a.com': '2027-10-01' })],
+        [at('dynadot', { 'a.com': '2026-10-01' })],
+        [renewed('a.com', 'user', 1, LAST - 1000)],
+        ['dynadot'],
+      );
+      expect(result.retracted).toEqual([]);
+    });
+
+    it('records a move with a later expiry as moved plus renewed', () => {
+      const result = run(
+        [
+          at('dynadot', { 'a.com': '2026-10-01' }),
+          { ...at('pork', {}), names: [] },
+        ],
+        [at('dynadot', {}), at('pork', { 'a.com': '2027-10-01' })],
+        [],
+        ['dynadot', 'pork'],
+      );
+      expect(brief(result.events)).toEqual([
+        { type: 'moved', domain: 'a.com', from: 'dynadot', to: 'pork' },
+        { type: 'renewed', domain: 'a.com', accountId: 'pork' },
+      ]);
+      expect(result.events[1].years).toBe(1);
+    });
+
+    it('leaves a renewal of a name marked Sold in Archive', () => {
+      const sold: DomainEvent = {
+        ...renewed('a.com', 'user', 1, LAST - 1000, 'E0000'),
+        type: 'sold',
+      };
+      const result = run(
+        [at('dynadot', { 'a.com': '2026-10-01' })],
+        [at('dynadot', { 'a.com': '2027-10-01' })],
+        [sold],
+        ['dynadot'],
+      );
+      expect(result.events.map((e) => e.type)).toEqual(['renewed']);
+      expect(
+        ownershipByDomain([sold, ...result.events]).get('a.com'),
+      ).toMatchObject({ archived: true, label: 'sold' });
+    });
+
+    it('is never an open alert', () => {
+      const e = renewed('a.com', 'sync', 1, NOW);
+      expect(isOpenAlert(e, new Set())).toBe(false);
+    });
   });
 });

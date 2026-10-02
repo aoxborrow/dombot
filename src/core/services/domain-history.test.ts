@@ -11,6 +11,7 @@ import { listEvents, nameNote } from './domain-events';
 import {
   deleteDomains,
   deleteUserEvent,
+  recordRenewals,
   recordSync,
   restoreOwned,
   setAlertsDismissed,
@@ -232,5 +233,81 @@ describe('domain history', () => {
     const owner = ownershipByDomain(listEvents());
     expect(owner.get('a.com')?.label).toBe('removed');
     expect(owner.get('b.com')?.label).toBe('removed');
+  });
+
+  describe('renewals', () => {
+    const at = (expirations: Record<string, string>) => [
+      {
+        accountId: acct(),
+        names: Object.keys(expirations),
+        synced: true,
+        known: true,
+        expirations,
+      },
+    ];
+
+    it('fills in expiries on the first sync after upgrading, recording nothing', async () => {
+      recordSync(holding(['a.com']));
+      await flushWrites();
+      expect(
+        (await store.get('registrar-last-sync', acct())) as object,
+      ).toMatchObject({ expirations: {} });
+      // A record from an older build: no expirations.
+      await store.put('registrar-last-sync', acct(), {
+        names: ['a.com'],
+        syncedAt: 1,
+      });
+      await hydrateStores();
+      expect(recordSync(at({ 'a.com': '2027-10-01' }))).toEqual([]);
+      await flushWrites();
+      expect(await store.get('registrar-last-sync', acct())).toMatchObject({
+        expirations: { 'a.com': '2027-10-01' },
+      });
+      // Now a renewal is seen.
+      const events = recordSync(at({ 'a.com': '2028-10-01' }));
+      expect(events.map((e) => [e.type, e.domain, e.years])).toEqual([
+        ['renewed', 'a.com', 1],
+      ]);
+    });
+
+    it('records a DomBot renewal once, and the next sync adds nothing', () => {
+      recordSync(at({ 'a.com': '2026-10-01' }));
+      const [event] = recordRenewals([
+        {
+          domainName: 'a.com',
+          accountId: acct(),
+          years: 1,
+          expiration: '2027-10-01',
+          charge: { amount: '10.99', currency: 'USD' },
+        },
+      ]);
+      expect(event).toMatchObject({
+        type: 'renewed',
+        source: 'user',
+        accountId: acct(),
+        years: 1,
+        amount: '10.99',
+        currency: 'USD',
+      });
+      expect(recordSync(at({ 'a.com': '2027-10-01' }))).toEqual([]);
+      expect(listEvents().filter((e) => e.type === 'renewed')).toHaveLength(1);
+    });
+
+    it('a DomBot renewal without the new expiry is still counted once', () => {
+      recordSync(at({ 'a.com': '2026-10-01' }));
+      const [event] = recordRenewals([
+        { domainName: 'a.com', accountId: acct(), years: 1 },
+      ]);
+      expect(event.amount).toBeUndefined();
+      expect(recordSync(at({ 'a.com': '2027-10-01' }))).toEqual([]);
+      expect(listEvents().filter((e) => e.type === 'renewed')).toHaveLength(1);
+    });
+
+    it('deletes a sync renewal whose expiry moves back', () => {
+      recordSync(at({ 'a.com': '2026-10-01' }));
+      expect(recordSync(at({ 'a.com': '2027-10-01' }))).toHaveLength(1);
+      recordSync(at({ 'a.com': '2026-10-01' }));
+      expect(listEvents().filter((e) => e.type === 'renewed')).toEqual([]);
+    });
   });
 });

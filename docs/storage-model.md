@@ -4,8 +4,8 @@ Status: implemented except where noted: storage conventions (#102), and the
 domain history on `domain-events` (#106): purchases and sales as events, sync
 events and alerts, Owned / Archive, the Hidden folder, the Activity page and
 the bell. Manual domains (#108) are built per `docs/domain-import-export.md`.
-Not yet: the lookup-recorded automatic drop
-(waits on the central RDAP module, #105), and `renewed` events (#107).
+`renewed` events (#107) are recorded; see "Renewals" below. Not yet: the
+lookup-recorded automatic drop (waits on the central RDAP module, #105).
 
 A naming and keying standard for everything DomBot persists, a domain event
 history that replaces the separate purchase and portfolio-change stores
@@ -66,7 +66,7 @@ set passed to `EncryptedDocStore`.
 | `credentials`                            | `registrar-credentials` | sealed | account id                 | API keys                                          |
 | `proxies`                                | `registrar-proxies`     | sealed | proxy id                   | proxy profiles                                    |
 | `registrar-state`                        | `registrars`            |        | fixed keys                 | which registrars are switched on                  |
-| —                                        | `registrar-last-sync`   |        | account id                 | names each account's last sync saw                |
+| —                                        | `registrar-last-sync`   |        | account id                 | names (and expiries) each account's last sync saw |
 | —                                        | `manual-domains`        |        | name                       | names you add that no connected registrar reports |
 | —                                        | `domain-notes`          |        | note id                    | notes on a domain, or on one of its events        |
 | `domain-purchases` + `portfolio-changes` | `domain-events`         |        | event id                   | purchases, sales, arrivals, moves, drops          |
@@ -202,6 +202,29 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   imported history instead of re-baselining (missing real changes) or diffing
   against a list that doesn't match the imported events (inventing `added`
   and `removed`).
+- **Renewals (#107).** Each renewal is one `renewed` event, dated the day it
+  was seen, with `accountId` and `years`:
+  - **DomBot's.** A renew op the registrar confirms (row action, bulk renew,
+    MCP `domain_renew`) writes `source: 'user'`. The amount is only what the
+    registrar charged, when its response carries a `charge`; otherwise none.
+    Bulk renew writes a slice's events in one `putEvents`. An `unknown`
+    outcome writes nothing; sync records it once the expiry moves.
+  - **Sync's.** `registrar-last-sync` keeps each name's expiry beside the
+    names (`expirations: { name: 'YYYY-MM-DD' }`). An expiry that moved
+    forward by 300 days or more writes `source: 'sync'`, `years` = days /
+    365.25 rounded, no amount. Smaller shifts record nothing. A record
+    without `expirations` (an older build) means "unknown": that sync fills it
+    in and records nothing. A move whose expiry also went forward (a transfer
+    adds a year) gets a `renewed` as well.
+  - **Once only.** A confirmed DomBot renewal moves the name's expiry in
+    `registrar-last-sync`; as a backstop, sync skips a jump when a `renewed`
+    for the name was recorded since the account's last sync.
+  - **Undone.** An expiry that moves back by the years the latest sync-written
+    `renewed` recorded (a renewal reversed in the grace period) deletes that
+    event.
+  - Renewals are never alerts, and don't change Owned / Archive. An event
+    without an amount is priced when read (manual price → quote → TLD rate →
+    base database), as an estimate.
 - **CSV import is idempotent.** A purchase row that matches an existing event
   on (domain, type, `date`, amount, currency) is skipped, so importing the same
   file twice doesn't double-count.
@@ -469,7 +492,7 @@ unknown namespace in a file is skipped anyway.)
 
 - **Every domain change writes an event.** Review each place that changes a
   domain — registrar sync, bulk edits, nameserver and auto-renew changes, MCP
-  tool writes (#111), renewals DomBot makes or sync sees (#107) — and have it
+  tool writes (#111) — and have it
   append to `domain-events`. The first domain-history PR only needs purchases,
   sales, and the sync-detected arrivals, departures, and moves.
 - **Bulk review (#108).** The Activity page gets bulk tools (Dismiss, Record

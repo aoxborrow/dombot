@@ -24,12 +24,50 @@ export interface AccountHoldings {
    * kept); that sync starts over quietly.
    */
   known: boolean;
+  /**
+   * Each name's expiry, `toAscii` name → `YYYY-MM-DD`. Before-list: absent
+   * when the last sync didn't keep them (a record from an older build), so
+   * this sync records no renewals for the account. After-list: what the
+   * registrar reports now; a name without one is skipped.
+   */
+  expirations?: Record<string, string>;
+  /** Before-list only: when the last sync ran (ms epoch). */
+  syncedAt?: number;
 }
 
 export interface SyncDiff {
   events: DomainEvent[];
   /** Accounts synced for the first time: record `trackedSince` for them. */
   newlyTracked: string[];
+  /**
+   * Sync-written `renewed` events to delete: the expiry went back to where it
+   * was before the jump that recorded them (a renewal undone in the grace
+   * period). Sync events are sync's own to amend.
+   */
+  retracted: string[];
+}
+
+/** An expiry moving forward by at least this many days is a renewal. */
+export const RENEWAL_MIN_DAYS = 300;
+const DAY_MS = 86_400_000;
+
+/** Days from one `YYYY-MM-DD` to another; null if either won't parse. */
+function daysBetween(from: string, to: string): number | null {
+  const a = Date.parse(`${from}T00:00:00Z`);
+  const b = Date.parse(`${to}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  return Math.round((b - a) / DAY_MS);
+}
+
+/** A registrar expiry as `YYYY-MM-DD` (its UTC day), or null. */
+export function expiryDay(date: Date | null | undefined): string | null {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+/** Whole years a move of `days` covers, at least one. */
+export function renewalYears(days: number): number {
+  return Math.max(1, Math.round(days / 365.25));
 }
 
 type NewEvent = Omit<DomainEvent, 'id' | 'createdAt' | 'updatedAt'>;
@@ -78,6 +116,7 @@ export function diffSync(
   const nextNames = new Map(after.map((h) => [h.accountId, names(h)]));
   const out: DomainEvent[] = [];
   const newlyTracked: string[] = [];
+  const retracted: string[] = [];
 
   // Open alerts and each name's latest user disposition, kept current as we
   // append so two changes in one sync see each other.
@@ -119,6 +158,72 @@ export function diffSync(
     return null;
   };
 
+  // Renewals: an expiry that moved forward by about a year or more. A
+  // `renewed` already recorded for the name since the last sync (DomBot made
+  // the renewal) covers it. An expiry that went back by the years a sync
+  // renewal recorded undoes that renewal.
+  const renewedSince = (name: string, since: number | undefined) =>
+    events.some(
+      (e) =>
+        e.domain === name &&
+        e.type === DomainEventType.Renewed &&
+        since !== undefined &&
+        e.createdAt >= since,
+    );
+  const lastSyncRenewal = (name: string) => {
+    let last: DomainEvent | null = null;
+    for (const e of events)
+      if (
+        e.domain === name &&
+        e.type === DomainEventType.Renewed &&
+        (!last || e.id > last.id)
+      )
+        last = e;
+    return last?.source === DomainEventSource.Sync ? last : null;
+  };
+  const expiryMoved = (
+    name: string,
+    accountId: string,
+    was: string | undefined,
+    is: string | undefined,
+    since: number | undefined,
+  ) => {
+    if (!was || !is) return;
+    const days = daysBetween(was, is);
+    if (days === null) return;
+    if (days >= RENEWAL_MIN_DAYS) {
+      if (renewedSince(name, since)) return;
+      push({
+        domain: name,
+        type: DomainEventType.Renewed,
+        accountId,
+        years: renewalYears(days),
+      });
+    } else if (days <= -RENEWAL_MIN_DAYS) {
+      const last = lastSyncRenewal(name);
+      if (last && last.years === renewalYears(-days)) retracted.push(last.id);
+    }
+  };
+  const expiryOf = (accountId: string, name: string) =>
+    prev.get(accountId)?.expirations?.[name];
+  const expiryNow = (accountId: string, name: string) =>
+    after.find((h) => h.accountId === accountId)?.expirations?.[name];
+  // A transfer usually adds a year: a move whose expiry also went forward
+  // gets a `renewed` too, so the yearly cost doesn't miss it.
+  const pushMove = (fields: Omit<NewEvent, 'source' | 'date'>) => {
+    push(fields);
+    const from = fields.fromAccountId;
+    const to = fields.toAccountId;
+    if (!from || !to) return;
+    expiryMoved(
+      fields.domain,
+      to,
+      expiryOf(from, fields.domain),
+      expiryNow(to, fields.domain),
+      prev.get(from)?.syncedAt,
+    );
+  };
+
   const lefts: { name: string; accountId: string }[] = [];
   const joins: { name: string; accountId: string }[] = [];
   for (const h of after) {
@@ -131,7 +236,7 @@ export function diffSync(
       for (const name of current) {
         const open = openRemoved.get(name);
         if (open && open.accountId !== h.accountId) {
-          push({
+          pushMove({
             domain: name,
             type: DomainEventType.Moved,
             fromAccountId: open.accountId,
@@ -150,6 +255,17 @@ export function diffSync(
       if (!current.has(name)) lefts.push({ name, accountId: h.accountId });
     for (const name of current)
       if (!wasNames.has(name)) joins.push({ name, accountId: h.accountId });
+    if (!was.expirations || !h.expirations) continue;
+    for (const name of current) {
+      if (!wasNames.has(name)) continue;
+      expiryMoved(
+        name,
+        h.accountId,
+        was.expirations[name],
+        h.expirations[name],
+        was.syncedAt,
+      );
+    }
   }
 
   const pendingJoins = new Map<string, string[]>();
@@ -171,7 +287,7 @@ export function diffSync(
       takeJoin(left.name) ?? holderOtherThan(left.name, left.accountId);
     if (to) {
       const open = openRemoved.get(left.name) ?? openAdded.get(left.name);
-      push({
+      pushMove({
         domain: left.name,
         type: DomainEventType.Moved,
         fromAccountId: left.accountId,
@@ -194,7 +310,7 @@ export function diffSync(
     for (const accountId of accounts) {
       const open = openRemoved.get(name);
       if (open && open.accountId !== accountId) {
-        push({
+        pushMove({
           domain: name,
           type: DomainEventType.Moved,
           fromAccountId: open.accountId,
@@ -219,5 +335,5 @@ export function diffSync(
     }
   }
 
-  return { events: out, newlyTracked };
+  return { events: out, newlyTracked, retracted };
 }

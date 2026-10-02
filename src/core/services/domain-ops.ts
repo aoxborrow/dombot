@@ -18,7 +18,11 @@ import {
   opSummary,
   unsupportedReason,
 } from '../../shared/domain-ops';
+import { toCurrencyCode } from '../../shared/currencies';
+import { parseCanonicalAmount } from '../../shared/money';
 import { broadcastPortfolioChanged } from '../events';
+import { recordRenewals, type ConfirmedRenewal } from './domain-history';
+import { expiryDay } from '../../shared/sync-diff';
 import {
   resolveDomainAccount,
   getCachedPortfolio,
@@ -48,6 +52,11 @@ export interface ApplyOptions {
    * open table reflects the change immediately.
    */
   silent?: boolean;
+  /**
+   * Collect confirmed renewals here instead of recording each one: the bulk
+   * runner writes a slice's `renewed` events in one batch.
+   */
+  renewals?: ConfirmedRenewal[];
 }
 
 /**
@@ -86,19 +95,78 @@ export async function applyDomainOp(
     // What the domain looked like going in, to tell afterwards whether a write
     // of unknown outcome took effect.
     const before = cachedDomain(target);
+    const seen: Seen = {};
     let result: DomainOpResult;
     try {
-      result = await dispatch(target, op, request, done);
+      result = await dispatch(target, op, request, done, seen);
     } catch (err) {
       if (!(err instanceof OutcomeUnknownError)) throw err;
       result = done('unknown', err.message);
     }
     if (result.status === 'unknown')
       result = await settleUnknown(target, op, before, request, done);
+    if (op.kind === 'renew' && result.status === 'ok')
+      noteRenewal(
+        {
+          domainName: target.domainName,
+          accountId: account.id,
+          years: op.years,
+          expiration: expiryDay(result.patch?.expirationDate),
+          charge: seen.charge ?? null,
+        },
+        opts,
+      );
     if (result.status === 'ok' && !opts.silent) broadcastPortfolioChanged();
     return result;
   } catch (err) {
     return done(classify(err), messageOf(err));
+  }
+}
+
+/** What a dispatch saw beyond its result: the charge a renewal reported. */
+interface Seen {
+  charge?: ConfirmedRenewal['charge'];
+}
+
+/**
+ * A confirmed renewal becomes a `renewed` event (an `unknown` one writes
+ * nothing; sync records it once the expiry moves). Recording never fails the
+ * op: the renewal happened either way.
+ */
+function noteRenewal(renewal: ConfirmedRenewal, opts: ApplyOptions): void {
+  if (opts.renewals) {
+    opts.renewals.push(renewal);
+    return;
+  }
+  try {
+    recordRenewals([renewal]);
+  } catch (err) {
+    console.error('[domain-history] recording the renewal failed', err);
+  }
+}
+
+/**
+ * What the registrar charged for a renewal, when its response says.
+ * registrar-client's `OperationResult` may carry an optional
+ * `charge: { amount, currency }`; anything malformed reads as no charge, so
+ * an estimate is never stored as if it were paid.
+ */
+export function chargeOf(result: OperationResult): ConfirmedRenewal['charge'] {
+  const charge = (result as { charge?: unknown }).charge;
+  if (!charge || typeof charge !== 'object') return null;
+  const { amount, currency } = charge as {
+    amount?: unknown;
+    currency?: unknown;
+  };
+  if (typeof currency !== 'string') return null;
+  if (typeof amount !== 'string' && typeof amount !== 'number') return null;
+  const code = toCurrencyCode(currency);
+  if (!code) return null;
+  try {
+    const canonical = parseCanonicalAmount(String(amount), code, 'Charge');
+    return canonical ? { amount: canonical, currency: code } : null;
+  } catch {
+    return null;
   }
 }
 
@@ -227,6 +295,7 @@ async function dispatch(
   op: DomainOp,
   request: RequestOptions,
   done: Done,
+  seen: Seen,
 ): Promise<DomainOpResult> {
   // A provider `OperationResult` → ours. Soft failures (`success: false`) keep
   // the provider's message; successes fall back to a generic summary when the
@@ -297,6 +366,7 @@ async function dispatch(
         request,
         accountId,
       );
+      if (result.success) seen.charge = chargeOf(result);
       return fromResult(result, patch);
     }
     case 'urlForwarding': {
