@@ -1,19 +1,21 @@
 import { domainKey } from '../../../shared/account-key';
 import {
   Archive,
-  BadgeDollarSign,
   CalendarPlus,
-  CircleOff,
   Ellipsis,
+  ExternalLink,
+  Handshake,
   KeyRound,
   Link2,
   Mail,
+  OctagonMinus,
   Receipt,
   RefreshCw,
   Trash2,
   Undo2,
 } from 'lucide-react';
 import type { Domain, Folder } from '../../../shared/ipc';
+import { toAscii } from '../../../shared/domain-name';
 import type { ArchiveLabel } from '../../../shared/ownership';
 import { useAppStore } from '../../store/app';
 import { useOpUnsupportedReason } from '../../lib/domain-ops';
@@ -185,14 +187,14 @@ export function RowActionsMenu({
         <DropdownMenuItem
           onSelect={archive === 'sold' ? onEditSale : onMarkSold}
         >
-          <BadgeDollarSign className="text-muted-foreground" />
+          <Handshake className="text-muted-foreground" />
           Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={archive === 'dropped'}
           onSelect={onMarkDropped}
         >
-          <CircleOff className="text-muted-foreground" />
+          <OctagonMinus className="text-muted-foreground" />
           Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
         {/* Puts a name you own away without a reason. In Archive, Removed
@@ -209,6 +211,17 @@ export function RowActionsMenu({
             Move back to Owned
           </DropdownMenuItem>
         )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={() =>
+            void window.api.openExternal(
+              `https://${toAscii(domain.domainName)}`,
+            )
+          }
+        >
+          <ExternalLink className="text-muted-foreground" />
+          Open in browser
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={onDelete}>
           <Trash2 />

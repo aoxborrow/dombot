@@ -3,19 +3,20 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
   ArrowRight,
-  BadgeDollarSign,
   Building2,
   CalendarClock,
   ChevronDown,
-  CircleOff,
   Ellipsis,
-  Flag,
-  ReceiptText,
+  ExternalLink,
+  Flame,
+  Handshake,
+  History,
+  Inbox,
+  OctagonMinus,
+  Receipt,
   SlidersHorizontal,
-  SquareArrowOutUpRight,
-  Tag,
+  Target,
   Trash2,
-  User,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -555,7 +556,7 @@ export default function Activity() {
       />
       <MultiSelectFilter
         label="Priority"
-        icon={Flag}
+        icon={Flame}
         options={priorityOptions}
         selected={priorities}
         onChange={(next) => {
@@ -565,7 +566,7 @@ export default function Activity() {
       />
       <MultiSelectFilter
         label="Type"
-        icon={Tag}
+        icon={History}
         options={typeOptions}
         selected={types}
         onChange={(next) => {
@@ -575,7 +576,7 @@ export default function Activity() {
       />
       <MultiSelectFilter
         label="Source"
-        icon={User}
+        icon={Inbox}
         options={sourceOptions}
         selected={sources}
         onChange={(next) => {
@@ -707,7 +708,7 @@ export default function Activity() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
                 <BulkItem
-                  icon={BadgeDollarSign}
+                  icon={Handshake}
                   label="Mark as Sold"
                   count={itemsOf(selectedRows, 'sold').length}
                   onSelect={() =>
@@ -715,7 +716,7 @@ export default function Activity() {
                   }
                 />
                 <BulkItem
-                  icon={CircleOff}
+                  icon={OctagonMinus}
                   label="Mark as Dropped"
                   count={itemsOf(selectedRows, 'dropped').length}
                   onSelect={() =>
@@ -925,19 +926,19 @@ function RowMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuItem onSelect={() => onDialog({ kind: 'purchase', row })}>
-          <ReceiptText className="text-muted-foreground" />
+          <Receipt className="text-muted-foreground" />
           Record purchase…
         </DropdownMenuItem>
         {/* A sold name's Mark as Sold edits its sale. */}
         <DropdownMenuItem onSelect={() => set('sold')}>
-          <BadgeDollarSign className="text-muted-foreground" />
+          <Handshake className="text-muted-foreground" />
           Mark as Sold…
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={is('dropped')}
           onSelect={() => set('dropped')}
         >
-          <CircleOff className="text-muted-foreground" />
+          <OctagonMinus className="text-muted-foreground" />
           Mark as Dropped…
         </DropdownMenuItem>
         {/* Archive puts a name you own away without a reason. One already
@@ -955,8 +956,16 @@ function RowMenu({
           Dismiss review
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onShow}>
-          <SquareArrowOutUpRight className="text-muted-foreground" />
+          <Target className="text-muted-foreground" />
           Show in Domains
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() =>
+            void window.api.openExternal(`https://${row.event.domain}`)
+          }
+        >
+          <ExternalLink className="text-muted-foreground" />
+          Open in browser
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={() => set('delete')}>

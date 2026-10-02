@@ -1,16 +1,17 @@
 import {
   Archive,
-  BadgeDollarSign,
   CalendarPlus,
-  CircleOff,
   ChevronDown,
   EyeOff,
   FileSpreadsheet,
+  Handshake,
+  IterationCw,
   KeyRound,
   Link2,
   Loader2,
   Lock,
   Mail,
+  OctagonMinus,
   RefreshCw,
   Server,
   Trash2,
@@ -169,7 +170,7 @@ export function BulkBar({
                   disabled={running}
                   onSelect={() => onKind('autoRenew')}
                 >
-                  <RefreshCw className="text-muted-foreground" />
+                  <IterationCw className="text-muted-foreground" />
                   Auto-renew<span className="-ml-[6px] opacity-50">…</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -231,11 +232,11 @@ export function BulkBar({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => onOwnership('sold')}>
-              <BadgeDollarSign className="text-muted-foreground" />
+              <Handshake className="text-muted-foreground" />
               Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => onOwnership('dropped')}>
-              <CircleOff className="text-muted-foreground" />
+              <OctagonMinus className="text-muted-foreground" />
               Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             {/* Archive puts a name you own away without a reason; a name
