@@ -217,10 +217,12 @@ export default function Activity() {
     const counts = new Map<string, number>();
     for (const { shown } of allRows)
       counts.set(shown.type, (counts.get(shown.type) ?? 0) + 1);
-    return TYPE_ORDER.filter((t) => counts.has(t)).map((t) => ({
+    // Every type, even with none yet, so the list doesn't shift as
+    // activity comes in.
+    return TYPE_ORDER.map((t) => ({
       value: t,
       label: VERB[t],
-      count: counts.get(t),
+      count: counts.get(t) ?? 0,
       icon: <EventTypeDot type={t} />,
     }));
   }, [allRows]);
