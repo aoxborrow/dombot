@@ -11,10 +11,6 @@
     "name": "Alibaba Cloud",
     "ianaIds": [420, 1599, 3819]
   },
-  "alldomainshosting": {
-    "name": "alldomains.hosting",
-    "ianaIds": []
-  },
   "amazon": {
     "name": "Amazon Route 53",
     "ianaIds": [468, 4316]
@@ -382,7 +378,10 @@
   },
   "nearlyfreespeech": {
     "name": "NearlyFreeSpeech",
-    "ianaIds": []
+    "ianaIds": [],
+    "names": [
+      "NearlyFreeSpeech.NET"
+    ]
   },
   "netcetera": {
     "name": "Netcetera",

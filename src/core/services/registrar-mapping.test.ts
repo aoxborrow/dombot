@@ -121,6 +121,17 @@ describe('resolveRegistrar', () => {
     expect(resolveRegistrar({ name })?.label).toBe(label);
   });
 
+  // Entries with no IANA ID at all: resellers and ccTLD-only registrars.
+  it.each([
+    ['iwantmyname', 'iwantmyname'],
+    ['HOVER', 'Hover'],
+    ['NearlyFreeSpeech.NET', 'NearlyFreeSpeech'],
+    ['Synergy Wholesale Pty Ltd', 'Synergy Wholesale'],
+    ['Dynadot, LLC t/a Dynadot [Tag = DYNADOT]', 'Dynadot'],
+  ])('maps the name-only alias %s to %s', (name, label) => {
+    expect(resolveRegistrar({ name })?.label).toBe(label);
+  });
+
   it("falls back to IANA's name, then the raw name", () => {
     const unmapped = [...iana.keys()].find(
       (id) => !Object.values(mapping).some((e) => e.ianaIds.includes(id)),
