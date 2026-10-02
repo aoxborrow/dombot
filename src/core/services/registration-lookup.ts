@@ -1,6 +1,7 @@
 import type { RegistrationLookup } from '../../shared/ipc';
 import { toAscii } from '../../shared/domain-name';
 import { Namespace } from '../storage/namespace';
+import { resolveRegistrar } from './registrar-mapping';
 
 // Public registration data for names that have left your accounts. Archive
 // uses it so created and expires keep moving after you no longer hold the
@@ -20,6 +21,7 @@ interface RdapEvent {
 }
 interface RdapEntity {
   roles?: string[];
+  publicIds?: { type?: string; identifier?: string }[];
   vcardArray?: [string, unknown[][]];
 }
 interface RdapDoc {
@@ -41,14 +43,37 @@ function eventDate(doc: RdapDoc, action: string): string | null {
   return date;
 }
 
-function registrarOf(doc: RdapDoc): string | null {
+interface RdapRegistrar {
+  name: string | null;
+  ianaId: number | null;
+}
+
+function registrarOf(doc: RdapDoc): RdapRegistrar {
   for (const entity of doc.entities ?? []) {
     if (!entity.roles?.includes('registrar')) continue;
     const card = entity.vcardArray?.[1] ?? [];
     const fn = card.find((item) => item[0] === 'fn');
-    if (typeof fn?.[3] === 'string' && fn[3].trim()) return fn[3].trim();
+    const name =
+      typeof fn?.[3] === 'string' && fn[3].trim() ? fn[3].trim() : null;
+    const id = entity.publicIds?.find(
+      (pid) => pid.type?.toLowerCase() === 'iana registrar id',
+    )?.identifier;
+    const ianaId = id && /^\d+$/.test(id.trim()) ? Number(id.trim()) : null;
+    if (name || ianaId != null) return { name, ianaId };
   }
-  return null;
+  return { name: null, ianaId: null };
+}
+
+/** The row as returned: the stored lookup plus its mapped registrar (#123). */
+function withMappedRegistrar(row: RegistrationLookup): RegistrationLookup {
+  const mapped = row.registered
+    ? resolveRegistrar({ ianaId: row.registrarIanaId, name: row.registrar })
+    : null;
+  return {
+    ...row,
+    registrarLabel: mapped?.label ?? null,
+    mappedRegistrar: mapped?.registrar ?? null,
+  };
 }
 
 async function queryRdap(name: string): Promise<RegistrationLookup | null> {
@@ -69,6 +94,7 @@ async function queryRdap(name: string): Promise<RegistrationLookup | null> {
     return {
       registered: false,
       registrar: null,
+      registrarIanaId: null,
       created: null,
       expires: null,
       checkedAt,
@@ -81,9 +107,11 @@ async function queryRdap(name: string): Promise<RegistrationLookup | null> {
   } catch {
     return null;
   }
+  const registrar = registrarOf(doc);
   return {
     registered: true,
-    registrar: registrarOf(doc),
+    registrar: registrar.name,
+    registrarIanaId: registrar.ianaId,
     created: eventDate(doc, 'registration'),
     expires: eventDate(doc, 'expiration'),
     checkedAt,
@@ -127,14 +155,14 @@ export async function lookupRegistrations(
   const stale: string[] = [];
   for (const key of keys) {
     const cached = store.get(key);
-    if (fresh(cached, now) && cached) out[key] = cached;
+    if (fresh(cached, now) && cached) out[key] = withMappedRegistrar(cached);
     else stale.push(key);
   }
   await pooled(stale, async (key) => {
     const row = await queryRdap(key);
     if (!row) return;
     void store.set(key, row);
-    out[key] = row;
+    out[key] = withMappedRegistrar(row);
   });
   return out;
 }

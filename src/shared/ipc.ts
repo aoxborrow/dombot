@@ -47,8 +47,13 @@ export type Domain = ProviderDomain & {
   registrationPending?: boolean;
   /** RDAP says nobody holds the name. Those three cells are a dash. */
   unregistered?: boolean;
-  /** Current registrar from RDAP, which may not be an account of yours. */
+  /**
+   * Current registrar from RDAP, which may not be an account of yours. The
+   * mapped name ("Name.com"), else what RDAP or IANA calls it.
+   */
   registrationRegistrar?: string;
+  /** RDAP's own name and IANA ID for that registrar, for a tooltip. */
+  registrationRegistrarDetail?: string;
 };
 
 /** The one proxy the app manages, and the saved accounts routed through it. */
@@ -252,7 +257,17 @@ export interface RegistrationQuote {
  */
 export interface RegistrationLookup {
   registered: boolean;
+  /** The registrar's name as RDAP reports it, e.g. "Name.com, Inc.". */
   registrar: string | null;
+  /** IANA Registrar ID from RDAP `publicIds`. Absent on rows cached before it was read. */
+  registrarIanaId?: number | null;
+  /**
+   * The registrar to show, mapped from the ID or name (data/registrar-mapping.json),
+   * e.g. "Name.com". Added to each row as it's returned, never stored.
+   */
+  registrarLabel?: string | null;
+  /** The built-in registrar it maps to, if any. Added like `registrarLabel`. */
+  mappedRegistrar?: RegistrarName | null;
   /** ISO timestamp, or null. */
   created: string | null;
   expires: string | null;

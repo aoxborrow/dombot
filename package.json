@@ -26,6 +26,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "pricing:build": "node scripts/build-base-pricing.mjs",
+    "registrars:update": "node scripts/update-registrars.mjs",
     "site:dev": "vite site",
     "site:build": "vite build site",
     "site:preview": "vite preview site",

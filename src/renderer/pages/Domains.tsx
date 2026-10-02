@@ -24,6 +24,7 @@ import type {
   Domain,
   DomainOp,
   Folder,
+  RegistrationLookup,
   RenewalPricing,
 } from '../../shared/ipc';
 import { LockClosedIcon, LockOpenIcon } from '@heroicons/react/20/solid';
@@ -140,6 +141,15 @@ function tldOf(domainName: string): string {
 /** A registrar's display name, falling back to its raw id. */
 function registrarLabel(id: string, labels: RegistrarLabels): string {
   return labels[id] ?? id;
+}
+
+/** RDAP's own name and IANA ID behind a mapped registrar, for its tooltip. */
+function registrarDetail(lookup: RegistrationLookup): string | undefined {
+  const parts = [
+    lookup.registrar,
+    lookup.registrarIanaId != null ? `IANA ${lookup.registrarIanaId}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : undefined;
 }
 
 function toTime(date: Date | null): number | null {
@@ -851,7 +861,9 @@ export default function Domains() {
         ...d,
         registrationPending: false,
         unregistered: false,
-        registrationRegistrar: lookup.registrar ?? undefined,
+        registrationRegistrar:
+          lookup.registrarLabel ?? lookup.registrar ?? undefined,
+        registrationRegistrarDetail: registrarDetail(lookup),
         createdDate: lookup.created ? new Date(lookup.created) : null,
         expirationDate: lookup.expires ? new Date(lookup.expires) : null,
       };
@@ -1389,7 +1401,11 @@ export default function Domains() {
     if (d.unregistered && registration)
       return <span className="text-muted-foreground">—</span>;
     if (col.key === 'registrar' && d.registrationRegistrar)
-      return <span>{d.registrationRegistrar}</span>;
+      return (
+        <span title={d.registrationRegistrarDetail}>
+          {d.registrationRegistrar}
+        </span>
+      );
     if (d.departed && (col.detail || col.key === 'autoRenew'))
       return <span className="text-muted-foreground/50">—</span>;
     if (col.detail && enriching[domainKey(d)] === true)

@@ -3,3 +3,5 @@ out
 dist
 node_modules
 package-lock.json
+iana-registrars.json
+registrar-mapping.json

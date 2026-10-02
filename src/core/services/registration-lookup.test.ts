@@ -11,7 +11,8 @@ const registered = {
   entities: [
     {
       roles: ['registrar'],
-      vcardArray: ['vcard', [['fn', {}, 'text', 'Example Registrar']]],
+      publicIds: [{ type: 'IANA Registrar ID', identifier: '625' }],
+      vcardArray: ['vcard', [['fn', {}, 'text', 'Name.com, Inc.']]],
     },
   ],
 };
@@ -39,7 +40,10 @@ describe('lookupRegistrations', () => {
     const rows = await lookupRegistrations(['Held.com', 'free-name.com']);
     expect(rows['held.com']).toMatchObject({
       registered: true,
-      registrar: 'Example Registrar',
+      registrar: 'Name.com, Inc.',
+      registrarIanaId: 625,
+      registrarLabel: 'Name.com',
+      mappedRegistrar: 'namecom',
       created: '2010-01-02T00:00:00Z',
       expires: '2027-01-02T00:00:00Z',
     });
