@@ -49,7 +49,43 @@ export type Domain = ProviderDomain & {
   unregistered?: boolean;
   /** Current registrar from RDAP, which may not be an account of yours. */
   registrationRegistrar?: string;
+  /**
+   * A name you added that no connected account reports (`manual-domains`).
+   * Registrar actions don't apply; its registrar fields are yours to edit.
+   */
+  manual?: boolean;
+  /** A manual name's registrar as you typed it, when DomBot doesn't know it. */
+  manualRegistrarLabel?: string;
 };
+
+/**
+ * A name you own that no connected account reports, kept in
+ * `manual-domains` (docs/domain-import-export.md). Dates are `YYYY-MM-DD`.
+ */
+export interface ManualDomain {
+  /** A registrar DomBot knows (registrar-client's id), or null. */
+  registrar: string | null;
+  /** Free text when DomBot doesn't know the registrar, e.g. "Epik". */
+  registrarLabel?: string | null;
+  expirationDate?: string | null;
+  createdDate?: string | null;
+  autoRenew?: boolean | null;
+  /** ms epoch, when it was added. */
+  addedAt: number;
+  /** ms epoch, the last edit; null until edited. */
+  updatedAt: number | null;
+  /** The import that added it, if one did. */
+  importId?: string | null;
+}
+
+/** A manual name's registration fields, as edited. */
+export interface ManualDomainFields {
+  registrar: string | null;
+  registrarLabel: string | null;
+  createdDate: string | null;
+  expirationDate: string | null;
+  autoRenew: boolean | null;
+}
 
 /** The one proxy the app manages, and the saved accounts routed through it. */
 export interface ProxySettings {
@@ -122,6 +158,8 @@ export const IpcChannels = {
   setPurchase: 'purchases:set',
   setSale: 'purchases:setSale',
   setNotes: 'purchases:setNotes',
+  getManualDomains: 'manualDomains:list',
+  updateManualDomain: 'manualDomains:update',
   getAskingPrices: 'askingPrices:list',
   setAskingPrices: 'askingPrices:set',
   getDomainEvents: 'domainEvents:list',
@@ -925,6 +963,15 @@ export interface DombotApi {
     domainName: string,
     notes: string,
   ) => Promise<DomainPurchase | null>;
+
+  // Manual domains (names no connected account reports)
+  /** Every manual name, keyed by the normalized domain name. */
+  getManualDomains: () => Promise<Record<string, ManualDomain>>;
+  /** Edit a manual name's registration fields. Returns every manual name. */
+  updateManualDomain: (
+    domainName: string,
+    fields: ManualDomainFields,
+  ) => Promise<Record<string, ManualDomain>>;
 
   // Asking prices (keyed by domain name; any name, synced or manual)
   /** Every asking price, keyed by the normalized domain name. */

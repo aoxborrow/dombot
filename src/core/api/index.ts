@@ -32,6 +32,10 @@ import {
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
 import { getAskingPrices, setAskingPrices } from '../services/asking-prices';
+import {
+  getManualDomains,
+  updateManualDomain,
+} from '../services/manual-domains';
 import { lookupRegistrations } from '../services/registration-lookup';
 import {
   getRegistrarCatalog,
@@ -180,7 +184,8 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     // registrars. Drop it and hydrate nothing.
     if (getConfiguredRegistrars().length === 0) {
       clearAll();
-      return { portfolio: null, detail: {}, pricing: {} };
+      // Manual names aren't registrar data: their pricing stays.
+      return { portfolio: null, detail: {}, pricing: getPortfolioPricing() };
     }
     return {
       portfolio: getCachedPortfolio(),
@@ -366,6 +371,16 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   setNotes: method(
     z.tuple([s.domainName, s.noteText]),
     async (domainName, notes) => setNotes(domainName, notes),
+  ),
+
+  // ── Manual domains ────────────────────────────────────────────────────────
+  getManualDomains: method(none, async () => getManualDomains()),
+  updateManualDomain: method(
+    z.tuple([s.domainName, s.manualDomainFields]),
+    async (domainName, fields) => {
+      updateManualDomain(domainName, fields);
+      return getManualDomains();
+    },
   ),
 
   // ── Asking prices ─────────────────────────────────────────────────────────

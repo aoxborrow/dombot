@@ -113,6 +113,17 @@ export const purchaseInput = z
   })
   .strict();
 
+/** A manual name's registration fields, as edited. */
+export const manualDomainFields = z
+  .object({
+    registrar: z.string().max(40).nullable(),
+    registrarLabel: z.string().max(100).nullable(),
+    createdDate: z.string().max(10).nullable(),
+    expirationDate: z.string().max(10).nullable(),
+    autoRenew: z.boolean().nullable(),
+  })
+  .strict();
+
 /** A manual yearly renewal price, in any currency. */
 export const renewalPriceInput = z
   .object({ amount: z.string().max(40), currency: z.string().max(10) })

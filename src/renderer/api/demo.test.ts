@@ -21,7 +21,8 @@ describe('createDemoApi', () => {
     const snap = await api.hydrateFromCache();
     expect(snap.portfolio?.domains).toHaveLength(40);
     expect(snap.portfolio?.domains[0].expirationDate).toBeInstanceOf(Date);
-    expect(Object.keys(snap.pricing)).toHaveLength(40);
+    // The 40 synced names, plus the two the demo adds by hand.
+    expect(Object.keys(snap.pricing)).toHaveLength(42);
 
     const meta = await api.getRegistrarMetadata();
     expect(meta.filter((m) => m.configured)).toHaveLength(
