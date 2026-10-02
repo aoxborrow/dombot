@@ -51,6 +51,11 @@ import {
 import { useAppStore } from '../../store/app';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -1392,20 +1397,108 @@ function ReviewStep({
             {c.label} {c.count.toLocaleString('en-US')}
           </button>
         ))}
-        {built.skipped > 0 && (
-          <span className="text-xs text-muted-foreground">
-            {built.skipped.toLocaleString('en-US')} blank or non-domain row
-            {built.skipped === 1 ? '' : 's'} left out
-          </span>
-        )}
-        {plan.newFolders.length > 0 && (
-          <span className="text-xs text-muted-foreground">
-            Creates {plan.newFolders.length === 1 ? 'a folder' : 'folders'}:{' '}
-            {plan.newFolders.join(', ')}
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
+          <Stat
+            label="Left out"
+            count={built.skipped}
+            title="Blank rows, repeated header rows, and rows with no domain name in them. They aren't imported."
+          />
+          <Stat
+            label="Merged"
+            count={built.merged}
+            title="Rows for a name that appeared earlier in the file, combined with it into one row."
+          />
+          <NewFolders names={plan.newFolders} />
+        </div>
       </div>
     </div>
+  );
+}
+
+/** A labeled count beside the filters; it reads 0 when there's nothing. */
+function Stat({
+  label,
+  count,
+  title,
+}: {
+  label: string;
+  count: number;
+  title: string;
+}) {
+  return (
+    <span className="cursor-help whitespace-nowrap" title={title}>
+      {label}{' '}
+      <span
+        className={cn(
+          'tabular-nums',
+          count > 0 && 'font-medium text-foreground',
+        )}
+      >
+        {count.toLocaleString('en-US')}
+      </span>
+    </span>
+  );
+}
+
+/** More new folders than this usually means the wrong column is Folder. */
+const MANY_FOLDERS = 10;
+
+/** The folders an import creates: a count that opens the list. */
+function NewFolders({ names }: { names: string[] }) {
+  const many = names.length > MANY_FOLDERS;
+  const count = (
+    <span
+      className={cn(
+        'tabular-nums',
+        names.length > 0 && 'font-medium text-foreground',
+        many && 'text-amber-600 dark:text-amber-400',
+      )}
+    >
+      {names.length.toLocaleString('en-US')}
+    </span>
+  );
+  if (names.length === 0)
+    return (
+      <span
+        className="cursor-help whitespace-nowrap"
+        title="Folders in the file that don't exist yet are created."
+      >
+        New folders {count}
+      </span>
+    );
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            'inline-flex items-center gap-1 whitespace-nowrap underline decoration-dotted underline-offset-4 hover:text-foreground',
+            many && 'text-amber-600 dark:text-amber-400',
+          )}
+        >
+          {many && <CircleAlert className="size-3.5" aria-hidden />}
+          New folders {count}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-0">
+        <div className="border-b px-3 py-2 text-xs text-muted-foreground">
+          {many
+            ? `That's a lot of folders. Check that the Folder column holds folder names.`
+            : 'Created when you import.'}
+        </div>
+        <ul className="max-h-64 overflow-y-auto py-1 text-sm">
+          {names.map((name) => (
+            <li key={name} className="flex items-center gap-2 px-3 py-1">
+              <FolderIcon
+                className="size-4 shrink-0 text-muted-foreground"
+                aria-hidden
+              />
+              <span className="truncate">{name}</span>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
   );
 }
 
