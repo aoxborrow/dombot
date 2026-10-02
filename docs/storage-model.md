@@ -288,7 +288,7 @@ which opens the same table filtered to that name.
   back", "Dismissed") with Undo, so a misclick is visible and fixable; the
   resolving event is its own row too. Nothing disappears.
 - **Review actions inline.** `removed`: Sold, Dropped, Archived, Dismiss.
-  `added`: Record purchase (the dialog offers the registration fee), Dismiss.
+  `added`: Purchase details (the dialog offers the registration fee), Dismiss.
   Both need review, but an arrival only asks what you paid, so it's the
   lowest-priority alert (dismiss or ignore one you don't care about). `moved`
   is info only.

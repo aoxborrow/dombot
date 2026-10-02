@@ -28,8 +28,8 @@ const ICON_TIGHTEN: Record<Breakpoint, string> = {
 };
 // The no-pill padding (see tabClass) for the widths where pillFrom hides it.
 const NO_PILL_PAD: Record<Breakpoint, string> = {
-  md: 'max-md:pr-3.5',
-  lg: 'max-lg:pr-3.5',
+  md: 'max-md:pr-4',
+  lg: 'max-lg:pr-4',
 };
 const PILL_FROM: Record<Breakpoint, string> = {
   md: 'hidden md:inline-flex',
@@ -99,9 +99,9 @@ const tabClass = (
     isActive
       ? 'z-10 h-[38px] rounded-t-[6px] border-border border-b-background bg-background text-foreground'
       : 'h-[36px] rounded-t-[7px] border-tab-border border-b-transparent bg-tab text-tab-foreground shadow-[inset_0_-1px_2px_-1px_var(--tab-shadow)] hover:text-foreground',
-    // Wherever a tab shows no pill, 2px more on the right so it doesn't read
+    // Wherever a tab shows no pill, 4px more on the right so it doesn't read
     // short beside tabs that end in one.
-    !metric ? 'pr-3.5 xl:pr-5' : pillFrom && NO_PILL_PAD[pillFrom],
+    !metric ? 'pr-4 xl:pr-[22px]' : pillFrom && NO_PILL_PAD[pillFrom],
     // Icon-only tabs keep even padding (applied last, so it wins).
     iconOnlyBelow && ICON_ONLY_PAD[iconOnlyBelow],
     className,

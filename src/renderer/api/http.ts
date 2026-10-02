@@ -383,6 +383,8 @@ export function createHttpApi(): DombotApi {
     revokeMcpClient: m('revokeMcpClient'),
     onApprovalsChanged: (cb) => poller.subscribe('approvals', cb),
     onPortfolioChanged: (cb) => poller.subscribe('portfolio', cb),
+    // No app menu in the browser.
+    onSyncRequested: () => () => {},
 
     getFolders: m('getFolders'),
     createFolder: m('createFolder'),
@@ -394,6 +396,7 @@ export function createHttpApi(): DombotApi {
     updateSettings: m('updateSettings'),
     getPurchases: m('getPurchases'),
     setPurchase: m('setPurchase'),
+    setNotes: m('setNotes'),
     setSale: m('setSale'),
     getDomainEvents: m('getDomainEvents'),
     setDispositions: m('setDispositions'),

@@ -20,6 +20,8 @@ import {
   newEvent,
   putEvents,
   setNameNote,
+  currentLabel,
+  replaceLabel,
 } from './domain-events';
 
 // What you paid for a name and what you sold it for, read from and written
@@ -164,6 +166,19 @@ function withResolves(e: DomainEvent, resolves: string | undefined) {
 }
 
 /**
+ * Save a name's note on its own, leaving its purchase and sale as they are.
+ * A blank note deletes it.
+ */
+export function setNotes(
+  domainName: string,
+  notes: string,
+): DomainPurchase | null {
+  const domain = assertDomainName(domainName);
+  setNameNote(domain, notes);
+  return purchaseOf(domain);
+}
+
+/**
  * Save what a name sold for, and its note. Blank date and amount delete the
  * sale; the purchase and note are kept.
  */
@@ -174,7 +189,10 @@ export function setSale(input: SaleInput): DomainPurchase | null {
   // Marking a name Sold always records the sale, dated today if you left it blank.
   const date = typed ?? (input.mark && !amount ? localDay() : null);
   // Marking Sold, or answering an alert, records a new sale: a name that was
-  // sold, left, and came back keeps its earlier sale as history.
+  // sold, left, and came back keeps its earlier sale as history. Marking
+  // replaces the Dropped or Archived label you'd set (see replaceLabel).
+  const replaced = input.mark ? replaceLabel(domain) : undefined;
+  const resolves = input.resolves ?? replaced?.resolves;
   const existing =
     input.mark || input.resolves ? undefined : holdings().get(domain)?.sale;
   const next = upsert(
@@ -189,7 +207,7 @@ export function setSale(input: SaleInput): DomainPurchase | null {
     },
     Date.now(),
   );
-  if (next) putEvents([withResolves(next, input.resolves)]);
+  if (next) putEvents([withResolves(next, resolves)]);
   else if (existing) deleteEvent(existing.id);
   setNameNote(domain, input.notes ?? '');
   return purchaseOf(domain);
@@ -206,12 +224,17 @@ export function markSold(
 ): void {
   const day = parsePurchaseDate(date ?? '', 'Sale date') ?? localDay();
   const now = Date.now();
-  putEvents(
-    items.map((item) =>
+  const sales: DomainEvent[] = [];
+  for (const item of items) {
+    const domain = assertDomainName(item.domainName);
+    // Already Sold: left as is. Labeled otherwise: Sold takes its place.
+    if (currentLabel(domain) === 'sold') continue;
+    const replaced = replaceLabel(domain);
+    sales.push(
       withResolves(
         newEvent(
           {
-            domain: assertDomainName(item.domainName),
+            domain,
             type: DomainEventType.Sold,
             source: DomainEventSource.User,
             date: day,
@@ -220,8 +243,9 @@ export function markSold(
           },
           now,
         ),
-        item.resolves,
+        item.resolves ?? replaced.resolves,
       ),
-    ),
-  );
+    );
+  }
+  putEvents(sales);
 }

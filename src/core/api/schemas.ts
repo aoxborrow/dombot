@@ -113,6 +113,9 @@ export const purchaseInput = z
   })
   .strict();
 
+/** A name's note, saved on its own. */
+export const noteText = z.string().max(4000);
+
 export const saleInput = z
   .object({
     domainName: z.string().trim().min(1).max(253),

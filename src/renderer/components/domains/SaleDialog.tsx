@@ -55,8 +55,8 @@ export function SaleDialog({
   // rather than from an earlier one. The note belongs to the name.
   const sale = mode === 'mark' || resolves ? undefined : existing;
 
-  // A new sale starts dated today; editing one keeps what's stored.
-  const [date, setDate] = useState(sale ? (sale.saleDate ?? '') : todayInput);
+  // The date starts as stored, or today when there's none yet.
+  const [date, setDate] = useState(sale?.saleDate || todayInput);
   const [amount, setAmount] = useState(
     sale?.saleAmount
       ? formatAmountInput(
@@ -116,26 +116,24 @@ export function SaleDialog({
               ? 'Moves to Archive as Sold. Nothing changes at the registrar.'
               : 'What you sold it for and when.'}
           </p>
-          <div className="flex flex-col gap-3 rounded-md border bg-muted/40 p-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="sale-date">Sale date</Label>
-              <Input
-                id="sale-date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="sale-amount">Sale amount</Label>
-              <Input
-                id="sale-amount"
-                inputMode="decimal"
-                value={amount}
-                placeholder={formatAmountInput('0', currency, formatId)}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="sale-date">Sale date</Label>
+            <Input
+              id="sale-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="sale-amount">Sale amount</Label>
+            <Input
+              id="sale-amount"
+              inputMode="decimal"
+              value={amount}
+              placeholder={formatAmountInput('0', currency, formatId)}
+              onChange={(e) => setAmount(e.target.value)}
+            />
           </div>
           <div className="flex flex-col gap-2">
             <Label>Currency</Label>

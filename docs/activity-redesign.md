@@ -167,40 +167,50 @@ work.
   - Type: Added, Removed, Moved, Purchased, Registered, Sold, Dropped,
     Archived, Renewed.
   - Registrar: an account, labeled like the Domains table's Registrar filter.
-  - Source: You, Registrar sync, Import, Lookup (later Agent).
+  - Source: You, Sync, Import, Lookup (later Agent).
   - Date: presets only — last 7, 14, 30, 90, or 180 days.
 
 ### Columns
 
-| Column    | Content                                                                                            |
-| --------- | -------------------------------------------------------------------------------------------------- |
-| ☐         | Selection                                                                                          |
-| Date      | The event's day; the exact time on hover                                                           |
-| Domain    | The name (Unicode)                                                                                 |
-| Type      | A colored badge: Added, Removed, Moved, Sold, …                                                    |
-| Registrar | Registrar logo and account label; from → to for a move; blank when there's none                    |
-| Details   | Amount and currency, years, venue later                                                            |
-| Source    | You, Registrar sync, Import, Lookup (renamed from "By"; "Sync" becomes "Registrar sync")           |
-| Status    | Priority badge for open alerts; the outcome for closed ones (Sold, Came back, Dismissed) with Undo |
-| Actions   | The fixed action set                                                                               |
+| Column    | Content                                                                         |
+| --------- | ------------------------------------------------------------------------------- |
+| ☐         | Selection                                                                       |
+| Date      | The event's day; the exact time on hover                                        |
+| Domain    | The name (Unicode), with the row's ⋯ menu at its right edge                     |
+| Type      | A badge colored by group: in (blue), sold (green), moved (purple), lost (gray)  |
+| Registrar | Registrar logo and account label; from → to for a move; blank when there's none |
+| Details   | Amount and currency, years, venue later                                         |
+| Source    | You, Sync, Import, Lookup (renamed from "By")                                   |
+| Status    | "Needs review" with a priority dot and an × to dismiss it; blank otherwise      |
 
-- **Open alerts stand out.** The row is tinted by priority, and the Status
-  cell has a High or Low badge.
-- **The same actions on every alert row:** Sold, Dropped, Archived, Record
-  purchase. The ones that don't apply are grayed out: a departure can't
-  record a purchase, an arrival can't be Sold. Dismiss is an X at the end.
-- **The domain row menu:** reusing the Domains row menu on Activity rows is
-  doable. It needs a domain row for names no account reports any more, and
-  the Archive view already builds those (`archiveRows`). It comes last and is
-  dropped if it gets messy.
+- **One row per thing that happened.** Answering an alert doesn't add a row:
+  your answer takes the alert's row, so "Removed" becomes "Dropped" in place
+  (type, source, and details from your answer; date and registrar from the
+  alert). Sync's own closures, a name coming back or a move, stay separate
+  rows. Storage is unchanged: the answer is still its own event with
+  `resolves`.
+- **Open alerts stand out.** The row gets a faint tint and a left bar in its
+  priority's color (red for a removal, yellow for an arrival), and the Status
+  cell says "Needs review" with a dot in the same color.
+- **The same menu on every row:** Purchase details, then Mark as Sold, Mark
+  as Dropped, Archive, then Dismiss review, Show in Domains, Open in browser,
+  then Delete. The state the name
+  is already in is disabled, and so is Dismiss review on a row that doesn't
+  need it. Setting a state replaces the one you'd set before (and answers the
+  same alert), so changing your mind never adds rows or needs an Undo, and
+  there's no "back to Needs review".
+- **Archive is for names you own:** it puts one away without a reason. A name
+  already in Archive can't use it; Removed is itself an end state ("left, no
+  reason given"), reached by dismissing its review. The Domains page follows
+  the same rules: its Archive view offers only Mark as Sold, Mark as Dropped,
+  Move back to Owned (for a name an account still holds), Export, and Delete.
 
 ### Bulk actions
 
-With rows selected, a bulk bar like the Domains one offers Dropped, Archived,
-Sold (no price), Dismiss, and later Record purchase with shared values. Each
-opens the same dialog as the single action, titled for the count. The bulk
-bar only offers actions that apply to every selected row, or it says how many
-rows each action skips.
+With rows selected, the bulk bar offers Mark as Sold (no price), Mark as
+Dropped, Archive, Dismiss review, and Delete, for any rows. Each action
+counts the names it will change: a name already in that state, or a row that
+doesn't need review for Dismiss, is skipped.
 
 ## The bell
 

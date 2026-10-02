@@ -121,6 +121,7 @@ export const IpcChannels = {
   getPurchases: 'purchases:list',
   setPurchase: 'purchases:set',
   setSale: 'purchases:setSale',
+  setNotes: 'purchases:setNotes',
   getDomainEvents: 'domainEvents:list',
   setDispositions: 'domainEvents:setDispositions',
   markSold: 'domainEvents:markSold',
@@ -144,6 +145,8 @@ export const IpcEvents = {
    * store directly and don't rely on this.
    */
   portfolioChanged: 'portfolio:changed',
+  /** The app menu's Sync Now was chosen (desktop only). */
+  syncRequested: 'sync:requested',
   /** One bulk-job item finished (payload: BulkProgress). */
   bulkProgress: 'bulk:progress',
   /** A bulk job ended — done or cancelled (payload: the final BulkJob). */
@@ -328,6 +331,9 @@ export interface RegistrarSync {
   lastSyncedAt: number | null;
   /** Error from the most recent sync attempt, or null when it succeeded. */
   lastError: string | null;
+  /** When that error happened (ms epoch); null when there's none, or it
+   *  predates this being recorded. */
+  lastErrorAt: number | null;
   /** Domains held from the last successful sync. */
   domainCount: number;
   /** When sync started recording this account's changes (ms epoch), or null. */
@@ -841,6 +847,9 @@ export interface DombotApi {
   /** Subscribe to out-of-band portfolio/detail cache changes (from MCP writes).
    * Returns an unsubscribe function. */
   onPortfolioChanged: (callback: () => void) => () => void;
+  /** Subscribe to the app menu's Sync Now (desktop only; a no-op elsewhere).
+   * Returns an unsubscribe function. */
+  onSyncRequested: (callback: () => void) => () => void;
 
   // Folders
   /** The folder definitions plus the domain→folder map, read from disk. */
@@ -868,6 +877,11 @@ export interface DombotApi {
   setPurchase: (input: PurchaseInput) => Promise<DomainPurchase | null>;
   /** Save what a sold name went for, and the shared notes. Keeps what you paid. */
   setSale: (input: SaleInput) => Promise<DomainPurchase | null>;
+  /** Save a name's note alone; its purchase and sale stay. Blank deletes it. */
+  setNotes: (
+    domainName: string,
+    notes: string,
+  ) => Promise<DomainPurchase | null>;
 
   // Domain history (docs/storage-model.md). Each change returns the whole log.
   /** Every domain event, oldest first. */
