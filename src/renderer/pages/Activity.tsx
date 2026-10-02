@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { toUnicode } from '../../shared/domain-name';
+import { toAscii, toUnicode } from '../../shared/domain-name';
 import { DomainEventType, type DomainEvent } from '../../shared/domain-events';
 import type { RegistrarMeta, RegistrarName } from '../../shared/ipc';
 import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
@@ -374,8 +374,11 @@ export default function Activity() {
 
   const stateOf = (e: DomainEvent): Ownership | undefined =>
     ownership.get(e.domain);
-  const held = (e: DomainEvent) =>
-    portfolio.some((d) => d.domainName.toLowerCase() === toUnicode(e.domain));
+  const heldNames = useMemo(
+    () => new Set(portfolio.map((d) => toAscii(d.domainName))),
+    [portfolio],
+  );
+  const held = (e: DomainEvent) => heldNames.has(e.domain);
   /** The alert a new state answers: the row's own, unless sync closed it. */
   const answers = (e: DomainEvent) => {
     if (
