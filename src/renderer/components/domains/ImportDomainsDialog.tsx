@@ -87,6 +87,15 @@ const NONE = '__none__';
 const OTHER = '__other__';
 
 type Step = 'choose' | 'match' | 'review' | 'done';
+
+/**
+ * Lets the screen redraw before heavy work. The demo imports in this same
+ * thread, so without it a big file shows nothing until it's done.
+ */
+const paint = () =>
+  new Promise<void>((resolve) =>
+    requestAnimationFrame(() => setTimeout(resolve, 0)),
+  );
 type Source = 'manual' | 'file';
 
 /** What the Manual tab applies to every name it adds. */
@@ -172,16 +181,17 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
   // ── choose ────────────────────────────────────────────────────────────────
 
   async function preview(t: ImportTable, s: ImportSetup): Promise<boolean> {
-    const rows = buildRows(t, s, ctx);
-    if (rows.rows.length > MAX_IMPORT_ROWS) {
-      setError(
-        `The file has ${rows.rows.length.toLocaleString('en-US')} names. Import up to ${MAX_IMPORT_ROWS.toLocaleString('en-US')} at a time.`,
-      );
-      return false;
-    }
     setBusy(true);
     setError(null);
+    await paint();
     try {
+      const rows = buildRows(t, s, ctx);
+      if (rows.rows.length > MAX_IMPORT_ROWS) {
+        setError(
+          `The file has ${rows.rows.length.toLocaleString('en-US')} names. Import up to ${MAX_IMPORT_ROWS.toLocaleString('en-US')} at a time.`,
+        );
+        return false;
+      }
       setBuilt(rows);
       setPlan(
         rows.rows.length > 0
@@ -366,6 +376,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
     try {
       for (let i = 0; i < built.rows.length; i += CHUNK) {
         setProgress(i / built.rows.length);
+        await paint();
         const done = await window.api.importDomains(
           built.rows.slice(i, i + CHUNK),
           { importId },
@@ -611,7 +622,10 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
             />
           )}
 
-          {step === 'review' && built && plan && (
+          {step === 'review' && built && progress !== null && (
+            <ImportProgress progress={progress} total={built.rows.length} />
+          )}
+          {step === 'review' && built && plan && progress === null && (
             <ReviewStep
               built={built}
               plan={plan}
@@ -621,6 +635,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
           )}
           {step === 'review' && built && plan && (
             <ReviewTable
+              dim={progress !== null}
               folders={folders}
               rows={reviewRows(built, plan).filter((r) =>
                 filter === 'all'
@@ -679,14 +694,6 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
               <CircleAlert className="mt-0.5 size-4 shrink-0" />
               {error}
             </p>
-          )}
-          {progress !== null && (
-            <div className="mt-4 h-1.5 overflow-hidden rounded bg-muted">
-              <div
-                className="h-full bg-brand transition-all"
-                style={{ width: `${Math.round(progress * 100)}%` }}
-              />
-            </div>
           )}
         </div>
 
@@ -767,7 +774,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
                   onClick={() => void runImport()}
                 >
                   {busy && progress !== null
-                    ? 'Importing…'
+                    ? `Importing… ${Math.round(progress * 100)}%`
                     : toImport === 0
                       ? 'Nothing to import'
                       : `Import ${toImport.toLocaleString('en-US')} name${toImport === 1 ? '' : 's'}`}
@@ -785,6 +792,39 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The bar shown in place of the filters while an import writes. */
+function ImportProgress({
+  progress,
+  total,
+}: {
+  progress: number;
+  total: number;
+}) {
+  const done = Math.min(total, Math.round(progress * total));
+  return (
+    <div
+      className="flex flex-col gap-2 rounded-lg border bg-muted/30 px-4 py-3"
+      role="status"
+    >
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span>
+          Importing {done.toLocaleString('en-US')} of{' '}
+          {total.toLocaleString('en-US')} names…
+        </span>
+        <span className="text-muted-foreground tabular-nums">
+          {Math.round(progress * 100)}%
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded bg-muted">
+        <div
+          className="h-full bg-brand transition-[width] duration-300"
+          style={{ width: `${Math.max(2, Math.round(progress * 100))}%` }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -1340,8 +1380,11 @@ function ReviewTable({
   registrars,
   folders,
   money,
+  dim = false,
 }: {
   rows: ReviewRow[];
+  /** Faded and inert while the import writes. */
+  dim?: boolean;
   registrars: ImportContext['registrars'];
   /** For each folder's color; a name that isn't one yet is created. */
   folders: Folder[];
@@ -1632,7 +1675,10 @@ function ReviewTable({
 
   return (
     <DataTable
-      className="mt-[13px]"
+      className={cn(
+        'mt-[13px] transition-opacity',
+        dim && 'pointer-events-none opacity-50',
+      )}
       rows={sorted}
       columns={columns}
       rowKey={(r) => r.key}
