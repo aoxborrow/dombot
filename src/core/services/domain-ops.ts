@@ -22,7 +22,6 @@ import { toCurrencyCode } from '../../shared/currencies';
 import { parseCanonicalAmount } from '../../shared/money';
 import { broadcastPortfolioChanged } from '../events';
 import { recordRenewals, type ConfirmedRenewal } from './domain-history';
-import { expiryDay } from '../../shared/sync-diff';
 import {
   resolveDomainAccount,
   getCachedPortfolio,
@@ -111,7 +110,6 @@ export async function applyDomainOp(
           domainName: target.domainName,
           accountId: account.id,
           years: op.years,
-          expiration: expiryDay(result.patch?.expirationDate),
           charge: seen.charge ?? null,
         },
         opts,

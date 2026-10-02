@@ -58,7 +58,12 @@ describe('diffSync', () => {
 
   it('does not start tracking an account whose sync failed', () => {
     const result = run([], [account('dynadot', ['a.com'], false)]);
-    expect(result).toEqual({ events: [], newlyTracked: [], retracted: [] });
+    expect(result).toEqual({
+      events: [],
+      newlyTracked: [],
+      retracted: [],
+      landed: [],
+    });
   });
 
   it('records a name leaving and a name arriving, dated by the sync', () => {
@@ -231,6 +236,7 @@ describe('diffSync', () => {
       events: [],
       newlyTracked: ['porkbun'],
       retracted: [],
+      landed: [],
     });
   });
 });
@@ -269,11 +275,11 @@ describe('ownershipByDomain', () => {
     const at = (
       accountId: string,
       expirations: Record<string, string> | undefined,
-      synced = true,
+      awaiting?: string[],
     ): AccountHoldings => ({
-      ...account(accountId, Object.keys(expirations ?? {}), synced),
+      ...account(accountId, Object.keys(expirations ?? {})),
       expirations,
-      syncedAt: LAST,
+      ...(awaiting ? { awaiting } : {}),
     });
     const renewed = (
       domain: string,
@@ -333,26 +339,41 @@ describe('ownershipByDomain', () => {
       expect(result.events).toEqual([]);
     });
 
-    it('skips a jump a DomBot renewal since the last sync already covers', () => {
+    it('lands an awaited DomBot renewal instead of recording it again', () => {
+      const result = run(
+        [at('dynadot', { 'a.com': '2026-10-01' }, ['a.com'])],
+        [at('dynadot', { 'a.com': '2027-10-01' })],
+        [renewed('a.com', 'user', 1, NOW - 1000)],
+        ['dynadot'],
+      );
+      expect(result.events).toEqual([]);
+      expect(result.landed).toEqual([
+        { accountId: 'dynadot', domain: 'a.com' },
+      ]);
+    });
+
+    it('records the next yearly jump after one sync recorded', () => {
+      // The last sync wrote a renewal at the same moment it saved its record.
+      const result = run(
+        [at('dynadot', { 'a.com': '2027-10-01' })],
+        [at('dynadot', { 'a.com': '2028-10-01' })],
+        [renewed('a.com', 'sync', 1, LAST)],
+        ['dynadot'],
+      );
+      expect(brief(result.events)).toEqual([
+        { type: 'renewed', domain: 'a.com', accountId: 'dynadot' },
+      ]);
+    });
+
+    it('records a jump no DomBot renewal is awaiting', () => {
       const result = run(
         [at('dynadot', { 'a.com': '2026-10-01' })],
         [at('dynadot', { 'a.com': '2027-10-01' })],
         [renewed('a.com', 'user', 1, NOW - 1000)],
         ['dynadot'],
       );
-      expect(result.events).toEqual([]);
-    });
-
-    it('still records a renewal when the earlier one was before the last sync', () => {
-      const result = run(
-        [at('dynadot', { 'a.com': '2026-10-01' })],
-        [at('dynadot', { 'a.com': '2027-10-01' })],
-        [renewed('a.com', 'sync', 1, LAST - 365 * 86_400_000)],
-        ['dynadot'],
-      );
-      expect(brief(result.events)).toEqual([
-        { type: 'renewed', domain: 'a.com', accountId: 'dynadot' },
-      ]);
+      expect(result.events.map((e) => e.type)).toEqual(['renewed']);
+      expect(result.landed).toEqual([]);
     });
 
     it('retracts the sync renewal when the expiry moves back', () => {

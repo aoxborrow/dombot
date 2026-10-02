@@ -216,9 +216,11 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
     without `expirations` (an older build) means "unknown": that sync fills it
     in and records nothing. A move whose expiry also went forward (a transfer
     adds a year) gets a `renewed` as well.
-  - **Once only.** A confirmed DomBot renewal moves the name's expiry in
-    `registrar-last-sync`; as a backstop, sync skips a jump when a `renewed`
-    for the name was recorded since the account's last sync.
+  - **Once only.** A confirmed DomBot renewal marks the name `awaiting` in
+    its account's `registrar-last-sync` record. The next forward jump sync
+    sees for it, however many syncs later a slow registrar shows it, is that
+    renewal: it clears the mark and writes nothing. A mark no jump claims in
+    90 days is dropped.
   - **Undone.** An expiry that moves back by the years the latest sync-written
     `renewed` recorded (a renewal reversed in the grace period) deletes that
     event.

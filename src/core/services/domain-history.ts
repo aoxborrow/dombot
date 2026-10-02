@@ -45,9 +45,18 @@ interface LastSync {
    * records no renewals.
    */
   expirations?: Record<string, string>;
+  /**
+   * `toAscii` name → when DomBot recorded a renewal of it (ms epoch), until a
+   * sync sees its expiry jump. That jump is the renewal already recorded, so
+   * it writes nothing. An entry no jump has claimed in `AWAIT_MS` is dropped.
+   */
+  awaiting?: Record<string, number>;
   /** ms epoch. */
   syncedAt: number;
 }
+
+/** How long a DomBot renewal waits for sync to see its new expiry. */
+const AWAIT_MS = 90 * 86_400_000;
 export const LAST_SYNC_NAMESPACE = 'registrar-last-sync';
 const lastSync = new Namespace<LastSync>(LAST_SYNC_NAMESPACE);
 
@@ -69,8 +78,7 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
       synced: false,
       known,
       expirations: cleanExpirations(record?.expirations),
-      syncedAt:
-        typeof record?.syncedAt === 'number' ? record.syncedAt : undefined,
+      awaiting: Object.keys(cleanAwaiting(record?.awaiting, now)),
     };
   });
   const diff = diffSync(
@@ -101,16 +109,46 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
   void lastSync.setMany(
     after
       .filter((h) => h.synced)
-      .map((h) => [
-        h.accountId,
-        {
-          names: [...new Set(h.names.map(toAscii))].sort(),
-          expirations: h.expirations ?? {},
-          syncedAt: now,
-        },
-      ]),
+      .map((h) => {
+        const awaiting = cleanAwaiting(
+          lastSync.get(h.accountId)?.awaiting,
+          now,
+        );
+        for (const l of diff.landed)
+          if (l.accountId === h.accountId) delete awaiting[l.domain];
+        return [
+          h.accountId,
+          {
+            names: [...new Set(h.names.map(toAscii))].sort(),
+            expirations: h.expirations ?? {},
+            ...(Object.keys(awaiting).length ? { awaiting } : {}),
+            syncedAt: now,
+          },
+        ];
+      }),
   );
+  // A renewal that moved the name to another account lands in the old one's
+  // record, which this sync may not rewrite.
+  const stale = new Map<string, LastSync>();
+  for (const l of diff.landed) {
+    if (after.some((h) => h.synced && h.accountId === l.accountId)) continue;
+    const record = stale.get(l.accountId) ?? lastSync.get(l.accountId);
+    if (!record?.awaiting || !(l.domain in record.awaiting)) continue;
+    const awaiting = { ...record.awaiting };
+    delete awaiting[l.domain];
+    stale.set(l.accountId, { ...record, awaiting });
+  }
+  if (stale.size > 0) void lastSync.setMany([...stale]);
   return events;
+}
+
+/** Stored awaiting renewals still in their window, malformed entries dropped. */
+function cleanAwaiting(value: unknown, now: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const [name, at] of Object.entries(value))
+    if (typeof at === 'number' && now - at < AWAIT_MS) out[name] = at;
+  return out;
 }
 
 /** A stored expirations map, or undefined when it's missing or malformed. */
@@ -129,16 +167,15 @@ export interface ConfirmedRenewal {
   domainName: string;
   accountId: string;
   years: number;
-  /** The new expiry `YYYY-MM-DD`, when the registrar re-read it. */
-  expiration?: string | null;
   /** What the registrar charged, when its response said. */
   charge?: { amount: string; currency: CurrencyCode } | null;
 }
 
 /**
- * Record confirmed renewals as `renewed` events, in one write, and move each
- * name's expiry in its account's last-sync record so the next sync doesn't
- * see the same jump again. The amount is only what the registrar charged;
+ * Record confirmed renewals as `renewed` events, in one write, and mark each
+ * name awaiting in its account's last-sync record: the expiry jump the next
+ * syncs see (now, or once a slow registrar shows it) is this renewal, not
+ * another. The amount is only what the registrar charged;
  * without it the event has none, and the price is estimated when read.
  */
 export function recordRenewals(
@@ -166,20 +203,20 @@ export function recordRenewals(
   );
   putEvents(events);
 
-  const moved = new Map<string, LastSync>();
+  const marked = new Map<string, LastSync>();
   for (const r of renewals) {
-    if (!r.expiration) continue;
-    const record = moved.get(r.accountId) ?? lastSync.get(r.accountId);
-    const expirations = cleanExpirations(record?.expirations);
-    if (!record || !expirations) continue;
-    const name = toAscii(r.domainName);
-    if (!(name in expirations)) continue;
-    moved.set(r.accountId, {
+    const record = marked.get(r.accountId) ?? lastSync.get(r.accountId);
+    // No expiries kept yet: sync can't see a jump, so nothing to wait for.
+    if (!record || !cleanExpirations(record.expirations)) continue;
+    marked.set(r.accountId, {
       ...record,
-      expirations: { ...expirations, [name]: r.expiration },
+      awaiting: {
+        ...cleanAwaiting(record.awaiting, now),
+        [toAscii(r.domainName)]: now,
+      },
     });
   }
-  if (moved.size > 0) void lastSync.setMany([...moved]);
+  if (marked.size > 0) void lastSync.setMany([...marked]);
   return events;
 }
 

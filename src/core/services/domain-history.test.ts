@@ -277,7 +277,6 @@ describe('domain history', () => {
           domainName: 'a.com',
           accountId: acct(),
           years: 1,
-          expiration: '2027-10-01',
           charge: { amount: '10.99', currency: 'USD' },
         },
       ]);
@@ -301,6 +300,27 @@ describe('domain history', () => {
       expect(event.amount).toBeUndefined();
       expect(recordSync(at({ 'a.com': '2027-10-01' }))).toEqual([]);
       expect(listEvents().filter((e) => e.type === 'renewed')).toHaveLength(1);
+    });
+
+    it('counts a DomBot renewal once when the registrar shows it late', () => {
+      recordSync(at({ 'a.com': '2026-10-01' }));
+      recordRenewals([{ domainName: 'a.com', accountId: acct(), years: 1 }]);
+      // Syncs that still see the old expiry keep waiting for it.
+      expect(recordSync(at({ 'a.com': '2026-10-01' }))).toEqual([]);
+      expect(recordSync(at({ 'a.com': '2026-10-01' }))).toEqual([]);
+      expect(recordSync(at({ 'a.com': '2027-10-01' }))).toEqual([]);
+      expect(listEvents().filter((e) => e.type === 'renewed')).toHaveLength(1);
+      // Landed: next year's auto-renewal is a new one.
+      expect(
+        recordSync(at({ 'a.com': '2028-10-01' })).map((e) => e.type),
+      ).toEqual(['renewed']);
+    });
+
+    it('records each yearly auto-renewal sync sees', () => {
+      recordSync(at({ 'a.com': '2026-10-01' }));
+      expect(recordSync(at({ 'a.com': '2027-10-01' }))).toHaveLength(1);
+      expect(recordSync(at({ 'a.com': '2028-10-01' }))).toHaveLength(1);
+      expect(listEvents().filter((e) => e.type === 'renewed')).toHaveLength(2);
     });
 
     it('deletes a sync renewal whose expiry moves back', () => {

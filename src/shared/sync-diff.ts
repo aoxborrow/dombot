@@ -31,8 +31,11 @@ export interface AccountHoldings {
    * registrar reports now; a name without one is skipped.
    */
   expirations?: Record<string, string>;
-  /** Before-list only: when the last sync ran (ms epoch). */
-  syncedAt?: number;
+  /**
+   * Before-list only: names DomBot renewed whose new expiry sync hasn't seen
+   * yet. The next forward jump for one is that renewal, already recorded.
+   */
+  awaiting?: string[];
 }
 
 export interface SyncDiff {
@@ -45,6 +48,8 @@ export interface SyncDiff {
    * period). Sync events are sync's own to amend.
    */
   retracted: string[];
+  /** Awaited DomBot renewals this sync saw land: drop them from `awaiting`. */
+  landed: { accountId: string; domain: string }[];
 }
 
 /** An expiry moving forward by at least this many days is a renewal. */
@@ -158,18 +163,21 @@ export function diffSync(
     return null;
   };
 
-  // Renewals: an expiry that moved forward by about a year or more. A
-  // `renewed` already recorded for the name since the last sync (DomBot made
-  // the renewal) covers it. An expiry that went back by the years a sync
-  // renewal recorded undoes that renewal.
-  const renewedSince = (name: string, since: number | undefined) =>
-    events.some(
-      (e) =>
-        e.domain === name &&
-        e.type === DomainEventType.Renewed &&
-        since !== undefined &&
-        e.createdAt >= since,
-    );
+  // Renewals: an expiry that moved forward by about a year or more. A jump
+  // for a name awaiting a DomBot renewal is that renewal, already recorded:
+  // it lands, and nothing is written. An expiry that went back by the years a
+  // sync renewal recorded undoes that renewal.
+  const landed: { accountId: string; domain: string }[] = [];
+  const awaited = (name: string, accountIds: string[]) => {
+    for (const accountId of accountIds) {
+      if (!prev.get(accountId)?.awaiting?.includes(name)) continue;
+      if (landed.some((l) => l.accountId === accountId && l.domain === name))
+        continue;
+      landed.push({ accountId, domain: name });
+      return true;
+    }
+    return false;
+  };
   const lastSyncRenewal = (name: string) => {
     let last: DomainEvent | null = null;
     for (const e of events)
@@ -186,13 +194,13 @@ export function diffSync(
     accountId: string,
     was: string | undefined,
     is: string | undefined,
-    since: number | undefined,
+    awaitedIn: string[],
   ) => {
     if (!was || !is) return;
     const days = daysBetween(was, is);
     if (days === null) return;
     if (days >= RENEWAL_MIN_DAYS) {
-      if (renewedSince(name, since)) return;
+      if (awaited(name, awaitedIn)) return;
       push({
         domain: name,
         type: DomainEventType.Renewed,
@@ -220,7 +228,7 @@ export function diffSync(
       to,
       expiryOf(from, fields.domain),
       expiryNow(to, fields.domain),
-      prev.get(from)?.syncedAt,
+      [from, to],
     );
   };
 
@@ -263,7 +271,7 @@ export function diffSync(
         h.accountId,
         was.expirations[name],
         h.expirations[name],
-        was.syncedAt,
+        [h.accountId],
       );
     }
   }
@@ -335,5 +343,5 @@ export function diffSync(
     }
   }
 
-  return { events: out, newlyTracked, retracted };
+  return { events: out, newlyTracked, retracted, landed };
 }

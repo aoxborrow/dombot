@@ -266,7 +266,6 @@ describe('applyDomainOp — renew', () => {
         domainName: 'example.com',
         accountId: 'dynadot',
         years: 2,
-        expiration: '2027-01-01',
         charge: null,
       },
     ]);
@@ -279,7 +278,6 @@ describe('applyDomainOp — renew', () => {
     });
     await applyDomainOp(target, { kind: 'renew', years: 1 });
     expect(recordRenewals.mock.calls[0][0][0]).toMatchObject({
-      expiration: null,
       charge: { amount: '12.50', currency: 'USD' },
     });
   });
