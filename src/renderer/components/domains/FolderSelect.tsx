@@ -1,4 +1,9 @@
 import { useState } from 'react';
+import { EyeOff, FolderPlus } from 'lucide-react';
+import type { Folder } from '../../../shared/ipc';
+import { folderColorStyle } from '../../lib/folders';
+import { FolderIcon } from '../icons/FolderIcon';
+import { FolderOffIcon } from '../icons/FolderOffIcon';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -8,33 +13,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 const NONE = '__none__';
 const NEW = '__new__';
 
 /**
- * Pick a folder by name: one of yours, Hidden, or a new one typed in. The
- * value is the folder's name ("" for none); a name that isn't a folder yet
- * is created by whatever saves it.
+ * Pick a folder by name, with the icons and colors of the Folder filter:
+ * one of yours, Hidden, or a new one typed in. The value is the folder's
+ * name ("" for none); a name that isn't a folder yet is created by whatever
+ * saves it.
  */
 export function FolderSelect({
   value,
   onChange,
-  folderNames,
+  folders,
   noneLabel = 'No folder',
   id,
 }: {
   value: string;
   onChange: (name: string) => void;
-  folderNames: string[];
+  folders: Folder[];
   /** The empty choice, e.g. "No folder" or "From the file". */
   noneLabel?: string;
   id?: string;
 }) {
   const known = (name: string) =>
     name.trim().toLowerCase() === 'hidden' ||
-    folderNames.some((f) => f.toLowerCase() === name.trim().toLowerCase());
+    folders.some((f) => f.name.toLowerCase() === name.trim().toLowerCase());
   const [creating, setCreating] = useState(value !== '' && !known(value));
+  const icon = 'size-4 shrink-0';
 
   return (
     <div className="flex flex-col gap-2">
@@ -49,15 +57,31 @@ export function FolderSelect({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={NONE}>{noneLabel}</SelectItem>
-          {folderNames.map((f) => (
-            <SelectItem key={f} value={f}>
-              {f}
+          <SelectItem value={NONE}>
+            <FolderOffIcon
+              className={cn(icon, 'text-muted-foreground/50')}
+              aria-hidden
+            />
+            {noneLabel}
+          </SelectItem>
+          {folders.map((f) => (
+            <SelectItem key={f.id} value={f.name}>
+              <FolderIcon
+                className={cn(icon, folderColorStyle(f.color).text)}
+                aria-hidden
+              />
+              {f.name}
             </SelectItem>
           ))}
-          <SelectItem value="Hidden">Hidden</SelectItem>
+          <SelectItem value="Hidden">
+            <EyeOff className={icon} aria-hidden />
+            Hidden
+          </SelectItem>
           <SelectSeparator />
-          <SelectItem value={NEW}>New folder…</SelectItem>
+          <SelectItem value={NEW}>
+            <FolderPlus className={icon} aria-hidden />
+            New folder…
+          </SelectItem>
         </SelectContent>
       </Select>
       {creating && (

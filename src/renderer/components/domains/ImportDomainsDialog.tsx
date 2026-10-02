@@ -24,6 +24,7 @@ import type {
   ImportOutcome,
   ImportPlan,
   ImportRow,
+  Folder,
 } from '../../../shared/ipc';
 import { toUnicode } from '../../../shared/domain-name';
 import { DataTable, type DataColumn } from '../data-table/DataTable';
@@ -448,7 +449,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
             : 'max-h-[92dvh] sm:max-w-2xl',
         )}
       >
-        <DialogHeader className="gap-3 border-b px-6 pt-5 pb-4">
+        <DialogHeader className="gap-5 border-b px-6 pt-5 pb-5">
           <DialogTitle>Import domains</DialogTitle>
           <Stepper
             steps={
@@ -470,7 +471,10 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
                       : 3
             }
           />
-          <DialogDescription>{description}</DialogDescription>
+          {/* The steps say where you are; this is for screen readers. */}
+          <DialogDescription className="sr-only">
+            {description}
+          </DialogDescription>
         </DialogHeader>
 
         <div
@@ -505,7 +509,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
                 <ManualTab
                   fields={manual}
                   onChange={(patch) => setManual((m) => ({ ...m, ...patch }))}
-                  folderNames={folders.map((f) => f.name)}
+                  folders={folders}
                   placeholder={formatAmountInput(
                     '0',
                     manual.currency,
@@ -571,12 +575,21 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
             </Tabs>
           )}
 
+          {step === 'match' && table && (
+            <p className="mb-3 text-sm text-muted-foreground">
+              <span className="font-mono text-foreground">{fileName}</span>
+              {' · '}
+              {table.rows.length.toLocaleString('en-US')} row
+              {table.rows.length === 1 ? '' : 's'}. Check what each column
+              holds.
+            </p>
+          )}
           {step === 'match' && table && setup && (
             <MatchStep
               table={table}
               setup={setup}
               registrars={ctx.registrars}
-              folderNames={folders.map((f) => f.name)}
+              folders={folders}
               onColumn={setColumn}
               onDefault={setDefault}
               onDateOrder={(order) =>
@@ -618,23 +631,29 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
           )}
           {step === 'done' && result && (
             <div className="flex flex-col gap-3 py-2 text-sm">
-              <p>
-                Added {result.plan.counts.new.toLocaleString('en-US')} name
-                {result.plan.counts.new === 1 ? '' : 's'}, updated{' '}
-                {result.plan.counts.update.toLocaleString('en-US')}
-                {result.plan.counts.history > 0 &&
-                  `, and recorded history for ${result.plan.counts.history.toLocaleString('en-US')}`}
-                .
-                {result.plan.newFolders.length > 0 &&
-                  ` New folders: ${result.plan.newFolders.join(', ')}.`}
-              </p>
-              {result.plan.counts.new > 0 && (
-                <p className="text-muted-foreground">
-                  {result.plan.counts.new === 1
-                    ? 'The new name waits for review, as names sync finds do: record what you paid, or dismiss it.'
-                    : `The ${result.plan.counts.new.toLocaleString('en-US')} new names wait for review, as names sync finds do: record what you paid, or dismiss them.`}
-                </p>
-              )}
+              <p className="text-base font-medium">Import complete</p>
+              <ul className="flex flex-col gap-1 text-muted-foreground">
+                {(
+                  [
+                    ['added', result.plan.counts.new],
+                    ['updated', result.plan.counts.update],
+                    ['added to Archive', result.plan.counts.history],
+                  ] as const
+                )
+                  .filter(([, n]) => n > 0)
+                  .map(([what, n]) => (
+                    <li key={what}>
+                      {n.toLocaleString('en-US')} name{n === 1 ? '' : 's'}{' '}
+                      {what}
+                    </li>
+                  ))}
+                {result.plan.newFolders.length > 0 && (
+                  <li>
+                    New folder{result.plan.newFolders.length === 1 ? '' : 's'}:{' '}
+                    {result.plan.newFolders.join(', ')}
+                  </li>
+                )}
+              </ul>
             </div>
           )}
 
@@ -743,18 +762,6 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
             )}
             {step === 'done' && result && (
               <>
-                {result.plan.counts.new > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      onClose();
-                      navigate(`/activity?review=1&import=${result.importId}`);
-                    }}
-                  >
-                    Review new names
-                  </Button>
-                )}
                 <Button type="button" onClick={onClose}>
                   Done
                 </Button>
@@ -770,7 +777,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
 /** The wizard's steps, with the current one marked. */
 function Stepper({ steps, current }: { steps: string[]; current: number }) {
   return (
-    <ol className="flex w-full items-center text-xs">
+    <ol className="flex w-full items-center text-sm">
       {steps.map((label, i) => (
         <li
           key={label}
@@ -781,7 +788,7 @@ function Stepper({ steps, current }: { steps: string[]; current: number }) {
         >
           <span
             className={cn(
-              'flex items-center gap-1.5',
+              'flex items-center gap-2',
               i === current
                 ? 'font-medium text-foreground'
                 : 'text-muted-foreground',
@@ -790,7 +797,7 @@ function Stepper({ steps, current }: { steps: string[]; current: number }) {
           >
             <span
               className={cn(
-                'flex size-5 items-center justify-center rounded-full border text-[11px] tabular-nums',
+                'flex size-6 items-center justify-center rounded-full border text-xs tabular-nums',
                 i < current && 'border-brand bg-brand text-white',
                 i === current && 'border-brand text-brand',
               )}
@@ -803,7 +810,7 @@ function Stepper({ steps, current }: { steps: string[]; current: number }) {
           </span>
           {/* The line to the next step fills the space between them. */}
           {i < steps.length - 1 && (
-            <span className="mr-2 h-px flex-1 bg-border" aria-hidden />
+            <span className="mx-3 h-px flex-1 bg-border" aria-hidden />
           )}
         </li>
       ))}
@@ -864,12 +871,12 @@ function sampleNames(count: number): string[] {
 function ManualTab({
   fields,
   onChange,
-  folderNames,
+  folders,
   placeholder,
 }: {
   fields: ManualFields;
   onChange: (patch: Partial<ManualFields>) => void;
-  folderNames: string[];
+  folders: Folder[];
   /** A zero in the number format and currency, e.g. "0.00". */
   placeholder: string;
 }) {
@@ -948,7 +955,7 @@ function ManualTab({
           id="import-manual-folder"
           value={fields.folder}
           onChange={(folder) => onChange({ folder })}
-          folderNames={folderNames}
+          folders={folders}
         />
       </div>
       <p className="-mt-1 text-xs text-muted-foreground">
@@ -964,7 +971,7 @@ function MatchStep({
   table,
   setup,
   registrars,
-  folderNames,
+  folders,
   onColumn,
   onDefault,
   onDateOrder,
@@ -972,7 +979,7 @@ function MatchStep({
   table: ImportTable;
   setup: ImportSetup;
   registrars: { id: string; displayName: string }[];
-  folderNames: string[];
+  folders: Folder[];
   onColumn: (i: number, field: ImportField | null) => void;
   onDefault: <K extends keyof ImportSetup['defaults']>(
     key: K,
@@ -1124,7 +1131,7 @@ function MatchStep({
             noneLabel="From the file"
             value={setup.defaults.folder ?? ''}
             onChange={(name) => onDefault('folder', name || null)}
-            folderNames={folderNames}
+            folders={folders}
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -1355,27 +1362,54 @@ function ReviewTable({
           : (r.registration?.registrarLabel ?? null),
     },
     {
+      key: 'created',
+      label: 'Created',
+      field: 'Registered',
+      value: (r) => r.registration?.createdDate ?? null,
+    },
+    {
       key: 'expires',
       label: 'Expires',
       field: 'Expires',
       value: (r) => r.registration?.expirationDate ?? null,
     },
     {
+      key: 'autoRenew',
+      label: 'Auto-renew',
+      field: 'Auto-renew',
+      value: (r) =>
+        r.registration?.autoRenew === undefined
+          ? null
+          : r.registration.autoRenew
+            ? 'On'
+            : 'Off',
+    },
+    {
       key: 'asking',
       label: 'Asking',
       field: 'Asking price',
       align: 'right',
-      value: (r) => {
-        const a = r.asking;
-        if (!a) return null;
-        const parts = [
-          a.amount && money(a.amount, a.currency),
-          a.minOffer && `min ${money(a.minOffer, a.currency)}`,
-          a.floor && `floor ${money(a.floor, a.currency)}`,
-        ].filter(Boolean);
-        return parts.length ? parts.join(' · ') : null;
-      },
+      value: (r) =>
+        r.asking?.amount ? money(r.asking.amount, r.asking.currency) : null,
       sortValue: (r) => (r.asking?.amount ? Number(r.asking.amount) : null),
+    },
+    {
+      key: 'minOffer',
+      label: 'Min offer',
+      field: 'Asking price',
+      align: 'right',
+      value: (r) =>
+        r.asking?.minOffer ? money(r.asking.minOffer, r.asking.currency) : null,
+      sortValue: (r) => (r.asking?.minOffer ? Number(r.asking.minOffer) : null),
+    },
+    {
+      key: 'floor',
+      label: 'Floor',
+      field: 'Asking price',
+      align: 'right',
+      value: (r) =>
+        r.asking?.floor ? money(r.asking.floor, r.asking.currency) : null,
+      sortValue: (r) => (r.asking?.floor ? Number(r.asking.floor) : null),
     },
     {
       key: 'renewal',
@@ -1385,6 +1419,17 @@ function ReviewTable({
       value: (r) =>
         r.renewal ? money(r.renewal.amount, r.renewal.currency) : null,
       sortValue: (r) => (r.renewal ? Number(r.renewal.amount) : null),
+    },
+    {
+      key: 'purchaseType',
+      label: 'Acquired',
+      field: 'Purchase type',
+      value: (r) =>
+        r.purchase?.type === 'registered'
+          ? 'Registered'
+          : r.purchase?.type === 'purchased'
+            ? 'Purchased'
+            : null,
     },
     {
       key: 'purchased',
@@ -1402,6 +1447,14 @@ function ReviewTable({
           ? money(r.purchase.amount, r.purchase.currency ?? '')
           : null,
       sortValue: (r) => (r.purchase?.amount ? Number(r.purchase.amount) : null),
+    },
+    {
+      key: 'years',
+      label: 'Years',
+      field: 'Purchase years',
+      align: 'right',
+      value: (r) => (r.purchase?.years ? String(r.purchase.years) : null),
+      sortValue: (r) => r.purchase?.years ?? null,
     },
     {
       key: 'sold',
@@ -1425,9 +1478,8 @@ function ReviewTable({
       value: (r) => r.notes ?? null,
     },
   ];
-  const valueColumns = allColumns.filter((c) =>
-    rows.some((r) => r.row && c.value(r.row) !== null),
-  );
+  // Every field, filled or not, so the review also shows what a file can set.
+  const valueColumns = allColumns;
 
   const columns: DataColumn<ReviewRow>[] = [
     {
@@ -1471,10 +1523,14 @@ function ReviewTable({
       align: c.align,
       hideOnMobile: true,
       cell: (r) => {
-        const value = r.row ? c.value(r.row) : null;
+        const change = r.changes.get(c.field);
+        // With no Status in the file, show the one the import sets (a new
+        // name is Owned).
+        const value =
+          (r.row ? c.value(r.row) : null) ??
+          (c.key === 'status' ? (change?.to ?? null) : null);
         if (value === null)
           return <span className="text-muted-foreground/50">—</span>;
-        const change = r.changes.get(c.field);
         return (
           <span
             className={cn(
@@ -1496,7 +1552,7 @@ function ReviewTable({
     })),
     {
       key: 'problems',
-      label: 'Notes',
+      label: 'Problems',
       sortable: true,
       cell: (r) =>
         r.problems.length === 0 ? null : (
@@ -1516,8 +1572,6 @@ function ReviewTable({
     },
   ];
   // "Notes" is taken by the file's notes column when it has one.
-  if (valueColumns.some((c) => c.key === 'notes'))
-    columns[columns.length - 1].label = 'Problems';
 
   const sorted = useMemo(() => {
     const col = valueColumns.find((c) => c.key === sort.key);
@@ -1564,6 +1618,7 @@ function ReviewTable({
         setPage(0);
       }}
       empty="Nothing to show."
+      density="compact"
     />
   );
 }
