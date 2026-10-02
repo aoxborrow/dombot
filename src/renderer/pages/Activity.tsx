@@ -92,8 +92,8 @@ const DATE_OPTIONS = [7, 14, 30, 90, 180].map((days) => ({
 }));
 
 // The Type filter's order: a name's life, which also keeps each color
-// together (see EventTypeBadge): coming in (blue), kept (teal), moved
-// (purple), sold (green), then gone (removed, then the grays).
+// together (see EventTypeBadge): coming in (blue), renewed and moved
+// (indigo), sold (green), then gone (removed, then the grays).
 const TYPE_ORDER: DomainEvent['type'][] = [
   'added',
   'registered',
