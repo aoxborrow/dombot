@@ -12,10 +12,10 @@ import {
 import { useAppStore } from '../../store/app';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ActionHeader } from '../actions/ActionDialog';
 import { CurrencyPicker } from './CurrencyPicker';
+import { MoneyInput } from './MoneyInput';
 
 /**
  * Set the asking price, minimum offer, and floor for one name or a selection
@@ -122,9 +122,9 @@ export function AskingPriceDialog({
           </p>
           <div className="flex flex-col gap-2">
             <Label htmlFor="asking-amount">Asking price</Label>
-            <Input
+            <MoneyInput
               id="asking-amount"
-              inputMode="decimal"
+              currency={currency}
               value={amount}
               placeholder={placeholder}
               onChange={(e) => setAmount(e.target.value)}
@@ -133,9 +133,9 @@ export function AskingPriceDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-2">
               <Label htmlFor="asking-min-offer">Minimum offer</Label>
-              <Input
+              <MoneyInput
                 id="asking-min-offer"
-                inputMode="decimal"
+                currency={currency}
                 value={minOffer}
                 placeholder="Optional"
                 onChange={(e) => setMinOffer(e.target.value)}
@@ -143,9 +143,9 @@ export function AskingPriceDialog({
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="asking-floor">Floor price</Label>
-              <Input
+              <MoneyInput
                 id="asking-floor"
-                inputMode="decimal"
+                currency={currency}
                 value={floor}
                 placeholder="Optional"
                 onChange={(e) => setFloor(e.target.value)}

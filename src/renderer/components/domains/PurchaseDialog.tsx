@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { CurrencyPicker } from './CurrencyPicker';
+import { MoneyInput } from './MoneyInput';
 import {
   NOTES_MAX,
   NotesLimit,
@@ -210,9 +211,9 @@ export function PurchaseDialog({
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="purchase-amount">Purchase amount</Label>
-              <Input
+              <MoneyInput
                 id="purchase-amount"
-                inputMode="decimal"
+                currency={currency}
                 value={amount}
                 placeholder={formatAmountInput('0', currency, formatId)}
                 onChange={(e) => setAmount(e.target.value)}

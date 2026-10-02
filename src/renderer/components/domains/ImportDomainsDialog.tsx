@@ -29,6 +29,8 @@ import { toUnicode } from '../../../shared/domain-name';
 import { DataTable, type DataColumn } from '../data-table/DataTable';
 import { sortRows, type SortDir } from '../data-table/table-state';
 import { CurrencyPicker } from './CurrencyPicker';
+import { FolderSelect } from './FolderSelect';
+import { MoneyInput } from './MoneyInput';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
@@ -768,10 +770,15 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
 /** The wizard's steps, with the current one marked. */
 function Stepper({ steps, current }: { steps: string[]; current: number }) {
   return (
-    <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+    <ol className="flex w-full items-center text-xs">
       {steps.map((label, i) => (
-        <li key={label} className="flex items-center gap-2">
-          {i > 0 && <span className="h-px w-4 bg-border" aria-hidden />}
+        <li
+          key={label}
+          className={cn(
+            'flex items-center gap-2',
+            i < steps.length - 1 && 'flex-1',
+          )}
+        >
           <span
             className={cn(
               'flex items-center gap-1.5',
@@ -790,8 +797,14 @@ function Stepper({ steps, current }: { steps: string[]; current: number }) {
             >
               {i < current ? '✓' : i + 1}
             </span>
-            {label}
+            <span className={cn(i !== current && 'max-sm:hidden')}>
+              {label}
+            </span>
           </span>
+          {/* The line to the next step fills the space between them. */}
+          {i < steps.length - 1 && (
+            <span className="mr-2 h-px flex-1 bg-border" aria-hidden />
+          )}
         </li>
       ))}
     </ol>
@@ -889,12 +902,12 @@ function ManualTab({
           Owned. You review every change before anything is saved.
         </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
         <div className="flex flex-col gap-2">
           <Label htmlFor="import-asking">Asking price</Label>
-          <Input
+          <MoneyInput
             id="import-asking"
-            inputMode="decimal"
+            currency={fields.currency}
             placeholder={placeholder}
             value={fields.amount}
             onChange={(e) => onChange({ amount: e.target.value })}
@@ -902,9 +915,9 @@ function ManualTab({
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="import-min-offer">Minimum offer</Label>
-          <Input
+          <MoneyInput
             id="import-min-offer"
-            inputMode="decimal"
+            currency={fields.currency}
             placeholder="Optional"
             value={fields.minOffer}
             onChange={(e) => onChange({ minOffer: e.target.value })}
@@ -912,39 +925,31 @@ function ManualTab({
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="import-floor">Floor price</Label>
-          <Input
+          <MoneyInput
             id="import-floor"
-            inputMode="decimal"
+            currency={fields.currency}
             placeholder="Optional"
             value={fields.floor}
             onChange={(e) => onChange({ floor: e.target.value })}
           />
         </div>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <Label>Currency</Label>
           <CurrencyPicker
+            compact
             value={fields.currency}
             onChange={(currency) => onChange({ currency })}
           />
         </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="import-manual-folder">Folder</Label>
-          <Input
-            id="import-manual-folder"
-            list="import-manual-folders"
-            placeholder="No folder"
-            value={fields.folder}
-            onChange={(e) => onChange({ folder: e.target.value })}
-          />
-          <datalist id="import-manual-folders">
-            {folderNames.map((f) => (
-              <option key={f} value={f} />
-            ))}
-            <option value="Hidden" />
-          </datalist>
-        </div>
+      </div>
+      <div className="flex flex-col gap-2 sm:w-1/2">
+        <Label htmlFor="import-manual-folder">Folder</Label>
+        <FolderSelect
+          id="import-manual-folder"
+          value={fields.folder}
+          onChange={(folder) => onChange({ folder })}
+          folderNames={folderNames}
+        />
       </div>
       <p className="-mt-1 text-xs text-muted-foreground">
         The price and folder go on every name above, replacing what a name
@@ -1114,20 +1119,13 @@ function MatchStep({
           <Label className="text-xs" htmlFor="import-folder">
             Folder
           </Label>
-          <Input
+          <FolderSelect
             id="import-folder"
-            className="h-8"
-            list="import-folders"
-            placeholder="From the file"
+            noneLabel="From the file"
             value={setup.defaults.folder ?? ''}
-            onChange={(e) => onDefault('folder', e.target.value || null)}
+            onChange={(name) => onDefault('folder', name || null)}
+            folderNames={folderNames}
           />
-          <datalist id="import-folders">
-            {folderNames.map((f) => (
-              <option key={f} value={f} />
-            ))}
-            <option value="Hidden" />
-          </datalist>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Status</Label>

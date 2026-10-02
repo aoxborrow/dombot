@@ -19,10 +19,13 @@ export function CurrencyPicker({
   value,
   onChange,
   label = 'Currency',
+  compact = false,
 }: {
   value: string;
   onChange: (code: string) => void;
   label?: string;
+  /** Show the code alone ("USD"), for a narrow spot beside amounts. */
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -41,10 +44,16 @@ export function CurrencyPicker({
         <Button
           type="button"
           variant="outline"
-          className="w-full justify-between font-normal"
+          className={cn(
+            'justify-between font-normal',
+            compact ? 'w-full gap-2 sm:w-24' : 'w-full',
+          )}
+          title={selected ? `${selected.code} — ${selected.name}` : undefined}
         >
           <span className="truncate">
-            {selected ? `${selected.code} — ${selected.name}` : value}
+            {selected && !compact
+              ? `${selected.code} — ${selected.name}`
+              : value}
           </span>
           {/* The select's chevron, so it reads as a dropdown like one. */}
           <ChevronDown className="size-4 opacity-50" />
