@@ -192,8 +192,9 @@ work.
 - **Open alerts stand out.** The row gets a faint tint and a left bar in its
   priority's color (red for a removal, yellow for an arrival), and the Status
   cell says "Needs review" with a dot in the same color.
-- **The same menu on every row:** Mark as Sold, Mark as Dropped, Archive,
-  Record purchase, Dismiss review, Show in Domains, Delete. The state the name
+- **The same menu on every row:** Purchase details, then Mark as Sold, Mark
+  as Dropped, Archive, then Dismiss review, Show in Domains, Open in browser,
+  then Delete. The state the name
   is already in is disabled, and so is Dismiss review on a row that doesn't
   need it. Setting a state replaces the one you'd set before (and answers the
   same alert), so changing your mind never adds rows or needs an Undo, and

@@ -159,10 +159,7 @@ export function PurchaseDialog({
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-md">
-        <ActionHeader
-          title={recorded ? 'Edit purchase' : 'Record purchase'}
-          names={[domain.domainName]}
-        />
+        <ActionHeader title="Purchase details" names={[domain.domainName]} />
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
             What you paid and when. Kept even if the name leaves the account.

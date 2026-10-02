@@ -1,10 +1,10 @@
 import { domainKey } from '../../../shared/account-key';
 import {
   Archive,
+  Calculator,
   CalendarPlus,
   Ellipsis,
   ExternalLink,
-  Handshake,
   KeyRound,
   Link2,
   Mail,
@@ -37,7 +37,7 @@ import {
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell):
  * for a name you own, a refresh, a Folder submenu (a folder, Hidden, or None),
  * and the actions that aren't a column (forwarding, renew, auth code); then,
- * for every name, Record purchase and the ownership states: Sold, Dropped, or Archived (the one it's in is disabled; a new one
+ * for every name, Purchase details and the ownership states: Sold, Dropped, or Archived (the one it's in is disabled; a new one
  * replaces yours; Archive only for a name you own), "Move back
  * to Owned" for a labeled name an account still holds, and Delete. A name in
  * Archive gets no registrar actions: move it back to Owned first. Registrar-backed items the
@@ -177,17 +177,18 @@ export function RowActionsMenu({
             <DropdownMenuSeparator />
           </>
         )}
-        {/* Ownership, in the same order as on Activity. Record purchase and
+        {/* Ownership, in the same order as on Activity. Purchase details and
             Mark as Sold open with what's saved (and the name's notes), so
             a sold name's Mark as Sold edits its sale. */}
         <DropdownMenuItem onSelect={onEditPurchase}>
-          <Receipt className="text-muted-foreground" />
-          Record purchase<span className="-ml-[6px] opacity-50">…</span>
+          <Calculator className="text-muted-foreground" />
+          Purchase details<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={archive === 'sold' ? onEditSale : onMarkSold}
         >
-          <Handshake className="text-muted-foreground" />
+          <Receipt className="text-muted-foreground" />
           Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
         <DropdownMenuItem

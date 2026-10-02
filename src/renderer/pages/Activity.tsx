@@ -4,18 +4,18 @@ import {
   Archive,
   ArrowRight,
   Building2,
+  Calculator,
   CalendarClock,
   ChevronDown,
   Ellipsis,
   ExternalLink,
   Flame,
-  Handshake,
+  Globe,
   History,
   Inbox,
   OctagonMinus,
   Receipt,
   SlidersHorizontal,
-  Target,
   Trash2,
   X,
 } from 'lucide-react';
@@ -708,7 +708,7 @@ export default function Activity() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
                 <BulkItem
-                  icon={Handshake}
+                  icon={Receipt}
                   label="Mark as Sold"
                   count={itemsOf(selectedRows, 'sold').length}
                   onSelect={() =>
@@ -926,12 +926,13 @@ function RowMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuItem onSelect={() => onDialog({ kind: 'purchase', row })}>
-          <Receipt className="text-muted-foreground" />
-          Record purchase…
+          <Calculator className="text-muted-foreground" />
+          Purchase details…
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
         {/* A sold name's Mark as Sold edits its sale. */}
         <DropdownMenuItem onSelect={() => set('sold')}>
-          <Handshake className="text-muted-foreground" />
+          <Receipt className="text-muted-foreground" />
           Mark as Sold…
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -956,7 +957,7 @@ function RowMenu({
           Dismiss review
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onShow}>
-          <Target className="text-muted-foreground" />
+          <Globe className="text-muted-foreground" />
           Show in Domains
         </DropdownMenuItem>
         <DropdownMenuItem

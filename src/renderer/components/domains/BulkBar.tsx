@@ -4,7 +4,6 @@ import {
   ChevronDown,
   EyeOff,
   FileSpreadsheet,
-  Handshake,
   IterationCw,
   KeyRound,
   Link2,
@@ -12,6 +11,7 @@ import {
   Lock,
   Mail,
   OctagonMinus,
+  Receipt,
   RefreshCw,
   Server,
   Trash2,
@@ -232,7 +232,7 @@ export function BulkBar({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => onOwnership('sold')}>
-              <Handshake className="text-muted-foreground" />
+              <Receipt className="text-muted-foreground" />
               Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => onOwnership('dropped')}>
