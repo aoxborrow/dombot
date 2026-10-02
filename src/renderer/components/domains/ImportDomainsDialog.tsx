@@ -124,13 +124,13 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
     t: ImportTable,
     s: ImportSetup,
     opts: ImportOptions = options,
-  ) {
+  ): Promise<boolean> {
     const rows = buildRows(t, s, ctx);
     if (rows.rows.length > MAX_IMPORT_ROWS) {
       setError(
         `The file has ${rows.rows.length.toLocaleString('en-US')} names. Import up to ${MAX_IMPORT_ROWS.toLocaleString('en-US')} at a time.`,
       );
-      return;
+      return false;
     }
     setBusy(true);
     setError(null);
@@ -147,8 +147,10 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
       );
       setFilter('all');
       setStep('review');
+      return true;
     } catch (err) {
       setError(message(err));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -220,6 +222,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
     const total = { new: 0, update: 0, unchanged: 0, history: 0 };
     const outcomes: ImportOutcome[] = [];
     let newFolders: string[] = [];
+    let wrote = false;
     try {
       for (let i = 0; i < built.rows.length; i += CHUNK) {
         setProgress(i / built.rows.length);
@@ -227,6 +230,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
           built.rows.slice(i, i + CHUNK),
           { ...options, importId },
         );
+        wrote = true;
         for (const k of Object.keys(total) as (keyof typeof total)[])
           total[k] += done.counts[k];
         outcomes.push(...done.outcomes);
@@ -235,19 +239,22 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
       setProgress(1);
       setResult({ plan: { outcomes, counts: total, newFolders }, importId });
       setStep('done');
-      const store = useAppStore.getState();
-      await Promise.all([
-        store.loadDomainEvents(),
-        store.loadPurchases(),
-        store.loadFolders(),
-        store.loadPricing(),
-        store.loadAskingPrices(),
-      ]);
     } catch (err) {
       setError(
         `${message(err)} Rows already imported stay; importing the file again finishes the rest.`,
       );
     } finally {
+      // Show what was written, even when a later chunk failed.
+      if (wrote) {
+        const store = useAppStore.getState();
+        await Promise.all([
+          store.loadDomainEvents(),
+          store.loadPurchases(),
+          store.loadFolders(),
+          store.loadPricing(),
+          store.loadAskingPrices(),
+        ]).catch(() => {});
+      }
       setBusy(false);
       setProgress(null);
     }
@@ -399,8 +406,14 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
               onFilter={setFilter}
               options={options}
               onOptions={(next) => {
+                if (!table || !setup) return;
+                // The review shows the last plan, so the options go back
+                // to match it when the new preview fails.
+                const previous = options;
                 setOptions(next);
-                if (table && setup) void preview(table, setup, next);
+                void preview(table, setup, next).then(
+                  (ok) => ok || setOptions(previous),
+                );
               }}
               busy={busy}
             />
@@ -705,9 +718,7 @@ function MatchStep({
               defaultValue={
                 knownRegistrar ? '' : (setup.defaults.registrar ?? '')
               }
-              onChange={(e) =>
-                onDefault('registrar', e.target.value.trim() || null)
-              }
+              onChange={(e) => onDefault('registrar', e.target.value || null)}
             />
           )}
           <p className="text-xs text-muted-foreground">
@@ -731,7 +742,7 @@ function MatchStep({
             list="import-folders"
             placeholder="From the file"
             value={setup.defaults.folder ?? ''}
-            onChange={(e) => onDefault('folder', e.target.value.trim() || null)}
+            onChange={(e) => onDefault('folder', e.target.value || null)}
           />
           <datalist id="import-folders">
             {folderNames.map((f) => (
