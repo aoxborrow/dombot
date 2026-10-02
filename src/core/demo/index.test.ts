@@ -43,22 +43,10 @@ describe('installDemo', () => {
 
   it('a sync fills the portfolio from the world, with pricing and folders', async () => {
     const p = await getPortfolio(true);
-    // The failing accounts report errors; the rest fill the portfolio.
-    const failing = demo.seed.accounts.filter((a) => a.failure);
-    expect(failing.map((a) => a.registrar).sort()).toEqual([
-      'namecom',
-      'namesilo',
-    ]);
-    expect(p.errors.map((e) => e.registrar).sort()).toEqual([
-      'namecom',
-      'namesilo',
-    ]);
+    expect(p.errors).toEqual([]);
     expect(p.domains).toHaveLength(60);
     expect(p.registrars.sort()).toEqual(
-      demo.seed.accounts
-        .filter((a) => !a.failure)
-        .map((a) => a.registrar)
-        .sort(),
+      demo.seed.accounts.map((a) => a.registrar).sort(),
     );
     const merged = getMergedPortfolio();
     expect(merged.domains).toHaveLength(60);

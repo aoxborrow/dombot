@@ -1,6 +1,4 @@
 import {
-  AuthenticationError,
-  AuthorizationError,
   NotFoundError,
   NotImplementedError,
   createDomain,
@@ -107,8 +105,6 @@ export interface DemoRegistrarOptions {
    *  the demo so progress is visible). A function is read on every call, so
    *  a host can boot fast and then turn the pacing on. */
   latencyMs?: number | (() => number);
-  /** Every call fails this way (see DemoAccount.failure). */
-  failure?: 'auth' | 'access';
 }
 
 export class DemoRegistrar implements Registrar {
@@ -116,7 +112,6 @@ export class DemoRegistrar implements Registrar {
   readonly requiresNameserversFetch = false;
   readonly features: readonly RegistrarFeature[];
   private readonly latency: () => number;
-  private readonly failure: DemoRegistrarOptions['failure'];
 
   constructor(
     readonly name: RegistrarName,
@@ -127,7 +122,6 @@ export class DemoRegistrar implements Registrar {
     this.features = registrars[name].features;
     const l = options.latencyMs ?? 0;
     this.latency = typeof l === 'function' ? l : () => l;
-    this.failure = options.failure;
   }
 
   supports(feature: RegistrarFeature): boolean {
@@ -157,14 +151,6 @@ export class DemoRegistrar implements Registrar {
       });
     }
     opts?.signal?.throwIfAborted();
-    if (this.failure === 'auth') {
-      throw new AuthenticationError('Invalid API key');
-    }
-    if (this.failure === 'access') {
-      throw new AuthorizationError(
-        'API access is not enabled for this account',
-      );
-    }
     return fn();
   }
 
