@@ -317,6 +317,8 @@ export interface DomainPurchase {
   purchaseType?: 'registered' | 'purchased';
   /** The purchase's term in years, when recorded. */
   purchaseYears?: number;
+  /** The purchase's event id: one newer than an arrival was recorded after it. */
+  acquisitionId?: string;
   notes: string;
   /** Absent on records saved before a sale could be stored. */
   saleDate?: string | null;
