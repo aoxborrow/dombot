@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 
 // The pieces of a table page's toolbar, shared by Domains and Activity:
 // search on the left, filters, then Reset.
@@ -57,6 +58,9 @@ export function SearchField({
   );
 }
 
+/** The green border a toolbar control wears while filtering is in play. */
+export const FILTERING_BORDER = 'border-[#4f9d6b] dark:border-[#4f9d6b]';
+
 /**
  * Reset, styled like the filters (no chevron); faded and disabled when
  * nothing is active. On phones it stays beside the Filters toggle
@@ -76,7 +80,7 @@ export function ResetButton({
       disabled={!active}
       className={cn(
         'gap-2 pr-[14px]! pl-[8px]! sm:order-last',
-        active && 'border-[#4f9d6b] dark:border-[#4f9d6b]',
+        active && FILTERING_BORDER,
       )}
     >
       <X
@@ -205,34 +209,16 @@ export function ViewSwitch({
   }[];
 }) {
   return (
-    <div
-      role="radiogroup"
+    <SegmentedControl
       aria-label={label}
-      className="mt-1 inline-flex items-center gap-1 self-start rounded-lg border p-1 text-sm sm:mt-[7px]"
-    >
-      {options.map((option) => (
-        <button
-          key={option.id}
-          type="button"
-          role="radio"
-          aria-checked={option.active}
-          onClick={option.onClick}
-          className={cn(
-            'inline-flex h-8 items-center gap-2 rounded-md px-3 font-medium text-muted-foreground outline-none hover:bg-foreground/5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:hover:bg-accent/50',
-            option.active && 'bg-foreground/10 text-foreground dark:bg-accent',
-          )}
-        >
-          {option.label}
-          <span
-            className={cn(
-              'tabular-nums',
-              option.active ? 'text-foreground' : 'text-muted-foreground',
-            )}
-          >
-            {option.count}
-          </span>
-        </button>
-      ))}
-    </div>
+      className="mt-1 self-start sm:mt-[7px]"
+      value={options.find((o) => o.active)?.id ?? ''}
+      onChange={(id) => options.find((o) => o.id === id)?.onClick()}
+      options={options.map((o) => ({
+        value: o.id,
+        label: o.label,
+        count: o.count,
+      }))}
+    />
   );
 }
