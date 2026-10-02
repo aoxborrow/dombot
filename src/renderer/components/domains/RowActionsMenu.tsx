@@ -11,6 +11,7 @@ import {
   OctagonMinus,
   Receipt,
   Tag,
+  PencilLine,
   RefreshCw,
   Trash2,
   Undo2,
@@ -59,6 +60,7 @@ export function RowActionsMenu({
   onEditPurchase,
   onEditSale,
   onEditAsking,
+  onEditDetails,
   onAssignFolder,
   archive,
   onMarkSold,
@@ -79,6 +81,8 @@ export function RowActionsMenu({
   onEditPurchase: () => void;
   onEditSale: () => void;
   onEditAsking: () => void;
+  /** A manual name: edit its registrar, dates, and auto-renew. */
+  onEditDetails: () => void;
   onAssignFolder: (folderId: string | null) => void;
   /** Why the name is in Archive, or null while you own it. */
   archive: ArchiveLabel | null;
@@ -93,6 +97,10 @@ export function RowActionsMenu({
   const labeled =
     archive === 'sold' || archive === 'dropped' || archive === 'archived';
   const key = domainKey(domain);
+  // A manual name isn't at a connected account: registrar actions can't run.
+  const manualReason = domain.manual
+    ? 'Added by you. No connected account holds this name.'
+    : null;
   const pending = useAppStore((s) => s.mutating[key] ?? false);
   const urlReason = useOpUnsupportedReason(domain.registrar, {
     kind: 'urlForwarding',
@@ -128,10 +136,17 @@ export function RowActionsMenu({
         {/* Registrar and organizing actions: only for a name you own. */}
         {archive === null && (
           <>
-            <DropdownMenuItem onSelect={onRefresh}>
-              <RefreshCw className="text-muted-foreground" />
-              Refresh
-            </DropdownMenuItem>
+            {domain.manual ? (
+              <DropdownMenuItem onSelect={onEditDetails}>
+                <PencilLine className="text-muted-foreground" />
+                Edit details<span className="-ml-[6px] opacity-50">…</span>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onSelect={onRefresh}>
+                <RefreshCw className="text-muted-foreground" />
+                Refresh
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
@@ -148,16 +163,16 @@ export function RowActionsMenu({
             </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              disabled={urlReason !== null}
-              title={urlReason ?? undefined}
+              disabled={manualReason !== null || urlReason !== null}
+              title={manualReason ?? urlReason ?? undefined}
               onSelect={onUrlForwarding}
             >
               <Link2 className="text-muted-foreground" />
               URL forwarding<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={emailReason !== null}
-              title={emailReason ?? undefined}
+              disabled={manualReason !== null || emailReason !== null}
+              title={manualReason ?? emailReason ?? undefined}
               onSelect={onEmailForwarding}
             >
               <Mail className="text-muted-foreground" />
@@ -165,16 +180,16 @@ export function RowActionsMenu({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              disabled={renewReason !== null}
-              title={renewReason ?? undefined}
+              disabled={manualReason !== null || renewReason !== null}
+              title={manualReason ?? renewReason ?? undefined}
               onSelect={onRenew}
             >
               <CalendarPlus className="text-muted-foreground" />
               Renew<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={authReason !== null}
-              title={authReason ?? undefined}
+              disabled={manualReason !== null || authReason !== null}
+              title={manualReason ?? authReason ?? undefined}
               onSelect={onAuthCode}
             >
               <KeyRound className="text-muted-foreground" />

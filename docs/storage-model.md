@@ -3,7 +3,8 @@
 Status: implemented except where noted: storage conventions (#102), and the
 domain history on `domain-events` (#106): purchases and sales as events, sync
 events and alerts, Owned / Archive, the Hidden folder, the Activity page and
-the bell. Not yet: manual domains (#108), the lookup-recorded automatic drop
+the bell. Manual domains (#108) are built per `docs/domain-import-export.md`.
+Not yet: the lookup-recorded automatic drop
 (waits on the central RDAP module, #105), and `renewed` events (#107).
 
 A naming and keying standard for everything DomBot persists, a domain event
@@ -71,7 +72,7 @@ set passed to `EncryptedDocStore`.
 | `domain-purchases` + `portfolio-changes` | `domain-events`         |        | event id                   | purchases, sales, arrivals, moves, drops          |
 | `folders` (`assignments` key)            | `domain-folders`        |        | name                       | name → folder id                                  |
 | `folders` (`folders` key)                | `folders`               |        | folder id                  | folder definitions                                |
-| `pricing-overrides`                      | `domain-prices`         |        | name                       | your manual renewal price                         |
+| `pricing-overrides`                      | `domain-prices`         |        | name                       | your manual renewal price, with its currency      |
 | —                                        | `domain-asking-prices`  |        | name                       | your asking price, minimum offer, and floor       |
 | `settings`, `bulk-jobs`, `mcp`           | _(unchanged)_           |        |                            | app-level                                         |
 | `meta`                                   | _(unchanged)_           | local  |                            | this install only                                 |
@@ -318,7 +319,7 @@ Portfolio changes popover.
 
 ## Manual domains and notes
 
-`manual-domains` (#108, after this release) will hold names you own that no
+`manual-domains` (#108) holds names you own that no
 connected registrar reports — typed in, or imported from a CSV:
 
 ```ts
@@ -330,13 +331,15 @@ interface ManualDomain {
   autoRenew?: boolean | null;
   addedAt: number; // ms epoch
   updatedAt: number | null; // ms epoch
+  importId?: string | null; // the import that added it
 }
 ```
 
 They join the Domains table beside the registrar list and take folders,
 prices, notes, and events like any other name. Clear cache never touches them.
 Adding one writes `added` (`source: 'user'`, or `'import'` from a CSV) with no
-account. If a connected registrar later reports the same name, sync removes
+account; like a sync arrival, it waits for review. If a connected registrar
+later reports the same name (on the account's first sync too), sync removes
 the `manual-domains` entry, the registrar's row takes over, and the diff
 records a `moved` from no account. Notes, events, folders, and prices are
 keyed by name, not by the manual entry, so they carry straight across; the
@@ -411,6 +414,14 @@ is limited to the first requests after deploying this release.
 2. Set `schemaVersion = 2`. A v4 bundle from before this release gets the same
    step on import.
 
+**Migration 3** (renewal prices in any currency, `docs/domain-import-export.md`):
+
+1. Every `domain-prices` value that's a bare number (the old USD form) becomes
+   `{ amount, currency: 'USD' }`, with the amount as a canonical decimal. A
+   value that doesn't hold is dropped.
+2. Set `schemaVersion = 3`. A bundle before v7 gets the same conversion on
+   import.
+
 ## Data bundle versions
 
 **Rule:** any release that adds a namespace that isn't a cache bumps
@@ -420,8 +431,10 @@ data; with remote sync (#89), pushing to a not-yet-upgraded instance and
 pulling back would then lose it locally too. The bump makes the older build
 refuse the file with "made by a newer DomBot".
 
-- **Planned:** a currency on `domain-prices`, and `manual-domains` (#108),
-  each with its own bump (`docs/domain-import-export.md`).
+- **v8** adds `manual-domains` (#108; `docs/domain-import-export.md`).
+- **v7** stores manual renewal prices with a currency. An older build would
+  read the new values as no price, so it must refuse the file. Rule: changing
+  the shape of an exported namespace's values bumps the version too.
 - **v6** adds `domain-asking-prices`.
 - **v5** adds the domain history (`domain-events`, `domain-notes`,
   `registrar-last-sync`). A v4 file imports into v5 unchanged; it just has no

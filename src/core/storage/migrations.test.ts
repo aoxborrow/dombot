@@ -49,7 +49,7 @@ describe('runMigrations', () => {
     const store = sealing(['registrar-credentials']);
     await runMigrations(raw, store);
     expect(await store.get('meta', 'schemaVersion')).toBe(SCHEMA_VERSION);
-    expect(await contents()).toEqual({ meta: { schemaVersion: 2 } });
+    expect(await contents()).toEqual({ meta: { schemaVersion: 3 } });
   });
 
   it('renames namespaces, re-keys folders and prices by name, and keeps secrets sealed', async () => {
@@ -79,7 +79,7 @@ describe('runMigrations', () => {
     expect(await store.get('registrars', 'disabled')).toEqual(['gandi']);
     // First account wins a name both accounts priced.
     expect(await store.list('domain-prices')).toEqual({
-      'xn--mnich-kva.de': 40,
+      'xn--mnich-kva.de': { amount: '40.00', currency: 'USD' },
     });
     expect(await store.list('folders')).toEqual({
       folders: [{ id: 'f1', name: 'Keep' }],
@@ -101,7 +101,7 @@ describe('runMigrations', () => {
     ]) {
       expect(await raw.list(old)).toEqual({});
     }
-    expect(await store.get('meta', 'schemaVersion')).toBe(2);
+    expect(await store.get('meta', 'schemaVersion')).toBe(3);
 
     // A second run is a no-op.
     const before = await contents();
@@ -143,6 +143,22 @@ describe('runMigrations', () => {
     expect(await contents()).toEqual(before);
   });
 
+  it('v3 gives stored renewal prices a currency', async () => {
+    const store = sealing(['registrar-credentials']);
+    await store.put('meta', 'schemaVersion', 2);
+    await store.putMany('domain-prices', [
+      ['a.com', 12.5],
+      ['b.com', { amount: '9.00', currency: 'EUR' }],
+      ['c.com', -3],
+    ]);
+    await runMigrations(raw, store);
+    expect(await store.list('domain-prices')).toEqual({
+      'a.com': { amount: '12.50', currency: 'USD' },
+      'b.com': { amount: '9.00', currency: 'EUR' },
+    });
+    expect(await store.get('meta', 'schemaVersion')).toBe(3);
+  });
+
   it('v2 moves Archive folder assignments to Hidden on a v1 store', async () => {
     const store = sealing(['registrar-credentials']);
     await store.put('meta', 'schemaVersion', 1);
@@ -155,6 +171,6 @@ describe('runMigrations', () => {
       'a.com': HIDDEN_FOLDER_ID,
       'b.com': 'f1',
     });
-    expect(await store.get('meta', 'schemaVersion')).toBe(2);
+    expect(await store.get('meta', 'schemaVersion')).toBe(3);
   });
 });

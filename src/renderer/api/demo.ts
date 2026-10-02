@@ -26,6 +26,8 @@ import { localDay } from '../../shared/domain-events';
 import { setDispositions } from '../../core/services/domain-history';
 import { setPurchase, setSale } from '../../core/services/purchases';
 import { setAskingPrices } from '../../core/services/asking-prices';
+import { setManualPrice } from '../../core/services/pricing';
+import { addManualDomains } from '../../core/services/manual-domains';
 import { MemoryDocStore } from '../../core/storage/doc-store';
 import { configureStore, hydrateStores } from '../../core/storage/namespace';
 import pkg from '../../../package.json';
@@ -172,7 +174,10 @@ function recordSampleHistory(): void {
   );
 }
 
-/** Asking prices on a few names, so the Asking column has something in it. */
+/**
+ * Asking prices on a few names, so the Asking column has something in it,
+ * and one renewal price in another currency.
+ */
 function recordSampleAskingPrices(): void {
   const owned = getMergedPortfolio().domains.map((d) => d.domainName);
   const samples = [
@@ -185,6 +190,39 @@ function recordSampleAskingPrices(): void {
     samples
       .map((s, i) => ({ domainName: owned[i * 2], ...s }))
       .filter((s) => s.domainName),
+  );
+  // A renewal price in euros: Renewals lists it beside the dollar totals.
+  if (owned[1]) setManualPrice(owned[1], { amount: '45', currency: 'EUR' });
+}
+
+/**
+ * Two names you added by hand: one at a registrar DomBot supports but you
+ * haven't connected, one at a registrar it doesn't know.
+ */
+function recordSampleManualDomains(): void {
+  const day = (daysAhead: number) =>
+    localDay(Date.now() + daysAhead * 86_400_000);
+  addManualDomains(
+    [
+      {
+        domainName: 'harborlight.com',
+        fields: {
+          registrar: 'gandi',
+          createdDate: '2019-04-02',
+          expirationDate: day(140),
+          autoRenew: true,
+        },
+      },
+      {
+        domainName: 'quietfield.net',
+        fields: {
+          registrarLabel: 'Epik',
+          expirationDate: day(45),
+          autoRenew: false,
+        },
+      },
+    ],
+    { source: 'user' },
   );
 }
 
@@ -205,6 +243,7 @@ export async function createDemoApi(
   const demo = await installDemo({ latencyMs: 0, size: options.size });
   await getPortfolio(true);
   recordSampleAskingPrices();
+  recordSampleManualDomains();
   if (options.sampleChanges) {
     stageSampleChanges(demo.world);
     await getPortfolio(true);

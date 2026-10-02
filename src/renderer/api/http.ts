@@ -273,6 +273,7 @@ export function createHttpApi(): DombotApi {
     exportData: m('exportData'),
     importData: m('importData'),
     getPortfolioPricing: m('getPortfolioPricing'),
+    getManualPrices: m('getManualPrices'),
     setManualPrice: m('setManualPrice'),
 
     listPortfolio: async (refresh) =>
@@ -397,6 +398,10 @@ export function createHttpApi(): DombotApi {
     getPurchases: m('getPurchases'),
     setPurchase: m('setPurchase'),
     setNotes: m('setNotes'),
+    previewDomainImport: m('previewDomainImport'),
+    importDomains: m('importDomains'),
+    getManualDomains: m('getManualDomains'),
+    updateManualDomain: m('updateManualDomain'),
     getAskingPrices: m('getAskingPrices'),
     setAskingPrices: m('setAskingPrices'),
     setSale: m('setSale'),

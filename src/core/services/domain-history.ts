@@ -22,6 +22,7 @@ import {
 import { assignFolder } from './folders';
 import { setManualPrice } from './pricing';
 import { deleteAskingPrices } from './asking-prices';
+import { removeManualDomains, takeOverManual } from './manual-domains';
 import { Namespace } from '../storage/namespace';
 
 // Ownership history on top of the event log: what sync saw, and what you say
@@ -61,7 +62,7 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
       known,
     };
   });
-  const { events, newlyTracked } = diffSync(
+  const diff = diffSync(
     before,
     after,
     listEvents(),
@@ -69,6 +70,20 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
     now,
     newEvent,
   );
+  const { newlyTracked } = diff;
+  // A manual name an account now reports isn't a new arrival: sync takes it
+  // over with a `moved` from no account, on the account's first sync too.
+  const takeover = takeOverManual(
+    after.filter((h) => h.synced),
+    now,
+  );
+  const events = [
+    ...diff.events.filter(
+      (e) =>
+        !(e.type === DomainEventType.Added && takeover.names.has(e.domain)),
+    ),
+    ...takeover.events,
+  ];
   putEvents(events);
   markAccountsTracked(newlyTracked, now);
   void lastSync.setMany(
@@ -80,6 +95,22 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
       ]),
   );
   return events;
+}
+
+/**
+ * The names each account's last sync saw, as name → account id. Survives
+ * Clear cache, unlike the registrar cache.
+ */
+export function lastSyncedNames(accountIds: string[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const id of accountIds) {
+    const names = lastSync.get(id)?.names;
+    if (!Array.isArray(names)) continue;
+    for (const name of names)
+      if (typeof name === 'string' && !out.has(name))
+        out.set(toAscii(name), id);
+  }
+  return out;
 }
 
 /** A name to act on, and the sync alert the action answers, if any. */
@@ -195,5 +226,6 @@ export function deleteDomains(domainNames: string[]): void {
     assignFolder(domain, null);
     setManualPrice(domain, null);
     deleteAskingPrices([domain]);
+    removeManualDomains([domain]);
   }
 }

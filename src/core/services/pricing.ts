@@ -3,7 +3,11 @@ import type { RegistrarName } from '@aoxborrow/registrar-client';
 import { getBaseRenewal } from './base-pricing';
 import { Namespace } from '../storage/namespace';
 import { isUniformTld } from '../../shared/tlds';
-import type { RenewalPricing } from '../../shared/ipc';
+import type { RenewalPriceInput, RenewalPricing } from '../../shared/ipc';
+import { toCurrencyCode } from '../../shared/currencies';
+import { parseCanonicalAmount } from '../../shared/money';
+import { toRenewalPrice, type RenewalPrice } from '../../shared/renewal-prices';
+import { RENEWAL_PRICES_NAMESPACE } from '../storage/names';
 
 // Renewal-price resolver backing the Renewals dashboard and the Domains renewal
 // column. Prices come from four layers, most-accurate first:
@@ -29,7 +33,8 @@ import type { RenewalPricing } from '../../shared/ipc';
 //      (see base-pricing.ts). This is a local lookup, so the vast majority of
 //      domains resolve with no network call at all.
 //
-// All prices are treated as USD. This module is deliberately pure: it reads the
+// Your manual price carries its own currency, and so does a per-name quote;
+// TLD rates and the base database are USD. This module is deliberately pure: it reads the
 // bundled base rates, TLD rates, and manual overrides and assembles a
 // RenewalPricing — it never touches the network or a registrar client (that
 // lives in the sync).
@@ -68,9 +73,21 @@ export interface RenewalQuote {
   currency: string;
 }
 
-// Manual per-domain renewal overrides (USD), keyed by `toAscii(domain)` so an
-// override follows the name when it moves between accounts.
-const overrides = new Namespace<number>('domain-prices');
+// Manual per-domain renewal overrides, keyed by `toAscii(domain)` so an
+// override follows the name when it moves between accounts. Stored as a USD
+// number before schema 3 (see `toRenewalPrice`).
+const overrides = new Namespace<RenewalPrice>(RENEWAL_PRICES_NAMESPACE);
+
+/**
+ * A renewal price read from a data bundle, re-checked; null when it doesn't
+ * hold. A bundle before v7 stores a USD number, which becomes a USD amount.
+ */
+export function cleanRenewalPrice(
+  _key: string,
+  value: unknown,
+): RenewalPrice | null {
+  return toRenewalPrice(value);
+}
 
 // Shopper annual renewal (USD) per account + TLD, keyed `${accountId ?? registrar}:${tld}`.
 // Fetched during Sync, so "Clear cache" may drop it; the next Sync refills it.
@@ -100,13 +117,13 @@ export function resolvePricing(
   quote?: RenewalQuote,
   accountId?: string,
 ): RenewalPricing {
-  const manual = overrides.get(toAscii(domain));
-  if (typeof manual === 'number') {
+  const manual = toRenewalPrice(overrides.get(toAscii(domain)));
+  if (manual) {
     return {
       domain,
       registrar,
-      renewal: manual,
-      currency: 'USD',
+      renewal: Number(manual.amount),
+      currency: manual.currency,
       source: 'manual',
     };
   }
@@ -155,15 +172,34 @@ export function resolvePricing(
   };
 }
 
-/** Sets (number) or clears (null) a manual annual renewal price for a domain,
- *  whichever account holds it. */
-export function setManualPrice(domain: string, price: number | null): void {
+/** Sets or clears (null, or a zero amount) a manual annual renewal price for
+ *  a domain, in any currency, whichever account holds it. */
+export function setManualPrice(
+  domain: string,
+  price: RenewalPriceInput | null,
+): void {
   const key = assertDomainName(domain);
-  if (price === null || Number.isNaN(price)) {
+  if (price === null) {
     void overrides.delete(key);
-  } else {
-    void overrides.set(key, price);
+    return;
   }
+  const currency = toCurrencyCode(price.currency);
+  if (!currency) {
+    throw new Error(`Unknown currency ${price.currency.trim().toUpperCase()}.`);
+  }
+  const amount = parseCanonicalAmount(price.amount, currency, 'Renewal price');
+  if (amount === null || Number(amount) === 0) void overrides.delete(key);
+  else void overrides.set(key, { amount, currency });
+}
+
+/** Every manual renewal price, keyed by `toAscii(name)`. */
+export function getManualPrices(): Record<string, RenewalPrice> {
+  const out: Record<string, RenewalPrice> = {};
+  for (const [key, value] of Object.entries(overrides.all())) {
+    const price = toRenewalPrice(value);
+    if (price) out[key] = price;
+  }
+  return out;
 }
 
 /** Sets (number) or clears (null) a shopper annual renewal rate for a registrar + TLD. */
@@ -179,4 +215,14 @@ export function setTldRate(
   } else {
     void tldRates.set(key, price);
   }
+}
+
+/** Sets many names' manual renewal prices in one write (an import). */
+export function setManualPrices(
+  entries: [domain: string, RenewalPrice][],
+): void {
+  if (entries.length === 0) return;
+  void overrides.setMany(
+    entries.map(([domain, price]) => [assertDomainName(domain), price]),
+  );
 }

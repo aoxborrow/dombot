@@ -50,7 +50,7 @@ describe('buildBundle', () => {
     );
     expect(b.namespaces.meta).toBeUndefined();
     expect(b.namespaces.auth).toBeUndefined();
-    expect(b.version).toBe(6);
+    expect(b.version).toBe(8);
     expect(b.namespaces['registrar-credentials'].godaddy).toEqual({
       apiToken: 'k',
     });
@@ -196,7 +196,7 @@ describe('export → import', () => {
     });
     // Keyed by name; the second account's entry for the same name is dropped.
     expect(await store.list('domain-prices')).toEqual({
-      'xn--mnich-kva.de': 40,
+      'xn--mnich-kva.de': { amount: '40.00', currency: 'USD' },
     });
     expect(getFolders()).toEqual({
       folders: [{ id: 'f1', name: 'Keep', description: '', color: 'red' }],
@@ -206,13 +206,13 @@ describe('export → import', () => {
       expect(await store.list(old)).toEqual({});
   });
 
-  it('imports a v4 file (no history yet) and refuses one newer than v6', async () => {
+  it('imports a v4 file (no history yet) and refuses one newer than v8', async () => {
     await seed();
     const v4 = { ...buildBundle(APP), version: 4 };
     await importBundle(JSON.stringify(v4));
     expect(getFolders().folders.map((f) => f.name)).toEqual(['Keepers']);
-    expect(buildBundle(APP).version).toBe(6);
-    expect(() => parseBundle(JSON.stringify({ ...v4, version: 7 }))).toThrow(
+    expect(buildBundle(APP).version).toBe(8);
+    expect(() => parseBundle(JSON.stringify({ ...v4, version: 9 }))).toThrow(
       /newer DomBot/,
     );
   });

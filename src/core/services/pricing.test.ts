@@ -88,7 +88,7 @@ describe('resolvePricing precedence', () => {
 
   it('a manual override beats both quote and base', () => {
     getBaseRenewal.mockReturnValue(9.99);
-    pricing.setManualPrice('example.com', 25);
+    pricing.setManualPrice('example.com', { amount: '25.00', currency: 'USD' });
     const p = pricing.resolvePricing(reg('dynadot'), 'example.com', {
       renewal: 42,
       currency: 'USD',
@@ -115,7 +115,10 @@ describe('resolvePricing precedence', () => {
 
   it('a manual override beats a user TLD rate', () => {
     pricing.setTldRate(reg('godaddy'), 'com', 8.99);
-    pricing.setManualPrice('premium.com', 199);
+    pricing.setManualPrice('premium.com', {
+      amount: '199.00',
+      currency: 'USD',
+    });
     expect(pricing.resolvePricing(reg('godaddy'), 'cheap.com')).toMatchObject({
       renewal: 8.99,
       source: 'tld',
@@ -136,7 +139,7 @@ describe('resolvePricing precedence', () => {
 describe('setManualPrice', () => {
   it('sets then clears an override (null deletes the key)', () => {
     getBaseRenewal.mockReturnValue(9.99);
-    pricing.setManualPrice('example.com', 25);
+    pricing.setManualPrice('example.com', { amount: '25.00', currency: 'USD' });
     expect(pricing.resolvePricing(reg('dynadot'), 'example.com').source).toBe(
       'manual',
     );
@@ -147,9 +150,9 @@ describe('setManualPrice', () => {
     );
   });
 
-  it('treats NaN as a clear', () => {
-    pricing.setManualPrice('example.com', 25);
-    pricing.setManualPrice('example.com', Number.NaN);
+  it('treats a zero amount as a clear', () => {
+    pricing.setManualPrice('example.com', { amount: '25.00', currency: 'USD' });
+    pricing.setManualPrice('example.com', { amount: '0', currency: 'USD' });
     getBaseRenewal.mockReturnValue(null);
     expect(pricing.resolvePricing(reg('dynadot'), 'example.com').source).toBe(
       'unavailable',
@@ -157,15 +160,38 @@ describe('setManualPrice', () => {
   });
 
   it('persists overrides to the store', async () => {
-    pricing.setManualPrice('example.com', 25);
+    pricing.setManualPrice('example.com', { amount: '25.00', currency: 'USD' });
     await storage.flushWrites();
     expect(await store.list('domain-prices')).toEqual({
-      'example.com': 25,
+      'example.com': { amount: '25.00', currency: 'USD' },
+    });
+  });
+
+  it('keeps a manual price in its own currency', () => {
+    pricing.setManualPrice('example.com', { amount: '1500', currency: 'jpy' });
+    expect(pricing.resolvePricing(reg('dynadot'), 'example.com')).toMatchObject(
+      { renewal: 1500, currency: 'JPY', source: 'manual' },
+    );
+    expect(() =>
+      pricing.setManualPrice('example.com', { amount: '9.5', currency: 'JPY' }),
+    ).toThrow('JPY uses no decimal places.');
+    expect(() =>
+      pricing.setManualPrice('example.com', { amount: '9', currency: 'XYZ' }),
+    ).toThrow('Unknown currency XYZ.');
+  });
+
+  it('still reads a price stored as a USD number', async () => {
+    await store.put('domain-prices', 'old.com', 12.5);
+    await storage.hydrateStores();
+    expect(pricing.resolvePricing(reg('dynadot'), 'old.com')).toMatchObject({
+      renewal: 12.5,
+      currency: 'USD',
+      source: 'manual',
     });
   });
 
   it('keys by name, so the override follows the domain to another account', () => {
-    pricing.setManualPrice('Münich.DE', 40);
+    pricing.setManualPrice('Münich.DE', { amount: '40.00', currency: 'USD' });
     expect(
       pricing.resolvePricing(
         reg('dynadot'),

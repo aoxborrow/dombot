@@ -15,7 +15,7 @@ import {
   getFolders,
   updateFolder,
 } from '../services/folders';
-import { setManualPrice } from '../services/pricing';
+import { getManualPrices, setManualPrice } from '../services/pricing';
 import {
   getPurchases,
   setNotes,
@@ -32,6 +32,11 @@ import {
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
 import { getAskingPrices, setAskingPrices } from '../services/asking-prices';
+import { importDomains, planImport } from '../services/domain-import';
+import {
+  getManualDomains,
+  updateManualDomain,
+} from '../services/manual-domains';
 import { lookupRegistrations } from '../services/registration-lookup';
 import {
   getRegistrarCatalog,
@@ -180,7 +185,8 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     // registrars. Drop it and hydrate nothing.
     if (getConfiguredRegistrars().length === 0) {
       clearAll();
-      return { portfolio: null, detail: {}, pricing: {} };
+      // Manual names aren't registrar data: their pricing stays.
+      return { portfolio: null, detail: {}, pricing: getPortfolioPricing() };
     }
     return {
       portfolio: getCachedPortfolio(),
@@ -205,8 +211,9 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
 
   // ── Pricing ───────────────────────────────────────────────────────────────
   getPortfolioPricing: method(none, async () => getPortfolioPricing()),
+  getManualPrices: method(none, async () => getManualPrices()),
   setManualPrice: method(
-    z.tuple([s.domainName, z.number().nullable()]),
+    z.tuple([s.domainName, s.renewalPriceInput.nullable()]),
     async (domain, price) => {
       setManualPrice(domain, price);
     },
@@ -366,6 +373,26 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   setNotes: method(
     z.tuple([s.domainName, s.noteText]),
     async (domainName, notes) => setNotes(domainName, notes),
+  ),
+
+  // ── Domain import ─────────────────────────────────────────────────────────
+  previewDomainImport: method(
+    z.tuple([s.importRows, s.importOptions]),
+    async (rows, options) => planImport(rows, options),
+  ),
+  importDomains: method(
+    z.tuple([s.importRows, s.importApply]),
+    async (rows, options) => importDomains(rows, options),
+  ),
+
+  // ── Manual domains ────────────────────────────────────────────────────────
+  getManualDomains: method(none, async () => getManualDomains()),
+  updateManualDomain: method(
+    z.tuple([s.domainName, s.manualDomainFields]),
+    async (domainName, fields) => {
+      updateManualDomain(domainName, fields);
+      return getManualDomains();
+    },
   ),
 
   // ── Asking prices ─────────────────────────────────────────────────────────

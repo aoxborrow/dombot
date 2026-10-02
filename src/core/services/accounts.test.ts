@@ -188,7 +188,7 @@ describe('multi-account storage, routing and portable migration', () => {
     writeEntry('detail', 'dynadot:legacy.com', {
       nameservers: ['ns.legacy.com'],
     });
-    setManualPrice('legacy.com', 17);
+    setManualPrice('legacy.com', { amount: '17.00', currency: 'USD' });
     const folder = createFolder({
       name: 'Keep',
       color: 'green',
@@ -403,7 +403,7 @@ describe('multi-account storage, routing and portable migration', () => {
     expect(getCachedDetail()[domainKey(target)]).toBeDefined();
     await invoke('setManualPrice', coreMethods.setManualPrice, [
       'company.com',
-      19,
+      { amount: '19', currency: 'USD' },
     ]);
     expect(getPortfolioPricing()[domainKey(target)].renewal).toBe(19);
     const job = startBulk([target], {
@@ -520,7 +520,7 @@ describe('multi-account storage, routing and portable migration', () => {
   it('round trips current desktop/web encrypted storage and imports legacy v1 without re-entering credentials', async () => {
     const company = await twoAccounts();
     const text = exportBundle({ ...APP, platform: 'darwin' });
-    expect(JSON.parse(text).version).toBe(6);
+    expect(JSON.parse(text).version).toBe(8);
     const raw = new MemoryDocStore();
     const key = crypto.getRandomValues(new Uint8Array(32));
     configureStore(new EncryptedDocStore(raw, await aesGcmCipher(key)));
@@ -578,7 +578,7 @@ describe('multi-account storage, routing and portable migration', () => {
     await getPortfolio();
     await getDomainDetail('dynadot', 'shared.com', true, 'dynadot');
     await getDomainDetail('dynadot', 'shared.com', true, company.id);
-    setManualPrice('shared.com', 20);
+    setManualPrice('shared.com', { amount: '20.00', currency: 'USD' });
     expect(getCachedDetail()['dynadot:shared.com'].nameservers).toEqual([
       'ns.personal.com',
     ]);
