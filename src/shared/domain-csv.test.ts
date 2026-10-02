@@ -36,6 +36,7 @@ function ctx(partial: Partial<DomainCsvContext> = {}): DomainCsvContext {
     purchases: {},
     askingPrices: {},
     pricing: {},
+    manualPrices: {},
     archiveLabel: () => null,
     accountName: (d) => (d.registrar === 'godaddy' ? 'GoDaddy #2' : 'Dynadot'),
     now: NOW,
@@ -132,14 +133,8 @@ describe('domainsToCsv', () => {
               updatedAt: 1,
             },
           },
-          pricing: {
-            'dynadot:münich.de': {
-              domain: 'münich.de',
-              registrar: 'dynadot',
-              renewal: 9,
-              currency: 'EUR',
-              source: 'manual',
-            },
+          manualPrices: {
+            'xn--mnich-kva.de': { amount: '9.00', currency: 'EUR' },
           },
         }),
       ),
@@ -178,6 +173,7 @@ describe('domainsToCsv', () => {
           folders,
           assignments: { 'a.com': 'f1', 'b.com': HIDDEN_FOLDER_ID },
           archiveLabel: (name) => (name === 'c.com' ? 'sold' : null),
+          manualPrices: { 'c.com': { amount: '12.00', currency: 'USD' } },
         }),
       ),
     );
@@ -187,7 +183,10 @@ describe('domainsToCsv', () => {
       ['Sold', ''],
     ]);
     // A name no account holds has no registrar-reported values.
+    // Your renewal price is kept, so the file imports back the same.
     expect(rows[2]).toMatchObject({
+      'Renewal price': '12.00',
+      'Renewal currency': 'USD',
       Account: '',
       'Auto-renew': '',
       Locked: '',

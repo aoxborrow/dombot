@@ -192,6 +192,16 @@ export function setManualPrice(
   else void overrides.set(key, { amount, currency });
 }
 
+/** Every manual renewal price, keyed by `toAscii(name)`. */
+export function getManualPrices(): Record<string, RenewalPrice> {
+  const out: Record<string, RenewalPrice> = {};
+  for (const [key, value] of Object.entries(overrides.all())) {
+    const price = toRenewalPrice(value);
+    if (price) out[key] = price;
+  }
+  return out;
+}
+
 /** Sets (number) or clears (null) a shopper annual renewal rate for a registrar + TLD. */
 export function setTldRate(
   registrar: RegistrarName,
@@ -205,16 +215,6 @@ export function setTldRate(
   } else {
     void tldRates.set(key, price);
   }
-}
-
-/** Every manual renewal price, keyed by `toAscii(name)`. */
-export function getManualPrices(): Record<string, RenewalPrice> {
-  const out: Record<string, RenewalPrice> = {};
-  for (const [key, value] of Object.entries(overrides.all())) {
-    const price = toRenewalPrice(value);
-    if (price) out[key] = price;
-  }
-  return out;
 }
 
 /** Sets many names' manual renewal prices in one write (an import). */

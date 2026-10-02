@@ -1004,9 +1004,14 @@ export default function Domains() {
   // Distinct filter options with per-option domain counts, derived from the
   // loaded portfolio. Counts are over the whole portfolio (independent of the
   // other active filters), matching the Nameservers and Folder filters.
+  // Manual names count alongside the registrar rows.
+  const ownedRows = useMemo(
+    () => [...portfolio, ...manualList],
+    [portfolio, manualList],
+  );
   const tldOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const d of portfolio) {
+    for (const d of ownedRows) {
       const t = tldOf(d.domainName);
       if (t) counts.set(t, (counts.get(t) ?? 0) + 1);
     }
@@ -1015,7 +1020,7 @@ export default function Domains() {
       label: `.${value}`,
       count,
     })).sort((a, b) => a.value.localeCompare(b.value));
-  }, [portfolio]);
+  }, [ownedRows]);
   // One option per account (keyed by account id), so accounts of the same
   // registrar can be filtered apart or, by multi-selecting, together. Labelled
   // "Registrar · nickname" / "Registrar #2" / "Registrar".
@@ -1061,27 +1066,27 @@ export default function Domains() {
   // Expiration windows are cumulative, so their counts intentionally overlap
   // (a domain due in 20 days matches the 30-, 60-, and 90-day options).
   const askingOptions = useMemo(() => {
-    const priced = portfolio.filter(
+    const priced = ownedRows.filter(
       (d) => askingPrices[toAscii(d.domainName)],
     ).length;
     return [
       { value: PRICED, label: 'Has a price', count: priced },
-      { value: UNPRICED, label: 'No price', count: portfolio.length - priced },
+      { value: UNPRICED, label: 'No price', count: ownedRows.length - priced },
     ];
-  }, [portfolio, askingPrices]);
+  }, [ownedRows, askingPrices]);
 
   const expiryOptions = useMemo(
     () =>
       EXPIRY_OPTIONS.map((o) => ({
         ...o,
-        count: portfolio.reduce(
+        count: ownedRows.reduce(
           (n, d) =>
             n +
             (matchesExpiryOption(o.value, daysUntil(d.expirationDate)) ? 1 : 0),
           0,
         ),
       })),
-    [portfolio],
+    [ownedRows],
   );
 
   // Nameserver groups (by base domain, with per-provider splits) plus the set of
@@ -1447,6 +1452,7 @@ export default function Domains() {
         purchases,
         askingPrices,
         pricing,
+        manualPrices: await window.api.getManualPrices(),
         archiveLabel: (name) => ownership.get(name)?.label ?? null,
         accountName: (d) =>
           accountName(registrars, d.accountId ?? d.registrar) ??

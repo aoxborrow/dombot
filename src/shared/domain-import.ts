@@ -236,26 +236,29 @@ function readRow(
     amounts: Partial<Record<ImportField, string>>;
     currency: CurrencyCode;
   } | null => {
+    // What the row says the currency is, apart from the amounts. A bare "$"
+    // reads as that currency when it's a dollar.
+    const columnCurrency = currencyOf(currencyField);
+    const hinted = fields.map((f) => hints[f]).find(Boolean);
+    const stated =
+      columnCurrency ??
+      rowCurrency ??
+      (hinted ? readCurrency(hinted, pref) : null);
     const read = fields.map(
-      (f) => [f, at(f, () => readMoney(cells[f] ?? '', pref))] as const,
+      (f) =>
+        [f, at(f, () => readMoney(cells[f] ?? '', stated ?? pref))] as const,
     );
     if (read.every(([, m]) => !m)) return null;
     const named = read.map(([, m]) => m?.currency).filter(Boolean);
-    const columnCurrency = currencyOf(currencyField);
-    const hinted = fields.map((f) => hints[f]).find(Boolean);
-    const currency =
-      named[0] ??
-      columnCurrency ??
-      rowCurrency ??
-      (hinted ? readCurrency(hinted, pref) : null) ??
-      readCurrency(setup.defaults.currency, pref);
-    if (!currency) throw new Error(`${label(fields[0])}: choose a currency.`);
     if (new Set(named).size > 1)
       throw new Error(`${label(fields[0])}: the amounts name two currencies.`);
-    if (named[0] && columnCurrency && named[0] !== columnCurrency)
+    if (named[0] && stated && named[0] !== stated)
       throw new Error(
-        `${label(fields[0])}: the amount says ${named[0]}, the currency column says ${columnCurrency}.`,
+        `${label(fields[0])}: the amount says ${named[0]}, the row says ${stated}.`,
       );
+    const currency =
+      named[0] ?? stated ?? readCurrency(setup.defaults.currency, pref);
+    if (!currency) throw new Error(`${label(fields[0])}: choose a currency.`);
     const amounts: Partial<Record<ImportField, string>> = {};
     for (const [f, m] of read)
       if (m) amounts[f] = at(f, () => fitAmount(m.value, currency));

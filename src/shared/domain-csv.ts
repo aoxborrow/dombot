@@ -8,6 +8,7 @@ import {
   type Domain,
   type DomainPurchase,
   type Folder,
+  type RenewalPriceInput,
   type RenewalPricing,
 } from './ipc';
 import type { ArchiveLabel } from './ownership';
@@ -29,8 +30,13 @@ export interface DomainCsvContext {
   purchases: Record<string, DomainPurchase>;
   /** `toAscii(name)` → asking price. */
   askingPrices: Record<string, AskingPrice>;
-  /** `domainKey(row)` → renewal pricing. */
+  /** `domainKey(row)` → renewal pricing (for the estimate). */
   pricing: Record<string, RenewalPricing>;
+  /**
+   * `toAscii(name)` → your renewal price (`getManualPrices`). Keyed by name so
+   * Archive names, which have no pricing entry, keep theirs.
+   */
+  manualPrices: Record<string, RenewalPriceInput>;
   /** Why a name is in Archive, or null while you own it. */
   archiveLabel: (name: string) => ArchiveLabel | null;
   /** The account a row comes from, as DomBot names it ("Dynadot #2"). */
@@ -94,10 +100,7 @@ const registration = (r: NameRow, value: () => string) =>
 const purchase = (r: NameRow) => r.ctx.purchases[r.key];
 const asking = (r: NameRow) => r.ctx.askingPrices[r.key];
 const pricing = (r: NameRow) => r.ctx.pricing[domainKey(r.domain)];
-const manualPrice = (r: NameRow) => {
-  const p = pricing(r);
-  return p?.source === 'manual' && p.renewal != null ? p : null;
-};
+const manualPrice = (r: NameRow) => r.ctx.manualPrices[r.key];
 
 /** The columns, in file order (see the plan's "Columns" table). */
 export const DOMAIN_CSV_COLUMNS: DomainCsvColumn[] = [
@@ -163,8 +166,7 @@ export const DOMAIN_CSV_COLUMNS: DomainCsvColumn[] = [
     importable: true,
     numeric: true,
     value: (r) => {
-      const p = manualPrice(r);
-      return p ? decimal(p.renewal!, p.currency) : '';
+      return manualPrice(r)?.amount ?? '';
     },
   },
   {

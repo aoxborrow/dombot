@@ -389,8 +389,34 @@ describe('rows', () => {
       ),
     );
     expect(r.issues[0].message).toBe(
-      'Purchase amount: the amount says EUR, the currency column says USD.',
+      'Purchase amount: the amount says EUR, the row says USD.',
     );
+  });
+
+  it("refuses an amount whose currency disagrees with the row's Currency or the header", () => {
+    const row = run(
+      ['Domain,Purchase amount,Currency', 'example.com,$10,EUR'].join('\n'),
+    );
+    expect(row.issues[0].message).toBe(
+      'Purchase amount: the amount says USD, the row says EUR.',
+    );
+    const header = run(
+      ['Domain,Purchase amount (USD)', 'example.com,€10'].join('\n'),
+    );
+    expect(header.issues[0].message).toBe(
+      'Purchase amount: the amount says EUR, the row says USD.',
+    );
+  });
+
+  it("reads a bare $ as the row's dollar currency", () => {
+    const r = run(
+      ['Domain,Purchase amount,Currency', 'example.com,$10,CAD'].join('\n'),
+    );
+    expect(r.issues).toEqual([]);
+    expect(r.rows[0].purchase).toMatchObject({
+      amount: '10.00',
+      currency: 'CAD',
+    });
   });
 
   it('reads day-first dates when the column says so, and asks when it cannot tell', () => {
