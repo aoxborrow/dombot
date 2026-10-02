@@ -261,6 +261,44 @@ describe('importing domains', () => {
     expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
   });
 
+  it('brings a sold manual name back to Owned on a buy-back', () => {
+    apply([
+      row('a.com', {
+        purchase: { date: '2018-01-01', amount: '10.00', currency: 'USD' },
+      }),
+    ]);
+    apply([row('a.com', { sale: { date: '2019-01-01' } })]);
+    expect(getManualDomains()['a.com']).toBeDefined();
+    expect(ownershipByDomain(listEvents()).get('a.com')?.label).toBe('sold');
+
+    const plan = apply([
+      row('a.com', { purchase: { date: '2023-01-01', amount: '80.00' } }),
+    ]);
+    expect(plan.outcomes[0].changes).toContainEqual({
+      field: 'Status',
+      from: 'Sold',
+      to: 'Owned',
+    });
+    expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
+  });
+
+  it('warns that a labeled name stays in Archive, with or without a Status column', () => {
+    apply([row('a.com', { status: 'dropped' })]);
+    const plan = planImport([row('a.com', { notes: 'hi' })], UPDATE);
+    expect(plan.outcomes[0].warnings).toContainEqual(
+      expect.stringMatching(/in Archive as Dropped, so it stays there/),
+    );
+  });
+
+  it('clears the typed registrar when a known one replaces it', () => {
+    apply([row('a.com', { registration: { registrarLabel: 'Epik' } })]);
+    apply([row('a.com', { registration: { registrar: 'gandi' } })]);
+    expect(getManualDomains()['a.com']).toMatchObject({
+      registrar: 'gandi',
+      registrarLabel: null,
+    });
+  });
+
   it('creates missing folders once, and knows Hidden', () => {
     const plan = apply([
       row('a.com', { folder: 'Brandables' }),

@@ -217,6 +217,8 @@ function compute(
           fields[f],
         );
       }
+      // A known registrar has no typed label.
+      if (next.registrar) next.registrarLabel = null;
       if (changes.length > 0)
         writes.manual.push([key, { ...next, updatedAt: now }]);
     } else {
@@ -252,10 +254,25 @@ function compute(
         );
         change('Added', null, 'Owned');
       }
-      if (userLabel && !buyBack && row.status === 'owned')
+    }
+    // A name you labeled stays in Archive unless the row buys it back.
+    if (!account && userLabel && !toArchive) {
+      if (!buyBack)
         warnings.push(
           `It's in Archive as ${LABEL[label!]}, so it stays there. Use Move back to Owned to change that.`,
         );
+      else if (isManual) {
+        writes.events.push(
+          fresh({
+            domain: key,
+            type: DomainEventType.Added,
+            date: localDay(now),
+            accountId: null,
+            source: DomainEventSource.Import,
+          }),
+        );
+        change('Status', LABEL[label!], 'Owned');
+      }
     }
 
     // ── what you paid ───────────────────────────────────────────────────────
