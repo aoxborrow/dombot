@@ -11,14 +11,9 @@ import { isPublicIpv4, parseProxy } from '../../../shared/proxy';
 import { RegistrarLogo } from '../../components/RegistrarLogo';
 import { isDemo, isWeb } from '../../lib/platform';
 import { Button } from '@/components/ui/button';
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
+import { FieldGroup } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { SettingsCard } from './SettingsCard';
+import { SettingsCard, SettingsField } from './SettingsCard';
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -55,8 +50,7 @@ export default function ProxySettings() {
       .catch((err) => setError(errorMessage(err)));
   }, []);
 
-  // The demo shows the page but takes no edits and makes no connections.
-  const locked = busy !== null || settings === null || isDemo();
+  const locked = busy !== null || settings === null;
   const saved = settings?.proxy ?? null;
   const users = settings?.users ?? [];
   const filled = Boolean(url.trim() && egressIp.trim());
@@ -81,6 +75,9 @@ export default function ProxySettings() {
 
   const run = async (kind: 'save' | 'test' | 'remove') => {
     setError(null);
+    // The demo lets you fill in the form and press the buttons, but saves
+    // nothing and makes no connections.
+    if (isDemo()) return;
     if (kind === 'test') {
       // Testing needs only the URL — the outgoing address is what it reveals.
       if (!url.trim()) {
@@ -143,7 +140,7 @@ export default function ProxySettings() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-xl font-bold">Proxy</h2>
+        <h2 className="text-2xl font-bold">Proxy</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Some registrars only accept API requests from an address you have
           whitelisted. If the machine running DomBot doesn&apos;t have a fixed
@@ -161,13 +158,11 @@ export default function ProxySettings() {
           }}
         >
           <FieldGroup className="gap-4">
-            <Field className="gap-1.5">
-              <FieldLabel htmlFor="proxy-url">Proxy URL</FieldLabel>
-              <FieldDescription className="text-[13px]">
-                An HTTP or HTTPS CONNECT proxy, by hostname or public IPv4
-                address. Prefer HTTPS when the proxy needs a username and
-                password; an HTTP proxy receives them unencrypted.
-              </FieldDescription>
+            <SettingsField
+              label="Proxy URL"
+              htmlFor="proxy-url"
+              description="An HTTP or HTTPS CONNECT proxy, by hostname or public IPv4 address. Prefer HTTPS when the proxy needs a username and password; an HTTP proxy receives them unencrypted."
+            >
               <div className="flex items-start gap-2">
                 <Input
                   id="proxy-url"
@@ -201,17 +196,19 @@ export default function ProxySettings() {
                   http://user:pass@203.0.113.10:3128
                 </code>
               </p>
-            </Field>
-            <Field className="gap-1.5">
-              <FieldLabel htmlFor="proxy-egress-ip">
-                Proxy IPv4 address
-              </FieldLabel>
-              <FieldDescription className="text-[13px]">
-                The outgoing IP address registrars see, which may differ from
-                the proxy endpoint. Whitelist it in each registrar&apos;s API
-                settings. Clicking the &ldquo;Test&rdquo; button will fill in
-                the IP address here.
-              </FieldDescription>
+            </SettingsField>
+            <SettingsField
+              label="Proxy IPv4 address"
+              htmlFor="proxy-egress-ip"
+              description={
+                <>
+                  The outgoing IP address registrars see, which may differ from
+                  the proxy endpoint. Whitelist it in each registrar&apos;s API
+                  settings. Clicking the &ldquo;Test&rdquo; button will fill in
+                  the IP address here.
+                </>
+              }
+            >
               <Input
                 id="proxy-egress-ip"
                 autoComplete="off"
@@ -225,7 +222,7 @@ export default function ProxySettings() {
                   setTest(null);
                 }}
               />
-            </Field>
+            </SettingsField>
           </FieldGroup>
 
           {isWeb() && (

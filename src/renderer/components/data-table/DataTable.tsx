@@ -9,9 +9,18 @@ import {
   ChevronsUpDown,
 } from 'lucide-react';
 import { DomainTableScroll } from '../../lib/domain-table-scroll';
-import { PAGE_SIZES, usePreferences } from '../../lib/preferences';
+import { DensityMediumIcon, DensitySmallIcon } from '../icons/DensityIcons';
+import {
+  PAGE_SIZES,
+  usePreferences,
+  type Preferences,
+} from '../../lib/preferences';
 import { paginate, rangeKeys, type SortDir } from './table-state';
 import { cn } from '@/lib/utils';
+import {
+  SegmentedControl,
+  type SegmentedOption,
+} from '@/components/ui/segmented-control';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -98,6 +107,7 @@ export function DataTable<T>({
   className?: string;
 }) {
   const density = usePreferences((s) => s.density);
+  const setPreferences = usePreferences((s) => s.setPreferences);
   const {
     pageCount,
     page: current,
@@ -229,7 +239,9 @@ export function DataTable<T>({
               return (
                 <TableRow
                   key={key}
+                  // `group/row` lets a cell reveal controls on row hover.
                   className={cn(
+                    'group/row',
                     isSelected && 'bg-muted/50',
                     rowClassName?.(row, isSelected),
                   )}
@@ -311,6 +323,10 @@ export function DataTable<T>({
               </SelectGroup>
             </SelectContent>
           </Select>
+          <DensitySwitch
+            value={density}
+            onChange={(next) => setPreferences({ density: next })}
+          />
         </div>
 
         <div className="flex items-center justify-between gap-3 sm:justify-start">
@@ -362,6 +378,37 @@ export function DataTable<T>({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+const DENSITIES: SegmentedOption<Preferences['density']>[] = [
+  { value: 'normal', title: 'Normal rows', icon: DensityMediumIcon },
+  { value: 'compact', title: 'Compact rows', icon: DensitySmallIcon },
+];
+
+/**
+ * Row density beside Rows per page: a labelled icon pair for the same setting
+ * as Settings → General (it's remembered). Hidden on phones, which are always
+ * compact.
+ */
+function DensitySwitch({
+  value,
+  onChange,
+}: {
+  value: Preferences['density'];
+  onChange: (value: Preferences['density']) => void;
+}) {
+  return (
+    <div className="ml-3 flex items-center gap-2 max-sm:hidden">
+      <span id="density-label">Density</span>
+      <SegmentedControl
+        size="sm"
+        aria-labelledby="density-label"
+        value={value}
+        onChange={onChange}
+        options={DENSITIES}
+      />
     </div>
   );
 }
