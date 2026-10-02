@@ -19,7 +19,8 @@ import {
   resolvePending,
   exchangeAuthorizationCode,
 } from '../src/core/mcp/oauth';
-import { domainsToCsv } from '../src/renderer/lib/csv';
+import { domainsToCsv } from '../src/shared/domain-csv';
+import { parseCsv } from '../src/shared/csv';
 import type { Domain } from '../src/shared/ipc';
 import { openBundle } from '../src/shared/bundle-seal';
 
@@ -89,9 +90,19 @@ it('neutralizes formulas in exported account labels', () => {
     renewalDate: null,
     syncedAt: null,
   } as unknown as Domain;
-  expect(
-    domainsToCsv([domain], {}, [], {}).split('\r\n')[1].split(',')[1],
-  ).toBe("'=1+1");
+  const [headers, row] = parseCsv(
+    domainsToCsv([domain], {
+      registrarLabels: {},
+      folders: [],
+      assignments: {},
+      purchases: {},
+      askingPrices: {},
+      pricing: {},
+      archiveLabel: () => null,
+      accountName: (d) => d.accountLabel ?? '',
+    }),
+  );
+  expect(row[headers.indexOf('Account')]).toBe("'=1+1");
 });
 
 it('rejects attacker-chosen KDF work before invoking crypto', async () => {
