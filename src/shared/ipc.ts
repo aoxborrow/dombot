@@ -261,6 +261,8 @@ export interface RegistrationLookup {
   registrar: string | null;
   /** IANA Registrar ID from RDAP `publicIds`. Absent on rows cached before it was read. */
   registrarIanaId?: number | null;
+  /** The reseller RDAP names, when the registrar sold it through one. */
+  reseller?: string | null;
   /**
    * The registrar to show, mapped from the ID or name (data/registrar-mapping.json),
    * e.g. "Name.com". Added to each row as it's returned, never stored.

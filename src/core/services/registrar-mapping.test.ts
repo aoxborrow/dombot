@@ -85,6 +85,25 @@ describe('resolveRegistrar', () => {
     )?.toMatchObject({ registrar: 'dynadot' });
   });
 
+  it('shows a mapped reseller instead of its upstream registrar', () => {
+    expect(
+      resolveRegistrar({
+        ianaId: 269,
+        name: 'Key-Systems GmbH',
+        reseller: 'iwantmyname',
+      }),
+    ).toEqual({ registrar: null, label: 'iwantmyname' });
+    expect(resolveRegistrar({ ianaId: 69, reseller: 'Hover' })?.label).toBe(
+      'Hover',
+    );
+  });
+
+  it('ignores a reseller it has no mapping for', () => {
+    expect(
+      resolveRegistrar({ ianaId: 1068, reseller: 'Some Web Host LLC' }),
+    ).toMatchObject({ registrar: 'namecheap', label: 'Namecheap' });
+  });
+
   // WHOIS often has only the `Registrar:` string, or an ID we can't parse.
   it.each([
     ['GoDaddy.com, LLC', 'GoDaddy'],
@@ -96,6 +115,8 @@ describe('resolveRegistrar', () => {
     ['CanSpace Solutions Inc.', 'CanSpace'],
     ['DNC Holdings, Inc.', 'Directnic'],
     ['Gransy, s.r.o.', 'Regtons'],
+    ['Dotster, Inc.', 'Domain.com'],
+    ['Reg.com', 'Reg.ru'],
   ])('maps the WHOIS string %s to %s', (name, label) => {
     expect(resolveRegistrar({ name })?.label).toBe(label);
   });

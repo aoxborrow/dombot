@@ -48,15 +48,15 @@
   },
   "domaincom": {
     "name": "Domain.com",
-    "ianaIds": [886]
+    "ianaIds": [886],
+    "names": [
+      "Dotster",
+      "Dotster, Inc."
+    ]
   },
   "dotology": {
     "name": "Dotology",
     "ianaIds": [637]
-  },
-  "dotster": {
-    "name": "Dotster",
-    "ianaIds": []
   },
   "dreamhost": {
     "name": "DreamHost",
@@ -428,17 +428,16 @@
     "name": "Rebel.com",
     "ianaIds": [600]
   },
-  "regcom": {
-    "name": "Reg.com",
-    "ianaIds": []
-  },
   "registerto": {
     "name": "Register.TO",
     "ianaIds": []
   },
   "regru": {
     "name": "Reg.ru",
-    "ianaIds": [1606]
+    "ianaIds": [1606],
+    "names": [
+      "Reg.com"
+    ]
   },
   "regtons": {
     "name": "Regtons",

@@ -143,11 +143,12 @@ function registrarLabel(id: string, labels: RegistrarLabels): string {
   return labels[id] ?? id;
 }
 
-/** RDAP's own name and IANA ID behind a mapped registrar, for its tooltip. */
+/** RDAP's own registrar name, IANA ID and reseller, for the cell's tooltip. */
 function registrarDetail(lookup: RegistrationLookup): string | undefined {
   const parts = [
     lookup.registrar,
     lookup.registrarIanaId != null ? `IANA ${lookup.registrarIanaId}` : null,
+    lookup.reseller ? `reseller ${lookup.reseller}` : null,
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(' · ') : undefined;
 }

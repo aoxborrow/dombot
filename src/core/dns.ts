@@ -4,6 +4,8 @@
 // resolver first, Google's as a fallback; empty on any failure, timeout, or
 // undelegated domain — a missing nameserver list is cosmetic, never fatal.
 
+import { userAgentHeaders } from './app-info';
+
 const RESOLVERS = [
   'https://cloudflare-dns.com/dns-query',
   'https://dns.google/resolve',
@@ -51,7 +53,7 @@ export async function resolveNameservers(
     try {
       const url = `${base}?name=${encodeURIComponent(domainName)}&type=NS`;
       const res = await fetchImpl(url, {
-        headers: { accept: 'application/dns-json' },
+        headers: { accept: 'application/dns-json', ...userAgentHeaders() },
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
       if (!res.ok) continue;

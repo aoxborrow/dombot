@@ -53,6 +53,52 @@ describe('lookupRegistrations', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('sends a DomBot User-Agent', async () => {
+    let headers: Record<string, string> = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        headers = (init?.headers ?? {}) as Record<string, string>;
+        return new Response(JSON.stringify(registered), { status: 200 });
+      }),
+    );
+    await lookupRegistrations(['ua.com']);
+    expect(headers['user-agent']).toMatch(/^DomBot\//);
+  });
+
+  it('reads a nested reseller and shows it when mapped', async () => {
+    const viaReseller = {
+      ...registered,
+      entities: [
+        {
+          roles: ['registrar'],
+          publicIds: [{ type: 'IANA Registrar ID', identifier: '269' }],
+          vcardArray: ['vcard', [['fn', {}, 'text', 'Key-Systems GmbH']]],
+          entities: [
+            {
+              roles: ['reseller'],
+              vcardArray: ['vcard', [['fn', {}, 'text', 'iwantmyname']]],
+            },
+          ],
+        },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () => new Response(JSON.stringify(viaReseller), { status: 200 }),
+      ),
+    );
+    const rows = await lookupRegistrations(['resold.com']);
+    expect(rows['resold.com']).toMatchObject({
+      registrar: 'Key-Systems GmbH',
+      registrarIanaId: 269,
+      reseller: 'iwantmyname',
+      registrarLabel: 'iwantmyname',
+      mappedRegistrar: null,
+    });
+  });
+
   it('leaves a name out when the lookup fails', async () => {
     vi.stubGlobal(
       'fetch',

@@ -1,5 +1,6 @@
 import type { RegistrationLookup } from '../../shared/ipc';
 import { toAscii } from '../../shared/domain-name';
+import { userAgentHeaders } from '../app-info';
 import { Namespace } from '../storage/namespace';
 import { resolveRegistrar } from './registrar-mapping';
 
@@ -23,6 +24,7 @@ interface RdapEntity {
   roles?: string[];
   publicIds?: { type?: string; identifier?: string }[];
   vcardArray?: [string, unknown[][]];
+  entities?: RdapEntity[];
 }
 interface RdapDoc {
   events?: RdapEvent[];
@@ -46,28 +48,53 @@ function eventDate(doc: RdapDoc, action: string): string | null {
 interface RdapRegistrar {
   name: string | null;
   ianaId: number | null;
+  reseller: string | null;
+}
+
+function nameOf(entity: RdapEntity): string | null {
+  const card = entity.vcardArray?.[1] ?? [];
+  const fn = card.find((item) => item[0] === 'fn');
+  return typeof fn?.[3] === 'string' && fn[3].trim() ? fn[3].trim() : null;
+}
+
+/** The first entity with a role, at the top level or nested (RFC 9083). */
+function entityWithRole(
+  entities: RdapEntity[] | undefined,
+  role: string,
+): RdapEntity | null {
+  for (const entity of entities ?? []) {
+    if (entity.roles?.includes(role)) return entity;
+    const nested = entityWithRole(entity.entities, role);
+    if (nested) return nested;
+  }
+  return null;
 }
 
 function registrarOf(doc: RdapDoc): RdapRegistrar {
+  // A reseller the registrar sold the name through (iwantmyname at
+  // Key-Systems, Hover at Tucows). Only some responses carry one.
+  const resellerEntity = entityWithRole(doc.entities, 'reseller');
+  const reseller = resellerEntity ? nameOf(resellerEntity) : null;
   for (const entity of doc.entities ?? []) {
     if (!entity.roles?.includes('registrar')) continue;
-    const card = entity.vcardArray?.[1] ?? [];
-    const fn = card.find((item) => item[0] === 'fn');
-    const name =
-      typeof fn?.[3] === 'string' && fn[3].trim() ? fn[3].trim() : null;
+    const name = nameOf(entity);
     const id = entity.publicIds?.find(
       (pid) => pid.type?.toLowerCase() === 'iana registrar id',
     )?.identifier;
     const ianaId = id && /^\d+$/.test(id.trim()) ? Number(id.trim()) : null;
-    if (name || ianaId != null) return { name, ianaId };
+    if (name || ianaId != null) return { name, ianaId, reseller };
   }
-  return { name: null, ianaId: null };
+  return { name: null, ianaId: null, reseller };
 }
 
 /** The row as returned: the stored lookup plus its mapped registrar (#123). */
 function withMappedRegistrar(row: RegistrationLookup): RegistrationLookup {
   const mapped = row.registered
-    ? resolveRegistrar({ ianaId: row.registrarIanaId, name: row.registrar })
+    ? resolveRegistrar({
+        ianaId: row.registrarIanaId,
+        name: row.registrar,
+        reseller: row.reseller,
+      })
     : null;
   return {
     ...row,
@@ -83,7 +110,10 @@ async function queryRdap(name: string): Promise<RegistrationLookup | null> {
       `https://rdap.org/domain/${encodeURIComponent(name)}`,
       {
         redirect: 'follow',
-        headers: { accept: 'application/rdap+json, application/json' },
+        headers: {
+          accept: 'application/rdap+json, application/json',
+          ...userAgentHeaders(),
+        },
       },
     );
   } catch {
@@ -95,6 +125,7 @@ async function queryRdap(name: string): Promise<RegistrationLookup | null> {
       registered: false,
       registrar: null,
       registrarIanaId: null,
+      reseller: null,
       created: null,
       expires: null,
       checkedAt,
@@ -112,6 +143,7 @@ async function queryRdap(name: string): Promise<RegistrationLookup | null> {
     registered: true,
     registrar: registrar.name,
     registrarIanaId: registrar.ianaId,
+    reseller: registrar.reseller,
     created: eventDate(doc, 'registration'),
     expires: eventDate(doc, 'expiration'),
     checkedAt,

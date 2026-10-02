@@ -125,8 +125,9 @@ export function ianaRegistrarName(id: number): string | null {
 }
 
 /**
- * The registrar to show for a lookup result, tried in order: the IANA ID; the
- * name, against our mapped names and the IANA names of mapped IDs; IANA's name
+ * The registrar to show for a lookup result, tried in order: a reseller we've
+ * mapped (iwantmyname sells through Key-Systems' IANA ID, so only the reseller
+ * field tells them apart); the IANA ID; the name, against our mapped names and the IANA names of mapped IDs; IANA's name
  * for an unmapped ID; the raw name. Null when there's neither. Works from a
  * name alone, for WHOIS results with no `Registrar IANA ID:` line (or one we
  * couldn't parse) and for ccTLDs.
@@ -134,6 +135,8 @@ export function ianaRegistrarName(id: number): string | null {
 export function resolveRegistrar(input: {
   ianaId?: number | null;
   name?: string | null;
+  /** WHOIS `Reseller:` or an RDAP `reseller` entity. Unmapped ones are ignored. */
+  reseller?: string | null;
 }): ResolvedRegistrar | null {
   const { byId, byName } = mappingIndex();
   const hit = (key: string): ResolvedRegistrar => ({
@@ -142,16 +145,23 @@ export function resolveRegistrar(input: {
   });
   const id = input.ianaId ?? null;
   const name = input.name?.trim() || null;
+  const byNameKeys = (raw: string): string | undefined => {
+    for (const candidate of registrarNameKeys(raw)) {
+      const key = byName.get(candidate);
+      if (key) return key;
+    }
+    return undefined;
+  };
+  const reseller = input.reseller?.trim()
+    ? byNameKeys(input.reseller)
+    : undefined;
+  if (reseller) return hit(reseller);
   if (id != null) {
     const key = byId.get(id);
     if (key) return hit(key);
   }
-  if (name) {
-    for (const candidate of registrarNameKeys(name)) {
-      const key = byName.get(candidate);
-      if (key) return hit(key);
-    }
-  }
+  const named = name ? byNameKeys(name) : undefined;
+  if (named) return hit(named);
   const ianaName = id != null ? ianaNames.get(id) : undefined;
   if (ianaName) return { registrar: null, label: ianaName };
   if (name) return { registrar: null, label: name };
