@@ -114,7 +114,7 @@ const splitNames = (text: string) =>
     .split(/[\s,;]+/)
     .map((n) => n.trim())
     .filter(Boolean);
-type Filter = ImportOutcome['result'] | 'errors' | 'all';
+type Filter = ImportOutcome['result'] | 'warnings' | 'errors' | 'all';
 
 const RESULT_LABEL: Record<ImportOutcome['result'], string> = {
   new: 'New',
@@ -132,6 +132,46 @@ const RESULT_STYLE: Record<ImportOutcome['result'] | 'error', string> = {
   unchanged: 'border-border text-muted-foreground',
   history: 'border-foreground/25 text-foreground',
   error: 'border-destructive/40 text-destructive',
+};
+
+/** A row that imports, with something worth a look. */
+const hasWarnings = (r: ReviewRow) =>
+  r.result !== 'error' && r.problems.length > 0;
+
+const WARNING_STYLE = 'border-amber-500/40 text-amber-600 dark:text-amber-400';
+
+/** Filter chips: the result's colors, outlined, and solid when chosen. */
+const CHIP_STYLE: Record<Filter, { outline: string; solid: string }> = {
+  all: {
+    outline: 'border-border text-foreground',
+    solid: 'border-foreground bg-foreground text-background',
+  },
+  new: {
+    outline: RESULT_STYLE.new,
+    solid:
+      'border-blue-700 bg-blue-700 text-white dark:border-blue-300 dark:bg-blue-300 dark:text-blue-950',
+  },
+  update: {
+    outline: RESULT_STYLE.update,
+    solid:
+      'border-indigo-600 bg-indigo-600 text-white dark:border-indigo-400 dark:bg-indigo-400 dark:text-indigo-950',
+  },
+  unchanged: {
+    outline: RESULT_STYLE.unchanged,
+    solid: 'border-muted-foreground bg-muted-foreground text-background',
+  },
+  history: {
+    outline: RESULT_STYLE.history,
+    solid: 'border-foreground bg-foreground text-background',
+  },
+  warnings: {
+    outline: WARNING_STYLE,
+    solid: 'border-amber-500 bg-amber-500 text-amber-950',
+  },
+  errors: {
+    outline: RESULT_STYLE.error,
+    solid: 'border-destructive bg-destructive text-white',
+  },
 };
 
 export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
@@ -642,7 +682,9 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
                   ? true
                   : filter === 'errors'
                     ? r.result === 'error'
-                    : r.result === filter,
+                    : filter === 'warnings'
+                      ? hasWarnings(r)
+                      : r.result === filter,
               )}
               registrars={ctx.registrars}
               money={(amount, currency) =>
@@ -1320,13 +1362,15 @@ function ReviewStep({
   onFilter: (f: Filter) => void;
 }) {
   const errors = built.issues.filter((i) => i.level === 'error');
+  const warnings = reviewRows(built, plan).filter(hasWarnings).length;
   const chips: { id: Filter; label: string; count: number }[] = [
     { id: 'all', label: 'All', count: plan.outcomes.length + errors.length },
     { id: 'new', label: 'New', count: plan.counts.new },
     { id: 'update', label: 'Updated', count: plan.counts.update },
     { id: 'unchanged', label: 'Unchanged', count: plan.counts.unchanged },
     { id: 'history', label: 'Archive', count: plan.counts.history },
-    { id: 'errors', label: 'Skipped', count: errors.length },
+    { id: 'warnings', label: 'Warnings', count: warnings },
+    { id: 'errors', label: 'Errors', count: errors.length },
   ];
 
   return (
@@ -1341,12 +1385,8 @@ function ReviewStep({
             className={cn(
               'rounded-full border px-3 py-1 text-xs tabular-nums disabled:opacity-40',
               filter === c.id
-                ? 'border-brand bg-brand/10 text-brand'
-                : 'hover:bg-accent',
-              c.id === 'errors' &&
-                c.count > 0 &&
-                filter !== c.id &&
-                'text-destructive',
+                ? CHIP_STYLE[c.id].solid
+                : cn(CHIP_STYLE[c.id].outline, 'hover:bg-accent'),
             )}
           >
             {c.label} {c.count.toLocaleString('en-US')}
@@ -1587,11 +1627,34 @@ function ReviewTable({
           className={cn(
             'px-1.5 py-0 text-[11px] leading-4',
             RESULT_STYLE[r.result],
+            r.problems.length > 0 && 'cursor-help',
           )}
+          // The issues on hover, so they're readable without scrolling.
+          title={r.problems.join('\n') || undefined}
         >
-          {r.result === 'error' ? 'Skipped' : RESULT_LABEL[r.result]}
+          {r.result === 'error' ? 'Error' : RESULT_LABEL[r.result]}
         </Badge>
       ),
+    },
+    {
+      key: 'problems',
+      label: 'Issues',
+      sortable: true,
+      cell: (r) =>
+        r.problems.length === 0 ? null : (
+          <span
+            className={cn(
+              'flex max-w-72 items-start gap-1.5 text-xs',
+              r.result === 'error'
+                ? 'text-destructive'
+                : 'text-amber-600 dark:text-amber-400',
+            )}
+            title={r.problems.join('\n')}
+          >
+            <CircleAlert className="mt-px size-3.5 shrink-0" />
+            <span className="truncate">{r.problems.join(' ')}</span>
+          </span>
+        ),
     },
     ...valueColumns.map((c): DataColumn<ReviewRow> => ({
       key: c.key,
@@ -1627,28 +1690,7 @@ function ReviewTable({
         );
       },
     })),
-    {
-      key: 'problems',
-      label: 'Issues',
-      sortable: true,
-      cell: (r) =>
-        r.problems.length === 0 ? null : (
-          <span
-            className={cn(
-              'flex max-w-96 items-start gap-1.5 text-xs',
-              r.result === 'error'
-                ? 'text-destructive'
-                : 'text-amber-600 dark:text-amber-400',
-            )}
-            title={r.problems.join('\n')}
-          >
-            <CircleAlert className="mt-px size-3.5 shrink-0" />
-            <span className="truncate">{r.problems.join(' ')}</span>
-          </span>
-        ),
-    },
   ];
-  // "Notes" is taken by the file's notes column when it has one.
 
   const sorted = useMemo(() => {
     const col = valueColumns.find((c) => c.key === sort.key);
@@ -1661,7 +1703,8 @@ function ReviewTable({
         case 'result':
           return r.result;
         case 'problems':
-          return r.problems.length || null;
+          // Errors, then warnings, then rows with nothing to look at.
+          return r.result === 'error' ? 2 : r.problems.length ? 1 : null;
         default:
           if (!col || !r.row) return null;
           return (col.sortValue ?? col.value)(r.row);
@@ -1681,6 +1724,11 @@ function ReviewTable({
       rows={sorted}
       columns={columns}
       rowKey={(r) => r.key}
+      rowClassName={(r) =>
+        r.result === 'error'
+          ? 'bg-red-500/[0.07] hover:bg-red-500/10'
+          : hasWarnings(r) && 'bg-amber-500/[0.05] hover:bg-amber-500/[0.08]'
+      }
       sort={sort}
       onSort={(key) => {
         setSort((s) =>
