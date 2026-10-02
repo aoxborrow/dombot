@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { domainKey } from '../../../shared/account-key';
 import {
   Archive,
@@ -118,6 +119,10 @@ export function RowActionsMenu({
     years: 1,
   });
 
+  // Notes opens an editor beside the row: the menu mustn't hand focus back
+  // to its trigger as it closes, or the editor's textarea loses the caret.
+  const keepFocus = useRef(false);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -132,7 +137,15 @@ export function RowActionsMenu({
           <Ellipsis />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
+      <DropdownMenuContent
+        align="end"
+        className="w-52"
+        onCloseAutoFocus={(e) => {
+          if (!keepFocus.current) return;
+          keepFocus.current = false;
+          e.preventDefault();
+        }}
+      >
         {/* Registrar and organizing actions: only for a name you own. */}
         {archive === null && (
           <>
@@ -201,7 +214,12 @@ export function RowActionsMenu({
         {/* Ownership, in the same order as on Activity. Purchase details and
             Mark as Sold open with what's saved (and the name's notes), so
             a sold name's Mark as Sold edits its sale. */}
-        <DropdownMenuItem onSelect={onNotes}>
+        <DropdownMenuItem
+          onSelect={() => {
+            keepFocus.current = true;
+            onNotes();
+          }}
+        >
           <StickyNoteIcon className="text-muted-foreground" />
           Notes<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
