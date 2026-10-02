@@ -1,6 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CircleAlert, FileUp, Info, Pencil, Upload } from 'lucide-react';
+import {
+  CircleAlert,
+  EyeOff,
+  FileUp,
+  Info,
+  Pencil,
+  Upload,
+} from 'lucide-react';
 import { decodeText, toCsv } from '../../../shared/csv';
 import { domainsCsvTemplate } from '../../../shared/domain-csv';
 import { newEventId } from '../../../shared/domain-events';
@@ -30,6 +37,8 @@ import { toUnicode } from '../../../shared/domain-name';
 import { DataTable, type DataColumn } from '../data-table/DataTable';
 import { sortRows, type SortDir } from '../data-table/table-state';
 import { CurrencyPicker } from './CurrencyPicker';
+import { folderColorStyle } from '../../lib/folders';
+import { FolderIcon } from '../icons/FolderIcon';
 import { FolderSelect } from './FolderSelect';
 import { MoneyInput } from './MoneyInput';
 import {
@@ -105,11 +114,15 @@ const RESULT_LABEL: Record<ImportOutcome['result'], string> = {
   history: 'Archive',
 };
 
-const RESULT_STYLE: Record<ImportOutcome['result'], string> = {
+// Activity's colors (EventTypeBadge): a name coming in is blue (added), a
+// change to one you keep indigo (renewed, moved), Archive neutral (removed),
+// and nothing to do muted gray. A skipped row is the one problem, in red.
+const RESULT_STYLE: Record<ImportOutcome['result'] | 'error', string> = {
   new: 'border-sky-500/40 text-sky-600 dark:text-sky-400',
-  update: 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
+  update: 'border-indigo-500/40 text-indigo-600 dark:text-indigo-400',
   unchanged: 'border-border text-muted-foreground',
-  history: 'border-purple-500/40 text-purple-600 dark:text-purple-400',
+  history: 'border-foreground/25 text-foreground',
+  error: 'border-destructive/40 text-destructive',
 };
 
 export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
@@ -608,6 +621,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
           )}
           {step === 'review' && built && plan && (
             <ReviewTable
+              folders={folders}
               rows={reviewRows(built, plan).filter((r) =>
                 filter === 'all'
                   ? true
@@ -1324,10 +1338,13 @@ function ReviewStep({
 function ReviewTable({
   rows,
   registrars,
+  folders,
   money,
 }: {
   rows: ReviewRow[];
   registrars: ImportContext['registrars'];
+  /** For each folder's color; a name that isn't one yet is created. */
+  folders: Folder[];
   money: (amount: string, currency: string) => string;
 }) {
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>({
@@ -1337,6 +1354,25 @@ function ReviewTable({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
 
+  /** The Folder filter's icon: the folder's color, Hidden's eye, gray if new. */
+  const folderIcon = (name: string) => {
+    if (name.toLowerCase() === 'hidden')
+      return <EyeOff className="size-3.5 shrink-0" aria-hidden />;
+    const folder = folders.find(
+      (f) => f.name.toLowerCase() === name.toLowerCase(),
+    );
+    return (
+      <FolderIcon
+        className={cn(
+          'size-3.5 shrink-0',
+          folder
+            ? folderColorStyle(folder.color).text
+            : 'text-muted-foreground',
+        )}
+        aria-hidden
+      />
+    );
+  };
   const registrarName = (id: string) =>
     registrars.find((r) => r.id === id)?.displayName ?? id;
   const allColumns: ValueColumn[] = [
@@ -1507,10 +1543,8 @@ function ReviewTable({
         <Badge
           variant="outline"
           className={cn(
-            'justify-center',
-            r.result === 'error'
-              ? 'border-destructive/40 text-destructive'
-              : RESULT_STYLE[r.result],
+            'px-1.5 py-0 text-[11px] leading-4',
+            RESULT_STYLE[r.result],
           )}
         >
           {r.result === 'error' ? 'Skipped' : RESULT_LABEL[r.result]}
@@ -1534,7 +1568,7 @@ function ReviewTable({
         return (
           <span
             className={cn(
-              'block max-w-64 truncate',
+              'flex max-w-64 items-center gap-1.5',
               !change && 'text-muted-foreground',
             )}
             title={
@@ -1545,14 +1579,15 @@ function ReviewTable({
                 : 'Already in DomBot, or kept'
             }
           >
-            {value}
+            {c.key === 'folder' && folderIcon(value)}
+            <span className="truncate">{value}</span>
           </span>
         );
       },
     })),
     {
       key: 'problems',
-      label: 'Problems',
+      label: 'Issues',
       sortable: true,
       cell: (r) =>
         r.problems.length === 0 ? null : (
