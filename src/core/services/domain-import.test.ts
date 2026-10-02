@@ -353,6 +353,7 @@ describe('importing domains', () => {
           purchases: getPurchases(),
           askingPrices: getAskingPrices(),
           pricing: getPortfolioPricing(),
+          manualPrices: getManualPrices(),
           archiveLabel: (name) => own.get(name)?.label ?? null,
           accountName: () => 'Manual',
           now: Date.parse('2026-06-15T00:00:00Z'),
