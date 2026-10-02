@@ -54,6 +54,8 @@ export type Domain = ProviderDomain & {
   registrationRegistrar?: string;
   /** RDAP's own name and IANA ID for that registrar, for a tooltip. */
   registrationRegistrarDetail?: string;
+  /** The built-in registrar that registrar maps to, for its logo. */
+  registrationRegistrarId?: RegistrarName;
 };
 
 /** The one proxy the app manages, and the saved accounts routed through it. */

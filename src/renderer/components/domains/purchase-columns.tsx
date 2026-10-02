@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { toAscii } from '../../../shared/domain-name';
 import type { Domain, DomainPurchase } from '../../../shared/ipc';
 import { formatMoney, type NumberFormatId } from '../../../shared/money';
-import { NotesButton } from './NotesButton';
 import { cn } from '@/lib/utils';
 
 type Labels = Record<string, string>;
@@ -62,7 +61,7 @@ function PurchaseCell({
   );
 }
 
-/** Purchase date, amount, and notes. History also gets sold date and amount first. */
+/** Purchase date and amount. History also gets sold date and amount first. */
 export function purchaseColumns({
   purchases,
   preferredCurrency,
@@ -194,21 +193,6 @@ export function purchaseColumns({
         const amount = recordOf(purchases, d)?.amount;
         return amount == null ? null : Number(amount);
       },
-    },
-    {
-      key: 'purchaseNotes',
-      label: 'Notes',
-      hideOnMobile: true,
-      // A sticky note: hover to read, click to edit (see NotesButton).
-      render: (d) => (
-        <span className="-my-2 flex">
-          <NotesButton
-            domainName={d.domainName}
-            notes={recordOf(purchases, d)?.notes ?? ''}
-          />
-        </span>
-      ),
-      sortValue: (d) => recordOf(purchases, d)?.notes?.toLowerCase() || null,
     },
   ];
 }
