@@ -80,10 +80,10 @@ describe('asking prices', () => {
         price('a.com', '100'),
         price('b.com', '100', { minOffer: '200' }),
       ]),
-    ).toThrow('b.com: The minimum offer is above the asking price.');
+    ).toThrow('b.com: The minimum offer is above the BIN price.');
     expect(() =>
       setAskingPrices([price('b.com', '100', { floor: '101' })]),
-    ).toThrow('The floor price is above the asking price.');
+    ).toThrow('The floor price is above the BIN price.');
     expect(getAskingPrices()).toEqual({});
   });
 

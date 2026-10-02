@@ -315,9 +315,9 @@ function readRow(
     const cap =
       askingPrice && Number(askingPrice) > 0 ? Number(askingPrice) : null;
     if (cap !== null && minOffer && Number(minOffer) > cap)
-      throw new Error('The minimum offer is above the asking price.');
+      throw new Error('The minimum offer is above the BIN price.');
     if (cap !== null && floorPrice && Number(floorPrice) > cap)
-      throw new Error('The floor price is above the asking price.');
+      throw new Error('The floor price is above the BIN price.');
     row.asking = {
       ...(askingPrice ? { amount: askingPrice } : {}),
       ...(minOffer ? { minOffer } : {}),

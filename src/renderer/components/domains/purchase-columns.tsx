@@ -125,7 +125,7 @@ export function purchaseColumns({
   const asking: PurchaseColumn[] =
     askingPrices && onEditAsking && !showSale
       ? [
-          askingColumn('askingPrice', 'Pricing', 'amount', 'Asking price'),
+          askingColumn('askingPrice', 'BIN price', 'amount', 'BIN price'),
           askingColumn('minOffer', 'Min offer', 'minOffer', 'Minimum offer'),
           askingColumn('floor', 'Floor', 'floor', 'Floor price'),
         ]

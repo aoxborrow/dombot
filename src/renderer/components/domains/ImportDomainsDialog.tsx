@@ -291,7 +291,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
         manual.amount,
         manual.currency,
         formatId,
-        'Asking price',
+        'BIN price',
       );
       minOffer = parseLocalizedAmount(
         manual.minOffer,
@@ -310,11 +310,11 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
       return;
     }
     if (amount && minOffer && Number(minOffer) > Number(amount)) {
-      setError('The minimum offer is above the asking price.');
+      setError('The minimum offer is above the BIN price.');
       return;
     }
     if (amount && floor && Number(floor) > Number(amount)) {
-      setError('The floor price is above the asking price.');
+      setError('The floor price is above the BIN price.');
       return;
     }
     const names = splitNames(manual.names);
@@ -322,7 +322,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
     const t: ImportTable = {
       headers: [
         'Domain',
-        'Asking price',
+        'BIN price',
         'Minimum offer',
         'Floor price',
         'Asking currency',
@@ -1013,7 +1013,7 @@ function ManualTab({
       </div>
       <div className="grid gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="import-asking">Asking price</Label>
+          <Label htmlFor="import-asking">BIN price</Label>
           <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
             {ASKING_HELP.amount}
           </p>
@@ -1610,7 +1610,7 @@ function ReviewTable({
     },
     {
       key: 'asking',
-      label: 'Pricing',
+      label: 'BIN price',
       field: 'Asking price',
       align: 'right',
       value: (r) =>

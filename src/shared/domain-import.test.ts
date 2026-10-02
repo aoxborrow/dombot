@@ -385,7 +385,7 @@ describe('rows', () => {
       [2, 'www.example.com is a subdomain. Did you mean example.com?'],
       [3, 'Purchase amount: JPY 10.5: JPY has no decimal places.'],
       [4, 'Purchase amount: -5 is negative.'],
-      [5, 'The minimum offer is above the asking price.'],
+      [5, 'The minimum offer is above the BIN price.'],
       [6, 'The Domain cell is empty.'],
     ]);
   });

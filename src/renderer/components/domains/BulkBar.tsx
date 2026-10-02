@@ -236,7 +236,7 @@ export function BulkBar({
             {!archiveView && (
               <DropdownMenuItem onSelect={onAskingPrice}>
                 <Tag className="text-muted-foreground" />
-                Asking price<span className="-ml-[6px] opacity-50">…</span>
+                Pricing<span className="-ml-[6px] opacity-50">…</span>
               </DropdownMenuItem>
             )}
             <DropdownMenuItem onSelect={onExport}>

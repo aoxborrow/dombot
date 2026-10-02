@@ -74,8 +74,8 @@ acorn.com,Removed,,,,,,,,,,,,,,,"Warning (demo): an account still reports it, so
 cadet.com,,,,,5000,,,USD,,,,,,,,"Warning (demo): in Archive as Sold, stays there (no Status)"
 indigo.io,,Brandables,,,,,,,,,,,,,,"Warning (demo): in Archive as Dropped, stays there (no Status)"
 cadet.com,Dropped,,,,,,,,,,,,,,,"Warning: same name twice, merged (the rows disagree)"
-err-min-offer-high.com,Owned,,,,500,900,,USD,,,,,,,,Skipped: minimum offer above asking price
-err-floor-high.com,Owned,,,,500,,700,USD,,,,,,,,Skipped: floor above asking price
+err-min-offer-high.com,Owned,,,,500,900,,USD,,,,,,,,Skipped: minimum offer above BIN price
+err-floor-high.com,Owned,,,,500,,700,USD,,,,,,,,Skipped: floor above BIN price
 err-negative.com,Owned,,,,,,,,,-5,USD,,,,,Skipped: negative amount
 err-not-amount.net,Owned,,,,,,,,,about fifty,USD,,,,,Skipped: not an amount
 err-currency-mismatch.io,Owned,,,,,,,,,€10,USD,,,,,"Skipped: amount says EUR, column says USD"

@@ -230,7 +230,7 @@ export function RowActionsMenu({
         {archive === null && (
           <DropdownMenuItem onSelect={onEditAsking}>
             <Tag className="text-muted-foreground" />
-            Asking price<span className="-ml-[6px] opacity-50">…</span>
+            Pricing<span className="-ml-[6px] opacity-50">…</span>
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />

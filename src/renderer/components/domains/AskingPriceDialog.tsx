@@ -76,12 +76,7 @@ export function AskingPriceDialog({
     if (!clear) {
       try {
         fields = {
-          amount: parseLocalizedAmount(
-            amount,
-            currency,
-            formatId,
-            'Asking price',
-          ),
+          amount: parseLocalizedAmount(amount, currency, formatId, 'BIN price'),
           minOffer: parseLocalizedAmount(
             minOffer,
             currency,
@@ -113,7 +108,7 @@ export function AskingPriceDialog({
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-md">
-        <ActionHeader title="Asking price" names={names} />
+        <ActionHeader title="Pricing" names={names} />
         <div className="flex flex-col gap-4">
           {mixed && (
             <p className="text-sm text-muted-foreground">
@@ -124,7 +119,7 @@ export function AskingPriceDialog({
           <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
             <PriceField
               id="asking-amount"
-              label="Asking price"
+              label="BIN price"
               help={ASKING_HELP.amount}
             >
               <MoneyInput

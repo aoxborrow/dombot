@@ -44,7 +44,7 @@ export function toAskingPrice(
     throw new Error(
       fields.currency?.trim()
         ? `Unknown currency ${fields.currency.trim().toUpperCase()}.`
-        : 'Choose a currency for the asking price.',
+        : 'Choose a currency for the pricing.',
     );
   }
   const amount = amountOf(fields.amount, currency, 'Asking price');
@@ -53,10 +53,10 @@ export function toAskingPrice(
   if (amount === null && minOffer === null && floor === null) return null;
   if (amount !== null) {
     if (minOffer !== null && Number(minOffer) > Number(amount)) {
-      throw new Error('The minimum offer is above the asking price.');
+      throw new Error('The minimum offer is above the BIN price.');
     }
     if (floor !== null && Number(floor) > Number(amount)) {
-      throw new Error('The floor price is above the asking price.');
+      throw new Error('The floor price is above the BIN price.');
     }
   }
   return {
