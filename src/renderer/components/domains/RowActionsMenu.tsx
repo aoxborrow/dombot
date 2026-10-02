@@ -10,6 +10,7 @@ import {
   Mail,
   OctagonMinus,
   Receipt,
+  Tag,
   RefreshCw,
   Trash2,
   Undo2,
@@ -55,6 +56,7 @@ export function RowActionsMenu({
   onRenew,
   onEditPurchase,
   onEditSale,
+  onEditAsking,
   onAssignFolder,
   archive,
   onMarkSold,
@@ -73,6 +75,7 @@ export function RowActionsMenu({
   onRenew: () => void;
   onEditPurchase: () => void;
   onEditSale: () => void;
+  onEditAsking: () => void;
   onAssignFolder: (folderId: string | null) => void;
   /** Why the name is in Archive, or null while you own it. */
   archive: ArchiveLabel | null;
@@ -184,6 +187,12 @@ export function RowActionsMenu({
           <Calculator className="text-muted-foreground" />
           Purchase details<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
+        {archive === null && (
+          <DropdownMenuItem onSelect={onEditAsking}>
+            <Tag className="text-muted-foreground" />
+            Asking price<span className="-ml-[6px] opacity-50">…</span>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={archive === 'sold' ? onEditSale : onMarkSold}

@@ -25,6 +25,7 @@ import { listEvents } from '../../core/services/domain-events';
 import { localDay } from '../../shared/domain-events';
 import { setDispositions } from '../../core/services/domain-history';
 import { setPurchase, setSale } from '../../core/services/purchases';
+import { setAskingPrices } from '../../core/services/asking-prices';
 import { MemoryDocStore } from '../../core/storage/doc-store';
 import { configureStore, hydrateStores } from '../../core/storage/namespace';
 import pkg from '../../../package.json';
@@ -171,6 +172,22 @@ function recordSampleHistory(): void {
   );
 }
 
+/** Asking prices on a few names, so the Asking column has something in it. */
+function recordSampleAskingPrices(): void {
+  const owned = getMergedPortfolio().domains.map((d) => d.domainName);
+  const samples = [
+    { amount: '4800', minOffer: '1500', floor: '2500', currency: 'USD' },
+    { amount: '12500', minOffer: '5000', floor: null, currency: 'USD' },
+    { amount: '950', minOffer: null, floor: null, currency: 'EUR' },
+    { amount: null, minOffer: '250', floor: null, currency: 'USD' },
+  ];
+  setAskingPrices(
+    samples
+      .map((s, i) => ({ domainName: owned[i * 2], ...s }))
+      .filter((s) => s.domainName),
+  );
+}
+
 /**
  * Boots a fresh in-memory core, installs the demo, runs the first sync so
  * the portfolio is full before anything renders, and returns the API.
@@ -187,6 +204,7 @@ export async function createDemoApi(
   // looks like the real thing.
   const demo = await installDemo({ latencyMs: 0, size: options.size });
   await getPortfolio(true);
+  recordSampleAskingPrices();
   if (options.sampleChanges) {
     stageSampleChanges(demo.world);
     await getPortfolio(true);

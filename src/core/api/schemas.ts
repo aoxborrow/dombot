@@ -113,6 +113,19 @@ export const purchaseInput = z
   })
   .strict();
 
+/** One name's asking price; every amount blank clears it. */
+export const askingPriceInput = z
+  .object({
+    domainName: z.string().trim().min(1).max(253),
+    amount: z.string().max(40).nullable(),
+    minOffer: z.string().max(40).nullable(),
+    floor: z.string().max(40).nullable(),
+    currency: z.string().max(10).nullable(),
+  })
+  .strict();
+
+export const askingPriceInputs = z.array(askingPriceInput).min(1).max(10000);
+
 /** A name's note, saved on its own. */
 export const noteText = z.string().max(4000);
 

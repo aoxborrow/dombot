@@ -2,6 +2,8 @@ import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
 import { create } from 'zustand';
 import type {
+  AskingPrice,
+  AskingPriceInput,
   AppInfo,
   AppSettings,
   BulkJob,
@@ -197,6 +199,12 @@ interface AppState {
   savePurchase: (input: PurchaseInput) => Promise<void>;
   saveSale: (input: SaleInput) => Promise<void>;
   saveNotes: (domainName: string, notes: string) => Promise<void>;
+
+  /** Asking prices keyed by normalized domain name. */
+  askingPrices: Record<string, AskingPrice>;
+  loadAskingPrices: () => Promise<void>;
+  /** Set or clear (all amounts blank) asking prices in one write. */
+  saveAskingPrices: (inputs: AskingPriceInput[]) => Promise<void>;
 
   /** Public registration for names on History, keyed by domain name. */
   registrationLookups: Record<string, RegistrationLookup>;
@@ -713,6 +721,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { purchases };
     });
   },
+  askingPrices: {},
+  loadAskingPrices: async () => {
+    set({ askingPrices: await window.api.getAskingPrices() });
+  },
+  saveAskingPrices: async (inputs) => {
+    set({ askingPrices: await window.api.setAskingPrices(inputs) });
+  },
   registrationLookups: {},
   loadRegistrationLookups: async (domainNames) => {
     if (domainNames.length === 0) return;
@@ -751,6 +766,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().loadPurchases(),
       get().loadFolders(),
       get().loadPricing(),
+      get().loadAskingPrices(),
     ]);
   },
   setMcpEnabled: async (enabled) => {

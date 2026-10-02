@@ -72,6 +72,7 @@ set passed to `EncryptedDocStore`.
 | `folders` (`assignments` key)            | `domain-folders`        |        | name                       | name → folder id                                  |
 | `folders` (`folders` key)                | `folders`               |        | folder id                  | folder definitions                                |
 | `pricing-overrides`                      | `domain-prices`         |        | name                       | your manual renewal price                         |
+| —                                        | `domain-asking-prices`  |        | name                       | your asking price, minimum offer, and floor       |
 | `settings`, `bulk-jobs`, `mcp`           | _(unchanged)_           |        |                            | app-level                                         |
 | `meta`                                   | _(unchanged)_           | local  |                            | this install only                                 |
 | — (#89)                                  | `remote-sync`           | local  |                            | the remote URL                                    |
@@ -419,7 +420,9 @@ data; with remote sync (#89), pushing to a not-yet-upgraded instance and
 pulling back would then lose it locally too. The bump makes the older build
 refuse the file with "made by a newer DomBot".
 
-- **v6** (planned, #108) adds `manual-domains`.
+- **Planned:** a currency on `domain-prices`, and `manual-domains` (#108),
+  each with its own bump (`docs/domain-import-export.md`).
+- **v6** adds `domain-asking-prices`.
 - **v5** adds the domain history (`domain-events`, `domain-notes`,
   `registrar-last-sync`). A v4 file imports into v5 unchanged; it just has no
   history.

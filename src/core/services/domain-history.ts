@@ -21,6 +21,7 @@ import {
 } from './domain-events';
 import { assignFolder } from './folders';
 import { setManualPrice } from './pricing';
+import { deleteAskingPrices } from './asking-prices';
 import { Namespace } from '../storage/namespace';
 
 // Ownership history on top of the event log: what sync saw, and what you say
@@ -193,5 +194,6 @@ export function deleteDomains(domainNames: string[]): void {
     );
     assignFolder(domain, null);
     setManualPrice(domain, null);
+    deleteAskingPrices([domain]);
   }
 }

@@ -14,6 +14,7 @@ import {
   Receipt,
   RefreshCw,
   Server,
+  Tag,
   Trash2,
   Undo2,
   X,
@@ -59,6 +60,7 @@ export function BulkBar({
   onViewJob,
   archiveView,
   onOwnership,
+  onAskingPrice,
 }: {
   /** The selected domains (merged rows). */
   domains: Domain[];
@@ -74,6 +76,8 @@ export function BulkBar({
   /** Archive adds Move back to Owned (for names an account still holds). */
   archiveView: boolean;
   onOwnership: (action: OwnershipAction) => void;
+  /** Set or clear the selection's asking price. */
+  onAskingPrice: () => void;
 }) {
   const bulk = useAppStore((s) => s.bulk);
   const running = bulk?.status === 'running';
@@ -225,6 +229,12 @@ export function BulkBar({
                   Get auth codes<span className="-ml-[6px] opacity-50">…</span>
                 </DropdownMenuItem>
               </>
+            )}
+            {!archiveView && (
+              <DropdownMenuItem onSelect={onAskingPrice}>
+                <Tag className="text-muted-foreground" />
+                Asking price<span className="-ml-[6px] opacity-50">…</span>
+              </DropdownMenuItem>
             )}
             <DropdownMenuItem onSelect={onExport}>
               <FileSpreadsheet className="text-muted-foreground" />

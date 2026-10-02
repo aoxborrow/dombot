@@ -18,6 +18,7 @@ import {
   ShieldBan,
   ShieldCheck,
   SlidersHorizontal,
+  Tag,
   TriangleAlert,
 } from 'lucide-react';
 import type {
@@ -64,6 +65,7 @@ import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { purchaseColumns } from '../components/domains/purchase-columns';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
+import { AskingPriceDialog } from '../components/domains/AskingPriceDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
 import { NameserversCell } from '../components/domains/NameserversCell';
@@ -132,6 +134,10 @@ interface Column {
 }
 
 /** Everything after the first dot, e.g. "example.co.uk" → "co.uk". */
+// Asking filter values: names with an asking price, and names without one.
+const PRICED = 'priced';
+const UNPRICED = 'unpriced';
+
 function tldOf(domainName: string): string {
   const dot = domainName.indexOf('.');
   return dot === -1 ? '' : domainName.slice(dot + 1).toLowerCase();
@@ -681,6 +687,7 @@ export default function Domains() {
     clearSelection,
     bulk,
     purchases,
+    askingPrices,
     settings,
     domainEvents,
     registrationLookups,
@@ -714,6 +721,8 @@ export default function Domains() {
     [registrars, portfolio],
   );
   const [purchaseFor, setPurchaseFor] = useState<Domain | null>(null);
+  // Asking price for one name (its cell or row menu) or the selection.
+  const [askingFor, setAskingFor] = useState<Domain[] | null>(null);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
   // Mark as Sold for one name: the sale dialog, which takes the price.
   const [markSoldFor, setMarkSoldFor] = useState<Domain | null>(null);
@@ -771,10 +780,19 @@ export default function Domains() {
       onEditSale: setSaleFor,
       showSale: archiveView,
       isSold: (d) => ownership.get(toAscii(d.domainName))?.label === 'sold',
+      askingPrices,
+      onEditAsking: (d) => setAskingFor([d]),
     });
     base.splice(purchasedAt + 1, 0, ...extra);
     return base;
-  }, [multipleAccounts, purchases, settings, archiveView, ownership]);
+  }, [
+    multipleAccounts,
+    purchases,
+    askingPrices,
+    settings,
+    archiveView,
+    ownership,
+  ]);
 
   const tableColumns = archiveView
     ? columns.filter((col) => !ARCHIVE_HIDDEN_COLUMNS.has(col.key))
@@ -871,6 +889,8 @@ export default function Domains() {
   const [expiry, setExpiry] = useState<string[]>([]);
   const [ns, setNs] = useState<string[]>([]);
   const [folder, setFolder] = useState<string[]>([]);
+  // Owned only: names with or without an asking price.
+  const [asking, setAsking] = useState<string[]>([]);
   // Sort and page size open at the Settings → General defaults; changes made
   // here last for this visit only.
   const [sortKey, setSortKey] = useState(
@@ -967,6 +987,16 @@ export default function Domains() {
   }, [portfolio, portfolioRegistrarLabels, multipleAccounts]);
   // Expiration windows are cumulative, so their counts intentionally overlap
   // (a domain due in 20 days matches the 30-, 60-, and 90-day options).
+  const askingOptions = useMemo(() => {
+    const priced = portfolio.filter(
+      (d) => askingPrices[toAscii(d.domainName)],
+    ).length;
+    return [
+      { value: PRICED, label: 'Has a price', count: priced },
+      { value: UNPRICED, label: 'No price', count: portfolio.length - priced },
+    ];
+  }, [portfolio, askingPrices]);
+
   const expiryOptions = useMemo(
     () =>
       EXPIRY_OPTIONS.map((o) => ({
@@ -1094,7 +1124,8 @@ export default function Domains() {
     registrar.length > 0 ||
     expiry.length > 0 ||
     ns.length > 0 ||
-    folder.length > 0;
+    folder.length > 0 ||
+    asking.length > 0;
 
   // How many filter groups are narrowing the list (search excluded — it has its
   // own always-visible field). Drives the count badge on the mobile "Filters"
@@ -1104,7 +1135,8 @@ export default function Domains() {
     (tld.length > 0 ? 1 : 0) +
     (ns.length > 0 ? 1 : 0) +
     (expiry.length > 0 ? 1 : 0) +
-    (folder.length > 0 ? 1 : 0);
+    (folder.length > 0 ? 1 : 0) +
+    (asking.length > 0 ? 1 : 0);
 
   function resetFilters() {
     setSearch('');
@@ -1113,11 +1145,13 @@ export default function Domains() {
     setExpiry([]);
     setNs([]);
     setFolder([]);
+    setAsking([]);
     setPage(0);
   }
 
   function setListView(next: 'owned' | 'archive') {
     setFolder([]);
+    setAsking([]);
     setPage(0);
     const nextParams = new URLSearchParams(params);
     if (next === 'archive') nextParams.set('view', 'archive');
@@ -1147,6 +1181,10 @@ export default function Domains() {
       if (ns.length > 0) {
         const keys = nsKeysByDomain.get(domainKey(d));
         if (!keys || !ns.some((k) => keys.has(k))) return false;
+      }
+      if (asking.length > 0 && !archiveView) {
+        const priced = askingPrices[toAscii(d.domainName)] ? PRICED : UNPRICED;
+        if (!asking.includes(priced)) return false;
       }
       // Owned vs Archive comes from the event log. In Archive the filter is
       // the status; in Owned it's the folder (a real folder, Hidden, or None),
@@ -1206,6 +1244,8 @@ export default function Domains() {
     folder,
     folders,
     folderAssignments,
+    asking,
+    askingPrices,
     archiveView,
     archiveLabelOf,
     sortKey,
@@ -1373,6 +1413,7 @@ export default function Domains() {
             onRenew={() => setRenewFor(d)}
             onEditPurchase={() => setPurchaseFor(d)}
             onEditSale={() => setSaleFor(d)}
+            onEditAsking={() => setAskingFor([d])}
             onAssignFolder={(folderId) => applyFolders([d], folderId)}
             archive={archiveLabelOf(d)}
             onMarkSold={() => openOwnership('sold', [d])}
@@ -1604,6 +1645,18 @@ export default function Domains() {
                 }}
               />
             )}
+            {!archiveView && (
+              <MultiSelectFilter
+                label="Asking"
+                icon={Tag}
+                options={askingOptions}
+                selected={asking}
+                onChange={(next) => {
+                  setAsking(next);
+                  setPage(0);
+                }}
+              />
+            )}
           </div>
 
           <ResetButton active={hasActiveFilters} onReset={resetFilters} />
@@ -1639,6 +1692,7 @@ export default function Domains() {
           }}
           archiveView={archiveView}
           onOwnership={(action) => openOwnership(action, selectedDomains)}
+          onAskingPrice={() => setAskingFor(selectedDomains)}
         />
       </div>
 
@@ -1715,6 +1769,12 @@ export default function Domains() {
           domains={selectedHeld}
           jobId={bulkDialog.jobId}
           onClose={() => setBulkDialog(null)}
+        />
+      )}
+      {askingFor && (
+        <AskingPriceDialog
+          domains={askingFor}
+          onClose={() => setAskingFor(null)}
         />
       )}
       {purchaseFor && (

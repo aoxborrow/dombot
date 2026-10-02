@@ -31,6 +31,7 @@ import {
   setDispositions,
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
+import { getAskingPrices, setAskingPrices } from '../services/asking-prices';
 import { lookupRegistrations } from '../services/registration-lookup';
 import {
   getRegistrarCatalog,
@@ -366,6 +367,13 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     z.tuple([s.domainName, s.noteText]),
     async (domainName, notes) => setNotes(domainName, notes),
   ),
+
+  // ── Asking prices ─────────────────────────────────────────────────────────
+  getAskingPrices: method(none, async () => getAskingPrices()),
+  setAskingPrices: method(z.tuple([s.askingPriceInputs]), async (inputs) => {
+    setAskingPrices(inputs);
+    return getAskingPrices();
+  }),
 
   lookupRegistrations: method(z.tuple([s.domainNameList]), async (names) =>
     lookupRegistrations(names),

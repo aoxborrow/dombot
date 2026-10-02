@@ -122,6 +122,8 @@ export const IpcChannels = {
   setPurchase: 'purchases:set',
   setSale: 'purchases:setSale',
   setNotes: 'purchases:setNotes',
+  getAskingPrices: 'askingPrices:list',
+  setAskingPrices: 'askingPrices:set',
   getDomainEvents: 'domainEvents:list',
   setDispositions: 'domainEvents:setDispositions',
   markSold: 'domainEvents:markSold',
@@ -309,6 +311,31 @@ export interface SaleInput {
   resolves?: string;
   /** Mark as Sold: record the sale even with no date or amount (dated today). */
   mark?: boolean;
+}
+
+/**
+ * Your asking price for a name, synced or manual (docs/domain-import-export.md).
+ * Amounts are canonical decimals, all in `currency`. At least one is set.
+ */
+export interface AskingPrice {
+  /** What you'd sell it for; null when only offers are set. */
+  amount: string | null;
+  /** The lowest offer you'll consider. */
+  minOffer?: string | null;
+  /** The lowest price you'd accept; never shown to buyers. */
+  floor?: string | null;
+  currency: string;
+  /** ms epoch, the last change. */
+  updatedAt: number;
+}
+
+/** One name's asking price to save. All three amounts blank clears it. */
+export interface AskingPriceInput {
+  domainName: string;
+  amount: string | null;
+  minOffer: string | null;
+  floor: string | null;
+  currency: string | null;
 }
 
 /** One input in a registrar's credential form. */
@@ -882,6 +909,17 @@ export interface DombotApi {
     domainName: string,
     notes: string,
   ) => Promise<DomainPurchase | null>;
+
+  // Asking prices (keyed by domain name; any name, synced or manual)
+  /** Every asking price, keyed by the normalized domain name. */
+  getAskingPrices: () => Promise<Record<string, AskingPrice>>;
+  /**
+   * Set or clear (all amounts blank) asking prices in one write. Returns every
+   * asking price afterwards.
+   */
+  setAskingPrices: (
+    inputs: AskingPriceInput[],
+  ) => Promise<Record<string, AskingPrice>>;
 
   // Domain history (docs/storage-model.md). Each change returns the whole log.
   /** Every domain event, oldest first. */

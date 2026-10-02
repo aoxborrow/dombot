@@ -20,6 +20,10 @@ import {
   cleanNote,
 } from '../services/domain-events';
 import { CREDENTIALS_NAMESPACE } from './names';
+import {
+  ASKING_PRICES_NAMESPACE,
+  cleanAskingPrice,
+} from '../services/asking-prices';
 
 // A portable copy of everything DomBot stores — registrar keys, portfolio
 // cache, folders, manual prices, TLD rates, settings, MCP pairings, bulk-job
@@ -43,11 +47,12 @@ export const BUNDLE_FORMAT = 'dombot-data';
 // `registrar-last-sync`). A v4 build would skip those namespaces and silently
 // drop the history, so it must refuse the file. Rule: any release that adds a non-cache namespace bumps
 // this version.
-export const BUNDLE_VERSION = 5;
+// v6 adds `domain-asking-prices` (docs/domain-import-export.md).
+export const BUNDLE_VERSION = 6;
 
 export interface DataBundle {
   format: typeof BUNDLE_FORMAT;
-  version: 1 | 2 | 3 | 4 | typeof BUNDLE_VERSION;
+  version: 1 | 2 | 3 | 4 | 5 | typeof BUNDLE_VERSION;
   exportedAt: string;
   /** Which DomBot wrote it (informational). */
   app: { version: string; platform: string };
@@ -89,7 +94,7 @@ export function parseBundle(text: string): DataBundle {
   if (!head || head.format !== BUNDLE_FORMAT) {
     throw new BundleError('Not a DomBot data file.');
   }
-  if (![1, 2, 3, 4, BUNDLE_VERSION].includes(head.version as number)) {
+  if (![1, 2, 3, 4, 5, BUNDLE_VERSION].includes(head.version as number)) {
     throw new BundleError(
       `This file was made by a newer DomBot (format v${String(head.version)}). Update and try again.`,
     );
@@ -141,6 +146,13 @@ export function parseBundle(text: string): DataBundle {
       NOTES_NAMESPACE,
       notes,
       cleanNote,
+    );
+  const asking = head.namespaces[ASKING_PRICES_NAMESPACE];
+  if (asking)
+    head.namespaces[ASKING_PRICES_NAMESPACE] = cleanEntries(
+      ASKING_PRICES_NAMESPACE,
+      asking,
+      cleanAskingPrice,
     );
   // Validate every proxy profile, and every account's pointer to one, so an
   // import can't smuggle in a private/reserved-IP or otherwise malformed proxy
