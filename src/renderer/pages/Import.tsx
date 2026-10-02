@@ -18,7 +18,6 @@ import {
 import { IMPORT_FIELDS, type ImportField } from '../../shared/import-columns';
 import type {
   ImportChange,
-  ImportOptions,
   ImportOutcome,
   ImportPlan,
   ImportRow,
@@ -89,7 +88,7 @@ const RESULT_LABEL: Record<ImportOutcome['result'], string> = {
   new: 'New',
   update: 'Updated',
   unchanged: 'Unchanged',
-  history: 'History only',
+  history: 'Archive',
 };
 
 const RESULT_STYLE: Record<ImportOutcome['result'], string> = {
@@ -123,10 +122,6 @@ export default function Import() {
   const [setup, setSetup] = useState<ImportSetup | null>(null);
   const [built, setBuilt] = useState<BuiltRows | null>(null);
   const [plan, setPlan] = useState<ImportPlan | null>(null);
-  const [options, setOptions] = useState<ImportOptions>({
-    policy: 'update',
-    notInAccounts: 'manual',
-  });
   const [source, setSource] = useState<Source>('manual');
   const [manual, setManual] = useState<ManualFields>({
     names: '',
@@ -161,11 +156,7 @@ export default function Import() {
 
   // ── choose ────────────────────────────────────────────────────────────────
 
-  async function preview(
-    t: ImportTable,
-    s: ImportSetup,
-    opts: ImportOptions = options,
-  ): Promise<boolean> {
+  async function preview(t: ImportTable, s: ImportSetup): Promise<boolean> {
     const rows = buildRows(t, s, ctx);
     if (rows.rows.length > MAX_IMPORT_ROWS) {
       setError(
@@ -179,7 +170,7 @@ export default function Import() {
       setBuilt(rows);
       setPlan(
         rows.rows.length > 0
-          ? await window.api.previewDomainImport(rows.rows, opts)
+          ? await window.api.previewDomainImport(rows.rows)
           : {
               outcomes: [],
               counts: { new: 0, update: 0, unchanged: 0, history: 0 },
@@ -362,7 +353,7 @@ export default function Import() {
         setProgress(i / built.rows.length);
         const done = await window.api.importDomains(
           built.rows.slice(i, i + CHUNK),
-          { ...options, importId },
+          { importId },
         );
         wrote = true;
         for (const k of Object.keys(total) as (keyof typeof total)[])
@@ -673,18 +664,6 @@ export default function Import() {
               plan={plan}
               filter={filter}
               onFilter={setFilter}
-              options={options}
-              onOptions={(next) => {
-                if (!table || !setup) return;
-                // The review shows the last plan, so the options go back
-                // to match it when the new preview fails.
-                const previous = options;
-                setOptions(next);
-                void preview(table, setup, next).then(
-                  (ok) => ok || setOptions(previous),
-                );
-              }}
-              busy={busy}
             />
           )}
 
@@ -1204,23 +1183,17 @@ interface ValueColumn {
   sortValue?: (row: ImportRow) => string | number | null;
 }
 
-/** The options and filters above the review table. */
+/** The filters above the review table. */
 function ReviewStep({
   built,
   plan,
   filter,
   onFilter,
-  options,
-  onOptions,
-  busy,
 }: {
   built: BuiltRows;
   plan: ImportPlan;
   filter: Filter;
   onFilter: (f: Filter) => void;
-  options: ImportOptions;
-  onOptions: (o: ImportOptions) => void;
-  busy: boolean;
 }) {
   const errors = built.issues.filter((i) => i.level === 'error');
   const chips: { id: Filter; label: string; count: number }[] = [
@@ -1228,57 +1201,12 @@ function ReviewStep({
     { id: 'new', label: 'New', count: plan.counts.new },
     { id: 'update', label: 'Updated', count: plan.counts.update },
     { id: 'unchanged', label: 'Unchanged', count: plan.counts.unchanged },
-    { id: 'history', label: 'History only', count: plan.counts.history },
+    { id: 'history', label: 'Archive', count: plan.counts.history },
     { id: 'errors', label: 'Skipped', count: errors.length },
   ];
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">When DomBot already has a value</Label>
-          <Select
-            disabled={busy}
-            value={options.policy}
-            onValueChange={(v) =>
-              onOptions({ ...options, policy: v as ImportOptions['policy'] })
-            }
-          >
-            <SelectTrigger className="h-8 w-64">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="update">
-                Replace it with the new value
-              </SelectItem>
-              <SelectItem value="fill">Keep it; only fill in blanks</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Names no account of yours holds</Label>
-          <Select
-            disabled={busy}
-            value={options.notInAccounts}
-            onValueChange={(v) =>
-              onOptions({
-                ...options,
-                notInAccounts: v as ImportOptions['notInAccounts'],
-              })
-            }
-          >
-            <SelectTrigger className="h-8 w-72">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="manual">Add them to Owned</SelectItem>
-              <SelectItem value="history">
-                Don&apos;t add them; keep purchases and sales
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
       <div className="flex flex-wrap items-center gap-2">
         {chips.map((c) => (
           <button

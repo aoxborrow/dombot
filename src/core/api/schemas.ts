@@ -178,15 +178,8 @@ export const importRow = z
 
 export const importRows = z.array(importRow).max(10000);
 
-export const importOptions = z
-  .object({
-    policy: z.enum(['update', 'fill']),
-    notInAccounts: z.enum(['manual', 'history']),
-  })
-  .strict();
-
-export const importApply = importOptions
-  .extend({ importId: z.string().min(1).max(80) })
+export const importApply = z
+  .object({ importId: z.string().min(1).max(80) })
   .strict();
 
 /** A manual name's registration fields, as edited. */

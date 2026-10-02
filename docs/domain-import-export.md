@@ -274,9 +274,9 @@ things twice. So:
 - **A name that ends up in Archive** (it has a sale, or a `Status` of Dropped,
   Archived, or Removed) gets no manual entry. Archive rows already come from
   events.
-- **An option, "Names not in your accounts: Add to Owned | Record history
-  only",** is for importing old purchases and sales without adding names you
-  no longer hold.
+- **Status decides Owned or Archive.** There are no import options: a name
+  goes to Archive when its row says so (a sale, or a `Status` other than
+  Owned), and otherwise it's Owned.
 - **When an account later reports a manual name**, sync removes the manual
   entry and writes `moved` from no account (#108). Events, notes, folders,
   and prices are keyed by name, so they carry across.
@@ -316,13 +316,12 @@ normalizes them before anything reaches the server.
 - Import never deletes a name, a purchase, a sale, or a note.
 - It replaces your Dropped or Archived label with Sold, the way Mark as Sold
   does, but it never replaces a Sold.
-- It doesn't move a name you labeled back to Owned. That's what Move back to
-  Owned is for. The one exception is a buy-back: a purchase dated after the
-  name's sale.
+- A name you labeled goes back to Owned when its row says `Status: Owned`,
+  or on a buy-back (a purchase dated after the name's sale). It's an `added`
+  event, so the old label and sale stay in the history. With no `Status`,
+  the name stays in Archive, with a warning.
 - Changes it won't make show as warnings in the preview.
-- **Update policy:**
-  - By default, a non-blank cell replaces DomBot's value.
-  - "Only fill in what's missing" leaves every stored value alone.
+- A non-blank cell always replaces DomBot's value.
 
 ### Parse on the client, plan and write on the server
 
@@ -706,7 +705,7 @@ the stored data into a snapshot, and the rules are a pure function over that
 snapshot, so they test without a store.
 
 For each name it returns one outcome: new (a manual name), update, unchanged,
-history only (events for a name that isn't in Owned), or error. Each outcome
+Archive (events for a name that's only in Archive), or error. Each outcome
 lists its changes (field, before, after) and its warnings.
 
 **Where each name ends up:**
@@ -717,21 +716,21 @@ lists its changes (field, before, after) and its warnings.
   account holds the name.
 - **Unchanged:** the name is held by an account.
 - **Owned, as a manual name:** the name is in no account, and you haven't
-  labeled it Sold, Dropped, or Archived. A buy-back also lands here. If the
-  option says "Record history only", the name gets events only.
-- **Unchanged, with a warning:** you labeled the name, and the row isn't a
-  buy-back.
+  labeled it Sold, Dropped, or Archived, or the row says `Status: Owned`, or
+  it's a buy-back.
+- **Unchanged, with a warning:** you labeled the name, the row has no
+  `Status`, and it isn't a buy-back.
 
 **What gets written:**
 
 | Data          | Rule                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Manual entry  | Created for a new Owned name. Its registration fields update, under the update policy. A name an account holds ignores those fields, and an info note says which account.                                                                                                                                                                                                            |
+| Manual entry  | Created for a new Owned name. Its registration fields update. A name an account holds ignores those fields, and an info note says which account.                                                                                                                                                                                                                                     |
 | `added`       | Written for each new manual name, with the `importId` and no account. It's an open, low-priority review, like a sync arrival, even when the row has a purchase. If the name has an open `removed` review (it left one of your accounts), the `added` closes it and is written already dismissed, the way sync handles a name that comes back.                                        |
-| Purchase      | **No acquisition in the latest holding:** a new `purchased` or `registered`. It doesn't close any review. **Same values:** nothing. **Different values:** edited in place, or only the blanks are filled under "Only fill in what's missing". A purchase dated after the holding's sale is a buy-back, and it starts a new holding.                                                  |
+| Purchase      | **No acquisition in the latest holding:** a new `purchased` or `registered`. It doesn't close any review. **Same values:** nothing. **Different values:** edited in place. A purchase dated after the holding's sale is a buy-back, and it starts a new holding.                                                                                                                     |
 | Sale          | **The latest holding has a sale:** edited in place, by the same rules. **Otherwise:** a new `sold`. It closes an open `removed` review and replaces your Dropped or Archived label (`replaceLabel`), the way Mark as Sold does.                                                                                                                                                      |
 | Status        | **`Dropped` or `Archived`:** writes that label, closing an open `removed` review, unless it's already the label. **`Removed`:** an open `removed` review with no account, unless the name already has a label or a removal. **A name labeled Sold** keeps it, with a warning. **A name an account holds** ignores `Removed`, with a warning. **`Owned`:** writes nothing of its own. |
-| Notes         | The name's note (`eventId: null`). It's replaced, or only set when there isn't one.                                                                                                                                                                                                                                                                                                  |
+| Notes         | The name's note (`eventId: null`). It's replaced.                                                                                                                                                                                                                                                                                                                                    |
 | Folder        | Assigned by name. Missing folders are created, and the preview lists them.                                                                                                                                                                                                                                                                                                           |
 | Renewal price | Set in `domain-prices`, with its currency.                                                                                                                                                                                                                                                                                                                                           |
 | Asking price  | Set in `domain-asking-prices`, for any name, synced or manual.                                                                                                                                                                                                                                                                                                                       |
@@ -767,17 +766,11 @@ events in id order, so each name lands where its row says.
 ```ts
 previewDomainImport(
   rows: ImportRow[],
-  options: ImportOptions,
 ): Promise<ImportPlan>;
 importDomains(
   rows: ImportRow[],
-  options: ImportOptions & { importId: string },
+  options: { importId: string },
 ): Promise<ImportResult>;
-
-interface ImportOptions {
-  policy: 'update' | 'fill';
-  notInAccounts: 'manual' | 'history';
-}
 ```
 
 - **Method table.** Both go through `src/core/api/index.ts`, with zod
@@ -820,18 +813,11 @@ Wide on desktop, full screen on phones, in three steps.
    - A banner when a known format is recognized.
    - Domain is the only required field.
 3. **Review.**
-   - Counts as filter chips: New, Updated, Unchanged, History only, Skipped,
-     Errors.
+   - Counts as filter chips: New, Updated, Unchanged, Archive, Skipped.
    - A table of names, using the shared `DataTable`. Each row has a status
      badge and a short summary of its changes ("Paid $10 → $12 · Asking
      $2,500 · Folder Premium (new)"). Expand a row to see every field before
      and after, and its warnings.
-   - The options:
-     - "When DomBot already has a value: Replace | Keep";
-     - "Names not in your accounts: Add to Owned | Record history only".
-
-     Changing an option re-runs the preview.
-
    - "Download issues" saves a CSV with the row, the domain, and the
      problem.
    - The button says what it will do: "Import 460 names". Rows with errors
@@ -932,7 +918,7 @@ the phase 5 PR opens. Its branch can be that PR's base.
   row in the appendix says.
 - **Planner:**
   - one test per rule in the planning table;
-  - blank keeps, and "Only fill in what's missing";
+  - blank keeps, and a value replaces;
   - names missing from the file are untouched;
   - nothing is deleted, and Sold is never replaced;
   - every new manual name waits for review, even when its row has a
@@ -940,7 +926,7 @@ the phase 5 PR opens. Its branch can be that PR's base.
   - a name with an open removal comes back without a new review;
   - reviewing an imported arrival edits its purchase instead of adding one;
   - `Removed` rows recreate a removal review;
-  - manual entries versus history only;
+  - `Status: Owned` moves a labeled name back, keeping its history;
   - duplicate merging, and buy-backs.
 - **Round trip:**
   1. Seed a store. The demo seed has synced, Archive, and sold names.

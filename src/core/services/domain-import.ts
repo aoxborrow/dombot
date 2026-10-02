@@ -2,7 +2,6 @@ import type {
   AskingPrice,
   AskingPriceInput,
   ImportChange,
-  ImportOptions,
   ImportOutcome,
   ImportPlan,
   ImportRow,
@@ -54,7 +53,9 @@ import { listAccounts } from './accounts';
 //   a sale replaces your Dropped or Archived label, as Mark as Sold does;
 // - a new manual name waits for review like a sync arrival, even with a
 //   purchase in its row;
-// - "fill" fills only what DomBot doesn't have; "update" lets the file win.
+// - a value in the file replaces what DomBot has;
+// - the row's Status decides Owned or Archive. With no Status a name stays
+//   where it is; Owned on a name in Archive moves it back with an `added`.
 
 const LABEL: Record<string, string> = {
   sold: 'Sold',
@@ -99,7 +100,6 @@ interface Writes {
 
 function compute(
   rows: ImportRow[],
-  options: ImportOptions,
   importId: string | null,
   now: number,
 ): { plan: ImportPlan; writes: Writes } {
@@ -112,9 +112,6 @@ function compute(
     renewals: [],
     asking: [],
   };
-  const fill = options.policy === 'fill';
-  const allowed = (current: unknown) =>
-    !fill || current === null || current === undefined || current === '';
 
   // The data as it stands.
   // Every account you have, enabled or not: a name one holds isn't manual.
@@ -180,6 +177,10 @@ function compute(
     );
     const toArchive =
       rowSale || (row.status !== undefined && row.status !== 'owned');
+    // The row's Status decides Owned or Archive; with none, the name stays
+    // where it is. A buy-back (a purchase after the sale) also brings it back.
+    const moveBack =
+      !!userLabel && !toArchive && (buyBack || row.status === 'owned');
     let created = false;
 
     // ── where the name lives ────────────────────────────────────────────────
@@ -215,7 +216,7 @@ function compute(
     } else if (isManual) {
       const next: ManualDomain = { ...isManual };
       for (const f of regFields) {
-        if (fields[f] === isManual[f] || !allowed(isManual[f])) continue;
+        if (fields[f] === isManual[f]) continue;
         // A known registrar replaces a typed one, and the other way round.
         if (f === 'registrarLabel' && fields.registrar) continue;
         (next as unknown as Record<string, unknown>)[f] = fields[f];
@@ -230,8 +231,8 @@ function compute(
       if (changes.length > 0)
         writes.manual.push([key, { ...next, updatedAt: now }]);
     } else {
-      const endsOwned = !toArchive && (!userLabel || buyBack);
-      if (endsOwned && options.notInAccounts === 'manual') {
+      const endsOwned = !toArchive && (!userLabel || moveBack);
+      if (endsOwned) {
         created = true;
         writes.manual.push([
           key,
@@ -260,22 +261,27 @@ function compute(
             ...(removal ? { resolves: removal, dismissed: true } : {}),
           }),
         );
-        change('Status', null, 'Owned (new name)');
+        change(
+          'Status',
+          userLabel ? LABEL[label!] : null,
+          userLabel ? 'Owned' : 'Owned (new name)',
+        );
       }
     }
-    // A name you labeled stays in Archive unless the row buys it back.
-    if (!account && userLabel && !toArchive) {
-      if (!buyBack)
+    // A name you put in Archive goes back to Owned with an `added`, which
+    // keeps its sale or label in the history (nothing is deleted).
+    if (userLabel && !toArchive) {
+      if (!moveBack)
         warnings.push(
-          `It's in Archive as ${LABEL[label!]}, so it stays there. Use Move back to Owned to change that.`,
+          `It's in Archive as ${LABEL[label!]}, so it stays there. A Status of Owned moves it back.`,
         );
-      else if (isManual) {
+      else if (!created) {
         writes.events.push(
           fresh({
             domain: key,
             type: DomainEventType.Added,
             date: localDay(now),
-            accountId: null,
+            accountId: account ?? null,
             source: DomainEventSource.Import,
           }),
         );
@@ -317,18 +323,17 @@ function compute(
             : p.type === 'purchased'
               ? DomainEventType.Purchased
               : undefined;
-        if (type && type !== existing.type && !fill) {
+        if (type && type !== existing.type) {
           next.type = type;
           change('Purchase type', existing.type, type);
         }
-        if (p.date && p.date !== existing.date && allowed(existing.date)) {
+        if (p.date && p.date !== existing.date) {
           next.date = p.date;
           change('Purchase date', existing.date, p.date);
         }
         if (
           p.amount &&
-          (p.amount !== existing.amount || p.currency !== existing.currency) &&
-          allowed(existing.amount)
+          (p.amount !== existing.amount || p.currency !== existing.currency)
         ) {
           next.amount = p.amount;
           next.currency = toCurrencyCode(p.currency ?? '') as CurrencyCode;
@@ -338,7 +343,7 @@ function compute(
             money(p.amount, p.currency),
           );
         }
-        if (p.years && p.years !== existing.years && allowed(existing.years)) {
+        if (p.years && p.years !== existing.years) {
           next.years = p.years;
           change('Purchase years', existing.years, p.years);
         }
@@ -382,15 +387,14 @@ function compute(
       if (existing) {
         const next: DomainEvent = { ...existing };
         let edited = false;
-        if (s.date && s.date !== existing.date && allowed(existing.date)) {
+        if (s.date && s.date !== existing.date) {
           next.date = s.date;
           change('Sale date', existing.date, s.date);
           edited = true;
         }
         if (
           s.amount &&
-          (s.amount !== existing.amount || s.currency !== existing.currency) &&
-          allowed(existing.amount)
+          (s.amount !== existing.amount || s.currency !== existing.currency)
         ) {
           next.amount = s.amount;
           next.currency = toCurrencyCode(s.currency ?? '') as CurrencyCode;
@@ -450,7 +454,7 @@ function compute(
     }
 
     // ── your data about the name ──────────────────────────────────────────
-    if (row.notes && row.notes !== notes[key] && allowed(notes[key])) {
+    if (row.notes && row.notes !== notes[key]) {
       writes.notes.push([key, row.notes]);
       change('Notes', clip(notes[key]), clip(row.notes));
     }
@@ -466,7 +470,7 @@ function compute(
           folders.find((f) => f.id === current)?.name ??
           null)
         : null;
-      if ((target ?? `new:${name}`) !== current && allowed(current)) {
+      if ((target ?? `new:${name}`) !== current) {
         if (!target && !newFolders.has(name.toLowerCase()))
           newFolders.set(name.toLowerCase(), name);
         writes.folders.push([
@@ -488,9 +492,8 @@ function compute(
         currency: toCurrencyCode(row.renewal.currency) as CurrencyCode,
       };
       if (
-        (current?.amount !== next.amount ||
-          current?.currency !== next.currency) &&
-        allowed(current)
+        current?.amount !== next.amount ||
+        current?.currency !== next.currency
       ) {
         writes.renewals.push([key, next]);
         change(
@@ -507,19 +510,11 @@ function compute(
       const merge = (field: 'amount' | 'minOffer' | 'floor') =>
         row.asking![field] ??
         (sameCurrency ? (current?.[field] ?? null) : null);
-      const fields = fill
-        ? current && !sameCurrency
-          ? null
-          : {
-              amount: current?.amount ?? row.asking.amount ?? null,
-              minOffer: current?.minOffer ?? row.asking.minOffer ?? null,
-              floor: current?.floor ?? row.asking.floor ?? null,
-            }
-        : {
-            amount: merge('amount'),
-            minOffer: merge('minOffer'),
-            floor: merge('floor'),
-          };
+      const fields = {
+        amount: merge('amount'),
+        minOffer: merge('minOffer'),
+        floor: merge('floor'),
+      };
       if (fields) {
         try {
           const next = toAskingPrice(
@@ -576,11 +571,8 @@ const FIELD_LABEL: Record<string, string> = {
 };
 
 /** What importing these rows would change. Writes nothing. */
-export function planImport(
-  rows: ImportRow[],
-  options: ImportOptions,
-): ImportPlan {
-  return compute(rows, options, null, Date.now()).plan;
+export function planImport(rows: ImportRow[]): ImportPlan {
+  return compute(rows, null, Date.now()).plan;
 }
 
 /**
@@ -589,9 +581,9 @@ export function planImport(
  */
 export function importDomains(
   rows: ImportRow[],
-  options: ImportOptions & { importId: string },
+  options: { importId: string },
 ): ImportPlan & { importId: string } {
-  const { plan, writes } = compute(rows, options, options.importId, Date.now());
+  const { plan, writes } = compute(rows, options.importId, Date.now());
 
   putManualDomains(writes.manual);
   if (writes.deleteEvents.length > 0) deleteDomainEvents(writes.deleteEvents);

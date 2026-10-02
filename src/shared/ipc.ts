@@ -446,14 +446,6 @@ export interface ImportRow {
   sale?: { date?: string; amount?: string; currency?: string };
 }
 
-/** How an import treats what DomBot already has. */
-export interface ImportOptions {
-  /** `update`: a value in the file replaces DomBot's. `fill`: only blanks are filled. */
-  policy: 'update' | 'fill';
-  /** Names in no account that end up Owned: add them, or record history only. */
-  notInAccounts: 'manual' | 'history';
-}
-
 export interface ImportChange {
   field: string;
   from: string | null;
@@ -466,7 +458,7 @@ export interface ImportOutcome {
   domain: string;
   /**
    * `new`: added as a manual name. `update`: something changes.
-   * `unchanged`: nothing to do. `history`: events for a name not in Owned.
+   * `unchanged`: nothing to do. `history`: a name that's only in Archive.
    */
   result: 'new' | 'update' | 'unchanged' | 'history';
   changes: ImportChange[];
@@ -1069,14 +1061,11 @@ export interface DombotApi {
 
   // Domain import (docs/domain-import-export.md)
   /** What importing these normalized rows would change. Writes nothing. */
-  previewDomainImport: (
-    rows: ImportRow[],
-    options: ImportOptions,
-  ) => Promise<ImportPlan>;
+  previewDomainImport: (rows: ImportRow[]) => Promise<ImportPlan>;
   /** Import the rows (a chunk of up to 10,000, under one `importId`). */
   importDomains: (
     rows: ImportRow[],
-    options: ImportOptions & { importId: string },
+    options: { importId: string },
   ) => Promise<ImportPlan & { importId: string }>;
 
   // Manual domains (names no connected account reports)

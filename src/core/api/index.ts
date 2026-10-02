@@ -376,9 +376,8 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   ),
 
   // ── Domain import ─────────────────────────────────────────────────────────
-  previewDomainImport: method(
-    z.tuple([s.importRows, s.importOptions]),
-    async (rows, options) => planImport(rows, options),
+  previewDomainImport: method(z.tuple([s.importRows]), async (rows) =>
+    planImport(rows),
   ),
   importDomains: method(
     z.tuple([s.importRows, s.importApply]),

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { Domain, ImportOptions, ImportRow } from '../../shared/ipc';
+import type { Domain, ImportRow } from '../../shared/ipc';
 import { MemoryDocStore } from '../storage/doc-store';
 import {
   configureStore,
@@ -30,10 +30,9 @@ beforeEach(async () => {
   await hydrateStores();
 });
 
-const UPDATE: ImportOptions = { policy: 'update', notInAccounts: 'manual' };
 let n = 0;
-const apply = (rows: ImportRow[], options: ImportOptions = UPDATE) =>
-  importDomains(rows, { ...options, importId: `imp${++n}` });
+const apply = (rows: ImportRow[]) =>
+  importDomains(rows, { importId: `imp${++n}` });
 const row = (domain: string, extra: Partial<ImportRow> = {}): ImportRow => ({
   line: 2,
   domain,
@@ -121,7 +120,7 @@ describe('importing domains', () => {
     apply(rows);
     await flushWrites();
     const before = JSON.stringify(await store.loadAll());
-    const again = planImport(rows, UPDATE);
+    const again = planImport(rows);
     expect(again.counts.unchanged).toBe(1);
     expect(again.outcomes[0].changes).toEqual([]);
     apply(rows);
@@ -147,7 +146,7 @@ describe('importing domains', () => {
     });
   });
 
-  it('fills only blanks under "fill", and replaces under "update"', () => {
+  it("replaces what DomBot has with the file's values", () => {
     setPurchase({
       domainName: 'example.com',
       purchaseDate: '2019-01-01',
@@ -155,21 +154,15 @@ describe('importing domains', () => {
       currency: null,
       notes: 'mine',
     });
-    const rows = [
+    apply([
       row('example.com', {
         notes: 'theirs',
         purchase: { date: '2020-02-02', amount: '50.00', currency: 'USD' },
       }),
-    ];
-    apply(rows, { policy: 'fill', notInAccounts: 'manual' });
-    expect(getPurchases()['example.com']).toMatchObject({
-      purchaseDate: '2019-01-01',
-      amount: '50.00',
-      notes: 'mine',
-    });
-    apply(rows);
+    ]);
     expect(getPurchases()['example.com']).toMatchObject({
       purchaseDate: '2020-02-02',
+      amount: '50.00',
       notes: 'theirs',
     });
   });
@@ -213,21 +206,32 @@ describe('importing domains', () => {
     expect(plan.outcomes[1].warnings[0]).toMatch(/still reports this name/);
   });
 
-  it('records history only when asked, and for names that end up in Archive', () => {
-    const plan = apply(
-      [
-        row('old.com', {
-          purchase: { date: '2015-01-01', amount: '10.00', currency: 'USD' },
-        }),
-        row('sold.com', {
-          sale: { date: '2016-01-01', amount: '99.00', currency: 'USD' },
-        }),
-      ],
-      { policy: 'update', notInAccounts: 'history' },
-    );
-    expect(plan.counts.history).toBe(2);
+  it('puts a name with a sale only in Archive, with no manual entry', () => {
+    const plan = apply([
+      row('sold.com', {
+        sale: { date: '2016-01-01', amount: '99.00', currency: 'USD' },
+      }),
+    ]);
+    expect(plan.counts.history).toBe(1);
     expect(getManualDomains()).toEqual({});
     expect(ownershipByDomain(listEvents()).get('sold.com')?.label).toBe('sold');
+  });
+
+  it('moves a name in Archive back to Owned on Status Owned, keeping its history', () => {
+    sync(['a.com']);
+    setDispositions([{ domainName: 'a.com' }], 'dropped');
+    const stays = planImport([row('a.com', { notes: 'hi' })]);
+    expect(stays.outcomes[0].warnings[0]).toMatch(
+      /A Status of Owned moves it back/,
+    );
+    const plan = apply([row('a.com', { status: 'owned' })]);
+    expect(plan.outcomes[0].changes).toContainEqual({
+      field: 'Status',
+      from: 'Dropped',
+      to: 'Owned',
+    });
+    expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
+    expect(listEvents().filter((e) => e.type === 'dropped')).toHaveLength(1);
   });
 
   it('brings a name back from an open removal without a new review', () => {
@@ -284,7 +288,7 @@ describe('importing domains', () => {
 
   it('warns that a labeled name stays in Archive, with or without a Status column', () => {
     apply([row('a.com', { status: 'dropped' })]);
-    const plan = planImport([row('a.com', { notes: 'hi' })], UPDATE);
+    const plan = planImport([row('a.com', { notes: 'hi' })]);
     expect(plan.outcomes[0].warnings).toContainEqual(
       expect.stringMatching(/in Archive as Dropped, so it stays there/),
     );
@@ -330,10 +334,9 @@ describe('importing domains', () => {
       minOffer: '200.00',
       floor: '500.00',
     });
-    const plan = planImport(
-      [row('a.com', { asking: { amount: '100.00', currency: 'USD' } })],
-      UPDATE,
-    );
+    const plan = planImport([
+      row('a.com', { asking: { amount: '100.00', currency: 'USD' } }),
+    ]);
     expect(plan.outcomes[0].warnings[0]).toMatch(/Asking price left as is/);
   });
 
