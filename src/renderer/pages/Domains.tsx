@@ -76,7 +76,6 @@ import { purchaseColumns } from '../components/domains/purchase-columns';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { AskingPriceDialog } from '../components/domains/AskingPriceDialog';
 import { ManualDomainDialog } from '../components/domains/ManualDomainDialog';
-import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
 import { NameserversCell } from '../components/domains/NameserversCell';
@@ -765,7 +764,6 @@ export default function Domains() {
   const [askingFor, setAskingFor] = useState<Domain[] | null>(null);
   // Edit details for a manual name.
   const [detailsFor, setDetailsFor] = useState<Domain | null>(null);
-  const [importing, setImporting] = useState(false);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
   // Mark as Sold for one name: the sale dialog, which takes the price.
   const [markSoldFor, setMarkSoldFor] = useState<Domain | null>(null);
@@ -1638,7 +1636,7 @@ export default function Domains() {
             <Button
               variant="outline"
               className="gap-2"
-              onClick={() => setImporting(true)}
+              onClick={() => navigate('/import')}
             >
               <Upload className="size-4" />
               Import
@@ -1911,7 +1909,7 @@ export default function Domains() {
                   <Plug />
                   Configure registrars
                 </Button>
-                <Button variant="outline" onClick={() => setImporting(true)}>
+                <Button variant="outline" onClick={() => navigate('/import')}>
                   <Upload />
                   Import domains
                 </Button>
@@ -1957,7 +1955,6 @@ export default function Domains() {
           onClose={() => setBulkDialog(null)}
         />
       )}
-      {importing && <ImportDomainsDialog onClose={() => setImporting(false)} />}
       {detailsFor && (
         <ManualDomainDialog
           domain={detailsFor}

@@ -25,12 +25,12 @@ import {
   sealBundle,
 } from '../../../shared/bundle-seal';
 import { isDemo } from '../../lib/platform';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../store/app';
 import { SettingsCard, SettingsField } from './SettingsCard';
 import { Download, Upload } from 'lucide-react';
 import { domainsCsvTemplate } from '../../../shared/domain-csv';
 import { exportAllDomains } from '../../lib/domain-export';
-import { ImportDomainsDialog } from '../../components/domains/ImportDomainsDialog';
 
 /** Auto-sync interval choices (minutes). `0` disables the background sync. */
 const INTERVAL_OPTIONS: { label: string; minutes: number }[] = [
@@ -160,7 +160,7 @@ export default function DataSettings() {
  * from the template (docs/domain-import-export.md).
  */
 function SpreadsheetCard() {
-  const [importing, setImporting] = useState(false);
+  const navigate = useNavigate();
 
   async function onExport() {
     try {
@@ -197,9 +197,9 @@ function SpreadsheetCard() {
         DomBot can import again.
       </p>
       <div className="flex flex-wrap gap-2">
-        <Button className="gap-2" onClick={() => setImporting(true)}>
+        <Button className="gap-2" onClick={() => navigate('/import')}>
           <Upload className="size-4" />
-          Import domains…
+          Import domains
         </Button>
         <Button
           variant="outline"
@@ -213,7 +213,6 @@ function SpreadsheetCard() {
           Download template
         </Button>
       </div>
-      {importing && <ImportDomainsDialog onClose={() => setImporting(false)} />}
     </SettingsCard>
   );
 }

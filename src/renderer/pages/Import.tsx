@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CircleAlert, FileUp, Info, Pencil, Upload } from 'lucide-react';
-import { decodeText, toCsv } from '../../../shared/csv';
-import { domainsCsvTemplate } from '../../../shared/domain-csv';
-import { newEventId } from '../../../shared/domain-events';
+import { decodeText, toCsv } from '../../shared/csv';
+import { domainsCsvTemplate } from '../../shared/domain-csv';
+import { newEventId } from '../../shared/domain-events';
 import {
   MAX_IMPORT_ROWS,
   buildRows,
@@ -14,34 +14,30 @@ import {
   type ImportContext,
   type ImportSetup,
   type ImportTable,
-} from '../../../shared/domain-import';
-import {
-  IMPORT_FIELDS,
-  type ImportField,
-} from '../../../shared/import-columns';
+} from '../../shared/domain-import';
+import { IMPORT_FIELDS, type ImportField } from '../../shared/import-columns';
 import type {
+  ImportChange,
   ImportOptions,
   ImportOutcome,
   ImportPlan,
-} from '../../../shared/ipc';
+  ImportRow,
+} from '../../shared/ipc';
+import { toUnicode } from '../../shared/domain-name';
+import { DataTable, type DataColumn } from '../components/data-table/DataTable';
+import { sortRows, type SortDir } from '../components/data-table/table-state';
+import { CurrencyPicker } from '../components/domains/CurrencyPicker';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
   formatAmountInput,
+  formatMoney,
   parseLocalizedAmount,
-} from '../../../shared/money';
-import { useAppStore } from '../../store/app';
+} from '../../shared/money';
+import { useAppStore } from '../store/app';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -53,7 +49,6 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { CurrencyPicker } from './CurrencyPicker';
 
 // Import domains (docs/domain-import-export.md, "The Import domains dialog"):
 // two tabs. Manual takes typed names plus an asking price and folder for all
@@ -104,7 +99,7 @@ const RESULT_STYLE: Record<ImportOutcome['result'], string> = {
   history: 'border-purple-500/40 text-purple-600 dark:text-purple-400',
 };
 
-export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
+export default function Import() {
   const navigate = useNavigate();
   const settings = useAppStore((s) => s.settings);
   const registrars = useAppStore((s) => s.registrars);
@@ -151,6 +146,18 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  function startOver() {
+    setStep('choose');
+    setResult(null);
+    setPlan(null);
+    setBuilt(null);
+    setTable(null);
+    setSetup(null);
+    setFileName(null);
+    setError(null);
+    setManual((m) => ({ ...m, names: '' }));
+  }
 
   // ── choose ────────────────────────────────────────────────────────────────
 
@@ -409,36 +416,151 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
   const toImport =
     plan?.outcomes.filter((o) => o.result !== 'unchanged').length ?? 0;
 
+  const description =
+    step === 'choose'
+      ? source === 'manual'
+        ? 'Type or paste names. The price and folder below apply to every one.'
+        : 'Upload a spreadsheet of your names, with any details it has.'
+      : step === 'match'
+        ? `${fileName ?? 'The file'} · ${(table?.rows.length ?? 0).toLocaleString('en-US')} rows. Check what each column holds.`
+        : step === 'review'
+          ? 'Review what changes. Nothing is saved until you import.'
+          : 'Done.';
+
   return (
-    <Dialog open onOpenChange={(next) => !next && !busy && onClose()}>
-      <DialogContent
+    <div className="flex min-h-0 w-full flex-1 flex-col">
+      {/* -m-1 p-1 leaves room for focus rings, which the scroll box would clip. */}
+      <div
         className={cn(
-          'flex max-h-[92dvh] flex-col max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:rounded-none',
-          step === 'choose' ? 'sm:max-w-2xl' : 'sm:max-w-4xl',
+          '-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1',
+          step !== 'review' && 'flex-1',
         )}
       >
-        <DialogHeader>
-          <DialogTitle>Import domains</DialogTitle>
-          <DialogDescription>
-            {step === 'choose' &&
-              (source === 'manual'
-                ? 'Type or paste names. The price and folder below apply to every one.'
-                : 'Upload a spreadsheet of your names, with any details it has.')}
-            {step === 'match' && fileName && (
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div>
+            <h1 className="text-2xl font-bold leading-none sm:text-[32px]">
+              Import
+            </h1>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              {description}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {step === 'choose' && source === 'manual' && (
+              <Button
+                type="button"
+                disabled={busy || splitNames(manual.names).length === 0}
+                onClick={() => void addManual()}
+              >
+                {busy
+                  ? 'Reading…'
+                  : `Review ${splitNames(manual.names).length.toLocaleString('en-US')} name${splitNames(manual.names).length === 1 ? '' : 's'}`}
+              </Button>
+            )}
+            {step === 'match' && (
               <>
-                <span className="font-mono text-foreground">{fileName}</span>
-                {' · '}
-                {table?.rows.length.toLocaleString('en-US')} rows. Check what
-                each column holds.
+                <Button
+                  type="button"
+                  variant="outline"
+
+                  onClick={() => setStep('choose')}
+                >
+                  Back
+                </Button>
+                <Button
+                  type="button"
+                  disabled={
+                    busy ||
+                    !setup ||
+                    (!setup.columns.includes('domain') &&
+                      !setup.columns.includes('idn'))
+                  }
+                  title={
+                    setup &&
+                    !setup.columns.includes('domain') &&
+                    !setup.columns.includes('idn')
+                      ? 'Choose the column with the domain names.'
+                      : undefined
+                  }
+                  onClick={() => table && setup && void preview(table, setup)}
+                >
+                  {busy ? 'Reading…' : 'Review'}
+                </Button>
               </>
             )}
-            {step === 'review' &&
-              'Review what changes. Nothing is saved until you import.'}
-            {step === 'done' && 'Done.'}
-          </DialogDescription>
-        </DialogHeader>
+            {step === 'review' && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
 
-        <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6">
+                  disabled={busy}
+                  onClick={() =>
+                    setStep(
+                      source === 'manual' || setup?.format?.exact
+                        ? 'choose'
+                        : 'match',
+                    )
+                  }
+                >
+                  Back
+                </Button>
+                {(errors.length > 0 ||
+                  plan?.outcomes.some((o) => o.warnings.length > 0)) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => void downloadIssues()}
+                  >
+                    Download issues
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  disabled={busy || toImport === 0}
+                  onClick={() => void runImport()}
+                >
+                  {busy && progress !== null
+                    ? 'Importing…'
+                    : toImport === 0
+                      ? 'Nothing to import'
+                      : `Import ${toImport.toLocaleString('en-US')} name${toImport === 1 ? '' : 's'}`}
+                </Button>
+              </>
+            )}
+            {step === 'done' && result && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+
+                  onClick={() => {
+                    navigate(`/activity?import=${result.importId}`);
+                  }}
+                >
+                  View in Activity
+                </Button>
+                {result.plan.counts.new > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      navigate(`/activity?review=1&import=${result.importId}`);
+                    }}
+                  >
+                    Review new names
+                  </Button>
+                )}
+                <Button type="button" onClick={startOver}>
+                  Import more
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className={cn('flex flex-col', step === 'choose' && 'max-w-2xl')}>
           {step === 'choose' && (
             <Tabs
               value={source}
@@ -606,129 +728,28 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
             </div>
           )}
         </div>
-
-        <DialogFooter className="gap-2">
-          {step === 'choose' && source === 'manual' && (
-            <Button
-              type="button"
-              disabled={busy || splitNames(manual.names).length === 0}
-              onClick={() => void addManual()}
-            >
-              {busy
-                ? 'Reading…'
-                : `Review ${splitNames(manual.names).length.toLocaleString('en-US')} name${splitNames(manual.names).length === 1 ? '' : 's'}`}
-            </Button>
+      </div>
+      {step === 'review' && built && plan && (
+        <ReviewTable
+          rows={reviewRows(built, plan).filter((r) =>
+            filter === 'all'
+              ? true
+              : filter === 'errors'
+                ? r.result === 'error'
+                : r.result === filter,
           )}
-          {step === 'match' && (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                className="sm:mr-auto"
-                onClick={() => setStep('choose')}
-              >
-                Back
-              </Button>
-              <Button
-                type="button"
-                disabled={
-                  busy ||
-                  !setup ||
-                  (!setup.columns.includes('domain') &&
-                    !setup.columns.includes('idn'))
-                }
-                title={
-                  setup &&
-                  !setup.columns.includes('domain') &&
-                  !setup.columns.includes('idn')
-                    ? 'Choose the column with the domain names.'
-                    : undefined
-                }
-                onClick={() => table && setup && void preview(table, setup)}
-              >
-                {busy ? 'Reading…' : 'Review'}
-              </Button>
-            </>
-          )}
-          {step === 'review' && (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                className="sm:mr-auto"
-                disabled={busy}
-                onClick={() =>
-                  setStep(
-                    source === 'manual' || setup?.format?.exact
-                      ? 'choose'
-                      : 'match',
-                  )
-                }
-              >
-                Back
-              </Button>
-              {(errors.length > 0 ||
-                plan?.outcomes.some((o) => o.warnings.length > 0)) && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => void downloadIssues()}
-                >
-                  Download issues
-                </Button>
-              )}
-              <Button
-                type="button"
-                disabled={busy || toImport === 0}
-                onClick={() => void runImport()}
-              >
-                {busy && progress !== null
-                  ? 'Importing…'
-                  : toImport === 0
-                    ? 'Nothing to import'
-                    : `Import ${toImport.toLocaleString('en-US')} name${toImport === 1 ? '' : 's'}`}
-              </Button>
-            </>
-          )}
-          {step === 'done' && result && (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                className="sm:mr-auto"
-                onClick={() => {
-                  onClose();
-                  navigate(`/activity?import=${result.importId}`);
-                }}
-              >
-                View in Activity
-              </Button>
-              {result.plan.counts.new > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    onClose();
-                    navigate(`/activity?review=1&import=${result.importId}`);
-                  }}
-                >
-                  Review new names
-                </Button>
-              )}
-              <Button type="button" onClick={onClose}>
-                Close
-              </Button>
-            </>
-          )}
-          {step === 'choose' && (
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          registrars={ctx.registrars}
+          money={(amount, currency) =>
+            formatMoney(
+              amount,
+              currency,
+              preferred,
+              settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+            )
+          }
+        />
+      )}
+    </div>
   );
 }
 
@@ -762,7 +783,7 @@ function ManualTab({
         <Textarea
           id="import-names"
           rows={7}
-          className="font-mono text-sm"
+          className="min-h-40 font-mono text-sm"
           placeholder={'example.com\nexample.net'}
           value={fields.names}
           onChange={(e) => onChange({ names: e.target.value })}
@@ -1064,8 +1085,74 @@ function MatchStep({
 
 // ── review ──────────────────────────────────────────────────────────────────
 
-const SHOWN = 200;
+/** One line of the review table: a name the import reads, or a row it skips. */
+interface ReviewRow {
+  key: string;
+  line: number;
+  /** ASCII; null for a row with no readable name. */
+  domain: string | null;
+  result: ImportOutcome['result'] | 'error';
+  row: ImportRow | null;
+  /** What changes, by field label ("Folder", "Asking price", …). */
+  changes: Map<string, ImportChange>;
+  /** Warnings, or the reason an error row is skipped. */
+  problems: string[];
+}
 
+/** The plan as table rows, errors included. */
+export function reviewRows(built: BuiltRows, plan: ImportPlan): ReviewRow[] {
+  const byLine = new Map(built.rows.map((r) => [r.line, r]));
+  const warnings = new Map<number, string[]>();
+  for (const i of built.issues)
+    if (i.level === 'warning')
+      warnings.set(i.line, [...(warnings.get(i.line) ?? []), i.message]);
+  return [
+    ...plan.outcomes.map((o) => ({
+      key: `n:${o.domain}`,
+      line: o.line,
+      domain: o.domain,
+      result: o.result,
+      row: byLine.get(o.line) ?? null,
+      changes: new Map(o.changes.map((c) => [c.field, c])),
+      problems: [...(warnings.get(o.line) ?? []), ...o.warnings],
+    })),
+    ...built.issues
+      .filter((i) => i.level === 'error')
+      .map((i, n) => ({
+        key: `e:${i.line}:${n}`,
+        line: i.line,
+        domain: i.domain,
+        result: 'error' as const,
+        row: null,
+        changes: new Map<string, ImportChange>(),
+        problems: [i.message],
+      })),
+  ];
+}
+
+const STATUS_LABEL: Record<NonNullable<ImportRow['status']>, string> = {
+  owned: 'Owned',
+  sold: 'Sold',
+  dropped: 'Dropped',
+  archived: 'Archived',
+  removed: 'Removed',
+};
+
+/**
+ * A value column of the review table: what the row says, and the change
+ * label that marks it as something the import writes.
+ */
+interface ValueColumn {
+  key: string;
+  label: string;
+  /** The `ImportChange.field` this column shows. */
+  field: string;
+  align?: 'right';
+  value: (row: ImportRow) => string | null;
+  sortValue?: (row: ImportRow) => string | number | null;
+}
+
+/** The options and filters above the review table. */
 function ReviewStep({
   built,
   plan,
@@ -1083,33 +1170,63 @@ function ReviewStep({
   onOptions: (o: ImportOptions) => void;
   busy: boolean;
 }) {
-  const [open, setOpen] = useState<string | null>(null);
   const errors = built.issues.filter((i) => i.level === 'error');
-  const warningsByLine = new Map<number, string[]>();
-  for (const i of built.issues)
-    if (i.level === 'warning')
-      warningsByLine.set(i.line, [
-        ...(warningsByLine.get(i.line) ?? []),
-        i.message,
-      ]);
-
   const chips: { id: Filter; label: string; count: number }[] = [
-    { id: 'all', label: 'All', count: plan.outcomes.length },
+    { id: 'all', label: 'All', count: plan.outcomes.length + errors.length },
     { id: 'new', label: 'New', count: plan.counts.new },
     { id: 'update', label: 'Updated', count: plan.counts.update },
     { id: 'unchanged', label: 'Unchanged', count: plan.counts.unchanged },
     { id: 'history', label: 'History only', count: plan.counts.history },
-    { id: 'errors', label: 'Errors', count: errors.length },
+    { id: 'errors', label: 'Skipped', count: errors.length },
   ];
-  const outcomes =
-    filter === 'all'
-      ? plan.outcomes
-      : filter === 'errors'
-        ? []
-        : plan.outcomes.filter((o) => o.result === filter);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">When DomBot already has a value</Label>
+          <Select
+            disabled={busy}
+            value={options.policy}
+            onValueChange={(v) =>
+              onOptions({ ...options, policy: v as ImportOptions['policy'] })
+            }
+          >
+            <SelectTrigger className="h-8 w-64">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="update">
+                Replace it with the new value
+              </SelectItem>
+              <SelectItem value="fill">Keep it; only fill in blanks</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">Names no account of yours holds</Label>
+          <Select
+            disabled={busy}
+            value={options.notInAccounts}
+            onValueChange={(v) =>
+              onOptions({
+                ...options,
+                notInAccounts: v as ImportOptions['notInAccounts'],
+              })
+            }
+          >
+            <SelectTrigger className="h-8 w-72">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="manual">Add them to Owned</SelectItem>
+              <SelectItem value="history">
+                Don&apos;t add them; keep purchases and sales
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         {chips.map((c) => (
           <button
@@ -1134,158 +1251,275 @@ function ReviewStep({
         {built.skipped > 0 && (
           <span className="text-xs text-muted-foreground">
             {built.skipped.toLocaleString('en-US')} blank or non-domain row
-            {built.skipped === 1 ? '' : 's'} skipped
+            {built.skipped === 1 ? '' : 's'} left out
+          </span>
+        )}
+        {plan.newFolders.length > 0 && (
+          <span className="text-xs text-muted-foreground">
+            Creates {plan.newFolders.length === 1 ? 'a folder' : 'folders'}:{' '}
+            {plan.newFolders.join(', ')}
           </span>
         )}
       </div>
-
-      <div className="grid gap-3 rounded-lg border bg-muted/30 p-3 text-sm sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">When DomBot already has a value</Label>
-          <Select
-            disabled={busy}
-            value={options.policy}
-            onValueChange={(v) =>
-              onOptions({ ...options, policy: v as ImportOptions['policy'] })
-            }
-          >
-            <SelectTrigger className="h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="update">
-                Replace it with the new value
-              </SelectItem>
-              <SelectItem value="fill">Keep it; only fill in blanks</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Names not in your accounts</Label>
-          <Select
-            disabled={busy}
-            value={options.notInAccounts}
-            onValueChange={(v) =>
-              onOptions({
-                ...options,
-                notInAccounts: v as ImportOptions['notInAccounts'],
-              })
-            }
-          >
-            <SelectTrigger className="h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="manual">Add them to Owned</SelectItem>
-              <SelectItem value="history">Only record their history</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {plan.newFolders.length > 0 && (
-        <p className="text-sm text-muted-foreground">
-          Creates {plan.newFolders.length === 1 ? 'a folder' : 'folders'}:{' '}
-          {plan.newFolders.join(', ')}.
-        </p>
-      )}
-
-      {filter === 'errors' || (filter === 'all' && errors.length > 0) ? (
-        <ul className="flex flex-col divide-y rounded-lg border text-sm">
-          {errors.slice(0, SHOWN).map((e) => (
-            <li key={`${e.line}-${e.message}`} className="flex gap-3 px-3 py-2">
-              <span className="w-14 shrink-0 text-muted-foreground tabular-nums">
-                Row {e.line}
-              </span>
-              <span className="min-w-0 flex-1">
-                {e.domain && <span className="font-mono">{e.domain}: </span>}
-                <span className="text-destructive">{e.message}</span>
-                <span className="text-muted-foreground"> Skipped.</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {filter !== 'errors' && (
-        <ul className="flex flex-col divide-y rounded-lg border text-sm">
-          {outcomes.length === 0 && (
-            <li className="px-3 py-4 text-center text-muted-foreground">
-              Nothing to show.
-            </li>
-          )}
-          {outcomes.slice(0, SHOWN).map((o) => {
-            const warnings = [
-              ...(warningsByLine.get(o.line) ?? []),
-              ...o.warnings,
-            ];
-            const expanded = open === o.domain;
-            return (
-              <li key={o.domain} className="px-3 py-2">
-                <button
-                  type="button"
-                  className="flex w-full items-start gap-3 text-left"
-                  onClick={() => setOpen(expanded ? null : o.domain)}
-                  aria-expanded={expanded}
-                >
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      'w-24 shrink-0 justify-center',
-                      RESULT_STYLE[o.result],
-                    )}
-                  >
-                    {RESULT_LABEL[o.result]}
-                  </Badge>
-                  <span className="w-48 shrink-0 truncate font-mono">
-                    {o.domain}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                    {o.changes
-                      .map((c) => (c.to ? `${c.field} ${c.to}` : c.field))
-                      .join(' · ')}
-                  </span>
-                  {warnings.length > 0 && (
-                    <CircleAlert
-                      className="mt-0.5 size-4 shrink-0 text-amber-500"
-                      aria-label={`${warnings.length} warning${warnings.length === 1 ? '' : 's'}`}
-                    />
-                  )}
-                </button>
-                {expanded && (
-                  <div className="mt-2 ml-27 flex flex-col gap-1 text-xs">
-                    {o.changes.map((c, i) => (
-                      <div key={i} className="grid grid-cols-[8rem_1fr] gap-2">
-                        <span className="text-muted-foreground">{c.field}</span>
-                        <span>
-                          {c.from && (
-                            <span className="text-muted-foreground line-through">
-                              {c.from}
-                            </span>
-                          )}
-                          {c.from && ' → '}
-                          {c.to ?? '—'}
-                        </span>
-                      </div>
-                    ))}
-                    {warnings.map((w, i) => (
-                      <p key={i} className="text-amber-600 dark:text-amber-400">
-                        {w}
-                      </p>
-                    ))}
-                    <p className="text-muted-foreground">Row {o.line}</p>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-          {outcomes.length > SHOWN && (
-            <li className="px-3 py-2 text-center text-xs text-muted-foreground">
-              and {(outcomes.length - SHOWN).toLocaleString('en-US')} more
-            </li>
-          )}
-        </ul>
-      )}
     </div>
+  );
+}
+
+/**
+ * Every name the import reads, one row each, with a column per field the
+ * file has. A value the import writes is in full color (hover shows what it
+ * replaces); one DomBot already has, or keeps, is dimmed.
+ */
+function ReviewTable({
+  rows,
+  registrars,
+  money,
+}: {
+  rows: ReviewRow[];
+  registrars: ImportContext['registrars'];
+  money: (amount: string, currency: string) => string;
+}) {
+  const [sort, setSort] = useState<{ key: string; dir: SortDir }>({
+    key: 'line',
+    dir: 'asc',
+  });
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
+
+  const registrarName = (id: string) =>
+    registrars.find((r) => r.id === id)?.displayName ?? id;
+  const allColumns: ValueColumn[] = [
+    {
+      key: 'status',
+      label: 'Status',
+      field: 'Status',
+      value: (r) => (r.status ? STATUS_LABEL[r.status] : null),
+    },
+    {
+      key: 'folder',
+      label: 'Folder',
+      field: 'Folder',
+      value: (r) => r.folder ?? null,
+    },
+    {
+      key: 'registrar',
+      label: 'Registrar',
+      field: 'Registrar',
+      value: (r) =>
+        r.registration?.registrar
+          ? registrarName(r.registration.registrar)
+          : (r.registration?.registrarLabel ?? null),
+    },
+    {
+      key: 'expires',
+      label: 'Expires',
+      field: 'Expires',
+      value: (r) => r.registration?.expirationDate ?? null,
+    },
+    {
+      key: 'asking',
+      label: 'Asking',
+      field: 'Asking price',
+      align: 'right',
+      value: (r) => {
+        const a = r.asking;
+        if (!a) return null;
+        const parts = [
+          a.amount && money(a.amount, a.currency),
+          a.minOffer && `min ${money(a.minOffer, a.currency)}`,
+          a.floor && `floor ${money(a.floor, a.currency)}`,
+        ].filter(Boolean);
+        return parts.length ? parts.join(' · ') : null;
+      },
+      sortValue: (r) => (r.asking?.amount ? Number(r.asking.amount) : null),
+    },
+    {
+      key: 'renewal',
+      label: 'Renewal',
+      field: 'Renewal price',
+      align: 'right',
+      value: (r) =>
+        r.renewal ? money(r.renewal.amount, r.renewal.currency) : null,
+      sortValue: (r) => (r.renewal ? Number(r.renewal.amount) : null),
+    },
+    {
+      key: 'purchased',
+      label: 'Purchased',
+      field: 'Purchase date',
+      value: (r) => r.purchase?.date ?? null,
+    },
+    {
+      key: 'paid',
+      label: 'Paid',
+      field: 'Purchase amount',
+      align: 'right',
+      value: (r) =>
+        r.purchase?.amount
+          ? money(r.purchase.amount, r.purchase.currency ?? '')
+          : null,
+      sortValue: (r) => (r.purchase?.amount ? Number(r.purchase.amount) : null),
+    },
+    {
+      key: 'sold',
+      label: 'Sold',
+      field: 'Sale date',
+      value: (r) => r.sale?.date ?? null,
+    },
+    {
+      key: 'soldFor',
+      label: 'Sold for',
+      field: 'Sale amount',
+      align: 'right',
+      value: (r) =>
+        r.sale?.amount ? money(r.sale.amount, r.sale.currency ?? '') : null,
+      sortValue: (r) => (r.sale?.amount ? Number(r.sale.amount) : null),
+    },
+    {
+      key: 'notes',
+      label: 'Notes',
+      field: 'Notes',
+      value: (r) => r.notes ?? null,
+    },
+  ];
+  const valueColumns = allColumns.filter((c) =>
+    rows.some((r) => r.row && c.value(r.row) !== null),
+  );
+
+  const columns: DataColumn<ReviewRow>[] = [
+    {
+      key: 'line',
+      label: 'Row',
+      align: 'right',
+      compact: true,
+      cell: (r) => (
+        <span className="text-muted-foreground tabular-nums">{r.line}</span>
+      ),
+    },
+    {
+      key: 'domain',
+      label: 'Domain',
+      cell: (r) => (
+        <span className="font-mono">
+          {r.domain ? toUnicode(r.domain) : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'result',
+      label: 'Result',
+      cell: (r) => (
+        <Badge
+          variant="outline"
+          className={cn(
+            'justify-center',
+            r.result === 'error'
+              ? 'border-destructive/40 text-destructive'
+              : RESULT_STYLE[r.result],
+          )}
+        >
+          {r.result === 'error' ? 'Skipped' : RESULT_LABEL[r.result]}
+        </Badge>
+      ),
+    },
+    ...valueColumns.map((c): DataColumn<ReviewRow> => ({
+      key: c.key,
+      label: c.label,
+      align: c.align,
+      hideOnMobile: true,
+      cell: (r) => {
+        const value = r.row ? c.value(r.row) : null;
+        if (value === null)
+          return <span className="text-muted-foreground/50">—</span>;
+        const change = r.changes.get(c.field);
+        return (
+          <span
+            className={cn(
+              'block max-w-64 truncate',
+              !change && 'text-muted-foreground',
+            )}
+            title={
+              change
+                ? change.from
+                  ? `Replaces ${change.from}`
+                  : 'New'
+                : 'Already in DomBot, or kept'
+            }
+          >
+            {value}
+          </span>
+        );
+      },
+    })),
+    {
+      key: 'problems',
+      label: 'Notes',
+      sortable: true,
+      cell: (r) =>
+        r.problems.length === 0 ? null : (
+          <span
+            className={cn(
+              'flex max-w-96 items-start gap-1.5 text-xs',
+              r.result === 'error'
+                ? 'text-destructive'
+                : 'text-amber-600 dark:text-amber-400',
+            )}
+            title={r.problems.join('\n')}
+          >
+            <CircleAlert className="mt-px size-3.5 shrink-0" />
+            <span className="truncate">{r.problems.join(' ')}</span>
+          </span>
+        ),
+    },
+  ];
+  // "Notes" is taken by the file's notes column when it has one.
+  if (valueColumns.some((c) => c.key === 'notes'))
+    columns[columns.length - 1].label = 'Problems';
+
+  const sorted = useMemo(() => {
+    const col = valueColumns.find((c) => c.key === sort.key);
+    const valueOf = (r: ReviewRow): string | number | null => {
+      switch (sort.key) {
+        case 'line':
+          return r.line;
+        case 'domain':
+          return r.domain;
+        case 'result':
+          return r.result;
+        case 'problems':
+          return r.problems.length || null;
+        default:
+          if (!col || !r.row) return null;
+          return (col.sortValue ?? col.value)(r.row);
+      }
+    };
+    return sortRows([...rows], valueOf, sort.dir);
+    // valueColumns is rebuilt each render from `rows`; the sort key covers it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, sort]);
+
+  return (
+    <DataTable
+      className="mt-[13px]"
+      rows={sorted}
+      columns={columns}
+      rowKey={(r) => r.key}
+      sort={sort}
+      onSort={(key) => {
+        setSort((s) =>
+          s.key === key
+            ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+            : { key, dir: 'asc' },
+        );
+        setPage(0);
+      }}
+      page={page}
+      pageSize={pageSize}
+      onPageChange={setPage}
+      onPageSizeChange={(n) => {
+        setPageSize(n);
+        setPage(0);
+      }}
+      empty="Nothing to show."
+    />
   );
 }
