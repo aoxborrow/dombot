@@ -113,6 +113,93 @@ export const purchaseInput = z
   })
   .strict();
 
+// ── domain import ───────────────────────────────────────────────────────────
+// Normalized rows only: the lenient reading happened in the renderer, so
+// every value here is already in stored form.
+
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const decimal = z.string().regex(/^\d{1,15}(\.\d{1,3})?$/);
+const currencyCode = z.string().regex(/^[A-Z]{3}$/);
+
+export const importRow = z
+  .object({
+    line: z.number().int().min(0),
+    domain: z.string().trim().min(1).max(253),
+    status: z
+      .enum(['owned', 'sold', 'dropped', 'archived', 'removed'])
+      .optional(),
+    folder: z.string().trim().min(1).max(100).optional(),
+    notes: z.string().max(4000).optional(),
+    registration: z
+      .object({
+        registrar: z.string().max(40).optional(),
+        registrarLabel: z.string().max(100).optional(),
+        createdDate: day.optional(),
+        expirationDate: day.optional(),
+        autoRenew: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
+    renewal: z
+      .object({ amount: decimal, currency: currencyCode })
+      .strict()
+      .optional(),
+    asking: z
+      .object({
+        amount: decimal.optional(),
+        minOffer: decimal.optional(),
+        floor: decimal.optional(),
+        currency: currencyCode,
+      })
+      .strict()
+      .optional(),
+    purchase: z
+      .object({
+        type: z.enum(['registered', 'purchased']).optional(),
+        date: day.optional(),
+        amount: decimal.optional(),
+        currency: currencyCode.optional(),
+        years: z.number().int().min(1).max(10).optional(),
+      })
+      .strict()
+      .refine((p) => !p.amount || p.currency, 'An amount needs a currency.')
+      .optional(),
+    sale: z
+      .object({
+        date: day.optional(),
+        amount: decimal.optional(),
+        currency: currencyCode.optional(),
+      })
+      .strict()
+      .refine((s) => !s.amount || s.currency, 'An amount needs a currency.')
+      .optional(),
+  })
+  .strict();
+
+export const importRows = z.array(importRow).max(10000);
+
+export const importOptions = z
+  .object({
+    policy: z.enum(['update', 'fill']),
+    notInAccounts: z.enum(['manual', 'history']),
+  })
+  .strict();
+
+export const importApply = importOptions
+  .extend({ importId: z.string().min(1).max(80) })
+  .strict();
+
+/** A manual name's registration fields, as edited. */
+export const manualDomainFields = z
+  .object({
+    registrar: z.string().max(40).nullable(),
+    registrarLabel: z.string().max(100).nullable(),
+    createdDate: z.string().max(10).nullable(),
+    expirationDate: z.string().max(10).nullable(),
+    autoRenew: z.boolean().nullable(),
+  })
+  .strict();
+
 /** A manual yearly renewal price, in any currency. */
 export const renewalPriceInput = z
   .object({ amount: z.string().max(40), currency: z.string().max(10) })
