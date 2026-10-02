@@ -158,6 +158,8 @@ export const IpcChannels = {
   setPurchase: 'purchases:set',
   setSale: 'purchases:setSale',
   setNotes: 'purchases:setNotes',
+  previewDomainImport: 'domainImport:preview',
+  importDomains: 'domainImport:apply',
   getManualDomains: 'manualDomains:list',
   updateManualDomain: 'manualDomains:update',
   getAskingPrices: 'askingPrices:list',
@@ -378,6 +380,80 @@ export interface AskingPrice {
 export interface RenewalPriceInput {
   amount: string;
   currency: string;
+}
+
+/**
+ * One name's row from an imported file, normalized
+ * (docs/domain-import-export.md, "Normalized rows"). Every value is already
+ * in stored form; an absent field was blank in the file and means "keep".
+ */
+export interface ImportRow {
+  /** The file line the row came from (the first, when rows were merged). */
+  line: number;
+  /** `toAscii(name)`. */
+  domain: string;
+  status?: 'owned' | 'sold' | 'dropped' | 'archived' | 'removed';
+  /** A folder name; "Hidden" is the built-in one. */
+  folder?: string;
+  notes?: string;
+  registration?: {
+    /** A registrar id DomBot knows. */
+    registrar?: string;
+    /** Free text, for a registrar DomBot doesn't know. */
+    registrarLabel?: string;
+    createdDate?: string;
+    expirationDate?: string;
+    autoRenew?: boolean;
+  };
+  renewal?: { amount: string; currency: string };
+  asking?: {
+    amount?: string;
+    minOffer?: string;
+    floor?: string;
+    currency: string;
+  };
+  purchase?: {
+    type?: 'registered' | 'purchased';
+    date?: string;
+    amount?: string;
+    currency?: string;
+    years?: number;
+  };
+  sale?: { date?: string; amount?: string; currency?: string };
+}
+
+/** How an import treats what DomBot already has. */
+export interface ImportOptions {
+  /** `update`: a value in the file replaces DomBot's. `fill`: only blanks are filled. */
+  policy: 'update' | 'fill';
+  /** Names in no account that end up Owned: add them, or record history only. */
+  notInAccounts: 'manual' | 'history';
+}
+
+export interface ImportChange {
+  field: string;
+  from: string | null;
+  to: string | null;
+}
+
+/** What an import does, or would do, to one name. */
+export interface ImportOutcome {
+  line: number;
+  domain: string;
+  /**
+   * `new`: added as a manual name. `update`: something changes.
+   * `unchanged`: nothing to do. `history`: events for a name not in Owned.
+   */
+  result: 'new' | 'update' | 'unchanged' | 'history';
+  changes: ImportChange[];
+  warnings: string[];
+}
+
+export interface ImportPlan {
+  outcomes: ImportOutcome[];
+  counts: Record<ImportOutcome['result'], number>;
+  /** Folders the import creates. */
+  newFolders: string[];
 }
 
 /** One name's asking price to save. All three amounts blank clears it. */
@@ -963,6 +1039,18 @@ export interface DombotApi {
     domainName: string,
     notes: string,
   ) => Promise<DomainPurchase | null>;
+
+  // Domain import (docs/domain-import-export.md)
+  /** What importing these normalized rows would change. Writes nothing. */
+  previewDomainImport: (
+    rows: ImportRow[],
+    options: ImportOptions,
+  ) => Promise<ImportPlan>;
+  /** Import the rows (a chunk of up to 10,000, under one `importId`). */
+  importDomains: (
+    rows: ImportRow[],
+    options: ImportOptions & { importId: string },
+  ) => Promise<ImportPlan & { importId: string }>;
 
   // Manual domains (names no connected account reports)
   /** Every manual name, keyed by the normalized domain name. */

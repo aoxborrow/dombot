@@ -206,3 +206,23 @@ export function setTldRate(
     void tldRates.set(key, price);
   }
 }
+
+/** Every manual renewal price, keyed by `toAscii(name)`. */
+export function getManualPrices(): Record<string, RenewalPrice> {
+  const out: Record<string, RenewalPrice> = {};
+  for (const [key, value] of Object.entries(overrides.all())) {
+    const price = toRenewalPrice(value);
+    if (price) out[key] = price;
+  }
+  return out;
+}
+
+/** Sets many names' manual renewal prices in one write (an import). */
+export function setManualPrices(
+  entries: [domain: string, RenewalPrice][],
+): void {
+  if (entries.length === 0) return;
+  void overrides.setMany(
+    entries.map(([domain, price]) => [assertDomainName(domain), price]),
+  );
+}

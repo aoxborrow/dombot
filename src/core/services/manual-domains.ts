@@ -136,6 +136,11 @@ export function addManualDomains(
   return entries.map(([key]) => key);
 }
 
+/** Writes manual entries in one write (an import's new and edited names). */
+export function putManualDomains(entries: [string, ManualDomain][]): void {
+  if (entries.length > 0) void manual.setMany(entries);
+}
+
 /** Edits a manual name's registration fields. Throws for a name that isn't manual. */
 export function updateManualDomain(
   domainName: string,

@@ -12,8 +12,9 @@ It also defines one DomBot CSV format: it exports every name on one line, and
 importing that file gets you back to the same data.
 
 Status: plan (2026-10-02), reviewed the same day (see "Settled in review").
-Phases 1 to 4 are in review: asking price (#128), renewal prices in any
-currency (#129), the canonical export (#130), and manual domains. It takes over the CSV importer and the manual-domain storage
+Phases 1 to 5 are in review: asking price (#128), renewal prices in any
+currency (#129), the canonical export (#130), manual domains (#131), and the
+import engine. It takes over the CSV importer and the manual-domain storage
 planned in #108. It replaces the purchase-only import in #122, which will be
 closed. It leaves room for venues (#109), installments (#110), MCP (#111),
 and the financial dashboard (#112). Storage follows `docs/storage-model.md`.

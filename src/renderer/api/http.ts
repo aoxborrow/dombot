@@ -397,6 +397,8 @@ export function createHttpApi(): DombotApi {
     getPurchases: m('getPurchases'),
     setPurchase: m('setPurchase'),
     setNotes: m('setNotes'),
+    previewDomainImport: m('previewDomainImport'),
+    importDomains: m('importDomains'),
     getManualDomains: m('getManualDomains'),
     updateManualDomain: m('updateManualDomain'),
     getAskingPrices: m('getAskingPrices'),

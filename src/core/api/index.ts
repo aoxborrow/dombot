@@ -32,6 +32,7 @@ import {
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
 import { getAskingPrices, setAskingPrices } from '../services/asking-prices';
+import { importDomains, planImport } from '../services/domain-import';
 import {
   getManualDomains,
   updateManualDomain,
@@ -371,6 +372,16 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   setNotes: method(
     z.tuple([s.domainName, s.noteText]),
     async (domainName, notes) => setNotes(domainName, notes),
+  ),
+
+  // ── Domain import ─────────────────────────────────────────────────────────
+  previewDomainImport: method(
+    z.tuple([s.importRows, s.importOptions]),
+    async (rows, options) => planImport(rows, options),
+  ),
+  importDomains: method(
+    z.tuple([s.importRows, s.importApply]),
+    async (rows, options) => importDomains(rows, options),
   ),
 
   // ── Manual domains ────────────────────────────────────────────────────────

@@ -37,12 +37,12 @@ function orderKey(e: DomainEvent): string {
   return `${day}|${e.id}`;
 }
 
-interface Holding {
+export interface Holding {
   acquisition?: DomainEvent;
   sale?: DomainEvent;
 }
 
-function holdings(): Map<string, Holding> {
+export function holdings(): Map<string, Holding> {
   const out = new Map<string, Holding>();
   const sorted = listEvents().sort((a, b) =>
     orderKey(a).localeCompare(orderKey(b)),
