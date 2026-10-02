@@ -11,6 +11,7 @@ import {
   CalendarClock,
   ChevronDown,
   CircleCheck,
+  Download,
   ExternalLink,
   Globe,
   Plug,
@@ -37,7 +38,7 @@ import {
 import { DomainEventType } from '../../shared/domain-events';
 import { ownershipByDomain, type ArchiveLabel } from '../../shared/ownership';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
-import { ARCHIVE_LABEL, archiveRows } from '../lib/domain-history';
+import { ARCHIVE_LABEL, accountName, archiveRows } from '../lib/domain-history';
 import {
   DeleteDomainsDialog,
   DispositionDialog,
@@ -45,7 +46,7 @@ import {
   RestoreOwnedDialog,
 } from '../components/actions/OwnershipDialogs';
 import { useAppStore } from '../store/app';
-import { csvFilename, domainsToCsv } from '../lib/csv';
+import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
 import { priceMoney } from '../lib/renewals';
 import { nameserverGroup } from '../lib/nameservers';
 import { folderColorStyle } from '../lib/folders';
@@ -94,6 +95,7 @@ import { Switch } from '@/components/ui/switch';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -135,6 +137,11 @@ interface Column {
 }
 
 /** Everything after the first dot, e.g. "example.co.uk" → "co.uk". */
+/** Distinct names among rows (a name two accounts hold is one row in a CSV). */
+function nameCount(rows: Domain[]): number {
+  return new Set(rows.map((d) => toAscii(d.domainName))).size;
+}
+
 // Asking filter values: names with an asking price, and names without one.
 const PRICED = 'priced';
 const UNPRICED = 'unpriced';
@@ -1362,19 +1369,24 @@ export default function Domains() {
   // native save dialog in main.
   async function exportCsv(rows: Domain[] = filtered) {
     try {
-      const csv = domainsToCsv(
-        rows,
-        portfolioRegistrarLabels,
+      const csv = domainsToCsv(rows, {
+        registrarLabels: portfolioRegistrarLabels,
         folders,
-        folderAssignments,
+        assignments: folderAssignments,
         purchases,
-      );
-      const result = await window.api.saveTextFile(csv, csvFilename());
+        askingPrices,
+        pricing,
+        archiveLabel: (name) => ownership.get(name)?.label ?? null,
+        accountName: (d) =>
+          accountName(registrars, d.accountId ?? d.registrar) ??
+          registrarLabel(d.registrar, portfolioRegistrarLabels),
+      });
+      const result = await window.api.saveTextFile(csv, domainsCsvFilename());
       if (!result.saved) return; // user cancelled the dialog
       const name = result.path?.split(/[/\\]/).pop() ?? 'file';
-      const n = rows.length;
+      const n = nameCount(rows);
       flashExportNote(
-        `Exported ${n} row${n === 1 ? '' : 's'} to ${name}`,
+        `Exported ${n} name${n === 1 ? '' : 's'} to ${name}`,
         false,
       );
     } catch (err) {
@@ -1496,13 +1508,51 @@ export default function Domains() {
                   }`}
             </p>
           </div>
-          <OwnershipSwitch
-            archive={archiveView}
-            ownedCount={ownedCount}
-            archiveCount={archiveCount}
-            onOwned={() => setListView('owned')}
-            onArchive={() => setListView('archive')}
-          />
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Download className="size-4" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuItem
+                  disabled={filtered.length === 0}
+                  onSelect={() => void exportCsv(filtered)}
+                >
+                  Export this view
+                  <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                    {nameCount(filtered).toLocaleString('en-US')}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={shown.length === 0}
+                  onSelect={() =>
+                    void exportCsv(
+                      [...shown].sort((a, b) =>
+                        toAscii(a.domainName).localeCompare(
+                          toAscii(b.domainName),
+                        ),
+                      ),
+                    )
+                  }
+                >
+                  Export everything
+                  <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                    {nameCount(shown).toLocaleString('en-US')}
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <OwnershipSwitch
+              archive={archiveView}
+              ownedCount={ownedCount}
+              archiveCount={archiveCount}
+              onOwned={() => setListView('owned')}
+              onArchive={() => setListView('archive')}
+            />
+          </div>
         </div>
 
         {portfolioError && (

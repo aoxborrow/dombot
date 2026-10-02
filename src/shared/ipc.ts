@@ -271,6 +271,10 @@ export interface DomainPurchase {
   purchaseDate: string | null;
   amount: string | null;
   currency: string | null;
+  /** Hand-registered or bought; absent when there's no purchase on record. */
+  purchaseType?: 'registered' | 'purchased';
+  /** The purchase's term in years, when recorded. */
+  purchaseYears?: number;
   notes: string;
   /** Absent on records saved before a sale could be stored. */
   saleDate?: string | null;

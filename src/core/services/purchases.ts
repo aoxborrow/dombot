@@ -66,10 +66,20 @@ function summaryOf(
   notes: string | undefined,
 ): DomainPurchase | null {
   if (!h?.acquisition && !h?.sale && !notes) return null;
+  const acquired = h?.acquisition;
   return {
-    purchaseDate: h?.acquisition?.date ?? null,
-    amount: h?.acquisition?.amount ?? null,
-    currency: h?.acquisition?.currency ?? null,
+    purchaseDate: acquired?.date ?? null,
+    amount: acquired?.amount ?? null,
+    currency: acquired?.currency ?? null,
+    ...(acquired
+      ? {
+          purchaseType:
+            acquired.type === DomainEventType.Registered
+              ? ('registered' as const)
+              : ('purchased' as const),
+        }
+      : {}),
+    ...(acquired?.years ? { purchaseYears: acquired.years } : {}),
     notes: notes ?? '',
     saleDate: h?.sale?.date ?? null,
     saleAmount: h?.sale?.amount ?? null,
