@@ -1,39 +1,30 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, History } from 'lucide-react';
+import { History } from 'lucide-react';
+import { BellIcon } from '@heroicons/react/24/outline';
 import { toUnicode } from '../../../shared/domain-name';
 import {
   notificationBadge,
   notifications,
   type Notification,
-  type Severity,
 } from '../../../shared/notifications';
+import { SEVERITY_COUNT, SEVERITY_DOT } from '../../lib/severity';
 import { accountName } from '../../lib/domain-history';
 import { syncProblems } from '../../lib/activity';
 import { timeAgo } from '../../lib/time';
 import { useAppStore } from '../../store/app';
 import { EventTypeBadge } from './EventTypeBadge';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
   Popover,
+  PopoverArrow,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
 
 /** Rows the dropdown shows before "and N more". */
 const SHOWN = 10;
-
-const BADGE_TONE: Record<Severity, string> = {
-  error: 'bg-destructive text-white',
-  high: 'bg-amber-500 text-white dark:bg-amber-400 dark:text-black',
-  low: 'bg-muted-foreground text-background',
-};
-
-const DOT_TONE: Record<Severity, string> = {
-  error: 'bg-destructive',
-  high: 'bg-amber-500 dark:bg-amber-400',
-  low: 'bg-muted-foreground/60',
-};
 
 /**
  * The header bell: a compact list of what needs you (docs/activity-redesign.md,
@@ -62,19 +53,22 @@ export function ActivityBell() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
+          // No visible button: the bell brightens on hover, and the 32px box
+          // keeps the click area. Nudged down to line up with the tabs, which
+          // sit on the header's bottom edge (phones have no tabs).
+          className="relative inline-flex size-8 items-center sm:translate-y-[3px] justify-center rounded-md text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:text-foreground"
           aria-label={
             count
               ? `Notifications: ${count} item${count === 1 ? '' : 's'} need${count === 1 ? 's' : ''} attention`
               : 'Notifications'
           }
         >
-          <Bell className="size-4" />
+          <BellIcon className="size-5" />
           {badge && (
             <span
               className={cn(
                 'absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums',
-                BADGE_TONE[badge.severity],
+                SEVERITY_COUNT[badge.severity],
               )}
             >
               {badge.count}
@@ -82,10 +76,15 @@ export function ActivityBell() {
           )}
         </button>
       </PopoverTrigger>
+      {/* Centered under the bell; Radix slides it along when the window
+          edge is too close, and the arrow keeps pointing at the bell. */}
       <PopoverContent
-        align="end"
+        align="center"
+        sideOffset={6}
+        collisionPadding={16}
         className="flex max-h-[70vh] w-[min(420px,calc(100vw-2rem))] flex-col p-0"
       >
+        <PopoverArrow />
         <div className="flex items-center justify-between border-b px-3 py-2">
           <p className="text-sm font-medium">
             Notifications
@@ -143,8 +142,8 @@ export function ActivityBell() {
 
 /**
  * One notification: severity dot, what happened, and when. A domain row opens
- * Activity on that name; a sync error only says which account failed (the
- * details are on its card in Settings → Registrars).
+ * Activity on that name; a sync error opens Settings → Registrars, where its
+ * card has the details (the message is also the row's tooltip).
  */
 function NotificationRow({
   n,
@@ -157,19 +156,36 @@ function NotificationRow({
 }) {
   const dot = (
     <span
-      className={cn('size-2 shrink-0 rounded-full', DOT_TONE[n.severity])}
+      className={cn('size-2 shrink-0 rounded-full', SEVERITY_DOT[n.severity])}
       aria-hidden
     />
   );
   if (n.kind === 'sync-error') {
+    // Opens Settings → Registrars, where the account's card has the error.
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 text-sm">
-        {dot}
-        <span className="min-w-0 truncate font-medium">
-          {account ?? n.message.split(':')[0]}
+      <Link
+        to="/settings?tab=registrars"
+        onClick={onNavigate}
+        className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
+        title={n.message}
+      >
+        {/* No dot: the solid pill is the signal, set apart from the
+            outlined event types below. */}
+        <Badge className="border-transparent bg-red-600 text-white dark:bg-red-500">
+          Error
+        </Badge>
+        <span className="min-w-0 flex-1 truncate">
+          <span className="font-medium">
+            {account ?? n.message.split(':')[0]}
+          </span>{' '}
+          <span className="text-muted-foreground">sync failed</span>
         </span>
-        <span className="shrink-0 text-muted-foreground">sync failed</span>
-      </div>
+        {n.at !== null && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {timeAgo(n.at)}
+          </span>
+        )}
+      </Link>
     );
   }
   const name = toUnicode(n.domain ?? '');

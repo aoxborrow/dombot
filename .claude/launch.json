@@ -20,15 +20,6 @@
       "port": 5199
     },
     {
-      "name": "demo-preview",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "demo:preview"
-      ],
-      "port": 5198
-    },
-    {
       "name": "site",
       "runtimeExecutable": "npm",
       "runtimeArgs": [

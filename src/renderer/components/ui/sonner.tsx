@@ -25,6 +25,19 @@ function Toaster({ ...props }: ToasterProps) {
           '--normal-border': 'var(--border)',
         } as React.CSSProperties
       }
+      toastOptions={{
+        classNames: {
+          // Room on the right for the close button.
+          toast: '!pr-9',
+          // The close button sits inside the toast's top right, in its color.
+          closeButton:
+            '!left-auto !right-2 !top-2 !size-5 !transform-none !border-0 !bg-transparent !text-current opacity-60 hover:!bg-current/10 hover:opacity-100',
+          // An action (Undo) is a small outlined button in the toast's own
+          // color, not sonner's solid white one.
+          actionButton:
+            '!h-6 !rounded-md !border !border-current/35 !bg-transparent !px-2 !text-xs !font-medium !text-current hover:!bg-current/10',
+        },
+      }}
       {...props}
     />
   );

@@ -91,13 +91,16 @@ function withoutQuote(record: DetailRecord): Partial<Domain> {
  * One registrar's slice of the portfolio, cached under the 'portfolio' namespace
  * keyed by registrar id (so each syncs independently). `lastSyncedAt` is the last
  * time domains were fetched *successfully*; `lastError` is the most recent
- * attempt's error (null when it succeeded). On a failed sync we keep the last-good
- * `domains` and `lastSyncedAt`, and only set `lastError`.
+ * attempt's error (null when it succeeded), and `lastErrorAt` when it happened.
+ * On a failed sync we keep the last-good `domains` and `lastSyncedAt`, and only
+ * set the error.
  */
 interface RegistrarPortfolioEntry {
   domains: Domain[];
   lastSyncedAt: number | null;
   lastError: string | null;
+  /** Absent in entries written before it was recorded. */
+  lastErrorAt?: number | null;
 }
 
 /** Dates round-trip through JSON as ISO strings; revive them back to `Date`. */
@@ -425,13 +428,20 @@ async function syncRegistrarInto(account: RegistrarAccount): Promise<void> {
           domains: prev?.domains ?? [],
           lastSyncedAt: prev?.lastSyncedAt ?? null,
           lastError: error.message,
+          lastErrorAt: Date.now(),
         }
-      : { domains, lastSyncedAt: Date.now(), lastError: null };
+      : {
+          domains,
+          lastSyncedAt: Date.now(),
+          lastError: null,
+          lastErrorAt: null,
+        };
   } catch (err) {
     entry = {
       domains: prev?.domains ?? [],
       lastSyncedAt: prev?.lastSyncedAt ?? null,
       lastError: err instanceof Error ? err.message : String(err),
+      lastErrorAt: Date.now(),
     };
   }
   if ((generations.get(accountId) ?? 0) !== generation) return;
@@ -874,6 +884,7 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
       sync: {
         lastSyncedAt: sync?.lastSyncedAt ?? null,
         lastError: sync?.lastError ?? null,
+        lastErrorAt: sync?.lastError ? (sync.lastErrorAt ?? null) : null,
         domainCount: sync?.domains.length ?? 0,
         trackedSince: account.trackedSince ?? null,
       },

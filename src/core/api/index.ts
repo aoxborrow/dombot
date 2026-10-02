@@ -19,6 +19,7 @@ import { setManualPrice } from '../services/pricing';
 import {
   getPurchases,
   importPurchases,
+  setNotes,
   setPurchase,
   markSold,
   setSale,
@@ -364,6 +365,10 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   setSale: method(z.tuple([s.saleInput]), async (input) => setSale(input)),
   importPurchases: method(z.tuple([s.purchaseImport]), async (rows) =>
     importPurchases(rows),
+  ),
+  setNotes: method(
+    z.tuple([s.domainName, s.noteText]),
+    async (domainName, notes) => setNotes(domainName, notes),
   ),
 
   lookupRegistrations: method(z.tuple([s.domainNameList]), async (names) =>

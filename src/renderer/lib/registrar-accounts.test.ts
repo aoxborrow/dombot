@@ -28,6 +28,7 @@ const account = (
   sync: {
     lastSyncedAt: null,
     lastError: null,
+    lastErrorAt: null,
     domainCount: 0,
     trackedSince: null,
   },

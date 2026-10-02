@@ -33,6 +33,7 @@ import { useAppStore } from '../../store/app';
 import { Link } from 'react-router-dom';
 import { isDemo } from '../../lib/platform';
 import { timeAgo } from '../../lib/time';
+import { useSyncState } from '../../lib/sync-state';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -153,27 +154,34 @@ export default function RegistrarsSettings() {
       .finally(() => mark(false));
   };
 
+  const enabledCount = cards.filter((c) => c.account.enabled).length;
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0 flex-1 basis-80">
-          <h2 className="text-xl font-bold">Registrars</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Store API credentials for each registrar account. They&apos;re
-            encrypted at rest and used by both the app and the MCP server.
-            Saving syncs that account&apos;s domains automatically.
-          </p>
-        </div>
-        {loaded && cards.length > 0 && (
-          <AddAccountMenu
-            catalog={sortedCatalog}
-            disabled={draft !== null}
-            onPick={startDraft}
-          />
-        )}
+      <div>
+        <h2 className="text-xl font-bold">Registrars</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Store API credentials for each registrar account. They&apos;re
+          encrypted at rest and used by both the app and the MCP server. Saving
+          syncs that account&apos;s domains automatically.
+        </p>
       </div>
 
       <div className="flex flex-col gap-3">
+        {/* Above the cards: Sync all on the left (it acts on the cards
+            below), the page's main action on the right. */}
+        {loaded && cards.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {enabledCount > 1 && <SyncAllButton count={enabledCount} />}
+            <div className="ml-auto">
+              <AddAccountMenu
+                catalog={sortedCatalog}
+                disabled={draft !== null}
+                onPick={startDraft}
+              />
+            </div>
+          </div>
+        )}
         {loadError && (
           <p role="alert" className="text-sm text-destructive">
             {loadError}
@@ -203,6 +211,42 @@ export default function RegistrarsSettings() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Syncs every enabled account at once, like the status bar's Sync. Each card
+ * shows Syncing… while it runs, and a toast sums up the result.
+ */
+function SyncAllButton({ count }: { count: number }) {
+  const loadPortfolio = useAppStore((s) => s.loadPortfolio);
+  const { syncing, disabled, title } = useSyncState();
+  const run = async () => {
+    await loadPortfolio();
+    const { portfolioError, portfolioErrors, portfolio } =
+      useAppStore.getState();
+    if (portfolioError) toast.error(`Sync failed: ${portfolioError}`);
+    else if (portfolioErrors.length > 0)
+      toast.warning(
+        `${portfolioErrors.length} of ${count} failed to sync. The error is on ${portfolioErrors.length === 1 ? 'its card' : 'their cards'}.`,
+      );
+    else
+      toast.success(
+        `Synced ${count} registrars: ${portfolio.length.toLocaleString('en-US')} domains`,
+      );
+  };
+  return (
+    <Button
+      variant="outline"
+      onClick={() => void run()}
+      disabled={disabled}
+      title={title}
+    >
+      <RefreshCw className={cn(syncing && 'animate-spin')} />
+      {syncing ? 'Syncing…' : 'Sync all'}
+      {/* Room for the full label beside Add from sm up. */}
+      {!syncing && <span className="-ml-1 hidden sm:inline">registrars</span>}
+    </Button>
   );
 }
 
@@ -319,7 +363,9 @@ function AccountCard({
   const [proxyEnabled, setProxyEnabled] = useState(usesProxy);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const syncing = syncingHere || firstSync;
+  // A Sync all (or the automatic sync) covers every enabled account.
+  const syncingAll = useAppStore((s) => s.portfolioLoading) && account.enabled;
+  const syncing = syncingHere || firstSync || syncingAll;
   const syncFailed =
     account.configured &&
     account.enabled &&

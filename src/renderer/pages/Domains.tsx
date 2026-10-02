@@ -858,7 +858,9 @@ export default function Domains() {
     });
   }, [listed, archiveView, registrationLookups]);
 
-  const [search, setSearch] = useState('');
+  // Starts from ?q= so another page (Activity's Show in Domains) can open it
+  // on one name.
+  const [search, setSearch] = useState(() => params.get('q') ?? '');
   // Multi-select filters; an empty array means "no filter" (show all).
   const [tld, setTld] = useState<string[]>([]);
   // One "Registrar" filter, but its options are individual accounts (keyed by
@@ -1222,9 +1224,11 @@ export default function Domains() {
   );
   // Bulk: re-fetch every selected domain's detail from its registrar, bypassing
   // the detail cache (their cells show skeletons while in flight).
+  // Registrar actions act on the selected names an account still holds.
+  const selectedHeld = selectedDomains.filter((d) => !d.departed);
   const bulkRefresh = () => {
-    const n = selectedDomains.length;
-    void enrichVisible(selectedDomains, true).then(() =>
+    const n = selectedHeld.length;
+    void enrichVisible(selectedHeld, true).then(() =>
       toast.success(`Refreshed ${n} domain${n === 1 ? '' : 's'}`),
     );
   };
@@ -1260,16 +1264,11 @@ export default function Domains() {
     else setOwnershipDialog({ action, domains: ds });
   }
 
-  // Undoing one name's label is one click (and reversible); many go through
-  // the dialog.
+  // Moving one name back is one click (and reversible); many go through the
+  // dialog. Only a name an account still holds offers it.
   function moveBackToOwned(d: Domain) {
-    const label = archiveLabelOf(d);
     void restoreOwned([d.domainName]).then(() =>
-      toast.success(
-        d.departed && label
-          ? `Undid ${ARCHIVE_LABEL[label]} for ${d.domainName}`
-          : `Moved ${d.domainName} back to Owned`,
-      ),
+      toast.success(`Moved ${d.domainName} back to Owned`),
     );
   }
 
@@ -1442,7 +1441,7 @@ export default function Domains() {
   }
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col">
+    <div className="flex min-h-0 w-full flex-1 flex-col">
       {/* Title and filters scroll away on a short screen so the column names
           and the row-count bar keep a slice of the page. The -m-1 p-1
           pair leaves room for focus rings, which the scroll box would clip. */}
@@ -1633,7 +1632,7 @@ export default function Domains() {
           onExport={() => void exportCsv(selectedDomains)}
           onAssignFolder={(folderId) => applyFolders(selectedDomains, folderId)}
           onKind={(kind) =>
-            setBulkDialog({ op: defaultBulkOp(kind, selectedDomains) })
+            setBulkDialog({ op: defaultBulkOp(kind, selectedHeld) })
           }
           onViewJob={() => {
             if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });
@@ -1684,7 +1683,7 @@ export default function Domains() {
             hasLoaded ? (
               'No domains found in any configured registrar.'
             ) : (
-              'Click “Sync domains” to load your portfolio.'
+              'Your domains show up here after the first sync.'
             )
           ) : (
             'No domains match the current filters.'
@@ -1713,7 +1712,7 @@ export default function Domains() {
       {bulkDialog && (
         <BulkActionDialog
           initialOp={bulkDialog.op}
-          domains={selectedDomains}
+          domains={selectedHeld}
           jobId={bulkDialog.jobId}
           onClose={() => setBulkDialog(null)}
         />
@@ -1762,12 +1761,12 @@ export default function Domains() {
             return (
               <RestoreOwnedDialog
                 names={ds.map((d) => d.domainName)}
-                restorable={
-                  ds.filter((d) => {
+                restorable={ds
+                  .filter((d) => {
                     const o = ownership.get(toAscii(d.domainName));
-                    return o?.event && o.event.source !== 'sync';
-                  }).length
-                }
+                    return !d.departed && o?.event && o.event.source !== 'sync';
+                  })
+                  .map((d) => d.domainName)}
                 onDone={done}
                 onClose={close}
               />

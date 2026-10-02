@@ -3,6 +3,7 @@ import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { forwardCoreEventsToWindows } from './events';
+import { setAppMenu } from './menu';
 import { initStorage } from './storage';
 import { configureProxyTransport } from '../core/services/proxy-transport';
 import { desktopProxyFetch } from './proxy-transport';
@@ -189,6 +190,7 @@ function runApp(): void {
     abandonInterruptedBulk();
     forwardCoreEventsToWindows();
     registerIpcHandlers();
+    setAppMenu();
     createWindow();
 
     // The MCP server runs only when the setting says so (Settings → MCP).

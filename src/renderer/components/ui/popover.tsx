@@ -37,10 +37,38 @@ function PopoverContent({
   );
 }
 
+/**
+ * The little triangle pointing at the trigger. Drawn in the popover's color
+ * with its border on the two slanted sides only, and pulled 1px into the
+ * popover so it covers the border where they meet.
+ */
+function PopoverArrow({
+  className,
+  width = 16,
+  height = 8,
+  ...props
+}: React.ComponentProps<typeof PopoverPrimitive.Arrow>) {
+  return (
+    <PopoverPrimitive.Arrow asChild width={width} height={height} {...props}>
+      <svg
+        viewBox="0 0 30 10"
+        preserveAspectRatio="none"
+        className={cn('-translate-y-px overflow-visible', className)}
+      >
+        <path
+          d="M0 0 L15 10 L30 0"
+          className="fill-popover stroke-border"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+    </PopoverPrimitive.Arrow>
+  );
+}
+
 function PopoverAnchor({
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
   return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />;
 }
 
-export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor };
+export { Popover, PopoverTrigger, PopoverContent, PopoverArrow, PopoverAnchor };

@@ -1,16 +1,17 @@
 import {
   Archive,
-  BadgeDollarSign,
   CalendarPlus,
-  CircleOff,
   ChevronDown,
   EyeOff,
   FileSpreadsheet,
+  IterationCw,
   KeyRound,
   Link2,
   Loader2,
   Lock,
   Mail,
+  OctagonMinus,
+  Receipt,
   RefreshCw,
   Server,
   Trash2,
@@ -70,7 +71,7 @@ export function BulkBar({
   /** Open the bulk dialog for an op kind (its value is chosen there). */
   onKind: (kind: DomainOpKind) => void;
   onViewJob: () => void;
-  /** Archive shows Move back to Owned instead of Sold, Dropped, Archive. */
+  /** Archive adds Move back to Owned (for names an account still holds). */
   archiveView: boolean;
   onOwnership: (action: OwnershipAction) => void;
 }) {
@@ -78,6 +79,9 @@ export function BulkBar({
   const running = bulk?.status === 'running';
 
   const registrarCount = new Set(domains.map((d) => d.registrar)).size;
+  // Archive offers only the ownership states, Export, and Delete: to act on a
+  // name at its registrar, move it back to Owned first.
+  const held = domains.filter((d) => !d.departed).length;
 
   if (domains.length === 0 && !running) return null;
 
@@ -133,109 +137,124 @@ export function BulkBar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuItem onSelect={onRefresh}>
-              <RefreshCw className="text-muted-foreground" />
-              Refresh
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <FolderIcon className="text-muted-foreground" />
-                Folder
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="max-h-[320px] w-52 overflow-y-auto">
-                <FolderMenuItems
-                  folders={folders}
-                  emptyState
-                  onAssign={onAssignFolder}
-                />
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('autoRenew')}
-            >
-              <RefreshCw className="text-muted-foreground" />
-              Auto-renew<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('privacy')}
-            >
-              <EyeOff className="text-muted-foreground" />
-              WHOIS privacy<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('lock')}
-            >
-              <Lock className="text-muted-foreground" />
-              Transfer lock<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('nameservers')}
-            >
-              <Server className="text-muted-foreground" />
-              Nameservers<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('urlForwarding')}
-            >
-              <Link2 className="text-muted-foreground" />
-              URL forwarding<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('emailForwarding')}
-            >
-              <Mail className="text-muted-foreground" />
-              Email forwarding<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('renew')}
-            >
-              <CalendarPlus className="text-muted-foreground" />
-              Renew<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={running}
-              onSelect={() => onKind('authCode')}
-            >
-              <KeyRound className="text-muted-foreground" />
-              Get auth codes<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
+            {!archiveView && (
+              <>
+                <DropdownMenuItem onSelect={onRefresh}>
+                  <RefreshCw className="text-muted-foreground" />
+                  Refresh
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            {!archiveView && (
+              <>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <FolderIcon className="text-muted-foreground" />
+                    Folder
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="max-h-[320px] w-52 overflow-y-auto">
+                    <FolderMenuItems
+                      folders={folders}
+                      emptyState
+                      onAssign={onAssignFolder}
+                    />
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            {!archiveView && (
+              <>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('autoRenew')}
+                >
+                  <IterationCw className="text-muted-foreground" />
+                  Auto-renew<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('privacy')}
+                >
+                  <EyeOff className="text-muted-foreground" />
+                  WHOIS privacy<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('lock')}
+                >
+                  <Lock className="text-muted-foreground" />
+                  Transfer lock<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('nameservers')}
+                >
+                  <Server className="text-muted-foreground" />
+                  Nameservers<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('urlForwarding')}
+                >
+                  <Link2 className="text-muted-foreground" />
+                  URL forwarding<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('emailForwarding')}
+                >
+                  <Mail className="text-muted-foreground" />
+                  Email forwarding
+                  <span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('renew')}
+                >
+                  <CalendarPlus className="text-muted-foreground" />
+                  Renew<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={running}
+                  onSelect={() => onKind('authCode')}
+                >
+                  <KeyRound className="text-muted-foreground" />
+                  Get auth codes<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuItem onSelect={onExport}>
               <FileSpreadsheet className="text-muted-foreground" />
               Export CSV
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {archiveView ? (
+            <DropdownMenuItem onSelect={() => onOwnership('sold')}>
+              <Receipt className="text-muted-foreground" />
+              Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onOwnership('dropped')}>
+              <OctagonMinus className="text-muted-foreground" />
+              Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+            {/* Archive puts a name you own away without a reason; a name
+                already in Archive has nothing to gain from it. */}
+            {!archiveView && (
+              <DropdownMenuItem onSelect={() => onOwnership('archived')}>
+                <Archive className="text-muted-foreground" />
+                Archive<span className="-ml-[6px] opacity-50">…</span>
+              </DropdownMenuItem>
+            )}
+            {archiveView && held > 0 && (
               <DropdownMenuItem onSelect={() => onOwnership('restore')}>
                 <Undo2 className="text-muted-foreground" />
                 Move back to Owned
                 <span className="-ml-[6px] opacity-50">…</span>
               </DropdownMenuItem>
-            ) : (
-              <>
-                <DropdownMenuItem onSelect={() => onOwnership('sold')}>
-                  <BadgeDollarSign className="text-muted-foreground" />
-                  Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onOwnership('dropped')}>
-                  <CircleOff className="text-muted-foreground" />
-                  Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onOwnership('archived')}>
-                  <Archive className="text-muted-foreground" />
-                  Archive<span className="-ml-[6px] opacity-50">…</span>
-                </DropdownMenuItem>
-              </>
             )}
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"
               onSelect={() => onOwnership('delete')}

@@ -198,6 +198,7 @@ interface AppState {
   savePurchase: (input: PurchaseInput) => Promise<void>;
   saveSale: (input: SaleInput) => Promise<void>;
   importPurchases: (rows: PurchaseInput[]) => Promise<PurchaseImportResult>;
+  saveNotes: (domainName: string, notes: string) => Promise<void>;
 
   /** Public registration for names on History, keyed by domain name. */
   registrationLookups: Record<string, RegistrationLookup>;
@@ -316,6 +317,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       meta?.sync ?? {
         lastSyncedAt: null,
         lastError: null,
+        lastErrorAt: null,
         domainCount: 0,
         trackedSince: null,
       }
@@ -685,6 +687,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     const saved = await window.api.setPurchase(input);
     void get().loadDomainEvents();
     const key = toAscii(input.domainName);
+    set((state) => {
+      const purchases = { ...state.purchases };
+      if (saved) purchases[key] = saved;
+      else delete purchases[key];
+      return { purchases };
+    });
+  },
+  saveNotes: async (domainName, notes) => {
+    const saved = await window.api.setNotes(domainName, notes);
+    const key = toAscii(domainName);
     set((state) => {
       const purchases = { ...state.purchases };
       if (saved) purchases[key] = saved;

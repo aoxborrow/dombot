@@ -10,8 +10,10 @@ import { ownershipByDomain } from '../../shared/ownership';
 import { diffSync, type AccountHoldings } from '../../shared/sync-diff';
 import { markAccountsTracked, trackedAccountIds } from './accounts';
 import {
+  currentLabel,
   deleteDomainEvents,
   eventsFor,
+  replaceLabel,
   getEvent,
   listEvents,
   newEvent,
@@ -93,6 +95,8 @@ function dayOf(date: string | null | undefined, label: string): string {
 /**
  * Mark names Dropped or Archived, in one write: they move to Archive whatever
  * their registration status. Each `resolves` closes the sync alert it answers.
+ * A name already in that state is left as is; one you'd labeled otherwise
+ * gets the new label in place of the old (see replaceLabel).
  */
 export function setDispositions(
   items: OwnershipItem[],
@@ -101,18 +105,25 @@ export function setDispositions(
 ): DomainEvent[] {
   const day = dayOf(date, 'Date');
   const now = Date.now();
-  const events = items.map((item) =>
-    newEvent(
-      {
-        domain: assertDomainName(item.domainName),
-        type,
-        source: DomainEventSource.User,
-        date: day,
-        ...(item.resolves ? { resolves: item.resolves } : {}),
-      },
-      now,
-    ),
-  );
+  const events: DomainEvent[] = [];
+  for (const item of items) {
+    const domain = assertDomainName(item.domainName);
+    if (currentLabel(domain) === type) continue;
+    const replaced = replaceLabel(domain);
+    const resolves = item.resolves ?? replaced.resolves;
+    events.push(
+      newEvent(
+        {
+          domain,
+          type,
+          source: DomainEventSource.User,
+          date: day,
+          ...(resolves ? { resolves } : {}),
+        },
+        now,
+      ),
+    );
+  }
   putEvents(events);
   return events;
 }

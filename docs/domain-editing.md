@@ -448,7 +448,7 @@ the store was its only caller and now uses the generic `applyDomainOp`.
    only sane home for actions that aren't a column.
 5. **Bulk bar** (the existing stub, made real): "N selected · across K
    registrars", Clear, and a *Bulk actions* menu. See below.
-6. **Disable Sync while a job runs** (`SyncControl` reads `bulk?.status`). A
+6. **Disable Sync while a job runs** (`useSyncState` reads `bulk?.status`). A
    sync mid-job would race the per-item cache patches for no benefit.
 
 ### Shared confirmations (`components/`)

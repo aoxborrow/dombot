@@ -82,7 +82,7 @@
     "typescript": "~5.6.3",
     "vite": "^6.4.3",
     "vitest": "^4.1.11",
-    "wrangler": "^4.132.0"
+    "wrangler": "^4.146.0"
   },
   "dependencies": {
     "@aoxborrow/registrar-client": "^0.7.0",

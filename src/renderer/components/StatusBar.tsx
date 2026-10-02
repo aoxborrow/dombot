@@ -1,10 +1,12 @@
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
-import { useEffect, useReducer } from 'react';
+import { useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { CircleAlert } from 'lucide-react';
+import { CircleAlert, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
+import { useSyncState } from '../lib/sync-state';
 import { ModeToggle } from './mode-toggle';
 import {
   isDemo,
@@ -18,13 +20,12 @@ import {
  * App-wide bottom status bar (VS Code style): a thin bar across the bottom of
  * the window, below the scrolling page area. Surfaces the
  * embedded MCP server's status on the left (a link into MCP settings) — on the
- * web build, preceded by the session status and a sign-out link — and the
- * last-synced time plus a Sync Domains link on the right. Shown on every route.
+ * web build, preceded by the session status and a sign-out link — and the sync
+ * status plus the manual Sync button on the right. Shown on every route.
  */
 export default function StatusBar() {
   const mcpInfo = useAppStore((s) => s.mcpInfo);
   const loadMcpInfo = useAppStore((s) => s.loadMcpInfo);
-  const portfolioLoadedAt = useAppStore((s) => s.portfolioLoadedAt);
   const registrars = useAppStore((s) => s.registrars);
   const loadRegistrars = useAppStore((s) => s.loadRegistrars);
   const navigate = useNavigate();
@@ -41,44 +42,14 @@ export default function StatusBar() {
     if (registrars === null) void loadRegistrars();
   }, [registrars, loadRegistrars]);
 
-  // Re-render every 30s so the relative "last synced" label stays current even
-  // when nothing else changes.
-  const [, tick] = useReducer((n: number) => n + 1, 0);
-  useEffect(() => {
-    if (portfolioLoadedAt === null) return;
-    const id = setInterval(tick, 30_000);
-    return () => clearInterval(id);
-  }, [portfolioLoadedAt]);
-
   const mcpRunning = mcpInfo?.running ?? false;
   // Show just host:port from the endpoint (drop the scheme and /mcp path).
   const mcpEndpoint = mcpInfo?.url
     ? mcpInfo.url.replace(/^\w+:\/\//, '').replace(/\/.*$/, '')
     : null;
 
-  // Sync status per the shared registrar metadata. Only active registrars
-  // (configured AND enabled) count here — a disabled one keeps its credentials
-  // but never syncs, so it shouldn't drag the pill to "not synced". A registrar
-  // counts as synced when its last sync succeeded (lastSyncedAt set, no
-  // lastError). `null` = metadata not yet known.
-  const configured = registrars?.filter((r) => r.configured && r.enabled) ?? [];
-  const unit =
-    multiAccountRegistrars(registrars).size > 0 ? 'accounts' : 'registrars';
-  const configuredCount = configured.length;
-  const syncedCount = configured.filter(
-    (r) => r.sync.lastSyncedAt != null && r.sync.lastError == null,
-  ).length;
-  const failedCount = configured.filter((r) => r.sync.lastError != null).length;
-  const noneConfigured = registrars !== null && configuredCount === 0;
-  const allSynced = configuredCount > 0 && syncedCount === configuredCount;
-  // Show the sync pill once we know the metadata (0/0 amber when nothing is
-  // configured); hide it only while that's still loading.
-  const showSync = registrars !== null;
-  // The "Last synced X ago" caption only makes sense once real data has loaded.
-  const showRefreshed = portfolioLoadedAt !== null && configuredCount > 0;
-
   return (
-    <footer className="relative z-40 flex h-[29px] shrink-0 items-center justify-between gap-4 border-t bg-background px-4 text-xs text-muted-foreground select-none">
+    <footer className="relative z-40 flex h-8 shrink-0 items-center justify-between gap-4 border-t bg-background px-4 text-xs text-muted-foreground select-none">
       <div className="flex items-center gap-4">
         {isWeb() && <SessionStatus />}
         <button
@@ -109,57 +80,144 @@ export default function StatusBar() {
         className="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 sm:inline-flex"
       />
 
-      {(showRefreshed || showSync) && (
-        <div className="flex items-center gap-3">
-          {showRefreshed && (
-            <span
-              // Hidden on phones to keep the bar to one line; the sync pill to
-              // its right still carries the synced state.
-              className="hidden sm:inline"
-              title={`Last synced ${new Date(portfolioLoadedAt).toLocaleString()}`}
-            >
-              Last synced {timeAgo(portfolioLoadedAt)}
-            </span>
-          )}
-          {showSync && (
-            <button
-              type="button"
-              onClick={() => navigate('/settings?tab=registrars')}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-sm hover:text-foreground',
-                // A warning color stays that color on hover, just brighter.
-                failedCount > 0
-                  ? 'text-destructive hover:text-destructive hover:brightness-125'
-                  : !allSynced &&
-                      'text-amber-600 hover:text-amber-600 hover:brightness-125 dark:text-amber-400 dark:hover:text-amber-400',
-              )}
-              title={
-                noneConfigured
-                  ? `No ${unit} configured — open registrar settings`
-                  : failedCount > 0
-                    ? `${failedCount} ${failedCount === 1 ? unit.replace(/s$/, '') : unit} failed to sync — open registrar settings`
-                    : allSynced
-                      ? `All configured ${unit} synced — open registrar settings`
-                      : `${configuredCount - syncedCount} ${unit} not synced — open registrar settings`
-              }
-            >
-              {failedCount > 0 ? (
-                <CircleAlert className="size-3.5" aria-hidden />
-              ) : (
-                <span
-                  className={cn(
-                    'size-2 rounded-full',
-                    allSynced ? 'bg-brand' : 'bg-amber-500 dark:bg-amber-400',
-                  )}
-                  aria-hidden
-                />
-              )}
-              {syncedCount}/{configuredCount} {unit} synced
-            </button>
-          )}
-        </div>
-      )}
+      <SyncStatus />
     </footer>
+  );
+}
+
+/**
+ * The sync status, with one light for all of it: how many enabled accounts
+ * synced (a link to Settings → Registrars), when, and the manual Sync button.
+ * Red with an alert icon when an account failed, amber while some haven't
+ * synced or the data is stale. Below lg the words shorten so they clear the
+ * centered theme toggle; on phones the button moves to the menu.
+ */
+function SyncStatus() {
+  const navigate = useNavigate();
+  const registrars = useAppStore((s) => s.registrars);
+  const state = useSyncState();
+  const { sync, syncing, disabled, title, lastSyncedAt, stale } = state;
+
+  // The desktop app menu's Sync Now does what the button does, or says why
+  // it can't (just synced, a bulk job running, nothing set up).
+  const latest = useRef(state);
+  useEffect(() => {
+    latest.current = state;
+  });
+  useEffect(
+    () =>
+      window.api.onSyncRequested(() => {
+        const now = latest.current;
+        if (now.syncing) return;
+        if (now.disabled) toast.info(now.reason ?? now.title);
+        else now.sync();
+      }),
+    [],
+  );
+
+  // Hidden until the registrar metadata is known.
+  if (registrars === null) return null;
+
+  // Only enabled accounts count: a disabled one keeps its credentials but
+  // never syncs. One counts as synced when its last sync succeeded.
+  const enabled = registrars.filter((r) => r.configured && r.enabled);
+  const unit =
+    multiAccountRegistrars(registrars).size > 0 ? 'accounts' : 'registrars';
+  const synced = enabled.filter(
+    (r) => r.sync.lastSyncedAt != null && r.sync.lastError == null,
+  ).length;
+  const failed = enabled.filter((r) => r.sync.lastError != null).length;
+  const one = (n: number) => (n === 1 ? unit.replace(/s$/, '') : unit);
+  const tone =
+    failed > 0
+      ? 'text-destructive hover:text-destructive hover:brightness-125'
+      : (enabled.length === 0 || synced < enabled.length) &&
+        'text-amber-600 hover:text-amber-600 hover:brightness-125 dark:text-amber-400 dark:hover:text-amber-400';
+
+  let light = (
+    <span
+      className={cn(
+        'size-2 rounded-full',
+        enabled.length > 0 && synced === enabled.length
+          ? 'bg-brand'
+          : 'bg-amber-500 dark:bg-amber-400',
+      )}
+      aria-hidden
+    />
+  );
+  if (syncing)
+    light = <RefreshCw className="size-3 animate-spin" aria-hidden />;
+  else if (failed > 0) light = <CircleAlert className="size-3.5" aria-hidden />;
+
+  const label = syncing
+    ? 'Syncing…'
+    : enabled.length === 0
+      ? `No ${unit} to sync`
+      : failed > 0
+        ? `${failed} of ${enabled.length} ${one(enabled.length)} failed`
+        : `${synced}/${enabled.length} ${unit} synced`;
+  const short = syncing
+    ? 'Syncing…'
+    : enabled.length === 0
+      ? `No ${unit}`
+      : failed > 0
+        ? `${failed} failed`
+        : `${synced}/${enabled.length} synced`;
+
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        type="button"
+        onClick={() => navigate('/settings?tab=registrars')}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-sm hover:text-foreground',
+          !syncing && tone,
+        )}
+        title={
+          enabled.length === 0
+            ? `No ${unit} set up — open registrar settings`
+            : failed > 0
+              ? `${failed} ${one(failed)} failed to sync — open registrar settings`
+              : synced === enabled.length
+                ? `All ${unit} synced — open registrar settings`
+                : `${enabled.length - synced} ${one(enabled.length - synced)} not synced yet — open registrar settings`
+        }
+      >
+        {light}
+        <span className="hidden lg:inline">{label}</span>
+        <span className="lg:hidden">{short}</span>
+      </button>
+      {lastSyncedAt !== null && enabled.length > 0 && !syncing && (
+        <span
+          className={cn(
+            '-ml-1.5',
+            stale && 'text-amber-600 dark:text-amber-400',
+          )}
+          title={`Last synced ${new Date(lastSyncedAt).toLocaleString()}`}
+        >
+          <span aria-hidden className="mr-1.5 text-muted-foreground">
+            ·
+          </span>
+          {timeAgo(lastSyncedAt)}
+        </span>
+      )}
+      {enabled.length > 0 && (
+        <button
+          type="button"
+          onClick={sync}
+          disabled={disabled}
+          title={title}
+          className={cn(
+            'hidden h-6 items-center gap-1.5 rounded-md border px-2 font-medium text-foreground outline-none hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 sm:inline-flex dark:hover:bg-accent/50',
+            stale &&
+              'border-amber-500/50 text-amber-700 dark:border-amber-500/40 dark:text-amber-400',
+          )}
+        >
+          <RefreshCw className={cn('size-3', syncing && 'animate-spin')} />
+          Sync
+        </button>
+      )}
+    </div>
   );
 }
 
