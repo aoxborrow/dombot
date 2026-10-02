@@ -26,6 +26,7 @@ import type {
   Domain,
   DomainOp,
   Folder,
+  RegistrarName,
   RenewalPricing,
 } from '../../shared/ipc';
 import { LockClosedIcon, LockOpenIcon } from '@heroicons/react/20/solid';
@@ -39,6 +40,9 @@ import { DomainEventType } from '../../shared/domain-events';
 import { ownershipByDomain, type ArchiveLabel } from '../../shared/ownership';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { ARCHIVE_LABEL, accountName, archiveRows } from '../lib/domain-history';
+import { RegistrarLogo } from '../components/RegistrarLogo';
+import { NotesButton } from '../components/domains/NotesButton';
+import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
   DeleteDomainsDialog,
   DispositionDialog,
@@ -87,6 +91,7 @@ import {
   MultiSelectFilter,
   ResetButton,
   SearchField,
+  FILTERING_BORDER,
 } from '../components/data-table/Toolbar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -749,9 +754,15 @@ export default function Domains() {
             ...c,
             render: (d: Domain, labels: RegistrarLabels) => {
               const suffix = paren(d.accountLabel, d.registrar);
+              const label = registrarLabel(d.registrar, labels);
               return (
-                <span>
-                  {registrarLabel(d.registrar, labels)}
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                  <RegistrarLogo
+                    name={d.registrar as RegistrarName}
+                    label={label}
+                    className="size-4"
+                  />
+                  {label}
                   {suffix && (
                     <span className="ml-1 text-xs text-muted-foreground/70">
                       ({suffix})
@@ -924,6 +935,10 @@ export default function Domains() {
   const [emailForwardingFor, setEmailForwardingFor] = useState<Domain | null>(
     null,
   );
+  // The row (by domain key) whose notes editor is open, from its sticky note
+  // or its menu's Notes…; and the selection's bulk Notes dialog.
+  const [notesFor, setNotesFor] = useState<string | null>(null);
+  const [bulkNotesFor, setBulkNotesFor] = useState<Domain[] | null>(null);
   // Re-fetch one row's full record from its registrar (bypassing the detail
   // cache) — the row's detail cells show skeletons while it's in flight.
   const refreshDomain = (d: Domain) => {
@@ -967,7 +982,10 @@ export default function Domains() {
   // registrar can be filtered apart or, by multi-selecting, together. Labelled
   // "Registrar · nickname" / "Registrar #2" / "Registrar".
   const registrarOptions = useMemo(() => {
-    const acc = new Map<string, { label: string; count: number }>();
+    const acc = new Map<
+      string,
+      { label: string; registrar: string; count: number }
+    >();
     for (const d of portfolio) {
       const value = d.accountId ?? d.registrar;
       const existing = acc.get(value);
@@ -979,6 +997,7 @@ export default function Domains() {
             d.accountLabel,
             multipleAccounts.has(d.registrar),
           ),
+          registrar: d.registrar,
           count: 1,
         });
     }
@@ -986,6 +1005,13 @@ export default function Domains() {
       value,
       label: v.label,
       count: v.count,
+      icon: (
+        <RegistrarLogo
+          name={v.registrar as RegistrarName}
+          label={v.label}
+          className="size-4"
+        />
+      ),
     })).sort((a, b) => a.label.localeCompare(b.label));
   }, [portfolio, portfolioRegistrarLabels, multipleAccounts]);
   // Expiration windows are cumulative, so their counts intentionally overlap
@@ -1406,30 +1432,41 @@ export default function Domains() {
       col.key === 'createdDate' ||
       col.key === 'expirationDate';
     if (col.key === 'domainName') {
-      // The row's "⋯" menu lives in the Domain cell, pinned to its right edge.
+      // The row's "⋯" menu lives in the Domain cell, pinned to its right edge,
+      // with the name's sticky note (when it has one) just before it.
+      const key = domainKey(d);
       return (
         <div className="flex items-center justify-between gap-2">
           {col.render(d, portfolioRegistrarLabels)}
-          <RowActionsMenu
-            domain={d}
-            folders={folders}
-            folderId={folderAssignments[toAscii(d.domainName)]}
-            onRefresh={() => refreshDomain(d)}
-            onUrlForwarding={() => setUrlForwardingFor(d)}
-            onEmailForwarding={() => setEmailForwardingFor(d)}
-            onAuthCode={() => setAuthCodeFor(d)}
-            onRenew={() => setRenewFor(d)}
-            onEditPurchase={() => setPurchaseFor(d)}
-            onEditSale={() => setSaleFor(d)}
-            onEditAsking={() => setAskingFor([d])}
-            onAssignFolder={(folderId) => applyFolders([d], folderId)}
-            archive={archiveLabelOf(d)}
-            onMarkSold={() => openOwnership('sold', [d])}
-            onMarkDropped={() => openOwnership('dropped', [d])}
-            onMarkArchived={() => openOwnership('archived', [d])}
-            onRestoreOwned={() => moveBackToOwned(d)}
-            onDelete={() => openOwnership('delete', [d])}
-          />
+          <div className="flex items-center">
+            <NotesButton
+              domainName={d.domainName}
+              notes={purchases[toAscii(d.domainName)]?.notes ?? ''}
+              editing={notesFor === key}
+              onEditingChange={(open) => setNotesFor(open ? key : null)}
+            />
+            <RowActionsMenu
+              domain={d}
+              folders={folders}
+              folderId={folderAssignments[toAscii(d.domainName)]}
+              onRefresh={() => refreshDomain(d)}
+              onUrlForwarding={() => setUrlForwardingFor(d)}
+              onEmailForwarding={() => setEmailForwardingFor(d)}
+              onAuthCode={() => setAuthCodeFor(d)}
+              onRenew={() => setRenewFor(d)}
+              onNotes={() => setNotesFor(key)}
+              onEditPurchase={() => setPurchaseFor(d)}
+              onEditSale={() => setSaleFor(d)}
+              onEditAsking={() => setAskingFor([d])}
+              onAssignFolder={(folderId) => applyFolders([d], folderId)}
+              archive={archiveLabelOf(d)}
+              onMarkSold={() => openOwnership('sold', [d])}
+              onMarkDropped={() => openOwnership('dropped', [d])}
+              onMarkArchived={() => openOwnership('archived', [d])}
+              onRestoreOwned={() => moveBackToOwned(d)}
+              onDelete={() => openOwnership('delete', [d])}
+            />
+          </div>
         </div>
       );
     }
@@ -1610,7 +1647,11 @@ export default function Domains() {
             variant="outline"
             onClick={() => setFiltersOpen((o) => !o)}
             aria-expanded={filtersOpen}
-            className="gap-2 sm:hidden"
+            // Green, like Reset, while it's open or a filter is set.
+            className={cn(
+              'gap-2 sm:hidden',
+              (filtersOpen || activeFilterGroups > 0) && FILTERING_BORDER,
+            )}
           >
             <SlidersHorizontal className="size-4 text-muted-foreground" />
             Filters
@@ -1627,15 +1668,10 @@ export default function Domains() {
             />
           </Button>
 
-          {/* The filter chips. On phones this is a collapsible full-width row
-              (shown only when filtersOpen); at sm+ `sm:contents` dissolves the
-              wrapper so the chips flow inline in the toolbar exactly as before. */}
-          <div
-            className={cn(
-              'flex-wrap items-center gap-3 max-sm:basis-full sm:contents',
-              filtersOpen ? 'flex' : 'hidden',
-            )}
-          >
+          {/* The filter chips. `contents` dissolves the wrapper so they flow
+              inline in the toolbar, wrapping after the Filters toggle with
+              Reset at the end; on phones they're hidden until it's opened. */}
+          <div className={filtersOpen ? 'contents' : 'hidden sm:contents'}>
             <MultiSelectFilter
               label="Registrar"
               icon={Building2}
@@ -1730,6 +1766,7 @@ export default function Domains() {
           onRefresh={bulkRefresh}
           onExport={() => void exportCsv(selectedDomains)}
           onAssignFolder={(folderId) => applyFolders(selectedDomains, folderId)}
+          onNotes={() => setBulkNotesFor(selectedDomains)}
           onKind={(kind) =>
             setBulkDialog({ op: defaultBulkOp(kind, selectedHeld) })
           }
@@ -1821,6 +1858,12 @@ export default function Domains() {
         <AskingPriceDialog
           domains={askingFor}
           onClose={() => setAskingFor(null)}
+        />
+      )}
+      {bulkNotesFor && (
+        <BulkNotesDialog
+          domainNames={bulkNotesFor.map((d) => d.domainName)}
+          onClose={() => setBulkNotesFor(null)}
         />
       )}
       {purchaseFor && (

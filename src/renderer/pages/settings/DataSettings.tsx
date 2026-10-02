@@ -26,7 +26,7 @@ import {
 } from '../../../shared/bundle-seal';
 import { isDemo } from '../../lib/platform';
 import { useAppStore } from '../../store/app';
-import { SettingsCard } from './SettingsCard';
+import { SettingsCard, SettingsField } from './SettingsCard';
 
 /** Auto-sync interval choices (minutes). `0` disables the background sync. */
 const INTERVAL_OPTIONS: { label: string; minutes: number }[] = [
@@ -81,7 +81,7 @@ export default function DataSettings() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-xl font-bold">Sync</h2>
+        <h2 className="text-2xl font-bold">Sync</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           DomBot keeps a copy of your portfolio and refreshes it from the
           registrars on a schedule, so it opens instantly and registrar APIs
@@ -89,33 +89,36 @@ export default function DataSettings() {
         </p>
       </div>
 
-      <SettingsCard title="Auto-sync" contentClassName="flex flex-col gap-4">
-        <p className="text-sm text-muted-foreground">
-          How often DomBot re-syncs your whole portfolio in the background.
-          Larger portfolios may prefer a longer interval or Off.
-        </p>
-        <div className="flex items-center gap-3">
-          <Select
-            value={interval == null ? undefined : String(interval)}
-            onValueChange={(v) => void setAutoSyncInterval(Number(v))}
-          >
-            <SelectTrigger className="w-52">
-              <SelectValue placeholder="Loading…" />
-            </SelectTrigger>
-            <SelectContent>
-              {INTERVAL_OPTIONS.map((opt) => (
-                <SelectItem key={opt.minutes} value={String(opt.minutes)}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {interval === 0 && (
-            <span className="text-sm text-muted-foreground">
-              Auto-sync is off — refresh manually or via the agent’s sync tools.
-            </span>
-          )}
-        </div>
+      <SettingsCard title="Auto-sync">
+        <SettingsField
+          label="Sync frequency"
+          htmlFor="auto-sync-interval"
+          description="How often DomBot re-syncs your whole portfolio in the background. Larger portfolios may prefer a longer interval or Off."
+        >
+          <div className="flex items-center gap-3">
+            <Select
+              value={interval == null ? undefined : String(interval)}
+              onValueChange={(v) => void setAutoSyncInterval(Number(v))}
+            >
+              <SelectTrigger id="auto-sync-interval" className="w-52">
+                <SelectValue placeholder="Loading…" />
+              </SelectTrigger>
+              <SelectContent>
+                {INTERVAL_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.minutes} value={String(opt.minutes)}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {interval === 0 && (
+              <span className="text-sm text-muted-foreground">
+                Auto-sync is off — refresh manually or via the agent’s sync
+                tools.
+              </span>
+            )}
+          </div>
+        </SettingsField>
       </SettingsCard>
 
       <ExportCard />
@@ -178,25 +181,25 @@ function ExportCard() {
     <SettingsCard title="Export" contentClassName="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground">
         Export everything — registrar keys, portfolio, folders, prices,
-        settings, and MCP pairings — as one JSON file. Use it as a backup or
-        to move to another DomBot. Leave the passphrase blank and anyone who
-        opens the file can read your registrar API keys. Type one and the file
-        is locked: Import asks for that same passphrase, and DomBot does not
-        keep a copy. If you forget it, the backup cannot be opened.
+        settings, and MCP pairings — as one JSON file. Use it as a backup or to
+        move to another DomBot. Leave the passphrase blank and anyone who opens
+        the file can read your registrar API keys. Type one and the file is
+        locked: Import asks for that same passphrase, and DomBot does not keep a
+        copy. If you forget it, the backup cannot be opened.
       </p>
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="export-pass" className="text-xs">
-            Passphrase (optional)
-          </Label>
+        <SettingsField
+          label="Passphrase (optional)"
+          htmlFor="export-pass"
+          className="w-56"
+        >
           <PasswordInput
             id="export-pass"
             autoComplete="new-password"
-            className="w-56"
             value={exportPass}
             onChange={(e) => setExportPass(e.target.value)}
           />
-        </div>
+        </SettingsField>
         <Button onClick={() => void onExport()} disabled={exporting}>
           {exporting ? 'Exporting…' : 'Export data'}
         </Button>
@@ -263,8 +266,8 @@ function ImportCard() {
           settings, and MCP pairings. It does not contact your registrars. The
           next Sync does. Names in the file that an account no longer has will
           leave the list then, and names an account has that the file does not
-          will appear. Purchase records are kept either way, including for
-          names that are not in the list.
+          will appear. Purchase records are kept either way, including for names
+          that are not in the list.
         </p>
         <div>
           <input
@@ -303,9 +306,7 @@ function ImportCard() {
           </DialogHeader>
           {pending?.sealed && (
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="import-pass" className="text-xs">
-                Passphrase
-              </Label>
+              <Label htmlFor="import-pass">Passphrase</Label>
               <PasswordInput
                 id="import-pass"
                 autoComplete="off"

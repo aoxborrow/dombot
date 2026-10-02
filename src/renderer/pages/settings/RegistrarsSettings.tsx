@@ -49,12 +49,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
+import { FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import {
@@ -65,6 +60,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { SettingsField } from './SettingsCard';
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -159,7 +155,7 @@ export default function RegistrarsSettings() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-xl font-bold">Registrars</h2>
+        <h2 className="text-2xl font-bold">Registrars</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Store API credentials for each registrar account. They&apos;re
           encrypted at rest and used by both the app and the MCP server. Saving
@@ -1110,18 +1106,19 @@ function CredentialFields({
         const id = `${idPrefix}-${field.name}`;
         const fieldHelp = help.fields[field.name];
         return (
-          <Field key={field.name} className="gap-1.5">
-            <FieldLabel htmlFor={id}>
-              {field.label}
-              {field.required && <span className="text-destructive"> *</span>}
-            </FieldLabel>
-            {/* Only fields that need disambiguating carry a description;
-                      it sits under the label, ahead of the input. */}
-            {fieldHelp && (
-              <FieldDescription className="text-[13px]">
-                {fieldHelp}
-              </FieldDescription>
-            )}
+          <SettingsField
+            key={field.name}
+            htmlFor={id}
+            label={
+              <>
+                {field.label}
+                {field.required && <span className="text-destructive"> *</span>}
+              </>
+            }
+            // Only fields that need disambiguating carry a description; it
+            // sits under the label, ahead of the input.
+            description={fieldHelp}
+          >
             {field.type === 'select' ? (
               <Select
                 disabled={disabled}
@@ -1163,7 +1160,7 @@ function CredentialFields({
                 onChange={(e) => onChange(field.name, e.target.value)}
               />
             )}
-          </Field>
+          </SettingsField>
         );
       })}
     </>
