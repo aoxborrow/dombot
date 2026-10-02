@@ -56,7 +56,7 @@ export default function FoldersSettings() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-xl font-bold">Folders</h2>
+        <h2 className="text-2xl font-bold">Folders</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Organize your domains into named, colored groups. Assign a domain to a
           folder from the Domains table. Folders are saved with your other

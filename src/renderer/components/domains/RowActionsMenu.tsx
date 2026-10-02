@@ -34,12 +34,13 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { StickyNoteIcon } from '../icons/StickyNoteIcon';
 
 /**
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell):
  * for a name you own, a refresh, a Folder submenu (a folder, Hidden, or None),
  * and the actions that aren't a column (forwarding, renew, auth code); then,
- * for every name, Purchase details and the ownership states: Sold, Dropped, or Archived (the one it's in is disabled; a new one
+ * for every name, Notes, Purchase details, and the ownership states: Sold, Dropped, or Archived (the one it's in is disabled; a new one
  * replaces yours; Archive only for a name you own), "Move back
  * to Owned" for a labeled name an account still holds, and Delete. A name in
  * Archive gets no registrar actions: move it back to Owned first. Registrar-backed items the
@@ -55,6 +56,7 @@ export function RowActionsMenu({
   onEmailForwarding,
   onAuthCode,
   onRenew,
+  onNotes,
   onEditPurchase,
   onEditSale,
   onEditAsking,
@@ -75,6 +77,7 @@ export function RowActionsMenu({
   onEmailForwarding: () => void;
   onAuthCode: () => void;
   onRenew: () => void;
+  onNotes: () => void;
   onEditPurchase: () => void;
   onEditSale: () => void;
   onEditAsking: () => void;
@@ -124,7 +127,7 @@ export function RowActionsMenu({
           disabled={pending}
           aria-label={`Actions for ${domain.domainName}`}
           title="Actions"
-          className="-my-2 text-muted-foreground hover:text-foreground compact:size-7"
+          className="-my-2 w-7 text-muted-foreground hover:text-foreground compact:h-7 compact:w-6"
         >
           <Ellipsis />
         </Button>
@@ -198,6 +201,10 @@ export function RowActionsMenu({
         {/* Ownership, in the same order as on Activity. Purchase details and
             Mark as Sold open with what's saved (and the name's notes), so
             a sold name's Mark as Sold edits its sale. */}
+        <DropdownMenuItem onSelect={onNotes}>
+          <StickyNoteIcon className="text-muted-foreground" />
+          Notes<span className="-ml-[6px] opacity-50">…</span>
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={onEditPurchase}>
           <Calculator className="text-muted-foreground" />
           Purchase details<span className="-ml-[6px] opacity-50">…</span>

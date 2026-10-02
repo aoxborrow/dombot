@@ -63,7 +63,7 @@ export default function McpClientsSettings() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-xl font-bold">MCP</h2>
+        <h2 className="text-2xl font-bold">MCP</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Agents connect to DomBot&apos;s {web ? '' : 'local '}MCP server to
           manage your portfolio. New connections must be approved here.
