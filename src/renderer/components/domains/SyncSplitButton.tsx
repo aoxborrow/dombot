@@ -71,6 +71,8 @@ export function SyncSplitButton({
   // instead of syncing. Either way the button goes neutral rather than fading.
   const blocked = disabled && !syncing;
   const variant = disabled ? 'outline' : 'default';
+  // Snap between green and neutral: the button's colour fade would show a
+  // washed-out green for a moment each time the state flips.
 
   function onSync() {
     if (syncing) return;
@@ -100,7 +102,7 @@ export function SyncSplitButton({
           title={title}
           aria-label={syncing ? 'Syncing' : tooSoon ? 'Synced' : 'Sync now'}
           className={cn(
-            'rounded-r-none max-sm:w-9 max-sm:px-0!',
+            'rounded-r-none transition-none max-sm:w-9 max-sm:px-0!',
             syncing &&
               'cursor-default hover:bg-background dark:hover:bg-input/30',
           )}
@@ -126,7 +128,7 @@ export function SyncSplitButton({
               variant={variant}
               aria-label="More data actions"
               className={cn(
-                'w-8 rounded-l-none px-0',
+                'w-8 rounded-l-none px-0 transition-none',
                 disabled ? '-ml-px' : 'border-l border-primary-foreground/25',
               )}
             >
