@@ -46,13 +46,19 @@ interface LastSync {
    */
   expirations?: Record<string, string>;
   /**
-   * `toAscii` name → when DomBot recorded a renewal of it (ms epoch), until a
-   * sync sees its expiry jump. That jump is the renewal already recorded, so
-   * it writes nothing. An entry no jump has claimed in `AWAIT_MS` is dropped.
+   * `toAscii` name → a DomBot renewal sync hasn't seen yet: when it was
+   * recorded (ms epoch) and the years it added. The expiry jump that shows it
+   * is that renewal, already recorded; only years beyond it are new. An entry
+   * no jump has claimed in `AWAIT_MS` is dropped.
    */
-  awaiting?: Record<string, number>;
+  awaiting?: Record<string, Awaiting>;
   /** ms epoch. */
   syncedAt: number;
+}
+
+interface Awaiting {
+  at: number;
+  years: number;
 }
 
 /** How long a DomBot renewal waits for sync to see its new expiry. */
@@ -78,7 +84,11 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
       synced: false,
       known,
       expirations: cleanExpirations(record?.expirations),
-      awaiting: Object.keys(cleanAwaiting(record?.awaiting, now)),
+      awaiting: Object.fromEntries(
+        Object.entries(cleanAwaiting(record?.awaiting, now)).map(
+          ([name, a]) => [name, a.years],
+        ),
+      ),
     };
   });
   const diff = diffSync(
@@ -143,11 +153,20 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
 }
 
 /** Stored awaiting renewals still in their window, malformed entries dropped. */
-function cleanAwaiting(value: unknown, now: number): Record<string, number> {
-  const out: Record<string, number> = {};
+function cleanAwaiting(value: unknown, now: number): Record<string, Awaiting> {
+  const out: Record<string, Awaiting> = {};
   if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
-  for (const [name, at] of Object.entries(value))
-    if (typeof at === 'number' && now - at < AWAIT_MS) out[name] = at;
+  for (const [name, entry] of Object.entries(value)) {
+    if (!entry || typeof entry !== 'object') continue;
+    const { at, years } = entry as Partial<Awaiting>;
+    if (
+      typeof at === 'number' &&
+      now - at < AWAIT_MS &&
+      typeof years === 'number' &&
+      years > 0
+    )
+      out[name] = { at, years };
+  }
   return out;
 }
 
@@ -208,12 +227,13 @@ export function recordRenewals(
     const record = marked.get(r.accountId) ?? lastSync.get(r.accountId);
     // No expiries kept yet: sync can't see a jump, so nothing to wait for.
     if (!record || !cleanExpirations(record.expirations)) continue;
+    const awaiting = cleanAwaiting(record.awaiting, now);
+    const name = toAscii(r.domainName);
+    // Two renewals before a sync sees either: one jump covering both.
+    const years = (awaiting[name]?.years ?? 0) + r.years;
     marked.set(r.accountId, {
       ...record,
-      awaiting: {
-        ...cleanAwaiting(record.awaiting, now),
-        [toAscii(r.domainName)]: now,
-      },
+      awaiting: { ...awaiting, [name]: { at: now, years } },
     });
   }
   if (marked.size > 0) void lastSync.setMany([...marked]);

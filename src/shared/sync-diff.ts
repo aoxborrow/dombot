@@ -33,9 +33,10 @@ export interface AccountHoldings {
   expirations?: Record<string, string>;
   /**
    * Before-list only: names DomBot renewed whose new expiry sync hasn't seen
-   * yet. The next forward jump for one is that renewal, already recorded.
+   * yet, with the years each renewal added. The next forward jump for one is
+   * that renewal, already recorded; only years beyond it are new.
    */
-  awaiting?: string[];
+  awaiting?: Record<string, number>;
 }
 
 export interface SyncDiff {
@@ -165,18 +166,22 @@ export function diffSync(
 
   // Renewals: an expiry that moved forward by about a year or more. A jump
   // for a name awaiting a DomBot renewal is that renewal, already recorded:
-  // it lands, and nothing is written. An expiry that went back by the years a
-  // sync renewal recorded undoes that renewal.
+  // it lands, and only years beyond it (a transfer's, an auto-renewal's) are
+  // written. An expiry that went back by the years a sync renewal recorded
+  // undoes that renewal.
   const landed: { accountId: string; domain: string }[] = [];
+  /** Years of awaited DomBot renewals this jump shows, claiming them. */
   const awaited = (name: string, accountIds: string[]) => {
+    let years = 0;
     for (const accountId of accountIds) {
-      if (!prev.get(accountId)?.awaiting?.includes(name)) continue;
+      const y = prev.get(accountId)?.awaiting?.[name];
+      if (!y) continue;
       if (landed.some((l) => l.accountId === accountId && l.domain === name))
         continue;
       landed.push({ accountId, domain: name });
-      return true;
+      years += y;
     }
-    return false;
+    return years;
   };
   const lastSyncRenewal = (name: string) => {
     let last: DomainEvent | null = null;
@@ -200,13 +205,9 @@ export function diffSync(
     const days = daysBetween(was, is);
     if (days === null) return;
     if (days >= RENEWAL_MIN_DAYS) {
-      if (awaited(name, awaitedIn)) return;
-      push({
-        domain: name,
-        type: DomainEventType.Renewed,
-        accountId,
-        years: renewalYears(days),
-      });
+      const years = renewalYears(days) - awaited(name, awaitedIn);
+      if (years < 1) return;
+      push({ domain: name, type: DomainEventType.Renewed, accountId, years });
     } else if (days <= -RENEWAL_MIN_DAYS) {
       const last = lastSyncRenewal(name);
       if (last && last.years === renewalYears(-days)) retracted.push(last.id);

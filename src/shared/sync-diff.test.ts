@@ -275,7 +275,7 @@ describe('ownershipByDomain', () => {
     const at = (
       accountId: string,
       expirations: Record<string, string> | undefined,
-      awaiting?: string[],
+      awaiting?: Record<string, number>,
     ): AccountHoldings => ({
       ...account(accountId, Object.keys(expirations ?? {})),
       expirations,
@@ -341,12 +341,33 @@ describe('ownershipByDomain', () => {
 
     it('lands an awaited DomBot renewal instead of recording it again', () => {
       const result = run(
-        [at('dynadot', { 'a.com': '2026-10-01' }, ['a.com'])],
+        [at('dynadot', { 'a.com': '2026-10-01' }, { 'a.com': 1 })],
         [at('dynadot', { 'a.com': '2027-10-01' })],
         [renewed('a.com', 'user', 1, NOW - 1000)],
         ['dynadot'],
       );
       expect(result.events).toEqual([]);
+      expect(result.landed).toEqual([
+        { accountId: 'dynadot', domain: 'a.com' },
+      ]);
+    });
+
+    it('records only the years a jump adds beyond an awaited renewal', () => {
+      // Renewed in DomBot for a year, and transferred (another year).
+      const result = run(
+        [
+          at('dynadot', { 'a.com': '2026-10-01' }, { 'a.com': 1 }),
+          { ...at('pork', {}), names: [] },
+        ],
+        [at('dynadot', {}), at('pork', { 'a.com': '2028-10-01' })],
+        [],
+        ['dynadot', 'pork'],
+      );
+      expect(result.events.map((e) => [e.type, e.years ?? null])).toEqual([
+        ['moved', null],
+        ['renewed', 1],
+      ]);
+      expect(result.events[1].accountId).toBe('pork');
       expect(result.landed).toEqual([
         { accountId: 'dynadot', domain: 'a.com' },
       ]);

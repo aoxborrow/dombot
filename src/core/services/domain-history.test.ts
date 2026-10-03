@@ -316,6 +316,18 @@ describe('domain history', () => {
       ).toEqual(['renewed']);
     });
 
+    it('adds up two DomBot renewals one jump shows', () => {
+      recordSync(at({ 'a.com': '2026-10-01' }));
+      recordRenewals([{ domainName: 'a.com', accountId: acct(), years: 1 }]);
+      recordRenewals([{ domainName: 'a.com', accountId: acct(), years: 1 }]);
+      expect(recordSync(at({ 'a.com': '2028-10-01' }))).toEqual([]);
+      // One more year than DomBot renewed: an auto-renewal on top.
+      recordRenewals([{ domainName: 'a.com', accountId: acct(), years: 1 }]);
+      expect(
+        recordSync(at({ 'a.com': '2030-10-01' })).map((e) => e.years),
+      ).toEqual([1]);
+    });
+
     it('records each yearly auto-renewal sync sees', () => {
       recordSync(at({ 'a.com': '2026-10-01' }));
       expect(recordSync(at({ 'a.com': '2027-10-01' }))).toHaveLength(1);
