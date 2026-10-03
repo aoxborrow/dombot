@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -13,6 +14,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { FilterOption } from './Toolbar';
@@ -147,28 +149,30 @@ function ListMenu({ field }: { field: ListField }) {
           placeholder={`Search ${field.plural}…`}
         />
       )}
-      <div className="max-h-[300px] overflow-y-auto">
+      <div className="max-h-[300px] overflow-x-hidden overflow-y-auto">
         {options.length === 0 && (
           <div className="px-2 py-1.5 text-sm text-muted-foreground">
             {field.options.length === 0 ? 'No options' : 'No matches'}
           </div>
         )}
-        {options.map((o) => (
-          <DropdownMenuCheckboxItem
-            key={o.value}
-            checked={field.selected.includes(o.value)}
-            // Keep the menu open so several can be picked in one go.
-            onSelect={(e) => e.preventDefault()}
-            onCheckedChange={() => toggle(o.value)}
-          >
-            {o.icon && <span className="mx-0.5 flex shrink-0">{o.icon}</span>}
-            <span className="flex-1 truncate">{o.label}</span>
-            {o.count != null && (
-              <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">
-                {o.count}
-              </span>
-            )}
-          </DropdownMenuCheckboxItem>
+        {options.map((o, i) => (
+          <Fragment key={o.value}>
+            {o.divider && i > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuCheckboxItem
+              checked={field.selected.includes(o.value)}
+              // Keep the menu open so several can be picked in one go.
+              onSelect={(e) => e.preventDefault()}
+              onCheckedChange={() => toggle(o.value)}
+            >
+              {o.icon && <span className="mx-0.5 flex shrink-0">{o.icon}</span>}
+              <span className="flex-1 truncate">{o.label}</span>
+              {o.count != null && (
+                <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {o.count}
+                </span>
+              )}
+            </DropdownMenuCheckboxItem>
+          </Fragment>
         ))}
       </div>
     </>

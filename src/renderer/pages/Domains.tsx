@@ -99,6 +99,7 @@ import {
   RangeInputs,
   SearchField,
   rangeSummary,
+  type FilterOption,
 } from '../components/data-table/Toolbar';
 import {
   FilterBar,
@@ -153,8 +154,21 @@ interface Column {
 }
 
 /** Everything after the first dot, e.g. "example.co.uk" → "co.uk". */
-/** Registrar filter value for names you added that no account reports. */
-const MANUAL = '__manual__';
+/**
+ * Registrar filter value for a name you added that no account reports: one
+ * per registrar name (so a known "gandi" and a typed "Gandi.net" meet), and
+ * "manual:" alone for names with no registrar (Unknown).
+ */
+function manualRegistrarValue(label: string): string {
+  return `manual:${label.trim().toLowerCase()}`;
+}
+
+/** A manual name's registrar as shown: DomBot's name for it, or your text. */
+function manualRegistrarName(d: Domain, labels: RegistrarLabels): string {
+  return d.registrar
+    ? registrarLabel(d.registrar, labels)
+    : (d.manualRegistrarLabel ?? '');
+}
 
 /** Distinct names among rows (a name two accounts hold is one row in a CSV). */
 function nameCount(rows: Domain[]): number {
@@ -1049,18 +1063,14 @@ export default function Domains() {
   }, [ownedRows]);
   // One option per account (keyed by account id), so accounts of the same
   // registrar can be filtered apart or, by multi-selecting, together. Labelled
-  // "Registrar · nickname" / "Registrar #2" / "Registrar".
+  // "Registrar · nickname" / "Registrar #2" / "Registrar". Then, past a line,
+  // the names you added, by the registrar you gave them (a faint building, no
+  // logo, as no account backs them), with Unknown last.
   const registrarOptions = useMemo(() => {
     const acc = new Map<
       string,
       { label: string; registrar: string; count: number }
     >();
-    if (manualList.length > 0)
-      acc.set(MANUAL, {
-        label: 'Manual',
-        registrar: '',
-        count: manualList.length,
-      });
     for (const d of portfolio) {
       const value = d.accountId ?? d.registrar;
       const existing = acc.get(value);
@@ -1076,7 +1086,7 @@ export default function Domains() {
           count: 1,
         });
     }
-    return Array.from(acc, ([value, v]) => ({
+    const accounts = Array.from(acc, ([value, v]) => ({
       value,
       label: v.label,
       count: v.count,
@@ -1088,6 +1098,29 @@ export default function Domains() {
         />
       ),
     })).sort((a, b) => a.label.localeCompare(b.label));
+    const manual = new Map<string, { label: string; count: number }>();
+    for (const d of manualList) {
+      const label = manualRegistrarName(d, portfolioRegistrarLabels);
+      const value = manualRegistrarValue(label);
+      const existing = manual.get(value);
+      if (existing) existing.count += 1;
+      else manual.set(value, { label: label || 'Unknown', count: 1 });
+    }
+    const unknown = manualRegistrarValue('');
+    const added: FilterOption[] = Array.from(manual, ([value, v]) => ({
+      value,
+      label: v.label,
+      count: v.count,
+      icon: (
+        <Building2 className="size-4 text-muted-foreground/40" aria-hidden />
+      ),
+    })).sort(
+      (a, b) =>
+        Number(a.value === unknown) - Number(b.value === unknown) ||
+        a.label.localeCompare(b.label),
+    );
+    if (accounts.length > 0 && added.length > 0) added[0].divider = true;
+    return [...accounts, ...added];
   }, [portfolio, manualList, portfolioRegistrarLabels, multipleAccounts]);
   // Expiration windows are cumulative, so their counts intentionally overlap
   // (a domain due in 20 days matches the 30-, 60-, and 90-day options).
@@ -1342,10 +1375,17 @@ export default function Domains() {
     const rows = shown.filter((d) => {
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
       if (tld.length > 0 && !tld.includes(tldOf(d.domainName))) return false;
-      // The "Registrar" filter picks individual accounts (by account id).
+      // The "Registrar" filter picks individual accounts (by account id), or
+      // the names you added by their registrar.
       if (
         registrar.length > 0 &&
-        !registrar.includes(d.manual ? MANUAL : (d.accountId ?? d.registrar))
+        !registrar.includes(
+          d.manual
+            ? manualRegistrarValue(
+                manualRegistrarName(d, portfolioRegistrarLabels),
+              )
+            : (d.accountId ?? d.registrar),
+        )
       )
         return false;
       // Expiration: keep a domain matching ANY selected window ("Expired" =

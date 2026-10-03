@@ -110,6 +110,8 @@ export interface FilterOption {
   count?: number;
   /** Optional leading icon shown before this option's label. */
   icon?: ReactNode;
+  /** A line above this option, starting a new section of the list. */
+  divider?: boolean;
 }
 
 /** Adds or removes `value` from a multi-select selection array. */
