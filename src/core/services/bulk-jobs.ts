@@ -16,6 +16,7 @@ import {
 } from '../events';
 import { Namespace } from '../storage/namespace';
 import { applyDomainOp } from './domain-ops';
+import { recordRenewals, type ConfirmedRenewal } from './domain-history';
 
 // The bulk-job runner: one `DomainOp` over many targets, respecting each
 // registrar's rate limits (one lane per registrar, with a concurrency and a
@@ -348,6 +349,8 @@ async function runStep(j: StoredJob): Promise<BulkStep> {
 
   const controller = new AbortController();
   stepController = controller;
+  // Confirmed renewals in this slice, recorded together (one write).
+  const renewals: ConfirmedRenewal[] = [];
   try {
     await Promise.all(
       slice.map(async (target) => {
@@ -356,6 +359,7 @@ async function runStep(j: StoredJob): Promise<BulkStep> {
           : await applyDomainOp(target, j.op, {
               signal: controller.signal,
               silent: true,
+              renewals,
             });
         if (result.status === 'rate-limited') {
           j.notBefore[target.registrar] = Date.now() + RATE_LIMIT_PAUSE_MS;
@@ -365,6 +369,11 @@ async function runStep(j: StoredJob): Promise<BulkStep> {
     );
   } finally {
     stepController = null;
+    try {
+      recordRenewals(renewals);
+    } catch (err) {
+      console.error('[domain-history] recording renewals failed', err);
+    }
   }
 
   if (j.cancelRequested) {

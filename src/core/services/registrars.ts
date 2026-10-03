@@ -25,8 +25,9 @@ import {
   removeAccountRecord,
 } from './accounts';
 import { domainKey } from '../../shared/account-key';
+import { toAscii } from '../../shared/domain-name';
 import { currencyInfo } from '../../shared/money';
-import type { AccountHoldings } from '../../shared/sync-diff';
+import { expiryDay, type AccountHoldings } from '../../shared/sync-diff';
 import { recordSync } from './domain-history';
 import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
@@ -637,9 +638,15 @@ function holdingsOf(
   synced: boolean,
 ): AccountHoldings {
   const entry = readRegistrarEntry(account.id);
+  const expirations: Record<string, string> = {};
+  for (const domain of entry?.domains ?? []) {
+    const day = expiryDay(domain.expirationDate);
+    if (day) expirations[toAscii(domain.domainName)] = day;
+  }
   return {
     accountId: account.id,
     names: (entry?.domains ?? []).map((domain) => domain.domainName),
+    expirations,
     known: entry != null && entry.lastSyncedAt != null,
     synced:
       synced &&
@@ -649,7 +656,7 @@ function holdingsOf(
   };
 }
 
-/** Pull these accounts, then record arrivals, departures, and moves. */
+/** Pull these accounts, then record arrivals, departures, moves, and renewals. */
 async function syncAccounts(accounts: RegistrarAccount[]): Promise<void> {
   await Promise.all(accounts.map((account) => syncRegistrarInto(account)));
   const attempted = new Set(accounts.map((account) => account.id));
