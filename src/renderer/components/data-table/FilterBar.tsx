@@ -279,8 +279,8 @@ function FilterChip({
               <span
                 className={cn(
                   // The underline is the value's grey with about 40% of the label
-                  // green mixed in, at 55% (38% dark).
-                  'flex items-center pr-1 text-[#3a3a3a] underline decoration-[color-mix(in_srgb,#42604d_55%,transparent)] decoration-dotted underline-offset-2 dark:text-[#d4d4d4] dark:decoration-[color-mix(in_srgb,#bacfc1_38%,transparent)]',
+                  // green mixed in, at 40% (38% dark), 3px below the text.
+                  'flex items-center pr-1 text-[#3a3a3a] underline decoration-[color-mix(in_srgb,#42604d_40%,transparent)] decoration-dotted underline-offset-[3px] dark:text-[#d4d4d4] dark:decoration-[color-mix(in_srgb,#bacfc1_38%,transparent)]',
                   flat ? 'pl-1' : 'pl-2.5',
                 )}
               >
