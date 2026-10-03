@@ -1,3 +1,4 @@
+import { Building2 } from 'lucide-react';
 import type { RegistrarName } from '../../shared/ipc';
 import { cn } from '@/lib/utils';
 
@@ -65,6 +66,19 @@ export function RegistrarLogo({
         className,
       )}
       dangerouslySetInnerHTML={{ __html: monochrome(svg) }}
+    />
+  );
+}
+
+/**
+ * The mark for a registrar on a name you added by hand: a faint building, no
+ * brand logo, so it reads apart from a connected account's names.
+ */
+export function ManualRegistrarIcon({ className }: { className?: string }) {
+  return (
+    <Building2
+      className={cn('size-4 shrink-0 text-muted-foreground/40', className)}
+      aria-hidden
     />
   );
 }

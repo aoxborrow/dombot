@@ -40,7 +40,10 @@ import { DomainEventType } from '../../shared/domain-events';
 import { ownershipByDomain, type ArchiveLabel } from '../../shared/ownership';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { ARCHIVE_LABEL, accountName, archiveRows } from '../lib/domain-history';
-import { RegistrarLogo } from '../components/RegistrarLogo';
+import {
+  ManualRegistrarIcon,
+  RegistrarLogo,
+} from '../components/RegistrarLogo';
 import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
@@ -806,11 +809,20 @@ export default function Domains() {
         ? {
             ...c,
             render: (d: Domain, labels: RegistrarLabels) => {
-              if (d.manual && !d.registrar)
-                return <span>{d.manualRegistrarLabel}</span>;
-              const suffix = d.manual
-                ? null
-                : paren(d.accountLabel, d.registrar);
+              // Names you added: a faint building rather than the logo, so
+              // they read apart from a connected account's names.
+              if (d.manual) {
+                const name = manualRegistrarName(d, labels);
+                return (
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                    <ManualRegistrarIcon />
+                    {name || (
+                      <span className="text-muted-foreground">Unknown</span>
+                    )}
+                  </span>
+                );
+              }
+              const suffix = paren(d.accountLabel, d.registrar);
               const label = registrarLabel(d.registrar, labels);
               return (
                 <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
@@ -1111,9 +1123,7 @@ export default function Domains() {
       value,
       label: v.label,
       count: v.count,
-      icon: (
-        <Building2 className="size-4 text-muted-foreground/40" aria-hidden />
-      ),
+      icon: <ManualRegistrarIcon />,
     })).sort(
       (a, b) =>
         Number(a.value === unknown) - Number(b.value === unknown) ||

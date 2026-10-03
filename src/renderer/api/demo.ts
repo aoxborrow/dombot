@@ -196,8 +196,9 @@ function recordSampleListPrices(): void {
 }
 
 /**
- * Two names you added by hand: one at a registrar DomBot supports but you
- * haven't connected, one at a registrar it doesn't know.
+ * Two names you added by hand: one at Gandi (a registrar DomBot supports,
+ * and the demo also syncs a Gandi account, so both show), one at a
+ * registrar it doesn't know.
  */
 function recordSampleManualDomains(): void {
   const day = (daysAhead: number) =>
