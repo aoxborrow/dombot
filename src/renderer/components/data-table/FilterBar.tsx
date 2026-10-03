@@ -311,6 +311,7 @@ function AddFilter({
   compact,
 }: {
   fields: FilterField[];
+  /** A field was picked: add its chip and open it. */
   onPick: (key: string) => void;
   /** The square "+" icon button, for after the chips. */
   compact: boolean;
@@ -367,7 +368,10 @@ function AddFilter({
         align="start"
         sideOffset={10}
         // As wide as the longest field name needs, no wider.
-        className="w-auto min-w-44"
+        // While it fades out, ignore the pointer: hovering a closing menu
+        // focuses it, which pulls focus from the picked chip's menu and
+        // closes that.
+        className="w-auto min-w-44 data-[state=closed]:pointer-events-none"
         // A pick hands focus to the new chip's menu; don't pull it back here.
         onCloseAutoFocus={(e) => {
           if (picked.current) e.preventDefault();
@@ -489,12 +493,8 @@ export function FilterBar({
     else setOrder((o) => o.filter((k) => k !== field.key));
   }
 
-  const add = (
-    <AddFilter fields={fields} onPick={pick} compact={chips.length > 0} />
-  );
   return (
     <>
-      {chips.length === 0 && add}
       {chips.map((f) => (
         <FilterChip
           key={f.key}
@@ -505,7 +505,9 @@ export function FilterBar({
           variant={variant}
         />
       ))}
-      {chips.length > 0 && add}
+      {/* Always last, so it stays mounted as chips come and go (with none,
+          last is right after the search). */}
+      <AddFilter fields={fields} onPick={pick} compact={chips.length > 0} />
     </>
   );
 }
