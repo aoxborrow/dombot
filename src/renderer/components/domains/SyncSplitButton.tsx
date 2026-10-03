@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Plug, RefreshCw, Upload } from 'lucide-react';
+import { Check, ChevronDown, Plug2, RefreshCw, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -133,7 +133,9 @@ export function SyncSplitButton({
             <DropdownMenuItem
               onSelect={() => navigate('/settings?tab=registrars')}
             >
-              <Plug />
+              {/* Plug2 draws small: a size up matches the refresh icon above,
+                  pulled in so the label stays in line. */}
+              <Plug2 className="-mx-px size-[18px]" />
               Registrar settings…
             </DropdownMenuItem>
             <DropdownMenuSeparator />
