@@ -1,4 +1,11 @@
-import { Check, ChevronDown, Plug2, RefreshCw, Upload } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  CircleAlert,
+  Plug2,
+  RefreshCw,
+  Upload,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -58,6 +65,7 @@ export function SyncSplitButton({
     tooSoon,
     lastSyncedAt,
     stale,
+    partialFail,
   } = useSyncState();
   // Can't sync right now, and not because one is running: a click says why
   // instead of syncing. Either way the button goes neutral rather than fading.
@@ -98,7 +106,13 @@ export function SyncSplitButton({
           )}
         >
           {tooSoon && !syncing ? (
-            <Check className="text-brand" />
+            // Some accounts failed: no check. The banner under the title
+            // names them.
+            partialFail ? (
+              <CircleAlert className="text-destructive" />
+            ) : (
+              <Check className="text-brand" />
+            )
           ) : (
             <RefreshCw className={cn(syncing && 'animate-spin')} />
           )}

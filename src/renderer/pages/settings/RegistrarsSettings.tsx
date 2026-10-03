@@ -168,7 +168,7 @@ export default function RegistrarsSettings() {
             below), the page's main action on the right. */}
         {loaded && cards.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            {enabledCount > 1 && <SyncAllButton count={enabledCount} />}
+            {enabledCount > 1 && <SyncAllButton />}
             <div className="ml-auto">
               <AddAccountMenu
                 catalog={sortedCatalog}
@@ -214,30 +214,10 @@ export default function RegistrarsSettings() {
  * Syncs every enabled account at once, like the status bar's Sync. Each card
  * shows Syncing… while it runs, and a toast sums up the result.
  */
-function SyncAllButton({ count }: { count: number }) {
-  const loadPortfolio = useAppStore((s) => s.loadPortfolio);
-  const { syncing, disabled, title } = useSyncState();
-  const run = async () => {
-    await loadPortfolio();
-    const { portfolioError, portfolioErrors, portfolio } =
-      useAppStore.getState();
-    if (portfolioError) toast.error(`Sync failed: ${portfolioError}`);
-    else if (portfolioErrors.length > 0)
-      toast.warning(
-        `${portfolioErrors.length} of ${count} failed to sync. The error is on ${portfolioErrors.length === 1 ? 'its card' : 'their cards'}.`,
-      );
-    else
-      toast.success(
-        `Synced ${count} registrars: ${portfolio.length.toLocaleString('en-US')} domains`,
-      );
-  };
+function SyncAllButton() {
+  const { sync, syncing, disabled, title } = useSyncState();
   return (
-    <Button
-      variant="outline"
-      onClick={() => void run()}
-      disabled={disabled}
-      title={title}
-    >
+    <Button variant="outline" onClick={sync} disabled={disabled} title={title}>
       <RefreshCw className={cn(syncing && 'animate-spin')} />
       {syncing ? 'Syncing…' : 'Sync all'}
       {/* Room for the full label beside Add from sm up. */}
