@@ -260,7 +260,7 @@ function FilterChip({
             aria-label={`${field.label}: ${summary ?? 'any'}`}
             // The whole chip but the × opens the menu; the right padding
             // keeps the text clear of the × above it.
-            className="flex items-stretch pr-[23px] whitespace-nowrap outline-none"
+            className="flex items-stretch pr-[19px] whitespace-nowrap outline-none"
           >
             <span
               className={cn(
