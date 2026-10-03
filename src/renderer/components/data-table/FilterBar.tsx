@@ -195,8 +195,8 @@ function ListMenu({ field }: { field: ListField }) {
 export type FilterChipVariant = 'segmented' | 'flat';
 
 /**
- * One filter: [icon name value ×], its dropdown editing the value. A preset
- * with nothing set is a dashed grey outline with just its icon and name.
+ * One filter: [icon name value ×], its dropdown editing the value. With
+ * nothing set it's a dashed grey outline with just its icon and name.
  */
 function FilterChip({
   field,
@@ -204,20 +204,17 @@ function FilterChip({
   onOpenChange,
   onRemove,
   variant,
-  preset,
 }: {
   field: FilterField;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRemove: () => void;
   variant: FilterChipVariant;
-  /** Always shown, so it has an empty look. */
-  preset: boolean;
 }) {
   const Icon = field.icon;
   const summary = summaryOf(field);
   const flat = variant === 'flat';
-  const empty = preset && summary === null;
+  const empty = summary === null;
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <span
@@ -229,15 +226,21 @@ function FilterChip({
                 'border-[#cfe3d5] dark:border-[#4f9d6b]/40',
                 flat ? GREEN_TINT : 'bg-background dark:bg-input/30',
               ),
-          // Open (or keyboard-focused): the border turns filter green.
-          'has-[:focus-visible]:border-[#4f9d6b] dark:has-[:focus-visible]:border-[#4f9d6b]',
-          open && 'border-[#4f9d6b] dark:border-[#4f9d6b]',
+          // Open (or keyboard-focused): a set chip's border turns filter
+          // green; an empty one's dashes just turn a lighter grey.
+          empty
+            ? 'has-[:focus-visible]:border-muted-foreground/50 dark:has-[:focus-visible]:border-muted-foreground/80'
+            : 'has-[:focus-visible]:border-[#4f9d6b] dark:has-[:focus-visible]:border-[#4f9d6b]',
+          open &&
+            (empty
+              ? 'border-muted-foreground/50 dark:border-muted-foreground/80'
+              : 'border-[#4f9d6b] dark:border-[#4f9d6b]'),
         )}
       >
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label={`${field.label}: ${summary ?? (empty ? 'any' : 'choose')}`}
+            aria-label={`${field.label}: ${summary ?? 'any'}`}
             className="flex items-stretch whitespace-nowrap outline-none"
           >
             <span
@@ -255,18 +258,15 @@ function FilterChip({
               <Icon className="size-4" />
               {field.label}
             </span>
-            {/* An empty preset has no value text at all. */}
+            {/* An empty chip has no value text at all. */}
             {!empty && (
               <span
                 className={cn(
-                  'flex items-center pr-1',
+                  'flex items-center pr-1 text-[#3a3a3a] underline decoration-[color-mix(in_srgb,#3a3a3a_55%,transparent)] decoration-dotted underline-offset-2 dark:text-[#d4d4d4] dark:decoration-[color-mix(in_srgb,#d4d4d4_38%,transparent)]',
                   flat ? 'pl-1' : 'pl-2.5',
-                  summary
-                    ? 'text-[#3a3a3a] underline decoration-[color-mix(in_srgb,#3a3a3a_55%,transparent)] decoration-dotted underline-offset-2 dark:text-[#d4d4d4] dark:decoration-[color-mix(in_srgb,#d4d4d4_38%,transparent)]'
-                    : 'text-muted-foreground',
                 )}
               >
-                {summary ?? 'Choose…'}
+                {summary}
               </span>
             )}
           </button>
@@ -420,15 +420,15 @@ const removedPresets = new Map<string, Set<string>>();
 
 /**
  * The filter chips, then the add button. Presets always sit first, in their
- * slots, even with nothing set; filters added from the menu follow in the
- * order they were added. Rendered inline (a fragment), so everything wraps
- * with the toolbar around it. With no chips at all the add button is
- * "+ Add filter"; otherwise it's a square "+" after the last chip.
+ * slots; filters added from the menu follow in the order they were added.
+ * Rendered inline (a fragment), so everything wraps with the toolbar around
+ * it. With no chips at all the add button is "+ Add filter"; otherwise it's a
+ * square "+" after the last chip.
  *
  * Picking a field adds its chip with the value list open; picking one already
- * showing opens it instead, and a removed preset returns to its slot. An
- * added chip closed with nothing set goes away. Chips never move as their
- * values are set or cleared.
+ * showing opens it instead, and a removed preset returns to its slot. A chip
+ * stays until its × removes it, dashed and empty while nothing is set, and
+ * never moves as its value is set or cleared.
  */
 export function FilterBar({
   id,
@@ -444,18 +444,18 @@ export function FilterBar({
   /** The chips' look; see FilterChipVariant. */
   variant?: FilterChipVariant;
 }) {
-  // Added (non-preset) chips, in the order they were added; a field set
-  // elsewhere (not through the menu) joins at the end.
+  // Added (non-preset) chips, in the order they were added, set or not; a
+  // field set elsewhere (not through the menu) joins at the end.
   const [order, setOrder] = useState<string[]>([]);
   const [removed, setRemoved] = useState<Set<string>>(
     () => new Set(removedPresets.get(id)),
   );
-  // The chip whose dropdown is open; it stays while open even if unset.
+  // The chip whose dropdown is open.
   const [openKey, setOpenKey] = useState<string | null>(null);
   const byKey = new Map(fields.map((f) => [f.key, f]));
   const isPreset = (key: string) => presets.includes(key);
   // Presets in their slots (a removed one only if something set it since);
-  // then added chips, set or open.
+  // then added chips.
   const presetChips = presets
     .map((k) => byKey.get(k))
     .filter(
@@ -463,15 +463,9 @@ export function FilterBar({
         !!f && (!removed.has(f.key) || summaryOf(f) !== null),
     );
   const added = [
-    ...order,
-    ...fields.map((f) => f.key).filter((k) => !order.includes(k)),
-  ]
-    .filter((k) => !isPreset(k))
-    .map((k) => byKey.get(k))
-    .filter(
-      (f): f is FilterField =>
-        !!f && (summaryOf(f) !== null || f.key === openKey),
-    );
+    ...order.map((k) => byKey.get(k)),
+    ...fields.filter((f) => !order.includes(f.key) && summaryOf(f) !== null),
+  ].filter((f): f is FilterField => !!f && !isPreset(f.key));
   const chips = [...presetChips, ...added];
 
   function setRemovedPresets(next: Set<string>) {
@@ -515,7 +509,6 @@ export function FilterBar({
           onOpenChange={(open) => setOpenKey(open ? f.key : null)}
           onRemove={() => remove(f)}
           variant={variant}
-          preset={isPreset(f.key)}
         />
       ))}
       {chips.length > 0 && add}
