@@ -395,13 +395,9 @@ function AddFilter({
           picked.current = false;
         }}
       >
-        {/* The square + has no words of its own, so the menu says what it's
-            for; "+ Add filter" already does. */}
-        {compact && (
-          <DropdownMenuLabel className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
-            Add a filter
-          </DropdownMenuLabel>
-        )}
+        <DropdownMenuLabel className="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+          Add filter
+        </DropdownMenuLabel>
         {/* Only once there are enough fields to need it. */}
         {fields.length > SEARCHABLE && (
           <MenuSearch
