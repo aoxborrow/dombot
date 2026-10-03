@@ -302,10 +302,11 @@ function FilterChip({
             // the icon (no padding on its left), over the trigger, so a click
             // just past the value doesn't land on it.
             'absolute inset-y-0 right-0 flex items-center rounded-r-md pr-[9px] opacity-55 outline-none hover:opacity-100',
-            // On a set chip, muted grey with a hint of the label green.
+            // On a set chip, muted grey with a hint of the label green. In
+            // light mode hover also darkens it 30%.
             empty
-              ? 'text-muted-foreground'
-              : 'text-[#658370] dark:text-[#9aafa1]',
+              ? 'text-muted-foreground hover:text-[#515151] dark:hover:text-muted-foreground'
+              : 'text-[#658370] hover:text-[#475c4e] dark:text-[#9aafa1] dark:hover:text-[#9aafa1]',
           )}
         >
           <X className="size-3.5" />
