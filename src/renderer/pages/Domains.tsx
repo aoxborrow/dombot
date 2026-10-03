@@ -1823,7 +1823,7 @@ export default function Domains() {
             className="flex-[0_1_216px]"
           />
 
-          <FilterBar fields={filterFields} />
+          <FilterBar fields={filterFields} variant="flat" />
 
           {exportNote && (
             <span

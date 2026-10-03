@@ -70,9 +70,8 @@ function clearField(field: FilterField) {
 /** Lists (and the Add filter menu) longer than this get a search box. */
 const SEARCHABLE = 8;
 
-// The filter green, from the design: border, tint, and text (with dark
-// variants). The tint and ring are the same green at low opacity.
-const GREEN_BORDER = 'border-[#4f9d6b]';
+// The filter green, from the design: the chip tint and the green value text
+// in the Add filter menu (with dark variants).
 const GREEN_TINT = 'bg-[#f1f8f3] dark:bg-[#4f9d6b]/13';
 const GREEN_TEXT = 'text-[#337544] dark:text-[#7cc495]';
 
@@ -224,7 +223,7 @@ function FilterChip({
               className={cn(
                 'flex items-center gap-[7px] pl-2.5 text-[#4a6b55] dark:text-[#8fc7a2]',
                 flat
-                  ? 'pr-[3px]'
+                  ? 'pr-1'
                   : `border-r border-[#e3eee6] pr-2.5 dark:border-[#4f9d6b]/25 ${GREEN_TINT}`,
               )}
             >
@@ -234,7 +233,7 @@ function FilterChip({
             <span
               className={cn(
                 'flex items-center pr-1',
-                flat ? 'pl-[3px]' : 'pl-2.5',
+                flat ? 'pl-1' : 'pl-2.5',
                 summary
                   ? 'text-[#3a3a3a] underline decoration-[color-mix(in_srgb,#3a3a3a_55%,transparent)] decoration-dotted underline-offset-2 dark:text-[#d4d4d4] dark:decoration-[color-mix(in_srgb,#d4d4d4_38%,transparent)]'
                   : 'text-muted-foreground',
@@ -298,9 +297,10 @@ function AddFilter({
         <button
           type="button"
           className={cn(
-            'inline-flex h-9 items-center gap-1.5 rounded-md border border-dashed border-input pr-3 pl-[9px] text-sm font-medium whitespace-nowrap text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40',
-            open &&
-              `${GREEN_BORDER} ${GREEN_TINT} ${GREEN_TEXT} hover:text-[#337544] dark:border-[#4f9d6b] dark:hover:text-[#7cc495]`,
+            // Neutral: hover and open lift the text and fill a light grey,
+            // like the outline buttons; keyboard focus gets the app's ring.
+            'inline-flex h-9 items-center gap-1.5 rounded-md border border-dashed border-input pr-3 pl-[9px] text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40 dark:hover:bg-input/50',
+            open && 'bg-accent text-foreground dark:bg-input/50',
           )}
         >
           <Plus className="size-3.5" />
