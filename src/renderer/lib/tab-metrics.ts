@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { useAppStore } from '../store/app';
 import { notifications } from '../../shared/notifications';
-import { summarize } from './renewals';
+import { summarize, wholeMoney } from './renewals';
+import { manualRows } from '../../shared/manual-domains';
 
 export interface TabMetric {
   /** Short display value for the tab's pill, e.g. "1,050" or "$4.2k". */
@@ -12,11 +13,12 @@ export interface TabMetric {
   alert?: boolean;
 }
 
-/** Compact whole-dollar USD: "$820", "$4.2k", "$12k". */
-function usdCompact(n: number): string {
-  if (n < 1000) return `$${Math.round(n).toLocaleString('en-US')}`;
+/** Compact whole amount: "$820", "$4.2k", "€12k". */
+function compactMoney(n: number, currency: string): string {
+  if (n < 1000) return wholeMoney(n, currency);
   const k = n / 1000;
-  return `$${k < 10 ? k.toFixed(1).replace(/\.0$/, '') : Math.round(k)}k`;
+  const symbol = wholeMoney(0, currency).replace(/[\d\s.,]/g, '');
+  return `${symbol}${k < 10 ? k.toFixed(1).replace(/\.0$/, '') : Math.round(k)}k`;
 }
 
 export interface TabMetrics {
@@ -32,11 +34,13 @@ export interface TabMetrics {
  * the bell and the status bar. `null` hides the pill.
  */
 export function useTabMetrics(): TabMetrics {
-  const portfolio = useAppStore((s) => s.portfolio);
+  const synced = useAppStore((s) => s.portfolio);
+  const manualDomains = useAppStore((s) => s.manualDomains);
   const pricing = useAppStore((s) => s.pricing);
   const events = useAppStore((s) => s.domainEvents);
 
   return useMemo(() => {
+    const portfolio = [...synced, ...manualRows(manualDomains, synced)];
     const n = portfolio.length.toLocaleString('en-US');
     const domains =
       portfolio.length > 0
@@ -50,8 +54,8 @@ export function useTabMetrics(): TabMetrics {
     const renewals =
       summary.priced > 0
         ? {
-            value: usdCompact(summary.yearly),
-            title: `$${Math.round(summary.yearly).toLocaleString('en-US')} per year in renewals (${summary.priced} of ${summary.total} priced)`,
+            value: compactMoney(summary.yearly, summary.currency),
+            title: `${wholeMoney(summary.yearly, summary.currency)} per year in renewals (${summary.priced} of ${summary.total} priced)${summary.others.map((o) => `, plus ${wholeMoney(o.yearly, o.currency)}`).join('')}`,
           }
         : null;
 
@@ -66,5 +70,5 @@ export function useTabMetrics(): TabMetrics {
         : null;
 
     return { domains, renewals, activity };
-  }, [portfolio, pricing, events]);
+  }, [synced, manualDomains, pricing, events]);
 }

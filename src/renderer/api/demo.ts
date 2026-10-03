@@ -25,6 +25,9 @@ import { listEvents } from '../../core/services/domain-events';
 import { localDay } from '../../shared/domain-events';
 import { setDispositions } from '../../core/services/domain-history';
 import { setPurchase, setSale } from '../../core/services/purchases';
+import { setListPrices } from '../../core/services/list-prices';
+import { setManualPrice } from '../../core/services/pricing';
+import { addManualDomains } from '../../core/services/manual-domains';
 import { MemoryDocStore } from '../../core/storage/doc-store';
 import { configureStore, hydrateStores } from '../../core/storage/namespace';
 import pkg from '../../../package.json';
@@ -172,6 +175,58 @@ function recordSampleHistory(): void {
 }
 
 /**
+ * Asking prices on a few names, so the Asking column has something in it,
+ * and one renewal price in another currency.
+ */
+function recordSampleListPrices(): void {
+  const owned = getMergedPortfolio().domains.map((d) => d.domainName);
+  const samples = [
+    { amount: '4800', minOffer: '1500', floor: '2500', currency: 'USD' },
+    { amount: '12500', minOffer: '5000', floor: null, currency: 'USD' },
+    { amount: '950', minOffer: null, floor: null, currency: 'EUR' },
+    { amount: null, minOffer: '250', floor: null, currency: 'USD' },
+  ];
+  setListPrices(
+    samples
+      .map((s, i) => ({ domainName: owned[i * 2], ...s }))
+      .filter((s) => s.domainName),
+  );
+  // A renewal price in euros: Renewals lists it beside the dollar totals.
+  if (owned[1]) setManualPrice(owned[1], { amount: '45', currency: 'EUR' });
+}
+
+/**
+ * Two names you added by hand: one at a registrar DomBot supports but you
+ * haven't connected, one at a registrar it doesn't know.
+ */
+function recordSampleManualDomains(): void {
+  const day = (daysAhead: number) =>
+    localDay(Date.now() + daysAhead * 86_400_000);
+  addManualDomains(
+    [
+      {
+        domainName: 'harborlight.com',
+        fields: {
+          registrar: 'gandi',
+          createdDate: '2019-04-02',
+          expirationDate: day(140),
+          autoRenew: true,
+        },
+      },
+      {
+        domainName: 'quietfield.net',
+        fields: {
+          registrarLabel: 'Epik',
+          expirationDate: day(45),
+          autoRenew: false,
+        },
+      },
+    ],
+    { source: 'user' },
+  );
+}
+
+/**
  * Boots a fresh in-memory core, installs the demo, runs the first sync so
  * the portfolio is full before anything renders, and returns the API.
  */
@@ -187,6 +242,8 @@ export async function createDemoApi(
   // looks like the real thing.
   const demo = await installDemo({ latencyMs: 0, size: options.size });
   await getPortfolio(true);
+  recordSampleListPrices();
+  recordSampleManualDomains();
   if (options.sampleChanges) {
     stageSampleChanges(demo.world);
     await getPortfolio(true);

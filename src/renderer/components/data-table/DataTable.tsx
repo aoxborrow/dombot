@@ -88,6 +88,7 @@ export function DataTable<T>({
   rowClassName,
   empty,
   className,
+  density: fixedDensity,
 }: {
   rows: T[];
   columns: DataColumn<T>[];
@@ -105,8 +106,11 @@ export function DataTable<T>({
   empty: ReactNode;
   /** Extra classes on the outer container (e.g. spacing above). */
   className?: string;
+  /** A fixed density: ignores the preference and hides its switch. */
+  density?: Preferences['density'];
 }) {
-  const density = usePreferences((s) => s.density);
+  const preferred = usePreferences((s) => s.density);
+  const density = fixedDensity ?? preferred;
   const setPreferences = usePreferences((s) => s.setPreferences);
   const {
     pageCount,
@@ -323,10 +327,12 @@ export function DataTable<T>({
               </SelectGroup>
             </SelectContent>
           </Select>
-          <DensitySwitch
-            value={density}
-            onChange={(next) => setPreferences({ density: next })}
-          />
+          {!fixedDensity && (
+            <DensitySwitch
+              value={density}
+              onChange={(next) => setPreferences({ density: next })}
+            />
+          )}
         </div>
 
         <div className="flex items-center justify-between gap-3 sm:justify-start">

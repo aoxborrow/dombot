@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { priceMoney } from '../../lib/renewals';
 
 const MAX_YEARS = 10;
 /** What the user types to confirm — renewals charge the registrar account. */
@@ -23,9 +24,9 @@ const FIXED_TERM: Record<string, string> = {
     'Porkbun always renews for the registry-minimum term (usually 1 year) regardless of the years chosen.',
 };
 
-/** Whole/decimal USD, e.g. "$12" or "$12.99". */
-function usd(n: number): string {
-  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+/** A price in the estimate's currency, e.g. "$12.99" or "€9". */
+function usd(n: number, currency: string): string {
+  return priceMoney(n, currency);
 }
 
 function isoDate(date: Date | null): string {
@@ -132,9 +133,10 @@ export function RenewDialog({
             <span className="text-muted-foreground">unknown</span>
           ) : (
             <>
-              {usd(estimate)}
+              {usd(estimate, pricing?.currency ?? 'USD')}
               <span className="ml-1.5 text-xs text-muted-foreground">
-                {usd(perYear!)}/yr · {pricing?.source}
+                {usd(perYear!, pricing?.currency ?? 'USD')}/yr ·{' '}
+                {pricing?.source}
               </span>
             </>
           )}

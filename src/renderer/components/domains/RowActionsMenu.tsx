@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { domainKey } from '../../../shared/account-key';
 import {
   Archive,
@@ -10,6 +11,7 @@ import {
   Mail,
   OctagonMinus,
   Receipt,
+  PencilLine,
   RefreshCw,
   Trash2,
   Undo2,
@@ -33,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { StickyNoteIcon } from '../icons/StickyNoteIcon';
+import { CashIcon } from '../icons/CashIcon';
 
 /**
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell):
@@ -57,6 +60,8 @@ export function RowActionsMenu({
   onNotes,
   onEditPurchase,
   onEditSale,
+  onEditListPrice,
+  onEditDetails,
   onAssignFolder,
   archive,
   onMarkSold,
@@ -76,6 +81,9 @@ export function RowActionsMenu({
   onNotes: () => void;
   onEditPurchase: () => void;
   onEditSale: () => void;
+  onEditListPrice: () => void;
+  /** A manual name: edit its registrar, dates, and auto-renew. */
+  onEditDetails: () => void;
   onAssignFolder: (folderId: string | null) => void;
   /** Why the name is in Archive, or null while you own it. */
   archive: ArchiveLabel | null;
@@ -90,6 +98,10 @@ export function RowActionsMenu({
   const labeled =
     archive === 'sold' || archive === 'dropped' || archive === 'archived';
   const key = domainKey(domain);
+  // A manual name isn't at a connected account: registrar actions can't run.
+  const manualReason = domain.manual
+    ? 'Added by you. No connected account holds this name.'
+    : null;
   const pending = useAppStore((s) => s.mutating[key] ?? false);
   const urlReason = useOpUnsupportedReason(domain.registrar, {
     kind: 'urlForwarding',
@@ -107,6 +119,10 @@ export function RowActionsMenu({
     years: 1,
   });
 
+  // Notes opens an editor beside the row: the menu mustn't hand focus back
+  // to its trigger as it closes, or the editor's textarea loses the caret.
+  const keepFocus = useRef(false);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -121,14 +137,29 @@ export function RowActionsMenu({
           <Ellipsis />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
+      <DropdownMenuContent
+        align="end"
+        className="w-52"
+        onCloseAutoFocus={(e) => {
+          if (!keepFocus.current) return;
+          keepFocus.current = false;
+          e.preventDefault();
+        }}
+      >
         {/* Registrar and organizing actions: only for a name you own. */}
         {archive === null && (
           <>
-            <DropdownMenuItem onSelect={onRefresh}>
-              <RefreshCw className="text-muted-foreground" />
-              Refresh
-            </DropdownMenuItem>
+            {domain.manual ? (
+              <DropdownMenuItem onSelect={onEditDetails}>
+                <PencilLine className="text-muted-foreground" />
+                Edit details<span className="-ml-[6px] opacity-50">…</span>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onSelect={onRefresh}>
+                <RefreshCw className="text-muted-foreground" />
+                Refresh
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
@@ -145,16 +176,16 @@ export function RowActionsMenu({
             </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              disabled={urlReason !== null}
-              title={urlReason ?? undefined}
+              disabled={manualReason !== null || urlReason !== null}
+              title={manualReason ?? urlReason ?? undefined}
               onSelect={onUrlForwarding}
             >
               <Link2 className="text-muted-foreground" />
               URL forwarding<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={emailReason !== null}
-              title={emailReason ?? undefined}
+              disabled={manualReason !== null || emailReason !== null}
+              title={manualReason ?? emailReason ?? undefined}
               onSelect={onEmailForwarding}
             >
               <Mail className="text-muted-foreground" />
@@ -162,16 +193,16 @@ export function RowActionsMenu({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              disabled={renewReason !== null}
-              title={renewReason ?? undefined}
+              disabled={manualReason !== null || renewReason !== null}
+              title={manualReason ?? renewReason ?? undefined}
               onSelect={onRenew}
             >
               <CalendarPlus className="text-muted-foreground" />
               Renew<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={authReason !== null}
-              title={authReason ?? undefined}
+              disabled={manualReason !== null || authReason !== null}
+              title={manualReason ?? authReason ?? undefined}
               onSelect={onAuthCode}
             >
               <KeyRound className="text-muted-foreground" />
@@ -183,7 +214,12 @@ export function RowActionsMenu({
         {/* Ownership, in the same order as on Activity. Purchase details and
             Mark as Sold open with what's saved (and the name's notes), so
             a sold name's Mark as Sold edits its sale. */}
-        <DropdownMenuItem onSelect={onNotes}>
+        <DropdownMenuItem
+          onSelect={() => {
+            keepFocus.current = true;
+            onNotes();
+          }}
+        >
           <StickyNoteIcon className="text-muted-foreground" />
           Notes<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
@@ -191,6 +227,12 @@ export function RowActionsMenu({
           <Calculator className="text-muted-foreground" />
           Purchase details<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
+        {archive === null && (
+          <DropdownMenuItem onSelect={onEditListPrice}>
+            <CashIcon className="text-muted-foreground" />
+            Pricing<span className="-ml-[6px] opacity-50">…</span>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={archive === 'sold' ? onEditSale : onMarkSold}

@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { CurrencyPicker } from './CurrencyPicker';
+import { MoneyInput } from './MoneyInput';
 import {
   NOTES_MAX,
   NotesLimit,
@@ -127,9 +128,9 @@ export function SaleDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="sale-amount">Sale amount</Label>
-            <Input
+            <MoneyInput
               id="sale-amount"
-              inputMode="decimal"
+              currency={currency}
               value={amount}
               placeholder={formatAmountInput('0', currency, formatId)}
               onChange={(e) => setAmount(e.target.value)}

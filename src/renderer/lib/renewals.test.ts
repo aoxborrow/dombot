@@ -233,4 +233,81 @@ describe('dueWithin', () => {
     });
     expect(dueWithin([at], {}, 10).count).toBe(1);
   });
+
+  it('lists renewals in other currencies beside the total', () => {
+    const usd = domain({
+      domainName: 'usd.com',
+      renewalDate: new Date('2026-06-20'),
+    });
+    const eur = domain({
+      domainName: 'eur.de',
+      renewalDate: new Date('2026-06-21'),
+    });
+    const [eurKey, eurPrice] = price(eur, 45);
+    const pricing = {
+      ...Object.fromEntries([price(usd, 12)]),
+      [eurKey]: { ...eurPrice, currency: 'EUR' },
+    };
+
+    expect(dueWithin([usd, eur], pricing, 30)).toEqual({
+      count: 2,
+      yearly: 12,
+      others: [{ currency: 'EUR', count: 1, yearly: 45 }],
+    });
+    const jun = upcomingByMonth([usd, eur], pricing, 1)[0];
+    expect(jun).toMatchObject({
+      count: 2,
+      priced: 2,
+      yearly: 12,
+      others: [{ currency: 'EUR', count: 1, yearly: 45 }],
+    });
+  });
+});
+
+describe('currencies', () => {
+  const a = domain({ domainName: 'a.com', autoRenew: true });
+  const b = domain({ domainName: 'b.com' });
+  const c = domain({ domainName: 'c.de' });
+  const inEur = (d: Domain, renewal: number): [string, RenewalPricing] => {
+    const [key, p] = price(d, renewal, 'manual');
+    return [key, { ...p, currency: 'EUR' }];
+  };
+
+  it('totals the currency most names renew in and lists the rest', () => {
+    const pricing = Object.fromEntries([
+      price(a, 10),
+      price(b, 20),
+      inEur(c, 7),
+    ]);
+    const s = summarize([a, b, c], pricing);
+    expect(s).toMatchObject({
+      currency: 'USD',
+      priced: 3,
+      yearly: 30,
+      yearlyAutoRenew: 10,
+      avgPerDomain: 15,
+      others: [{ currency: 'EUR', count: 1, yearly: 7 }],
+    });
+    expect(
+      groupBy(
+        [a, b, c],
+        pricing,
+        (d) => tldOf(d.domainName),
+        (t) => t,
+        'USD',
+      ).map((g) => [g.key, g.yearly]),
+    ).toEqual([
+      ['com', 30],
+      ['de', 0],
+    ]);
+  });
+
+  it('switches to another currency when most names use it', () => {
+    const pricing = Object.fromEntries([inEur(a, 5), inEur(b, 6), price(c, 9)]);
+    expect(summarize([a, b, c], pricing)).toMatchObject({
+      currency: 'EUR',
+      yearly: 11,
+      others: [{ currency: 'USD', yearly: 9 }],
+    });
+  });
 });

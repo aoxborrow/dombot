@@ -12,8 +12,9 @@ import { Badge } from '@/components/ui/badge';
 // (added, registered, purchased) are blue, sold green, and the changes to a
 // name you keep (renewed, moved) indigo. Losing a name is neutral: removed in
 // plain text, dropped and archived muted gray.
-const IN = 'border-sky-500/40 text-sky-600 dark:text-sky-400';
-const IN_DOT = 'bg-sky-500 dark:bg-sky-400';
+const IN =
+  'border-blue-700/30 text-blue-700 dark:border-blue-300/30 dark:text-blue-300';
+const IN_DOT = 'bg-blue-700 dark:bg-blue-300';
 const KEPT = 'border-indigo-500/40 text-indigo-600 dark:text-indigo-400';
 const KEPT_DOT = 'bg-indigo-500 dark:bg-indigo-400';
 const GRAY = 'border-border text-muted-foreground';

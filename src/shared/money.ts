@@ -141,16 +141,22 @@ function groupDigits(intPart: string, group: string): string {
   return parts.join(group);
 }
 
-/** On-screen digits for a stored amount, without a currency symbol. */
+/**
+ * On-screen digits for a stored amount, without a currency symbol. `whole`
+ * shows no decimals (prices are whole amounts).
+ */
 export function formatAmountInput(
   canonical: string,
   currency: string,
   formatId: NumberFormatId,
+  whole = false,
 ): string {
   const info = currencyInfo(currency);
-  const decimals = info?.decimals ?? 2;
+  const decimals = whole ? 0 : (info?.decimals ?? 2);
   const format = numberFormatOf(formatId);
-  const [intRaw, fracRaw = ''] = canonical.split('.');
+  const [intRaw, fracRaw = ''] = whole
+    ? [String(Math.round(Number(canonical) || 0))]
+    : canonical.split('.');
   const intPart = intRaw.replace(/^0+(?=\d)/, '') || '0';
   const grouped = groupDigits(intPart, format.group);
   if (decimals === 0) return grouped;
@@ -167,10 +173,11 @@ export function formatMoney(
   currency: string,
   preferred: string,
   formatId: NumberFormatId,
+  whole = false,
 ): string {
   const info = currencyInfo(currency);
   const code = (info?.code ?? currency).toUpperCase();
-  const number = formatAmountInput(canonical, code, formatId);
+  const number = formatAmountInput(canonical, code, formatId, whole);
   const symbol = info?.symbol ?? '';
   const owners = symbol ? (symbolOwners?.get(symbol)?.size ?? 1) : 1;
   const showCode =
@@ -183,20 +190,22 @@ export function formatMoney(
 /**
  * Parse a stored amount: digits, an optional period, and no thousands
  * separators. Empty clears the amount. `$0` is allowed; negatives are not.
- * Fraction digits must fit the currency (USD 2, JPY 0, KWD 3).
+ * Fraction digits must fit the currency (USD 2, JPY 0, KWD 3). `label` names
+ * the field in errors.
  */
 export function parseCanonicalAmount(
   raw: string,
   currency: string,
+  label = 'Purchase amount',
 ): string | null {
   const s = raw.trim();
   if (!s) return null;
   const info = currencyInfo(currency);
   if (!info)
     throw new Error(`Unknown currency ${currency.trim().toUpperCase()}.`);
-  if (s.startsWith('-')) throw new Error("Purchase amount can't be negative.");
+  if (s.startsWith('-')) throw new Error(`${label} can't be negative.`);
   if (!/^\d+(\.\d+)?$/.test(s)) {
-    throw new Error('Purchase amount must be a plain number.');
+    throw new Error(`${label} must be a plain number.`);
   }
   const [intRaw, frac = ''] = s.split('.');
   if (frac.length > info.decimals) {
@@ -216,6 +225,7 @@ export function parseLocalizedAmount(
   raw: string,
   currency: string,
   formatId: NumberFormatId,
+  label?: string,
 ): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -229,7 +239,7 @@ export function parseLocalizedAmount(
       s = s.slice(0, mark) + '.' + s.slice(mark + format.decimal.length);
     }
   }
-  return parseCanonicalAmount(s, currency);
+  return parseCanonicalAmount(s, currency, label);
 }
 
 /** Calendar date `YYYY-MM-DD`, or null when blank. `label` is the field name in errors. */

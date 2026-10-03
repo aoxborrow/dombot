@@ -42,14 +42,22 @@ export function BulkNotesDialog({
   const replacing = mode === 'replace' || withNotes === 0;
   const clearing = replacing && draft === '';
 
+  // Each name's note when the dialog opened. Saves go one name at a time, so
+  // if one fails and you retry, the names already saved aren't added to twice:
+  // every target is worked out from these, and a name already at its target
+  // is skipped.
+  const [original] = useState(
+    () => new Map(domainNames.map((n) => [n, noteOf(n)])),
+  );
+
   async function confirm() {
     for (const name of domainNames) {
-      const existing = noteOf(name);
+      const existing = original.get(name) ?? noteOf(name);
       const next =
         replacing || !existing
           ? draft
           : `${existing}\n${draft}`.slice(0, NOTES_MAX);
-      if (next !== existing) await saveNotes(name, next);
+      if (next !== noteOf(name)) await saveNotes(name, next);
     }
     onDone?.();
   }

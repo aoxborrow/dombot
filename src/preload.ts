@@ -24,6 +24,7 @@ const api: DombotApi = {
   clearAllCaches: () => ipcRenderer.invoke(IpcChannels.clearAllCaches),
   getPortfolioPricing: () =>
     ipcRenderer.invoke(IpcChannels.getPortfolioPricing),
+  getManualPrices: () => ipcRenderer.invoke(IpcChannels.getManualPrices),
   setManualPrice: (domain, price) =>
     ipcRenderer.invoke(IpcChannels.setManualPrice, domain, price),
 
@@ -139,6 +140,16 @@ const api: DombotApi = {
   setSale: (input) => ipcRenderer.invoke(IpcChannels.setSale, input),
   setNotes: (domainName, notes) =>
     ipcRenderer.invoke(IpcChannels.setNotes, domainName, notes),
+  previewDomainImport: (rows) =>
+    ipcRenderer.invoke(IpcChannels.previewDomainImport, rows),
+  importDomains: (rows, options) =>
+    ipcRenderer.invoke(IpcChannels.importDomains, rows, options),
+  getManualDomains: () => ipcRenderer.invoke(IpcChannels.getManualDomains),
+  updateManualDomain: (domainName, fields) =>
+    ipcRenderer.invoke(IpcChannels.updateManualDomain, domainName, fields),
+  getListPrices: () => ipcRenderer.invoke(IpcChannels.getListPrices),
+  setListPrices: (inputs) =>
+    ipcRenderer.invoke(IpcChannels.setListPrices, inputs),
   getDomainEvents: () => ipcRenderer.invoke(IpcChannels.getDomainEvents),
   setDispositions: (items, type, date) =>
     ipcRenderer.invoke(IpcChannels.setDispositions, items, type, date),

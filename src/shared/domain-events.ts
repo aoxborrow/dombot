@@ -81,6 +81,8 @@ export interface DomainEvent {
   resolves?: string;
   /** A sync alert acknowledged with no action. */
   dismissed?: boolean;
+  /** The import that wrote it, if one did (docs/domain-import-export.md). */
+  importId?: string;
 }
 
 /** A note on a name, or on one of its events. Stored in `domain-notes`. */

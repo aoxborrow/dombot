@@ -3,3 +3,4 @@
 // a service and its `new Namespace(...)` before namespace.ts has loaded.
 
 export const CREDENTIALS_NAMESPACE = 'registrar-credentials';
+export const RENEWAL_PRICES_NAMESPACE = 'domain-prices';

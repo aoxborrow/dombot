@@ -19,7 +19,13 @@ import {
   cleanEvent,
   cleanNote,
 } from '../services/domain-events';
-import { CREDENTIALS_NAMESPACE } from './names';
+import { CREDENTIALS_NAMESPACE, RENEWAL_PRICES_NAMESPACE } from './names';
+import { LIST_PRICES_NAMESPACE, cleanListPrice } from '../services/list-prices';
+import { cleanRenewalPrice } from '../services/pricing';
+import {
+  MANUAL_DOMAINS_NAMESPACE,
+  cleanManualDomain,
+} from '../services/manual-domains';
 
 // A portable copy of everything DomBot stores — registrar keys, portfolio
 // cache, folders, manual prices, TLD rates, settings, MCP pairings, bulk-job
@@ -43,11 +49,15 @@ export const BUNDLE_FORMAT = 'dombot-data';
 // `registrar-last-sync`). A v4 build would skip those namespaces and silently
 // drop the history, so it must refuse the file. Rule: any release that adds a non-cache namespace bumps
 // this version.
-export const BUNDLE_VERSION = 5;
+// v6 adds `domain-list-prices` (docs/domain-import-export.md).
+// v7 stores manual renewal prices with a currency (`domain-prices` values
+// become `{ amount, currency }`); an older build would read them as no price.
+// v8 adds `manual-domains`.
+export const BUNDLE_VERSION = 8;
 
 export interface DataBundle {
   format: typeof BUNDLE_FORMAT;
-  version: 1 | 2 | 3 | 4 | typeof BUNDLE_VERSION;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | typeof BUNDLE_VERSION;
   exportedAt: string;
   /** Which DomBot wrote it (informational). */
   app: { version: string; platform: string };
@@ -89,7 +99,7 @@ export function parseBundle(text: string): DataBundle {
   if (!head || head.format !== BUNDLE_FORMAT) {
     throw new BundleError('Not a DomBot data file.');
   }
-  if (![1, 2, 3, 4, BUNDLE_VERSION].includes(head.version as number)) {
+  if (![1, 2, 3, 4, 5, 6, 7, BUNDLE_VERSION].includes(head.version as number)) {
     throw new BundleError(
       `This file was made by a newer DomBot (format v${String(head.version)}). Update and try again.`,
     );
@@ -141,6 +151,29 @@ export function parseBundle(text: string): DataBundle {
       NOTES_NAMESPACE,
       notes,
       cleanNote,
+    );
+  // Manual renewal prices: a file before v7 has USD numbers, which become
+  // USD amounts here (as migration 3 does for the store).
+  const renewals = head.namespaces[RENEWAL_PRICES_NAMESPACE];
+  if (renewals)
+    head.namespaces[RENEWAL_PRICES_NAMESPACE] = cleanEntries(
+      RENEWAL_PRICES_NAMESPACE,
+      renewals,
+      cleanRenewalPrice,
+    );
+  const manual = head.namespaces[MANUAL_DOMAINS_NAMESPACE];
+  if (manual)
+    head.namespaces[MANUAL_DOMAINS_NAMESPACE] = cleanEntries(
+      MANUAL_DOMAINS_NAMESPACE,
+      manual,
+      cleanManualDomain,
+    );
+  const listPrices = head.namespaces[LIST_PRICES_NAMESPACE];
+  if (listPrices)
+    head.namespaces[LIST_PRICES_NAMESPACE] = cleanEntries(
+      LIST_PRICES_NAMESPACE,
+      listPrices,
+      cleanListPrice,
     );
   // Validate every proxy profile, and every account's pointer to one, so an
   // import can't smuggle in a private/reserved-IP or otherwise malformed proxy
