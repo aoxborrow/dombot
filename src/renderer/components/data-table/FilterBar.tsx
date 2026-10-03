@@ -206,14 +206,19 @@ function FilterChip({
         className={cn(
           'inline-flex h-9 items-stretch overflow-hidden rounded-md border border-[#cfe3d5] text-sm transition-shadow dark:border-[#4f9d6b]/40',
           flat ? GREEN_TINT : 'bg-background dark:bg-input/30',
-          open && `${GREEN_BORDER} ring-2 ring-ring/50`,
+          // The app's focus ring (2px, ring/50) while open or keyboard-
+          // focused: the chip's own border takes the ring colour and a 1px
+          // ring goes outside it, so the band stays 2px rather than border
+          // plus ring. Nothing else changes.
+          'has-[:focus-visible]:border-ring/50 has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-ring/50 dark:has-[:focus-visible]:border-ring/50',
+          open && 'border-ring/50 ring-1 ring-ring/50 dark:border-ring/50',
         )}
       >
         <DropdownMenuTrigger asChild>
           <button
             type="button"
             aria-label={`${field.label}: ${summary ?? 'choose'}`}
-            className="flex items-stretch whitespace-nowrap outline-none focus-visible:bg-accent/50"
+            className="flex items-stretch whitespace-nowrap outline-none"
           >
             <span
               className={cn(
@@ -244,7 +249,7 @@ function FilterChip({
           aria-label={`Remove ${field.label} filter`}
           title="Remove filter"
           onClick={onRemove}
-          className="flex items-center pr-[9px] pl-[5px] text-muted-foreground opacity-55 outline-none hover:opacity-100 focus-visible:opacity-100"
+          className="flex items-center pr-[9px] pl-[5px] text-muted-foreground opacity-55 outline-none hover:opacity-100"
         >
           <X className="size-3.5" />
         </button>
