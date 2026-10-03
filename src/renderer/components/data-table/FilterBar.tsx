@@ -236,10 +236,11 @@ function FilterChip({
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <span
         className={cn(
-          'group/chip relative inline-flex h-9 items-stretch overflow-hidden rounded-md border text-sm',
-          // An empty chip's dashes darken on hover (brighten in dark mode).
+          'relative inline-flex h-9 items-stretch overflow-hidden rounded-md border text-sm',
+          // An empty chip's dashes darken (brighten in dark mode) while its
+          // name is hovered; hovering the × leaves them be.
           empty
-            ? 'border-dashed border-[#d4d4d4] transition-colors hover:border-[#a3a3a3] dark:border-muted-foreground/40 dark:hover:border-muted-foreground/70'
+            ? 'border-dashed border-[#d4d4d4] transition-colors has-[[data-chip-trigger]:hover]:border-[#a3a3a3] dark:border-muted-foreground/40 dark:has-[[data-chip-trigger]:hover]:border-muted-foreground/70'
             : cn(
                 'border-[#b9d6c2] dark:border-[#4f9d6b]/40',
                 flat ? GREEN_TINT : 'bg-background dark:bg-input/30',
@@ -261,13 +262,14 @@ function FilterChip({
             aria-label={`${field.label}: ${summary ?? 'any'}`}
             // The whole chip but the × opens the menu; the right padding
             // keeps the text clear of the × above it.
-            className="flex items-stretch pr-7 whitespace-nowrap outline-none"
+            data-chip-trigger
+            className="group/trigger flex items-stretch pr-7 whitespace-nowrap outline-none"
           >
             <span
               className={cn(
                 'flex items-center gap-[7px] pl-2.5',
                 empty
-                  ? 'pr-1 text-muted-foreground transition-colors group-hover/chip:text-[#404040] dark:group-hover/chip:text-foreground'
+                  ? 'pr-1 text-muted-foreground transition-colors group-hover/trigger:text-[#404040] dark:group-hover/trigger:text-foreground'
                   : 'text-[#4a6b55] dark:text-[#8fc7a2]',
                 !empty &&
                   (flat
@@ -378,8 +380,9 @@ function AddFilter({
             aria-label="Add filter"
             title="Add filter"
             className={cn(
-              // No background, ever: hover and open only darken the icon.
-              'inline-flex size-9 items-center justify-center rounded-md border border-dashed border-[#d4d4d4] text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40',
+              // No background, ever. Hover darkens the dashes and icon like an
+              // empty chip's (brightens them in dark mode); open darkens the icon.
+              'inline-flex size-9 items-center justify-center rounded-md border border-dashed border-[#d4d4d4] text-muted-foreground transition-colors outline-none hover:border-[#a3a3a3] hover:text-[#404040] focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40 dark:hover:border-muted-foreground/70 dark:hover:text-foreground',
               open && 'text-foreground',
             )}
           >
@@ -389,9 +392,10 @@ function AddFilter({
           <button
             type="button"
             className={cn(
-              // Grey: hover and open lift the text and fill a light grey,
-              // like the outline buttons; keyboard focus gets the app's ring.
-              'inline-flex h-9 items-center gap-1.5 rounded-md border border-dashed border-[#d4d4d4] pr-3 pl-[9px] text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40 dark:hover:bg-input/50',
+              // Grey: hover darkens the dashes and text like an empty chip's
+              // (brightens them in dark mode); open fills a light grey, like
+              // the outline buttons; keyboard focus gets the app's ring.
+              'inline-flex h-9 items-center gap-1.5 rounded-md border border-dashed border-[#d4d4d4] pr-3 pl-[9px] text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:border-[#a3a3a3] hover:text-[#404040] focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40 dark:hover:border-muted-foreground/70 dark:hover:text-foreground',
               open && 'bg-accent text-foreground dark:bg-input/50',
             )}
           >
