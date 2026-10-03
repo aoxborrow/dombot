@@ -131,7 +131,7 @@ function MenuSearch({
   );
 }
 
-/** A list field's dropdown: search, checkboxes with counts and "Only". */
+/** A list field's dropdown: search, then checkboxes with counts. */
 function ListMenu({ field }: { field: ListField }) {
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
@@ -166,33 +166,14 @@ function ListMenu({ field }: { field: ListField }) {
             // Keep the menu open so several can be picked in one go.
             onSelect={(e) => e.preventDefault()}
             onCheckedChange={() => toggle(o.value)}
-            className="group/option"
           >
             {o.icon && <span className="mx-0.5 flex shrink-0">{o.icon}</span>}
             <span className="flex-1 truncate">{o.label}</span>
-            {/* The count, swapped for "Only" while the row is hovered. */}
-            <span className="relative ml-4 flex shrink-0 justify-end">
-              {o.count != null && (
-                <span className="text-xs tabular-nums text-muted-foreground group-hover/option:invisible">
-                  {o.count}
-                </span>
-              )}
-              <button
-                type="button"
-                tabIndex={-1}
-                className={cn(
-                  'invisible absolute right-0 text-xs font-medium group-hover/option:visible hover:underline',
-                  GREEN_TEXT,
-                )}
-                onClick={(e) => {
-                  // Not a toggle: the row's own click would undo this.
-                  e.stopPropagation();
-                  field.onChange([o.value]);
-                }}
-              >
-                Only
-              </button>
-            </span>
+            {o.count != null && (
+              <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">
+                {o.count}
+              </span>
+            )}
           </DropdownMenuCheckboxItem>
         ))}
       </div>
@@ -219,7 +200,7 @@ function FilterChip({
       <span
         className={cn(
           'inline-flex h-9 items-stretch overflow-hidden rounded-lg border border-[#cfe3d5] bg-background text-sm transition-shadow dark:border-[#4f9d6b]/40 dark:bg-input/30',
-          open && `${GREEN_BORDER} ring-3 ring-[#4f9d6b]/18`,
+          open && `${GREEN_BORDER} ring-2 ring-ring/50`,
         )}
       >
         <DropdownMenuTrigger asChild>
