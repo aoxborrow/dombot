@@ -39,7 +39,7 @@ describe('generateDemoSeed', () => {
       );
     }
     expect(counts.get('godaddy')!).toBeGreaterThan(counts.get('porkbun')!);
-    expect(counts.has('gandi')).toBe(false); // left unconfigured
+    expect(counts.has('namesilo')).toBe(false); // left unconfigured
   });
 
   it('has a realistic spread of expiries, flags, and delegation', () => {

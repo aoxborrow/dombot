@@ -18,7 +18,6 @@ import {
   Server,
   ShieldBan,
   ShieldCheck,
-  SlidersHorizontal,
   TriangleAlert,
   Upload,
 } from 'lucide-react';
@@ -41,7 +40,10 @@ import { DomainEventType } from '../../shared/domain-events';
 import { ownershipByDomain, type ArchiveLabel } from '../../shared/ownership';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { ARCHIVE_LABEL, accountName, archiveRows } from '../lib/domain-history';
-import { RegistrarLogo } from '../components/RegistrarLogo';
+import {
+  ManualRegistrarIcon,
+  RegistrarLogo,
+} from '../components/RegistrarLogo';
 import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
@@ -97,12 +99,15 @@ import { usePreferences } from '../lib/preferences';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { paginate, sortRows } from '../components/data-table/table-state';
 import {
-  MultiSelectFilter,
-  RangeFilter,
-  ResetButton,
+  RangeInputs,
   SearchField,
-  FILTERING_BORDER,
+  rangeSummary,
+  type FilterOption,
 } from '../components/data-table/Toolbar';
+import {
+  FilterBar,
+  type FilterField,
+} from '../components/data-table/FilterBar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -152,8 +157,21 @@ interface Column {
 }
 
 /** Everything after the first dot, e.g. "example.co.uk" → "co.uk". */
-/** Registrar filter value for names you added that no account reports. */
-const MANUAL = '__manual__';
+/**
+ * Registrar filter value for a name you added that no account reports: one
+ * per registrar name (so a known "gandi" and a typed "Gandi.net" meet), and
+ * "manual:" alone for names with no registrar (Unknown).
+ */
+function manualRegistrarValue(label: string): string {
+  return `manual:${label.trim().toLowerCase()}`;
+}
+
+/** A manual name's registrar as shown: DomBot's name for it, or your text. */
+function manualRegistrarName(d: Domain, labels: RegistrarLabels): string {
+  return d.registrar
+    ? registrarLabel(d.registrar, labels)
+    : (d.manualRegistrarLabel ?? '');
+}
 
 /** Distinct names among rows (a name two accounts hold is one row in a CSV). */
 function nameCount(rows: Domain[]): number {
@@ -791,11 +809,20 @@ export default function Domains() {
         ? {
             ...c,
             render: (d: Domain, labels: RegistrarLabels) => {
-              if (d.manual && !d.registrar)
-                return <span>{d.manualRegistrarLabel}</span>;
-              const suffix = d.manual
-                ? null
-                : paren(d.accountLabel, d.registrar);
+              // Names you added: a faint building rather than the logo, so
+              // they read apart from a connected account's names.
+              if (d.manual) {
+                const name = manualRegistrarName(d, labels);
+                return (
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                    <ManualRegistrarIcon />
+                    {name || (
+                      <span className="text-muted-foreground">Unknown</span>
+                    )}
+                  </span>
+                );
+              }
+              const suffix = paren(d.accountLabel, d.registrar);
               const label = registrarLabel(d.registrar, labels);
               return (
                 <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
@@ -983,9 +1010,6 @@ export default function Domains() {
     () => usePreferences.getState().pageSize,
   );
   const [page, setPage] = useState(0);
-  // Phones only: the filter chips collapse behind a "Filters" toggle (they're
-  // always shown at sm+). Search and Reset stay visible.
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // The bulk dialog: an op to configure for the current selection, or a
   // running/finished job to view (the bar's progress pill).
@@ -1051,18 +1075,14 @@ export default function Domains() {
   }, [ownedRows]);
   // One option per account (keyed by account id), so accounts of the same
   // registrar can be filtered apart or, by multi-selecting, together. Labelled
-  // "Registrar · nickname" / "Registrar #2" / "Registrar".
+  // "Registrar · nickname" / "Registrar #2" / "Registrar". Then, past a line,
+  // the names you added, by the registrar you gave them (a faint building, no
+  // logo, as no account backs them), with Unknown last.
   const registrarOptions = useMemo(() => {
     const acc = new Map<
       string,
       { label: string; registrar: string; count: number }
     >();
-    if (manualList.length > 0)
-      acc.set(MANUAL, {
-        label: 'Manual',
-        registrar: '',
-        count: manualList.length,
-      });
     for (const d of portfolio) {
       const value = d.accountId ?? d.registrar;
       const existing = acc.get(value);
@@ -1078,7 +1098,7 @@ export default function Domains() {
           count: 1,
         });
     }
-    return Array.from(acc, ([value, v]) => ({
+    const accounts = Array.from(acc, ([value, v]) => ({
       value,
       label: v.label,
       count: v.count,
@@ -1090,6 +1110,27 @@ export default function Domains() {
         />
       ),
     })).sort((a, b) => a.label.localeCompare(b.label));
+    const manual = new Map<string, { label: string; count: number }>();
+    for (const d of manualList) {
+      const label = manualRegistrarName(d, portfolioRegistrarLabels);
+      const value = manualRegistrarValue(label);
+      const existing = manual.get(value);
+      if (existing) existing.count += 1;
+      else manual.set(value, { label: label || 'Unknown', count: 1 });
+    }
+    const unknown = manualRegistrarValue('');
+    const added: FilterOption[] = Array.from(manual, ([value, v]) => ({
+      value,
+      label: v.label,
+      count: v.count,
+      icon: <ManualRegistrarIcon />,
+    })).sort(
+      (a, b) =>
+        Number(a.value === unknown) - Number(b.value === unknown) ||
+        a.label.localeCompare(b.label),
+    );
+    if (accounts.length > 0 && added.length > 0) added[0].divider = true;
+    return [...accounts, ...added];
   }, [portfolio, manualList, portfolioRegistrarLabels, multipleAccounts]);
   // Expiration windows are cumulative, so their counts intentionally overlap
   // (a domain due in 20 days matches the 30-, 60-, and 90-day options).
@@ -1211,41 +1252,120 @@ export default function Domains() {
       };
     }, [listed, folders, folderAssignments, ownership]);
 
-  // Validate the price inputs, then derive the bounds actually applied. A field
-  // error (or min > max) leaves the range unapplied until it's corrected.
-  // Whether any search/filter is narrowing the list — drives the "Reset filters"
-  // affordance and clearing them all at once.
-  const hasActiveFilters =
-    search.trim() !== '' ||
-    tld.length > 0 ||
-    registrar.length > 0 ||
-    expiry.length > 0 ||
-    ns.length > 0 ||
-    folder.length > 0 ||
-    pricingFilter;
-
-  // How many filter groups are narrowing the list (search excluded — it has its
-  // own always-visible field). Drives the count badge on the mobile "Filters"
-  // toggle.
-  const activeFilterGroups =
-    (registrar.length > 0 ? 1 : 0) +
-    (tld.length > 0 ? 1 : 0) +
-    (ns.length > 0 ? 1 : 0) +
-    (expiry.length > 0 ? 1 : 0) +
-    (folder.length > 0 ? 1 : 0) +
-    (pricingFilter ? 1 : 0);
-
-  function resetFilters() {
-    setSearch('');
-    setTld([]);
-    setRegistrar([]);
-    setExpiry([]);
-    setNs([]);
-    setFolder([]);
-    setPriceMin('');
-    setPriceMax('');
-    setPage(0);
-  }
+  // The filter bar's fields, in the Add filter menu's order (the order the
+  // old filter buttons had). Each set field shows as a chip; clearing is per
+  // chip.
+  const currency = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
+  const listFilter = (
+    field: Omit<Extract<FilterField, { kind: 'list' }>, 'kind' | 'onChange'>,
+    set: (next: string[]) => void,
+  ): FilterField => ({
+    ...field,
+    kind: 'list',
+    onChange: (next) => {
+      set(next);
+      setPage(0);
+    },
+  });
+  const filterFields: FilterField[] = [
+    listFilter(
+      {
+        key: 'registrar',
+        label: 'Registrar',
+        icon: Building2,
+        options: registrarOptions,
+        selected: registrar,
+        plural: 'registrars',
+      },
+      setRegistrar,
+    ),
+    listFilter(
+      {
+        key: 'tld',
+        label: 'TLD',
+        icon: Globe,
+        options: tldOptions,
+        selected: tld,
+        plural: 'TLDs',
+      },
+      setTld,
+    ),
+    listFilter(
+      {
+        key: 'dns',
+        label: 'Nameservers',
+        icon: Server,
+        options: nsGroups,
+        selected: ns,
+        plural: 'providers',
+      },
+      setNs,
+    ),
+    listFilter(
+      {
+        key: 'expires',
+        label: 'Expiration',
+        icon: CalendarClock,
+        options: expiryOptions,
+        selected: expiry,
+        plural: 'ranges',
+      },
+      setExpiry,
+    ),
+    // Owned: folders and Hidden. Archive: status.
+    ...(!archiveView || archiveCount > 0
+      ? [
+          listFilter(
+            {
+              key: 'folder',
+              label: archiveView ? 'Status' : 'Folder',
+              icon: FolderIcon,
+              options: archiveView ? archiveStatusOptions : ownedFolderOptions,
+              selected: folder,
+              plural: archiveView ? 'statuses' : 'folders',
+            },
+            setFolder,
+          ),
+        ]
+      : []),
+    ...(archiveView
+      ? []
+      : [
+          {
+            kind: 'custom' as const,
+            key: 'price',
+            label: 'Pricing',
+            icon: CashIcon,
+            summary: rangeSummary(priceMin, priceMax, (n) =>
+              formatMoney(
+                String(n),
+                currency,
+                currency,
+                settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+                true,
+              ),
+            ),
+            onClear: () => {
+              setPriceMin('');
+              setPriceMax('');
+              setPage(0);
+            },
+            content: (
+              <RangeInputs
+                label="BIN price"
+                min={priceMin}
+                max={priceMax}
+                onChange={(min, max) => {
+                  setPriceMin(min);
+                  setPriceMax(max);
+                  setPage(0);
+                }}
+                currency={currency}
+              />
+            ),
+          },
+        ]),
+  ];
 
   function setListView(next: 'owned' | 'archive') {
     setFolder([]);
@@ -1264,10 +1384,17 @@ export default function Domains() {
     const rows = shown.filter((d) => {
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
       if (tld.length > 0 && !tld.includes(tldOf(d.domainName))) return false;
-      // The "Registrar" filter picks individual accounts (by account id).
+      // The "Registrar" filter picks individual accounts (by account id), or
+      // the names you added by their registrar.
       if (
         registrar.length > 0 &&
-        !registrar.includes(d.manual ? MANUAL : (d.accountId ?? d.registrar))
+        !registrar.includes(
+          d.manual
+            ? manualRegistrarValue(
+                manualRegistrarName(d, portfolioRegistrarLabels),
+              )
+            : (d.accountId ?? d.registrar),
+        )
       )
         return false;
       // Expiration: keep a domain matching ANY selected window ("Expired" =
@@ -1734,7 +1861,7 @@ export default function Domains() {
         {/* Toolbar: search and filters flow inline and wrap together as equal
               items. Extra top margin separates it from the title/refresh row
               above. */}
-        <div className="mt-1 flex flex-wrap items-center gap-3 sm:mt-3">
+        <div className="mt-1 flex flex-wrap items-center gap-3.5 sm:mt-3">
           <SearchField
             value={search}
             onChange={(value) => {
@@ -1742,122 +1869,15 @@ export default function Domains() {
               setPage(0);
             }}
             placeholder="Search domains…"
+            className="flex-[0_1_216px]"
           />
 
-          {/* Phones only: a toggle that collapses the filter chips (below) so the
-              toolbar doesn't wrap onto several lines. At sm+ the chips are always
-              shown and this is hidden. */}
-          <Button
-            variant="outline"
-            onClick={() => setFiltersOpen((o) => !o)}
-            aria-expanded={filtersOpen}
-            // Green, like Reset, while it's open or a filter is set.
-            className={cn(
-              'gap-2 sm:hidden',
-              (filtersOpen || activeFilterGroups > 0) && FILTERING_BORDER,
-            )}
-          >
-            <SlidersHorizontal className="size-4 text-muted-foreground" />
-            Filters
-            {activeFilterGroups > 0 && (
-              <Badge className="bg-primary px-1.5 py-0 text-xs tabular-nums text-primary-foreground">
-                {activeFilterGroups}
-              </Badge>
-            )}
-            <ChevronDown
-              className={cn(
-                'size-4 text-muted-foreground transition-transform',
-                filtersOpen && 'rotate-180',
-              )}
-            />
-          </Button>
-
-          {/* The filter chips. `contents` dissolves the wrapper so they flow
-              inline in the toolbar, wrapping after the Filters toggle with
-              Reset at the end; on phones they're hidden until it's opened. */}
-          <div className={filtersOpen ? 'contents' : 'hidden sm:contents'}>
-            <MultiSelectFilter
-              label="Registrar"
-              icon={Building2}
-              options={registrarOptions}
-              selected={registrar}
-              onChange={(next) => {
-                setRegistrar(next);
-                setPage(0);
-              }}
-            />
-            <MultiSelectFilter
-              label="TLD"
-              icon={Globe}
-              options={tldOptions}
-              selected={tld}
-              onChange={(next) => {
-                setTld(next);
-                setPage(0);
-              }}
-            />
-            <MultiSelectFilter
-              label="DNS"
-              icon={Server}
-              options={nsGroups}
-              selected={ns}
-              onChange={(next) => {
-                setNs(next);
-                setPage(0);
-              }}
-            />
-            <MultiSelectFilter
-              label="Expires"
-              icon={CalendarClock}
-              options={expiryOptions}
-              selected={expiry}
-              onChange={(next) => {
-                setExpiry(next);
-                setPage(0);
-              }}
-            />
-            {/* Owned: folders and Hidden. Archive: status. */}
-            {(!archiveView || archiveCount > 0) && (
-              <MultiSelectFilter
-                label={archiveView ? 'Status' : 'Folder'}
-                icon={FolderIcon}
-                options={
-                  archiveView ? archiveStatusOptions : ownedFolderOptions
-                }
-                selected={folder}
-                onChange={(next) => {
-                  setFolder(next);
-                  setPage(0);
-                }}
-              />
-            )}
-            {!archiveView && (
-              <RangeFilter
-                label="BIN price"
-                icon={CashIcon}
-                min={priceMin}
-                max={priceMax}
-                onChange={(min, max) => {
-                  setPriceMin(min);
-                  setPriceMax(max);
-                  setPage(0);
-                }}
-                currency={settings?.preferredCurrency ?? DEFAULT_CURRENCY}
-                format={(n) =>
-                  formatMoney(
-                    String(n),
-                    settings?.preferredCurrency ?? DEFAULT_CURRENCY,
-                    settings?.preferredCurrency ?? DEFAULT_CURRENCY,
-                    settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
-                    true,
-                  )
-                }
-                hint="Names without a BIN price count as 0, so a max of 0 shows them."
-              />
-            )}
-          </div>
-
-          <ResetButton active={hasActiveFilters} onReset={resetFilters} />
+          <FilterBar
+            id="domains"
+            fields={filterFields}
+            presets={['registrar', 'tld', 'folder']}
+            variant="flat"
+          />
 
           {exportNote && (
             <span

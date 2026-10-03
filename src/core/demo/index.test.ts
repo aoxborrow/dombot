@@ -34,7 +34,7 @@ describe('installDemo', () => {
     expect(configured.sort()).toEqual(
       demo.seed.accounts.map((a) => a.registrar).sort(),
     );
-    expect(meta.find((m) => m.name === 'gandi')!.configured).toBe(false);
+    expect(meta.find((m) => m.name === 'namesilo')!.configured).toBe(false);
     expect(meta.find((m) => m.name === 'godaddy')!.enabled).toBe(true);
     expect(getFolders().folders.map((f) => f.name)).toEqual(
       demo.seed.folders.map((f) => f.name),

@@ -54,15 +54,16 @@ export const DEFAULT_DEMO_SIZE = 524;
 const MAX_LABEL_REPEATS = 2;
 
 // ── the registrars in the demo ───────────────────────────────────────────────
-// Shares sum to 1. Gandi, NameSilo, NameBright and Name.com are left
-// unconfigured so the settings page shows both states.
+// Shares sum to 1. NameSilo, NameBright and Name.com are left unconfigured
+// so the settings page shows both states. Gandi is connected and also has a
+// name you added by hand (api/demo.ts), so both kinds show side by side.
 
 const ACCOUNTS: Omit<DemoAccount, 'id'>[] = [
   {
     registrar: 'godaddy',
     label: 'Default',
     credentials: { apiToken: 'demo_gd_3f9a1c7e2b4d5a6f8e1c9b7d3a2f4e6c' },
-    share: 0.36,
+    share: 0.33,
   },
   {
     registrar: 'porkbun',
@@ -109,6 +110,12 @@ const ACCOUNTS: Omit<DemoAccount, 'id'>[] = [
       apiSecret: 'demo_ss_secret_1a3c5e7b9d2f4a6c',
     },
     share: 0.04,
+  },
+  {
+    registrar: 'gandi',
+    label: 'Default',
+    credentials: { apiKey: 'demo_gandi_pat_6d1f3b8e2a4c7e9f0b5d' },
+    share: 0.03,
   },
 ];
 

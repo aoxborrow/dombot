@@ -10,13 +10,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { MoneyInput } from '../domains/MoneyInput';
+import { stopMenuKeys } from './FilterBar';
 
 // The pieces of a table page's toolbar, shared by Domains and Activity:
 // search on the left, filters, then Reset.
@@ -26,13 +22,21 @@ export function SearchField({
   value,
   onChange,
   placeholder,
+  className,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  /** Overrides the default sizing (grows to fill the row). */
+  className?: string;
 }) {
   return (
-    <div className="relative min-w-[140px] flex-1 max-sm:basis-full">
+    <div
+      className={cn(
+        'relative min-w-[140px] flex-1 max-sm:basis-full',
+        className,
+      )}
+    >
       <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         type="search"
@@ -106,6 +110,8 @@ export interface FilterOption {
   count?: number;
   /** Optional leading icon shown before this option's label. */
   icon?: ReactNode;
+  /** A line above this option, starting a new section of the list. */
+  divider?: boolean;
 }
 
 /** Adds or removes `value` from a multi-select selection array. */
@@ -199,105 +205,83 @@ export function MultiSelectFilter({
   );
 }
 
-/** The segmented switch at a table page's top right (Owned | Archive). */
+/** A range's chip text: "$10–$500", "≥ $10", "≤ $500"; null when unbounded. */
+export function rangeSummary(
+  min: string,
+  max: string,
+  format: (n: number) => string,
+): string | null {
+  const lo = min === '' ? null : Number(min);
+  const hi = max === '' ? null : Number(max);
+  if (lo !== null && hi !== null) return `${format(lo)}–${format(hi)}`;
+  if (lo !== null) return `≥ ${format(lo)}`;
+  if (hi !== null) return `≤ ${format(hi)}`;
+  return null;
+}
+
 /**
- * A whole-amount range filter: a filter button (matching the multi-selects)
- * that opens min and max inputs, with the active range as its badge. Either
- * bound can be blank. From the old Afternic price filter.
+ * The money fields in a filter chip's menu, compact like its search fields:
+ * 32px tall, 13px text, 6px corners, a narrow symbol box, the search fields'
+ * fill, and a dark green border (no ring) when focused.
  */
-export function RangeFilter({
+const COMPACT_MONEY = cn(
+  'h-8 w-24 rounded-[6px] bg-muted text-[13px] shadow-none dark:bg-background',
+  '[&_[data-slot=input-group-addon]]:min-w-7 [&_[data-slot=input-group-addon]]:px-2 [&_[data-slot=input-group-control]]:px-2 [&_[data-slot=input-group-control]]:text-[13px]',
+  'has-[[data-slot=input-group-control]:focus-visible]:border-[#337544] has-[[data-slot=input-group-control]:focus-visible]:ring-0',
+);
+
+/**
+ * A whole-amount range editor for a filter chip's dropdown: min and max
+ * inputs, either of which can be blank. From the old Afternic price filter.
+ */
+export function RangeInputs({
   label,
-  icon: Icon,
   min,
   max,
   onChange,
   currency,
-  format,
-  hint,
 }: {
   label: string;
-  icon?: ComponentType<{ className?: string }>;
   /** The bounds as typed digits; "" is unbounded. */
   min: string;
   max: string;
   onChange: (min: string, max: string) => void;
   /** For the inputs' symbol. */
   currency: string;
-  /** A bound for the badge, e.g. "$1,200". */
-  format: (n: number) => string;
-  /** One line under the inputs. */
-  hint?: string;
 }) {
-  const lo = min === '' ? null : Number(min);
-  const hi = max === '' ? null : Number(max);
-  const summary =
-    lo !== null && hi !== null
-      ? `${format(lo)}–${format(hi)}`
-      : lo !== null
-        ? `≥ ${format(lo)}`
-        : hi !== null
-          ? `≤ ${format(hi)}`
-          : null;
+  // Min takes focus as the chip's menu opens (FilterChip hands it on).
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          aria-label={label}
-          className="gap-2 pr-[7px]!"
-        >
-          {Icon && <Icon className="size-4 text-muted-foreground" />}
-          {label}
-          {summary && (
-            <Badge className="bg-primary px-1.5 py-0 text-xs tabular-nums text-primary-foreground">
-              {summary}
-            </Badge>
-          )}
-          <ChevronDown className="size-4 text-muted-foreground" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="flex w-auto flex-col gap-2 p-3">
-        <div className="flex items-center gap-2">
-          <MoneyInput
-            whole
-            currency={currency}
-            className="w-28"
-            placeholder="Min"
-            aria-label={`Minimum ${label}`}
-            value={min}
-            onChange={(e) => onChange(e.target.value, max)}
-          />
-          <span className="text-muted-foreground">–</span>
-          <MoneyInput
-            whole
-            currency={currency}
-            className="w-28"
-            placeholder="Max"
-            aria-label={`Maximum ${label}`}
-            value={max}
-            onChange={(e) => onChange(min, e.target.value)}
-          />
-        </div>
-        {lo !== null && hi !== null && lo > hi && (
-          <p className="text-xs text-destructive">Min is above max.</p>
-        )}
-        {hint && (
-          <p className="max-w-60 text-xs text-muted-foreground">{hint}</p>
-        )}
-        {summary && (
-          <button
-            type="button"
-            className="self-start text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
-            onClick={() => onChange('', '')}
-          >
-            Clear
-          </button>
-        )}
-      </PopoverContent>
-    </Popover>
+    // Typing goes to the inputs, not the menu's typeahead.
+    <div className="flex flex-col gap-1.5 p-1.5" onKeyDown={stopMenuKeys}>
+      <div className="flex items-center gap-1.5">
+        <MoneyInput
+          whole
+          currency={currency}
+          className={COMPACT_MONEY}
+          placeholder="Min"
+          aria-label={`Minimum ${label}`}
+          value={min}
+          onChange={(e) => onChange(e.target.value, max)}
+        />
+        <span className="text-muted-foreground">–</span>
+        <MoneyInput
+          whole
+          currency={currency}
+          className={COMPACT_MONEY}
+          placeholder="Max"
+          aria-label={`Maximum ${label}`}
+          value={max}
+          onChange={(e) => onChange(min, e.target.value)}
+        />
+      </div>
+      {min !== '' && max !== '' && Number(min) > Number(max) && (
+        <p className="text-xs text-destructive">Min is above max.</p>
+      )}
+    </div>
   );
 }
 
+/** The segmented switch at a table page's top right (Owned | Archive). */
 export function ViewSwitch({
   label,
   options,
