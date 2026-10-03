@@ -205,12 +205,13 @@ function FilterChip({
         className={cn(
           'inline-flex h-9 items-stretch overflow-hidden rounded-md border border-[#cfe3d5] text-sm transition-shadow dark:border-[#4f9d6b]/40',
           flat ? GREEN_TINT : 'bg-background dark:bg-input/30',
-          // The app's focus ring (2px, ring/50) while open or keyboard-
-          // focused: the chip's own border takes the ring colour and a 1px
-          // ring goes outside it, so the band stays 2px rather than border
-          // plus ring. Nothing else changes.
-          'has-[:focus-visible]:border-ring/50 has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-ring/50 dark:has-[:focus-visible]:border-ring/50',
-          open && 'border-ring/50 ring-1 ring-ring/50 dark:border-ring/50',
+          // A 2px focus band while open or keyboard-focused: the chip's own
+          // border takes the ring colour and a 1px ring goes outside it, so
+          // it's 2px rather than border plus ring. At ring/40, a touch softer
+          // than the app's ring/50 against the green chip. Nothing else
+          // changes.
+          'has-[:focus-visible]:border-ring/40 has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-ring/40 dark:has-[:focus-visible]:border-ring/40',
+          open && 'border-ring/40 ring-1 ring-ring/40 dark:border-ring/40',
         )}
       >
         <DropdownMenuTrigger asChild>
