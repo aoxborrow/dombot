@@ -241,13 +241,13 @@ export function RangeInputs({
   /** One line under the inputs. */
   hint?: string;
 }) {
+  // Min takes focus as the chip's menu opens (FilterChip hands it on).
   return (
     // Typing goes to the inputs, not the menu's typeahead.
     <div className="flex flex-col gap-2 p-2" onKeyDown={stopMenuKeys}>
       <div className="flex items-center gap-2">
         <MoneyInput
           whole
-          autoFocus
           currency={currency}
           className="w-28"
           placeholder="Min"

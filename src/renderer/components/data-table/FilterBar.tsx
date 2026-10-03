@@ -336,6 +336,12 @@ function FilterChip({
         className={field.kind === 'list' ? 'w-60' : 'w-auto'}
         // Stay on the chip, not its trigger half, when the menu closes.
         onCloseAutoFocus={(e) => e.preventDefault()}
+        // The menu focuses its own panel as it opens; hand that on to the
+        // panel's first field (a search box, Min), so typing lands there.
+        onFocus={(e) => {
+          if (e.target === e.currentTarget)
+            e.currentTarget.querySelector('input')?.focus();
+        }}
       >
         {field.kind === 'list' ? <ListMenu field={field} /> : field.content}
       </DropdownMenuContent>
