@@ -11,7 +11,6 @@ import {
   CalendarClock,
   ChevronDown,
   CircleCheck,
-  Download,
   ExternalLink,
   Globe,
   Plug,
@@ -68,6 +67,7 @@ import { FolderIcon } from '../components/icons/FolderIcon';
 import { FolderOffIcon } from '../components/icons/FolderOffIcon';
 import { FolderMenuItems } from '../components/domains/FolderMenuItems';
 import { OwnershipSwitch } from '../components/domains/OwnershipSwitch';
+import { SyncSplitButton } from '../components/domains/SyncSplitButton';
 import {
   EventTypeBadge,
   EventTypeDot,
@@ -115,7 +115,6 @@ import { Switch } from '@/components/ui/switch';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -1755,8 +1754,8 @@ export default function Domains() {
           and the row-count bar keep a slice of the page. The -m-1 p-1
           pair leaves room for focus rings, which the scroll box would clip. */}
       <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-          <div>
+        <div className="flex items-start justify-between gap-x-6">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold leading-none sm:text-[32px]">
               Domains
             </h1>
@@ -1768,59 +1767,20 @@ export default function Domains() {
                   }${manualList.length > 0 ? ` · ${manualList.length} manual` : ''}`}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              className="gap-2"
-              onClick={() => setImporting(true)}
-            >
-              <Upload className="size-4" />
-              Import
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <Download className="size-4" />
-                  Export
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuItem
-                  disabled={filtered.length === 0}
-                  onSelect={() => void exportCsv(filtered)}
-                >
-                  Export this view
-                  <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-                    {nameCount(filtered).toLocaleString('en-US')}
-                  </span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={shown.length === 0}
-                  onSelect={() =>
-                    void exportCsv(
-                      [...shown].sort((a, b) =>
-                        toAscii(a.domainName).localeCompare(
-                          toAscii(b.domainName),
-                        ),
-                      ),
-                    )
-                  }
-                >
-                  Export everything
-                  <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-                    {nameCount(shown).toLocaleString('en-US')}
-                  </span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <OwnershipSwitch
-              archive={archiveView}
-              ownedCount={ownedCount}
-              archiveCount={archiveCount}
-              onOwned={() => setListView('owned')}
-              onArchive={() => setListView('archive')}
-            />
-          </div>
+          <SyncSplitButton
+            registrarCount={portfolioRegistrars.length}
+            viewCount={nameCount(filtered)}
+            allCount={nameCount(shown)}
+            onImport={() => setImporting(true)}
+            onExportView={() => void exportCsv(filtered)}
+            onExportAll={() =>
+              void exportCsv(
+                [...shown].sort((a, b) =>
+                  toAscii(a.domainName).localeCompare(toAscii(b.domainName)),
+                ),
+              )
+            }
+          />
         </div>
 
         {portfolioError && (
@@ -1862,6 +1822,18 @@ export default function Domains() {
               items. Extra top margin separates it from the title/refresh row
               above. */}
         <div className="mt-1 flex flex-wrap items-center gap-3.5 sm:mt-3">
+          {/* Owned/Archive leads the toolbar, set off by a thin rule (dropped
+              on phones, where the search wraps under it). */}
+          <div className="flex items-center gap-3.5">
+            <OwnershipSwitch
+              archive={archiveView}
+              ownedCount={ownedCount}
+              archiveCount={archiveCount}
+              onOwned={() => setListView('owned')}
+              onArchive={() => setListView('archive')}
+            />
+            <div aria-hidden className="h-6 w-px bg-border max-sm:hidden" />
+          </div>
           <SearchField
             value={search}
             onChange={(value) => {

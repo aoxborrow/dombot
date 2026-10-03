@@ -271,19 +271,23 @@ function MobileNav() {
           );
         })}
         {/* The Sync action lives here on phones; on wider screens it's in the
-            status bar. */}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={() => sync()}
-          disabled={syncDisabled}
-          title={syncTitle}
-          className="gap-2.5"
-        >
-          <RefreshCw
-            className={cn('size-4 shrink-0', syncing && 'animate-spin')}
-          />
-          {syncing ? 'Syncing…' : 'Sync'}
-        </DropdownMenuItem>
+            status bar. Domains has its own in the page header. */}
+        {pathname !== '/' && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => sync()}
+              disabled={syncDisabled}
+              title={syncTitle}
+              className="gap-2.5"
+            >
+              <RefreshCw
+                className={cn('size-4 shrink-0', syncing && 'animate-spin')}
+              />
+              {syncing ? 'Syncing…' : 'Sync'}
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
