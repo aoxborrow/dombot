@@ -6,6 +6,7 @@ import {
   RefreshCw,
   Upload,
 } from 'lucide-react';
+import { useRef } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,9 @@ export function SyncSplitButton({
   onExportAll: () => void;
 }) {
   const navigate = useNavigate();
+  // Picked with the pointer: don't hand focus back to the chevron, where it
+  // would show a focus ring. A keyboard pick still returns there.
+  const byPointer = useRef(false);
   const {
     sync,
     syncing,
@@ -135,7 +139,15 @@ export function SyncSplitButton({
               <ChevronDown />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
+          <DropdownMenuContent
+            align="end"
+            className="w-60"
+            onPointerDown={() => (byPointer.current = true)}
+            onCloseAutoFocus={(e) => {
+              if (byPointer.current) e.preventDefault();
+              byPointer.current = false;
+            }}
+          >
             <DropdownMenuItem disabled={disabled} onSelect={sync}>
               <RefreshCw className={cn(syncing && 'animate-spin')} />
               {syncing ? 'Syncing…' : 'Sync now'}

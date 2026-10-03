@@ -281,17 +281,13 @@ export function RangeInputs({
   );
 }
 
-/** A table page's segmented view switch (Needs review | All). */
+/** The segmented switch at a table page's top right (Owned | Archive). */
 export function ViewSwitch({
   label,
   options,
-  className = 'mt-1 self-start sm:mt-[7px]',
 }: {
   /** Accessible name for the group. */
   label: string;
-  /** Placement. The default lines it up with a page title beside it; a
-   * toolbar passes its own. */
-  className?: string;
   options: {
     id: string;
     label: string;
@@ -303,7 +299,7 @@ export function ViewSwitch({
   return (
     <SegmentedControl
       aria-label={label}
-      className={className}
+      className="mt-1 self-start sm:mt-[7px]"
       value={options.find((o) => o.active)?.id ?? ''}
       onChange={(id) => options.find((o) => o.id === id)?.onClick()}
       options={options.map((o) => ({

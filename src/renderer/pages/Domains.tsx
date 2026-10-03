@@ -1826,7 +1826,7 @@ export default function Domains() {
               above. */}
         <div className="mt-1 flex flex-wrap items-center gap-3.5 sm:mt-3">
           {/* Owned/Archive leads the toolbar, set off by a thin rule (dropped
-              on phones, where the search wraps under it). */}
+              on phones, where it shares a row with the search alone). */}
           <div className="flex items-center gap-3.5">
             <OwnershipSwitch
               archive={archiveView}
@@ -1844,7 +1844,7 @@ export default function Domains() {
               setPage(0);
             }}
             placeholder="Search domains…"
-            className="flex-[0_1_216px]"
+            className="flex-[0_1_216px] max-sm:flex-1 max-sm:basis-0"
           />
 
           <FilterBar
