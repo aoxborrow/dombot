@@ -1293,7 +1293,7 @@ export default function Domains() {
     listFilter(
       {
         key: 'dns',
-        label: 'DNS',
+        label: 'Nameservers',
         icon: Server,
         options: nsGroups,
         selected: ns,
@@ -1304,7 +1304,7 @@ export default function Domains() {
     listFilter(
       {
         key: 'expires',
-        label: 'Expires',
+        label: 'Expiration',
         icon: CalendarClock,
         options: expiryOptions,
         selected: expiry,
