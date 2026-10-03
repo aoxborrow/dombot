@@ -236,7 +236,7 @@ function FilterChip({
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <span
         className={cn(
-          'inline-flex h-9 items-stretch overflow-hidden rounded-md border text-sm',
+          'relative inline-flex h-9 items-stretch overflow-hidden rounded-md border text-sm',
           empty
             ? 'border-dashed border-[#d4d4d4] dark:border-muted-foreground/40'
             : cn(
@@ -258,13 +258,15 @@ function FilterChip({
           <button
             type="button"
             aria-label={`${field.label}: ${summary ?? 'any'}`}
-            className="flex items-stretch whitespace-nowrap outline-none"
+            // The whole chip but the × opens the menu; the right padding
+            // keeps the text clear of the × above it.
+            className="flex items-stretch pr-7 whitespace-nowrap outline-none"
           >
             <span
               className={cn(
                 'flex items-center gap-[7px] pl-2.5',
                 empty
-                  ? 'pr-0 text-muted-foreground'
+                  ? 'pr-1 text-muted-foreground'
                   : 'text-[#4a6b55] dark:text-[#8fc7a2]',
                 !empty &&
                   (flat
@@ -296,11 +298,13 @@ function FilterChip({
           title="Remove filter"
           onClick={onRemove}
           className={cn(
-            'flex items-center pr-[9px] opacity-55 outline-none hover:opacity-100',
+            // A small hitbox up in the top-right corner (rounded to match it),
+            // over the trigger, so a click on the value doesn't land on it.
+            'absolute -top-px right-0.5 flex size-5 items-center justify-center rounded-tr-md opacity-55 outline-none hover:opacity-100',
             // On a set chip, muted grey with a hint of the label green.
             empty
-              ? 'pl-[9px] text-muted-foreground'
-              : 'pl-[5px] text-[#658370] dark:text-[#9aafa1]',
+              ? 'text-muted-foreground'
+              : 'text-[#658370] dark:text-[#9aafa1]',
           )}
         >
           <X className="size-3.5" />
