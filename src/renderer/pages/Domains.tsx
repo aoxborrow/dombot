@@ -1361,7 +1361,6 @@ export default function Domains() {
                   setPage(0);
                 }}
                 currency={currency}
-                hint="Names without a BIN price count as 0, so a max of 0 shows them."
               />
             ),
           },

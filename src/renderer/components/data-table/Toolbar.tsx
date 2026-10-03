@@ -240,7 +240,6 @@ export function RangeInputs({
   max,
   onChange,
   currency,
-  hint,
 }: {
   label: string;
   /** The bounds as typed digits; "" is unbounded. */
@@ -249,8 +248,6 @@ export function RangeInputs({
   onChange: (min: string, max: string) => void;
   /** For the inputs' symbol. */
   currency: string;
-  /** One line under the inputs. */
-  hint?: string;
 }) {
   // Min takes focus as the chip's menu opens (FilterChip hands it on).
   return (
@@ -280,7 +277,6 @@ export function RangeInputs({
       {min !== '' && max !== '' && Number(min) > Number(max) && (
         <p className="text-xs text-destructive">Min is above max.</p>
       )}
-      {hint && <p className="max-w-60 text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
