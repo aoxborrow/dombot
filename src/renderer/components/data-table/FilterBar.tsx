@@ -1,5 +1,4 @@
 import {
-  Fragment,
   useEffect,
   useRef,
   useState,
@@ -14,7 +13,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { FilterOption } from './Toolbar';
@@ -29,9 +27,6 @@ interface FieldBase {
   key: string;
   label: string;
   icon: Icon;
-  /** The Add filter menu's section, e.g. "Domain"; sections are split by a
-   * line. Sections keep field order. */
-  group: string;
 }
 
 /** A multi-select field: a checkbox list with counts. Empty means unset. */
@@ -199,7 +194,7 @@ function FilterChip({
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <span
         className={cn(
-          'inline-flex h-9 items-stretch overflow-hidden rounded-lg border border-[#cfe3d5] bg-background text-sm transition-shadow dark:border-[#4f9d6b]/40 dark:bg-input/30',
+          'inline-flex h-9 items-stretch overflow-hidden rounded-md border border-[#cfe3d5] bg-background text-sm transition-shadow dark:border-[#4f9d6b]/40 dark:bg-input/30',
           open && `${GREEN_BORDER} ring-2 ring-ring/50`,
         )}
       >
@@ -253,7 +248,7 @@ function FilterChip({
   );
 }
 
-/** "+ Add filter" and its menu of fields, grouped, with a find box. */
+/** "+ Add filter" and its menu of fields, with a find box once it's long. */
 function AddFilter({
   fields,
   onPick,
@@ -272,7 +267,6 @@ function AddFilter({
   const shown = q
     ? fields.filter((f) => f.label.toLowerCase().includes(q))
     : fields;
-  const groups = [...new Set(shown.map((f) => f.group))];
   return (
     <DropdownMenu
       open={open}
@@ -285,7 +279,7 @@ function AddFilter({
         <button
           type="button"
           className={cn(
-            'inline-flex h-9 items-center gap-1.5 rounded-lg border border-dashed border-input pr-3 pl-[9px] text-sm font-medium whitespace-nowrap text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40',
+            'inline-flex h-9 items-center gap-1.5 rounded-md border border-dashed border-input pr-3 pl-[9px] text-sm font-medium whitespace-nowrap text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40',
             open &&
               `${GREEN_BORDER} ${GREEN_TINT} ${GREEN_TEXT} hover:text-[#337544] dark:border-[#4f9d6b] dark:hover:text-[#7cc495]`,
           )}
@@ -323,33 +317,26 @@ function AddFilter({
             No matches
           </div>
         )}
-        {groups.map((group, i) => (
-          <Fragment key={group}>
-            {i > 0 && <DropdownMenuSeparator />}
-            {shown
-              .filter((f) => f.group === group)
-              .map((f) => {
-                const Icon = f.icon;
-                const summary = summaryOf(f);
-                return (
-                  <DropdownMenuItem key={f.key} onSelect={() => choose(f.key)}>
-                    <Icon />
-                    {f.label}
-                    {summary && (
-                      <span
-                        className={cn(
-                          'ml-auto max-w-32 truncate pl-3 text-xs font-medium',
-                          GREEN_TEXT,
-                        )}
-                      >
-                        {summary}
-                      </span>
-                    )}
-                  </DropdownMenuItem>
-                );
-              })}
-          </Fragment>
-        ))}
+        {shown.map((f) => {
+          const Icon = f.icon;
+          const summary = summaryOf(f);
+          return (
+            <DropdownMenuItem key={f.key} onSelect={() => choose(f.key)}>
+              <Icon />
+              {f.label}
+              {summary && (
+                <span
+                  className={cn(
+                    'ml-auto max-w-32 truncate pl-3 text-xs font-medium',
+                    GREEN_TEXT,
+                  )}
+                >
+                  {summary}
+                </span>
+              )}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

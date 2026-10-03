@@ -1209,8 +1209,9 @@ export default function Domains() {
       };
     }, [listed, folders, folderAssignments, ownership]);
 
-  // The filter bar's fields, in the Add filter menu's order. Each set field
-  // shows as a chip; clearing is per chip.
+  // The filter bar's fields, in the Add filter menu's order (the order the
+  // old filter buttons had). Each set field shows as a chip; clearing is per
+  // chip.
   const currency = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
   const listFilter = (
     field: Omit<Extract<FilterField, { kind: 'list' }>, 'kind' | 'onChange'>,
@@ -1226,10 +1227,20 @@ export default function Domains() {
   const filterFields: FilterField[] = [
     listFilter(
       {
+        key: 'registrar',
+        label: 'Registrar',
+        icon: Building2,
+        options: registrarOptions,
+        selected: registrar,
+        plural: 'registrars',
+      },
+      setRegistrar,
+    ),
+    listFilter(
+      {
         key: 'tld',
         label: 'TLD',
         icon: Globe,
-        group: 'Domain',
         options: tldOptions,
         selected: tld,
         plural: 'TLDs',
@@ -1238,15 +1249,25 @@ export default function Domains() {
     ),
     listFilter(
       {
-        key: 'registrar',
-        label: 'Registrar',
-        icon: Building2,
-        group: 'Domain',
-        options: registrarOptions,
-        selected: registrar,
-        plural: 'registrars',
+        key: 'dns',
+        label: 'DNS',
+        icon: Server,
+        options: nsGroups,
+        selected: ns,
+        plural: 'providers',
       },
-      setRegistrar,
+      setNs,
+    ),
+    listFilter(
+      {
+        key: 'expires',
+        label: 'Expires',
+        icon: CalendarClock,
+        options: expiryOptions,
+        selected: expiry,
+        plural: 'ranges',
+      },
+      setExpiry,
     ),
     // Owned: folders and Hidden. Archive: status.
     ...(!archiveView || archiveCount > 0
@@ -1256,7 +1277,6 @@ export default function Domains() {
               key: 'folder',
               label: archiveView ? 'Status' : 'Folder',
               icon: FolderIcon,
-              group: 'Domain',
               options: archiveView ? archiveStatusOptions : ownedFolderOptions,
               selected: folder,
               plural: archiveView ? 'statuses' : 'folders',
@@ -1265,30 +1285,6 @@ export default function Domains() {
           ),
         ]
       : []),
-    listFilter(
-      {
-        key: 'expires',
-        label: 'Expires',
-        icon: CalendarClock,
-        group: 'Renewal',
-        options: expiryOptions,
-        selected: expiry,
-        plural: 'ranges',
-      },
-      setExpiry,
-    ),
-    listFilter(
-      {
-        key: 'dns',
-        label: 'DNS',
-        icon: Server,
-        group: 'Configuration',
-        options: nsGroups,
-        selected: ns,
-        plural: 'providers',
-      },
-      setNs,
-    ),
     ...(archiveView
       ? []
       : [
@@ -1297,7 +1293,6 @@ export default function Domains() {
             key: 'price',
             label: 'Pricing',
             icon: CashIcon,
-            group: 'Sale',
             summary: rangeSummary(priceMin, priceMax, (n) =>
               formatMoney(
                 String(n),
