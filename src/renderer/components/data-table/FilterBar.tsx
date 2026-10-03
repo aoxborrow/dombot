@@ -236,9 +236,9 @@ function FilterChip({
         className={cn(
           'inline-flex h-9 items-stretch overflow-hidden rounded-md border text-sm',
           empty
-            ? 'border-dashed border-input dark:border-muted-foreground/40'
+            ? 'border-dashed border-[#d4d4d4] dark:border-muted-foreground/40'
             : cn(
-                'border-[#cfe3d5] dark:border-[#4f9d6b]/40',
+                'border-[#b9d6c2] dark:border-[#4f9d6b]/40',
                 flat ? GREEN_TINT : 'bg-background dark:bg-input/30',
               ),
           // Open (or keyboard-focused): a set chip's border turns filter
@@ -359,7 +359,7 @@ function AddFilter({
             title="Add filter"
             className={cn(
               // No background, ever: hover and open only darken the icon.
-              'inline-flex size-9 items-center justify-center rounded-md border border-dashed border-input text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40',
+              'inline-flex size-9 items-center justify-center rounded-md border border-dashed border-[#d4d4d4] text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40',
               open && 'text-foreground',
             )}
           >
@@ -371,7 +371,7 @@ function AddFilter({
             className={cn(
               // Grey: hover and open lift the text and fill a light grey,
               // like the outline buttons; keyboard focus gets the app's ring.
-              'inline-flex h-9 items-center gap-1.5 rounded-md border border-dashed border-input pr-3 pl-[9px] text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40 dark:hover:bg-input/50',
+              'inline-flex h-9 items-center gap-1.5 rounded-md border border-dashed border-[#d4d4d4] pr-3 pl-[9px] text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40 dark:hover:bg-input/50',
               open && 'bg-accent text-foreground dark:bg-input/50',
             )}
           >
