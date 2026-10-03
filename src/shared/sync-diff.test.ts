@@ -409,6 +409,28 @@ describe('ownershipByDomain', () => {
       expect(result.retracted).toEqual([jump.id]);
     });
 
+    it('retracts a remainder-years renewal when the whole jump is undone', () => {
+      // +2 years seen: 1 from a DomBot renewal, 1 written by sync.
+      const rest = renewed('a.com', 'sync', 1, LAST - 1000);
+      const result = run(
+        [at('dynadot', { 'a.com': '2028-10-01' })],
+        [at('dynadot', { 'a.com': '2026-10-01' })],
+        [rest],
+        ['dynadot'],
+      );
+      expect(result.retracted).toEqual([rest.id]);
+    });
+
+    it('keeps a sync renewal of more years than the expiry moved back', () => {
+      const result = run(
+        [at('dynadot', { 'a.com': '2028-10-01' })],
+        [at('dynadot', { 'a.com': '2027-10-01' })],
+        [renewed('a.com', 'sync', 2, LAST - 1000)],
+        ['dynadot'],
+      );
+      expect(result.retracted).toEqual([]);
+    });
+
     it('never retracts a renewal you made', () => {
       const result = run(
         [at('dynadot', { 'a.com': '2027-10-01' })],

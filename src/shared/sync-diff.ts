@@ -167,8 +167,8 @@ export function diffSync(
   // Renewals: an expiry that moved forward by about a year or more. A jump
   // for a name awaiting a DomBot renewal is that renewal, already recorded:
   // it lands, and only years beyond it (a transfer's, an auto-renewal's) are
-  // written. An expiry that went back by the years a sync renewal recorded
-  // undoes that renewal.
+  // written. An expiry that went back by at least the years a sync renewal
+  // recorded undoes that renewal.
   const landed: { accountId: string; domain: string }[] = [];
   /** Years of awaited DomBot renewals this jump shows, claiming them. */
   const awaited = (name: string, accountIds: string[]) => {
@@ -210,7 +210,10 @@ export function diffSync(
       push({ domain: name, type: DomainEventType.Renewed, accountId, years });
     } else if (days <= -RENEWAL_MIN_DAYS) {
       const last = lastSyncRenewal(name);
-      if (last && last.years === renewalYears(-days)) retracted.push(last.id);
+      // At least its years: a sync renewal may be only the years a jump
+      // added beyond a DomBot renewal, and undoing the jump undoes it too.
+      if (last?.years && last.years <= renewalYears(-days))
+        retracted.push(last.id);
     }
   };
   const expiryOf = (accountId: string, name: string) =>

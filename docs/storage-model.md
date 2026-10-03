@@ -222,9 +222,9 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
     registrar shows it, is that renewal: it clears the mark, and only years
     beyond it (a transfer's, an auto-renewal's) are written. A mark no jump
     claims in 90 days is dropped.
-  - **Undone.** An expiry that moves back by the years the latest sync-written
-    `renewed` recorded (a renewal reversed in the grace period) deletes that
-    event.
+  - **Undone.** An expiry that moves back by at least the years the latest
+    sync-written `renewed` recorded (a renewal reversed in the grace period)
+    deletes that event.
   - Renewals are never alerts, and don't change Owned / Archive. An event
     without an amount is priced when read (manual price → quote → TLD rate →
     base database), as an estimate.
