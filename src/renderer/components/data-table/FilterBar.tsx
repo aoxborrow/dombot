@@ -176,25 +176,36 @@ function ListMenu({ field }: { field: ListField }) {
   );
 }
 
+/**
+ * How a chip looks. `segmented`: the name on a green tint, split by a line
+ * from the value on the field background. `flat`: the whole chip on the
+ * tint, name and value side by side.
+ */
+export type FilterChipVariant = 'segmented' | 'flat';
+
 /** One active filter: [icon name | value ×], its dropdown editing the value. */
 function FilterChip({
   field,
   open,
   onOpenChange,
   onRemove,
+  variant,
 }: {
   field: FilterField;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRemove: () => void;
+  variant: FilterChipVariant;
 }) {
   const Icon = field.icon;
   const summary = summaryOf(field);
+  const flat = variant === 'flat';
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <span
         className={cn(
-          'inline-flex h-9 items-stretch overflow-hidden rounded-md border border-[#cfe3d5] bg-background text-sm transition-shadow dark:border-[#4f9d6b]/40 dark:bg-input/30',
+          'inline-flex h-9 items-stretch overflow-hidden rounded-md border border-[#cfe3d5] text-sm transition-shadow dark:border-[#4f9d6b]/40',
+          flat ? GREEN_TINT : 'bg-background dark:bg-input/30',
           open && `${GREEN_BORDER} ring-2 ring-ring/50`,
         )}
       >
@@ -206,8 +217,10 @@ function FilterChip({
           >
             <span
               className={cn(
-                'flex items-center gap-[7px] border-r border-[#e3eee6] px-2.5 text-[#4a6b55] dark:border-[#4f9d6b]/25 dark:text-[#8fc7a2]',
-                GREEN_TINT,
+                'flex items-center gap-[7px] pl-2.5 text-[#4a6b55] dark:text-[#8fc7a2]',
+                flat
+                  ? 'pr-[3px]'
+                  : `border-r border-[#e3eee6] pr-2.5 dark:border-[#4f9d6b]/25 ${GREEN_TINT}`,
               )}
             >
               <Icon className="size-4" />
@@ -215,7 +228,8 @@ function FilterChip({
             </span>
             <span
               className={cn(
-                'flex items-center pr-1 pl-2.5',
+                'flex items-center pr-1',
+                flat ? 'pl-[3px]' : 'pl-2.5',
                 summary
                   ? 'text-[#3a3a3a] underline decoration-[color-mix(in_srgb,#3a3a3a_55%,transparent)] decoration-dotted underline-offset-2 dark:text-[#d4d4d4] dark:decoration-[color-mix(in_srgb,#d4d4d4_38%,transparent)]'
                   : 'text-muted-foreground',
@@ -349,7 +363,14 @@ function AddFilter({
  * already in use opens its chip instead. A chip closed with nothing set goes
  * away.
  */
-export function FilterBar({ fields }: { fields: FilterField[] }) {
+export function FilterBar({
+  fields,
+  variant = 'segmented',
+}: {
+  fields: FilterField[];
+  /** The chips' look; see FilterChipVariant. */
+  variant?: FilterChipVariant;
+}) {
   // Chip order; a field set elsewhere (not through the menu) joins at the end.
   const [order, setOrder] = useState<string[]>([]);
   // The chip whose dropdown is open; it stays while open even if unset.
@@ -388,6 +409,7 @@ export function FilterBar({ fields }: { fields: FilterField[] }) {
           open={openKey === f.key}
           onOpenChange={(open) => setOpenKey(open ? f.key : null)}
           onRemove={() => remove(f)}
+          variant={variant}
         />
       ))}
     </>
