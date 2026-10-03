@@ -262,9 +262,9 @@ function FilterChip({
             {!empty && (
               <span
                 className={cn(
-                  // The underline is the value's grey with a quarter of the label
+                  // The underline is the value's grey with about 40% of the label
                   // green mixed in, at 55% (38% dark).
-                  'flex items-center pr-1 text-[#3a3a3a] underline decoration-[color-mix(in_srgb,#3f5346_55%,transparent)] decoration-dotted underline-offset-2 dark:text-[#d4d4d4] dark:decoration-[color-mix(in_srgb,#c3d1c8_38%,transparent)]',
+                  'flex items-center pr-1 text-[#3a3a3a] underline decoration-[color-mix(in_srgb,#42604d_55%,transparent)] decoration-dotted underline-offset-2 dark:text-[#d4d4d4] dark:decoration-[color-mix(in_srgb,#bacfc1_38%,transparent)]',
                   flat ? 'pl-1' : 'pl-2.5',
                 )}
               >
@@ -283,7 +283,7 @@ function FilterChip({
             // On a set chip, muted grey with a hint of the label green.
             empty
               ? 'pl-[9px] text-muted-foreground'
-              : 'pl-[5px] text-[#6a7d71] dark:text-[#9caaa1]',
+              : 'pl-[5px] text-[#658370] dark:text-[#9aafa1]',
           )}
         >
           <X className="size-3.5" />
