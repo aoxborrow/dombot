@@ -186,66 +186,81 @@ function ListMenu({ field }: { field: ListField }) {
  */
 export type FilterChipVariant = 'segmented' | 'flat';
 
-/** One active filter: [icon name | value ×], its dropdown editing the value. */
+/**
+ * One filter: [icon name value ×], its dropdown editing the value. A preset
+ * with nothing set is a dashed grey outline with just its icon and name.
+ */
 function FilterChip({
   field,
   open,
   onOpenChange,
   onRemove,
   variant,
+  preset,
 }: {
   field: FilterField;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRemove: () => void;
   variant: FilterChipVariant;
+  /** Always shown, so it has an empty look. */
+  preset: boolean;
 }) {
   const Icon = field.icon;
   const summary = summaryOf(field);
   const flat = variant === 'flat';
+  const empty = preset && summary === null;
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <span
         className={cn(
-          'inline-flex h-9 items-stretch overflow-hidden rounded-md border border-[#cfe3d5] text-sm transition-shadow dark:border-[#4f9d6b]/40',
-          flat ? GREEN_TINT : 'bg-background dark:bg-input/30',
-          // A 2px focus band while open or keyboard-focused: the chip's own
-          // border takes the ring colour and a 1px ring goes outside it, so
-          // it's 2px rather than border plus ring. At ring/40, a touch softer
-          // than the app's ring/50 against the green chip. Nothing else
-          // changes.
-          'has-[:focus-visible]:border-ring/40 has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-ring/40 dark:has-[:focus-visible]:border-ring/40',
-          open && 'border-ring/40 ring-1 ring-ring/40 dark:border-ring/40',
+          'inline-flex h-9 items-stretch overflow-hidden rounded-md border text-sm',
+          empty
+            ? 'border-dashed border-input dark:border-muted-foreground/40'
+            : cn(
+                'border-[#cfe3d5] dark:border-[#4f9d6b]/40',
+                flat ? GREEN_TINT : 'bg-background dark:bg-input/30',
+              ),
+          // Open (or keyboard-focused): the border turns filter green.
+          'has-[:focus-visible]:border-[#4f9d6b] dark:has-[:focus-visible]:border-[#4f9d6b]',
+          open && 'border-[#4f9d6b] dark:border-[#4f9d6b]',
         )}
       >
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label={`${field.label}: ${summary ?? 'choose'}`}
+            aria-label={`${field.label}: ${summary ?? (empty ? 'any' : 'choose')}`}
             className="flex items-stretch whitespace-nowrap outline-none"
           >
             <span
               className={cn(
-                'flex items-center gap-[7px] pl-2.5 text-[#4a6b55] dark:text-[#8fc7a2]',
-                flat
-                  ? 'pr-1'
-                  : `border-r border-[#e3eee6] pr-2.5 dark:border-[#4f9d6b]/25 ${GREEN_TINT}`,
+                'flex items-center gap-[7px] pl-2.5',
+                empty
+                  ? 'pr-0 text-muted-foreground'
+                  : 'text-[#4a6b55] dark:text-[#8fc7a2]',
+                !empty &&
+                  (flat
+                    ? 'pr-1'
+                    : `border-r border-[#e3eee6] pr-2.5 dark:border-[#4f9d6b]/25 ${GREEN_TINT}`),
               )}
             >
               <Icon className="size-4" />
               {field.label}
             </span>
-            <span
-              className={cn(
-                'flex items-center pr-1',
-                flat ? 'pl-1' : 'pl-2.5',
-                summary
-                  ? 'text-[#3a3a3a] underline decoration-[color-mix(in_srgb,#3a3a3a_55%,transparent)] decoration-dotted underline-offset-2 dark:text-[#d4d4d4] dark:decoration-[color-mix(in_srgb,#d4d4d4_38%,transparent)]'
-                  : 'text-muted-foreground',
-              )}
-            >
-              {summary ?? 'Choose…'}
-            </span>
+            {/* An empty preset has no value text at all. */}
+            {!empty && (
+              <span
+                className={cn(
+                  'flex items-center pr-1',
+                  flat ? 'pl-1' : 'pl-2.5',
+                  summary
+                    ? 'text-[#3a3a3a] underline decoration-[color-mix(in_srgb,#3a3a3a_55%,transparent)] decoration-dotted underline-offset-2 dark:text-[#d4d4d4] dark:decoration-[color-mix(in_srgb,#d4d4d4_38%,transparent)]'
+                    : 'text-muted-foreground',
+                )}
+              >
+                {summary ?? 'Choose…'}
+              </span>
+            )}
           </button>
         </DropdownMenuTrigger>
         <button
@@ -253,7 +268,10 @@ function FilterChip({
           aria-label={`Remove ${field.label} filter`}
           title="Remove filter"
           onClick={onRemove}
-          className="flex items-center pr-[9px] pl-[5px] text-muted-foreground opacity-55 outline-none hover:opacity-100"
+          className={cn(
+            'flex items-center pr-[9px] text-muted-foreground opacity-55 outline-none hover:opacity-100',
+            empty ? 'pl-[9px]' : 'pl-[5px]',
+          )}
         >
           <X className="size-3.5" />
         </button>
@@ -266,18 +284,29 @@ function FilterChip({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {field.kind === 'list' ? <ListMenu field={field} /> : field.content}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="text-muted-foreground" onSelect={onRemove}>
+          <X />
+          Remove filter
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-/** "+ Add filter" and its menu of fields, with a find box once it's long. */
+/**
+ * The menu of fields, opened from "+ Add filter" (no chips showing) or the
+ * square "+" after the last chip. Both stay grey in every state.
+ */
 function AddFilter({
   fields,
   onPick,
+  compact,
 }: {
   fields: FilterField[];
   onPick: (key: string) => void;
+  /** The square "+" icon button, for after the chips. */
+  compact: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -299,18 +328,33 @@ function AddFilter({
       }}
     >
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            // Neutral: hover and open lift the text and fill a light grey,
-            // like the outline buttons; keyboard focus gets the app's ring.
-            'inline-flex h-9 items-center gap-1.5 rounded-md border border-dashed border-input pr-3 pl-[9px] text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40 dark:hover:bg-input/50',
-            open && 'bg-accent text-foreground dark:bg-input/50',
-          )}
-        >
-          <Plus className="size-3.5" />
-          Add filter
-        </button>
+        {compact ? (
+          <button
+            type="button"
+            aria-label="Add filter"
+            title="Add filter"
+            className={cn(
+              // No background, ever: hover and open only darken the icon.
+              'inline-flex size-9 items-center justify-center rounded-md border border-dashed border-input text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40',
+              open && 'text-foreground',
+            )}
+          >
+            <Plus className="size-4" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={cn(
+              // Grey: hover and open lift the text and fill a light grey,
+              // like the outline buttons; keyboard focus gets the app's ring.
+              'inline-flex h-9 items-center gap-1.5 rounded-md border border-dashed border-input pr-3 pl-[9px] text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40 dark:hover:bg-input/50',
+              open && 'bg-accent text-foreground dark:bg-input/50',
+            )}
+          >
+            <Plus className="size-3.5" />
+            Add filter
+          </button>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
@@ -366,39 +410,83 @@ function AddFilter({
   );
 }
 
+// Presets removed with their ×, per bar `id`. In memory only: they stay
+// removed for this session (navigating away and back included) and come back
+// on the next one.
+const removedPresets = new Map<string, Set<string>>();
+
 /**
- * The Add filter button and a chip per active filter, in the order they were
- * added. Rendered inline (a fragment), so they wrap with the toolbar around
- * them. Picking a field adds its chip with the value list open; picking one
- * already in use opens its chip instead. A chip closed with nothing set goes
- * away.
+ * The filter chips, then the add button. Presets always sit first, in their
+ * slots, even with nothing set; filters added from the menu follow in the
+ * order they were added. Rendered inline (a fragment), so everything wraps
+ * with the toolbar around it. With no chips at all the add button is
+ * "+ Add filter"; otherwise it's a square "+" after the last chip.
+ *
+ * Picking a field adds its chip with the value list open; picking one already
+ * showing opens it instead, and a removed preset returns to its slot. An
+ * added chip closed with nothing set goes away. Chips never move as their
+ * values are set or cleared.
  */
 export function FilterBar({
+  id,
   fields,
+  presets = [],
   variant = 'segmented',
 }: {
+  /** Names this bar for the session's memory of removed presets. */
+  id: string;
   fields: FilterField[];
+  /** Keys of the fields always shown, in order, even when unset. */
+  presets?: string[];
   /** The chips' look; see FilterChipVariant. */
   variant?: FilterChipVariant;
 }) {
-  // Chip order; a field set elsewhere (not through the menu) joins at the end.
+  // Added (non-preset) chips, in the order they were added; a field set
+  // elsewhere (not through the menu) joins at the end.
   const [order, setOrder] = useState<string[]>([]);
+  const [removed, setRemoved] = useState<Set<string>>(
+    () => new Set(removedPresets.get(id)),
+  );
   // The chip whose dropdown is open; it stays while open even if unset.
   const [openKey, setOpenKey] = useState<string | null>(null);
   const byKey = new Map(fields.map((f) => [f.key, f]));
-  const active = (f: FilterField) => summaryOf(f) !== null;
-  const keys = [
-    ...order.filter((k) => byKey.has(k)),
-    ...fields.filter((f) => !order.includes(f.key)).map((f) => f.key),
-  ];
-  const chips = keys
-    .map((k) => byKey.get(k)!)
-    .filter((f) => active(f) || f.key === openKey);
+  const isPreset = (key: string) => presets.includes(key);
+  // Presets in their slots (a removed one only if something set it since);
+  // then added chips, set or open.
+  const presetChips = presets
+    .map((k) => byKey.get(k))
+    .filter(
+      (f): f is FilterField =>
+        !!f && (!removed.has(f.key) || summaryOf(f) !== null),
+    );
+  const added = [
+    ...order,
+    ...fields.map((f) => f.key).filter((k) => !order.includes(k)),
+  ]
+    .filter((k) => !isPreset(k))
+    .map((k) => byKey.get(k))
+    .filter(
+      (f): f is FilterField =>
+        !!f && (summaryOf(f) !== null || f.key === openKey),
+    );
+  const chips = [...presetChips, ...added];
+
+  function setRemovedPresets(next: Set<string>) {
+    removedPresets.set(id, next);
+    setRemoved(next);
+  }
 
   function pick(key: string) {
-    // A new chip goes at the end; one already showing stays put.
-    if (!chips.some((f) => f.key === key))
+    if (isPreset(key)) {
+      if (removed.has(key)) {
+        const next = new Set(removed);
+        next.delete(key);
+        setRemovedPresets(next);
+      }
+    } else if (!chips.some((f) => f.key === key)) {
+      // A new chip goes at the end; one already showing stays put.
       setOrder((o) => [...o.filter((k) => k !== key), key]);
+    }
     // After the Add filter menu has closed, so the two don't fight over focus.
     requestAnimationFrame(() => setOpenKey(key));
   }
@@ -406,12 +494,16 @@ export function FilterBar({
   function remove(field: FilterField) {
     clearField(field);
     setOpenKey(null);
-    setOrder((o) => o.filter((k) => k !== field.key));
+    if (isPreset(field.key)) setRemovedPresets(new Set(removed).add(field.key));
+    else setOrder((o) => o.filter((k) => k !== field.key));
   }
 
+  const add = (
+    <AddFilter fields={fields} onPick={pick} compact={chips.length > 0} />
+  );
   return (
     <>
-      <AddFilter fields={fields} onPick={pick} />
+      {chips.length === 0 && add}
       {chips.map((f) => (
         <FilterChip
           key={f.key}
@@ -420,8 +512,10 @@ export function FilterBar({
           onOpenChange={(open) => setOpenKey(open ? f.key : null)}
           onRemove={() => remove(f)}
           variant={variant}
+          preset={isPreset(f.key)}
         />
       ))}
+      {chips.length > 0 && add}
     </>
   );
 }

@@ -1862,7 +1862,7 @@ export default function Domains() {
         {/* Toolbar: search and filters flow inline and wrap together as equal
               items. Extra top margin separates it from the title/refresh row
               above. */}
-        <div className="mt-1 flex flex-wrap items-center gap-3 sm:mt-3">
+        <div className="mt-1 flex flex-wrap items-center gap-3.5 sm:mt-3">
           <SearchField
             value={search}
             onChange={(value) => {
@@ -1873,7 +1873,12 @@ export default function Domains() {
             className="flex-[0_1_216px]"
           />
 
-          <FilterBar fields={filterFields} variant="flat" />
+          <FilterBar
+            id="domains"
+            fields={filterFields}
+            presets={['registrar', 'tld', 'folder']}
+            variant="flat"
+          />
 
           {exportNote && (
             <span
