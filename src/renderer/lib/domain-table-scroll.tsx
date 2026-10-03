@@ -146,6 +146,9 @@ export function DomainTableScroll({
     observer.observe(el);
     const thead = el.querySelector('thead');
     if (thead) observer.observe(thead);
+    // The content too: it can grow or shrink (a filtered list) while the
+    // scroll box stays capped at the same height.
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
     place();
 
     return () => {

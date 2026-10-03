@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { FilterOption } from './Toolbar';
+import { DomainTableScroll } from '../../lib/domain-table-scroll';
 
 // A table's filter bar: "+ Add filter" opens a menu of fields, and each field
 // in use becomes a chip (name | value | ×) whose dropdown edits it. Only the
@@ -121,7 +122,7 @@ function MenuSearch({
         }}
         placeholder={placeholder}
         aria-label={placeholder.replace(/…$/, '')}
-        className="h-8 w-full rounded-md border border-input bg-muted pr-2 pl-7 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-background"
+        className="h-8 w-full rounded-[6px] border border-input bg-muted pr-2 pl-7 text-[13px] outline-none placeholder:text-muted-foreground focus:border-[#337544] dark:bg-background dark:focus:border-[#337544]"
       />
     </div>
   );
@@ -149,32 +150,39 @@ function ListMenu({ field }: { field: ListField }) {
           placeholder={`Search ${field.plural}…`}
         />
       )}
-      <div className="max-h-[300px] overflow-x-hidden overflow-y-auto">
-        {options.length === 0 && (
-          <div className="px-2 py-1.5 text-sm text-muted-foreground">
-            {field.options.length === 0 ? 'No options' : 'No matches'}
-          </div>
-        )}
-        {options.map((o, i) => (
-          <Fragment key={o.value}>
-            {o.divider && i > 0 && <DropdownMenuSeparator />}
-            <DropdownMenuCheckboxItem
-              checked={field.selected.includes(o.value)}
-              // Keep the menu open so several can be picked in one go.
-              onSelect={(e) => e.preventDefault()}
-              onCheckedChange={() => toggle(o.value)}
-            >
-              {o.icon && <span className="mx-0.5 flex shrink-0">{o.icon}</span>}
-              <span className="flex-1 truncate">{o.label}</span>
-              {o.count != null && (
-                <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">
-                  {o.count}
-                </span>
-              )}
-            </DropdownMenuCheckboxItem>
-          </Fragment>
-        ))}
-      </div>
+      {/* The app's overlay scrollbar: hidden until hovered or scrolled, so
+          there's no wide native bar. */}
+      <DomainTableScroll className="domain-table-scroll max-h-[300px] overflow-x-hidden overflow-y-auto">
+        {/* A gutter on the right for the scroll thumb, clear of the counts. */}
+        <div className="pr-2">
+          {options.length === 0 && (
+            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+              {field.options.length === 0 ? 'No options' : 'No matches'}
+            </div>
+          )}
+          {options.map((o, i) => (
+            <Fragment key={o.value}>
+              {o.divider && i > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuCheckboxItem
+                checked={field.selected.includes(o.value)}
+                // Keep the menu open so several can be picked in one go.
+                onSelect={(e) => e.preventDefault()}
+                onCheckedChange={() => toggle(o.value)}
+              >
+                {o.icon && (
+                  <span className="mx-0.5 flex shrink-0">{o.icon}</span>
+                )}
+                <span className="flex-1 truncate">{o.label}</span>
+                {o.count != null && (
+                  <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">
+                    {o.count}
+                  </span>
+                )}
+              </DropdownMenuCheckboxItem>
+            </Fragment>
+          ))}
+        </div>
+      </DomainTableScroll>
     </>
   );
 }
@@ -284,11 +292,6 @@ function FilterChip({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {field.kind === 'list' ? <ListMenu field={field} /> : field.content}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-muted-foreground" onSelect={onRemove}>
-          <X />
-          Remove filter
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
