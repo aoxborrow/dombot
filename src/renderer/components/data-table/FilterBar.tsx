@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import { Plus, Search, X } from 'lucide-react';
+import { ListFilterPlus, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -364,7 +364,7 @@ function AddFilter({
               open && 'text-foreground',
             )}
           >
-            <Plus className="size-4" />
+            <ListFilterPlus className="size-4" />
           </button>
         ) : (
           <button
@@ -376,7 +376,7 @@ function AddFilter({
               open && 'bg-accent text-foreground dark:bg-input/50',
             )}
           >
-            <Plus className="size-3.5" />
+            <ListFilterPlus className="size-4" />
             Add filter
           </button>
         )}
