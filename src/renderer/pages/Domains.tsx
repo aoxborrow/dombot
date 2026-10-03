@@ -18,7 +18,6 @@ import {
   Server,
   ShieldBan,
   ShieldCheck,
-  SlidersHorizontal,
   TriangleAlert,
   Upload,
 } from 'lucide-react';
@@ -97,12 +96,14 @@ import { usePreferences } from '../lib/preferences';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { paginate, sortRows } from '../components/data-table/table-state';
 import {
-  MultiSelectFilter,
-  RangeFilter,
-  ResetButton,
+  RangeInputs,
   SearchField,
-  FILTERING_BORDER,
+  rangeSummary,
 } from '../components/data-table/Toolbar';
+import {
+  FilterBar,
+  type FilterField,
+} from '../components/data-table/FilterBar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -983,9 +984,6 @@ export default function Domains() {
     () => usePreferences.getState().pageSize,
   );
   const [page, setPage] = useState(0);
-  // Phones only: the filter chips collapse behind a "Filters" toggle (they're
-  // always shown at sm+). Search and Reset stay visible.
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // The bulk dialog: an op to configure for the current selection, or a
   // running/finished job to view (the bar's progress pill).
@@ -1211,41 +1209,126 @@ export default function Domains() {
       };
     }, [listed, folders, folderAssignments, ownership]);
 
-  // Validate the price inputs, then derive the bounds actually applied. A field
-  // error (or min > max) leaves the range unapplied until it's corrected.
-  // Whether any search/filter is narrowing the list — drives the "Reset filters"
-  // affordance and clearing them all at once.
-  const hasActiveFilters =
-    search.trim() !== '' ||
-    tld.length > 0 ||
-    registrar.length > 0 ||
-    expiry.length > 0 ||
-    ns.length > 0 ||
-    folder.length > 0 ||
-    pricingFilter;
-
-  // How many filter groups are narrowing the list (search excluded — it has its
-  // own always-visible field). Drives the count badge on the mobile "Filters"
-  // toggle.
-  const activeFilterGroups =
-    (registrar.length > 0 ? 1 : 0) +
-    (tld.length > 0 ? 1 : 0) +
-    (ns.length > 0 ? 1 : 0) +
-    (expiry.length > 0 ? 1 : 0) +
-    (folder.length > 0 ? 1 : 0) +
-    (pricingFilter ? 1 : 0);
-
-  function resetFilters() {
-    setSearch('');
-    setTld([]);
-    setRegistrar([]);
-    setExpiry([]);
-    setNs([]);
-    setFolder([]);
-    setPriceMin('');
-    setPriceMax('');
-    setPage(0);
-  }
+  // The filter bar's fields, in the Add filter menu's order. Each set field
+  // shows as a chip; clearing is per chip.
+  const currency = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
+  const listFilter = (
+    field: Omit<Extract<FilterField, { kind: 'list' }>, 'kind' | 'onChange'>,
+    set: (next: string[]) => void,
+  ): FilterField => ({
+    ...field,
+    kind: 'list',
+    onChange: (next) => {
+      set(next);
+      setPage(0);
+    },
+  });
+  const filterFields: FilterField[] = [
+    listFilter(
+      {
+        key: 'tld',
+        label: 'TLD',
+        icon: Globe,
+        group: 'Domain',
+        options: tldOptions,
+        selected: tld,
+        plural: 'TLDs',
+      },
+      setTld,
+    ),
+    listFilter(
+      {
+        key: 'registrar',
+        label: 'Registrar',
+        icon: Building2,
+        group: 'Domain',
+        options: registrarOptions,
+        selected: registrar,
+        plural: 'registrars',
+      },
+      setRegistrar,
+    ),
+    // Owned: folders and Hidden. Archive: status.
+    ...(!archiveView || archiveCount > 0
+      ? [
+          listFilter(
+            {
+              key: 'folder',
+              label: archiveView ? 'Status' : 'Folder',
+              icon: FolderIcon,
+              group: 'Domain',
+              options: archiveView ? archiveStatusOptions : ownedFolderOptions,
+              selected: folder,
+              plural: archiveView ? 'statuses' : 'folders',
+            },
+            setFolder,
+          ),
+        ]
+      : []),
+    listFilter(
+      {
+        key: 'expires',
+        label: 'Expires',
+        icon: CalendarClock,
+        group: 'Renewal',
+        options: expiryOptions,
+        selected: expiry,
+        plural: 'ranges',
+      },
+      setExpiry,
+    ),
+    listFilter(
+      {
+        key: 'dns',
+        label: 'DNS',
+        icon: Server,
+        group: 'Configuration',
+        options: nsGroups,
+        selected: ns,
+        plural: 'providers',
+      },
+      setNs,
+    ),
+    ...(archiveView
+      ? []
+      : [
+          {
+            kind: 'custom' as const,
+            key: 'price',
+            label: 'BIN price',
+            icon: CashIcon,
+            group: 'Sale',
+            summary: rangeSummary(priceMin, priceMax, (n) =>
+              formatMoney(
+                String(n),
+                currency,
+                currency,
+                settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+                true,
+              ),
+            ),
+            onClear: () => {
+              setPriceMin('');
+              setPriceMax('');
+              setPage(0);
+            },
+            content: (
+              <RangeInputs
+                label="BIN price"
+                min={priceMin}
+                max={priceMax}
+                onChange={(min, max) => {
+                  setPriceMin(min);
+                  setPriceMax(max);
+                  setPage(0);
+                }}
+                currency={currency}
+                hint="Names without a BIN price count as 0, so a max of 0 shows them."
+              />
+            ),
+          },
+        ]),
+  ];
 
   function setListView(next: 'owned' | 'archive') {
     setFolder([]);
@@ -1742,122 +1825,10 @@ export default function Domains() {
               setPage(0);
             }}
             placeholder="Search domains…"
+            className="flex-[0_1_216px]"
           />
 
-          {/* Phones only: a toggle that collapses the filter chips (below) so the
-              toolbar doesn't wrap onto several lines. At sm+ the chips are always
-              shown and this is hidden. */}
-          <Button
-            variant="outline"
-            onClick={() => setFiltersOpen((o) => !o)}
-            aria-expanded={filtersOpen}
-            // Green, like Reset, while it's open or a filter is set.
-            className={cn(
-              'gap-2 sm:hidden',
-              (filtersOpen || activeFilterGroups > 0) && FILTERING_BORDER,
-            )}
-          >
-            <SlidersHorizontal className="size-4 text-muted-foreground" />
-            Filters
-            {activeFilterGroups > 0 && (
-              <Badge className="bg-primary px-1.5 py-0 text-xs tabular-nums text-primary-foreground">
-                {activeFilterGroups}
-              </Badge>
-            )}
-            <ChevronDown
-              className={cn(
-                'size-4 text-muted-foreground transition-transform',
-                filtersOpen && 'rotate-180',
-              )}
-            />
-          </Button>
-
-          {/* The filter chips. `contents` dissolves the wrapper so they flow
-              inline in the toolbar, wrapping after the Filters toggle with
-              Reset at the end; on phones they're hidden until it's opened. */}
-          <div className={filtersOpen ? 'contents' : 'hidden sm:contents'}>
-            <MultiSelectFilter
-              label="Registrar"
-              icon={Building2}
-              options={registrarOptions}
-              selected={registrar}
-              onChange={(next) => {
-                setRegistrar(next);
-                setPage(0);
-              }}
-            />
-            <MultiSelectFilter
-              label="TLD"
-              icon={Globe}
-              options={tldOptions}
-              selected={tld}
-              onChange={(next) => {
-                setTld(next);
-                setPage(0);
-              }}
-            />
-            <MultiSelectFilter
-              label="DNS"
-              icon={Server}
-              options={nsGroups}
-              selected={ns}
-              onChange={(next) => {
-                setNs(next);
-                setPage(0);
-              }}
-            />
-            <MultiSelectFilter
-              label="Expires"
-              icon={CalendarClock}
-              options={expiryOptions}
-              selected={expiry}
-              onChange={(next) => {
-                setExpiry(next);
-                setPage(0);
-              }}
-            />
-            {/* Owned: folders and Hidden. Archive: status. */}
-            {(!archiveView || archiveCount > 0) && (
-              <MultiSelectFilter
-                label={archiveView ? 'Status' : 'Folder'}
-                icon={FolderIcon}
-                options={
-                  archiveView ? archiveStatusOptions : ownedFolderOptions
-                }
-                selected={folder}
-                onChange={(next) => {
-                  setFolder(next);
-                  setPage(0);
-                }}
-              />
-            )}
-            {!archiveView && (
-              <RangeFilter
-                label="BIN price"
-                icon={CashIcon}
-                min={priceMin}
-                max={priceMax}
-                onChange={(min, max) => {
-                  setPriceMin(min);
-                  setPriceMax(max);
-                  setPage(0);
-                }}
-                currency={settings?.preferredCurrency ?? DEFAULT_CURRENCY}
-                format={(n) =>
-                  formatMoney(
-                    String(n),
-                    settings?.preferredCurrency ?? DEFAULT_CURRENCY,
-                    settings?.preferredCurrency ?? DEFAULT_CURRENCY,
-                    settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
-                    true,
-                  )
-                }
-                hint="Names without a BIN price count as 0, so a max of 0 shows them."
-              />
-            )}
-          </div>
-
-          <ResetButton active={hasActiveFilters} onReset={resetFilters} />
+          <FilterBar fields={filterFields} />
 
           {exportNote && (
             <span
