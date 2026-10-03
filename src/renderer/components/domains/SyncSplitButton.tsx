@@ -1,4 +1,5 @@
-import { ChevronDown, Plug, RefreshCw, Upload } from 'lucide-react';
+import { Check, ChevronDown, Plug, RefreshCw, Upload } from 'lucide-react';
+import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,9 +26,10 @@ function Count({ n }: { n: number }) {
 /**
  * The Domains header's data actions: "Sync now" joined to a chevron that opens
  * the rest (registrar settings, import, CSV export). The sync half follows the
- * shared sync state (spinning and disabled mid-sync, cooling down after one);
- * the chevron stays usable throughout. On phones the sync half drops to its
- * icon.
+ * shared sync state: spinning mid-sync, a neutral "Synced" for the minute
+ * after one, and neutral too when a bulk job or missing setup blocks it, where
+ * a click explains instead of syncing. The chevron stays usable throughout.
+ * On phones the sync half drops to its icon.
  */
 export function SyncSplitButton({
   registrarCount,
@@ -46,12 +48,32 @@ export function SyncSplitButton({
   onExportAll: () => void;
 }) {
   const navigate = useNavigate();
-  const { sync, syncing, disabled, title, lastSyncedAt, stale } =
-    useSyncState();
+  const {
+    sync,
+    syncing,
+    disabled,
+    title,
+    reason,
+    shortReason,
+    tooSoon,
+    lastSyncedAt,
+    stale,
+  } = useSyncState();
+  // Can't sync right now, and not because one is running: the button goes
+  // neutral rather than fading out, and a click says why instead of syncing.
+  const blocked = disabled && !syncing;
+  const variant = blocked ? 'outline' : 'default';
+
+  function onSync() {
+    if (syncing) return;
+    if (blocked) toast.info(reason ?? title);
+    else sync();
+  }
 
   return (
     <div className="flex shrink-0 items-center gap-3">
-      {lastSyncedAt !== null && !syncing && (
+      {/* Just after a sync the button itself says so. */}
+      {lastSyncedAt !== null && !syncing && !tooSoon && (
         <span
           className={cn(
             'hidden text-xs text-muted-foreground sm:inline',
@@ -64,22 +86,34 @@ export function SyncSplitButton({
       )}
       <div className="flex">
         <Button
-          onClick={sync}
-          disabled={disabled}
+          variant={variant}
+          onClick={onSync}
+          aria-disabled={disabled}
           title={title}
-          aria-label={syncing ? 'Syncing' : 'Sync now'}
-          className="rounded-r-none max-sm:w-9 max-sm:px-0!"
+          aria-label={syncing ? 'Syncing' : tooSoon ? 'Synced' : 'Sync now'}
+          className={cn(
+            'rounded-r-none max-sm:w-9 max-sm:px-0!',
+            syncing && 'cursor-default hover:bg-primary',
+          )}
         >
-          <RefreshCw className={cn(syncing && 'animate-spin')} />
+          {tooSoon && !syncing ? (
+            <Check className="text-brand" />
+          ) : (
+            <RefreshCw className={cn(syncing && 'animate-spin')} />
+          )}
           <span className="max-sm:sr-only">
-            {syncing ? 'Syncing…' : 'Sync now'}
+            {syncing ? 'Syncing…' : tooSoon ? 'Synced' : 'Sync now'}
           </span>
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
+              variant={variant}
               aria-label="More data actions"
-              className="w-8 rounded-l-none border-l border-primary-foreground/25 px-0"
+              className={cn(
+                'w-8 rounded-l-none px-0',
+                blocked ? '-ml-px' : 'border-l border-primary-foreground/25',
+              )}
             >
               <ChevronDown />
             </Button>
@@ -88,9 +122,10 @@ export function SyncSplitButton({
             <DropdownMenuItem disabled={disabled} onSelect={sync}>
               <RefreshCw className={cn(syncing && 'animate-spin')} />
               {syncing ? 'Syncing…' : 'Sync now'}
-              {registrarCount > 0 && (
+              {(shortReason ?? registrarCount > 0) && (
                 <span className="ml-auto text-xs text-muted-foreground">
-                  {registrarCount} registrar{registrarCount === 1 ? '' : 's'}
+                  {shortReason ??
+                    `${registrarCount} registrar${registrarCount === 1 ? '' : 's'}`}
                 </span>
               )}
             </DropdownMenuItem>

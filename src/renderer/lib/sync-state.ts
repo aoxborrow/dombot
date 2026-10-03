@@ -76,10 +76,20 @@ export function useSyncState() {
       : tooSoon
         ? 'Just synced. Try again in a minute.'
         : null;
+  // The same, in a couple of words for a menu row.
+  const shortReason = bulkRunning
+    ? 'Bulk action running'
+    : noneConfigured
+      ? 'No registrars'
+      : tooSoon
+        ? 'Just synced'
+        : null;
 
   return {
     sync: () => void loadPortfolio(),
     reason,
+    shortReason,
+    tooSoon,
     syncing: portfolioLoading,
     disabled: portfolioLoading || tooSoon || noneConfigured || bulkRunning,
     title,
