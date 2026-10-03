@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import { ListFilterPlus, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { FilterOption } from './Toolbar';
 import { DomainTableScroll } from '../../lib/domain-table-scroll';
+import { FilterPlusIcon } from '../icons/FilterPlusIcon';
 
 // A table's filter bar: "+ Add filter" opens a menu of fields, and each field
 // in use becomes a chip (name | value | ×) whose dropdown edits it. Only the
@@ -364,7 +365,7 @@ function AddFilter({
               open && 'text-foreground',
             )}
           >
-            <ListFilterPlus className="size-4" />
+            <FilterPlusIcon className="size-4" />
           </button>
         ) : (
           <button
@@ -376,7 +377,7 @@ function AddFilter({
               open && 'bg-accent text-foreground dark:bg-input/50',
             )}
           >
-            <ListFilterPlus className="size-4" />
+            <FilterPlusIcon className="size-4" />
             Add filter
           </button>
         )}
