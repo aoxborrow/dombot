@@ -4,7 +4,6 @@ import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { SyncErrorsAlert } from '../components/SyncErrorsAlert';
 import {
   EyeOff,
   Building2,
@@ -17,7 +16,6 @@ import {
   Server,
   ShieldBan,
   ShieldCheck,
-  TriangleAlert,
   Upload,
 } from 'lucide-react';
 import type {
@@ -117,7 +115,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {} from '@/components/ui/table';
 
 // Which `refreshTick` the detail fetch has already force-refreshed. Module-level
@@ -1748,6 +1745,34 @@ export default function Domains() {
     }
   }
 
+  // Sync failures, in red under the Sync button: the whole sync, or which
+  // accounts failed (their errors are on their cards in Settings → Registrars).
+  const syncErrors = (portfolioError || portfolioErrors.length > 0) && (
+    <div className="flex flex-col items-end gap-0.5 text-right text-sm text-destructive">
+      {portfolioError && <p>Sync failed: {portfolioError}</p>}
+      {portfolioErrors.length > 0 && (
+        <p>
+          {portfolioErrors
+            .map((e) =>
+              accountTitle(
+                registrarLabel(e.registrar, portfolioRegistrarLabels),
+                e.accountLabel,
+                multipleAccounts.has(e.registrar),
+              ),
+            )
+            .join(', ')}{' '}
+          failed to sync ·{' '}
+          <Link
+            to="/settings?tab=registrars"
+            className="whitespace-nowrap underline underline-offset-4"
+          >
+            Registrar settings
+          </Link>
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
       {/* Title and filters scroll away on a short screen so the column names
@@ -1767,52 +1792,30 @@ export default function Domains() {
                   }${manualList.length > 0 ? ` · ${manualList.length} manual` : ''}`}
             </p>
           </div>
-          <SyncSplitButton
-            registrarCount={portfolioRegistrars.length}
-            viewCount={nameCount(filtered)}
-            allCount={nameCount(shown)}
-            onImport={() => setImporting(true)}
-            onExportView={() => void exportCsv(filtered)}
-            onExportAll={() =>
-              void exportCsv(
-                [...shown].sort((a, b) =>
-                  toAscii(a.domainName).localeCompare(toAscii(b.domainName)),
-                ),
-              )
-            }
-          />
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <SyncSplitButton
+              registrarCount={portfolioRegistrars.length}
+              viewCount={nameCount(filtered)}
+              allCount={nameCount(shown)}
+              onImport={() => setImporting(true)}
+              onExportView={() => void exportCsv(filtered)}
+              onExportAll={() =>
+                void exportCsv(
+                  [...shown].sort((a, b) =>
+                    toAscii(a.domainName).localeCompare(toAscii(b.domainName)),
+                  ),
+                )
+              }
+            />
+            {syncErrors && (
+              <div className="hidden max-w-md sm:block">{syncErrors}</div>
+            )}
+          </div>
         </div>
 
-        {portfolioError && (
-          <Alert variant="destructive">
-            <TriangleAlert />
-            <AlertTitle>Couldn’t load your portfolio</AlertTitle>
-            <AlertDescription>{portfolioError}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Which accounts failed; the errors themselves are on their cards
-            in Settings → Registrars. */}
-        {portfolioErrors.length > 0 && (
-          <SyncErrorsAlert
-            label={`${multipleAccounts.size > 0 ? 'Account' : 'Registrar'}${portfolioErrors.length === 1 ? '' : 's'} failed to sync`}
-            names={portfolioErrors.map((e) =>
-              accountTitle(
-                registrarLabel(e.registrar, portfolioRegistrarLabels),
-                e.accountLabel,
-                multipleAccounts.has(e.registrar),
-              ),
-            )}
-            action={
-              <Link
-                to="/settings?tab=registrars"
-                className="font-medium whitespace-nowrap underline underline-offset-4"
-              >
-                Open registrar settings
-              </Link>
-            }
-          />
-        )}
+        {/* On phones, where the header column is narrow, the sync errors
+            get their own row. */}
+        {syncErrors && <div className="-mt-1.5 sm:hidden">{syncErrors}</div>}
 
         {/* The table always renders — even before a load or with no registrars
           configured — so its toolbar and structure stay put; the empty body row
