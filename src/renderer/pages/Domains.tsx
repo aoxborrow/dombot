@@ -1748,7 +1748,7 @@ export default function Domains() {
   // Sync failures, in red under the Sync button: the whole sync, or which
   // accounts failed (their errors are on their cards in Settings → Registrars).
   const syncErrors = (portfolioError || portfolioErrors.length > 0) && (
-    <div className="flex flex-col items-end gap-0.5 text-right text-sm text-destructive">
+    <div className="flex flex-col items-end gap-0.5 text-right text-xs text-destructive">
       {portfolioError && <p>Sync failed: {portfolioError}</p>}
       {portfolioErrors.length > 0 && (
         <p>
