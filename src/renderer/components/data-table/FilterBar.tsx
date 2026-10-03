@@ -236,9 +236,10 @@ function FilterChip({
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <span
         className={cn(
-          'relative inline-flex h-9 items-stretch overflow-hidden rounded-md border text-sm',
+          'group/chip relative inline-flex h-9 items-stretch overflow-hidden rounded-md border text-sm',
+          // An empty chip's dashes darken on hover (brighten in dark mode).
           empty
-            ? 'border-dashed border-[#d4d4d4] dark:border-muted-foreground/40'
+            ? 'border-dashed border-[#d4d4d4] transition-colors hover:border-[#a3a3a3] dark:border-muted-foreground/40 dark:hover:border-muted-foreground/70'
             : cn(
                 'border-[#b9d6c2] dark:border-[#4f9d6b]/40',
                 flat ? GREEN_TINT : 'bg-background dark:bg-input/30',
@@ -266,7 +267,7 @@ function FilterChip({
               className={cn(
                 'flex items-center gap-[7px] pl-2.5',
                 empty
-                  ? 'pr-1 text-muted-foreground'
+                  ? 'pr-1 text-muted-foreground transition-colors group-hover/chip:text-[#404040] dark:group-hover/chip:text-foreground'
                   : 'text-[#4a6b55] dark:text-[#8fc7a2]',
                 !empty &&
                   (flat
@@ -315,8 +316,8 @@ function FilterChip({
             className={cn(
               '-m-[3px] flex rounded-[4px] p-[3px] transition-colors',
               empty
-                ? 'group-hover/remove:bg-black/10 dark:group-hover/remove:bg-white/15'
-                : 'group-hover/remove:bg-[#4f9d6b]/22 dark:group-hover/remove:bg-[#4f9d6b]/40',
+                ? 'group-hover/remove:bg-black/6 dark:group-hover/remove:bg-white/15'
+                : 'group-hover/remove:bg-[#4f9d6b]/14 dark:group-hover/remove:bg-[#4f9d6b]/40',
             )}
           >
             <X className="size-3.5" />
