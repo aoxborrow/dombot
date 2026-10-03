@@ -100,6 +100,9 @@ function MenuSearch({
   onEnter?: () => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
+  // Focused quietly as the menu opens, so typing lands here without the
+  // field looking selected; its focus border shows once you type or click.
+  const [engaged, setEngaged] = useState(false);
   // The menu focuses itself as it opens; take focus once it has.
   useEffect(() => {
     const id = requestAnimationFrame(() => ref.current?.focus());
@@ -111,7 +114,11 @@ function MenuSearch({
       <input
         ref={ref}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          setEngaged(true);
+          onChange(e.target.value);
+        }}
+        onPointerDown={() => setEngaged(true)}
         onKeyDown={(e) => {
           stopMenuKeys(e);
           if (e.key === 'Enter' && onEnter) {
@@ -121,7 +128,10 @@ function MenuSearch({
         }}
         placeholder={placeholder}
         aria-label={placeholder.replace(/…$/, '')}
-        className="h-8 w-full rounded-[6px] border border-input bg-muted pr-2 pl-7 text-[13px] outline-none placeholder:text-muted-foreground focus:border-[#337544] dark:bg-background dark:focus:border-[#337544]"
+        className={cn(
+          'h-8 w-full rounded-[6px] border border-input bg-muted pr-2 pl-7 text-[13px] outline-none placeholder:text-muted-foreground dark:bg-background',
+          engaged && 'focus:border-[#337544] dark:focus:border-[#337544]',
+        )}
       />
     </div>
   );
