@@ -50,7 +50,7 @@ export interface CustomField extends FieldBase {
   /** The chip's value text; null while the field is unset. */
   summary: string | null;
   onClear: () => void;
-  /** The editor, shown above Remove filter in the chip's dropdown. */
+  /** The editor, shown in the chip's dropdown. */
   content: ReactNode;
 }
 
@@ -248,11 +248,6 @@ function FilterChip({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {field.kind === 'list' ? <ListMenu field={field} /> : field.content}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-muted-foreground" onSelect={onRemove}>
-          <X />
-          Remove filter
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
