@@ -260,7 +260,7 @@ function FilterChip({
             aria-label={`${field.label}: ${summary ?? 'any'}`}
             // The whole chip but the × opens the menu; the right padding
             // keeps the text clear of the × above it.
-            className="flex items-stretch pr-[19px] whitespace-nowrap outline-none"
+            className="flex items-stretch pr-7 whitespace-nowrap outline-none"
           >
             <span
               className={cn(
@@ -298,9 +298,10 @@ function FilterChip({
           title="Remove filter"
           onClick={onRemove}
           className={cn(
-            // A small hitbox up in the top-right corner (rounded to match it),
-            // over the trigger, so a click on the value doesn't land on it.
-            'absolute -top-px right-[-0.5px] flex size-5 items-center justify-center rounded-tr-md opacity-55 outline-none hover:opacity-100',
+            // Vertically centred where it always was, but the hitbox starts at
+            // the icon (no padding on its left), over the trigger, so a click
+            // just past the value doesn't land on it.
+            'absolute inset-y-0 right-0 flex items-center rounded-r-md pr-[9px] opacity-55 outline-none hover:opacity-100',
             // On a set chip, muted grey with a hint of the label green.
             empty
               ? 'text-muted-foreground'
