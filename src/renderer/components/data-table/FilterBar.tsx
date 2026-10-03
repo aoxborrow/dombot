@@ -14,7 +14,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -30,7 +29,8 @@ interface FieldBase {
   key: string;
   label: string;
   icon: Icon;
-  /** The Add filter menu's section, e.g. "Domain". Sections keep field order. */
+  /** The Add filter menu's section, e.g. "Domain"; sections are split by a
+   * line. Sections keep field order. */
   group: string;
 }
 
@@ -326,9 +326,6 @@ function AddFilter({
         {groups.map((group, i) => (
           <Fragment key={group}>
             {i > 0 && <DropdownMenuSeparator />}
-            <DropdownMenuLabel className="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-              {group}
-            </DropdownMenuLabel>
             {shown
               .filter((f) => f.group === group)
               .map((f) => {

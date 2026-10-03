@@ -1295,7 +1295,7 @@ export default function Domains() {
           {
             kind: 'custom' as const,
             key: 'price',
-            label: 'BIN price',
+            label: 'Pricing',
             icon: CashIcon,
             group: 'Sale',
             summary: rangeSummary(priceMin, priceMax, (n) =>
