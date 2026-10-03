@@ -427,16 +427,16 @@ function AddFilter({
 const removedPresets = new Map<string, Set<string>>();
 
 /**
- * The filter chips, then the add button. Presets always sit first, in their
- * slots; filters added from the menu follow in the order they were added.
+ * The filter chips, then the add button. The presets start the row; every
+ * filter added from the menu (a removed preset too) goes on the end.
  * Rendered inline (a fragment), so everything wraps with the toolbar around
  * it. With no chips at all the add button is "+ Add filter"; otherwise it's a
  * square "+" after the last chip.
  *
  * Picking a field adds its chip with the value list open; picking one already
- * showing opens it instead, and a removed preset returns to its slot. A chip
- * stays until its × removes it, dashed and empty while nothing is set, and
- * never moves as its value is set or cleared.
+ * showing opens it instead. A chip stays until its × removes it, dashed and
+ * empty while nothing is set, and never moves as its value is set or
+ * cleared.
  */
 export function FilterBar({
   id,
@@ -452,29 +452,23 @@ export function FilterBar({
   /** The chips' look; see FilterChipVariant. */
   variant?: FilterChipVariant;
 }) {
-  // Added (non-preset) chips, in the order they were added, set or not; a
-  // field set elsewhere (not through the menu) joins at the end.
-  const [order, setOrder] = useState<string[]>([]);
+  // Presets whose × was clicked this session.
   const [removed, setRemoved] = useState<Set<string>>(
     () => new Set(removedPresets.get(id)),
+  );
+  // Every chip, left to right: the presets not removed this session, then
+  // each field as it's added (a re-added preset included), set or not. A
+  // field set elsewhere (not through the menu) shows after them.
+  const [order, setOrder] = useState<string[]>(() =>
+    presets.filter((k) => !removed.has(k)),
   );
   // The chip whose dropdown is open.
   const [openKey, setOpenKey] = useState<string | null>(null);
   const byKey = new Map(fields.map((f) => [f.key, f]));
-  const isPreset = (key: string) => presets.includes(key);
-  // Presets in their slots (a removed one only if something set it since);
-  // then added chips.
-  const presetChips = presets
-    .map((k) => byKey.get(k))
-    .filter(
-      (f): f is FilterField =>
-        !!f && (!removed.has(f.key) || summaryOf(f) !== null),
-    );
-  const added = [
+  const chips = [
     ...order.map((k) => byKey.get(k)),
     ...fields.filter((f) => !order.includes(f.key) && summaryOf(f) !== null),
-  ].filter((f): f is FilterField => !!f && !isPreset(f.key));
-  const chips = [...presetChips, ...added];
+  ].filter((f): f is FilterField => !!f);
 
   function setRemovedPresets(next: Set<string>) {
     removedPresets.set(id, next);
@@ -482,15 +476,12 @@ export function FilterBar({
   }
 
   function pick(key: string) {
-    if (isPreset(key)) {
-      if (removed.has(key)) {
-        const next = new Set(removed);
-        next.delete(key);
-        setRemovedPresets(next);
-      }
-    } else if (!chips.some((f) => f.key === key)) {
-      // A new chip goes at the end; one already showing stays put.
-      setOrder((o) => [...o.filter((k) => k !== key), key]);
+    // A new chip goes at the end; one already showing stays put.
+    if (!order.includes(key)) setOrder((o) => [...o, key]);
+    if (removed.has(key)) {
+      const next = new Set(removed);
+      next.delete(key);
+      setRemovedPresets(next);
     }
     // After the Add filter menu has closed, so the two don't fight over focus.
     requestAnimationFrame(() => setOpenKey(key));
@@ -499,8 +490,9 @@ export function FilterBar({
   function remove(field: FilterField) {
     clearField(field);
     setOpenKey(null);
-    if (isPreset(field.key)) setRemovedPresets(new Set(removed).add(field.key));
-    else setOrder((o) => o.filter((k) => k !== field.key));
+    setOrder((o) => o.filter((k) => k !== field.key));
+    if (presets.includes(field.key))
+      setRemovedPresets(new Set(removed).add(field.key));
   }
 
   return (
