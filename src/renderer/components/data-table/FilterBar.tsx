@@ -1,5 +1,6 @@
 import {
   Fragment,
+  startTransition,
   useEffect,
   useRef,
   useState,
@@ -144,12 +145,17 @@ function ListMenu({ field }: { field: ListField }) {
   const options = q
     ? field.options.filter((o) => o.label.toLowerCase().includes(q))
     : field.options;
-  const toggle = (value: string) =>
-    field.onChange(
-      field.selected.includes(value)
-        ? field.selected.filter((v) => v !== value)
-        : [...field.selected, value],
-    );
+  // The boxes answer from local state at once; the page (filtering and the
+  // table) follows in a transition, so a click never waits on its render.
+  const [selected, setSelected] = useState(field.selected);
+  useEffect(() => setSelected(field.selected), [field.selected]);
+  const toggle = (value: string) => {
+    const next = selected.includes(value)
+      ? selected.filter((v) => v !== value)
+      : [...selected, value];
+    setSelected(next);
+    startTransition(() => field.onChange(next));
+  };
   return (
     <>
       {field.options.length > SEARCHABLE && (
@@ -173,7 +179,7 @@ function ListMenu({ field }: { field: ListField }) {
             <Fragment key={o.value}>
               {o.divider && i > 0 && <DropdownMenuSeparator />}
               <DropdownMenuCheckboxItem
-                checked={field.selected.includes(o.value)}
+                checked={selected.includes(o.value)}
                 // Keep the menu open so several can be picked in one go.
                 onSelect={(e) => e.preventDefault()}
                 onCheckedChange={() => toggle(o.value)}
