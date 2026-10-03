@@ -73,10 +73,9 @@ function clearField(field: FilterField) {
 /** Lists (and the Add filter menu) longer than this get a search box. */
 const SEARCHABLE = 8;
 
-// The filter green, from the design: the chip tint and the green value text
-// in the Add filter menu (with dark variants).
+// The filter green, from the design: the set chip's tint (with its dark
+// variant).
 const GREEN_TINT = 'bg-[#f1f8f3] dark:bg-[#4f9d6b]/13';
-const GREEN_TEXT = 'text-[#337544] dark:text-[#7cc495]';
 
 /**
  * Keeps typing in a menu's text field out of the menu's typeahead. Arrow keys
@@ -367,7 +366,8 @@ function AddFilter({
       <DropdownMenuContent
         align="start"
         sideOffset={10}
-        className="w-[260px]"
+        // As wide as the longest field name needs, no wider.
+        className="w-auto min-w-44"
         // A pick hands focus to the new chip's menu; don't pull it back here.
         onCloseAutoFocus={(e) => {
           if (picked.current) e.preventDefault();
@@ -395,21 +395,10 @@ function AddFilter({
         )}
         {shown.map((f) => {
           const Icon = f.icon;
-          const summary = summaryOf(f);
           return (
             <DropdownMenuItem key={f.key} onSelect={() => choose(f.key)}>
               <Icon />
               {f.label}
-              {summary && (
-                <span
-                  className={cn(
-                    'ml-auto max-w-32 truncate pl-3 text-xs font-medium',
-                    GREEN_TEXT,
-                  )}
-                >
-                  {summary}
-                </span>
-              )}
             </DropdownMenuItem>
           );
         })}
