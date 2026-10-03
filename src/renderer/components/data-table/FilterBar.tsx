@@ -242,7 +242,11 @@ function FilterChip({
           empty
             ? 'border-dashed border-[#d4d4d4] transition-colors has-[[data-chip-trigger]:hover]:border-[#a3a3a3] dark:border-muted-foreground/40 dark:has-[[data-chip-trigger]:hover]:border-muted-foreground/70'
             : cn(
-                'border-[#b9d6c2] dark:border-[#4f9d6b]/40',
+                'border-[#b9d6c2] transition-colors dark:border-[#4f9d6b]/40',
+                // A set chip's border deepens a step while its name/value is
+                // hovered (not while open: the open green wins).
+                !open &&
+                  'has-[[data-chip-trigger]:hover]:border-[#9cc5a8] dark:has-[[data-chip-trigger]:hover]:border-[#4f9d6b]/60',
                 flat ? GREEN_TINT : 'bg-background dark:bg-input/30',
               ),
           // Open (or keyboard-focused): a set chip's border turns filter
@@ -270,7 +274,7 @@ function FilterChip({
                 'flex items-center gap-[7px] pl-2.5',
                 empty
                   ? 'pr-1 text-muted-foreground transition-colors group-hover/trigger:text-[#404040] dark:group-hover/trigger:text-foreground'
-                  : 'text-[#4a6b55] dark:text-[#8fc7a2]',
+                  : 'text-[#4a6b55] transition-colors group-hover/trigger:text-[#3a5644] dark:text-[#8fc7a2] dark:group-hover/trigger:text-[#a8d5b7]',
                 !empty &&
                   (flat
                     ? 'pr-1'
