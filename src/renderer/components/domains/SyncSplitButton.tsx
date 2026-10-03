@@ -26,9 +26,9 @@ function Count({ n }: { n: number }) {
 /**
  * The Domains header's data actions: "Sync now" joined to a chevron that opens
  * the rest (registrar settings, import, CSV export). The sync half follows the
- * shared sync state: spinning mid-sync, a neutral "Synced" for the minute
- * after one, and neutral too when a bulk job or missing setup blocks it, where
- * a click explains instead of syncing. The chevron stays usable throughout.
+ * shared sync state: green when a sync can start, otherwise neutral — spinning
+ * mid-sync, "Synced" for the minute after one, and plain when a bulk job or
+ * missing setup blocks it, where a click explains instead of syncing. The chevron stays usable throughout.
  * On phones the sync half drops to its icon.
  */
 export function SyncSplitButton({
@@ -59,10 +59,10 @@ export function SyncSplitButton({
     lastSyncedAt,
     stale,
   } = useSyncState();
-  // Can't sync right now, and not because one is running: the button goes
-  // neutral rather than fading out, and a click says why instead of syncing.
+  // Can't sync right now, and not because one is running: a click says why
+  // instead of syncing. Either way the button goes neutral rather than fading.
   const blocked = disabled && !syncing;
-  const variant = blocked ? 'outline' : 'default';
+  const variant = disabled ? 'outline' : 'default';
 
   function onSync() {
     if (syncing) return;
@@ -93,7 +93,8 @@ export function SyncSplitButton({
           aria-label={syncing ? 'Syncing' : tooSoon ? 'Synced' : 'Sync now'}
           className={cn(
             'rounded-r-none max-sm:w-9 max-sm:px-0!',
-            syncing && 'cursor-default hover:bg-primary',
+            syncing &&
+              'cursor-default hover:bg-background dark:hover:bg-input/30',
           )}
         >
           {tooSoon && !syncing ? (
@@ -112,7 +113,7 @@ export function SyncSplitButton({
               aria-label="More data actions"
               className={cn(
                 'w-8 rounded-l-none px-0',
-                blocked ? '-ml-px' : 'border-l border-primary-foreground/25',
+                disabled ? '-ml-px' : 'border-l border-primary-foreground/25',
               )}
             >
               <ChevronDown />
