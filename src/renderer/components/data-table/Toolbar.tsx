@@ -220,6 +220,17 @@ export function rangeSummary(
 }
 
 /**
+ * The money fields in a filter chip's menu, compact like its search fields:
+ * 32px tall, 13px text, 6px corners, a narrow symbol box, the search fields'
+ * fill, and a dark green border (no ring) when focused.
+ */
+const COMPACT_MONEY = cn(
+  'h-8 w-24 rounded-[6px] bg-muted text-[13px] shadow-none dark:bg-background',
+  '[&_[data-slot=input-group-addon]]:min-w-7 [&_[data-slot=input-group-addon]]:px-2 [&_[data-slot=input-group-control]]:px-2 [&_[data-slot=input-group-control]]:text-[13px]',
+  'has-[[data-slot=input-group-control]:focus-visible]:border-[#337544] has-[[data-slot=input-group-control]:focus-visible]:ring-0',
+);
+
+/**
  * A whole-amount range editor for a filter chip's dropdown: min and max
  * inputs, either of which can be blank. From the old Afternic price filter.
  */
@@ -244,12 +255,12 @@ export function RangeInputs({
   // Min takes focus as the chip's menu opens (FilterChip hands it on).
   return (
     // Typing goes to the inputs, not the menu's typeahead.
-    <div className="flex flex-col gap-2 p-2" onKeyDown={stopMenuKeys}>
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-1.5 p-1.5" onKeyDown={stopMenuKeys}>
+      <div className="flex items-center gap-1.5">
         <MoneyInput
           whole
           currency={currency}
-          className="w-28"
+          className={COMPACT_MONEY}
           placeholder="Min"
           aria-label={`Minimum ${label}`}
           value={min}
@@ -259,7 +270,7 @@ export function RangeInputs({
         <MoneyInput
           whole
           currency={currency}
-          className="w-28"
+          className={COMPACT_MONEY}
           placeholder="Max"
           aria-label={`Maximum ${label}`}
           value={max}
