@@ -301,15 +301,26 @@ function FilterChip({
             // Vertically centred where it always was, but the hitbox starts at
             // the icon (no padding on its left), over the trigger, so a click
             // just past the value doesn't land on it.
-            'absolute inset-y-0 right-0 flex items-center rounded-r-md pr-[9px] opacity-55 outline-none hover:opacity-100',
-            // On a set chip, muted grey with a hint of the label green. In
-            // light mode hover also darkens it 30%.
+            'group/remove absolute inset-y-0 right-0 flex items-center rounded-r-md pr-[9px] opacity-55 outline-none hover:opacity-100',
+            // On a set chip, muted grey with a hint of the label green. Hover
+            // darkens it (brightens it in dark mode) and tints a small square
+            // behind it, so it's plain when the pointer is on it.
             empty
-              ? 'text-muted-foreground hover:text-[#515151] dark:hover:text-muted-foreground'
-              : 'text-[#658370] hover:text-[#475c4e] dark:text-[#9aafa1] dark:hover:text-[#9aafa1]',
+              ? 'text-muted-foreground hover:text-[#515151] dark:hover:text-foreground'
+              : 'text-[#658370] hover:text-[#475c4e] dark:text-[#9aafa1] dark:hover:text-[#d4e6da]',
           )}
         >
-          <X className="size-3.5" />
+          {/* The hover square; the negative margin keeps the icon in place. */}
+          <span
+            className={cn(
+              '-m-[3px] flex rounded-[4px] p-[3px] transition-colors',
+              empty
+                ? 'group-hover/remove:bg-black/10 dark:group-hover/remove:bg-white/15'
+                : 'group-hover/remove:bg-[#4f9d6b]/22 dark:group-hover/remove:bg-[#4f9d6b]/40',
+            )}
+          >
+            <X className="size-3.5" />
+          </span>
         </button>
       </span>
       <DropdownMenuContent
@@ -395,7 +406,7 @@ function AddFilter({
         // While it fades out, ignore the pointer: hovering a closing menu
         // focuses it, which pulls focus from the picked chip's menu and
         // closes that.
-        className="w-auto min-w-44 data-[state=closed]:pointer-events-none"
+        className="w-auto min-w-36 data-[state=closed]:pointer-events-none"
         // A pick hands focus to the new chip's menu; don't pull it back here.
         onCloseAutoFocus={(e) => {
           if (picked.current) e.preventDefault();
