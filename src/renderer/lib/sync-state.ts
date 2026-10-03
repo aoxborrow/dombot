@@ -1,4 +1,5 @@
 import { useEffect, useReducer } from 'react';
+import { toast } from 'sonner';
 import { useAppStore } from '../store/app';
 
 /** Minimum gap between manual syncs — the button is disabled during it so a fresh
@@ -19,6 +20,28 @@ function onCooldown(fetchedAt: number): boolean {
   return Date.now() - fetchedAt < SYNC_COOLDOWN_MS;
 }
 
+/** Syncs every enabled account, then sums up how it went in a toast: the
+ * count synced, how many failed (their errors are on their cards in Settings →
+ * Registrars), or why the whole sync failed. */
+async function syncAndReport() {
+  await useAppStore.getState().loadPortfolio();
+  const { portfolioError, portfolioErrors, portfolio, registrars } =
+    useAppStore.getState();
+  const count = (registrars ?? []).filter(
+    (r) => r.configured && r.enabled,
+  ).length;
+  const unit = `registrar${count === 1 ? '' : 's'}`;
+  if (portfolioError) toast.error(`Sync failed: ${portfolioError}`);
+  else if (portfolioErrors.length > 0)
+    toast.warning(
+      `${portfolioErrors.length} of ${count} failed to sync. The error is on ${portfolioErrors.length === 1 ? 'its card' : 'their cards'}.`,
+    );
+  else
+    toast.success(
+      `Synced ${count} ${unit}: ${portfolio.length.toLocaleString('en-US')} domains`,
+    );
+}
+
 /**
  * Shared sync state + action, so the status bar, Settings → Registrars, and the
  * phone menu item all agree. Includes a self-contained ticker that
@@ -31,7 +54,6 @@ export function useSyncState() {
   const portfolioError = useAppStore((s) => s.portfolioError);
   const portfolioErrors = useAppStore((s) => s.portfolioErrors);
   const registrars = useAppStore((s) => s.registrars);
-  const loadPortfolio = useAppStore((s) => s.loadPortfolio);
   // A sync mid-job would race the job's per-row cache patches for no benefit.
   const bulkRunning = useAppStore((s) => s.bulk?.status === 'running');
 
@@ -76,10 +98,20 @@ export function useSyncState() {
       : tooSoon
         ? 'Just synced. Try again in a minute.'
         : null;
+  // The same, in a couple of words for a menu row.
+  const shortReason = bulkRunning
+    ? 'Bulk action running'
+    : noneConfigured
+      ? 'No registrars'
+      : tooSoon
+        ? 'Just synced'
+        : null;
 
   return {
-    sync: () => void loadPortfolio(),
+    sync: () => void syncAndReport(),
     reason,
+    shortReason,
+    tooSoon,
     syncing: portfolioLoading,
     disabled: portfolioLoading || tooSoon || noneConfigured || bulkRunning,
     title,

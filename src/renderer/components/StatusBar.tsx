@@ -1,7 +1,7 @@
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CircleAlert, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
@@ -94,6 +94,8 @@ export default function StatusBar() {
  */
 function SyncStatus() {
   const navigate = useNavigate();
+  // Domains has its own Sync split button in the page header.
+  const onDomains = useLocation().pathname === '/';
   const registrars = useAppStore((s) => s.registrars);
   const state = useSyncState();
   const { sync, syncing, disabled, title, lastSyncedAt, stale } = state;
@@ -201,7 +203,7 @@ function SyncStatus() {
           {timeAgo(lastSyncedAt)}
         </span>
       )}
-      {enabled.length > 0 && (
+      {enabled.length > 0 && !onDomains && (
         <button
           type="button"
           onClick={sync}

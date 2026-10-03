@@ -1,6 +1,6 @@
 import { ViewSwitch } from '../data-table/Toolbar';
 
-/** Owned vs Archive (names you no longer own). */
+/** Owned vs Archive (names you no longer own), leading the filter toolbar. */
 export function OwnershipSwitch({
   archive,
   ownedCount,
@@ -17,6 +17,7 @@ export function OwnershipSwitch({
   return (
     <ViewSwitch
       label="Owned domains or former domains"
+      className=""
       options={[
         {
           id: 'owned',
