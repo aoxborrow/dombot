@@ -72,7 +72,7 @@ function clearField(field: FilterField) {
   else field.onChange([]);
 }
 
-/** Lists longer than this get a search box. */
+/** Lists (and the Add filter menu) longer than this get a search box. */
 const SEARCHABLE = 8;
 
 // The filter green, from the design: border, tint, and text (with dark
@@ -125,7 +125,7 @@ function MenuSearch({
         }}
         placeholder={placeholder}
         aria-label={placeholder.replace(/…$/, '')}
-        className="h-8 w-full rounded-md border border-input bg-transparent pr-2 pl-7 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-input/30"
+        className="h-8 w-full rounded-md border border-input bg-muted pr-2 pl-7 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-background"
       />
     </div>
   );
@@ -304,17 +304,20 @@ function AddFilter({
           picked.current = false;
         }}
       >
-        <MenuSearch
-          value={query}
-          onChange={setQuery}
-          placeholder="Find a filter…"
-          onEnter={() => {
-            if (shown.length === 0) return;
-            choose(shown[0].key);
-            setOpen(false);
-            setQuery('');
-          }}
-        />
+        {/* Only once there are enough fields to need it. */}
+        {fields.length > SEARCHABLE && (
+          <MenuSearch
+            value={query}
+            onChange={setQuery}
+            placeholder="Find a filter…"
+            onEnter={() => {
+              if (shown.length === 0) return;
+              choose(shown[0].key);
+              setOpen(false);
+              setQuery('');
+            }}
+          />
+        )}
         {shown.length === 0 && (
           <div className="px-2 py-1.5 text-sm text-muted-foreground">
             No matches
