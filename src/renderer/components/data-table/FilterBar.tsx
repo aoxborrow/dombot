@@ -14,7 +14,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -351,16 +350,24 @@ function FilterChip({
 
 /**
  * The menu of fields, opened from "+ Add filter" (no chips showing) or the
- * square "+" after the last chip. Both stay grey in every state.
+ * square "+" after the last chip. Both stay grey in every state. A checkbox
+ * marks each field already showing as a chip: ticking one adds its chip and
+ * opens it, unticking one removes its chip (as its × would) and leaves the
+ * menu open.
  */
 function AddFilter({
   fields,
+  showing,
   onPick,
+  onRemove,
   compact,
 }: {
   fields: FilterField[];
+  /** Keys of the fields showing as chips. */
+  showing: Set<string>;
   /** A field was picked: add its chip and open it. */
   onPick: (key: string) => void;
+  onRemove: (key: string) => void;
   /** The square "+" icon button, for after the chips. */
   compact: boolean;
 }) {
@@ -439,7 +446,9 @@ function AddFilter({
             placeholder="Find a filter…"
             onEnter={() => {
               if (shown.length === 0) return;
-              choose(shown[0].key);
+              const key = shown[0].key;
+              if (showing.has(key)) return onRemove(key);
+              choose(key);
               setOpen(false);
               setQuery('');
             }}
@@ -453,10 +462,19 @@ function AddFilter({
         {shown.map((f) => {
           const Icon = f.icon;
           return (
-            <DropdownMenuItem key={f.key} onSelect={() => choose(f.key)}>
+            <DropdownMenuCheckboxItem
+              key={f.key}
+              checked={showing.has(f.key)}
+              onSelect={(e) => {
+                if (!showing.has(f.key)) return choose(f.key);
+                // Stay open, so several can go in one visit.
+                e.preventDefault();
+                onRemove(f.key);
+              }}
+            >
               <Icon />
               {f.label}
-            </DropdownMenuItem>
+            </DropdownMenuCheckboxItem>
           );
         })}
       </DropdownMenuContent>
@@ -552,7 +570,16 @@ export function FilterBar({
       ))}
       {/* Always last, so it stays mounted as chips come and go (with none,
           last is right after the search). */}
-      <AddFilter fields={fields} onPick={pick} compact={chips.length > 0} />
+      <AddFilter
+        fields={fields}
+        showing={new Set(chips.map((f) => f.key))}
+        onPick={pick}
+        onRemove={(key) => {
+          const field = byKey.get(key);
+          if (field) remove(field);
+        }}
+        compact={chips.length > 0}
+      />
     </>
   );
 }
