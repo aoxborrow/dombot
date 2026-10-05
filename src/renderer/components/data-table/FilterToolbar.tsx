@@ -58,13 +58,8 @@ export function ToolbarSwitch({
     <ViewSwitch
       label={label}
       // Tighter round the smaller icon (a pixel off each side), and squarer
-      // corners where the segments meet; the outer ones stay round. The
-      // chosen segment is solid brand green, like Sync now, with white text
-      // that stays white on hover and a dimmer white count.
-      className={cn(
-        '[&_[role=radio]]:gap-[7px] [&_[role=radio]]:pl-[11px] [&_[role=radio]:not(:first-child)]:rounded-l-[2px] [&_[role=radio]:not(:last-child)]:rounded-r-[2px]',
-        '[&_[aria-checked=true]]:bg-primary! [&_[aria-checked=true]]:text-primary-foreground! [&_[aria-checked=true]_.tabular-nums]:text-primary-foreground/75!',
-      )}
+      // corners where the segments meet; the outer ones stay round.
+      className="[&_[role=radio]]:gap-[7px] [&_[role=radio]]:pl-[11px] [&_[role=radio]:not(:first-child)]:rounded-l-[2px] [&_[role=radio]:not(:last-child)]:rounded-r-[2px]"
       options={options.map((o) => ({
         ...o,
         label: <SmallCaps>{o.label}</SmallCaps>,

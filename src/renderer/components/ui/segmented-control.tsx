@@ -14,10 +14,10 @@ export interface SegmentedOption<T extends string> {
 
 /**
  * A one-of-N switch styled like the app's inputs (the select's border,
- * background, and shadow), with the chosen segment washed lighter. `sm`
- * matches the small select (h-8), `default` the regular inputs (h-9). Used
- * for the page views (Active | Archive, Needs review | All), table density,
- * and the Settings appearance picker.
+ * background, and shadow), with the chosen segment solid brand green, like
+ * the primary buttons. `sm` matches the small select (h-8), `default` the
+ * regular inputs (h-9). Used for the page views (Active | Archive, All |
+ * Needs review), table density, and the Settings appearance picker.
  */
 export function SegmentedControl<T extends string>({
   value,
@@ -59,11 +59,12 @@ export function SegmentedControl<T extends string>({
             className={cn(
               'inline-flex h-full items-center justify-center gap-2 rounded-[5px] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
               label == null ? 'w-7' : 'px-3',
-              // Translucent washes rather than a fixed grey, so the chosen
-              // segment stands out the same on the page, a card, or the
-              // footer.
+              // The chosen one solid green with white text, white on hover
+              // too. The others take a translucent wash on hover rather than
+              // a fixed grey, so it looks the same on the page, a card, or
+              // the footer.
               active
-                ? 'bg-foreground/10 text-foreground dark:bg-foreground/15'
+                ? 'bg-primary text-primary-foreground hover:text-primary-foreground'
                 : 'hover:bg-foreground/5 dark:hover:bg-foreground/[0.07]',
             )}
           >
@@ -79,7 +80,7 @@ export function SegmentedControl<T extends string>({
                   className={cn(
                     'text-[11px] font-normal tabular-nums',
                     active
-                      ? 'text-muted-foreground'
+                      ? 'text-primary-foreground/75'
                       : 'text-muted-foreground/60',
                   )}
                 >

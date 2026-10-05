@@ -690,17 +690,10 @@ export default function Activity() {
         <FilterToolbar
           id="activity"
           switch={
+            // The default view first, as on Domains.
             <ToolbarSwitch
               label="Which activity to show"
               options={[
-                {
-                  id: 'review',
-                  label: 'Needs review',
-                  icon: Bell,
-                  count: reviewCount,
-                  active: reviewOnly,
-                  onClick: () => setView(true),
-                },
                 {
                   id: 'all',
                   label: 'All',
@@ -708,6 +701,14 @@ export default function Activity() {
                   count: allRows.length,
                   active: !reviewOnly,
                   onClick: () => setView(false),
+                },
+                {
+                  id: 'review',
+                  label: 'Needs review',
+                  icon: Bell,
+                  count: reviewCount,
+                  active: reviewOnly,
+                  onClick: () => setView(true),
                 },
               ]}
             />
