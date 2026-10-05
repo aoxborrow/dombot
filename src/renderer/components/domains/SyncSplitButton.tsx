@@ -135,7 +135,7 @@ export function SyncSplitButton({
                 'w-8 rounded-l-none px-0 transition-none',
                 disabled
                   ? '-ml-px'
-                  : 'border-l border-brand-400 dark:border-brand-500',
+                  : 'border-l border-brand-400 dark:border-brand-700',
               )}
             >
               <ChevronDown />
