@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
   ArrowRight,
+  Bell,
   Building2,
   Calculator,
   CalendarClock,
@@ -15,8 +16,8 @@ import {
   Inbox,
   OctagonMinus,
   Receipt,
-  SlidersHorizontal,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -45,13 +46,12 @@ import {
 } from '../components/actions/OwnershipDialogs';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { sortRows, type SortValue } from '../components/data-table/table-state';
+import { type FilterField } from '../components/data-table/FilterBar';
 import {
-  MultiSelectFilter,
-  ResetButton,
-  SearchField,
-  ViewSwitch,
-  FILTERING_BORDER,
-} from '../components/data-table/Toolbar';
+  FilterToolbar,
+  ToolbarSwitch,
+  listField,
+} from '../components/data-table/FilterToolbar';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import { accountName } from '../lib/domain-history';
@@ -64,13 +64,11 @@ import {
   eventDay,
   eventDetails,
   resolutions,
-  trackingSince,
   withinDays,
 } from '../lib/activity';
 import { usePreferences } from '../lib/preferences';
 import { useAppStore } from '../store/app';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -161,7 +159,6 @@ export default function Activity() {
   const [sources, setSources] = useState<string[]>([]);
   const [priorities, setPriorities] = useState<string[]>([]);
   const [days, setDays] = useState<string[]>([]);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortKey, setSortKey] = useState('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(0);
@@ -215,7 +212,6 @@ export default function Activity() {
       .map((e): ActivityRow => ({ event: e, shown: answerOf(e) ?? e }));
   }, [events, closedBy]);
   const reviewCount = useMemo(() => notifications(events, []).length, [events]);
-  const since = trackingSince(registrars);
 
   // Filter options, with counts over every event.
   const typeOptions = useMemo(() => {
@@ -294,25 +290,24 @@ export default function Activity() {
     [allRows, openedAt],
   );
 
-  const activeGroups =
-    (types.length > 0 ? 1 : 0) +
-    (accounts.length > 0 ? 1 : 0) +
-    (sources.length > 0 ? 1 : 0) +
-    (priorities.length > 0 ? 1 : 0) +
-    (days.length > 0 ? 1 : 0);
   const hasActiveFilters =
-    search.trim() !== '' || activeGroups > 0 || importId !== null;
+    search.trim() !== '' ||
+    importId !== null ||
+    [types, accounts, sources, priorities, days].some((f) => f.length > 0);
 
-  function resetFilters() {
+  // When the import being shown was recorded.
+  const importedAt = useMemo(() => {
+    if (!importId) return null;
+    const times = events
+      .filter((e) => e.importId === importId)
+      .map((e) => e.createdAt);
+    return times.length ? Math.min(...times) : null;
+  }, [events, importId]);
+
+  function clearImport() {
     const next = new URLSearchParams(params);
-    next.delete('q');
     next.delete('import');
     setParams(next, { replace: true });
-    setTypes([]);
-    setAccounts([]);
-    setSources([]);
-    setPriorities([]);
-    setDays([]);
     setPage(0);
   }
 
@@ -588,139 +583,143 @@ export default function Activity() {
     },
   ];
 
-  const filterChips = (
-    <>
-      <MultiSelectFilter
-        label="Registrar"
-        icon={Building2}
-        options={accountOptions}
-        selected={accounts}
-        onChange={(next) => {
-          setAccounts(next);
-          setPage(0);
-        }}
-      />
-      <MultiSelectFilter
-        label="Priority"
-        icon={Flame}
-        options={priorityOptions}
-        selected={priorities}
-        onChange={(next) => {
-          setPriorities(next);
-          setPage(0);
-        }}
-      />
-      <MultiSelectFilter
-        label="Type"
-        icon={History}
-        options={typeOptions}
-        selected={types}
-        onChange={(next) => {
-          setTypes(next);
-          setPage(0);
-        }}
-      />
-      <MultiSelectFilter
-        label="Source"
-        icon={Inbox}
-        options={sourceOptions}
-        selected={sources}
-        onChange={(next) => {
-          setSources(next);
-          setPage(0);
-        }}
-      />
-      <MultiSelectFilter
-        label="Date"
-        icon={CalendarClock}
-        options={dateOptions}
-        selected={days}
-        onChange={(next) => {
-          setDays(next);
-          setPage(0);
-        }}
-      />
-    </>
-  );
+  // The filter bar's fields, in the Add filter menu's order.
+  const listFilter = (
+    field: Parameters<typeof listField>[0],
+    set: (next: string[]) => void,
+  ) =>
+    listField(field, (next) => {
+      set(next);
+      setPage(0);
+    });
+  const filterFields: FilterField[] = [
+    listFilter(
+      {
+        key: 'type',
+        label: 'Type',
+        icon: History,
+        options: typeOptions,
+        selected: types,
+        plural: 'types',
+      },
+      setTypes,
+    ),
+    listFilter(
+      {
+        key: 'account',
+        label: 'Registrar',
+        icon: Building2,
+        options: accountOptions,
+        selected: accounts,
+        plural: 'registrars',
+      },
+      setAccounts,
+    ),
+    listFilter(
+      {
+        key: 'date',
+        label: 'Date',
+        icon: CalendarClock,
+        options: dateOptions,
+        selected: days,
+        plural: 'ranges',
+      },
+      setDays,
+    ),
+    listFilter(
+      {
+        key: 'priority',
+        label: 'Priority',
+        icon: Flame,
+        options: priorityOptions,
+        selected: priorities,
+        plural: 'priorities',
+      },
+      setPriorities,
+    ),
+    listFilter(
+      {
+        key: 'source',
+        label: 'Source',
+        icon: Inbox,
+        options: sourceOptions,
+        selected: sources,
+        plural: 'sources',
+      },
+      setSources,
+    ),
+    // One import's rows, from the import's result: a chip while it's set,
+    // whose × shows everything again.
+    ...(importId
+      ? [
+          {
+            kind: 'custom' as const,
+            key: 'import',
+            label: 'Import',
+            icon: Upload,
+            summary: importedAt
+              ? new Date(importedAt).toLocaleString(undefined, {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })
+              : 'One import',
+            onClear: clearImport,
+            content: (
+              <p className="max-w-56 px-2 py-1.5 text-sm text-muted-foreground">
+                What one import recorded. Remove this filter to see everything.
+              </p>
+            ),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
       {/* -m-1 p-1 leaves room for focus rings, which the scroll box would clip. */}
       <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-          <div>
-            <h1 className="text-2xl font-bold leading-none sm:text-[32px]">
-              Activity
-            </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              {importId
-                ? 'What one import recorded. Reset shows everything.'
-                : since
-                  ? `Tracking changes since ${new Date(since).toLocaleDateString(undefined, { dateStyle: 'medium' })}`
-                  : 'Changes are tracked from each account’s first sync'}
-            </p>
-          </div>
-          <ViewSwitch
-            label="Which activity to show"
-            options={[
-              {
-                id: 'review',
-                label: 'Needs review',
-                count: reviewCount,
-                active: reviewOnly,
-                onClick: () => setView(true),
-              },
-              {
-                id: 'all',
-                label: 'All',
-                count: allRows.length,
-                active: !reviewOnly,
-                onClick: () => setView(false),
-              },
-            ]}
-          />
+        {/* As tall as Domains' title row (its Sync button), so the toolbar
+            lands in the same place on both pages. */}
+        <div className="min-h-9">
+          <h1 className="mt-1.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
+            Activity
+          </h1>
         </div>
 
-        <div className="mt-1 flex flex-wrap items-center gap-3 sm:mt-3">
-          <SearchField
-            value={search}
-            onChange={(value) => {
-              setSearch(value);
-              setPage(0);
-            }}
-            placeholder="Search domains…"
-          />
-          {/* Phones: the filters collapse behind a toggle. */}
-          <Button
-            variant="outline"
-            onClick={() => setFiltersOpen((o) => !o)}
-            aria-expanded={filtersOpen}
-            // Green, like Reset, while it's open or a filter is set.
-            className={cn(
-              'gap-2 sm:hidden',
-              (filtersOpen || activeGroups > 0) && FILTERING_BORDER,
-            )}
-          >
-            <SlidersHorizontal className="size-4 text-muted-foreground" />
-            Filters
-            {activeGroups > 0 && (
-              <Badge className="bg-primary px-1.5 py-0 text-xs tabular-nums text-primary-foreground">
-                {activeGroups}
-              </Badge>
-            )}
-            <ChevronDown
-              className={cn(
-                'size-4 text-muted-foreground transition-transform',
-                filtersOpen && 'rotate-180',
-              )}
+        <FilterToolbar
+          id="activity"
+          switch={
+            <ToolbarSwitch
+              label="Which activity to show"
+              options={[
+                {
+                  id: 'review',
+                  label: 'Needs review',
+                  icon: Bell,
+                  count: reviewCount,
+                  active: reviewOnly,
+                  onClick: () => setView(true),
+                },
+                {
+                  id: 'all',
+                  label: 'All',
+                  icon: History,
+                  count: allRows.length,
+                  active: !reviewOnly,
+                  onClick: () => setView(false),
+                },
+              ]}
             />
-          </Button>
-          {/* Inline after the Filters toggle, as on Domains. */}
-          <div className={filtersOpen ? 'contents' : 'hidden sm:contents'}>
-            {filterChips}
-          </div>
-          <ResetButton active={hasActiveFilters} onReset={resetFilters} />
-        </div>
+          }
+          search={search}
+          onSearch={(value) => {
+            setSearch(value);
+            setPage(0);
+          }}
+          searchPlaceholder="Search domains…"
+          fields={filterFields}
+          presets={['type', 'account', 'date']}
+        />
 
         {selected.size > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand/70 bg-brand/10 py-1.5 pl-2.5 pr-[7px]">

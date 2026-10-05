@@ -98,14 +98,14 @@ import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { paginate, sortRows } from '../components/data-table/table-state';
 import {
   RangeInputs,
-  SearchField,
   rangeSummary,
   type FilterOption,
 } from '../components/data-table/Toolbar';
+import { type FilterField } from '../components/data-table/FilterBar';
 import {
-  FilterBar,
-  type FilterField,
-} from '../components/data-table/FilterBar';
+  FilterToolbar,
+  listField,
+} from '../components/data-table/FilterToolbar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1253,16 +1253,13 @@ export default function Domains() {
   // chip.
   const currency = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
   const listFilter = (
-    field: Omit<Extract<FilterField, { kind: 'list' }>, 'kind' | 'onChange'>,
+    field: Parameters<typeof listField>[0],
     set: (next: string[]) => void,
-  ): FilterField => ({
-    ...field,
-    kind: 'list',
-    onChange: (next) => {
+  ) =>
+    listField(field, (next) => {
       set(next);
       setPage(0);
-    },
-  });
+    });
   const filterFields: FilterField[] = [
     listFilter(
       {
@@ -1816,33 +1813,28 @@ export default function Domains() {
         {/* Toolbar: search and filters flow inline and wrap together as equal
               items. Extra top margin separates it from the title/refresh row
               above. */}
-        <div className="mt-1 flex flex-wrap items-center gap-3.5 sm:mt-3">
-          {/* Active/Archive leads the toolbar; its counts stand in for a
-              subtitle under the title. */}
-          <OwnershipSwitch
-            archive={archiveView}
-            ownedCount={ownedCount}
-            archiveCount={archiveCount}
-            onOwned={() => setListView('owned')}
-            onArchive={() => setListView('archive')}
-          />
-          <SearchField
-            value={search}
-            onChange={(value) => {
-              setSearch(value);
-              setPage(0);
-            }}
-            placeholder="Search domains…"
-            className="flex-[0_1_216px]"
-          />
-
-          <FilterBar
-            id="domains"
-            fields={filterFields}
-            presets={['registrar', 'tld', 'folder']}
-            variant="flat"
-          />
-
+        <FilterToolbar
+          id="domains"
+          // Active/Archive leads the toolbar; its counts stand in for a
+          // subtitle under the title.
+          switch={
+            <OwnershipSwitch
+              archive={archiveView}
+              ownedCount={ownedCount}
+              archiveCount={archiveCount}
+              onOwned={() => setListView('owned')}
+              onArchive={() => setListView('archive')}
+            />
+          }
+          search={search}
+          onSearch={(value) => {
+            setSearch(value);
+            setPage(0);
+          }}
+          searchPlaceholder="Search domains…"
+          fields={filterFields}
+          presets={['registrar', 'tld', 'folder']}
+        >
           {exportNote && (
             <span
               className={cn(
@@ -1855,7 +1847,7 @@ export default function Domains() {
               {exportNote.text}
             </span>
           )}
-        </div>
+        </FilterToolbar>
 
         {/* Bulk action bar — contextual: appears once any row is selected, or
             while a bulk job is running (as a progress pill). */}

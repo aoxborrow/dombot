@@ -1,22 +1,5 @@
-import type { ReactNode } from 'react';
-import { Archive, Globe, type LucideIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { ViewSwitch } from '../data-table/Toolbar';
-
-/** Small caps, like the table's column names, so the two read as labels. */
-function SmallCaps({ children }: { children: ReactNode }) {
-  return (
-    <span className="text-[11px] tracking-wider uppercase">{children}</span>
-  );
-}
-
-/** The icon a size under the switch's default, to suit the small caps. */
-const small = (Icon: LucideIcon) =>
-  function SmallIcon({ className }: { className?: string }) {
-    return <Icon className={cn(className, 'size-3.5')} />;
-  };
-const ActiveIcon = small(Globe);
-const ArchiveIcon = small(Archive);
+import { Archive, Globe } from 'lucide-react';
+import { ToolbarSwitch } from '../data-table/FilterToolbar';
 
 /** Active vs Archive (names you no longer own), leading the filter toolbar. */
 export function OwnershipSwitch({
@@ -33,24 +16,21 @@ export function OwnershipSwitch({
   onArchive: () => void;
 }) {
   return (
-    <ViewSwitch
+    <ToolbarSwitch
       label="Active domains or archived domains"
-      // Tighter round the smaller icon (a pixel off each side), and squarer
-      // corners where the two segments meet; the outer ones stay round.
-      className="[&_[role=radio]]:gap-[7px] [&_[role=radio]]:pl-[11px] [&_[role=radio]:first-child]:rounded-r-[2px] [&_[role=radio]:last-child]:rounded-l-[2px]"
       options={[
         {
           id: 'owned',
-          label: <SmallCaps>Active</SmallCaps>,
-          icon: ActiveIcon,
+          label: 'Active',
+          icon: Globe,
           count: ownedCount,
           active: !archive,
           onClick: onOwned,
         },
         {
           id: 'archive',
-          label: <SmallCaps>Archive</SmallCaps>,
-          icon: ArchiveIcon,
+          label: 'Archive',
+          icon: Archive,
           count: archiveCount,
           active: archive,
           onClick: onArchive,

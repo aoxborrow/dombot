@@ -31,16 +31,6 @@ export function syncProblems(
     }));
 }
 
-/** The earliest account's `trackedSince`, for "Tracking changes since …". */
-export function trackingSince(
-  registrars: RegistrarMeta[] | null,
-): number | null {
-  const times = (registrars ?? [])
-    .map((r) => r.sync.trackedSince)
-    .filter((t): t is number => typeof t === 'number');
-  return times.length ? Math.min(...times) : null;
-}
-
 /** The event that resolved each alert, by the alert's id. */
 export function resolutions(events: DomainEvent[]): Map<string, DomainEvent> {
   const out = new Map<string, DomainEvent>();
