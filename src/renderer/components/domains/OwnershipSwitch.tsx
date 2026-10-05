@@ -1,11 +1,22 @@
 import type { ReactNode } from 'react';
-import { Archive, Globe } from 'lucide-react';
+import { Archive, Globe, type LucideIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { ViewSwitch } from '../data-table/Toolbar';
 
 /** Small caps, like the table's column names, so the two read as labels. */
 function SmallCaps({ children }: { children: ReactNode }) {
-  return <span className="text-xs tracking-wider uppercase">{children}</span>;
+  return (
+    <span className="text-[11px] tracking-wider uppercase">{children}</span>
+  );
 }
+
+/** The icon a size under the switch's default, to suit the small caps. */
+const small = (Icon: LucideIcon) =>
+  function SmallIcon({ className }: { className?: string }) {
+    return <Icon className={cn(className, 'size-3.5')} />;
+  };
+const ActiveIcon = small(Globe);
+const ArchiveIcon = small(Archive);
 
 /** Active vs Archive (names you no longer own), leading the filter toolbar. */
 export function OwnershipSwitch({
@@ -29,7 +40,7 @@ export function OwnershipSwitch({
         {
           id: 'owned',
           label: <SmallCaps>Active</SmallCaps>,
-          icon: Globe,
+          icon: ActiveIcon,
           count: ownedCount,
           active: !archive,
           onClick: onOwned,
@@ -37,7 +48,7 @@ export function OwnershipSwitch({
         {
           id: 'archive',
           label: <SmallCaps>Archive</SmallCaps>,
-          icon: Archive,
+          icon: ArchiveIcon,
           count: archiveCount,
           active: archive,
           onClick: onArchive,
