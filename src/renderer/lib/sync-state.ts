@@ -1,6 +1,7 @@
 import { useEffect, useReducer } from 'react';
 import { toast } from 'sonner';
 import { useAppStore } from '../store/app';
+import { isDemo } from './platform';
 
 /** Minimum gap between manual syncs — the button is disabled during it so a fresh
  * pull can't be hammered (every sync re-queries every registrar). */
@@ -51,6 +52,7 @@ async function syncAndReport() {
 export function useSyncState() {
   const portfolioLoading = useAppStore((s) => s.portfolioLoading);
   const portfolioLoadedAt = useAppStore((s) => s.portfolioLoadedAt);
+  const portfolioSource = useAppStore((s) => s.portfolioSource);
   const portfolioError = useAppStore((s) => s.portfolioError);
   const portfolioErrors = useAppStore((s) => s.portfolioErrors);
   const registrars = useAppStore((s) => s.registrars);
@@ -60,7 +62,12 @@ export function useSyncState() {
   const noneConfigured =
     registrars !== null && registrars.every((r) => !r.configured);
   const stale = portfolioLoadedAt !== null && isStale(portfolioLoadedAt);
-  const tooSoon = portfolioLoadedAt !== null && onCooldown(portfolioLoadedAt);
+  // The demo syncs as it boots (and Reset demo reloads), so the first visit
+  // would open on a cooldown nobody caused. Its boot result is read from the
+  // cache: let that one sync again straight away.
+  const bootSync = isDemo() && portfolioSource === 'cache';
+  const tooSoon =
+    portfolioLoadedAt !== null && onCooldown(portfolioLoadedAt) && !bootSync;
 
   const [, tick] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
