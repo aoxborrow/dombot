@@ -35,7 +35,9 @@ export function OwnershipSwitch({
   return (
     <ViewSwitch
       label="Active domains or archived domains"
-      className=""
+      // Tighter round the smaller icon (a pixel off each side) and squarer
+      // segments than the switch's default.
+      className="[&_[role=radio]]:gap-[7px] [&_[role=radio]]:rounded-[3px] [&_[role=radio]]:pl-[11px]"
       options={[
         {
           id: 'owned',
