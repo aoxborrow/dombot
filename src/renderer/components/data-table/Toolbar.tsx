@@ -35,8 +35,10 @@ export function SearchField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        // Room on the right for the clear button below.
-        className="pr-8 pl-8"
+        // Room on the right for the clear button below. The placeholder a
+        // step quieter than the muted grey: lighter on white, darker on
+        // black.
+        className="pr-8 pl-8 placeholder:text-[#8f8f8f] dark:placeholder:text-[#858585]"
       />
       {/* Custom clear control in place of the native search-cancel button (a
           blue ⓧ on macOS): a muted solid disc with the ✕ cut out in the
