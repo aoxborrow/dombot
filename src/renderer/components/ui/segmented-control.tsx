@@ -6,7 +6,7 @@ export interface SegmentedOption<T extends string> {
   /** Visible text. Omit for an icon-only segment (then give `title`). */
   label?: ReactNode;
   icon?: ComponentType<{ className?: string }>;
-  /** A count after the label (Owned 523). */
+  /** A count after the label (Active 523). */
   count?: number;
   /** Tooltip and accessible name; required for icon-only segments. */
   title?: string;
@@ -16,7 +16,7 @@ export interface SegmentedOption<T extends string> {
  * A one-of-N switch styled like the app's inputs (the select's border,
  * background, and shadow), with the chosen segment washed lighter. `sm`
  * matches the small select (h-8), `default` the regular inputs (h-9). Used
- * for the page views (Owned | Archive, Needs review | All), table density,
+ * for the page views (Active | Archive, Needs review | All), table density,
  * and the Settings appearance picker.
  */
 export function SegmentedControl<T extends string>({
@@ -70,10 +70,11 @@ export function SegmentedControl<T extends string>({
             {Icon && <Icon className="size-4" />}
             {label}
             {count != null && (
+              // Quieter than the label: smaller, regular weight, dimmed.
               <span
                 className={cn(
-                  'tabular-nums',
-                  active ? 'text-foreground' : 'text-muted-foreground',
+                  '-ml-0.5 text-[11px] font-normal tabular-nums',
+                  active ? 'text-muted-foreground' : 'text-muted-foreground/60',
                 )}
               >
                 {count}

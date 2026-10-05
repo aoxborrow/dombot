@@ -1780,18 +1780,10 @@ export default function Domains() {
           pair leaves room for focus rings, which the scroll box would clip. */}
       <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
         <div className="flex items-start justify-between gap-x-6">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold leading-none sm:text-[32px]">
-              Domains
-            </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              {archiveView
-                ? `${archiveCount} domain${archiveCount === 1 ? '' : 's'} you no longer own`
-                : `${portfolio.length + manualList.length} domain${portfolio.length + manualList.length === 1 ? '' : 's'} across ${portfolioRegistrars.length} registrar${
-                    portfolioRegistrars.length === 1 ? '' : 's'
-                  }${manualList.length > 0 ? ` · ${manualList.length} manual` : ''}`}
-            </p>
-          </div>
+          {/* Centred on the 36px Sync button beside it. */}
+          <h1 className="mt-1.5 min-w-0 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
+            Domains
+          </h1>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
             <SyncSplitButton
               registrarCount={portfolioRegistrars.length}
@@ -1825,18 +1817,15 @@ export default function Domains() {
               items. Extra top margin separates it from the title/refresh row
               above. */}
         <div className="mt-1 flex flex-wrap items-center gap-3.5 sm:mt-3">
-          {/* Owned/Archive leads the toolbar, set off by a thin rule (dropped
-              on phones, where the search wraps under it). */}
-          <div className="flex items-center gap-3.5">
-            <OwnershipSwitch
-              archive={archiveView}
-              ownedCount={ownedCount}
-              archiveCount={archiveCount}
-              onOwned={() => setListView('owned')}
-              onArchive={() => setListView('archive')}
-            />
-            <div aria-hidden className="h-6 w-px bg-border max-sm:hidden" />
-          </div>
+          {/* Active/Archive leads the toolbar; its counts stand in for a
+              subtitle under the title. */}
+          <OwnershipSwitch
+            archive={archiveView}
+            ownedCount={ownedCount}
+            archiveCount={archiveCount}
+            onOwned={() => setListView('owned')}
+            onArchive={() => setListView('archive')}
+          />
           <SearchField
             value={search}
             onChange={(value) => {
