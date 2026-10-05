@@ -396,7 +396,7 @@ function AddFilter({
               open && 'text-foreground',
             )}
           >
-            <FilterPlusIcon className="h-4 w-[18px]" />
+            <FilterPlusIcon className="h-4 w-[17px]" />
           </button>
         ) : (
           <button
@@ -409,7 +409,7 @@ function AddFilter({
               open && 'bg-accent text-foreground dark:bg-input/50',
             )}
           >
-            <FilterPlusIcon className="h-4 w-[18px]" />
+            <FilterPlusIcon className="h-4 w-[17px]" />
             Add filter
           </button>
         )}
