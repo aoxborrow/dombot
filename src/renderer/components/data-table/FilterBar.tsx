@@ -2,6 +2,7 @@ import {
   Fragment,
   startTransition,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ComponentType,
@@ -14,7 +15,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -349,20 +349,30 @@ function FilterChip({
   );
 }
 
+// The Add filter button's box, and its labelled form's spacing.
+const ADD_FILTER_BOX =
+  'inline-flex h-9 items-center rounded-md border border-dashed text-sm whitespace-nowrap';
+const ADD_FILTER_LABELLED = 'gap-1.5 pr-3 pl-[9px]';
+
 /**
- * The menu of fields, opened from "+ Add filter" (no chips showing) or the
- * square "+" after the last chip. Both stay grey in every state.
+ * The menu of fields, opened from "+ Add filter", or from the square "+"
+ * when only that fits after the last chip. Both stay grey in every state. A checkbox
+ * marks each field already showing as a chip: ticking one adds its chip and
+ * opens it, unticking one removes its chip (as its × would) and leaves the
+ * menu open.
  */
 function AddFilter({
   fields,
+  showing,
   onPick,
-  compact,
+  onRemove,
 }: {
   fields: FilterField[];
+  /** Keys of the fields showing as chips. */
+  showing: Set<string>;
   /** A field was picked: add its chip and open it. */
   onPick: (key: string) => void;
-  /** The square "+" icon button, for after the chips. */
-  compact: boolean;
+  onRemove: (key: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -375,92 +385,141 @@ function AddFilter({
   const shown = q
     ? fields.filter((f) => f.label.toLowerCase().includes(q))
     : fields;
+  // Labelled when "Add filter" fits on the line after the last chip, or when
+  // the button wraps to a line of its own anyway; the square only where it
+  // keeps the button on the chips' line and the label wouldn't.
+  const ref = useRef<HTMLButtonElement>(null);
+  const measure = useRef<HTMLSpanElement>(null);
+  const [compact, setCompact] = useState(false);
+  useLayoutEffect(() => {
+    const button = ref.current;
+    const row = button?.parentElement;
+    if (!button || !row) return;
+    const update = () => {
+      const prev = button.previousElementSibling;
+      const full = measure.current?.offsetWidth;
+      if (!prev || !full) return setCompact(false);
+      const style = getComputedStyle(row);
+      const start =
+        prev.getBoundingClientRect().right + (parseFloat(style.columnGap) || 0);
+      const end =
+        row.getBoundingClientRect().right - parseFloat(style.paddingRight);
+      const fits = (width: number) => start + width <= end + 0.5;
+      setCompact(!fits(full) && fits(button.offsetHeight));
+    };
+    update();
+    // The row's width, and the last chip's as its value changes.
+    const observer = new ResizeObserver(update);
+    observer.observe(row);
+    if (button.previousElementSibling)
+      observer.observe(button.previousElementSibling);
+    return () => observer.disconnect();
+  });
   return (
-    <DropdownMenu
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setQuery('');
-      }}
-    >
-      <DropdownMenuTrigger asChild>
-        {compact ? (
-          <button
-            type="button"
-            aria-label="Add filter"
-            title="Add filter"
-            className={cn(
-              // No background, ever. Hover darkens the dashes and icon like an
-              // empty chip's (brightens them in dark mode); open darkens the icon.
-              'inline-flex size-9 items-center justify-center rounded-md border border-dashed border-[#d4d4d4] text-muted-foreground transition-colors outline-none hover:border-[#a3a3a3] hover:text-[#404040] focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40 dark:hover:border-muted-foreground/70 dark:hover:text-foreground',
-              open && 'text-foreground',
-            )}
-          >
-            <FilterPlusIcon className="size-4" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className={cn(
-              // Grey: hover darkens the dashes and text like an empty chip's
-              // (brightens them in dark mode); open fills a light grey, like
-              // the outline buttons; keyboard focus gets the app's ring.
-              'inline-flex h-9 items-center gap-1.5 rounded-md border border-dashed border-[#d4d4d4] pr-3 pl-[9px] text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:border-[#a3a3a3] hover:text-[#404040] focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40 dark:hover:border-muted-foreground/70 dark:hover:text-foreground',
-              open && 'bg-accent text-foreground dark:bg-input/50',
-            )}
-          >
-            <FilterPlusIcon className="size-4" />
-            Add filter
-          </button>
-        )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        sideOffset={10}
-        // As wide as the longest field name needs, no wider.
-        // While it fades out, ignore the pointer: hovering a closing menu
-        // focuses it, which pulls focus from the picked chip's menu and
-        // closes that.
-        className="w-auto min-w-36 data-[state=closed]:pointer-events-none"
-        // A pick hands focus to the new chip's menu; don't pull it back here.
-        onCloseAutoFocus={(e) => {
-          if (picked.current) e.preventDefault();
-          picked.current = false;
+    <>
+      <DropdownMenu
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setQuery('');
         }}
       >
-        <DropdownMenuLabel className="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-          Add filter
-        </DropdownMenuLabel>
-        {/* Only once there are enough fields to need it. */}
-        {fields.length > SEARCHABLE && (
-          <MenuSearch
-            value={query}
-            onChange={setQuery}
-            placeholder="Find a filter…"
-            onEnter={() => {
-              if (shown.length === 0) return;
-              choose(shown[0].key);
-              setOpen(false);
-              setQuery('');
-            }}
-          />
+        <DropdownMenuTrigger asChild>
+          <button
+            ref={ref}
+            type="button"
+            aria-label="Add filter"
+            title={compact ? 'Add filter' : undefined}
+            className={cn(
+              // Grey: hover darkens the dashes and text like an empty chip's
+              // (brightens them in dark mode); keyboard focus gets the app's
+              // ring. Open, the label fills a light grey like the outline
+              // buttons; the square just darkens its icon.
+              ADD_FILTER_BOX,
+              'border-[#d4d4d4] text-muted-foreground transition-colors outline-none hover:border-[#a3a3a3] hover:text-[#404040] focus-visible:ring-2 focus-visible:ring-ring/50 dark:border-muted-foreground/40 dark:hover:border-muted-foreground/70 dark:hover:text-foreground',
+              compact ? 'w-9 justify-center' : ADD_FILTER_LABELLED,
+              open &&
+                (compact
+                  ? 'text-foreground'
+                  : 'bg-accent text-foreground dark:bg-input/50'),
+            )}
+          >
+            <FilterPlusIcon className="h-4 w-[17px]" />
+            {!compact && 'Add filter'}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          sideOffset={10}
+          // As wide as the longest field name needs, no wider.
+          // While it fades out, ignore the pointer: hovering a closing menu
+          // focuses it, which pulls focus from the picked chip's menu and
+          // closes that.
+          className="w-auto min-w-36 data-[state=closed]:pointer-events-none"
+          // A pick hands focus to the new chip's menu; don't pull it back here.
+          onCloseAutoFocus={(e) => {
+            if (picked.current) e.preventDefault();
+            picked.current = false;
+          }}
+        >
+          <DropdownMenuLabel className="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+            Add filter
+          </DropdownMenuLabel>
+          {/* Only once there are enough fields to need it. */}
+          {fields.length > SEARCHABLE && (
+            <MenuSearch
+              value={query}
+              onChange={setQuery}
+              placeholder="Find a filter…"
+              onEnter={() => {
+                if (shown.length === 0) return;
+                const key = shown[0].key;
+                if (showing.has(key)) return onRemove(key);
+                choose(key);
+                setOpen(false);
+                setQuery('');
+              }}
+            />
+          )}
+          {shown.length === 0 && (
+            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+              No matches
+            </div>
+          )}
+          {shown.map((f) => {
+            const Icon = f.icon;
+            return (
+              <DropdownMenuCheckboxItem
+                key={f.key}
+                checked={showing.has(f.key)}
+                onSelect={(e) => {
+                  if (!showing.has(f.key)) return choose(f.key);
+                  // Stay open, so several can go in one visit.
+                  e.preventDefault();
+                  onRemove(f.key);
+                }}
+              >
+                <Icon />
+                {f.label}
+              </DropdownMenuCheckboxItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {/* The labelled button's twin, out of the flow, to measure. */}
+      <span
+        ref={measure}
+        aria-hidden
+        className={cn(
+          ADD_FILTER_BOX,
+          ADD_FILTER_LABELLED,
+          'pointer-events-none invisible absolute top-0 left-0',
         )}
-        {shown.length === 0 && (
-          <div className="px-2 py-1.5 text-sm text-muted-foreground">
-            No matches
-          </div>
-        )}
-        {shown.map((f) => {
-          const Icon = f.icon;
-          return (
-            <DropdownMenuItem key={f.key} onSelect={() => choose(f.key)}>
-              <Icon />
-              {f.label}
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      >
+        <FilterPlusIcon className="h-4 w-[17px]" />
+        Add filter
+      </span>
+    </>
   );
 }
 
@@ -473,11 +532,11 @@ const removedPresets = new Map<string, Set<string>>();
  * The filter chips, then the add button. The presets start the row; every
  * filter added from the menu (a removed preset too) goes on the end.
  * Rendered inline (a fragment), so everything wraps with the toolbar around
- * it. With no chips at all the add button is "+ Add filter"; otherwise it's a
- * square "+" after the last chip.
+ * it. The add button reads "Add filter" unless only a square "+" would fit
+ * after the last chip.
  *
- * Picking a field adds its chip with the value list open; picking one already
- * showing opens it instead. A chip stays until its × removes it, dashed and
+ * Picking a field adds its chip with the value list open; unticking one in
+ * the menu removes it. A chip stays until its × removes it, dashed and
  * empty while nothing is set, and never moves as its value is set or
  * cleared.
  */
@@ -552,7 +611,15 @@ export function FilterBar({
       ))}
       {/* Always last, so it stays mounted as chips come and go (with none,
           last is right after the search). */}
-      <AddFilter fields={fields} onPick={pick} compact={chips.length > 0} />
+      <AddFilter
+        fields={fields}
+        showing={new Set(chips.map((f) => f.key))}
+        onPick={pick}
+        onRemove={(key) => {
+          const field = byKey.get(key);
+          if (field) remove(field);
+        }}
+      />
     </>
   );
 }

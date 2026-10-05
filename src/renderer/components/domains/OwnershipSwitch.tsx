@@ -1,6 +1,7 @@
-import { ViewSwitch } from '../data-table/Toolbar';
+import { Archive, Globe } from 'lucide-react';
+import { ToolbarSwitch } from '../data-table/FilterToolbar';
 
-/** Owned vs Archive (names you no longer own), leading the filter toolbar. */
+/** Active vs Archive (names you no longer own), leading the filter toolbar. */
 export function OwnershipSwitch({
   archive,
   ownedCount,
@@ -15,13 +16,13 @@ export function OwnershipSwitch({
   onArchive: () => void;
 }) {
   return (
-    <ViewSwitch
-      label="Owned domains or former domains"
-      className=""
+    <ToolbarSwitch
+      label="Active domains or archived domains"
       options={[
         {
           id: 'owned',
-          label: 'Owned',
+          label: 'Active',
+          icon: Globe,
           count: ownedCount,
           active: !archive,
           onClick: onOwned,
@@ -29,6 +30,7 @@ export function OwnershipSwitch({
         {
           id: 'archive',
           label: 'Archive',
+          icon: Archive,
           count: archiveCount,
           active: archive,
           onClick: onArchive,

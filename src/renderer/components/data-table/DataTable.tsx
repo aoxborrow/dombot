@@ -412,6 +412,7 @@ function DensitySwitch({
       <span id="density-label">Density</span>
       <SegmentedControl
         size="sm"
+        tone="grey"
         aria-labelledby="density-label"
         value={value}
         onChange={onChange}
