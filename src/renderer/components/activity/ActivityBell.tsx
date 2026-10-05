@@ -27,11 +27,10 @@ import {
 const SHOWN = 10;
 
 /**
- * The header bell: a compact list of what needs you (docs/activity-redesign.md,
- * "The bell"). Sync errors first, then names removed from a registrar, then
- * names added, newest first. It only tells you; the actions are on the
- * Activity page, which a row opens filtered to that name. The badge counts
- * everything and takes the most severe color.
+ * The header bell: a compact list of what needs you. Sync errors first, then
+ * names removed from a registrar, then names added, newest first. It only
+ * tells you; the actions are on the Activity page, which a row opens filtered
+ * to that name. The badge counts everything and takes the most severe color.
  */
 export function ActivityBell() {
   const events = useAppStore((s) => s.domainEvents);

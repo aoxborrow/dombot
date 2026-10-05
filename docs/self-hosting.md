@@ -25,7 +25,7 @@ API token to it, so updating is `git pull upstream main && git push`.
 
 You need a Cloudflare account (the free plan runs the app; a full sync of a
 large portfolio may need **Workers Paid**, $5/month, for the extra CPU time —
-see [Limits](#limits)), Node 22+, and this repository cloned or forked.
+see [Limits](#limits)), Node 22.13+, and this repository cloned or forked.
 
 ```bash
 npm ci

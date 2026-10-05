@@ -1,8 +1,7 @@
 import { DomainEventType, type DomainEvent } from './domain-events';
 import { isOpenAlert, resolvedIds } from './sync-diff';
 
-// What needs you now (docs/activity-redesign.md, "Severity and
-// notifications"): open sync alerts at their review priority, plus accounts
+// What needs you now: open sync alerts at their review priority, plus accounts
 // whose sync failed. Derived from the event log and each account's sync
 // status, never stored. The bell, the Activity page, and later MCP read it.
 

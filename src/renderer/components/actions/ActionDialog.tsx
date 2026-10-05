@@ -12,9 +12,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-// The one layout for single and bulk actions (docs/activity-redesign.md,
-// "Action dialogs"): the title names the action, the line under it says what
-// it applies to, then the form, then Cancel and the action.
+// The one layout for single and bulk actions: the title names the action,
+// the line under it says what it applies to, then the form, then Cancel and
+// the action.
 
 const NAMES_SHOWN = 3;
 

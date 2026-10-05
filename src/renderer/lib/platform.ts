@@ -16,7 +16,7 @@ export function markWeb(mode: AuthMode): void {
 
 /** The demo build: a browser host (downloads, no stdio) with a few controls
  *  disabled. Reports the plain web mode so every page keeps its normal copy;
- *  the footer and the disabled controls branch on isDemo(). See docs/demo.md. */
+ *  the footer and the disabled controls branch on isDemo(). */
 export function markDemo(): void {
   web = true;
   demo = true;

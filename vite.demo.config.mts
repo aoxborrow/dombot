@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 // The demo build: the same renderer, but with the whole core bundled into
 // the page and `window.api` served in-process against the in-memory demo
 // registrar (src/renderer/api/demo.ts). No server, no storage — a static
-// page that runs the app on an invented portfolio. See docs/demo.md.
+// page that runs the app on an invented portfolio.
 //
 //   npm run demo:build  → dist/demo
 //   npm run demo:dev    → vite dev server
