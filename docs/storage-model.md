@@ -1,32 +1,9 @@
 # Storage model
 
-Status: implemented except where noted: storage conventions (#102), and the
-domain history on `domain-events` (#106): purchases and sales as events, sync
-events and alerts, Owned / Archive, the Hidden folder, the Activity page and
-the bell. Manual domains (#108) are built per `docs/domain-import-export.md`.
-`renewed` events (#107) are recorded; see "Renewals" below. Not yet: the
-lookup-recorded automatic drop (waits on the central RDAP module, #105).
-
-A naming and keying standard for everything DomBot persists, a domain event
-history that replaces the separate purchase and portfolio-change stores
-(#99, #100), and the one-time migration that moves existing installs onto it.
-
-## Why
-
-- **Names don't say what's inside.** `cache-portfolio` and a future `domains`
-  both sound like "the domains." `portfolio-changes` and `cache-portfolio` put
-  the same word in different positions. The prefix `cache-` is doing double
-  duty as a behavior flag.
-- **Behavior lives in hand-kept lists.** `CACHE_NAMESPACES` (Clear cache) and
-  `NEVER_EXPORTED` (data bundle) have to be remembered whenever a namespace is
-  added.
-- **Per-domain data is keyed three different ways.** Folder assignments and
-  price overrides use `${accountId ?? registrar}:${domain}`, so they're lost
-  when a name moves between accounts. Purchases (#99) use the bare name. None
-  of them canonicalize IDNs.
-- **History can't hold repeats.** #99 stores one purchase per name, so a name
-  you drop and later buy back overwrites its first purchase. #100 stores every
-  change in one array under one key, so each change rewrites the whole history.
+The naming and keying standard for everything DomBot persists, the domain
+event history (`domain-events`), and the migrations that move older installs
+and backups onto it. Manual domains and the CSV import are described in
+[domain-import-export.md](domain-import-export.md).
 
 ## Two kinds of domain data
 
@@ -48,20 +25,20 @@ treated. Behavior is declared where the namespace is created:
 
 ```ts
 new Namespace('registrar-domains', { cache: true }); // Clear cache wipes it
-new Namespace('remote-sync', { local: true }); // never exported
+new Namespace('meta', { local: true }); // never exported
 new Namespace('domain-events'); // default: kept, exported
 ```
 
-`clearAll` and `exportNamespaces` read those flags from the registry, which
-retires `CACHE_NAMESPACES` and `NEVER_EXPORTED`. Encryption stays an explicit
+`clearAll` and `exportNamespaces` read those flags from the registry, so a new
+namespace needs no entry in a hand-kept list. Encryption stays an explicit
 set passed to `EncryptedDocStore`.
 
-| Today                                    | New                     | Flags  | Keyed by                   | Holds                                             |
+| Older name                               | Name                    | Flags  | Keyed by                   | Holds                                             |
 | ---------------------------------------- | ----------------------- | ------ | -------------------------- | ------------------------------------------------- |
 | `cache-portfolio`                        | `registrar-domains`     | cache  | account                    | each account's name list, as reported             |
 | `cache-detail`                           | `registrar-details`     | cache  | account + name             | per-domain detail from the registrar              |
 | `tld-rates`                              | `registrar-tld-rates`   | cache  | account or registrar + TLD | fetched renewal rates                             |
-| `registration-lookups` (#100)            | `rdap-lookups`          | cache  | name                       | public RDAP registration data                     |
+| `registration-lookups`                   | `rdap-lookups`          | cache  | name                       | public RDAP registration data                     |
 | `registrar-accounts`                     | _(unchanged)_           |        | account id                 | connected accounts                                |
 | `credentials`                            | `registrar-credentials` | sealed | account id                 | API keys                                          |
 | `proxies`                                | `registrar-proxies`     | sealed | proxy id                   | proxy profiles                                    |
@@ -73,14 +50,12 @@ set passed to `EncryptedDocStore`.
 | `folders` (`assignments` key)            | `domain-folders`        |        | name                       | name → folder id                                  |
 | `folders` (`folders` key)                | `folders`               |        | folder id                  | folder definitions                                |
 | `pricing-overrides`                      | `domain-prices`         |        | name                       | your manual renewal price, with its currency      |
-| —                                        | `domain-list-prices`    |        | name                       | your asking price, minimum offer, and floor       |
+| —                                        | `domain-list-prices`    |        | name                       | your BIN price, minimum offer, and floor          |
 | `settings`, `bulk-jobs`, `mcp`           | _(unchanged)_           |        |                            | app-level                                         |
 | `meta`                                   | _(unchanged)_           | local  |                            | this install only                                 |
-| — (#89)                                  | `remote-sync`           | local  |                            | the remote URL                                    |
 
-Clear cache now also wipes `registrar-tld-rates`; the next sync refetches it.
-`rdap-lookups` is flagged cache too, so Clear cache wipes it as well (today
-#100 keeps it).
+Clear cache wipes every `cache` namespace, `registrar-tld-rates` and
+`rdap-lookups` included; the next sync refetches them.
 
 ## Keys
 
@@ -90,7 +65,8 @@ Clear cache now also wipes `registrar-tld-rates`; the next sync refetches it.
   key. `toUnicode` is for display only.
 - **Anything about one account's copy of a name** (registrar cache only):
   `${accountId}:${toAscii(name)}`.
-- The `${accountId ?? registrar}:` fallback goes away in the migration.
+- Older installs keyed folders and prices by `${accountId ?? registrar}:`;
+  migration 1 re-keys them by name.
 
 Folders and price overrides are keyed by name, so they follow a domain when it
 moves between accounts. A name held by two accounts at once (mid-transfer)
@@ -113,7 +89,7 @@ export const DomainEventType = {
   Registered: 'registered', // hand-registered as a new name
   Purchased: 'purchased', // bought from someone (aftermarket, private)
   Sold: 'sold',
-  Renewed: 'renewed', // renewals DomBot makes or sync sees (#107)
+  Renewed: 'renewed', // renewals DomBot makes or sync sees
   Dropped: 'dropped', // you let it go; or the lookup found it gone (see below)
   Archived: 'archived', // no longer yours, reason unspecified
   // Something sync saw.
@@ -165,7 +141,7 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   day is a `YYYY-MM-DD` string (like `purchaseDate`), so it can't shift with
   the timezone. A sync event's `date` is the day of the sync; `createdAt` has
   the exact time.
-- **Amounts are decimal strings,** as #99 stores them: digits and an optional
+- **Amounts are decimal strings:** digits and an optional
   period, with exactly the currency's decimal places (USD 2, JPY 0, KWD 3). A
   string is exact (no float rounding), reads as money in a data file, and
   exports to CSV unchanged, and the same text imports back. Code that needs to
@@ -178,8 +154,7 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   picker lists them last.
 - **Notes point at events, not the other way round.** An event has no text;
   a `domain-notes` record can reference it (see below).
-- **Amount and currency travel together.** Both set or both null, as #99
-  already enforces.
+- **Amount and currency travel together.** Both set or both null.
 - **`years` spreads a cost.** A 3-year renewal's amount covers three years, so
   a yearly view divides by `years` instead of charging it all to one year.
 - **You vs. sync.** `added` and `removed` only say that a name appeared in or
@@ -189,8 +164,8 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   `removed` (`source: 'sync'`) and raises an alert. Marking it Sold writes
   `sold` with `resolves: <removed id>`; Dropped writes `dropped` the same
   way; Dismiss sets `dismissed` on the `removed` event and records nothing
-  else. #100's baselining (the first sync of an account creates no alerts)
-  carries over as a `trackedSince` timestamp on the account's
+  else. Baselining (the first sync of an account creates no alerts) is a
+  `trackedSince` timestamp on the account's
   `registrar-accounts` record, also shown as "Tracking changes since" on the
   Activity page.
 - **The baseline travels with the history.** The marker, the list sync diffs
@@ -202,7 +177,7 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   imported history instead of re-baselining (missing real changes) or diffing
   against a list that doesn't match the imported events (inventing `added`
   and `removed`).
-- **Renewals (#107).** Each renewal is one `renewed` event, dated the day it
+- **Renewals.** Each renewal is one `renewed` event, dated the day it
   was seen, with `accountId` and `years`:
   - **DomBot's.** A renew op the registrar confirms (row action, bulk renew,
     MCP `domain_renew`) writes `source: 'user'`. The amount is only what the
@@ -228,11 +203,14 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   - Renewals are never alerts, and don't change Owned / Archive. An event
     without an amount is priced when read (manual price → quote → TLD rate →
     base database), as an estimate.
-- **CSV import is idempotent.** A purchase row that matches an existing event
-  on (domain, type, `date`, amount, currency) is skipped, so importing the same
-  file twice doesn't double-count.
-- **Merge-ready.** Ids are unique across instances, so a later remote sync can
-  union `domain-events` by id instead of overwriting it.
+- **CSV import edits, it doesn't append.** A purchase in an imported row
+  updates the name's current purchase or registration in place (type, date,
+  amount, years), and a sale updates the current sale, so importing the same
+  file twice changes nothing the second time. Only a purchase dated after the
+  name's last sale (a buy-back) records a new event.
+- **Merge-ready.** Ids are unique across instances, so a future remote sync
+  ([#145](https://github.com/aoxborrow/dombot/issues/145)) can union
+  `domain-events` by id instead of overwriting it.
 
 ## Owned, Archive, and Hidden
 
@@ -264,7 +242,9 @@ folder.
   Dropped, Archived) or dismiss the alert. It never marks the name Dropped,
   so someone who manages names elsewhere and doesn't sync for months comes
   back to unlabeled names, never to wrong labels.
-- **The one automatic label.** The registration check (`rdap-lookups`) writes
+- **The one automatic label** (not built yet; waits on
+  [#105](https://github.com/aoxborrow/dombot/issues/105)). The registration
+  check (`rdap-lookups`) writes
   `dropped` with `source: 'lookup'` only when both hold:
   1. RDAP gives a definite "not registered": a 404 from the registry's own RDAP
      server. A network error, timeout, any other status, or a 404 from the
@@ -280,8 +260,8 @@ folder.
   name sold or auctioned at the same registrar never changes registrar, and
   the registrant is redacted under GDPR (and registrar-scoped where present),
   so ownership can't be read from it.
-- **All RDAP goes through one module.** Every registration lookup in the app
-  uses a single central RDAP client, so bootstrap, caching, rate limits, and
+- **All RDAP goes through one module** (the same issue). Every registration
+  lookup in the app uses a single central RDAP client, so bootstrap, caching, rate limits, and
   the "definite not registered" rule live in one place.
 
 ### Delete
@@ -321,7 +301,8 @@ which opens the same table filtered to that name.
   lowest-priority alert (dismiss or ignore one you don't care about). `moved`
   is info only.
 - **Your own actions are rows too** (purchases, sales, imports), so Activity is
-  the ledger the financial dashboard will build on.
+  the ledger a financial dashboard
+  ([#112](https://github.com/aoxborrow/dombot/issues/112)) would build on.
 - **Existing portfolios start empty.** An account's first sync only records a
   starting point, so Activity says "Tracking changes since <date>" instead of
   inventing past `added` events.
@@ -340,12 +321,11 @@ too). It groups items by severity:
 
 Its badge counts errors plus review items and takes the color of the most
 severe one: red for errors, amber for departures, gray when only new names
-are waiting. "View all activity" opens the Activity page. This replaces #100's
-Portfolio changes popover.
+are waiting. "View all activity" opens the Activity page.
 
 ## Manual domains and notes
 
-`manual-domains` (#108) holds names you own that no
+`manual-domains` holds names you own that no
 connected registrar reports — typed in, or imported from a CSV:
 
 ```ts
@@ -384,16 +364,15 @@ interface DomainNote {
 }
 ```
 
-The name's general note is the one with `eventId: null`, which replaces the
-notes field #99 put on the purchase record. A sale or purchase can carry its
+The name's general note is the one with `eventId: null`. A sale or purchase can carry its
 own note ("via Afternic, paid through Escrow.com") by pointing at its event.
 The link lives on the note, so events stay small, an event can have several
 notes, and deleting an event deletes its notes.
 
 Notes stay their own namespace rather than fields on a catch-all per-name
-record: each `domain-*` namespace holds one thing, so a future remote-sync
-merge can't collide two unrelated edits to the same name. A new per-name field
-(tags, an asking price) gets its own small namespace.
+record: each `domain-*` namespace holds one thing, so a future merge can't
+collide two unrelated edits to the same name. A new per-name field (tags, the
+BIN price in `domain-list-prices`) gets its own small namespace.
 
 ## Migration
 
@@ -431,7 +410,7 @@ copy-then-clear makes that safe, and the only exposure is a write landing in
 a new namespace in the moment another isolate is still copying into it, which
 is limited to the first requests after deploying this release.
 
-**Migration 2** (ships with the domain history work):
+**Migration 2** (the domain history):
 
 1. Every `domain-folders` entry pointing at `__archive__` is repointed at the
    Hidden folder (`__hidden__`). Archive began as Hidden, and that's what
@@ -440,7 +419,7 @@ is limited to the first requests after deploying this release.
 2. Set `schemaVersion = 2`. A v4 bundle from before this release gets the same
    step on import.
 
-**Migration 3** (renewal prices in any currency, `docs/domain-import-export.md`):
+**Migration 3** (renewal prices in any currency, [domain-import-export.md](domain-import-export.md#renewal-prices-in-any-currency)):
 
 1. Every `domain-prices` value that's a bare number (the old USD form) becomes
    `{ amount, currency: 'USD' }`, with the amount as a canonical decimal. A
@@ -453,11 +432,10 @@ is limited to the first requests after deploying this release.
 **Rule:** any release that adds a namespace that isn't a cache bumps
 `BUNDLE_VERSION`. An older build skips namespaces it doesn't know, so without
 the bump it would import a newer file "successfully" and silently drop that
-data; with remote sync (#89), pushing to a not-yet-upgraded instance and
-pulling back would then lose it locally too. The bump makes the older build
-refuse the file with "made by a newer DomBot".
+data. The bump makes the older build refuse the file with "made by a newer
+DomBot".
 
-- **v8** adds `manual-domains` (#108; `docs/domain-import-export.md`).
+- **v8** adds `manual-domains`.
 - **v7** stores manual renewal prices with a currency. An older build would
   read the new values as no price, so it must refuse the file. Rule: changing
   the shape of an exported namespace's values bumps the version too.
@@ -470,20 +448,7 @@ refuse the file with "made by a newer DomBot".
   migration does, so every existing backup still imports.
 
 Namespaces flagged `local` are never exported and never replaced by an
-import; today that's `meta`, and `remote-sync` (#89) will join it. (`auth`
-was on the old never-exported list but no namespace by that name exists; an
-unknown namespace in a file is skipped anyway.)
-
-## Rollout
-
-1. **Storage conventions PR:** `domain-name.ts` and `DocStore.putMany`
-   (moved over from the #99 branch, where they were written), namespace
-   flags, renames, name-keyed folders and prices, `runMigrations`, bundle v4.
-   Independent of #99 and #100.
-2. **Domain history PR:** #99 and #100 combined and reworked onto
-   `domain-events` and `domain-notes`, on top of step 1.
-   Neither has shipped, so their data needs no migration. Bundle
-   re-validation from the #99 branch carries over to `domain-events`.
+import; today that's only `meta`. An unknown namespace in a file is skipped.
 
 ## Decided
 
@@ -493,26 +458,30 @@ unknown namespace in a file is skipped anyway.)
 
 ## Future work
 
-- **Every domain change writes an event.** Review each place that changes a
-  domain — registrar sync, bulk edits, nameserver and auto-renew changes, MCP
-  tool writes (#111) — and have it
-  append to `domain-events`. The first domain-history PR only needs purchases,
-  sales, and the sync-detected arrivals, departures, and moves.
-- **Bulk review (#108).** The Activity page gets bulk tools (Dismiss, Record
-  purchase, Dropped, Archived across many rows) for large imports and long
-  gaps between syncs.
-- **Venues (#109).** `registered`, `purchased`, and `sold` get a `venueId`.
-  The list is every registrar DomBot supports, then built-in marketplaces
-  (Afternic, Sedo, …), then custom venues. Each venue holds dated commission
-  rates, so fees are derived rather than entered per sale, and a rate change
-  never rewrites a past one.
-- **Installments (#110).** A sale paid in installments stays one `sold` event;
-  individual payments aren't recorded. The event gains the terms (number of
-  payments, frequency, down payment) and, if the plan ends early, whether it
-  was paid off or defaulted, so the dashboard can show the schedule.
-- **Exchange rates.** Totals across currencies need a rate per event. Each
-  event already has its `date` and `currency`, so historical rates can be
-  looked up later without changing stored events.
-- **Manual domains (#108)**, with a CSV importer. The purchase CSV import
-  (#99, reworked in #100) is held back in #122 for its own review.
-- **Financial dashboard (#112)**, built on all of the above.
+- **The automatic drop** (`source: 'lookup'`, above) waits on the central RDAP
+  module ([#105](https://github.com/aoxborrow/dombot/issues/105)).
+- **Every domain change writes an event:** auto-renew, privacy, lock,
+  nameservers and forwarding, from the app, bulk jobs and MCP
+  ([#151](https://github.com/aoxborrow/dombot/issues/151)).
+- **Bulk Record purchase** on Activity and Domains
+  ([#148](https://github.com/aoxborrow/dombot/issues/148)). The other bulk
+  review actions (Mark as Sold, Mark as Dropped, Archive, Dismiss review) are
+  built.
+- **Venues** ([#109](https://github.com/aoxborrow/dombot/issues/109)).
+  `registered`, `purchased`, and `sold` get a `venueId`. The list is every
+  registrar DomBot supports, then built-in marketplaces (Afternic, Sedo, …),
+  then custom venues. Each venue holds dated commission rates, so fees are
+  derived rather than entered per sale, and a rate change never rewrites a
+  past one.
+- **Installments** ([#110](https://github.com/aoxborrow/dombot/issues/110)).
+  A sale paid in installments stays one `sold` event; individual payments
+  aren't recorded. The event gains the terms (number of payments, frequency,
+  down payment) and, if the plan ends early, whether it was paid off or
+  defaulted, so the dashboard can show the schedule.
+- **Financial dashboard and exchange rates**
+  ([#112](https://github.com/aoxborrow/dombot/issues/112)). Totals across
+  currencies need a rate per event. Each event already has its `date` and
+  `currency`, so historical rates can be looked up later without changing
+  stored events.
+- **MCP access to ownership, history and Activity**
+  ([#111](https://github.com/aoxborrow/dombot/issues/111)).

@@ -2,8 +2,8 @@ import type { ListPrice } from './ipc';
 import { toCurrencyCode } from './currencies';
 import { parseCanonicalAmount } from './money';
 
-// Your asking price for a name (docs/domain-import-export.md, "Asking price
-// is a core feature"): the price, an optional minimum offer and floor, and
+// Your asking price for a name (docs/domain-import-export.md, "BIN price is
+// a core feature"): the price, an optional minimum offer and floor, and
 // one currency for all three. Shared so the service, the bundle import, and
 // later the CSV import check a price the same way.
 

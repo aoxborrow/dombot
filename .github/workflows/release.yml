@@ -252,7 +252,7 @@ jobs:
       - name: Record the release for the site
         # The landing page bakes its download links from site/release.json at
         # build time. Committing it here is what redeploys the site: Cloudflare's
-        # Workers Builds rebuilds dombot.ai on every push to main (docs/demo.md).
+        # Workers Builds rebuilds dombot.ai on every push to main.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.setup.outputs.tag }}

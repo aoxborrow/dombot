@@ -4,9 +4,9 @@ import type { OwnershipItem } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { ActionDialog, DateField, todayInput } from './ActionDialog';
 
-// The ownership actions, for one name or many (docs/activity-redesign.md,
-// "Action dialogs"). Each is one write however many names it covers. Pass
-// each name's open alert as `resolves` so the action closes it.
+// The ownership actions, for one name or many. Each is one write however
+// many names it covers. Pass each name's open alert as `resolves` so the
+// action closes it.
 
 const count = (n: number) => `${n} domain${n === 1 ? '' : 's'}`;
 const who = (items: { domainName: string }[]) =>

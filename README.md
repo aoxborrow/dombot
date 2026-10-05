@@ -159,7 +159,7 @@ third _adapter_ over the same `services/` core the UI uses — see
   `DOMBOT_MCP_ENABLED=0` to disable, `DOMBOT_MCP_AUTOAPPROVE=1` to skip the
   approval prompt (dev/testing), `DOMBOT_MCP_TOKEN` for a static bearer token
   escape hatch (dev/testing). See
-  [`src/electron/mcp/oauth.ts`](src/electron/mcp/oauth.ts).
+  [`src/core/mcp/oauth.ts`](src/core/mcp/oauth.ts).
 - **stdio shim.** `DomBot --mcp-stdio` runs the same binary headless as a
   stdin/stdout bridge to the HTTP server, for clients that can't dial a URL
   (Claude Desktop). It authenticates with a per-install token the app writes to

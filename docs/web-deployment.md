@@ -1,114 +1,70 @@
-# Web deployment — self-hosting DomBot on Cloudflare
+# Web deployment — how the web host works
 
-A planning doc for making DomBot deployable as a private web app, so a user can
-run their own instance on Cloudflare (and, with one more adapter, on Vercel or
-any fetch-handler host) instead of the desktop build. The desktop app stays
-first-class; the web build is the same renderer and the same services behind a
-different host.
+How DomBot runs as a private web app on Cloudflare, beside the desktop build.
+Both hosts run the same renderer and the same services; only the host around
+them differs. For deploying and running an instance, see
+[self-hosting.md](self-hosting.md).
 
-The shape of the work: pull everything that isn't Electron-specific out of
-`src/main` into a host-agnostic core, put a small storage interface under the
-services, and add a second host (a Cloudflare Worker) next to the existing one
-(Electron). The Cloudflare deployment uses exactly two products — **Workers**
-(with static assets and a cron trigger) and **D1** — plus two secrets.
-
-## Goals
+The Cloudflare deployment uses two products — **Workers** (with static assets
+and a cron trigger) and **D1** — plus two secrets. No KV, Queues, R2, Durable
+Objects or Pages, and Cloudflare Access is optional.
 
 - **One codebase, two hosts.** `src/core` (services, storage, API contract,
   MCP tools) has no `electron` imports. `src/electron` and `src/worker` are
-  thin hosts. No feature forks: a domain op, a sync, a folder edit behaves the
-  same in both.
-- **Minimal services.** Workers + D1 + two secrets + one cron. No KV, no
-  Queues, no R2, no Durable Objects, no Pages, no Access requirement.
-- **Credentials editable in the app.** Registrar keys are entered in Settings
-  exactly as today and stored encrypted in D1. The only secrets the operator
-  manages out-of-band are one root key and one generated login password.
-- **Everything encrypted at rest.** Not just credentials: portfolio and detail
-  caches carry EPP auth codes and contact data, so every stored value is
-  sealed with the root key. Someone with D1 console access sees ciphertext.
-- **Private by default.** Single-user login with a generated password held as a
-  Worker secret, locked from the first request — or Cloudflare Access / a
-  platform gate instead, via `DOMBOT_AUTH`; the
-  MCP endpoint keeps its OAuth flow, with approvals in the web UI.
-- **Automatic desktop migration.** Existing installs move to the new storage
-  layout on first launch with no user action.
-- **Cloud-agnostic seams** (lower priority). Storage is a four-method
-  interface; the HTTP layer is Hono; scheduling is one `syncAll()` call. A
-  Vercel host is a follow-up adapter, not a rewrite.
+  thin hosts. A domain op, a sync or a folder edit behaves the same in both.
+- **Credentials are edited in the app.** Registrar keys are entered in
+  Settings and stored encrypted in D1. The only secrets the operator manages
+  out of band are one root key and one generated login password.
+- **Everything is encrypted at rest.** Portfolio and detail caches carry EPP
+  auth codes and contact data, so every stored value is sealed with the root
+  key. Someone with D1 console access sees ciphertext.
+- **Private by default.** Single-user login with a generated password held as
+  a Worker secret, locked from the first request — or Cloudflare Access or a
+  platform gate instead, via `DOMBOT_AUTH`. The MCP endpoint keeps its own
+  OAuth flow, with approvals in the web UI.
+- **One instance, one person, one portfolio.** There is no multi-user mode and
+  no hosted DomBot service.
 
-## Non-goals (for this cut)
-
-- **Multi-user / multi-tenant.** One instance = one person = one portfolio.
-- **A hosted DomBot service.** This is self-deployment only.
-- **Vercel adapter implementation.** The seams are built; the adapter ships
-  later (see [Cloud-agnostic seams](#cloud-agnostic-seams)).
-- **Realtime push (WebSocket/SSE).** Polling on a revision counter is enough
-  for one user; SSE is a later upgrade behind the same `onX` interface.
-- **Key rotation UI.** A `rotate-secret` script that re-encrypts is enough.
-
-## Where the code stands today
-
-- **Renderer** talks only to `window.api: DombotApi` (typed in
-  `src/shared/ipc.ts`, ~40 methods, four subscription-style events). Nothing
-  in `src/renderer` or `src/shared` imports Node or Electron. This is the
-  contract the web build keeps intact.
-- **Services** (`src/main/services/*`) are pure logic except for storage: each
-  persists its own JSON file under `app.getPath('userData')` —
-  `cache-portfolio.json`, `cache-detail.json`, `folders.json`, `settings.json`,
-  `pricing-overrides.json`, `registrar-state.json`, `credentials.dat`
-  (safeStorage-encrypted), `mcp-tokens.json`, `mcp-stdio.json`.
-- **`@aoxborrow/registrar-client`** uses only `fetch` and `fast-xml-parser`.
-  No Node built-ins. It will run on `workerd` as-is. The one Node dependency
-  in the sync path is `node:dns` (`resolveNs` in registrars.ts) for registrars
-  that don't report nameservers.
-- **Background work** is in-process: `auto-sync.ts` is a `setInterval`;
-  `bulk-jobs.ts` runs a job in memory with an `AbortController` and pushes
-  progress to windows via `BrowserWindow.webContents.send`.
-- **MCP server** is Express + `StreamableHTTPServerTransport` with an
-  in-memory session map and an in-memory OAuth provider whose tokens persist
-  to `mcp-tokens.json`. The SDK we already depend on (1.30) also ships
-  `WebStandardStreamableHTTPServerTransport`, the fetch-based equivalent.
-
-## Target architecture
+## Architecture
 
 ```
 src/
-  shared/        types + API contract (as today)
-  renderer/      React app (as today, plus a login page + an HTTP api shim)
+  shared/        types + API contract
+  renderer/      React app, plus a login page and an HTTP api shim
   core/          host-agnostic: services, storage interface, api dispatcher,
                  hono router, mcp tools + oauth, bulk runner, sync
   electron/      main process: window, preload IPC, FS storage, safeStorage,
-                 stdio shim, timers   (today's src/main minus the services)
+                 stdio shim, timers
   worker/        cloudflare: fetch handler, scheduled handler, D1 storage,
-                 session auth, wrangler.jsonc
+                 session auth
 ```
 
 ### Storage: `DocStore`
 
-Every store today is "a namespace of JSON values keyed by string". Make that
-the interface:
+Every store is "a namespace of JSON values keyed by string", and that is the
+interface (`src/core/storage/doc-store.ts`, abridged):
 
 ```ts
 interface DocStore {
   get(ns: string, key: string): Promise<unknown | null>;
   put(ns: string, key: string, value: unknown): Promise<void>;
+  putMany(ns: string, entries: [string, unknown][]): Promise<void>;
   delete(ns: string, key: string): Promise<void>;
   list(ns: string): Promise<Record<string, unknown>>;
+  clear(ns: string): Promise<void>;
 }
 ```
 
 Namespaces are listed, with their names and flags, in
-[storage-model.md](storage-model.md) (they were renamed after this doc was
-written). Services keep their in-memory
-copies exactly as now; only `load`/`persist` change, and they become async
-(the IPC handlers are already async, so this is mechanical).
+[storage-model.md](storage-model.md). Services keep an in-memory copy of each
+namespace (`Namespace`, `src/core/storage/namespace.ts`); loading and
+persisting go through the store.
 
 Implementations:
 
 - **`FsDocStore`** (Electron): one JSON file per namespace, `{ key: value }`.
-  Cache files already have this shape. Credentials stay safeStorage-wrapped
-  by an `EncryptedDocStore` decorator whose cipher is `safeStorage` on
-  desktop.
+  Credentials are sealed by an `EncryptedDocStore` decorator whose cipher is
+  `safeStorage` on desktop.
 - **`D1DocStore`** (Worker): a single table.
 
   ```sql
@@ -140,8 +96,8 @@ Implementations:
 - **`EncryptedDocStore`** decorator: seals each value with AES-256-GCM before
   the inner `put`, opens on `get`/`list`. Envelope `{ v: 1, iv, ct }` base64.
   On the Worker every namespace goes through it; on Electron only
-  `credentials` (the rest stays plain JSON, as today, since the OS user
-  boundary is the desktop trust model).
+  `registrar-credentials` and `registrar-proxies` (the rest stays plain JSON,
+  since the OS user boundary is the desktop trust model).
 
 ### The two secrets
 
@@ -160,8 +116,9 @@ Both are generated, set once as Worker secrets, and never stored in D1:
 and prints them once so the operator can put them in a password manager. The
 deploy docs give the equivalent two `openssl rand -base64 32` lines for people
 who'd rather do it by hand. Lose `DOMBOT_SECRET` and the data is unreadable by
-design; the docs say so, and the export bundle (phase 6) is the backup story.
-`scripts/rotate-secret` (later) re-encrypts every doc under a new root key.
+design; the docs say so, and the export bundle is the backup.
+`npm run web:rotate-secret` re-encrypts every doc under a new root key by
+round-tripping the data through a sealed bundle.
 
 ### Auth for the web UI
 
@@ -170,7 +127,9 @@ Single user, no external identity provider, no auth state in the database.
 1. **Login** compares the submitted password against the `DOMBOT_PASSWORD`
    binding in constant time, hashing both sides first so length leaks
    nothing. No PBKDF2: the value is 32 random bytes, not a human password.
-   Failed attempts are recorded in `auth/attempts` with exponential backoff.
+   Failed attempts are counted per source in a `login_attempts` D1 table
+   (`src/worker/login-rate-limit.ts`): 10 per 15 minutes, with the source
+   address stored only as an HMAC.
 2. **Session** → `dombot_session` cookie: HttpOnly, Secure, SameSite=Strict,
    HMAC-SHA256-signed `{ issuedAt, expiresAt }`, 30-day expiry. The signing
    key is HKDF-derived from `DOMBOT_SECRET` _mixed with a hash of
@@ -178,8 +137,8 @@ Single user, no external identity provider, no auth state in the database.
    automatically — no generation counter, no "sign out everywhere" feature.
 3. **Mutations** additionally require an `Origin` header matching the request
    host (belt-and-braces with SameSite).
-4. **No reset page, no change-password page, no setup page.** Settings →
-   Security is a note explaining how to rotate.
+4. **No reset page, no change-password page, no setup page.** Rotating the
+   password is a command (below).
 
 **Recovery.** Forgot the password, or want to rotate it:
 
@@ -193,7 +152,9 @@ every existing session out. Recovery therefore requires Cloudflare account
 access, which is the right bar — nothing about the password can be changed
 from the browser. Lost `DOMBOT_SECRET` as well: set a new one, wipe the
 `docs` table, re-enter registrar keys, and the first sync rebuilds the
-portfolio; folders, manual prices, and MCP pairings are what's actually lost.
+portfolio. Everything that isn't registrar data (folders, prices, history,
+notes, manual domains, MCP pairings) is lost unless an export bundle restores
+it.
 
 The same command accepts an operator-supplied value for anyone who insists on
 a memorable password; the docs don't advertise it, and the login backoff is
@@ -218,9 +179,8 @@ modes; the MCP routes are handled separately (below).
   with its own auth. The platform enforces the gate before the function runs,
   so the app runs with no login of its own. This is an explicit opt-in
   because a misconfigured gate leaves the app open; the deploy docs say so in
-  bold, and the UI shows a persistent banner when it sees no evidence of a
-  gate (on Vercel, the `_vercel_jwt` cookie), so a bad config is visible
-  rather than silent.
+  bold, and the status bar reads "Gated externally". A warning when no gate is
+  evident is [#154](https://github.com/aoxborrow/dombot/issues/154).
 
 Modes layer: `password` behind Access or behind Vercel protection is fine for
 anyone who wants two doors. The mode only decides what DomBot itself checks.
@@ -233,23 +193,21 @@ scope the Access application to the UI and `/api/*` and leave `/mcp`,
 usual (the approval still happens inside the protected UI); the setup guide
 lists those paths. With Vercel protection there are no path exclusions, so
 MCP simply doesn't work. Either way the MCP settings page in
-`cloudflare-access` / `external` mode says so plainly: _"Your deployment is
-behind an external gate. MCP clients can't pass it; use `password` mode or
-exclude the MCP paths from the gate."_ No bypass-token tricks.
+`cloudflare-access` / `external` mode says so: MCP clients can't pass the
+gate, so it must exclude the MCP paths. No bypass-token tricks.
 
 ### API: one contract, two transports
 
-`DombotApi` already exists as a typed object. Add a method table in
-`src/core/api.ts`: name → zod input schema → handler. From it:
+`DombotApi` is typed in `src/shared/ipc.ts`. The method table in
+`src/core/api/index.ts` maps each name to a zod input schema (`schemas.ts`)
+and a handler. From it:
 
-- **Electron:** `registerIpcHandlers()` becomes a loop over the table
-  (`ipcMain.handle(name, (_, ...args) => handler(...parse(args)))`), replacing
-  the eight hand-written `ipc/*.ts` files. Preload keeps exposing
-  `window.api`.
-- **Web:** Hono route `POST /api/:method` with a JSON `args` array, same loop.
-  Validation matters here because it's a network endpoint (behind auth, but
-  still). The renderer gets `createHttpApi(): DombotApi` and picks
-  `window.api ?? createHttpApi()` at startup.
+- **Electron:** `src/electron/ipc.ts` registers an `ipcMain.handle` per
+  entry. Preload exposes `window.api`.
+- **Web:** Hono route `POST /api/:method` with a JSON `args` array, over the
+  same table. Validation matters here because it's a network endpoint
+  (behind auth, but still). The renderer uses `createHttpApi(): DombotApi`
+  (`src/renderer/api/http.ts`) when there is no `window.api`.
 
 Methods that are host-specific get host-aware implementations behind the same
 name: `openExternal` (web: renderer just uses `<a target="_blank">`), `saveCsv`
@@ -257,38 +215,40 @@ name: `openExternal` (web: renderer just uses `<a target="_blank">`), `saveCsv`
 `version` from the build), `getMcpInfo` (web: public MCP URL, no stdio
 command).
 
-**Events.** The four `onX` subscriptions (`bulkProgress`, `bulkFinished`,
-`portfolioChanged`, `approvalsChanged`) become a `meta/revision` counter in
-the store plus `GET /api/events?since=N`, which returns what changed. The web
-`DombotApi` polls it: every 2s while a bulk job runs, every 15s otherwise,
-paused when the tab is hidden. Electron keeps push. Same interface either
-way; the renderer doesn't know.
+**Events.** The `onX` subscriptions (`bulkProgress`, `bulkFinished`,
+`portfolioChanged`, `approvalsChanged`) are pushed over IPC on desktop. On the
+web, change counters in `meta` (`src/core/revision.ts`) stand in for them:
+the HTTP api polls `getRevisions()` every 2 s while a bulk job runs and every
+15 s otherwise, paused while the tab is hidden, and refetches only what moved.
+Same interface either way; the renderer doesn't know.
 
 ### Long-running work
 
 Workers can't hold a job in memory across requests (isolates come and go, and
-there may be more than one). Two things need restructuring; both end up
-better on desktop too.
+there may be more than one), so long-running work is persisted and driven
+from outside.
 
-**Bulk jobs** become persisted and step-driven. The job (targets, op,
-results, counts, `cancelRequested`, per-registrar `notBefore` timestamps for
-the rate-limit spacing) lives in `bulk-jobs/<id>`. `bulk.step(jobId)`
-processes one slice — up to N items whose registrar lane is ready — and
-returns the snapshot. Who calls `step` repeatedly:
+**Bulk jobs** are persisted and step-driven (`src/core/services/bulk-jobs.ts`).
+The job (targets, op, results, counts, `cancelRequested`, per-registrar
+`notBefore` timestamps for the rate-limit spacing) lives in `bulk-jobs/<id>`.
+`stepBulk(jobId)` processes one slice — up to N items whose registrar lane is
+ready — and returns the snapshot. Who calls it repeatedly:
 
-- Electron: the host loops itself, as now.
-- Web: the renderer, while the job page is open (it already polls). Closing
-  the tab pauses the job; reopening resumes it. That's acceptable for a
-  one-person tool and needs no Queues/Workflows. `ctx.waitUntil` can run a
-  couple of extra steps after each response to make it feel continuous.
+- Electron: the host loops itself (`driveBulk`).
+- Web: the renderer, while the app is open. Closing the tab pauses the job;
+  reopening resumes it. That's acceptable for a one-person tool and needs no
+  Queues or Workflows. A 200-domain Porkbun job (10 s spacing) takes about
+  35 minutes with the tab open.
 
 Cancel is a flag on the doc that the next step honors. A job survives a
-Worker restart, an app crash, and a laptop lid — a real improvement over
-today's in-memory `AbortController`.
+Worker restart, an app crash, and a laptop lid. A job found still running at
+desktop launch is closed out rather than resumed — renew is money, so nothing
+restarts on its own: items that never ran are marked interrupted, and the
+results report is the retry surface.
 
-**Auto-sync** becomes `syncAll()` in core, invoked by a host scheduler:
+**Auto-sync** is `syncAll()` in core, invoked by a host scheduler:
 
-- Electron: the existing `setInterval` honoring `autoSyncIntervalMinutes`.
+- Electron: a `setInterval` honoring `autoSyncIntervalMinutes`.
 - Worker: an **hourly** Cron Trigger (`"crons": ["0 * * * *"]`) →
   `scheduled()` → `syncAll()`, which reads `autoSyncIntervalMinutes` and
   returns immediately unless the last sync is older than that interval. The
@@ -297,19 +257,20 @@ today's in-memory `AbortController`.
   frequency, so the web host honors every interval the desktop does. A
   no-op tick costs a few milliseconds. Cron handlers get 15 minutes of wall
   clock; a full-portfolio sync across several registrars fits.
-  Per-registrar sync also runs in a request when the user hits Sync, as
-  today.
+  Per-registrar sync also runs in a request when the user hits Sync.
 
-**Nameserver lookup** moves from `node:dns` to DNS-over-HTTPS
-(`https://cloudflare-dns.com/dns-query?name=…&type=NS` with
+**Nameserver lookup**, for registrars that don't report nameservers, uses
+DNS-over-HTTPS (`src/core/dns.ts`:
+`https://cloudflare-dns.com/dns-query?name=…&type=NS` with
 `accept: application/dns-json`, with Google's resolver as a fallback). One
 code path for both hosts.
 
 ### MCP server on the web
 
 - Transport: `WebStandardStreamableHTTPServerTransport` in **stateless** mode
-  (no `sessionIdGenerator`), so no session map to lose between isolates. The
-  tools in `mcp/tools.ts` are already stateless over the services.
+  (no `sessionIdGenerator`), so no session map to lose between isolates.
+  Server-initiated notifications aren't available in this mode; the tools in
+  `src/core/mcp/tools.ts` are stateless over the services and don't use them.
 - OAuth provider (`src/core/mcp/oauth.ts`): same logic, but clients, auth
   codes, tokens, and pending approvals all live in the `mcp` namespace of the
   `DocStore`, so the authorize request, the in-app approval, and the token
@@ -321,65 +282,64 @@ code path for both hosts.
   page is served by the Worker; the ApprovalModal in the web UI (logged in)
   approves it; the waiting page polls `/oauth/status`. Issuer URL is the
   request origin.
-- Hono replaces Express for the MCP routes in core (`src/core/mcp/routes.ts`),
-  mounted by both hosts (`@hono/node-server` on Electron). Express and `cors`
-  are removed; the SDK's Express-only auth router is replaced by ~150 lines of
-  equivalent Hono handlers (RFC 8414/9728 discovery, 7591 registration,
-  authorize with PKCE S256, token, 7009 revoke). The stdio shim stays
-  Electron-only; on the web, Claude Desktop and other
-  clients connect to `https://<host>/mcp` as a remote MCP server with OAuth,
-  which they support natively.
+- The MCP routes are Hono, in core (`src/core/mcp/routes.ts`), mounted by
+  both hosts (`@hono/node-server` on Electron), with DomBot's own OAuth
+  handlers: RFC 8414/9728 discovery, 7591 registration, authorize with PKCE
+  S256, token, and 7009 revoke. The stdio shim is Electron-only; on the web,
+  Claude Desktop and other clients connect to `https://<host>/mcp` as a remote
+  MCP server with OAuth, which they support natively.
 
 ### Renderer changes
 
 Deliberately small:
 
-- `src/renderer/api.ts`: `window.api ?? createHttpApi()`.
-- `platform` in the store (`'electron' | 'web'`), used only by: CSV export
-  (dialog vs. download), external links, the MCP settings page (hide the
-  stdio section; show "Connect with this URL"), and the About panel.
-- New route: `/login`, plus a Settings → Security note. Web-only; the router
-  doesn't register them on Electron.
-- Bulk-job UI drives `step` on web (a hook that calls it while `running`).
+- `src/renderer/main.tsx` installs `createHttpApi()` as `window.api` when
+  there is no preload, and shows the login page until a session exists.
+- `src/renderer/lib/platform.ts` says which host it is (and which auth mode),
+  used by CSV export (dialog vs. download), external links, the MCP settings
+  page (no stdio section; "Connect with this URL"), and the About panel.
+- The HTTP api drives `stepBulk` on the web while a job runs.
 
 ### Build and deploy (Cloudflare)
 
-- `wrangler.jsonc`: `main: src/worker/index.ts`, `assets: { directory:
-dist/renderer, not_found_handling: single-page-application }`, one D1
-  binding, `triggers.crons`, `compatibility_flags: ["nodejs_compat"]` (for
-  `fast-xml-parser`'s Buffer touchpoints; verify in phase 0 whether it's
-  even needed).
-- `npm run web:build` = renderer Vite build with a `web` mode (no Electron
-  aliases; module-preload polyfill back on) + `wrangler deploy` bundling the
-  worker. `npm run web:dev` = `wrangler dev` with local D1 + Vite proxy.
-- D1 schema via `wrangler d1 migrations` (one migration, the `docs` table).
+- `wrangler.jsonc`: `main: src/worker/index.ts`, static assets from
+  `dist/web` (`not_found_handling: single-page-application`,
+  `run_worker_first`), one D1 binding (`DB`), an hourly cron trigger,
+  `compatibility_flags: ["nodejs_compat"]`, and `DOMBOT_AUTH` as a plain var.
+  Personal overrides go in a gitignored `wrangler.local.json`, merged in by
+  `scripts/wrangler.mjs`.
+- `npm run web:build` is the renderer's Vite build for the web
+  (`vite.web.config.mts`). `npm run web:dev` builds it and runs `wrangler dev`
+  with local D1. `npm run deploy` applies D1 migrations and runs
+  `wrangler deploy`; `npm run web:deploy` builds first.
+- D1 schema via `wrangler d1 migrations` (`migrations/`: the `docs` table and
+  the `login_attempts` table).
 - **Deploy to Cloudflare button** in the README and on dombot.ai
   (`deploy.workers.cloudflare.com/?url=github.com/aoxborrow/dombot`). It
   forks the repo, provisions the D1 database declared in `wrangler.jsonc`,
-  runs the build, and prompts for `DOMBOT_SECRET` and `DOMBOT_PASSWORD` (if
-  the deploy flow can't prompt for secrets, `npm run web:secrets` is step 2). Plus a
-  `.github/workflows/deploy-worker.yml` for people who'd rather deploy from
-  their fork on push (needs `CLOUDFLARE_API_TOKEN` + account id).
-- A "Self-host" page on the marketing site with the three steps: click
-  deploy, run `npm run web:secrets`, open the URL and log in.
+  runs the build, and prompts for `DOMBOT_SECRET` and `DOMBOT_PASSWORD`
+  (described in `.dev.vars.example` and `package.json`'s `cloudflare`
+  block). `.github/workflows/deploy-worker.yml` redeploys a fork on push once
+  it has a Cloudflare API token.
 
-Plan: Workers Free has a 10 ms CPU limit per invocation; a registrar sync
-that parses XML for hundreds of domains will likely exceed it. Expect to
-document **Workers Paid ($5/month)**, which allows 30 s CPU (raisable to 5
-min). Phase 0 measures this.
+Workers Free allows 10 ms of CPU per invocation, and a registrar sync that
+parses XML for hundreds of domains can exceed it. Workers Paid ($5/month)
+allows 30 s (raisable to 5 minutes); [self-hosting.md](self-hosting.md#limits)
+says when to switch.
 
 ### Desktop migration
 
-Smaller than it sounds: the FsDocStore names its files after the namespaces
-(`cache-portfolio.json`, `folders.json`, `settings.json`,
-`registrar-state.json`, `pricing-overrides.json`) and every one of those was
-already a `{ key: value }` map, so they load unchanged. The only real
-migration is credentials, which used to be one safeStorage-encrypted blob:
+Older desktop installs kept each service's data in its own JSON file. Those
+were already `{ key: value }` maps, so `FsDocStore` (one file per namespace)
+loads them unchanged, and `runMigrations` renames them to the current
+namespaces ([storage-model.md](storage-model.md#migration)). The one real
+migration is credentials, which used to be one safeStorage-encrypted blob
+(`src/electron/storage/migrate.ts`):
 
 1. On first launch, before hydration, `migrateLegacyCredentials()` looks for
    `credentials.dat`. Absent → done.
 2. It parses the blob (plaintext first, for the opt-in fallback; else
-   safeStorage decrypt) and `put`s each registrar into the `credentials`
+   safeStorage decrypt) and `put`s each registrar into the credentials
    namespace through the encrypting store, so each entry is re-sealed
    individually and stays encrypted throughout.
 3. The legacy file is renamed `credentials.dat.pre-v1.bak` (kept for one
@@ -389,134 +349,101 @@ migration is credentials, which used to be one safeStorage-encrypted blob:
 Idempotent, and covered by tests that seed a plaintext blob, an encrypted
 blob, and an unreadable one.
 
-**Desktop → web transfer** (nice-to-have, phase 6): Settings → Export data
-produces a JSON bundle of every namespace, optionally passphrase-sealed in
-the browser (PBKDF2 is too heavy for a Worker's CPU budget); the web
-instance imports it from Settings. Lets a desktop user
-move to their own instance without re-entering keys or redoing folders.
+**Desktop → web transfer.** Settings → Sync exports a JSON bundle of every
+exported namespace (`src/core/storage/bundle.ts`), optionally sealed with a
+passphrase in the browser (`src/shared/bundle-seal.ts`, PBKDF2 + AES-GCM, so
+the key stretching never runs on the Worker). The other instance imports it
+from Settings → Sync, so a desktop user can move to their own instance
+without re-entering keys or redoing folders.
 
 ### Cloud-agnostic seams
 
-What another host has to supply, and nothing more:
+What another host has to supply, and nothing more. Only the Cloudflare and
+Electron hosts exist; the Vercel column is what an adapter would use.
 
-| Seam       | Cloudflare                                        | Vercel (later)                                           | Electron                            |
+| Seam       | Cloudflare                                        | Vercel (not built)                                       | Electron                            |
 | ---------- | ------------------------------------------------- | -------------------------------------------------------- | ----------------------------------- |
 | `DocStore` | D1                                                | Neon/Postgres or Upstash (same `docs` table)             | JSON files                          |
 | Secrets    | `DOMBOT_SECRET` + `DOMBOT_PASSWORD` bindings      | env vars                                                 | safeStorage (no root key, no login) |
 | Auth gate  | `password`, or `cloudflare-access` (JWT verified) | `password`, or `external` (Vercel protection)            | none (local user)                   |
 | HTTP       | Hono `fetch` handler + static assets              | Hono on Vercel Functions + static                        | `@hono/node-server` (MCP only)      |
 | Scheduler  | Cron Trigger → `syncAll()`                        | `vercel.json` cron → `/api/cron/sync` with `CRON_SECRET` | `setInterval`                       |
-| Bulk steps | client-driven + `waitUntil`                       | client-driven                                            | self-driven loop                    |
+| Bulk steps | client-driven                                     | client-driven                                            | self-driven loop                    |
 
-The Worker host is ~300 lines. A Vercel host is the same file with a
-different storage import and a cron route.
+The Worker host (`src/worker/index.ts`) is about 300 lines. A Vercel host
+would be the same file with a different storage import and a cron route.
 
-## Risks and things to verify first
+## Retry standard
 
-- **Registrar IP allowlists.** Namecheap requires the caller's IP to be
-  whitelisted; Dynadot can be configured that way too. Workers egress from
-  Cloudflare's shared IP ranges, which aren't fixed per account. Phase 0 tests
-  whether whitelisting Cloudflare's published ranges satisfies Namecheap and
-  Dynadot. If not, those registrars are documented as desktop-only (or
-  "works on Vercel with the static-IP add-on"), and the Settings UI says so
-  when `platform === 'web'`.
-- **CPU time.** See the Workers Paid note above. Measure a full sync of a
-  ~300-domain portfolio under `wrangler dev`.
-- **Bulk-job pacing on the web.** Client-driven stepping means a 200-domain
-  Porkbun job (10 s spacing) takes ~35 minutes with the tab open. Acceptable
-  for v1; `waitUntil` chaining or a Cloudflare Workflow is the upgrade path.
-- **MCP stateless mode** drops server-initiated notifications. The tools
-  don't use them today; confirm nothing in `tools.ts` relies on
-  `sendNotification`.
-- **`fast-xml-parser` on workerd** — pure JS, expected fine; confirm.
-- **Renderer bundle assumptions.** The Electron build disables the
-  module-preload polyfill for CSP reasons; the web build serves from an
-  origin and can use a normal CSP header set by the Worker (mirror the
-  strict one in `src/main/index.ts`, plus `connect-src 'self'`).
+One rule for every registrar, direct or through the fixed IP proxy, on both
+hosts. The user-facing summary is in
+[self-hosting.md](self-hosting.md#when-a-change-may-or-may-not-have-gone-through).
 
-## Phases
+### What hurts when sent twice
 
-Each phase leaves the desktop app shippable. Phases 1–3 are pure refactors
-with no user-visible change; they're where most of the risk is retired.
+The HTTP method can't be the signal: Namecheap sends writes as GET, and
+Porkbun sends reads as POST. What matters is the effect of a repeat:
 
-### Phase 0 — Spike (½ day)
+- **Renew.** Charges twice and adds two terms. The one that costs money.
+- **Writes that create records** at registrars whose API adds DNS or
+  forwarding entries one at a time. A repeat leaves duplicates.
+- **Register and transfer-in.** The repeat fails with "unavailable" or
+  "already pending", so the user sees a failure for something that succeeded.
+- Everything else sets a state (auto-renew, lock, nameservers, contacts,
+  privacy flag, forwarding, DNSSEC disable) and is harmless to repeat.
 
-Run `@aoxborrow/registrar-client` inside `wrangler dev` against one real
-registrar: list domains, fetch a detail, measure CPU time. Try Namecheap
-with Cloudflare's IP ranges whitelisted. Verify Access JWT validation. Decide Free vs Paid and the
-allowlist story. No code lands.
+### The rule
 
-### Phase 1 — Core extraction + `DocStore`
+`@aoxborrow/registrar-client` decides by where the failure happened and
+whether the call is a read or a write. It classifies by feature method, not
+by HTTP method: `get*`, `list*`, `check*` and `testConnection` are reads;
+everything else is a write. A new method is classified explicitly;
+unclassified means write.
 
-- Create `src/core`; move `services/*`, `mcp/tools.ts`, `mcp/portfolio-query.ts`,
-  `shared/domain-ops.ts` into it. `electron` imports replaced by a `Host`
-  object (`store: DocStore`, `secrets`, `now`) passed at startup.
-- `FsDocStore`, `EncryptedDocStore` (with a `safeStorage` cipher and an
-  AES-GCM cipher), `D1DocStore` (unit-tested against `better-sqlite3` or
-  wrangler's local D1).
-- `migrateStorage()` with the legacy-file test.
-- DNS-over-HTTPS nameserver lookup.
-- Exit: desktop app behaves identically; `src/core` has zero `electron`
-  imports (enforced by an ESLint `no-restricted-imports` rule).
+| Failure                                                                                                        | Read                          | Write                                         |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------- |
+| Registrar never saw the request: DNS failure, connection refused, TLS handshake failure, any proxy-stage error | Retry                         | Retry                                         |
+| 429 (explicitly rejected)                                                                                      | Retry, honoring `Retry-After` | Retry, honoring `Retry-After`                 |
+| Outcome unknown: timeout after the request was sent, connection dropped mid-response, 5xx                      | Retry                         | **Do not retry.** Raise `OutcomeUnknownError` |
+| Any other response (4xx, provider error body)                                                                  | Fail                          | Fail                                          |
 
-### Phase 2 — API table + events
+`OutcomeUnknownError` carries the feature name and the underlying cause, and
+is not retryable. Providers that fold errors into an `OperationResult`
+report the same case as `outcome: 'unknown'`.
 
-- `src/core/api.ts` method table with zod schemas; Electron IPC generated
-  from it; the eight `ipc/*.ts` files deleted.
-- `meta/revision` + `events(since)` in core; Electron still pushes.
-- Exit: same behavior, ~400 fewer lines of hand-written IPC glue.
+### What DomBot does with an unknown outcome
 
-### Phase 3 — Persisted bulk jobs + `syncAll()`
+It resolves it instead of asking the user to. `applyDomainOp`
+(`src/core/services/domain-ops.ts`) re-fetches the domain once after an
+unknown outcome and compares the relevant field with what the write
+intended:
 
-- Job doc + `stepBulk()`; Electron loops it (`driveBulk`). Cancel via flag.
-  A job found still running at launch is closed out as cancelled with an
-  "interrupted" message rather than resumed — renew is money, so nothing
-  restarts on its own; the results report is the retry surface. (A "Resume
-  interrupted job?" prompt can come later.)
-- `syncAll(ifOlderThanMs?)` extracted from `auto-sync.ts`.
+- **Applied.** Report success and patch the cache, as a normal success would.
+- **Not applied, and harmless to repeat** (auto-renew, lock, privacy,
+  nameservers, an auth-code request). Report failed and safe to try again.
+- **Not applied but it costs money, the re-fetch failed, or there is no field
+  to check** (a renewal whose expiry hasn't moved, forwarding changes). Report
+  the `unknown` status, shown as "Unconfirmed": check the domain first. A
+  renewal is never called safe to retry, because registrars can take a while
+  to show one.
 
-### Phase 4 — Worker host + web renderer
+Bulk jobs record the same three states per domain, and "not applied" rows are
+eligible for the retry action. MCP tools return the same wording.
 
-- `src/worker/index.ts`: Hono app, `D1DocStore` under `EncryptedDocStore`,
-  HKDF key derivation, `DOMBOT_AUTH` middleware (password / Access JWT /
-  external), `/api/:method`,
-  `/api/events`, `scheduled()`, static assets, CSP headers.
-- Renderer: `createHttpApi()`, `platform`, login page + security note,
-  bulk-step hook, web Vite mode.
-- `wrangler.jsonc`, D1 migration, `web:dev` / `web:build` / `web:deploy`
-  scripts. CI job that builds the worker and runs `wrangler deploy --dry-run`.
-- Exit: a working private instance on a `*.workers.dev` URL.
+### Proxy errors versus registrar errors
 
-### Phase 5 — MCP on the web
+A CONNECT proxy has a hard boundary: the tunnel is established or it is not.
+Everything before that point belongs to the proxy and means the registrar
+never saw the request: proxy unreachable, 407, a non-2xx reply to CONNECT, a
+TLS failure to the proxy itself, a registrar certificate that can't be
+verified inside the tunnel. Desktop (`https-proxy-agent`) raises a
+`ProxyStageError` for these and the Worker's `tunnelfetch` raises its own
+coded errors. `sendThroughProxy` (`src/core/services/proxy-transport.ts`)
+maps both to a plain message marked with the library's `markNotSent`, so they
+retry for any call and surface as proxy problems ("The proxy rejected the
+username or password"), never as registrar errors, and never with the proxy
+URL.
 
-- Hono MCP routes in core; web-standard transport, stateless; OAuth state in
-  `DocStore`; tokens stored by hash. Electron mounts the same routes via
-  `@hono/node-server`; Express removed. Desktop `mcp-tokens.json` migrates
-  into the `mcp` namespace on first launch.
-- Approval page + status endpoint on the Worker; MCP settings page shows the
-  remote URL.
-- Exit: Claude Desktop / Claude Code connect to `https://<host>/mcp` with the
-  same approve-in-app flow.
-
-### Phase 6 — Deploy experience
-
-- Deploy-to-Cloudflare button (secrets prompted via `.dev.vars.example` +
-  `package.json` `cloudflare.bindings` descriptions; `build` / `deploy`
-  scripts, migrations by binding name), `deploy-worker.yml` (no-op until the
-  fork has Cloudflare secrets), CI dry-run bundle of the Worker, "Self-host"
-  section on the site, README section, `web:secrets` / `web:rotate-password`
-  / `web:rotate-secret` scripts.
-- Export / import data bundle (`src/core/storage/bundle.ts`): every namespace
-  but `auth` and `meta`, in the clear over the API; the client seals/opens
-  it with PBKDF2 + AES-GCM (`src/shared/bundle-seal.ts`) so the key
-  stretching never runs on the Worker. Settings → Sync on both hosts.
-  Secret rotation round-trips through it.
-- Release: desktop 1.2.0 (with the storage migration) and the first
-  web-deployable tag together, since they share the storage layout —
-  `package.json` is bumped; cutting the release is a manual Actions run.
-
-### Later
-
-- Vercel host adapter (Neon + cron route).
-- SSE for events; `waitUntil`-chained or Workflow-driven bulk jobs.
-- Optional passkey login as a second factor.
+Once the tunnel is up the traffic is end-to-end TLS with the registrar, and
+failures are the same as on a direct connection. A tunnel that drops
+mid-request is an unknown outcome and follows the table.

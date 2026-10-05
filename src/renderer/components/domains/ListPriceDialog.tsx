@@ -18,7 +18,7 @@ import { MoneyInput } from './MoneyInput';
 
 /**
  * Set the asking price, minimum offer, and floor for one name or a selection
- * (docs/domain-import-export.md, "Asking price"). Amounts are typed in the
+ * (docs/domain-import-export.md, "BIN price"). Amounts are typed in the
  * number format from Settings; all three blank clears the price. A selection
  * opens with the price they share, or blank when they differ.
  */
