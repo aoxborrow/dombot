@@ -161,8 +161,10 @@ export function DataTable<T>({
           // text (icon buttons overlap into it with negative margins, so they
           // don't drive it): 45px normal, ~36px compact. align-top keeps
           // inline-level cell content (checkbox, switch, inline-flex spans)
-          // from adding baseline descent under the line box.
-          'domain-table-scroll absolute inset-0 overflow-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 [&_td]:py-3 [&_td>*]:align-top compact:[&_td]:py-[9px]',
+          // from adding baseline descent under the line box. Column rules
+          // sit between cells only: the outer cells' would double the frame's
+          // border, a darker strip just inside it.
+          'domain-table-scroll absolute inset-0 overflow-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 [&_tr>*:first-child]:border-l-0 [&_tr>*:last-child]:border-r-0 [&_td]:py-3 [&_td>*]:align-top compact:[&_td]:py-[9px]',
           density === 'compact' && 'compact',
         )}
       >
