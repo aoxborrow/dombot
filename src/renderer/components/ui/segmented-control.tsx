@@ -14,16 +14,17 @@ export interface SegmentedOption<T extends string> {
 
 /**
  * A one-of-N switch styled like the app's inputs (the select's border,
- * background, and shadow), with the chosen segment washed lighter. `sm`
- * matches the small select (h-8), `default` the regular inputs (h-9). Used
- * for the page views (Active | Archive, Needs review | All), table density,
- * and the Settings appearance picker.
+ * background, and shadow), with the chosen segment solid brand green, like
+ * the primary buttons, or with `tone="grey"` a quieter grey wash. `sm` matches the small select (h-8), `default` the
+ * regular inputs (h-9). Used for the page views (Active | Archive, All |
+ * Needs review), table density, and the Settings appearance picker.
  */
 export function SegmentedControl<T extends string>({
   value,
   onChange,
   options,
   size = 'default',
+  tone = 'green',
   className,
   ...aria
 }: {
@@ -31,6 +32,9 @@ export function SegmentedControl<T extends string>({
   onChange: (value: T) => void;
   options: SegmentedOption<T>[];
   size?: 'default' | 'sm';
+  /** How the chosen segment shows: solid green, or a grey wash for a
+   * minor setting beside the content (table density). */
+  tone?: 'green' | 'grey';
   className?: string;
   'aria-label'?: string;
   'aria-labelledby'?: string;
@@ -59,12 +63,15 @@ export function SegmentedControl<T extends string>({
             className={cn(
               'inline-flex h-full items-center justify-center gap-2 rounded-[5px] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
               label == null ? 'w-7' : 'px-3',
-              // Translucent washes rather than a fixed grey, so the chosen
-              // segment stands out the same on the page, a card, or the
-              // footer.
-              active
-                ? 'bg-foreground/10 text-foreground dark:bg-foreground/15'
-                : 'hover:bg-foreground/5 dark:hover:bg-foreground/[0.07]',
+              // The chosen one solid green with white text (white on hover
+              // too), or a grey wash. The washes are translucent rather than
+              // a fixed grey, so they look the same on the page, a card, or
+              // the footer.
+              !active
+                ? 'hover:bg-foreground/5 dark:hover:bg-foreground/[0.07]'
+                : tone === 'green'
+                  ? 'bg-primary text-primary-foreground hover:text-primary-foreground'
+                  : 'bg-foreground/10 text-foreground dark:bg-foreground/15',
             )}
           >
             {Icon && <Icon className="size-4" />}
@@ -78,9 +85,11 @@ export function SegmentedControl<T extends string>({
                 <span
                   className={cn(
                     'text-[11px] font-normal tabular-nums',
-                    active
-                      ? 'text-muted-foreground'
-                      : 'text-muted-foreground/60',
+                    !active
+                      ? 'text-muted-foreground/60'
+                      : tone === 'green'
+                        ? 'text-primary-foreground/75'
+                        : 'text-muted-foreground',
                   )}
                 >
                   {count}
