@@ -6,7 +6,7 @@ import {
   RefreshCw,
   Upload,
 } from 'lucide-react';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -74,20 +74,31 @@ export function SyncSplitButton({
   // Can't sync right now, and not because one is running: a click says why
   // instead of syncing. Either way the button goes neutral rather than fading.
   const blocked = disabled && !syncing;
+  // Snap between green and neutral (transition-none on both halves): the
+  // button's colour fade would show a washed-out green each time it flips.
   const variant = disabled ? 'outline' : 'default';
-  // Snap between green and neutral: the button's colour fade would show a
-  // washed-out green for a moment each time the state flips.
+  // The sync this button started, by the last-synced time it began from.
+  // "✓ Synced" confirms only that one: after the sync on launch the button
+  // still reads Sync now (neutral for the cooldown), with the time beside it.
+  const [startedFrom, setStartedFrom] = useState<{ at: number | null }>();
+  const confirmed =
+    tooSoon && !syncing && startedFrom !== undefined
+      ? lastSyncedAt !== startedFrom.at
+      : false;
 
   function onSync() {
     if (syncing) return;
     if (blocked) toast.info(reason ?? title);
-    else sync();
+    else {
+      setStartedFrom({ at: lastSyncedAt });
+      sync();
+    }
   }
 
   return (
     <div className="flex shrink-0 items-center gap-3">
-      {/* Just after a sync the button itself says so. */}
-      {lastSyncedAt !== null && !syncing && !tooSoon && (
+      {/* Just after a sync you started, the button itself says so. */}
+      {lastSyncedAt !== null && !syncing && !confirmed && (
         <span
           className={cn(
             'hidden text-xs text-muted-foreground sm:inline',
@@ -104,15 +115,15 @@ export function SyncSplitButton({
           onClick={onSync}
           aria-disabled={disabled}
           title={title}
-          aria-label={syncing ? 'Syncing' : tooSoon ? 'Synced' : 'Sync now'}
+          aria-label={syncing ? 'Syncing' : confirmed ? 'Synced' : 'Sync now'}
           className={cn(
             'rounded-r-none transition-none max-sm:w-9 max-sm:px-0!',
             syncing &&
               'cursor-default hover:bg-background dark:hover:bg-input/30',
           )}
         >
-          {tooSoon && !syncing ? (
-            // Some accounts failed: no check. The banner under the title
+          {confirmed ? (
+            // Some accounts failed: no check. The red text under the button
             // names them.
             partialFail ? (
               <CircleAlert className="text-destructive" />
@@ -123,7 +134,7 @@ export function SyncSplitButton({
             <RefreshCw className={cn(syncing && 'animate-spin')} />
           )}
           <span className="max-sm:sr-only">
-            {syncing ? 'Syncing…' : tooSoon ? 'Synced' : 'Sync now'}
+            {syncing ? 'Syncing…' : confirmed ? 'Synced' : 'Sync now'}
           </span>
         </Button>
         <DropdownMenu>
