@@ -294,7 +294,8 @@ export function ViewSwitch({
   className?: string;
   options: {
     id: string;
-    label: string;
+    label: ReactNode;
+    icon?: ComponentType<{ className?: string }>;
     count: number;
     active: boolean;
     onClick: () => void;
@@ -309,6 +310,7 @@ export function ViewSwitch({
       options={options.map((o) => ({
         value: o.id,
         label: o.label,
+        icon: o.icon,
         count: o.count,
       }))}
     />
