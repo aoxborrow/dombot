@@ -583,7 +583,8 @@ export default function Activity() {
     },
   ];
 
-  // The filter bar's fields, in the Add filter menu's order.
+  // The filter bar's fields, in the Add filter menu's order (the order the
+  // old filter dropdowns had).
   const listFilter = (
     field: Parameters<typeof listField>[0],
     set: (next: string[]) => void,
@@ -595,17 +596,6 @@ export default function Activity() {
   const filterFields: FilterField[] = [
     listFilter(
       {
-        key: 'type',
-        label: 'Type',
-        icon: History,
-        options: typeOptions,
-        selected: types,
-        plural: 'types',
-      },
-      setTypes,
-    ),
-    listFilter(
-      {
         key: 'account',
         label: 'Registrar',
         icon: Building2,
@@ -614,17 +604,6 @@ export default function Activity() {
         plural: 'registrars',
       },
       setAccounts,
-    ),
-    listFilter(
-      {
-        key: 'date',
-        label: 'Date',
-        icon: CalendarClock,
-        options: dateOptions,
-        selected: days,
-        plural: 'ranges',
-      },
-      setDays,
     ),
     listFilter(
       {
@@ -639,6 +618,17 @@ export default function Activity() {
     ),
     listFilter(
       {
+        key: 'type',
+        label: 'Type',
+        icon: History,
+        options: typeOptions,
+        selected: types,
+        plural: 'types',
+      },
+      setTypes,
+    ),
+    listFilter(
+      {
         key: 'source',
         label: 'Source',
         icon: Inbox,
@@ -647,6 +637,17 @@ export default function Activity() {
         plural: 'sources',
       },
       setSources,
+    ),
+    listFilter(
+      {
+        key: 'date',
+        label: 'Date',
+        icon: CalendarClock,
+        options: dateOptions,
+        selected: days,
+        plural: 'ranges',
+      },
+      setDays,
     ),
     // One import's rows, from the import's result: a chip while it's set,
     // whose × shows everything again.
@@ -718,7 +719,7 @@ export default function Activity() {
           }}
           searchPlaceholder="Search domains…"
           fields={filterFields}
-          presets={['type', 'account', 'date']}
+          presets={['account', 'priority', 'type']}
         />
 
         {selected.size > 0 && (
