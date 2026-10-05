@@ -68,16 +68,23 @@ export function SegmentedControl<T extends string>({
             )}
           >
             {Icon && <Icon className="size-4" />}
-            {label}
-            {count != null && (
-              // Quieter than the label: smaller, regular weight, dimmed.
-              <span
-                className={cn(
-                  '-ml-0.5 text-[11px] font-normal tabular-nums',
-                  active ? 'text-muted-foreground' : 'text-muted-foreground/60',
-                )}
-              >
-                {count}
+            {count == null ? (
+              label
+            ) : (
+              // The count is quieter than the label (smaller, regular weight,
+              // dimmed) and sits on its baseline rather than centred.
+              <span className="inline-flex items-baseline gap-1.5">
+                {label}
+                <span
+                  className={cn(
+                    'text-[11px] font-normal tabular-nums',
+                    active
+                      ? 'text-muted-foreground'
+                      : 'text-muted-foreground/60',
+                  )}
+                >
+                  {count}
+                </span>
               </span>
             )}
           </button>

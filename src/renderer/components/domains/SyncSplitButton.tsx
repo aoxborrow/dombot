@@ -133,7 +133,7 @@ export function SyncSplitButton({
               aria-label="More data actions"
               className={cn(
                 'w-8 rounded-l-none px-0 transition-none',
-                disabled ? '-ml-px' : 'border-l border-brand-300/70',
+                disabled ? '-ml-px' : 'border-l border-brand-400',
               )}
             >
               <ChevronDown />
