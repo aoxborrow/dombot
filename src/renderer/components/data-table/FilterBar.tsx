@@ -212,8 +212,10 @@ function ListMenu({ field }: { field: ListField }) {
 export type FilterChipVariant = 'segmented' | 'flat';
 
 /**
- * One filter: [icon name value ×], its dropdown editing the value. With
- * nothing set it's a dashed grey outline with just its icon and name.
+ * One filter: [icon name value ×], its dropdown editing the value, with
+ * "Remove filter" at the bottom. With nothing set it's a dashed grey outline
+ * with just its icon and name, and a preset (one of the bar's defaults) drops
+ * the × too, so it reads as a plain button until a value is picked.
  */
 function FilterChip({
   field,
@@ -221,17 +223,20 @@ function FilterChip({
   onOpenChange,
   onRemove,
   variant,
+  preset,
 }: {
   field: FilterField;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRemove: () => void;
   variant: FilterChipVariant;
+  preset: boolean;
 }) {
   const Icon = field.icon;
   const summary = summaryOf(field);
   const flat = variant === 'flat';
   const empty = summary === null;
+  const removable = !(empty && preset);
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <span
@@ -265,9 +270,13 @@ function FilterChip({
             type="button"
             aria-label={`${field.label}: ${summary ?? 'any'}`}
             // The whole chip but the × opens the menu; the right padding
-            // keeps the text clear of the × above it.
+            // keeps the text clear of the × above it (without one, it
+            // matches the left).
             data-chip-trigger
-            className="group/trigger flex items-stretch pr-7 whitespace-nowrap outline-none"
+            className={cn(
+              'group/trigger flex items-stretch whitespace-nowrap outline-none',
+              removable ? 'pr-7' : 'pr-1.5',
+            )}
           >
             <span
               className={cn(
@@ -299,36 +308,38 @@ function FilterChip({
             )}
           </button>
         </DropdownMenuTrigger>
-        <button
-          type="button"
-          aria-label={`Remove ${field.label} filter`}
-          title="Remove filter"
-          onClick={onRemove}
-          className={cn(
-            // Vertically centred where it always was, but the hitbox starts at
-            // the icon (no padding on its left), over the trigger, so a click
-            // just past the value doesn't land on it.
-            'group/remove absolute inset-y-0 right-0 flex items-center rounded-r-md pr-[9px] opacity-55 outline-none hover:opacity-100',
-            // On a set chip, muted grey with a hint of the label green. Hover
-            // darkens it (brightens it in dark mode) and tints a small square
-            // behind it, so it's plain when the pointer is on it.
-            empty
-              ? 'text-muted-foreground hover:text-[#515151] dark:hover:text-foreground'
-              : 'text-[#658370] hover:text-[#475c4e] dark:text-[#9aafa1] dark:hover:text-[#d4e6da]',
-          )}
-        >
-          {/* The hover square; the negative margin keeps the icon in place. */}
-          <span
+        {removable && (
+          <button
+            type="button"
+            aria-label={`Remove ${field.label} filter`}
+            title="Remove filter"
+            onClick={onRemove}
             className={cn(
-              '-m-[3px] flex rounded-[4px] p-[3px] transition-colors',
+              // Vertically centred where it always was, but the hitbox starts at
+              // the icon (no padding on its left), over the trigger, so a click
+              // just past the value doesn't land on it.
+              'group/remove absolute inset-y-0 right-0 flex items-center rounded-r-md pr-[9px] opacity-55 outline-none hover:opacity-100',
+              // On a set chip, muted grey with a hint of the label green. Hover
+              // darkens it (brightens it in dark mode) and tints a small square
+              // behind it, so it's plain when the pointer is on it.
               empty
-                ? 'group-hover/remove:bg-black/6 dark:group-hover/remove:bg-white/15'
-                : 'group-hover/remove:bg-[#4f9d6b]/14 dark:group-hover/remove:bg-[#4f9d6b]/40',
+                ? 'text-muted-foreground hover:text-[#515151] dark:hover:text-foreground'
+                : 'text-[#658370] hover:text-[#475c4e] dark:text-[#9aafa1] dark:hover:text-[#d4e6da]',
             )}
           >
-            <X className="size-3.5" />
-          </span>
-        </button>
+            {/* The hover square; the negative margin keeps the icon in place. */}
+            <span
+              className={cn(
+                '-m-[3px] flex rounded-[4px] p-[3px] transition-colors',
+                empty
+                  ? 'group-hover/remove:bg-black/6 dark:group-hover/remove:bg-white/15'
+                  : 'group-hover/remove:bg-[#4f9d6b]/14 dark:group-hover/remove:bg-[#4f9d6b]/40',
+              )}
+            >
+              <X className="size-3.5" />
+            </span>
+          </button>
+        )}
       </span>
       <DropdownMenuContent
         align="start"
@@ -344,6 +355,12 @@ function FilterChip({
         }}
       >
         {field.kind === 'list' ? <ListMenu field={field} /> : field.content}
+        {/* Every chip, × or not, can be removed from its menu. */}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={onRemove}>
+          <X />
+          Remove filter
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -548,6 +565,7 @@ export function FilterBar({
           onOpenChange={(open) => setOpenKey(open ? f.key : null)}
           onRemove={() => remove(f)}
           variant={variant}
+          preset={presets.includes(f.key)}
         />
       ))}
       {/* Always last, so it stays mounted as chips come and go (with none,
