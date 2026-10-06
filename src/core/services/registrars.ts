@@ -510,7 +510,8 @@ async function fetchGodaddyTldRenewal(
  * on premium-capable TLDs. GoDaddy takes the v3 availability price, which is
  * quoted for the authenticated shopper (so any account discount is included):
  * one call per TLD to fill that account's TLD rate, plus a per-name call only
- * for names availability marked premium.
+ * for names availability marked premium. Namecheap prices per TLD for the
+ * authenticated user (see syncNamecheapTldRates).
  *
  * Known gap: a premium name we *own* is quoted by its real name, and GoDaddy
  * often returns no prices for a registered name — so that quote can come back
@@ -526,6 +527,10 @@ async function syncRenewalQuotes(
 ): Promise<void> {
   if (name === 'godaddy') {
     await syncGoDaddyRenewalQuotes(domains, accountId, generation);
+    return;
+  }
+  if (name === 'namecheap') {
+    await syncNamecheapTldRates(domains, accountId, generation);
     return;
   }
 
@@ -617,6 +622,42 @@ async function syncGoDaddyRenewalQuotes(
         worker,
       ),
     );
+  }
+}
+
+/**
+ * Fill the account's TLD rates from Namecheap's users.getPricing, one call per
+ * distinct TLD. That table is priced for the authenticated user: `Price` is
+ * what the account pays (any discount included) and `RegularPrice` the list
+ * price the base table already holds. The ICANN fee (`AdditionalCost`) is left
+ * out, matching the base table. Calls run one at a time to stay well inside
+ * Namecheap's per-minute limit, and the first failure ends the pass — it is
+ * most likely that limit or a credential problem, and every later call would
+ * fail the same way. A TLD that isn't priced keeps whatever rate it had.
+ */
+async function syncNamecheapTldRates(
+  domains: Domain[],
+  accountId: string,
+  generation: number,
+): Promise<void> {
+  const tlds = [
+    ...new Set(domains.map((d) => tldOf(d.domainName)).filter(Boolean)),
+  ];
+  if (tlds.length === 0) return;
+  const client = getRegistrarClient('namecheap', accountId);
+  for (const tld of tlds) {
+    if ((generations.get(accountId) ?? 0) !== generation) return;
+    try {
+      const pricing = await client.getPricing(tld);
+      // TLD rates are USD; a quote in anything else would be misread.
+      const currency = (pricing.currency ?? 'USD').toUpperCase();
+      if (typeof pricing.renewal === 'number' && currency === 'USD') {
+        setTldRate('namecheap', tld, pricing.renewal, accountId);
+      }
+    } catch (err) {
+      console.warn(`[pricing] Namecheap getPricing(${tld}) failed`, err);
+      return;
+    }
   }
 }
 
