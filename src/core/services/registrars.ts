@@ -511,7 +511,8 @@ async function fetchGodaddyTldRenewal(
  * quoted for the authenticated shopper (so any account discount is included):
  * one call per TLD to fill that account's TLD rate, plus a per-name call only
  * for names availability marked premium. Namecheap prices per TLD for the
- * authenticated user (see syncNamecheapTldRates).
+ * authenticated user and reads premium renewals off its availability check
+ * (see syncNamecheapRenewalQuotes).
  *
  * Known gap: a premium name we *own* is quoted by its real name, and GoDaddy
  * often returns no prices for a registered name — so that quote can come back
@@ -530,7 +531,7 @@ async function syncRenewalQuotes(
     return;
   }
   if (name === 'namecheap') {
-    await syncNamecheapTldRates(domains, accountId, generation);
+    await syncNamecheapRenewalQuotes(domains, accountId, generation);
     return;
   }
 
@@ -626,6 +627,21 @@ async function syncGoDaddyRenewalQuotes(
 }
 
 /**
+ * Namecheap's renewal quotes: the account's TLD rates, then a per-name quote
+ * for each premium name. A failed TLD pass skips the premium check, since it
+ * most likely hit the rate limit.
+ */
+async function syncNamecheapRenewalQuotes(
+  domains: Domain[],
+  accountId: string,
+  generation: number,
+): Promise<void> {
+  if (await syncNamecheapTldRates(domains, accountId, generation)) {
+    await syncNamecheapPremiumQuotes(domains, accountId, generation);
+  }
+}
+
+/**
  * Fill the account's TLD rates from Namecheap's users.getPricing, one call per
  * distinct TLD. That table is priced for the authenticated user: `Price` is
  * what the account pays (any discount included) and `RegularPrice` the list
@@ -634,19 +650,19 @@ async function syncGoDaddyRenewalQuotes(
  * Namecheap's per-minute limit, and the first failure ends the pass — it is
  * most likely that limit or a credential problem, and every later call would
  * fail the same way. A TLD that isn't priced keeps whatever rate it had.
+ * Resolves true when every TLD was asked.
  */
 async function syncNamecheapTldRates(
   domains: Domain[],
   accountId: string,
   generation: number,
-): Promise<void> {
+): Promise<boolean> {
   const tlds = [
     ...new Set(domains.map((d) => tldOf(d.domainName)).filter(Boolean)),
   ];
-  if (tlds.length === 0) return;
   const client = getRegistrarClient('namecheap', accountId);
   for (const tld of tlds) {
-    if ((generations.get(accountId) ?? 0) !== generation) return;
+    if ((generations.get(accountId) ?? 0) !== generation) return false;
     try {
       // getPricing reads a dotted argument as a domain and keeps what follows
       // its first dot, so a bare multi-part TLD ("br.com") would be priced as
@@ -659,7 +675,53 @@ async function syncNamecheapTldRates(
       }
     } catch (err) {
       console.warn(`[pricing] Namecheap getPricing(${tld}) failed`, err);
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Per-name quotes for premium Namecheap names. domains.check flags premium
+ * names and reports their own renewal price (`PremiumRenewalPrice`, USD,
+ * without the ICANN fee), 50 names a call. Only TLDs that can carry premium
+ * names are checked. A name the check calls standard drops any premium quote
+ * it held, so it falls back to the TLD rate; a failed check leaves the rest
+ * as they were.
+ */
+async function syncNamecheapPremiumQuotes(
+  domains: Domain[],
+  accountId: string,
+  generation: number,
+): Promise<void> {
+  const needFlags = new Set(tldsNeedingPremiumFlags(domains));
+  const names = domains
+    .filter((d) => needFlags.has(tldOf(d.domainName)))
+    .map((d) => d.domainName);
+  const client = getRegistrarClient('namecheap', accountId);
+  for (let i = 0; i < names.length; i += AVAILABILITY_BATCH) {
+    if ((generations.get(accountId) ?? 0) !== generation) return;
+    const chunk = names.slice(i, i + AVAILABILITY_BATCH);
+    let results;
+    try {
+      results = await client.checkAvailability(chunk);
+    } catch (err) {
+      console.warn('[pricing] Namecheap premium check failed', err);
       return;
+    }
+    if ((generations.get(accountId) ?? 0) !== generation) return;
+    const byName = new Map(results.map((r) => [r.domainName.toLowerCase(), r]));
+    for (const domain of chunk) {
+      const result = byName.get(domain.toLowerCase());
+      if (!result) continue;
+      if (result.premium && typeof result.renewalPrice === 'number') {
+        writeRenewalQuote(accountId, domain, {
+          renewal: result.renewalPrice,
+          currency: 'USD',
+        });
+      } else if (!result.premium) {
+        clearRenewalQuote(accountId, domain);
+      }
     }
   }
 }
@@ -672,6 +734,17 @@ function writeRenewalQuote(
   const key = detailKey(accountId, domain);
   const existing = readEntry<DetailRecord>('detail', key)?.data ?? {};
   writeEntry('detail', key, { ...existing, renewalQuote: quote });
+}
+
+// Patched rather than rewritten, so the domain detail keeps its fetchedAt.
+function clearRenewalQuote(accountId: string, domain: string): void {
+  const key = detailKey(accountId, domain);
+  if (!readEntry<DetailRecord>('detail', key)?.data.renewalQuote) return;
+  patchEntryData<DetailRecord>('detail', key, (data) => {
+    const rest = { ...data };
+    delete rest.renewalQuote;
+    return rest;
+  });
 }
 
 /** Domain names currently cached for one account. `synced` is true only after
@@ -867,10 +940,15 @@ export async function getRenewalPriceLive(
   accountId?: string,
 ): Promise<RenewalPricing> {
   accountId = resolveDomainAccount(name, domain, accountId).id;
-  const quote =
+  const live =
     name === 'godaddy' || usesPerNameQuote(name, tldOf(domain))
-      ? ((await fetchRenewalQuote(name, domain, accountId)) ?? undefined)
-      : undefined;
+      ? await fetchRenewalQuote(name, domain, accountId)
+      : null;
+  // Without a live quote, use the one Sync stored (a Namecheap premium, say).
+  const quote =
+    live ??
+    readEntry<DetailRecord>('detail', detailKey(accountId, domain))?.data
+      .renewalQuote;
   return { ...resolvePricing(name, domain, quote, accountId), accountId };
 }
 
