@@ -4,6 +4,7 @@ import {
   friendlyError,
   isApiUnsupportedMessage,
   opSummary,
+  reportsPrivacy,
   unsupportedReason,
 } from './domain-ops';
 import type { DomainOp, RegistrarName } from './ipc';
@@ -29,6 +30,13 @@ const ops: Record<string, DomainOp> = {
   auth: { kind: 'authCode' },
   renew: { kind: 'renew', years: 1 },
 };
+
+describe('reportsPrivacy', () => {
+  it('is false only for registrars whose API omits privacy', () => {
+    expect(reportsPrivacy('101domain')).toBe(false);
+    expect(reportsPrivacy('dynadot')).toBe(true);
+  });
+});
 
 describe('unsupportedReason', () => {
   it('blocks unavailable 101domain mutations while allowing nameservers and permanent apex forwarding', () => {

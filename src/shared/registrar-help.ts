@@ -28,13 +28,11 @@ export interface RegistrarHelp {
 }
 
 // Exhaustive over RegistrarName so adding a registrar to the library forces a
-// help entry here (the build fails until one is written). 101domain is prepared
-// ahead of the registrar-client release; it appears once that dependency adds it.
-type HelpRegistrar = RegistrarName | 'namecom' | '101domain';
-export const REGISTRAR_HELP: Record<HelpRegistrar, RegistrarHelp> = {
+// help entry here (the build fails until one is written).
+export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
   '101domain': {
     summary:
-      'Create an API key under My Account › Developer Tools – API & MCP. Use domains_read and dns_read for syncing; add dns_write for DNS/nameservers and domains_write for URL forwarding. Only the primary user with 2FA or SSO can create keys.',
+      'Create an API key under My Account › Developer Tools – API & MCP. domains_read and dns_read are enough to sync (a read-only key works; edits then say which scope is missing). Add dns_write for DNS and nameservers, and domains_write for URL forwarding. Only the primary user with 2FA or SSO can create keys.',
     links: [
       { label: '101domain account', url: 'https://my.101domain.com/' },
       {

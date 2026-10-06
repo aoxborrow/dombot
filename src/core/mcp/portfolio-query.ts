@@ -5,6 +5,7 @@
 
 import type { Domain } from '../../shared/ipc';
 import { toAscii } from '../../shared/domain-name';
+import { reportsPrivacy } from '../../shared/domain-ops';
 import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
 
 export const DEFAULT_LIMIT = 50;
@@ -48,7 +49,8 @@ export interface QueryRow {
   renewalDate: Date | null;
   autoRenew: boolean;
   locked: boolean;
-  privacy: boolean;
+  /** null where the registrar doesn't report privacy. */
+  privacy: boolean | null;
   nameservers: string[];
   folder: string | null;
 }
@@ -162,7 +164,11 @@ export function queryPortfolio(
       return false;
     if (args.autoRenew != null && d.autoRenew !== args.autoRenew) return false;
     if (args.locked != null && d.locked !== args.locked) return false;
-    if (args.privacy != null && d.privacy !== args.privacy) return false;
+    if (
+      args.privacy != null &&
+      (!reportsPrivacy(d.registrar) || d.privacy !== args.privacy)
+    )
+      return false;
     if (statusNeedle && !d.status.toLowerCase().includes(statusNeedle))
       return false;
 
@@ -217,7 +223,7 @@ export function queryPortfolio(
     renewalDate: d.renewalDate,
     autoRenew: d.autoRenew,
     locked: d.locked,
-    privacy: d.privacy,
+    privacy: reportsPrivacy(d.registrar) ? d.privacy : null,
     nameservers: d.nameservers,
     folder: folderNameFor(d),
   }));

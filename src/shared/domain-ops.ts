@@ -21,10 +21,8 @@ const REQUIRED_FEATURE: Partial<Record<DomainOpKind, string>> = {
  * predict is still classified `unsupported` at run time — this map is the UX
  * nicety that stops the click from happening in the first place.
  */
-// Prepared for the companion registrar-client release.
-type GapRegistrar = RegistrarName | '101domain';
 const KNOWN_GAPS: Partial<
-  Record<GapRegistrar, (op: DomainOp) => string | null>
+  Record<RegistrarName, (op: DomainOp) => string | null>
 > = {
   '101domain': (op) =>
     op.kind === 'autoRenew' ||
@@ -56,6 +54,15 @@ const KNOWN_GAPS: Partial<
         : null,
 };
 
+// Registrars whose API doesn't report WHOIS privacy, so the library's `false`
+// is a default rather than a reading.
+const PRIVACY_UNREPORTED = new Set<string>(['101domain']);
+
+/** Whether `registrar` reports a domain's WHOIS privacy at all. */
+export function reportsPrivacy(registrar: string): boolean {
+  return !PRIVACY_UNREPORTED.has(registrar);
+}
+
 /** Short human label per op kind, for reasons and menu items. */
 export const OP_LABEL: Record<DomainOpKind, string> = {
   autoRenew: 'auto-renew',
@@ -74,7 +81,7 @@ export const OP_LABEL: Record<DomainOpKind, string> = {
  * are gated on the list; core ops on the known-gaps map.
  */
 export function unsupportedReason(
-  registrar: GapRegistrar,
+  registrar: RegistrarName,
   features: readonly string[],
   op: DomainOp,
 ): string | null {

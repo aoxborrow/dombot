@@ -6,7 +6,7 @@ import {
   RateLimitError,
   type OperationResult,
 } from '@aoxborrow/registrar-client';
-import type { DomainOp, DomainTarget, RegistrarName } from '../../shared/ipc';
+import type { DomainOp, DomainTarget } from '../../shared/ipc';
 import type { ConfirmedRenewal } from './domain-history';
 
 // ── Mock the registrar boundary and the window broadcast ─────────────────────
@@ -102,7 +102,7 @@ beforeEach(() => {
 describe('applyDomainOp — up-front capability gate', () => {
   it('blocks 101domain auto-renew before reaching the registrar', async () => {
     const r = await applyDomainOp(
-      { registrar: '101domain' as RegistrarName, domainName: 'example.com' },
+      { registrar: '101domain', domainName: 'example.com' },
       { kind: 'autoRenew', enabled: true },
     );
     expect(r.status).toBe('unsupported');
@@ -115,7 +115,7 @@ describe('applyDomainOp — up-front capability gate', () => {
       message: 'Pending registry processing',
     });
     const r = await applyDomainOp(
-      { registrar: '101domain' as RegistrarName, domainName: 'example.com' },
+      { registrar: '101domain', domainName: 'example.com' },
       { kind: 'nameservers', nameservers: ['ns1.new.net', 'ns2.new.net'] },
     );
     expect(r.status).toBe('ok');

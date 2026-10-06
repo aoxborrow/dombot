@@ -1330,7 +1330,7 @@ export async function setNameserversCached(
     nameservers,
     opts,
   );
-  if (result.success && !('pending' in result && result.pending === true))
+  if (result.success && !result.pending)
     patchDomainInCaches(name, domainName, { nameservers }, accountId);
   return result;
 }

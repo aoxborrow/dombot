@@ -303,7 +303,7 @@ async function dispatch(
       ? done(
           'ok',
           r.message || opSummary(op),
-          patch && !('pending' in r && r.pending === true) ? { patch } : {},
+          patch && !r.pending ? { patch } : {},
         )
       : done(
           // Providers that fold errors into a result flag the unknown outcome
