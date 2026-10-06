@@ -31,6 +31,40 @@ const ops: Record<string, DomainOp> = {
 };
 
 describe('unsupportedReason', () => {
+  it('blocks unavailable 101domain mutations while allowing nameservers and permanent apex forwarding', () => {
+    const features = ['getDomainForwarding', 'setDomainForwarding'];
+    for (const op of [
+      ops.autoOn,
+      ops.privacyOn,
+      ops.privacyOff,
+      ops.lock,
+      ops.renew,
+    ])
+      expect(unsupportedReason('101domain', features, op)).toMatch(/101domain/);
+    expect(unsupportedReason('101domain', features, ops.ns)).toBeNull();
+    expect(unsupportedReason('101domain', features, ops.auth)).toMatch(
+      /auth code/,
+    );
+    expect(unsupportedReason('101domain', features, ops.email)).toMatch(
+      /email forwarding/,
+    );
+    expect(
+      unsupportedReason('101domain', features, {
+        kind: 'urlForwarding',
+        forwards: [
+          { host: '@', type: 'permanent', url: 'https://example.net' },
+        ],
+      }),
+    ).toBeNull();
+    expect(
+      unsupportedReason('101domain', features, {
+        kind: 'urlForwarding',
+        forwards: [
+          { host: 'www', type: 'temporary', url: 'https://example.net' },
+        ],
+      }),
+    ).toMatch(/domain root/);
+  });
   it('allows every op on a fully-featured registrar with no known gaps', () => {
     for (const op of Object.values(ops)) {
       expect(unsupportedReason('dynadot', ALL, op)).toBeNull();

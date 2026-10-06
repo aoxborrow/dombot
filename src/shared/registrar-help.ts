@@ -28,10 +28,29 @@ export interface RegistrarHelp {
 }
 
 // Exhaustive over RegistrarName so adding a registrar to the library forces a
-// help entry here (the build fails until one is written). Name.com is prepared
+// help entry here (the build fails until one is written). 101domain is prepared
 // ahead of the registrar-client release; it appears once that dependency adds it.
-type HelpRegistrar = RegistrarName | 'namecom';
+type HelpRegistrar = RegistrarName | 'namecom' | '101domain';
 export const REGISTRAR_HELP: Record<HelpRegistrar, RegistrarHelp> = {
+  '101domain': {
+    summary:
+      'Create an API key under My Account › Developer Tools – API & MCP. Use domains_read and dns_read for syncing; add dns_write for DNS/nameservers and domains_write for URL forwarding. Only the primary user with 2FA or SSO can create keys.',
+    links: [
+      { label: '101domain account', url: 'https://my.101domain.com/' },
+      {
+        label: 'Create an API key',
+        url: 'https://help.101domain.com/kb/how-to-get-api-keys',
+      },
+      {
+        label: 'API capabilities',
+        url: 'https://help.101domain.com/kb/api-endpoints-reference',
+      },
+    ],
+    fields: {
+      apiKey:
+        'Paste the key itself, without “Bearer”. Keys are shown once and expire after at most one year. DNS records require 101domain or SWA nameservers. Renewals, auto-renew changes, lock/privacy changes and transfers are unavailable through the API.',
+    },
+  },
   cloudflare: {
     summary:
       'A user API token with the account-level Registrar permission (Read ' +
