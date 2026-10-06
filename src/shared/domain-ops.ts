@@ -21,9 +21,22 @@ const REQUIRED_FEATURE: Partial<Record<DomainOpKind, string>> = {
  * predict is still classified `unsupported` at run time — this map is the UX
  * nicety that stops the click from happening in the first place.
  */
+// Prepared for the companion registrar-client release.
+type GapRegistrar = RegistrarName | '101domain';
 const KNOWN_GAPS: Partial<
-  Record<RegistrarName, (op: DomainOp) => string | null>
+  Record<GapRegistrar, (op: DomainOp) => string | null>
 > = {
+  '101domain': (op) =>
+    op.kind === 'autoRenew' ||
+    op.kind === 'lock' ||
+    op.kind === 'privacy' ||
+    op.kind === 'renew'
+      ? '101domain’s API does not offer this change yet — use your 101domain account.'
+      : op.kind === 'urlForwarding' &&
+          (op.forwards.length > 1 ||
+            op.forwards.some((f) => f.host !== '@' || f.type !== 'permanent'))
+        ? '101domain supports one permanent URL forwarding rule for the domain root.'
+        : null,
   cloudflare: (op) =>
     op.kind === 'autoRenew' ||
     op.kind === 'lock' ||
@@ -61,7 +74,7 @@ export const OP_LABEL: Record<DomainOpKind, string> = {
  * are gated on the list; core ops on the known-gaps map.
  */
 export function unsupportedReason(
-  registrar: RegistrarName,
+  registrar: GapRegistrar,
   features: readonly string[],
   op: DomainOp,
 ): string | null {

@@ -300,7 +300,11 @@ async function dispatch(
   // provider's message is empty.
   const fromResult = (r: OperationResult, patch?: Partial<Domain>) =>
     r.success
-      ? done('ok', r.message || opSummary(op), patch ? { patch } : {})
+      ? done(
+          'ok',
+          r.message || opSummary(op),
+          patch && !('pending' in r && r.pending === true) ? { patch } : {},
+        )
       : done(
           // Providers that fold errors into a result flag the unknown outcome
           // there; the ones that throw raise OutcomeUnknownError.

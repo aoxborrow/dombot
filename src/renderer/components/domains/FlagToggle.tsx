@@ -84,6 +84,20 @@ export function FlagToggle({
           };
 
   const Icon = value ? On : Off;
+  // 101domain omits privacy from its domain schema. The normalized false
+  // default must not be displayed as a verified "privacy off" state.
+  if (kind === 'privacy' && String(domain.registrar) === '101domain') {
+    return (
+      <span
+        role="img"
+        className="mx-auto flex h-8 items-center justify-center text-muted-foreground"
+        title="101domain does not report WHOIS privacy through its API."
+        aria-label="WHOIS privacy: Not reported"
+      >
+        —
+      </span>
+    );
+  }
   const label = value ? onLabel : offLabel;
   const title = reason
     ? reason

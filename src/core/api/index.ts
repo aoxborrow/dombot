@@ -149,7 +149,17 @@ export async function invoke<K extends ApiMethodName>(
     rawArgs.length < arity
       ? [...rawArgs, ...new Array<undefined>(arity - rawArgs.length)]
       : rawArgs;
-  const parsed = entry.args.safeParse(padded);
+  // JSON preserves omitted middle arguments as null; restore only optional
+  // slots whose schema rejects null, keeping meaningful/required nulls intact.
+  const restored = padded.map((value, index) => {
+    const schema = entry.args.items[index];
+    return value === null &&
+      schema?.isOptional() &&
+      !schema.safeParse(null).success
+      ? undefined
+      : value;
+  });
+  const parsed = entry.args.safeParse(restored);
   if (!parsed.success) throw new ApiValidationError(name, parsed.error.issues);
   return entry.handler(...(parsed.data as Args<K>));
 }
