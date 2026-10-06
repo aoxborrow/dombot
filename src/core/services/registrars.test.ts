@@ -552,8 +552,11 @@ describe('GoDaddy shopper renewal quotes on sync', () => {
 describe('Namecheap account TLD rates on sync', () => {
   const nc = (domainName: string) =>
     domain({ domainName, registrar: 'namecheap' });
+  const tldOfName = (name: string) => name.slice(name.indexOf('.') + 1);
   const pricedTlds = () =>
-    clientMethods.getPricing.mock.calls.map(([tld]) => tld as string);
+    clientMethods.getPricing.mock.calls.map(([name]) =>
+      tldOfName(name as string),
+    );
 
   beforeEach(() => {
     delete storedCredentials.dynadot;
@@ -566,11 +569,12 @@ describe('Namecheap account TLD rates on sync', () => {
       domains: [nc('a.com'), nc('b.com'), nc('c.io')],
       errors: [],
     });
-    clientMethods.getPricing.mockImplementation(async (tld: string) =>
-      tld === 'com'
+    clientMethods.getPricing.mockImplementation(async (name: string) => {
+      const tld = tldOfName(name);
+      return tld === 'com'
         ? { tld, currency: 'USD', registration: 11.28, renewal: 13.98 }
-        : { tld, currency: 'USD', registration: 34.98, renewal: 52.98 },
-    );
+        : { tld, currency: 'USD', registration: 34.98, renewal: 52.98 };
+    });
 
     await getPortfolio(true);
 
@@ -583,12 +587,30 @@ describe('Namecheap account TLD rates on sync', () => {
     expect(store.detail).toEqual({});
   });
 
+  it('prices a multi-part TLD as a whole', async () => {
+    listPortfolio.mockResolvedValue({ domains: [nc('a.br.com')], errors: [] });
+    clientMethods.getPricing.mockResolvedValue({
+      tld: 'br.com',
+      currency: 'USD',
+      renewal: 44.98,
+    });
+
+    await getPortfolio(true);
+
+    // The client keeps what follows the first dot, so this is quoted as br.com.
+    expect(clientMethods.getPricing).toHaveBeenCalledWith('example.br.com');
+    expect(setTldRate.mock.calls).toEqual([
+      ['namecheap', 'br.com', 44.98, 'namecheap'],
+    ]);
+  });
+
   it('keeps the existing rate for a TLD that comes back unpriced', async () => {
     listPortfolio.mockResolvedValue({
       domains: [nc('a.com'), nc('b.io'), nc('c.eu')],
       errors: [],
     });
-    clientMethods.getPricing.mockImplementation(async (tld: string) => {
+    clientMethods.getPricing.mockImplementation(async (name: string) => {
+      const tld = tldOfName(name);
       if (tld === 'com') return { tld, currency: 'USD' };
       if (tld === 'io') return { tld, currency: 'EUR', renewal: 40 };
       return { tld, currency: 'USD', renewal: 8.98 };
@@ -606,7 +628,8 @@ describe('Namecheap account TLD rates on sync', () => {
       domains: [nc('a.com'), nc('b.io'), nc('c.eu')],
       errors: [],
     });
-    clientMethods.getPricing.mockImplementation(async (tld: string) => {
+    clientMethods.getPricing.mockImplementation(async (name: string) => {
+      const tld = tldOfName(name);
       if (tld === 'io') throw new Error('Too many requests');
       return { tld, currency: 'USD', renewal: 13.98 };
     });

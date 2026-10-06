@@ -648,7 +648,10 @@ async function syncNamecheapTldRates(
   for (const tld of tlds) {
     if ((generations.get(accountId) ?? 0) !== generation) return;
     try {
-      const pricing = await client.getPricing(tld);
+      // getPricing reads a dotted argument as a domain and keeps what follows
+      // its first dot, so a bare multi-part TLD ("br.com") would be priced as
+      // "com". Hand it a name instead.
+      const pricing = await client.getPricing(`example.${tld}`);
       // TLD rates are USD; a quote in anything else would be misread.
       const currency = (pricing.currency ?? 'USD').toUpperCase();
       if (typeof pricing.renewal === 'number' && currency === 'USD') {
