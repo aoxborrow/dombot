@@ -96,6 +96,11 @@ vi.mock('@aoxborrow/registrar-client', async (importOriginal) => {
         features: [],
         configFields: [{ name: 'apiToken', required: true }],
       },
+      namecheap: {
+        displayName: 'Namecheap',
+        features: [],
+        configFields: [{ name: 'apiKey', required: true }],
+      },
     },
   };
 });
@@ -541,6 +546,100 @@ describe('GoDaddy shopper renewal quotes on sync', () => {
     // Unknown flags mean no per-name premium quotes, but the TLD still prices.
     expect(setTldRate.mock.calls).toEqual([['godaddy', 'io', 44, 'godaddy']]);
     expect(store.detail['godaddy:fancy.io']).toBeUndefined();
+  });
+});
+
+describe('Namecheap account TLD rates on sync', () => {
+  const nc = (domainName: string) =>
+    domain({ domainName, registrar: 'namecheap' });
+  const tldOfName = (name: string) => name.slice(name.indexOf('.') + 1);
+  const pricedTlds = () =>
+    clientMethods.getPricing.mock.calls.map(([name]) =>
+      tldOfName(name as string),
+    );
+
+  beforeEach(() => {
+    delete storedCredentials.dynadot;
+    delete storedCredentials.porkbun;
+    storedCredentials.namecheap = { apiKey: 'k' };
+  });
+
+  it('stores the account renewal price once per distinct TLD', async () => {
+    listPortfolio.mockResolvedValue({
+      domains: [nc('a.com'), nc('b.com'), nc('c.io')],
+      errors: [],
+    });
+    clientMethods.getPricing.mockImplementation(async (name: string) => {
+      const tld = tldOfName(name);
+      return tld === 'com'
+        ? { tld, currency: 'USD', registration: 11.28, renewal: 13.98 }
+        : { tld, currency: 'USD', registration: 34.98, renewal: 52.98 };
+    });
+
+    await getPortfolio(true);
+
+    expect(pricedTlds()).toEqual(['com', 'io']);
+    expect(setTldRate.mock.calls).toEqual([
+      ['namecheap', 'com', 13.98, 'namecheap'],
+      ['namecheap', 'io', 52.98, 'namecheap'],
+    ]);
+    // A TLD rate only — nothing per-name lands in the detail cache.
+    expect(store.detail).toEqual({});
+  });
+
+  it('prices a multi-part TLD as a whole', async () => {
+    listPortfolio.mockResolvedValue({ domains: [nc('a.br.com')], errors: [] });
+    clientMethods.getPricing.mockResolvedValue({
+      tld: 'br.com',
+      currency: 'USD',
+      renewal: 44.98,
+    });
+
+    await getPortfolio(true);
+
+    // The client keeps what follows the first dot, so this is quoted as br.com.
+    expect(clientMethods.getPricing).toHaveBeenCalledWith('example.br.com');
+    expect(setTldRate.mock.calls).toEqual([
+      ['namecheap', 'br.com', 44.98, 'namecheap'],
+    ]);
+  });
+
+  it('keeps the existing rate for a TLD that comes back unpriced', async () => {
+    listPortfolio.mockResolvedValue({
+      domains: [nc('a.com'), nc('b.io'), nc('c.eu')],
+      errors: [],
+    });
+    clientMethods.getPricing.mockImplementation(async (name: string) => {
+      const tld = tldOfName(name);
+      if (tld === 'com') return { tld, currency: 'USD' };
+      if (tld === 'io') return { tld, currency: 'EUR', renewal: 40 };
+      return { tld, currency: 'USD', renewal: 8.98 };
+    });
+
+    await getPortfolio(true);
+
+    expect(setTldRate.mock.calls).toEqual([
+      ['namecheap', 'eu', 8.98, 'namecheap'],
+    ]);
+  });
+
+  it('stops pricing after the first failed call', async () => {
+    listPortfolio.mockResolvedValue({
+      domains: [nc('a.com'), nc('b.io'), nc('c.eu')],
+      errors: [],
+    });
+    clientMethods.getPricing.mockImplementation(async (name: string) => {
+      const tld = tldOfName(name);
+      if (tld === 'io') throw new Error('Too many requests');
+      return { tld, currency: 'USD', renewal: 13.98 };
+    });
+
+    await getPortfolio(true);
+
+    expect(pricedTlds()).toEqual(['com', 'io']);
+    expect(setTldRate.mock.calls).toEqual([
+      ['namecheap', 'com', 13.98, 'namecheap'],
+    ]);
   });
 });
 

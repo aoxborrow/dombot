@@ -17,9 +17,9 @@ import { RENEWAL_PRICES_NAMESPACE } from '../storage/names';
 //      so the figure captures premium renewals. Gandi (its per-name price
 //      endpoint), Dynadot (its classic renew price-check quote), and GoDaddy
 //      premium names (v3 availability renewalPrice) qualify. The rest either
-//      can't price an owned domain at all (Cloudflare/Spaceship/NameBright/
-//      Namecheap) or only expose a generic per-TLD rate, which we don't use
-//      here. (Porkbun *can* price per-name via checkDomain, but its aggressive
+//      can't price an owned domain at all (Cloudflare/Spaceship/NameBright)
+//      or only expose a generic per-TLD rate (Namecheap's feeds layer 3).
+//      (Porkbun *can* price per-name via checkDomain, but its aggressive
 //      rate limit made that impractical, so it takes the base rate too.) This
 //      quote is fetched as part of the domain Sync and stored with the
 //      domain's detail — see registrars.ts; it isn't fetched here.
@@ -27,8 +27,10 @@ import { RENEWAL_PRICES_NAMESPACE } from '../storage/names';
 //      GoDaddy Sync fills this from one v3 availability quote per TLD, which
 //      is priced for the authenticated shopper, so it carries whatever
 //      discount the account holds (a Discount Domain Club membership, say)
-//      and the published list price otherwise. Applies to every name at that
-//      account/TLD that did not already resolve via (1) or (2).
+//      and the published list price otherwise. Namecheap Sync fills it from
+//      users.getPricing, one call per TLD, which is likewise the price for the
+//      authenticated user rather than the public list price. Applies to every
+//      name at that account/TLD that did not already resolve via (1) or (2).
 //   4. base database — the standard per-TLD rate that fills everything else
 //      (see base-pricing.ts). This is a local lookup, so the vast majority of
 //      domains resolve with no network call at all.
