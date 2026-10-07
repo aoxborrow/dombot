@@ -10,10 +10,13 @@ import {
   ChevronDown,
   CircleX,
   Copy,
+  Ellipsis,
   ExternalLink,
   Pencil,
   Plus,
+  Power,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
@@ -47,6 +50,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -497,141 +501,96 @@ function AccountCard({
   const hasNickname = !isAutoLabel(currentLabel);
 
   return (
-    <Card className="gap-0 overflow-hidden rounded-md py-0">
+    <Card className="@container gap-0 overflow-hidden rounded-md py-0">
       <Collapsible open={open} onOpenChange={setOpen}>
-        {/* Header row: the name + sync status expand the card; the Sync button
-            sits outside the triggers so it works even while collapsed. */}
-        {/* On phones the header stacks: an identity row (toggle · name ·
-            chevron), then the sync status, then the Sync button, each on its own
-            line. On desktop `sm:contents` dissolves the identity wrapper so all
-            of it collapses back into the original single row, and the chevron's
-            `sm:order-last` pins it to the far right. */}
-        <div className="flex flex-col items-start gap-y-2 px-5 py-[13px] sm:flex-row sm:items-center sm:gap-3">
-          <div className="flex w-full items-center gap-3 sm:contents">
-            {/* Enable/disable toggle, kept to the far left and outside the expand
-                triggers so it reads as a row-level on/off (not a sync switch)
-                and isn't hit when expanding the card. */}
-            <div className="flex shrink-0 items-center">
-              <Switch
-                checked={configured && enabled}
-                onCheckedChange={(v) => void toggleEnabled(v)}
-                disabled={busy || !configured}
-                aria-label={
-                  configured
-                    ? `${enabled ? 'Disable' : 'Enable'} ${title}`
-                    : `${title}: add credentials to enable`
-                }
-                title={
-                  !configured
-                    ? 'Add credentials to enable this account'
-                    : enabled
-                      ? 'Disable this account (keeps credentials and cached data)'
-                      : 'Enable and sync this account'
-                }
-              />
-            </div>
-            <CollapsibleTrigger className="flex min-w-0 items-center gap-2.5 text-left">
-              <span
-                className={cn(
-                  'flex min-w-0 items-center gap-2.5 font-medium',
-                  // Dim the name for a configured-but-disabled account so the
-                  // off state reads at a glance.
-                  configured && !enabled && 'opacity-50',
-                )}
-              >
-                <RegistrarLogo
-                  name={provider.name}
-                  label={provider.displayName}
-                />
-                <span className="truncate">{provider.displayName}</span>
-                {suffix && nickname === null && (
-                  <span className="-ml-1 flex min-w-0 items-center gap-1.5 font-normal text-muted-foreground">
-                    {/* The bullet is its own item so the gap is equal on both
-                        sides, whatever the font's space width. */}
-                    {suffix.startsWith(' · ') && <span aria-hidden>·</span>}
-                    <span className="truncate">
-                      {suffix.replace(/^ (· )?/, '')}
-                    </span>
-                  </span>
-                )}
-              </span>
-            </CollapsibleTrigger>
-            {/* Expanded: the nickname is edited right in the title bar. The input
-                can't sit inside the trigger (a button), so the status gets its
-                own trigger below and the row still expands/collapses on click. */}
-            {open &&
-              (nickname === null ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="-ml-2.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground"
-                  disabled={busy}
-                  aria-label={
-                    hasNickname
-                      ? `Rename ${title}`
-                      : `Add a nickname to ${title}`
-                  }
-                  title={hasNickname ? 'Rename' : 'Add a nickname'}
-                  onClick={() => setNickname(hasNickname ? currentLabel : '')}
-                >
-                  <Pencil className="size-3" />
-                </Button>
-              ) : (
-                <Input
-                  autoFocus
-                  value={nickname}
-                  disabled={renaming}
-                  maxLength={100}
-                  autoComplete="off"
-                  placeholder="Add a nickname"
-                  aria-label={`Nickname for ${title}`}
-                  className="h-8 w-44 shrink sm:-ml-1"
-                  aria-invalid={nicknameError ? true : undefined}
-                  onChange={(e) => {
-                    setNickname(e.target.value);
-                    setNicknameError(null);
-                  }}
-                  onBlur={() => void saveNickname()}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      void saveNickname();
-                    } else if (e.key === 'Escape') {
-                      e.preventDefault();
-                      setNicknameError(null);
-                      setNickname(null);
-                    }
-                  }}
-                />
-              ))}
-            {/* On phones a failure sits beside the name, not on a line of
-                its own (short, so the name still fits with the card open);
-                desktop shows "Sync failed" in the status slot. */}
-            {syncFailed && (
-              <span className="flex shrink-0 items-center gap-1 text-[13px] font-medium whitespace-nowrap text-destructive sm:hidden">
-                <CircleX className="size-3.5" />
-                Failed
-              </span>
-            )}
-            <CollapsibleTrigger
-              className="ml-auto shrink-0 sm:order-last sm:ml-0"
-              aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
+        {/* Header: name · pencil · status · actions menu · chevron. The name and
+            status expand the card; the pencil, menu and chevron sit beside them.
+            On a narrow card (a phone, or an iPad-width window with the settings
+            sidebar) the status wraps onto its own line under the name, so the
+            name and the account-name input keep line one. A wide card keeps
+            everything on one compact row that's easy to scan. */}
+        <div className="group/header flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-[13px] @min-[600px]:flex-nowrap">
+          <CollapsibleTrigger className="flex min-w-0 items-center gap-2.5 text-left">
+            <span
+              className={cn(
+                'flex min-w-0 items-center gap-2.5 font-medium',
+                // Dim the name for a configured-but-disabled account so the
+                // off state reads at a glance.
+                configured && !enabled && 'opacity-50',
+              )}
             >
-              <ChevronDown
-                className={cn(
-                  'size-4 text-muted-foreground transition-transform',
-                  open && 'rotate-180',
-                )}
+              <RegistrarLogo
+                name={provider.name}
+                label={provider.displayName}
               />
-            </CollapsibleTrigger>
-          </div>
+              <span className="truncate">{provider.displayName}</span>
+              {suffix && nickname === null && (
+                <span className="-ml-1 flex min-w-0 items-center gap-1.5 font-normal text-muted-foreground">
+                  {/* The bullet is its own item so the gap is equal on both
+                      sides, whatever the font's space width. */}
+                  {suffix.startsWith(' · ') && <span aria-hidden>·</span>}
+                  <span className="truncate">
+                    {suffix.replace(/^ (· )?/, '')}
+                  </span>
+                </span>
+              )}
+            </span>
+          </CollapsibleTrigger>
+          {/* The account name is edited right in the header. The input can't
+              sit inside the trigger (a button), so it's a sibling. The pencil
+              shows on hover (always on touch, and while the card is open). */}
+          {nickname === null ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                '-ml-2.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground',
+                !open &&
+                  'opacity-0 group-hover/header:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100',
+              )}
+              disabled={busy}
+              aria-label={`Edit account name for ${title}`}
+              title={hasNickname ? 'Edit account name' : 'Add an account name'}
+              onClick={() => setNickname(hasNickname ? currentLabel : '')}
+            >
+              <Pencil className="size-3" />
+            </Button>
+          ) : (
+            <Input
+              autoFocus
+              value={nickname}
+              disabled={renaming}
+              maxLength={100}
+              autoComplete="off"
+              placeholder="Account name"
+              aria-label={`Account name for ${title}`}
+              className="-my-1 h-8 w-44 min-w-0 shrink"
+              aria-invalid={nicknameError ? true : undefined}
+              onChange={(e) => {
+                setNickname(e.target.value);
+                setNicknameError(null);
+              }}
+              onBlur={() => void saveNickname()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void saveNickname();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setNicknameError(null);
+                  setNickname(null);
+                }
+              }}
+            />
+          )}
 
-          {/* Sync status (or a nickname error) — its own line on phones. */}
-          {open && nickname !== null && nicknameError ? (
+          {/* Sync status (or an account-name error): fills the row on a wide
+              card; on a narrow one, its own line indented under the name. */}
+          {nickname !== null && nicknameError ? (
             <span
               role="alert"
-              className="min-w-0 text-sm text-destructive sm:flex-1"
+              className="order-last min-w-0 basis-full pl-[30px] text-sm text-destructive @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0"
             >
               {nicknameError}
             </span>
@@ -639,33 +598,73 @@ function AccountCard({
             <CollapsibleTrigger
               tabIndex={-1}
               aria-hidden
-              className={cn(
-                'flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-left max-sm:w-full sm:flex-1',
-                syncFailed && 'max-sm:hidden',
-              )}
+              className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-[30px] text-left @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0"
             >
               <SyncStatus meta={account} syncing={syncing} />
             </CollapsibleTrigger>
           )}
 
-          {/* Sync only makes sense for an enabled account. Its own line
-              (left-aligned) on phones, inline on desktop. */}
-          {configured && enabled && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void runSync()}
-              disabled={busy}
-              title="Sync this account's domains"
-              // Full-width on phones (its own line); on desktop a slim inline
-              // button whose height is absorbed into the row's vertical padding
-              // so the row stays compact.
-              className="border-border text-muted-foreground hover:text-foreground max-sm:w-full max-sm:justify-center sm:-my-1 sm:shrink-0"
-            >
-              <RefreshCw className={cn(syncing && 'animate-spin')} />
-              {syncing ? 'Syncing…' : 'Sync'}
-            </Button>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="-my-1 ml-auto size-8 shrink-0 text-muted-foreground hover:text-foreground"
+                aria-label={`Actions for ${title}`}
+                title="Account actions"
+              >
+                <Ellipsis />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              {/* Sync only makes sense for an enabled account. */}
+              {configured && enabled && (
+                <DropdownMenuItem
+                  disabled={busy}
+                  onSelect={() => void runSync()}
+                >
+                  <RefreshCw />
+                  Sync now
+                </DropdownMenuItem>
+              )}
+              {/* Turning an account off keeps its credentials and cached
+                  data; on again syncs it. Needs credentials first. */}
+              {configured && (
+                <DropdownMenuItem
+                  disabled={busy}
+                  onSelect={() => void toggleEnabled(!enabled)}
+                >
+                  <Power />
+                  {enabled ? 'Disable account' : 'Enable account'}
+                </DropdownMenuItem>
+              )}
+              {configured && <DropdownMenuSeparator />}
+              {/* Opens the card on its confirmation. */}
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={busy}
+                onSelect={() => {
+                  setOpen(true);
+                  setRemoving(true);
+                }}
+              >
+                <Trash2 />
+                Remove account
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <CollapsibleTrigger
+            className="shrink-0"
+            aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
+          >
+            <ChevronDown
+              className={cn(
+                'size-4 text-muted-foreground transition-transform',
+                open && 'rotate-180',
+              )}
+            />
+          </CollapsibleTrigger>
         </div>
 
         {/* The last sync's error, open or collapsed: this card is where the
@@ -681,6 +680,30 @@ function AccountCard({
         )}
 
         <CollapsibleContent className="border-t px-5 py-4">
+          {/* Asked for from the actions menu: first in the card, so it's in
+              view as the card opens. */}
+          {removing && (
+            <div className="mb-4 flex flex-wrap items-center gap-3 border-b pb-4 text-sm">
+              <span>
+                Remove {title} from DomBot? Its domains stay at{' '}
+                {provider.displayName}.
+              </span>
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={() => void remove()}
+              >
+                Remove
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() => setRemoving(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
           {loading && !error && (
             <p role="status" className="mb-3 text-sm text-muted-foreground">
               Loading credentials…
@@ -725,15 +748,6 @@ function AccountCard({
               >
                 {saving ? 'Saving…' : 'Save'}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="ml-auto border-border text-muted-foreground"
-                disabled={busy}
-                onClick={() => setRemoving(true)}
-              >
-                Remove account
-              </Button>
             </div>
             {error && (
               <p role="alert" className="mt-3 text-sm text-destructive">
@@ -741,28 +755,6 @@ function AccountCard({
               </p>
             )}
           </form>
-          {removing && (
-            <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4 text-sm">
-              <span>
-                Remove {title} from DomBot? Its domains stay at{' '}
-                {provider.displayName}.
-              </span>
-              <Button
-                variant="destructive"
-                disabled={busy}
-                onClick={() => void remove()}
-              >
-                Remove
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={busy}
-                onClick={() => setRemoving(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          )}
         </CollapsibleContent>
       </Collapsible>
     </Card>
@@ -846,8 +838,8 @@ function DraftAccountCard({
             disabled={saving}
             maxLength={100}
             autoComplete="off"
-            placeholder="Add a nickname"
-            aria-label={`Nickname for the new ${provider.displayName} account`}
+            placeholder="Account name"
+            aria-label={`Account name for the new ${provider.displayName} account`}
             className="h-8 w-44 shrink"
             onChange={(e) => setNickname(e.target.value)}
             onBlur={() => setEditingNickname(false)}
@@ -874,9 +866,11 @@ function DraftAccountCard({
               className="-ml-1.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground"
               disabled={saving}
               aria-label={
-                nickname.trim() ? 'Change nickname' : 'Add a nickname'
+                nickname.trim() ? 'Edit account name' : 'Add an account name'
               }
-              title={nickname.trim() ? 'Change nickname' : 'Add a nickname'}
+              title={
+                nickname.trim() ? 'Edit account name' : 'Add an account name'
+              }
               onClick={() => setEditingNickname(true)}
             >
               <Pencil className="size-3" />
@@ -1186,7 +1180,12 @@ function SyncStatus({
   showCount?: boolean;
 }) {
   if (syncing) {
-    return <span className="text-sm text-muted-foreground">Syncing…</span>;
+    return (
+      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <RefreshCw className="size-3.5 shrink-0 animate-spin" />
+        Syncing…
+      </span>
+    );
   }
   if (!meta.configured) {
     return (
