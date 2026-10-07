@@ -636,16 +636,29 @@ function AccountCard({
               {nicknameError}
             </span>
           ) : (
-            <CollapsibleTrigger
-              tabIndex={-1}
-              aria-hidden
+            // The domain count is a link, so it sits beside the status trigger
+            // rather than inside it; the trailing trigger keeps the rest of
+            // the row clickable.
+            <div
               className={cn(
-                'flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-left max-sm:w-full sm:flex-1',
+                'flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 max-sm:w-full sm:flex-1',
                 syncFailed && 'max-sm:hidden',
               )}
             >
-              <SyncStatus meta={account} syncing={syncing} />
-            </CollapsibleTrigger>
+              <CollapsibleTrigger
+                tabIndex={-1}
+                aria-hidden
+                className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-left"
+              >
+                <SyncStatus meta={account} syncing={syncing} />
+              </CollapsibleTrigger>
+              <DomainCountLink meta={account} syncing={syncing} />
+              <CollapsibleTrigger
+                tabIndex={-1}
+                aria-hidden
+                className="min-w-0 flex-1 self-stretch"
+              />
+            </div>
           )}
 
           {/* Sync only makes sense for an enabled account. Its own line
@@ -1158,7 +1171,7 @@ function HelpLink({ link }: { link: HelpLinkData }) {
       href={link.url}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1 text-[13px] font-medium text-primary underline-offset-4 hover:underline"
+      className="inline-flex items-center gap-1 text-[13px] font-medium text-brand underline-offset-4 hover:underline"
     >
       {link.label}
       <ExternalLink className="size-3 shrink-0" aria-hidden />
@@ -1179,11 +1192,9 @@ function HelpLink({ link }: { link: HelpLinkData }) {
 function SyncStatus({
   meta,
   syncing,
-  showCount = true,
 }: {
   meta: RegistrarMeta;
   syncing: boolean;
-  showCount?: boolean;
 }) {
   if (syncing) {
     return <span className="text-sm text-muted-foreground">Syncing…</span>;
@@ -1203,7 +1214,7 @@ function SyncStatus({
     );
   }
 
-  const { lastSyncedAt, lastError, domainCount } = meta.sync;
+  const { lastSyncedAt, lastError } = meta.sync;
   if (lastError) {
     return (
       <span className="flex items-center gap-1.5">
@@ -1232,11 +1243,39 @@ function SyncStatus({
       <span className="whitespace-nowrap text-[13px] font-medium text-brand">
         Last synced {timeAgo(lastSyncedAt)}
       </span>
-      {showCount && (
-        <span className="whitespace-nowrap text-xs text-muted-foreground">
-          · {domainCount} domain{domainCount === 1 ? '' : 's'}
-        </span>
-      )}
+    </span>
+  );
+}
+
+/**
+ * "· N domains" after a successful sync, linking to Domains filtered to just
+ * this account (Domains opens with every other filter cleared).
+ */
+function DomainCountLink({
+  meta,
+  syncing,
+}: {
+  meta: RegistrarMeta;
+  syncing: boolean;
+}) {
+  const { lastSyncedAt, lastError, domainCount } = meta.sync;
+  if (
+    syncing ||
+    !meta.configured ||
+    !meta.enabled ||
+    lastError ||
+    lastSyncedAt == null
+  )
+    return null;
+  return (
+    <span className="whitespace-nowrap text-xs text-muted-foreground">
+      ·{' '}
+      <Link
+        to={`/?${new URLSearchParams({ account: idOf(meta) })}`}
+        className="underline-offset-4 hover:text-foreground hover:underline"
+      >
+        {plural(domainCount)}
+      </Link>
     </span>
   );
 }

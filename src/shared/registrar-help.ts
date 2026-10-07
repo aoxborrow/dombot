@@ -32,23 +32,21 @@ export interface RegistrarHelp {
 export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
   '101domain': {
     summary:
-      'Create an API key under My Account › Developer Tools – API & MCP. domains_read and dns_read are enough to sync (a read-only key works; edits then say which scope is missing). Add dns_write for DNS and nameservers, and domains_write for URL forwarding. Only the primary user with 2FA or SSO can create keys.',
+      'An API key from My Account › Developer Tools – API & MCP, with the ' +
+      'domains_read and dns_read scopes. Add dns_write to edit DNS and ' +
+      'nameservers, and domains_write for URL forwarding. Only the primary ' +
+      'user, with 2FA or SSO, can create keys.',
     links: [
-      { label: '101domain account', url: 'https://my.101domain.com/' },
       {
-        label: 'Create an API key',
+        label: 'How to create an API key',
         url: 'https://help.101domain.com/kb/how-to-get-api-keys',
-      },
-      {
-        label: 'API capabilities',
-        url: 'https://help.101domain.com/kb/api-endpoints-reference',
       },
     ],
     fields: {
-      apiKey:
-        'Paste the key itself, without “Bearer”. Keys are shown once and expire after at most one year. DNS records require 101domain or SWA nameservers. Renewals, auto-renew changes, lock/privacy changes and transfers are unavailable through the API.',
+      apiKey: 'Shown once when created; keys expire after a year at most.',
     },
   },
+
   cloudflare: {
     summary:
       'A user API token with the account-level Registrar permission (Read ' +
