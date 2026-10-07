@@ -175,14 +175,17 @@ third _adapter_ over the same `services/` core the UI uses — see
   so it knows who holds it), so an agent can act on a name without first looking
   up its registrar. Pass `registrar` to skip the lookup, or to act on a name not
   yet in the cache; if the cache can't resolve it, the tool says so and points
-  at `portfolio_sync`.
+  at `portfolio_sync`, or says the name is in Archive.
   - _Portfolio:_ `registrar_list`, `portfolio_query`, and `portfolio_sync`.
     `portfolio_query` is the primary way to read the portfolio: list, search,
     filter, sort, and page the cached portfolio (by registrar, TLD, folder,
     name, nameserver, auto-renew/lock/privacy, status, and expiry), returning
     only the fields an agent needs plus sync health (`total`, `stale`, and
-    per-registrar `errors`). With no filters it returns everything (paged), so
-    it doubles as a plain list. It's a pure cache read (no registrar calls);
+    per-registrar `errors`). Like the Domains page it covers the names you own
+    by default; `ownership` switches to Archive (sold, dropped, archived, or
+    gone from your accounts) or both, and each row says which, and whether
+    it's Hidden. With no filters it returns every name you own (paged), so it
+    doubles as a plain list. It's a pure cache read (no registrar calls);
     `portfolio_sync` runs the live cross-registrar pass that refreshes the
     cache, returning a per-registrar summary. An agent syncs once (or when
     `portfolio_query` reports `stale`/empty), then reads cheaply.

@@ -3,9 +3,9 @@ import { toAscii } from '../../shared/domain-name';
 import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
 import type { Domain } from '../../shared/ipc';
 import { manualRows } from '../../shared/manual-domains';
-import { ownershipByDomain } from '../../shared/ownership';
+import { archiveRows, ownershipByDomain } from '../../shared/ownership';
 import { useAppStore } from '../store/app';
-import { accountName, archiveRows } from './domain-history';
+import { accountName } from './domain-history';
 
 // "Export all domains" from outside the Domains page (Settings → Sync): the
 // same rows the page lists, Owned and Archive, in the DomBot CSV.

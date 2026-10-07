@@ -34,9 +34,13 @@ import {
   isHiddenFolder,
 } from '../../shared/ipc';
 import { DomainEventType } from '../../shared/domain-events';
-import { ownershipByDomain, type ArchiveLabel } from '../../shared/ownership';
+import {
+  archiveRows,
+  ownershipByDomain,
+  type ArchiveLabel,
+} from '../../shared/ownership';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
-import { ARCHIVE_LABEL, accountName, archiveRows } from '../lib/domain-history';
+import { ARCHIVE_LABEL, accountName } from '../lib/domain-history';
 import {
   ManualRegistrarIcon,
   RegistrarLogo,

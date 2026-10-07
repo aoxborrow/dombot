@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { DomainEvent } from '../../shared/domain-events';
 
 // ── Mock every service the tool handlers reach ───────────────────────────────
 // registrarNames must be a real non-empty array: tools.ts builds z.enum() from
@@ -52,6 +53,12 @@ vi.mock('../services/domain-ops', () => ({
 const getFolders = vi.fn(() => ({ folders: [], assignments: {} }));
 vi.mock('../services/folders', () => ({ getFolders: () => getFolders() }));
 
+const listEvents = vi.fn<() => DomainEvent[]>(() => []);
+vi.mock('../services/domain-events', () => ({
+  listEvents: () => listEvents(),
+  eventsFor: (d: string) => listEvents().filter((e) => e.domain === d),
+}));
+
 const broadcastPortfolioChanged = vi.fn();
 vi.mock('../events', () => ({
   broadcastPortfolioChanged: () => broadcastPortfolioChanged(),
@@ -94,6 +101,21 @@ beforeEach(() => {
   getConfiguredRegistrars.mockReturnValue(['dynadot']);
   getActiveRegistrars.mockReturnValue(['dynadot']);
   getFolders.mockReturnValue({ folders: [], assignments: {} });
+  listEvents.mockReturnValue([]);
+});
+
+/** A sync or user event for one name. */
+let eventSeq = 0;
+const event = (patch: Partial<DomainEvent>): DomainEvent => ({
+  id: `E${String(++eventSeq).padStart(4, '0')}`,
+  domain: 'a.com',
+  type: 'added',
+  source: 'sync',
+  date: '2026-09-25',
+  createdAt: eventSeq,
+  updatedAt: null,
+  accountId: 'dynadot',
+  ...patch,
 });
 
 describe('json() payload shape', () => {
@@ -115,6 +137,19 @@ describe('resolveRegistrar (via domain_set_autorenew)', () => {
   beforeEach(() =>
     applyDomainOp.mockResolvedValue({ status: 'ok', message: 'done' }),
   );
+
+  it('says a name in Archive has no registrar to act on, not to sync', async () => {
+    findRegistrarsForDomain.mockReturnValue([]);
+    listEvents.mockReturnValue([
+      event({ domain: 'gone.com' }),
+      event({ domain: 'gone.com', type: 'removed' }),
+      event({ domain: 'gone.com', type: 'dropped', source: 'user' }),
+    ]);
+    await expect(
+      call('domain_set_autorenew', { domain: 'gone.com', enabled: true }),
+    ).rejects.toThrow(/is in Archive \(dropped\)/);
+    expect(applyDomainOp).not.toHaveBeenCalled();
+  });
 
   it('uses an explicit registrar without a cache lookup', async () => {
     await call('domain_set_autorenew', {
@@ -318,6 +353,67 @@ describe('end-to-end handlers', () => {
     expect(out.total).toBe(1);
     expect((out.rows as { domainName: string }[])[0].domainName).toBe('a.com');
     expect(out.registrars).toEqual(['dynadot']);
+  });
+
+  it('portfolio_query reads Owned / Archive from the event log', async () => {
+    const live = (domainName: string) => ({
+      registrar: 'dynadot',
+      domainName,
+      status: 'active',
+      createdDate: null,
+      expirationDate: null,
+      renewalDate: null,
+      autoRenew: true,
+      locked: false,
+      privacy: false,
+      nameservers: [],
+      syncedAt: new Date(0),
+      deleted: false,
+    });
+    getMergedPortfolio.mockReturnValue({
+      domains: [live('kept.com'), live('escrow.com')],
+      fetchedAt: 1000,
+      registrars: ['dynadot'],
+      errors: [],
+    });
+    listEvents.mockReturnValue([
+      event({ domain: 'escrow.com' }),
+      event({ domain: 'escrow.com', type: 'sold', source: 'user' }),
+      event({ domain: 'gone.com' }),
+      event({ domain: 'gone.com', type: 'removed' }),
+    ]);
+    type Row = Record<string, unknown>;
+    const rows = async (args: object) =>
+      ((await call('portfolio_query', args)).rows as Row[]).map((r) => ({
+        domainName: r.domainName,
+        ownership: r.ownership,
+        archiveLabel: r.archiveLabel,
+        inAccount: r.inAccount,
+      }));
+
+    expect(await rows({})).toEqual([
+      {
+        domainName: 'kept.com',
+        ownership: 'owned',
+        archiveLabel: null,
+        inAccount: true,
+      },
+    ]);
+    expect(await rows({ ownership: 'archive', sort: 'domainName' })).toEqual([
+      {
+        domainName: 'escrow.com',
+        ownership: 'archive',
+        archiveLabel: 'sold',
+        inAccount: true,
+      },
+      {
+        domainName: 'gone.com',
+        ownership: 'archive',
+        archiveLabel: 'removed',
+        inAccount: false,
+      },
+    ]);
+    expect(await rows({ ownership: 'all' })).toHaveLength(3);
   });
 
   it('domain_get returns cached detail when present', async () => {

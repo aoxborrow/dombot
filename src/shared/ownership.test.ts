@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DomainEvent } from './domain-events';
-import { ownershipByDomain } from './ownership';
+import type { Domain, RegistrarMeta } from './ipc';
+import { archiveRows, ownershipByDomain } from './ownership';
 
 let n = 0;
 const event = (patch: Partial<DomainEvent>): DomainEvent => ({
@@ -42,5 +43,31 @@ describe('ownershipByDomain', () => {
       event({ type: 'added' }),
     ];
     expect(owner(events)).toMatchObject({ archived: false, label: null });
+  });
+});
+
+describe('archiveRows', () => {
+  const held = { domainName: 'held.com' } as Domain;
+  const registrars = [
+    { name: 'porkbun', accountId: 'pb-1', accountLabel: 'Selling' },
+  ] as RegistrarMeta[];
+
+  it('adds names in Archive that no account reports, at their last account', () => {
+    const events = [
+      event({ domain: 'held.com', type: 'sold', source: 'user' }),
+      event({ domain: 'gone.com', accountId: 'pb-1' }),
+      event({ domain: 'gone.com', type: 'removed', accountId: 'pb-1' }),
+      event({ domain: 'kept.com' }),
+    ];
+    const rows = archiveRows(ownershipByDomain(events), [held], registrars);
+    expect(rows).toEqual([
+      expect.objectContaining({
+        domainName: 'gone.com',
+        registrar: 'porkbun',
+        accountId: 'pb-1',
+        accountLabel: 'Selling',
+        departed: true,
+      }),
+    ]);
   });
 });

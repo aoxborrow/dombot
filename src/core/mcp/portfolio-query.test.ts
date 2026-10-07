@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Domain } from '@aoxborrow/registrar-client';
 import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
+import { archiveRows, type Ownership } from '../../shared/ownership';
 import {
   DEFAULT_LIMIT,
   isStaleAt,
@@ -292,5 +293,72 @@ describe('meta and edge cases', () => {
     const res = run([], {});
     expect(res.total).toBe(0);
     expect(res.rows).toEqual([]);
+  });
+});
+
+describe('ownership', () => {
+  const sold: Ownership = {
+    archived: true,
+    label: 'sold',
+    event: null,
+    lastAccountId: 'dynadot',
+  };
+  const ownership = new Map<string, Ownership>([
+    ['escrow.com', sold],
+    ['gone.com', { ...sold, label: 'dropped', lastAccountId: 'old-account' }],
+  ]);
+  const live = [
+    domain({ domainName: 'kept.com', autoRenew: true }),
+    domain({ domainName: 'hidden.com' }),
+    domain({ domainName: 'escrow.com', autoRenew: true }),
+  ];
+  // gone.com's last account was removed, so its Archive row has no registrar.
+  const domains = [...live, ...archiveRows(ownership, live, null)];
+  const assignments = { 'hidden.com': HIDDEN_FOLDER_ID };
+  const query = (args: QueryArgs) =>
+    queryPortfolio(domains, [], assignments, META, args, ownership);
+
+  it('covers Owned by default, Hidden names included', () => {
+    const res = query({ sort: 'domainName' });
+    expect(res.rows.map((r) => [r.domainName, r.hidden])).toEqual([
+      ['hidden.com', true],
+      ['kept.com', false],
+    ]);
+    expect(res.rows.every((r) => r.ownership === 'owned')).toBe(true);
+  });
+
+  it('covers Archive, held or not', () => {
+    const res = query({ ownership: 'archive', sort: 'domainName' });
+    expect(res.rows).toMatchObject([
+      {
+        domainName: 'escrow.com',
+        ownership: 'archive',
+        archiveLabel: 'sold',
+        inAccount: true,
+        registrar: 'dynadot',
+        autoRenew: true,
+      },
+      {
+        domainName: 'gone.com',
+        ownership: 'archive',
+        archiveLabel: 'dropped',
+        inAccount: false,
+        registrar: null,
+        accountId: 'old-account',
+        accountLabel: null,
+        autoRenew: null,
+        locked: null,
+        privacy: null,
+      },
+    ]);
+    expect(query({ ownership: 'all' }).total).toBe(4);
+  });
+
+  it('never matches a setting filter on a name no account reports', () => {
+    const names = (args: QueryArgs) =>
+      query({ ownership: 'archive', ...args }).rows.map((r) => r.domainName);
+    expect(names({ autoRenew: false })).toEqual([]);
+    expect(names({ locked: false })).toEqual(['escrow.com']);
+    expect(names({ privacy: false })).toEqual(['escrow.com']);
   });
 });

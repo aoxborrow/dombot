@@ -1,4 +1,6 @@
 import { DomainEventType, type DomainEvent } from './domain-events';
+import { toAscii, toUnicode } from './domain-name';
+import type { Domain, RegistrarMeta } from './ipc';
 
 // Owned or Archive, read from a name's ownership events (docs/storage-model.md,
 // "Owned, Archive, and Hidden"): sold, dropped, archived, and removed put it in
@@ -56,4 +58,42 @@ export function ownershipByDomain(
     out.set(e.domain, o);
   }
   return out;
+}
+
+/**
+ * Rows for names in Archive that no registrar reports any more. They carry
+ * the account the name was last seen in; created and expires start empty and
+ * the Archive view fills them from the public registration lookup.
+ */
+export function archiveRows(
+  ownership: Map<string, Ownership>,
+  live: Domain[],
+  registrars: RegistrarMeta[] | null,
+): Domain[] {
+  const held = new Set(live.map((d) => toAscii(d.domainName)));
+  const rows: Domain[] = [];
+  for (const [name, o] of ownership) {
+    if (!o.archived || held.has(name)) continue;
+    const meta = registrars?.find(
+      (r) => (r.accountId ?? r.name) === o.lastAccountId,
+    );
+    rows.push({
+      registrar: (meta?.name ?? '') as Domain['registrar'],
+      accountId: o.lastAccountId ?? undefined,
+      accountLabel: meta?.accountLabel,
+      domainName: toUnicode(name),
+      status: '',
+      createdDate: null,
+      expirationDate: null,
+      renewalDate: null,
+      autoRenew: false,
+      locked: false,
+      privacy: false,
+      nameservers: [],
+      syncedAt: new Date(o.event?.createdAt ?? 0),
+      deleted: false,
+      departed: true,
+    });
+  }
+  return rows;
 }
