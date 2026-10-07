@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { DomainEvent } from '../../shared/domain-events';
-import { eventAccounts, eventDay, eventDetails, withinDays } from './activity';
+import { manualRows } from '../../shared/manual-domains';
+import {
+  alertDomain,
+  eventAccounts,
+  eventDay,
+  eventDetails,
+  withinDays,
+} from './activity';
 
 const event = (patch: Partial<DomainEvent>): DomainEvent => ({
   id: 'E1',
@@ -46,5 +53,37 @@ describe('event helpers', () => {
       ),
     ).toBe('$10.00 · 2 yr');
     expect(eventDetails(event({}), 'us', 'USD')).toBeNull();
+  });
+});
+
+describe('alertDomain', () => {
+  it("opens on a manual name's own row, and builds one for a departed name", () => {
+    const manual = manualRows(
+      {
+        'hand.com': {
+          registrar: 'gandi',
+          createdDate: null,
+          expirationDate: null,
+          autoRenew: null,
+          addedAt: 1,
+          updatedAt: null,
+        },
+      },
+      [],
+    );
+    const arrival = event({
+      domain: 'hand.com',
+      type: 'added',
+      source: 'user',
+      accountId: null,
+    });
+    expect(alertDomain(arrival, manual, null)).toMatchObject({
+      domainName: 'hand.com',
+      registrar: 'gandi',
+      source: 'manual',
+    });
+    expect(
+      alertDomain(event({ domain: 'gone.com' }), manual, null),
+    ).toMatchObject({ source: 'registrar', departed: true });
   });
 });

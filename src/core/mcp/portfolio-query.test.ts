@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Domain } from '@aoxborrow/registrar-client';
-import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
+import {
+  HIDDEN_FOLDER_ID,
+  STALE_AFTER_MS,
+  type Domain,
+} from '../../shared/ipc';
 import { archiveRows, type Ownership } from '../../shared/ownership';
 import {
   DEFAULT_LIMIT,
@@ -26,6 +29,7 @@ function domain(partial: Partial<Domain> & { domainName: string }): Domain {
     nameservers: [],
     syncedAt: new Date(0),
     deleted: false,
+    source: 'registrar',
     ...partial,
   };
 }

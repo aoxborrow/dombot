@@ -39,7 +39,8 @@ import {
   stepBulk,
 } from './bulk-jobs';
 import { domainKey } from '../../shared/account-key';
-import type { Domain, DomainTarget } from '../../shared/ipc';
+import type { Domain as ProviderDomain } from '@aoxborrow/registrar-client';
+import type { DomainTarget } from '../../shared/ipc';
 
 const fakes = vi.hoisted(() => ({
   providers: new Map<string, Record<string, ReturnType<typeof vi.fn>>>(),
@@ -97,14 +98,14 @@ vi.mock('@aoxborrow/registrar-client', async (original) => {
       }
     },
     listPortfolio: async (
-      clients: { listDomains: () => Promise<Domain[]> }[],
+      clients: { listDomains: () => Promise<ProviderDomain[]> }[],
     ) => ({ domains: await clients[0].listDomains(), errors: [] }),
   };
 });
 vi.mock('../dns', () => ({ resolveNameservers: vi.fn(async () => []) }));
 
 let disk: MemoryDocStore;
-const domain = (domainName: string): Domain => ({
+const domain = (domainName: string): ProviderDomain => ({
   domainName,
   registrar: 'dynadot',
   status: 'active',
@@ -310,10 +311,10 @@ describe('multi-account storage, routing and portable migration', () => {
     'in-flight sync cannot resurrect data after %s',
     async (action) => {
       const company = await twoAccounts();
-      let finish!: (domains: Domain[]) => void;
+      let finish!: (domains: ProviderDomain[]) => void;
       fakes.providers.get('company')!.listDomains.mockImplementation(
         () =>
-          new Promise<Domain[]>((r) => {
+          new Promise<ProviderDomain[]>((r) => {
             finish = r;
           }),
       );
@@ -633,10 +634,10 @@ describe('multi-account storage, routing and portable migration', () => {
 
   it('an older sync cannot overwrite a newer successful sync for the same account', async () => {
     const company = await twoAccounts();
-    let finish!: (rows: Domain[]) => void;
+    let finish!: (rows: ProviderDomain[]) => void;
     fakes.providers.get('company')!.listDomains.mockImplementationOnce(
       () =>
-        new Promise<Domain[]>((r) => {
+        new Promise<ProviderDomain[]>((r) => {
           finish = r;
         }),
     );

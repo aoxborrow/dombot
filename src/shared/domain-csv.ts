@@ -94,7 +94,8 @@ function decimal(n: number, currency: string): string {
 /** Columns you can know for a name you hold: blank once it's gone. */
 const held = (r: NameRow) => !r.domain.departed;
 /** Columns only a connected registrar reports: blank for manual names too. */
-const fromRegistrar = (r: NameRow) => !r.domain.departed && !r.domain.manual;
+const fromRegistrar = (r: NameRow) =>
+  !r.domain.departed && r.domain.source !== 'manual';
 const registration = (r: NameRow, value: () => string) =>
   r.domain.unregistered ? '' : value();
 
@@ -333,7 +334,11 @@ function nameRows(domains: Domain[], ctx: DomainCsvContext): NameRow[] {
   const byName = new Map<string, NameRow>();
   for (const d of domains) {
     const key = toAscii(d.domainName);
-    const account = d.departed ? '' : d.manual ? 'Manual' : ctx.accountName(d);
+    const account = d.departed
+      ? ''
+      : d.source === 'manual'
+        ? 'Manual'
+        : ctx.accountName(d);
     const existing = byName.get(key);
     if (!existing) {
       byName.set(key, {

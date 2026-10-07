@@ -168,7 +168,8 @@ export default function Renewals() {
   );
   const hasPortfolio =
     portfolio.length > 0 &&
-    (portfolioLoadedAt !== null || portfolio.some((d) => d.manual));
+    (portfolioLoadedAt !== null ||
+      portfolio.some((d) => d.source === 'manual'));
   const hasPricing = Object.keys(pricing).length > 0;
   // Pricing is computed locally in main and arrives with the portfolio (and is
   // re-read after each Sync), so "loading" is just the brief gap before it lands.

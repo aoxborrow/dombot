@@ -99,9 +99,10 @@ export function RowActionsMenu({
     archive === 'sold' || archive === 'dropped' || archive === 'archived';
   const key = domainKey(domain);
   // A manual name isn't at a connected account: registrar actions can't run.
-  const manualReason = domain.manual
-    ? 'Added by you. No connected account holds this name.'
-    : null;
+  const manualReason =
+    domain.source === 'manual'
+      ? 'Added by you. No connected account holds this name.'
+      : null;
   const pending = useAppStore((s) => s.mutating[key] ?? false);
   const urlReason = useOpUnsupportedReason(domain.registrar, {
     kind: 'urlForwarding',
@@ -149,7 +150,7 @@ export function RowActionsMenu({
         {/* Registrar and organizing actions: only for a name you own. */}
         {archive === null && (
           <>
-            {domain.manual ? (
+            {domain.source === 'manual' ? (
               <DropdownMenuItem onSelect={onEditDetails}>
                 <PencilLine className="text-muted-foreground" />
                 Edit details<span className="-ml-[6px] opacity-50">…</span>

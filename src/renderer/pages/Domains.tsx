@@ -545,7 +545,7 @@ const COLUMNS: Column[] = [
           />
         </a>
         <LifecycleBadge status={d.status} />
-        {d.manual && (
+        {d.source === 'manual' && (
           <Badge
             variant="outline"
             className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
@@ -811,7 +811,7 @@ export default function Domains() {
             render: (d: Domain, labels: RegistrarLabels) => {
               // Names you added: a faint building rather than the logo, so
               // they read apart from a connected account's names.
-              if (d.manual) {
+              if (d.source === 'manual') {
                 const name = manualRegistrarName(d, labels);
                 return (
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
@@ -841,7 +841,7 @@ export default function Domains() {
               );
             },
             sortValue: (d: Domain, labels: RegistrarLabels) => {
-              if (d.manual)
+              if (d.source === 'manual')
                 return (
                   d.manualRegistrarLabel ?? registrarLabel(d.registrar, labels)
                 ).toLowerCase();
@@ -1391,7 +1391,7 @@ export default function Domains() {
       if (
         registrar.length > 0 &&
         !registrar.includes(
-          d.manual
+          d.source === 'manual'
             ? manualRegistrarValue(
                 manualRegistrarName(d, portfolioRegistrarLabels),
               )
@@ -1497,7 +1497,9 @@ export default function Domains() {
   // the detail cache (their cells show skeletons while in flight).
   // Registrar actions act on the selected names an account still holds.
   // The selected names at a connected account: what registrar actions run on.
-  const selectedHeld = selectedDomains.filter((d) => !d.departed && !d.manual);
+  const selectedHeld = selectedDomains.filter(
+    (d) => !d.departed && d.source !== 'manual',
+  );
   const bulkRefresh = () => {
     const n = selectedHeld.length;
     void enrichVisible(selectedHeld, true).then(() =>
@@ -1695,13 +1697,16 @@ export default function Domains() {
           {d.registrationRegistrar}
         </span>
       );
-    if (d.manual && col.key === 'autoRenew')
+    if (d.source === 'manual' && col.key === 'autoRenew')
       return (
         <span className="text-muted-foreground">
           {d.autoRenewUnknown ? '—' : d.autoRenew ? 'On' : 'Off'}
         </span>
       );
-    if ((d.departed || d.manual) && (col.detail || col.key === 'autoRenew'))
+    if (
+      (d.departed || d.source === 'manual') &&
+      (col.detail || col.key === 'autoRenew')
+    )
       return <span className="text-muted-foreground/50">—</span>;
     if (col.detail && enriching[domainKey(d)] === true)
       return <CellSkeleton align={col.align} />;

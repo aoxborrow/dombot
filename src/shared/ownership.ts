@@ -92,6 +92,7 @@ export function archiveRows(
       nameservers: [],
       syncedAt: new Date(o.event?.createdAt ?? 0),
       deleted: false,
+      source: 'registrar',
       departed: true,
     });
   }
