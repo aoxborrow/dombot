@@ -53,7 +53,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import {
@@ -65,6 +65,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { SettingsField } from './SettingsCard';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 /** Until when a card's expand toggle is ignored. A click outside an open
  * actions menu just closes the menu; without this, that same click would land
@@ -335,8 +336,11 @@ function AccountCard({
   const currentLabel = account.accountLabel ?? '';
   const [values, setValues] = useState<CredentialValues>({});
   const [original, setOriginal] = useState<CredentialValues>({});
-  // Inline nickname edit in the title bar; null = not editing.
+  // The account name being edited in its dialog; null = dialog closed.
   const [nickname, setNickname] = useState<string | null>(null);
+  // "Edit account name…" was picked: the dialog opens once the menu has
+  // closed, so the closing menu doesn't pull focus back to its button.
+  const renameFromMenu = useRef(false);
   const [renaming, setRenaming] = useState(false);
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -448,7 +452,7 @@ function AccountCard({
       await refreshCache();
       setNickname(null);
     } catch (err) {
-      // Keep the field open with what was typed so it can be corrected.
+      // Keep the dialog open with what was typed so it can be corrected.
       setNicknameError(errorMessage(err));
     } finally {
       setRenaming(false);
@@ -514,13 +518,12 @@ function AccountCard({
           setOpen(next);
         }}
       >
-        {/* Header: name · pencil · status · actions menu · chevron. The name and
-            status expand the card; the pencil, menu and chevron sit beside them.
-            On a narrow card (a phone, or an iPad-width window with the settings
-            sidebar) the status wraps onto its own line under the name, so the
-            name and the account-name input keep line one. A wide card keeps
-            everything on one compact row that's easy to scan. */}
-        <div className="group/header flex flex-wrap items-center gap-x-3 gap-y-1 py-[13px] pr-5 pl-[15px] @min-[600px]:flex-nowrap">
+        {/* Header: name · status · actions menu · chevron. The name and status
+            expand the card. On a narrow card (a phone, or an iPad-width window
+            with the settings sidebar) the status wraps onto its own line under
+            the name. A wide card keeps everything on one compact row that's
+            easy to scan. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-[13px] pr-5 pl-[15px] @min-[600px]:flex-nowrap">
           <CollapsibleTrigger className="flex min-w-0 items-center gap-2.5 text-left">
             <span
               className={cn(
@@ -536,7 +539,7 @@ function AccountCard({
                 className="size-[22px]"
               />
               <span className="truncate">{provider.displayName}</span>
-              {suffix && nickname === null && (
+              {suffix && (
                 <span className="-ml-1 flex min-w-0 items-center gap-1.5 font-normal text-muted-foreground">
                   {/* The bullet is its own item so the gap is equal on both
                       sides, whatever the font's space width. */}
@@ -548,73 +551,15 @@ function AccountCard({
               )}
             </span>
           </CollapsibleTrigger>
-          {/* The account name is edited right in the header. The input can't
-              sit inside the trigger (a button), so it's a sibling. The pencil
-              shows on hover (always on touch, and while the card is open). */}
-          {nickname === null ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={cn(
-                '-mx-2.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground',
-                !open &&
-                  'opacity-0 group-hover/header:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100',
-              )}
-              disabled={busy}
-              aria-label={`Edit account name for ${title}`}
-              title={hasNickname ? 'Edit account name' : 'Add an account name'}
-              onClick={() => setNickname(hasNickname ? currentLabel : '')}
-            >
-              <Pencil className="size-3" />
-            </Button>
-          ) : (
-            <Input
-              autoFocus
-              value={nickname}
-              disabled={renaming}
-              maxLength={100}
-              autoComplete="off"
-              placeholder="Account name"
-              aria-label={`Account name for ${title}`}
-              className="-my-1 h-8 w-44 min-w-0 shrink"
-              aria-invalid={nicknameError ? true : undefined}
-              onChange={(e) => {
-                setNickname(e.target.value);
-                setNicknameError(null);
-              }}
-              onBlur={() => void saveNickname()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  void saveNickname();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setNicknameError(null);
-                  setNickname(null);
-                }
-              }}
-            />
-          )}
-
-          {/* Sync status (or an account-name error): fills the row on a wide
-              card; on a narrow one, its own line indented under the name. */}
-          {nickname !== null && nicknameError ? (
-            <span
-              role="alert"
-              className="order-last min-w-0 basis-full pl-[32px] text-sm text-destructive @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0"
-            >
-              {nicknameError}
-            </span>
-          ) : (
-            <CollapsibleTrigger
-              tabIndex={-1}
-              aria-hidden
-              className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-[32px] text-left @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0"
-            >
-              <SyncStatus meta={account} syncing={syncing} />
-            </CollapsibleTrigger>
-          )}
+          {/* Sync status: fills the row on a wide card; on a narrow one, its
+              own line indented under the name. */}
+          <CollapsibleTrigger
+            tabIndex={-1}
+            aria-hidden
+            className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-[32px] text-left @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0"
+          >
+            <SyncStatus meta={account} syncing={syncing} />
+          </CollapsibleTrigger>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -635,6 +580,12 @@ function AccountCard({
               onPointerDownOutside={() => {
                 ignoreToggleUntil = Date.now() + 500;
               }}
+              onCloseAutoFocus={(e) => {
+                if (!renameFromMenu.current) return;
+                renameFromMenu.current = false;
+                e.preventDefault();
+                setNickname(hasNickname ? currentLabel : '');
+              }}
             >
               {/* Sync only makes sense for an enabled account. */}
               {configured && enabled && (
@@ -646,6 +597,15 @@ function AccountCard({
                   Sync now
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem
+                disabled={busy}
+                onSelect={() => {
+                  renameFromMenu.current = true;
+                }}
+              >
+                <Pencil />
+                Edit account name…
+              </DropdownMenuItem>
               {/* Turning an account off keeps its credentials and cached
                   data; on again syncs it. Needs credentials first. */}
               {configured && (
@@ -775,6 +735,51 @@ function AccountCard({
           </form>
         </CollapsibleContent>
       </Collapsible>
+      {nickname !== null && (
+        <ConfirmDialog
+          title="Edit account name"
+          description={`Shown next to ${provider.displayName} across DomBot. Leave it blank to remove it.`}
+          actionLabel="Save"
+          busyLabel="Saving…"
+          busy={renaming}
+          onConfirm={() => void saveNickname()}
+          onClose={() => {
+            setNicknameError(null);
+            setNickname(null);
+          }}
+        >
+          <Field>
+            <FieldLabel htmlFor={`${id}-account-name`}>Account name</FieldLabel>
+            <Input
+              id={`${id}-account-name`}
+              autoFocus
+              // Select the current name, so typing replaces it.
+              onFocus={(e) => e.currentTarget.select()}
+              value={nickname}
+              disabled={renaming}
+              maxLength={100}
+              autoComplete="off"
+              placeholder="e.g. Personal, Client work"
+              aria-invalid={nicknameError ? true : undefined}
+              onChange={(e) => {
+                setNickname(e.target.value);
+                setNicknameError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void saveNickname();
+                }
+              }}
+            />
+            {nicknameError && (
+              <p role="alert" className="text-sm text-destructive">
+                {nicknameError}
+              </p>
+            )}
+          </Field>
+        </ConfirmDialog>
+      )}
     </Card>
   );
 }
@@ -802,10 +807,8 @@ function DraftAccountCard({
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Optional, edited inline in the title bar like on a saved card. It only
-  // lives here until the account is saved.
+  // Optional. It only lives here until the account is saved.
   const [nickname, setNickname] = useState('');
-  const [editingNickname, setEditingNickname] = useState(false);
   // With the Namecheap proxy on, its outgoing IP supplies the required ClientIp,
   // so the direct field isn't needed; the proxy URL/IP are required instead.
   const proxySuppliesIp = provider.name === 'namecheap' && proxyEnabled;
@@ -853,52 +856,6 @@ function DraftAccountCard({
         >
           New {provider.displayName} account
         </h3>
-        {editingNickname ? (
-          <Input
-            autoFocus
-            value={nickname}
-            disabled={saving}
-            maxLength={100}
-            autoComplete="off"
-            placeholder="Account name"
-            aria-label={`Account name for the new ${provider.displayName} account`}
-            className="h-8 w-44 shrink"
-            onChange={(e) => setNickname(e.target.value)}
-            onBlur={() => setEditingNickname(false)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === 'Escape') {
-                e.preventDefault();
-                if (e.key === 'Escape') setNickname('');
-                setEditingNickname(false);
-              }
-            }}
-          />
-        ) : (
-          <>
-            {nickname.trim() && (
-              <span className="-ml-1 flex min-w-0 items-center gap-1.5 text-muted-foreground">
-                <span aria-hidden>·</span>
-                <span className="truncate">{nickname.trim()}</span>
-              </span>
-            )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="-ml-1.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground"
-              disabled={saving}
-              aria-label={
-                nickname.trim() ? 'Edit account name' : 'Add an account name'
-              }
-              title={
-                nickname.trim() ? 'Edit account name' : 'Add an account name'
-              }
-              onClick={() => setEditingNickname(true)}
-            >
-              <Pencil className="size-3" />
-            </Button>
-          </>
-        )}
       </div>
       <form
         aria-label={`New ${provider.displayName} account`}
@@ -920,6 +877,21 @@ function DraftAccountCard({
             }
             hideFields={proxySuppliesIp ? new Set(['clientIp']) : undefined}
           />
+          <SettingsField
+            htmlFor={`${idPrefix}-account-name`}
+            label="Account name"
+            description="Optional. Tells accounts at the same registrar apart."
+          >
+            <Input
+              id={`${idPrefix}-account-name`}
+              value={nickname}
+              disabled={saving}
+              maxLength={100}
+              autoComplete="off"
+              placeholder="e.g. Personal, Client work"
+              onChange={(e) => setNickname(e.target.value)}
+            />
+          </SettingsField>
         </FieldGroup>
         <ProxyToggle
           id={`${idPrefix}-proxy`}

@@ -28,9 +28,12 @@ describe('generateDemoSeed', () => {
 
   it('deals domains across accounts by share, with real prices for every TLD', () => {
     const counts = new Map<string, number>();
+    const accountRegistrar = new Map(
+      seed.accounts.map((a) => [a.id, a.registrar]),
+    );
     for (const r of seed.records) {
       counts.set(r.accountId, (counts.get(r.accountId) ?? 0) + 1);
-      expect(r.accountId).toBe(r.registrar);
+      expect(accountRegistrar.get(r.accountId)).toBe(r.registrar);
       expect(getBaseRenewal(r.registrar, tldOf(r.domainName))).not.toBeNull();
     }
     for (const a of seed.accounts) {
@@ -40,6 +43,15 @@ describe('generateDemoSeed', () => {
     }
     expect(counts.get('godaddy')!).toBeGreaterThan(counts.get('porkbun')!);
     expect(counts.has('namesilo')).toBe(false); // left unconfigured
+    // Namecheap shows two named accounts side by side.
+    expect(
+      seed.accounts
+        .filter((a) => a.registrar === 'namecheap')
+        .map((a) => [a.id, a.label]),
+    ).toEqual([
+      ['namecheap', 'Personal'],
+      ['namecheap-selling', 'Selling'],
+    ]);
   });
 
   it('has a realistic spread of expiries, flags, and delegation', () => {
@@ -59,7 +71,9 @@ describe('generateDemoSeed', () => {
         ['expired', 'grace', 'redemption'].includes(r.status),
       ),
     ).toBe(true);
-    expect(seed.records.filter((r) => r.status === 'grace').length).toBeGreaterThan(0);
+    expect(
+      seed.records.filter((r) => r.status === 'grace').length,
+    ).toBeGreaterThan(0);
     expect(
       seed.records.filter((r) => r.status === 'redemption').length,
     ).toBeGreaterThan(0);
