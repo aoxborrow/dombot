@@ -15,10 +15,12 @@ import { RENEWAL_PRICES_NAMESPACE } from '../storage/names';
 //   1. manual override — a price the user typed in (kept in domain-prices).
 //   2. per-name API quote — only for registrars that price a *specific* domain,
 //      so the figure captures premium renewals. Gandi (its per-name price
-//      endpoint), Dynadot (its classic renew price-check quote), and GoDaddy
-//      premium names (v3 availability renewalPrice) qualify. The rest either
+//      endpoint), Dynadot (its classic renew price-check quote), GoDaddy
+//      premium names (v3 availability renewalPrice), and Namecheap premium
+//      names (domains.check PremiumRenewalPrice) qualify. The rest either
 //      can't price an owned domain at all (Cloudflare/Spaceship/NameBright)
-//      or only expose a generic per-TLD rate (Namecheap's feeds layer 3).
+//      or only expose a generic per-TLD rate (Namecheap's standard names
+//      take layer 3).
 //      (Porkbun *can* price per-name via checkDomain, but its aggressive
 //      rate limit made that impractical, so it takes the base rate too.) This
 //      quote is fetched as part of the domain Sync and stored with the

@@ -511,6 +511,7 @@ export function tldOf(domainName: string): string {
 /** The nameservers a registrar hands out by default. */
 export function defaultNameservers(registrar: RegistrarName): string[] {
   const table: Record<RegistrarName, string[]> = {
+    '101domain': ['ns1.101domain.com', 'ns2.101domain.com'],
     cloudflare: ['ada.ns.cloudflare.com', 'rob.ns.cloudflare.com'],
     dynadot: ['ns1.dynadot.com', 'ns2.dynadot.com'],
     gandi: ['ns-1.gandi.net', 'ns-2.gandi.net', 'ns-3.gandi.net'],

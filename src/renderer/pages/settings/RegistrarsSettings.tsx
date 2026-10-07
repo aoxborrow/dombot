@@ -560,14 +560,24 @@ function AccountCard({
             </span>
           </CollapsibleTrigger>
           {/* Sync status: fills the row on a wide card; on a narrow one, its
-              own line indented under the name. */}
-          <CollapsibleTrigger
-            tabIndex={-1}
-            aria-hidden
-            className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-[32px] text-left @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0"
-          >
-            <SyncStatus meta={account} syncing={syncing} />
-          </CollapsibleTrigger>
+              own line indented under the name. The domain count is a link, so
+              it sits beside the status trigger rather than inside it; the
+              trailing trigger keeps the rest of the row clickable. */}
+          <div className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-[32px] @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0">
+            <CollapsibleTrigger
+              tabIndex={-1}
+              aria-hidden
+              className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-left"
+            >
+              <SyncStatus meta={account} syncing={syncing} />
+            </CollapsibleTrigger>
+            <DomainCountLink meta={account} syncing={syncing} />
+            <CollapsibleTrigger
+              tabIndex={-1}
+              aria-hidden
+              className="min-w-0 flex-1 self-stretch"
+            />
+          </div>
 
           <DropdownMenu
             onOpenChange={(next) => {
@@ -944,7 +954,7 @@ function RegistrarHelp({ provider }: { provider: RegistrarDefinition }) {
   return (
     <div className="mb-4 flex flex-col gap-2">
       <p className="text-[13px] leading-relaxed text-muted-foreground">
-        {help.summary}
+        <HelpText text={help.summary} />
       </p>
       {help.links.length > 0 && (
         <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -1098,7 +1108,7 @@ function CredentialFields({
             }
             // Only fields that need disambiguating carry a description; it
             // sits under the label, ahead of the input.
-            description={fieldHelp}
+            description={fieldHelp && <HelpText text={fieldHelp} />}
           >
             {field.type === 'select' ? (
               <Select
@@ -1148,6 +1158,22 @@ function CredentialFields({
   );
 }
 
+/** Help copy with its `backticked` keywords set as code. */
+function HelpText({ text }: { text: string }) {
+  return text.split('`').map((part, i) =>
+    i % 2 === 1 ? (
+      <code
+        key={i}
+        className="rounded bg-muted px-1 py-px font-mono text-[0.92em] text-foreground"
+      >
+        {part}
+      </code>
+    ) : (
+      part
+    ),
+  );
+}
+
 /**
  * A real external link in the help copy. `target="_blank"` hands the URL to the
  * main process's window-open handler, which opens it in the system browser and
@@ -1159,7 +1185,7 @@ function HelpLink({ link }: { link: HelpLinkData }) {
       href={link.url}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1 text-[13px] font-medium text-primary underline-offset-4 hover:underline"
+      className="inline-flex items-center gap-1 text-[13px] font-medium text-brand underline-offset-4 hover:underline"
     >
       {link.label}
       <ExternalLink className="size-3 shrink-0" aria-hidden />
@@ -1180,11 +1206,9 @@ function HelpLink({ link }: { link: HelpLinkData }) {
 function SyncStatus({
   meta,
   syncing,
-  showCount = true,
 }: {
   meta: RegistrarMeta;
   syncing: boolean;
-  showCount?: boolean;
 }) {
   if (syncing) {
     return (
@@ -1209,7 +1233,7 @@ function SyncStatus({
     );
   }
 
-  const { lastSyncedAt, lastError, domainCount } = meta.sync;
+  const { lastSyncedAt, lastError } = meta.sync;
   if (lastError) {
     return (
       <span className="flex items-center gap-1.5">
@@ -1238,11 +1262,39 @@ function SyncStatus({
       <span className="whitespace-nowrap text-[13px] font-medium text-brand">
         Last synced {timeAgo(lastSyncedAt)}
       </span>
-      {showCount && (
-        <span className="whitespace-nowrap text-xs text-muted-foreground">
-          · {domainCount} domain{domainCount === 1 ? '' : 's'}
-        </span>
-      )}
+    </span>
+  );
+}
+
+/**
+ * "· N domains" after a successful sync, linking to Domains filtered to just
+ * this account (Domains opens with every other filter cleared).
+ */
+function DomainCountLink({
+  meta,
+  syncing,
+}: {
+  meta: RegistrarMeta;
+  syncing: boolean;
+}) {
+  const { lastSyncedAt, lastError, domainCount } = meta.sync;
+  if (
+    syncing ||
+    !meta.configured ||
+    !meta.enabled ||
+    lastError ||
+    lastSyncedAt == null
+  )
+    return null;
+  return (
+    <span className="whitespace-nowrap text-xs text-muted-foreground">
+      ·{' '}
+      <Link
+        to={`/?${new URLSearchParams({ account: idOf(meta) })}`}
+        className="underline-offset-4 hover:text-foreground hover:underline"
+      >
+        {plural(domainCount)}
+      </Link>
     </span>
   );
 }

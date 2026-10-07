@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryDocStore } from '../storage/doc-store';
 import {
   configureStore,
@@ -18,6 +18,43 @@ beforeEach(async () => {
 });
 
 describe('invoke', () => {
+  it('restores optional positional arguments serialized as JSON null without changing meaningful nulls', async () => {
+    const account = {
+      id: 'dynadot',
+      registrar: 'dynadot' as const,
+      label: '#1',
+    };
+    const handler = vi.fn(() => account);
+    const entry = { ...coreMethods.connectRegistrarAccount, handler };
+    const wire: unknown[] = JSON.parse(
+      JSON.stringify(['dynadot', { apiKey: 'test-key' }, undefined, false]),
+    );
+    await expect(
+      invoke('connectRegistrarAccount', entry, wire),
+    ).resolves.toEqual(account);
+    expect(handler).toHaveBeenCalledWith(
+      'dynadot',
+      { apiKey: 'test-key' },
+      undefined,
+      false,
+    );
+    await expect(
+      invoke('connectRegistrarAccount', entry, [
+        null,
+        { apiKey: 'test-key' },
+        null,
+        false,
+      ]),
+    ).rejects.toBeInstanceOf(ApiValidationError);
+    expect(handler).toHaveBeenCalledTimes(1);
+    const clearPrice = vi.fn(() => undefined);
+    await invoke(
+      'setManualPrice',
+      { ...coreMethods.setManualPrice, handler: clearPrice },
+      ['example.com', null],
+    );
+    expect(clearPrice).toHaveBeenCalledWith('example.com', null);
+  });
   it('pads omitted trailing optional args and runs the handler', async () => {
     // listPortfolio(refresh?) with no args → refresh defaults to true inside
     // the handler; we only check the schema accepts the shorter call here.
