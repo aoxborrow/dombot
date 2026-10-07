@@ -15,6 +15,8 @@ const store = new Namespace<RegistrationLookup>('rdap-lookups', {
 });
 const FRESH_MS = 24 * 60 * 60 * 1000;
 const CONCURRENCY = 4;
+const TIMEOUT_MS = 10_000;
+const REDIRECTOR = 'rdap.org';
 
 interface RdapEvent {
   eventAction?: string;
@@ -103,13 +105,28 @@ function withMappedRegistrar(row: RegistrationLookup): RegistrationLookup {
   };
 }
 
+/**
+ * Whether a response came from the rdap.org redirector itself rather than the
+ * registry it sends each TLD to. It answers 404 when it has no RDAP server for
+ * the TLD, which says nothing about the name.
+ */
+function fromRedirector(response: Response): boolean {
+  if (response.redirected) return false;
+  try {
+    return new URL(response.url).hostname === REDIRECTOR;
+  } catch {
+    return true;
+  }
+}
+
 async function queryRdap(name: string): Promise<RegistrationLookup | null> {
   let response: Response;
   try {
     response = await fetch(
-      `https://rdap.org/domain/${encodeURIComponent(name)}`,
+      `https://${REDIRECTOR}/domain/${encodeURIComponent(name)}`,
       {
         redirect: 'follow',
+        signal: AbortSignal.timeout(TIMEOUT_MS),
         headers: {
           accept: 'application/rdap+json, application/json',
           ...userAgentHeaders(),
@@ -120,7 +137,9 @@ async function queryRdap(name: string): Promise<RegistrationLookup | null> {
     return null;
   }
   const checkedAt = new Date().toISOString();
-  if (response.status === 404) {
+  // Only the registry's own 404 means the name is free; the redirector's is
+  // unknown.
+  if (response.status === 404 && !fromRedirector(response)) {
     return {
       registered: false,
       registrar: null,
