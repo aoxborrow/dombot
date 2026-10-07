@@ -1,5 +1,4 @@
 import {
-  DomainEventSource,
   DomainEventType,
   localDay,
   type DomainEvent,
@@ -50,37 +49,6 @@ export const VERB: Record<DomainEvent['type'], string> = {
   removed: 'Removed',
   moved: 'Moved',
 };
-
-/** "Removed from GoDaddy", "Moved from GoDaddy to Porkbun #2", "Sold for $2,500". */
-export function describeEvent(
-  e: DomainEvent,
-  registrars: RegistrarMeta[] | null,
-  numberFormat: NumberFormatId,
-  preferredCurrency: string,
-): string {
-  const acct = (id: string | null | undefined) =>
-    accountName(registrars, id) ?? 'a removed account';
-  switch (e.type) {
-    case DomainEventType.Added:
-      return `Added to ${acct(e.accountId)}`;
-    case DomainEventType.Removed:
-      return `Removed from ${acct(e.accountId)}`;
-    case DomainEventType.Moved:
-      return `Moved from ${acct(e.fromAccountId)} to ${acct(e.toAccountId)}`;
-    default: {
-      const money =
-        e.amount && e.currency
-          ? formatMoney(e.amount, e.currency, preferredCurrency, numberFormat)
-          : null;
-      const verb =
-        e.type === DomainEventType.Dropped &&
-        e.source === DomainEventSource.Lookup
-          ? 'Dropped (no longer registered)'
-          : VERB[e.type];
-      return money ? `${verb} for ${money}` : verb;
-    }
-  }
-}
 
 export const SOURCE_LABEL: Record<DomainEvent['source'], string> = {
   user: 'You',

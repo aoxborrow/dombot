@@ -22,7 +22,11 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toAscii, toUnicode } from '../../shared/domain-name';
-import { DomainEventType, type DomainEvent } from '../../shared/domain-events';
+import {
+  DomainEventSource,
+  DomainEventType,
+  type DomainEvent,
+} from '../../shared/domain-events';
 import type { RegistrarMeta, RegistrarName } from '../../shared/ipc';
 import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
 import {
@@ -515,7 +519,13 @@ export default function Activity() {
       key: 'account',
       label: 'Registrar',
       cell: ({ event: e }) =>
-        e.type === DomainEventType.Moved ? (
+        // A move from no account is sync taking over a manual name.
+        e.type === DomainEventType.Moved && !e.fromAccountId ? (
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+            <span className="text-muted-foreground">Now synced from</span>
+            <AccountLabel registrars={registrars} id={e.toAccountId} />
+          </span>
+        ) : e.type === DomainEventType.Moved ? (
           <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
             <AccountLabel registrars={registrars} id={e.fromAccountId} />
             <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
@@ -523,6 +533,13 @@ export default function Activity() {
           </span>
         ) : e.accountId ? (
           <AccountLabel registrars={registrars} id={e.accountId} />
+        ) : e.type === DomainEventType.Added ? (
+          // A manual name: added by hand, or by an import.
+          <span className="whitespace-nowrap text-muted-foreground">
+            {e.source === DomainEventSource.Import
+              ? 'Imported'
+              : 'Added manually'}
+          </span>
         ) : (
           <span className="text-muted-foreground/50">—</span>
         ),
