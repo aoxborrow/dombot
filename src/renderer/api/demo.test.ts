@@ -76,6 +76,31 @@ describe('createDemoApi', () => {
     expect(detail?.autoRenew).toBe(false);
   }, 20_000);
 
+  it('re-imports its own data export', async () => {
+    const { api } = await createDemoApi({
+      latencyMs: 0,
+      size: 40,
+      sampleChanges: true,
+    });
+    const text = await api.exportData();
+    const before = JSON.parse(text);
+    expect(Object.keys(before.namespaces['registrar-accounts'])).not.toEqual(
+      [],
+    );
+
+    await api.importData(text);
+    expect(JSON.parse(await api.exportData()).namespaces).toEqual(
+      before.namespaces,
+    );
+    const namecheap = (await api.getRegistrarMetadata()).filter(
+      (m) => m.name === 'namecheap',
+    );
+    expect(namecheap.map((m) => m.accountLabel).sort()).toEqual([
+      'Personal',
+      'Selling',
+    ]);
+  });
+
   it('a fresh boot starts over from the seed', async () => {
     const a = await createDemoApi({ latencyMs: 0, size: 12 });
     const name = a.demo.seed.records[0].domainName;

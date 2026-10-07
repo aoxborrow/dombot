@@ -58,7 +58,9 @@ const MAX_LABEL_REPEATS = 2;
 // so the settings page shows both states. Gandi is connected and also has a
 // name you added by hand (api/demo.ts), so both kinds show side by side.
 // Namecheap has two accounts with account names, to show how siblings read.
-// A registrar's first account keeps the default id (the registrar name).
+// A registrar's first account keeps the default id (the registrar name); a
+// second one gets a UUID like any account added in the app — fixed, so every
+// visitor sees the same one — which also lets a demo export re-import.
 
 const ACCOUNTS: (Omit<DemoAccount, 'id'> & { id?: string })[] = [
   {
@@ -106,7 +108,7 @@ const ACCOUNTS: (Omit<DemoAccount, 'id'> & { id?: string })[] = [
   },
   {
     registrar: 'namecheap',
-    id: 'namecheap-selling',
+    id: '3b8f2c1e-6d4a-4f7e-9a25-c1d0e8b7f640',
     label: 'Selling',
     credentials: {
       username: 'demo-selling',
