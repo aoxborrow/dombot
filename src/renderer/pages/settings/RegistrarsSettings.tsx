@@ -338,9 +338,9 @@ function AccountCard({
   const [original, setOriginal] = useState<CredentialValues>({});
   // The account name being edited in its dialog; null = dialog closed.
   const [nickname, setNickname] = useState<string | null>(null);
-  // "Edit account name…" was picked: the dialog opens once the menu has
+  // The dialog an actions-menu item asked for. It opens once the menu has
   // closed, so the closing menu doesn't pull focus back to its button.
-  const renameFromMenu = useRef(false);
+  const dialogFromMenu = useRef<'rename' | 'remove' | null>(null);
   // Whether the actions menu is open (not just still fading out).
   const menuOpen = useRef(false);
   const [renaming, setRenaming] = useState(false);
@@ -349,7 +349,9 @@ function AccountCard({
   const [saving, setSaving] = useState(false);
   const [syncingHere, setSyncing] = useState(false);
   const [toggling, setToggling] = useState(false);
+  // The remove confirmation dialog is open.
   const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const usesProxy = Boolean(account.proxy);
   const [proxyEnabled, setProxyEnabled] = useState(usesProxy);
   const [loading, setLoading] = useState(false);
@@ -476,14 +478,14 @@ function AccountCard({
 
   const remove = async () => {
     setSaving(true);
-    setError(null);
+    setRemoveError(null);
     try {
       await window.api.removeRegistrarAccount(id);
       await loadRegistrars();
       await refreshCache();
     } catch (err) {
       // On success the card unmounts; only a failure leaves state to reset.
-      setError(errorMessage(err));
+      setRemoveError(errorMessage(err));
       setSaving(false);
     }
   };
@@ -594,10 +596,13 @@ function AccountCard({
                 if (menuOpen.current) ignoreToggleUntil = Date.now() + 500;
               }}
               onCloseAutoFocus={(e) => {
-                if (!renameFromMenu.current) return;
-                renameFromMenu.current = false;
+                const dialog = dialogFromMenu.current;
+                if (!dialog) return;
+                dialogFromMenu.current = null;
                 e.preventDefault();
-                setNickname(hasNickname ? currentLabel : '');
+                if (dialog === 'rename')
+                  setNickname(hasNickname ? currentLabel : '');
+                else setRemoving(true);
               }}
             >
               {/* Sync only makes sense for an enabled account. */}
@@ -613,7 +618,7 @@ function AccountCard({
               <DropdownMenuItem
                 disabled={acting}
                 onSelect={() => {
-                  renameFromMenu.current = true;
+                  dialogFromMenu.current = 'rename';
                 }}
               >
                 <Pencil />
@@ -631,17 +636,15 @@ function AccountCard({
                 </DropdownMenuItem>
               )}
               {configured && <DropdownMenuSeparator />}
-              {/* Opens the card on its confirmation. */}
               <DropdownMenuItem
                 variant="destructive"
                 disabled={acting}
                 onSelect={() => {
-                  setOpen(true);
-                  setRemoving(true);
+                  dialogFromMenu.current = 'remove';
                 }}
               >
                 <Trash2 />
-                Remove account
+                Remove account…
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -671,30 +674,6 @@ function AccountCard({
         )}
 
         <CollapsibleContent className="border-t px-5 py-4">
-          {/* Asked for from the actions menu: first in the card, so it's in
-              view as the card opens. */}
-          {removing && (
-            <div className="mb-4 flex flex-wrap items-center gap-3 border-b pb-4 text-sm">
-              <span>
-                Remove {title} from DomBot? Its domains stay at{' '}
-                {provider.displayName}.
-              </span>
-              <Button
-                variant="destructive"
-                disabled={acting}
-                onClick={() => void remove()}
-              >
-                Remove
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={acting}
-                onClick={() => setRemoving(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          )}
           {loading && !error && (
             <p role="status" className="mb-3 text-sm text-muted-foreground">
               Loading credentials…
@@ -748,6 +727,27 @@ function AccountCard({
           </form>
         </CollapsibleContent>
       </Collapsible>
+      {removing && (
+        <ConfirmDialog
+          title={`Remove ${title}?`}
+          description={`DomBot forgets this account's credentials and cached domains. The domains stay at ${provider.displayName}, and you can add the account again later.`}
+          actionLabel="Remove account"
+          busyLabel="Removing…"
+          busy={saving}
+          destructive
+          onConfirm={() => void remove()}
+          onClose={() => {
+            setRemoveError(null);
+            setRemoving(false);
+          }}
+        >
+          {removeError && (
+            <p role="alert" className="text-sm text-destructive">
+              {removeError}
+            </p>
+          )}
+        </ConfirmDialog>
+      )}
       {nickname !== null && (
         <ConfirmDialog
           title="Edit account name"
