@@ -86,7 +86,7 @@
     "wrangler": "^4.146.0"
   },
   "dependencies": {
-    "@aoxborrow/registrar-client": "^0.9.0",
+    "@aoxborrow/registrar-client": "^0.9.1",
     "@heroicons/react": "^2.2.0",
     "@hono/node-server": "^2.1.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
