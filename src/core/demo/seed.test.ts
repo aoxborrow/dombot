@@ -50,7 +50,7 @@ describe('generateDemoSeed', () => {
         .map((a) => [a.id, a.label]),
     ).toEqual([
       ['namecheap', 'Personal'],
-      ['namecheap-selling', 'Selling'],
+      ['3b8f2c1e-6d4a-4f7e-9a25-c1d0e8b7f640', 'Selling'],
     ]);
   });
 
