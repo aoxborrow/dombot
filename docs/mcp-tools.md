@@ -48,11 +48,21 @@ take `refresh` to fetch live and write the result through.
   through the fixed IP proxy) and `sync` state. Also the `configured` and
   `active` registrar ids. No secrets. Start here.
 - **`portfolio_query`** — list, search and filter the cached portfolio across
-  every account. Filters: `accountId`, `registrar`, `tld`, `folder` (a name, an
-  id, or `Hidden`), `nameContains`, `nameserverContains`, `autoRenew`,
-  `locked`, `privacy`, `status`, `expiresBefore`, `expiresAfter`,
-  `expiringWithinDays`. Plus `sort`, `order`, `limit` and `offset`. Returns
-  `{ total, fetchedAt, stale, registrars, errors, rows }`. No registrar calls.
+  every account. Filters: `ownership` (`owned`, the default, `archive` or
+  `all`, as the Domains page's Owned / Archive switch), `accountId`,
+  `registrar`, `tld`, `folder` (a name, an id, or `Hidden`), `nameContains`,
+  `nameserverContains`, `autoRenew`, `locked`, `privacy`, `status`,
+  `expiresBefore`, `expiresAfter`, `expiringWithinDays`. Plus `sort`, `order`,
+  `limit` and `offset`. No registrar calls. Returns
+  `{ total, fetchedAt, stale, registrars, errors, rows }`.
+  - Each row carries `ownership`, `archiveLabel` (`sold`, `dropped`,
+    `archived`, or `removed` for a removal you haven't labeled), `hidden`, and
+    `inAccount`.
+  - Hidden names count as owned: they're still yours and still renew.
+  - An Archive name can still be in an account (a sale in escrow). One no
+    account reports has `inAccount: false`, its last known registrar, and
+    `null` for the settings an account reports. The `domain_*` tools can't act
+    on it.
 - **`portfolio_sync`** — re-sync every active account and return a
   per-account summary (counts, last sync, errors).
 

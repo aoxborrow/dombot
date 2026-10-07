@@ -22,9 +22,12 @@ import {
 } from '../services/registrars';
 import { accountById } from '../services/accounts';
 import { applyDomainOp } from '../services/domain-ops';
+import { eventsFor, listEvents } from '../services/domain-events';
 import { getFolders } from '../services/folders';
 import { broadcastPortfolioChanged } from '../events';
+import { toAscii } from '../../shared/domain-name';
 import type { DomainOp, Portfolio } from '../../shared/ipc';
+import { archiveRows, ownershipByDomain } from '../../shared/ownership';
 import {
   DEFAULT_LIMIT,
   MAX_LIMIT,
@@ -90,6 +93,15 @@ function resolveRegistrar(
   const matches = findRegistrarsForDomain(domainName);
   if (matches.length === 1) return matches[0];
   if (matches.length === 0) {
+    // A name that left your accounts is in Archive: syncing won't bring it
+    // back, so say that instead.
+    const key = toAscii(domainName);
+    const left = ownershipByDomain(eventsFor(key)).get(key);
+    if (left?.label) {
+      throw new Error(
+        `"${domainName}" is in Archive (${left.label}) and none of your accounts reports it, so there's no registrar to act on. Pass "registrar" if it's in an account DomBot doesn't sync. If it just came back to one of your accounts, run portfolio_sync.`,
+      );
+    }
     throw new Error(
       `"${domainName}" isn't in the cached portfolio, so its registrar can't be resolved automatically. Pass "registrar" explicitly, or run portfolio_sync if the domain was added recently.`,
     );
@@ -283,6 +295,12 @@ const querySort = z
 // Shared filter/sort/page params for portfolio_query. Every filter is optional
 // and ANDed together; an omitted filter doesn't constrain the results.
 const queryShape = {
+  ownership: z
+    .enum(['owned', 'archive', 'all'])
+    .optional()
+    .describe(
+      'Which names to cover, like the Domains page’s Owned / Archive switch (default "owned"). "owned": names you hold, Hidden ones included. "archive": names you sold, dropped, or archived, or that left your accounts; rows say why in `archiveLabel`. "all": both.',
+    ),
   accountId,
   registrar: registrar.optional().describe('Only this registrar.'),
   tld: z
@@ -362,12 +380,16 @@ const queryShape = {
 function runQuery(args: QueryArgs): QueryResult {
   const { domains, fetchedAt, registrars, errors } = getMergedPortfolio();
   const { folders, assignments } = getFolders();
+  const ownership = ownershipByDomain(listEvents());
   return queryPortfolio(
-    domains,
+    // Names in Archive that no account reports come from the event log, as
+    // in the Archive view.
+    [...domains, ...archiveRows(ownership, domains, getRegistrarMetadata())],
     folders,
     assignments,
     { fetchedAt, registrars, errors },
     args,
+    ownership,
   );
 }
 
@@ -434,7 +456,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Query portfolio',
       description:
-        'List, search, and filter your whole portfolio across every configured registrar — the primary way to read the portfolio. Filter by registrar, TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort and page the results. With no filters it returns everything (paged), so use it as a plain list too. Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete. Rows carry only the fields you need — call domain_get for a single domain’s full record.',
+        'List, search, and filter your whole portfolio across every configured registrar — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (sold, dropped, archived, or gone from your accounts) or both. Filter by registrar, TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel`, `hidden` (in the Hidden folder: still yours, still renews), and `inAccount` (false for an Archive name no account reports, which the domain_* tools can’t act on). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete. Rows carry only the fields you need — call domain_get for a single domain’s full record.',
       inputSchema: queryShape,
       annotations: { readOnlyHint: true },
     },

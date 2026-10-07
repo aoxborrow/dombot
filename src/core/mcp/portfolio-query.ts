@@ -1,12 +1,14 @@
 // Pure query logic for the MCP `portfolio_query` tool — filtering, sorting, and
 // paging over the merged portfolio. Kept free of Electron and the MCP SDK so it
 // can be unit-tested in isolation; tools.ts owns the zod schema and feeds this
-// the cache reads (merged domains, folders, assignments).
+// the cache reads (merged domains plus Archive rows, folders, assignments, and
+// each name's ownership from the event log).
 
 import type { Domain } from '../../shared/ipc';
 import { toAscii } from '../../shared/domain-name';
 import { reportsPrivacy } from '../../shared/domain-ops';
 import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
+import type { ArchiveLabel, Ownership } from '../../shared/ownership';
 
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 500;
@@ -15,8 +17,16 @@ export const MAX_LIMIT = 500;
 export type QuerySort =
   'domainName' | 'registrar' | 'expirationDate' | 'createdDate';
 
+/**
+ * Which names a query covers, as the Domains page's Owned / Archive switch:
+ * what you hold, what you no longer own, or both.
+ */
+export type OwnershipFilter = 'owned' | 'archive' | 'all';
+
 /** The filter/sort/page inputs, already parsed (all optional). */
 export interface QueryArgs {
+  /** Default `owned`. */
+  ownership?: OwnershipFilter;
   accountId?: string;
   registrar?: string;
   tld?: string;
@@ -37,19 +47,33 @@ export interface QueryArgs {
 }
 
 /** Only the fields an agent needs for a row — drops `syncedAt`/`deleted`, adds
- *  the domain's folder name (user-assigned grouping) when it has one. */
+ *  the domain's folder name (user-assigned grouping) when it has one, and
+ *  whether it's still yours. */
 export interface QueryRow {
-  accountId?: string;
-  accountLabel?: string;
-  registrar: string;
+  /** null for a name in Archive whose last account is unknown. */
+  accountId: string | null;
+  accountLabel: string | null;
+  registrar: string | null;
   domainName: string;
+  /** `archive`: sold, dropped, archived, or removed from your accounts. */
+  ownership: 'owned' | 'archive';
+  /** Why it's in Archive; `removed` is a removal you haven't labeled. */
+  archiveLabel: ArchiveLabel | null;
+  /** Whether an account still reports it (a sale in escrow can be in Archive
+   *  and still in your account). When false, the fields an account reports
+   *  are empty and the registrar is the last one it was seen at. */
+  inAccount: boolean;
+  /** In the Hidden folder: still yours, and still renews. */
+  hidden: boolean;
   status: string;
   createdDate: Date | null;
   expirationDate: Date | null;
   renewalDate: Date | null;
-  autoRenew: boolean;
-  locked: boolean;
-  /** null where the registrar doesn't report privacy. */
+  /** null for a name no account reports. */
+  autoRenew: boolean | null;
+  locked: boolean | null;
+  /** null where the registrar doesn't report privacy, or no account reports
+   *  the name. */
   privacy: boolean | null;
   nameservers: string[];
   folder: string | null;
@@ -112,9 +136,10 @@ function resolveFolderId(param: string, folders: FolderRef[]): string | null {
 
 /**
  * Filters, sorts, and pages the merged portfolio. `domains` is the cached
- * portfolio overlaid with any cached per-domain detail; `assignments` maps
- * `${registrar}:${domainName}` → folderId. Every filter is optional and ANDed;
- * dates sort with nulls always last.
+ * portfolio overlaid with any cached per-domain detail, plus the Archive rows
+ * for names no account reports (`archiveRows`); `assignments` maps a domain
+ * name → folderId; `ownership` is each name's Owned / Archive state. Every
+ * filter is optional and ANDed; dates sort with nulls always last.
  */
 export function queryPortfolio(
   domains: Domain[],
@@ -122,7 +147,11 @@ export function queryPortfolio(
   assignments: Record<string, string>,
   meta: QueryMeta,
   args: QueryArgs,
+  ownership: Map<string, Ownership> = new Map(),
 ): QueryResult {
+  const labelOf = (d: Domain): ArchiveLabel | null =>
+    ownership.get(toAscii(d.domainName))?.label ?? null;
+  const scope = args.ownership ?? 'owned';
   const folderNameFor = (d: Domain): string | null => {
     const id = assignments[toAscii(d.domainName)];
     if (!id) return null;
@@ -147,6 +176,11 @@ export function queryPortfolio(
       : undefined;
 
   const filtered = domains.filter((d) => {
+    // Owned vs Archive, as on the Domains page: a name with an Archive label
+    // is in Archive, even while an account still reports it.
+    const label = labelOf(d);
+    if (scope === 'owned' && label) return false;
+    if (scope === 'archive' && !label) return false;
     if (args.accountId && (d.accountId ?? d.registrar) !== args.accountId)
       return false;
     if (args.registrar != null && d.registrar !== args.registrar) return false;
@@ -160,6 +194,12 @@ export function queryPortfolio(
     if (
       nsNeedle &&
       !d.nameservers.some((ns) => ns.toLowerCase().includes(nsNeedle))
+    )
+      return false;
+    // A name no account reports has no settings to match.
+    if (
+      d.departed &&
+      (args.autoRenew != null || args.locked != null || args.privacy != null)
     )
       return false;
     if (args.autoRenew != null && d.autoRenew !== args.autoRenew) return false;
@@ -212,21 +252,31 @@ export function queryPortfolio(
   const total = filtered.length;
   const offset = args.offset ?? 0;
   const limit = args.limit ?? DEFAULT_LIMIT;
-  const rows: QueryRow[] = filtered.slice(offset, offset + limit).map((d) => ({
-    registrar: d.registrar,
-    accountId: d.accountId ?? d.registrar,
-    accountLabel: d.accountLabel ?? 'Default',
-    domainName: d.domainName,
-    status: d.status,
-    createdDate: d.createdDate,
-    expirationDate: d.expirationDate,
-    renewalDate: d.renewalDate,
-    autoRenew: d.autoRenew,
-    locked: d.locked,
-    privacy: reportsPrivacy(d.registrar) ? d.privacy : null,
-    nameservers: d.nameservers,
-    folder: folderNameFor(d),
-  }));
+  const rows: QueryRow[] = filtered.slice(offset, offset + limit).map((d) => {
+    const label = labelOf(d);
+    const inAccount = !d.departed;
+    // An Archive row whose last account is gone has no registrar.
+    const registrar = d.registrar || null;
+    return {
+      registrar,
+      accountId: d.accountId ?? registrar,
+      accountLabel: d.accountLabel ?? (registrar ? 'Default' : null),
+      domainName: d.domainName,
+      ownership: label ? 'archive' : 'owned',
+      archiveLabel: label,
+      inAccount,
+      hidden: assignments[toAscii(d.domainName)] === HIDDEN_FOLDER_ID,
+      status: d.status,
+      createdDate: d.createdDate,
+      expirationDate: d.expirationDate,
+      renewalDate: d.renewalDate,
+      autoRenew: inAccount ? d.autoRenew : null,
+      locked: inAccount ? d.locked : null,
+      privacy: inAccount && reportsPrivacy(d.registrar) ? d.privacy : null,
+      nameservers: d.nameservers,
+      folder: folderNameFor(d),
+    };
+  });
 
   return {
     total,
