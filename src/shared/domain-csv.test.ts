@@ -217,6 +217,16 @@ describe('domainsToCsv', () => {
     });
   });
 
+  it("leaves privacy blank where the registrar doesn't report it", () => {
+    const [row] = read(
+      domainsToCsv(
+        [domain({ domainName: 'a.com', registrar: '101domain' })],
+        ctx(),
+      ),
+    );
+    expect(row).toMatchObject({ Locked: 'No', Privacy: '' });
+  });
+
   it('writes a manual name: its own registrar, "Manual", no registrar-only values', () => {
     const [row] = read(
       domainsToCsv(

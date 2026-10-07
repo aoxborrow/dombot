@@ -855,6 +855,34 @@ const sliceDomain = (name = 'dynadot') =>
   (store.portfolio[name].data as { domains: Domain[] }).domains[0];
 
 describe('setLockCached / setPrivacyCached / setNameserversCached', () => {
+  it('does not replace active nameservers in either cache for an accepted pending change', async () => {
+    const current = ['ns1.old.net', 'ns2.old.net'];
+    seedSlice('dynadot', [
+      domain({
+        domainName: 'a.com',
+        registrar: 'dynadot',
+        nameservers: current,
+      }),
+    ]);
+    store.detail['dynadot:a.com'] = {
+      data: { nameservers: current },
+      fetchedAt: 111,
+    };
+    clientMethods.updateNameservers.mockResolvedValue({
+      success: true,
+      pending: true,
+      message: 'Pending registry processing',
+    });
+    const result = await setNameserversCached('dynadot', 'a.com', [
+      'ns1.new.net',
+      'ns2.new.net',
+    ]);
+    expect(result).toMatchObject({ success: true, pending: true });
+    expect(sliceDomain().nameservers).toEqual(current);
+    expect(
+      (store.detail['dynadot:a.com'].data as Partial<Domain>).nameservers,
+    ).toEqual(current);
+  });
   beforeEach(() =>
     seedSlice('dynadot', [
       domain({ domainName: 'a.com', registrar: 'dynadot' }),

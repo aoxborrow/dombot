@@ -67,6 +67,20 @@ describe('filters', () => {
   it('registrar', () =>
     expect(names(domains, { registrar: 'porkbun' })).toEqual(['b.net']));
 
+  it("privacy is null, and never matches, where the registrar doesn't report it", () => {
+    const mixed = [
+      ...domains,
+      domain({ domainName: 'd.io', registrar: '101domain' }),
+    ];
+    expect(names(mixed, { privacy: false }).sort()).toEqual([
+      'a.com',
+      'b.net',
+      'c.com',
+    ]);
+    const row = run(mixed, { nameContains: 'd.io' }).rows[0];
+    expect(row.privacy).toBeNull();
+  });
+
   it('tld normalizes com and .com to the same suffix', () => {
     for (const tld of ['com', '.com']) {
       expect(names(domains, { tld }).sort()).toEqual(['a.com', 'c.com']);

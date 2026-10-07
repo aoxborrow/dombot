@@ -100,6 +100,28 @@ beforeEach(() => {
 });
 
 describe('applyDomainOp — up-front capability gate', () => {
+  it('blocks 101domain auto-renew before reaching the registrar', async () => {
+    const r = await applyDomainOp(
+      { registrar: '101domain', domainName: 'example.com' },
+      { kind: 'autoRenew', enabled: true },
+    );
+    expect(r.status).toBe('unsupported');
+    expect(setAutoRenewCached).not.toHaveBeenCalled();
+  });
+  it('keeps active nameservers unchanged when the registry accepted a pending change', async () => {
+    setNameserversCached.mockResolvedValue({
+      success: true,
+      pending: true,
+      message: 'Pending registry processing',
+    });
+    const r = await applyDomainOp(
+      { registrar: '101domain', domainName: 'example.com' },
+      { kind: 'nameservers', nameservers: ['ns1.new.net', 'ns2.new.net'] },
+    );
+    expect(r.status).toBe('ok');
+    expect(r.message).toContain('Pending');
+    expect(r.patch).toBeUndefined();
+  });
   it('returns unsupported and makes no network call when the registrar lacks the feature', async () => {
     getRegistrarFeatures.mockReturnValue([]); // no getAuthCode
     const r = await applyDomainOp(target, { kind: 'authCode' });

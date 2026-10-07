@@ -1,16 +1,15 @@
 // Pure capability logic for domain operations, shared by main (the dispatcher's
 // up-front check, the MCP tools) and the renderer (disabling controls, bucketing
-// a bulk selection). No Electron, no network, no library import — the renderer
-// bundle must never resolve registrar-client, so the three feature ids we gate
-// on are mirrored here as strings (they match the library's `Feature` values).
+// a bulk selection). No Electron, no network.
 
+import { Feature } from '@aoxborrow/registrar-client';
 import type { DomainOp, DomainOpKind, RegistrarName } from './ipc';
 
 /** Extended features an op needs; ops absent here are core on every provider. */
 const REQUIRED_FEATURE: Partial<Record<DomainOpKind, string>> = {
-  authCode: 'getAuthCode',
-  urlForwarding: 'setDomainForwarding',
-  emailForwarding: 'setEmailForwarding',
+  authCode: Feature.GetAuthCode,
+  urlForwarding: Feature.SetDomainForwarding,
+  emailForwarding: Feature.SetEmailForwarding,
 };
 
 /**
@@ -24,6 +23,17 @@ const REQUIRED_FEATURE: Partial<Record<DomainOpKind, string>> = {
 const KNOWN_GAPS: Partial<
   Record<RegistrarName, (op: DomainOp) => string | null>
 > = {
+  '101domain': (op) =>
+    op.kind === 'autoRenew' ||
+    op.kind === 'lock' ||
+    op.kind === 'privacy' ||
+    op.kind === 'renew'
+      ? '101domain’s API does not offer this change yet — use your 101domain account.'
+      : op.kind === 'urlForwarding' &&
+          (op.forwards.length > 1 ||
+            op.forwards.some((f) => f.host !== '@' || f.type !== 'permanent'))
+        ? '101domain supports one permanent URL forwarding rule for the domain root.'
+        : null,
   cloudflare: (op) =>
     op.kind === 'autoRenew' ||
     op.kind === 'lock' ||
@@ -42,6 +52,15 @@ const KNOWN_GAPS: Partial<
         ? 'GoDaddy forwarding needs a customer ID and legacy key the app no longer collects.'
         : null,
 };
+
+// Registrars whose API doesn't report WHOIS privacy, so the library's `false`
+// is a default rather than a reading.
+const PRIVACY_UNREPORTED = new Set<string>(['101domain']);
+
+/** Whether `registrar` reports a domain's WHOIS privacy at all. */
+export function reportsPrivacy(registrar: string): boolean {
+  return !PRIVACY_UNREPORTED.has(registrar);
+}
 
 /** Short human label per op kind, for reasons and menu items. */
 export const OP_LABEL: Record<DomainOpKind, string> = {

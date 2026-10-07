@@ -4,8 +4,6 @@
  * gives us a single, type-checked source of truth for every IPC round trip.
  */
 
-// Type-only import: erased at build time, so the renderer bundle never resolves
-// the library — only tsc uses it (via the tsconfig `paths` alias to source).
 import type {
   Domain as ProviderDomain,
   ConnectionResult,

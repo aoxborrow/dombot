@@ -46,6 +46,7 @@ const DEFAULT_POLICY: LanePolicy = { lanes: 2, spacingMs: 500 };
 // Starting points from the library's registrar notes (docs/registrars/*.md);
 // tune against real accounts.
 const LANE_POLICY: Partial<Record<RegistrarName, LanePolicy>> = {
+  '101domain': { lanes: 1, spacingMs: 1000 }, // per-account RPS/RPH quotas
   dynadot: { lanes: 1, spacingMs: 1000 }, // Regular tier: 1 thread / 60 req-min
   porkbun: { lanes: 1, spacingMs: 1000 },
   namebright: { lanes: 1, spacingMs: 1000 }, // ~30 req / 30 s

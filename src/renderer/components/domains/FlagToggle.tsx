@@ -7,6 +7,7 @@ import {
   targetOf,
   useOpUnsupportedReason,
 } from '../../lib/domain-ops';
+import { reportsPrivacy } from '../../../shared/domain-ops';
 import { cn } from '@/lib/utils';
 import { ConfirmPopover } from '../ConfirmPopover';
 
@@ -84,6 +85,20 @@ export function FlagToggle({
           };
 
   const Icon = value ? On : Off;
+  // The library's false is only a default where the registrar doesn't report
+  // privacy; don't show it as a verified "privacy off".
+  if (kind === 'privacy' && !reportsPrivacy(domain.registrar)) {
+    return (
+      <span
+        role="img"
+        className="mx-auto flex h-8 items-center justify-center text-muted-foreground"
+        title="This registrar doesn’t report WHOIS privacy through its API."
+        aria-label="WHOIS privacy: Not reported"
+      >
+        —
+      </span>
+    );
+  }
   const label = value ? onLabel : offLabel;
   const title = reason
     ? reason

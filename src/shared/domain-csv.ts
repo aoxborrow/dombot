@@ -2,6 +2,7 @@ import { domainKey } from './account-key';
 import { CURRENCIES, isCurrencyCode } from './currencies';
 import { toCsv } from './csv';
 import { isIdn, toAscii, toUnicode } from './domain-name';
+import { reportsPrivacy } from './domain-ops';
 import {
   builtInFolderName,
   type ListPrice,
@@ -293,7 +294,10 @@ export const DOMAIN_CSV_COLUMNS: DomainCsvColumn[] = [
   {
     header: 'Privacy',
     importable: false,
-    value: (r) => (fromRegistrar(r) ? yesNo(r.domain.privacy) : ''),
+    value: (r) =>
+      fromRegistrar(r) && reportsPrivacy(r.domain.registrar)
+        ? yesNo(r.domain.privacy)
+        : '',
   },
   {
     header: 'Nameservers',

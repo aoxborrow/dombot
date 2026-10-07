@@ -984,7 +984,11 @@ export default function Domains() {
   // account id), so a registrar's accounts can be picked apart or selected
   // together. Old saved values were registrar names; those simply match nothing
   // now, which reads as "no filter".
-  const [registrar, setRegistrar] = useState<string[]>([]);
+  // Starts from ?account= so a registrar card's domain count opens on it.
+  const [registrar, setRegistrar] = useState<string[]>(() => {
+    const account = params.get('account');
+    return account ? [account] : [];
+  });
   const [expiry, setExpiry] = useState<string[]>([]);
   const [ns, setNs] = useState<string[]>([]);
   const [folder, setFolder] = useState<string[]>([]);
