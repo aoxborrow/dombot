@@ -120,12 +120,13 @@ vi.mock('./registrar-state', () => ({
 }));
 
 const setTldRate = vi.fn();
+const resolvePricing = vi.fn();
 vi.mock('./pricing', () => ({
   usesPerNameQuote: () => false,
   tldOf: (d: string) => d.slice(d.indexOf('.') + 1),
   normalizeTld: (t: string) => t.trim().replace(/^\.+/, '').toLowerCase(),
   setTldRate: (...a: unknown[]) => setTldRate(...a),
-  resolvePricing: vi.fn(),
+  resolvePricing: (...a: unknown[]) => resolvePricing(...a),
 }));
 
 const resolveNs = vi.fn<(d: string) => Promise<string[]>>();
@@ -141,6 +142,7 @@ import {
   getDomainDetail,
   getMergedPortfolio,
   getPortfolio,
+  getRenewalPriceLive,
   registerDomainCached,
   renewDomainCached,
   setAutoRenewCached,
@@ -562,6 +564,7 @@ describe('Namecheap account TLD rates on sync', () => {
     delete storedCredentials.dynadot;
     delete storedCredentials.porkbun;
     storedCredentials.namecheap = { apiKey: 'k' };
+    clientMethods.checkAvailability.mockResolvedValue([]);
   });
 
   it('stores the account renewal price once per distinct TLD', async () => {
@@ -640,6 +643,138 @@ describe('Namecheap account TLD rates on sync', () => {
     expect(setTldRate.mock.calls).toEqual([
       ['namecheap', 'com', 13.98, 'namecheap'],
     ]);
+  });
+});
+
+describe('Namecheap premium renewal quotes on sync', () => {
+  const nc = (domainName: string) =>
+    domain({ domainName, registrar: 'namecheap' });
+  const checkedNames = () =>
+    clientMethods.checkAvailability.mock.calls.flatMap(
+      ([names]) => names as string[],
+    );
+
+  beforeEach(() => {
+    delete storedCredentials.dynadot;
+    delete storedCredentials.porkbun;
+    storedCredentials.namecheap = { apiKey: 'k' };
+    clientMethods.getPricing.mockResolvedValue({
+      tld: 'io',
+      currency: 'USD',
+      renewal: 52.98,
+    });
+  });
+
+  it('stores the premium renewal price for premium names only', async () => {
+    listPortfolio.mockResolvedValue({
+      domains: [nc('plain.com'), nc('cheap.io'), nc('fancy.io')],
+      errors: [],
+    });
+    clientMethods.checkAvailability.mockResolvedValue([
+      { domainName: 'cheap.io', available: false, premium: false },
+      {
+        domainName: 'fancy.io',
+        available: false,
+        premium: true,
+        price: 1500,
+        renewalPrice: 1200,
+      },
+    ]);
+
+    await getPortfolio(true);
+
+    // .com carries no premium names, so only the .io names are checked.
+    expect(checkedNames()).toEqual(['cheap.io', 'fancy.io']);
+    expect(store.detail['namecheap:fancy.io'].data).toEqual({
+      renewalQuote: { renewal: 1200, currency: 'USD' },
+    });
+    expect(store.detail['namecheap:cheap.io']).toBeUndefined();
+  });
+
+  it('checks 50 names per call', async () => {
+    const names = Array.from({ length: 51 }, (_, i) => `n${i}.io`);
+    listPortfolio.mockResolvedValue({ domains: names.map(nc), errors: [] });
+
+    await getPortfolio(true);
+
+    expect(
+      clientMethods.checkAvailability.mock.calls.map(([n]) => n.length),
+    ).toEqual([50, 1]);
+  });
+
+  it('drops a stored premium quote once the name checks as standard', async () => {
+    listPortfolio.mockResolvedValue({ domains: [nc('was.io')], errors: [] });
+    store.detail['namecheap:was.io'] = {
+      data: {
+        autoRenew: true,
+        renewalQuote: { renewal: 900, currency: 'USD' },
+      },
+      fetchedAt: 123,
+    };
+    clientMethods.checkAvailability.mockResolvedValue([
+      { domainName: 'was.io', available: false, premium: false },
+    ]);
+
+    await getPortfolio(true);
+
+    // The detail stays, with its age, minus the quote.
+    expect(store.detail['namecheap:was.io']).toEqual({
+      data: { autoRenew: true },
+      fetchedAt: 123,
+    });
+  });
+
+  it('keeps a stored quote when the check omits the premium flag', async () => {
+    listPortfolio.mockResolvedValue({ domains: [nc('fancy.io')], errors: [] });
+    const quote = { renewalQuote: { renewal: 1200, currency: 'USD' } };
+    store.detail['namecheap:fancy.io'] = { data: quote, fetchedAt: 1 };
+    clientMethods.checkAvailability.mockResolvedValue([
+      { domainName: 'fancy.io', available: false },
+    ]);
+
+    await getPortfolio(true);
+
+    expect(store.detail['namecheap:fancy.io'].data).toEqual(quote);
+  });
+
+  it('keeps stored quotes when the check fails', async () => {
+    listPortfolio.mockResolvedValue({ domains: [nc('fancy.io')], errors: [] });
+    const quote = { renewalQuote: { renewal: 1200, currency: 'USD' } };
+    store.detail['namecheap:fancy.io'] = { data: quote, fetchedAt: 1 };
+    clientMethods.checkAvailability.mockRejectedValue(new Error('rate limit'));
+
+    await getPortfolio(true);
+
+    expect(store.detail['namecheap:fancy.io'].data).toEqual(quote);
+  });
+
+  it('skips the premium check when the TLD pass fails', async () => {
+    listPortfolio.mockResolvedValue({ domains: [nc('fancy.io')], errors: [] });
+    clientMethods.getPricing.mockRejectedValue(new Error('rate limit'));
+
+    await getPortfolio(true);
+
+    expect(clientMethods.checkAvailability).not.toHaveBeenCalled();
+  });
+
+  it('serves the stored premium quote to a live price lookup', async () => {
+    seedSlice('namecheap', [nc('fancy.io')]);
+    const quote = { renewal: 1200, currency: 'USD' };
+    store.detail['namecheap:fancy.io'] = {
+      data: { renewalQuote: quote },
+      fetchedAt: 1,
+    };
+    resolvePricing.mockReturnValue({ domain: 'fancy.io', source: 'api' });
+
+    await getRenewalPriceLive('namecheap', 'fancy.io');
+
+    expect(resolvePricing).toHaveBeenCalledWith(
+      'namecheap',
+      'fancy.io',
+      quote,
+      'namecheap',
+    );
+    expect(clientMethods.getPricing).not.toHaveBeenCalled();
   });
 });
 
