@@ -724,6 +724,19 @@ describe('Namecheap premium renewal quotes on sync', () => {
     });
   });
 
+  it('keeps a stored quote when the check omits the premium flag', async () => {
+    listPortfolio.mockResolvedValue({ domains: [nc('fancy.io')], errors: [] });
+    const quote = { renewalQuote: { renewal: 1200, currency: 'USD' } };
+    store.detail['namecheap:fancy.io'] = { data: quote, fetchedAt: 1 };
+    clientMethods.checkAvailability.mockResolvedValue([
+      { domainName: 'fancy.io', available: false },
+    ]);
+
+    await getPortfolio(true);
+
+    expect(store.detail['namecheap:fancy.io'].data).toEqual(quote);
+  });
+
   it('keeps stored quotes when the check fails', async () => {
     listPortfolio.mockResolvedValue({ domains: [nc('fancy.io')], errors: [] });
     const quote = { renewalQuote: { renewal: 1200, currency: 'USD' } };

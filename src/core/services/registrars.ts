@@ -687,7 +687,7 @@ async function syncNamecheapTldRates(
  * without the ICANN fee), 50 names a call. Only TLDs that can carry premium
  * names are checked. A name the check calls standard drops any premium quote
  * it held, so it falls back to the TLD rate; a failed check leaves the rest
- * as they were.
+ * as they were, as does a result with no premium flag.
  */
 async function syncNamecheapPremiumQuotes(
   domains: Domain[],
@@ -719,7 +719,7 @@ async function syncNamecheapPremiumQuotes(
           renewal: result.renewalPrice,
           currency: 'USD',
         });
-      } else if (!result.premium) {
+      } else if (result.premium === false) {
         clearRenewalQuote(accountId, domain);
       }
     }
