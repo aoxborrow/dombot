@@ -738,7 +738,7 @@ function AccountCard({
       {nickname !== null && (
         <ConfirmDialog
           title="Edit account name"
-          description={`Tells your ${provider.displayName} accounts apart, like Personal or Client work, wherever DomBot lists them. Leave it blank to remove it.`}
+          description={`Add an account name to tell your ${provider.displayName} accounts apart, like Personal or Client work. Leave it blank to remove it.`}
           actionLabel="Save"
           busyLabel="Saving…"
           busy={renaming}
