@@ -24,6 +24,7 @@ function domain(partial: Partial<Domain> & { domainName: string }): Domain {
     nameservers: [],
     syncedAt: new Date('2026-06-01T00:00:00Z'),
     deleted: false,
+    source: 'registrar',
     ...partial,
   };
 }
@@ -233,7 +234,7 @@ describe('domainsToCsv', () => {
         [
           {
             ...domain({ domainName: 'example.net', registrar: '' }),
-            manual: true,
+            source: 'manual',
             manualRegistrarLabel: 'Epik',
             autoRenewUnknown: true,
             expirationDate: new Date(NOW + 10 * 86_400_000),

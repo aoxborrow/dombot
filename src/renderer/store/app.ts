@@ -561,7 +561,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const key = domainKey(d);
       // A name that already left the registrar, or one you added by hand, has
       // no registrar to ask.
-      if (d.departed || d.manual) return false;
+      if (d.departed || d.source === 'manual') return false;
       // A forced refresh re-fetches on-screen rows regardless of prior state,
       // skipping only ones already in flight.
       if (force) return !enrichInFlight.has(key);

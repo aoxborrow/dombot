@@ -417,7 +417,7 @@ describe('importing domains', () => {
             { [name]: { registrar: null, addedAt: 0, updatedAt: null } },
             [],
           )[0],
-          manual: false,
+          source: 'registrar',
           departed: true,
         }));
       const { folders, assignments } = getFolders();

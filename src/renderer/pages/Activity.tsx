@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toAscii, toUnicode } from '../../shared/domain-name';
+import { manualRows } from '../../shared/manual-domains';
 import {
   DomainEventSource,
   DomainEventType,
@@ -140,6 +141,13 @@ export default function Activity() {
   const events = useAppStore((s) => s.domainEvents);
   const registrars = useAppStore((s) => s.registrars);
   const portfolio = useAppStore((s) => s.portfolio);
+  const manualDomains = useAppStore((s) => s.manualDomains);
+  // Every name a dialog can open on: synced, and the manual names no account
+  // reports.
+  const domains = useMemo(
+    () => [...portfolio, ...manualRows(manualDomains, portfolio)],
+    [portfolio, manualDomains],
+  );
   const settings = useAppStore((s) => s.settings);
   const setAlertsDismissed = useAppStore((s) => s.setAlertsDismissed);
   const navigate = useNavigate();
@@ -880,7 +888,7 @@ export default function Activity() {
       {dialog?.kind === 'sold' &&
         (dialog.rows.length === 1 ? (
           <SaleDialog
-            domain={alertDomain(dialog.rows[0].event, portfolio, registrars)}
+            domain={alertDomain(dialog.rows[0].event, domains, registrars)}
             // Already Sold: edit that sale. Otherwise mark it.
             mode={
               stateOf(dialog.rows[0].event)?.label === 'sold' ? 'edit' : 'mark'
@@ -910,7 +918,7 @@ export default function Activity() {
       )}
       {dialog?.kind === 'purchase' && (
         <PurchaseDialog
-          domain={alertDomain(dialog.row.event, portfolio, registrars)}
+          domain={alertDomain(dialog.row.event, domains, registrars)}
           // An arrival you haven't answered: record it as a new purchase.
           justRegistered={priorityOf(dialog.row.event) === 'low' || undefined}
           resolves={

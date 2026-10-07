@@ -30,6 +30,10 @@ export interface RegistrarAccount {
    */
   trackedSince?: number;
 }
+
+/** Where a Domain row comes from (see `Domain.source`). */
+export type DomainSource = 'registrar' | 'manual';
+
 export type Domain = ProviderDomain & {
   accountId?: string;
   accountLabel?: string;
@@ -55,10 +59,14 @@ export type Domain = ProviderDomain & {
   /** The built-in registrar that registrar maps to, for its logo. */
   registrationRegistrarId?: RegistrarName;
   /**
-   * A name you added that no connected account reports (`manual-domains`).
-   * Registrar actions don't apply; its registrar fields are yours to edit.
+   * Where the row comes from. `registrar`: an account's sync. A name in
+   * Archive is one too: `departed` says no account reports it any more, and
+   * its registrar is the last one it was seen at (empty when unknown).
+   * `manual`: a name you added that no connected account reports
+   * (`manual-domains`); registrar actions don't apply, and its registrar
+   * fields are yours to edit.
    */
-  manual?: boolean;
+  source: DomainSource;
   /** A manual name's registrar as you typed it, when DomBot doesn't know it. */
   manualRegistrarLabel?: string;
   /** A manual name whose auto-renew you haven't set (`autoRenew` reads false). */

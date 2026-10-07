@@ -89,14 +89,18 @@ export function eventDetails(
   return parts.length ? parts.join(' · ') : null;
 }
 
-/** A Domain for the purchase and sale dialogs, from an alert. */
+/**
+ * A Domain for the purchase and sale dialogs, from an alert: the name's row
+ * in `domains` (synced and manual), else one built for a name no account or
+ * manual entry holds.
+ */
 export function alertDomain(
   e: DomainEvent,
-  portfolio: Domain[],
+  domains: Domain[],
   registrars: RegistrarMeta[] | null,
 ): Domain {
   const name = toUnicode(e.domain);
-  const live = portfolio.find(
+  const live = domains.find(
     (d) =>
       d.domainName.toLowerCase() === name &&
       (!e.accountId || d.accountId === e.accountId),
@@ -118,6 +122,7 @@ export function alertDomain(
     nameservers: [],
     syncedAt: new Date(e.createdAt),
     deleted: false,
+    source: 'registrar',
     departed: e.type === DomainEventType.Removed,
   };
 }

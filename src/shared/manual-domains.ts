@@ -4,7 +4,7 @@ import type { Domain, ManualDomain } from './ipc';
 // Manual domains (docs/domain-import-export.md, "Imported names are manual
 // domains"): names you own that no connected account reports. They live in
 // `manual-domains`, keyed by `toAscii(name)`, and show beside the synced names
-// as ordinary rows marked `manual`. Shared so the Domains table, Renewals, the
+// as ordinary rows with `source: 'manual'`. Shared so the Domains table, Renewals, the
 // pricing map, and later MCP build the same rows.
 
 /** A `YYYY-MM-DD` day as a Date at midnight UTC, or null. */
@@ -29,7 +29,7 @@ export function manualRow(key: string, m: ManualDomain): Domain {
     nameservers: [],
     syncedAt: new Date(m.updatedAt ?? m.addedAt),
     deleted: false,
-    manual: true,
+    source: 'manual',
     ...(m.registrar ? {} : { manualRegistrarLabel: m.registrarLabel ?? '' }),
     ...(m.autoRenew == null ? { autoRenewUnknown: true } : {}),
   };

@@ -259,6 +259,7 @@ describe('getCachedPortfolio / assemblePortfolio', () => {
     expect(p.registrars.sort()).toEqual(['dynadot', 'porkbun']);
     expect(p.fetchedAt).toBe(2000);
     expect(p.registrarLabels.dynadot).toBe('Dynadot');
+    expect(p.domains.every((d) => d.source === 'registrar')).toBe(true);
   });
 
   it('records an error-only registrar in errors but not in registrars', () => {

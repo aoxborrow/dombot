@@ -90,6 +90,10 @@ function withoutQuote(record: DetailRecord): Partial<Domain> {
   return rest;
 }
 
+/** A cached row: what the account's list returned. `assemblePortfolio`
+ *  stamps the account and `source` on it. */
+type CachedDomain = Omit<Domain, 'source'>;
+
 /**
  * One registrar's slice of the portfolio, cached under the 'portfolio' namespace
  * keyed by registrar id (so each syncs independently). `lastSyncedAt` is the last
@@ -99,7 +103,7 @@ function withoutQuote(record: DetailRecord): Partial<Domain> {
  * set the error.
  */
 interface RegistrarPortfolioEntry {
-  domains: Domain[];
+  domains: CachedDomain[];
   lastSyncedAt: number | null;
   lastError: string | null;
   /** Absent in entries written before it was recorded. */
@@ -379,11 +383,12 @@ function assemblePortfolio(): Portfolio {
     const entry = readRegistrarEntry(account.id);
     if (!entry) continue;
     domains.push(
-      ...entry.domains.map((d) => ({
+      ...entry.domains.map((d): Domain => ({
         ...d,
         registrar: name,
         accountId: account.id,
         accountLabel: account.label,
+        source: 'registrar',
       })),
     );
     if (entry.lastError)
@@ -522,7 +527,7 @@ async function fetchGodaddyTldRenewal(
  */
 async function syncRenewalQuotes(
   name: RegistrarName,
-  domains: Domain[],
+  domains: CachedDomain[],
   accountId: string,
   generation: number,
 ): Promise<void> {
@@ -559,7 +564,7 @@ async function syncRenewalQuotes(
 const AVAILABILITY_BATCH = 50;
 
 async function syncGoDaddyRenewalQuotes(
-  domains: Domain[],
+  domains: CachedDomain[],
   accountId: string,
   generation: number,
 ): Promise<void> {
@@ -632,7 +637,7 @@ async function syncGoDaddyRenewalQuotes(
  * most likely hit the rate limit.
  */
 async function syncNamecheapRenewalQuotes(
-  domains: Domain[],
+  domains: CachedDomain[],
   accountId: string,
   generation: number,
 ): Promise<void> {
@@ -653,7 +658,7 @@ async function syncNamecheapRenewalQuotes(
  * Resolves true when every TLD was asked.
  */
 async function syncNamecheapTldRates(
-  domains: Domain[],
+  domains: CachedDomain[],
   accountId: string,
   generation: number,
 ): Promise<boolean> {
@@ -690,7 +695,7 @@ async function syncNamecheapTldRates(
  * as they were, as does a result with no premium flag.
  */
 async function syncNamecheapPremiumQuotes(
-  domains: Domain[],
+  domains: CachedDomain[],
   accountId: string,
   generation: number,
 ): Promise<void> {
@@ -1191,7 +1196,7 @@ export async function getDomainDetail(
     }
   }
 
-  let domain: Domain | null = null;
+  let domain: CachedDomain | null = null;
   try {
     domain = await client.getDomain(domainName);
   } catch {
