@@ -488,7 +488,11 @@ function AccountCard({
     }
   };
 
-  const busy = saving || syncing || toggling || loading;
+  // An action in flight. The actions menu and the remove confirmation wait
+  // only on these: none of them need the credentials the open card loads, so
+  // a slow or failed load mustn't lock them.
+  const acting = saving || syncing || toggling;
+  const busy = acting || loading;
   // The demo is fully interactive over its browser-local data — edit keys,
   // Save, toggle, rename, even Remove (Reset demo brings it all back), since
   // the fake registrar always connects. `locked` stays only on the fixed-IP
@@ -599,7 +603,7 @@ function AccountCard({
               {/* Sync only makes sense for an enabled account. */}
               {configured && enabled && (
                 <DropdownMenuItem
-                  disabled={busy}
+                  disabled={acting}
                   onSelect={() => void runSync()}
                 >
                   <RefreshCw />
@@ -607,7 +611,7 @@ function AccountCard({
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem
-                disabled={busy}
+                disabled={acting}
                 onSelect={() => {
                   renameFromMenu.current = true;
                 }}
@@ -619,7 +623,7 @@ function AccountCard({
                   data; on again syncs it. Needs credentials first. */}
               {configured && (
                 <DropdownMenuItem
-                  disabled={busy}
+                  disabled={acting}
                   onSelect={() => void toggleEnabled(!enabled)}
                 >
                   <Power />
@@ -630,7 +634,7 @@ function AccountCard({
               {/* Opens the card on its confirmation. */}
               <DropdownMenuItem
                 variant="destructive"
-                disabled={busy}
+                disabled={acting}
                 onSelect={() => {
                   setOpen(true);
                   setRemoving(true);
@@ -677,14 +681,14 @@ function AccountCard({
               </span>
               <Button
                 variant="destructive"
-                disabled={busy}
+                disabled={acting}
                 onClick={() => void remove()}
               >
                 Remove
               </Button>
               <Button
                 variant="ghost"
-                disabled={busy}
+                disabled={acting}
                 onClick={() => setRemoving(false)}
               >
                 Cancel
