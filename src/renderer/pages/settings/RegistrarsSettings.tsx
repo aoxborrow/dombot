@@ -341,6 +341,8 @@ function AccountCard({
   // "Edit account name…" was picked: the dialog opens once the menu has
   // closed, so the closing menu doesn't pull focus back to its button.
   const renameFromMenu = useRef(false);
+  // Whether the actions menu is open (not just still fading out).
+  const menuOpen = useRef(false);
   const [renaming, setRenaming] = useState(false);
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -561,7 +563,11 @@ function AccountCard({
             <SyncStatus meta={account} syncing={syncing} />
           </CollapsibleTrigger>
 
-          <DropdownMenu>
+          <DropdownMenu
+            onOpenChange={(next) => {
+              menuOpen.current = next;
+            }}
+          >
             <DropdownMenuTrigger asChild>
               <Button
                 type="button"
@@ -578,7 +584,10 @@ function AccountCard({
               align="end"
               className="min-w-48"
               onPointerDownOutside={() => {
-                ignoreToggleUntil = Date.now() + 500;
+                // Only a click that closes the menu. After picking an item the
+                // menu is already closed while it fades out, and a click then
+                // should act normally.
+                if (menuOpen.current) ignoreToggleUntil = Date.now() + 500;
               }}
               onCloseAutoFocus={(e) => {
                 if (!renameFromMenu.current) return;
