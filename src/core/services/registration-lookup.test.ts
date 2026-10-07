@@ -17,6 +17,13 @@ const registered = {
   ],
 };
 
+/** A response as if rdap.org had redirected to the registry's own server. */
+function fromRegistry(body: string, status: number): Response {
+  const response = new Response(body, { status });
+  Object.defineProperty(response, 'redirected', { value: true });
+  return response;
+}
+
 beforeEach(async () => {
   configureStore(new MemoryDocStore());
   await hydrateStores();
@@ -28,11 +35,9 @@ afterEach(() => {
 });
 
 describe('lookupRegistrations', () => {
-  it('reads registrar and dates, and treats 404 as unregistered', async () => {
+  it("reads registrar and dates, and treats the registry's 404 as unregistered", async () => {
     const fetchMock = vi.fn(async (url: string) => {
-      if (String(url).includes('free-name')) {
-        return new Response('', { status: 404 });
-      }
+      if (String(url).includes('free-name')) return fromRegistry('', 404);
       return new Response(JSON.stringify(registered), { status: 200 });
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -97,6 +102,27 @@ describe('lookupRegistrations', () => {
       registrarLabel: 'iwantmyname',
       mappedRegistrar: null,
     });
+  });
+
+  it("leaves a name out on the redirector's own 404, and asks again", async () => {
+    const fetchMock = vi.fn(async () => new Response('', { status: 404 }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await lookupRegistrations(['name.zz'])).toEqual({});
+    await lookupRegistrations(['name.zz']);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives each request a timeout', async () => {
+    let signal: AbortSignal | null | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        signal = init?.signal;
+        return new Response(JSON.stringify(registered), { status: 200 });
+      }),
+    );
+    await lookupRegistrations(['slow.com']);
+    expect(signal).toBeInstanceOf(AbortSignal);
   });
 
   it('leaves a name out when the lookup fails', async () => {

@@ -951,7 +951,8 @@ export default function Domains() {
     return listed.map((d) => {
       if (!d.departed) return d;
       const lookup = registrationLookups[toAscii(d.domainName)];
-      if (!lookup) return { ...d, registrationPending: true };
+      if (lookup === undefined) return { ...d, registrationPending: true };
+      if (lookup === null) return { ...d, registrationPending: false };
       if (!lookup.registered) {
         return {
           ...d,

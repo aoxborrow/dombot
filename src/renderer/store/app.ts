@@ -223,8 +223,11 @@ interface AppState {
   /** Set or clear (all amounts blank) asking prices in one write. */
   saveListPrices: (inputs: ListPriceInput[]) => Promise<void>;
 
-  /** Public registration for names on History, keyed by domain name. */
-  registrationLookups: Record<string, RegistrationLookup>;
+  /**
+   * Public registration for names on History, keyed by domain name; null for
+   * a name that couldn't be looked up.
+   */
+  registrationLookups: Record<string, RegistrationLookup | null>;
   loadRegistrationLookups: (domainNames: string[]) => Promise<void>;
 
   /**
@@ -766,10 +769,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   registrationLookups: {},
   loadRegistrationLookups: async (domainNames) => {
     if (domainNames.length === 0) return;
-    const found = await window.api.lookupRegistrations(domainNames);
-    set((state) => ({
-      registrationLookups: { ...state.registrationLookups, ...found },
-    }));
+    const found = await window.api
+      .lookupRegistrations(domainNames)
+      .catch(() => ({}) as Record<string, RegistrationLookup>);
+    set((state) => {
+      const next = { ...state.registrationLookups, ...found };
+      // A name left out couldn't be looked up, so Archive stops waiting on it.
+      // An earlier answer for it stands.
+      for (const name of domainNames) {
+        const key = toAscii(name);
+        if (next[key] === undefined) next[key] = null;
+      }
+      return { registrationLookups: next };
+    });
   },
   domainEvents: [],
   loadDomainEvents: async () => {
