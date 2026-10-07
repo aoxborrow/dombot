@@ -956,7 +956,7 @@ function RegistrarHelp({ provider }: { provider: RegistrarDefinition }) {
   return (
     <div className="mb-4 flex flex-col gap-2">
       <p className="text-[13px] leading-relaxed text-muted-foreground">
-        {help.summary}
+        <HelpText text={help.summary} />
       </p>
       {help.links.length > 0 && (
         <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -1110,7 +1110,7 @@ function CredentialFields({
             }
             // Only fields that need disambiguating carry a description; it
             // sits under the label, ahead of the input.
-            description={fieldHelp}
+            description={fieldHelp && <HelpText text={fieldHelp} />}
           >
             {field.type === 'select' ? (
               <Select
@@ -1157,6 +1157,22 @@ function CredentialFields({
         );
       })}
     </>
+  );
+}
+
+/** Help copy with its `backticked` keywords set as code. */
+function HelpText({ text }: { text: string }) {
+  return text.split('`').map((part, i) =>
+    i % 2 === 1 ? (
+      <code
+        key={i}
+        className="rounded bg-muted px-1 py-px font-mono text-[0.92em] text-foreground"
+      >
+        {part}
+      </code>
+    ) : (
+      part
+    ),
   );
 }
 
