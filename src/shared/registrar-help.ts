@@ -37,7 +37,7 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
       '`domains_read` and `dns_read` scopes. Add `dns_write` to edit DNS and ' +
       'nameservers, and `domains_write` for URL forwarding. Only the primary ' +
       'user, with 2FA or SSO, can create keys. DNS records can only be ' +
-      'edited on 101domain or SWA nameservers. Renewals, auto-renew, lock, ' +
+      'edited on 101domain or Secure Web Accelerator nameservers. Renewals, auto-renew, lock, ' +
       'privacy and transfers aren’t available through the API.',
     links: [
       {
