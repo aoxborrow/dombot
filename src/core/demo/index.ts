@@ -1,4 +1,5 @@
 import type { RegistrarName } from '@aoxborrow/registrar-client';
+import { createAccount } from '../services/accounts';
 import { setStoredCredentials } from '../services/credentials';
 import { assignFolder, createFolder, getFolders } from '../services/folders';
 import { setManualPrice } from '../services/pricing';
@@ -71,7 +72,18 @@ export async function installDemo(
   resetRegistrarClients();
 
   for (const account of seed.accounts) {
-    await setStoredCredentials(account.id, account.credentials);
+    // An account name needs an account record; an unnamed default account is
+    // just its credentials, like an account from before multi-account support.
+    if (account.label === 'Default')
+      await setStoredCredentials(account.id, account.credentials);
+    else
+      await createAccount(
+        account.registrar,
+        account.label,
+        account.credentials,
+        undefined,
+        account.id,
+      );
   }
 
   const existing = new Map(getFolders().folders.map((f) => [f.name, f.id]));

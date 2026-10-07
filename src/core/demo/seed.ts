@@ -57,8 +57,10 @@ const MAX_LABEL_REPEATS = 2;
 // Shares sum to 1. NameSilo, NameBright and Name.com are left unconfigured
 // so the settings page shows both states. Gandi is connected and also has a
 // name you added by hand (api/demo.ts), so both kinds show side by side.
+// Namecheap has two accounts with account names, to show how siblings read.
+// A registrar's first account keeps the default id (the registrar name).
 
-const ACCOUNTS: Omit<DemoAccount, 'id'>[] = [
+const ACCOUNTS: (Omit<DemoAccount, 'id'> & { id?: string })[] = [
   {
     registrar: 'godaddy',
     label: 'Default',
@@ -94,13 +96,24 @@ const ACCOUNTS: Omit<DemoAccount, 'id'>[] = [
   },
   {
     registrar: 'namecheap',
-    label: 'Default',
+    label: 'Personal',
     credentials: {
       username: 'demo-portfolio',
       apiKey: 'demo_nc_a1b2c3d4e5f60718293a4b5c6d7e8f90',
       clientIp: '203.0.113.42',
     },
-    share: 0.06,
+    share: 0.03,
+  },
+  {
+    registrar: 'namecheap',
+    id: 'namecheap-selling',
+    label: 'Selling',
+    credentials: {
+      username: 'demo-selling',
+      apiKey: 'demo_nc_0f9e8d7c6b5a49382716a5b4c3d2e1f0',
+      clientIp: '203.0.113.42',
+    },
+    share: 0.03,
   },
   {
     registrar: 'spaceship',
@@ -868,7 +881,7 @@ export function generateDemoSeed(
   const r = rng(seed);
   const accounts: DemoAccount[] = ACCOUNTS.map((a) => ({
     ...a,
-    id: a.registrar,
+    id: a.id ?? a.registrar,
   }));
   const records: DemoDomainRecord[] = [];
   const used = new Set<string>();

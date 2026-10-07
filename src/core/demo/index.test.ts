@@ -35,6 +35,12 @@ describe('installDemo', () => {
       demo.seed.accounts.map((a) => a.registrar).sort(),
     );
     expect(meta.find((m) => m.name === 'namesilo')!.configured).toBe(false);
+    expect(
+      meta
+        .filter((m) => m.name === 'namecheap')
+        .map((m) => m.accountLabel)
+        .sort(),
+    ).toEqual(['Personal', 'Selling']);
     expect(meta.find((m) => m.name === 'godaddy')!.enabled).toBe(true);
     expect(getFolders().folders.map((f) => f.name)).toEqual(
       demo.seed.folders.map((f) => f.name),
@@ -46,7 +52,7 @@ describe('installDemo', () => {
     expect(p.errors).toEqual([]);
     expect(p.domains).toHaveLength(60);
     expect(p.registrars.sort()).toEqual(
-      demo.seed.accounts.map((a) => a.registrar).sort(),
+      [...new Set(demo.seed.accounts.map((a) => a.registrar))].sort(),
     );
     const merged = getMergedPortfolio();
     expect(merged.domains).toHaveLength(60);

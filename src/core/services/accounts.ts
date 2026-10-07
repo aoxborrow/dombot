@@ -62,7 +62,7 @@ export function assertUniqueAccountLabel(
   );
   if (clash)
     throw new Error(
-      `Another account is already named "${accountDisplayLabel(clash.label)}". Choose a different nickname.`,
+      `Another account is already named "${accountDisplayLabel(clash.label)}". Choose a different name.`,
     );
 }
 
@@ -87,7 +87,7 @@ export function nextAccountLabel(registrar: RegistrarName): string {
 function cleanLabel(label: string): string {
   const value = label.trim();
   if (!value || value.length > 100)
-    throw new Error('Account label must contain 1–100 characters.');
+    throw new Error('Account name must contain 1–100 characters.');
   return value;
 }
 
@@ -96,11 +96,13 @@ export async function createAccount(
   label: string,
   credentials?: RegistrarCredentials,
   proxyId?: string,
+  /** A fixed id, for seeded data (the demo); a new account gets a random one. */
+  id: string = crypto.randomUUID(),
 ): Promise<RegistrarAccount> {
   if (!Object.hasOwn(registrars, registrar))
     throw new Error('Unknown registrar.');
   const account: RegistrarAccount = {
-    id: crypto.randomUUID(),
+    id,
     registrar,
     label: cleanLabel(label),
     ...(proxyId ? { proxyId } : {}),

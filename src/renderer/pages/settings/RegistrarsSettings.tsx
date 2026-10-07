@@ -10,10 +10,13 @@ import {
   ChevronDown,
   CircleX,
   Copy,
+  Ellipsis,
   ExternalLink,
   Pencil,
   Plus,
+  Power,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
@@ -47,9 +50,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import {
@@ -61,6 +65,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { SettingsField } from './SettingsCard';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+
+/** Until when a card's expand toggle is ignored. A click outside an open
+ * actions menu just closes the menu; without this, that same click would land
+ * on a card header right after and expand it. */
+let ignoreToggleUntil = 0;
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -326,15 +336,22 @@ function AccountCard({
   const currentLabel = account.accountLabel ?? '';
   const [values, setValues] = useState<CredentialValues>({});
   const [original, setOriginal] = useState<CredentialValues>({});
-  // Inline nickname edit in the title bar; null = not editing.
+  // The account name being edited in its dialog; null = dialog closed.
   const [nickname, setNickname] = useState<string | null>(null);
+  // The dialog an actions-menu item asked for. It opens once the menu has
+  // closed, so the closing menu doesn't pull focus back to its button.
+  const dialogFromMenu = useRef<'rename' | 'remove' | null>(null);
+  // Whether the actions menu is open (not just still fading out).
+  const menuOpen = useRef(false);
   const [renaming, setRenaming] = useState(false);
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [syncingHere, setSyncing] = useState(false);
   const [toggling, setToggling] = useState(false);
+  // The remove confirmation dialog is open.
   const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const usesProxy = Boolean(account.proxy);
   const [proxyEnabled, setProxyEnabled] = useState(usesProxy);
   const [loading, setLoading] = useState(false);
@@ -439,7 +456,7 @@ function AccountCard({
       await refreshCache();
       setNickname(null);
     } catch (err) {
-      // Keep the field open with what was typed so it can be corrected.
+      // Keep the dialog open with what was typed so it can be corrected.
       setNicknameError(errorMessage(err));
     } finally {
       setRenaming(false);
@@ -461,19 +478,23 @@ function AccountCard({
 
   const remove = async () => {
     setSaving(true);
-    setError(null);
+    setRemoveError(null);
     try {
       await window.api.removeRegistrarAccount(id);
       await loadRegistrars();
       await refreshCache();
     } catch (err) {
       // On success the card unmounts; only a failure leaves state to reset.
-      setError(errorMessage(err));
+      setRemoveError(errorMessage(err));
       setSaving(false);
     }
   };
 
-  const busy = saving || syncing || toggling || loading;
+  // An action in flight. The actions menu and the remove confirmation wait
+  // only on these: none of them need the credentials the open card loads, so
+  // a slow or failed load mustn't lock them.
+  const acting = saving || syncing || toggling;
+  const busy = acting || loading;
   // The demo is fully interactive over its browser-local data — edit keys,
   // Save, toggle, rename, even Remove (Reset demo brings it all back), since
   // the fake registrar always connects. `locked` stays only on the fixed-IP
@@ -497,188 +518,157 @@ function AccountCard({
   const hasNickname = !isAutoLabel(currentLabel);
 
   return (
-    <Card className="gap-0 overflow-hidden rounded-md py-0">
-      <Collapsible open={open} onOpenChange={setOpen}>
-        {/* Header row: the name + sync status expand the card; the Sync button
-            sits outside the triggers so it works even while collapsed. */}
-        {/* On phones the header stacks: an identity row (toggle · name ·
-            chevron), then the sync status, then the Sync button, each on its own
-            line. On desktop `sm:contents` dissolves the identity wrapper so all
-            of it collapses back into the original single row, and the chevron's
-            `sm:order-last` pins it to the far right. */}
-        <div className="flex flex-col items-start gap-y-2 px-5 py-[13px] sm:flex-row sm:items-center sm:gap-3">
-          <div className="flex w-full items-center gap-3 sm:contents">
-            {/* Enable/disable toggle, kept to the far left and outside the expand
-                triggers so it reads as a row-level on/off (not a sync switch)
-                and isn't hit when expanding the card. */}
-            <div className="flex shrink-0 items-center">
-              <Switch
-                checked={configured && enabled}
-                onCheckedChange={(v) => void toggleEnabled(v)}
-                disabled={busy || !configured}
-                aria-label={
-                  configured
-                    ? `${enabled ? 'Disable' : 'Enable'} ${title}`
-                    : `${title}: add credentials to enable`
-                }
-                title={
-                  !configured
-                    ? 'Add credentials to enable this account'
-                    : enabled
-                      ? 'Disable this account (keeps credentials and cached data)'
-                      : 'Enable and sync this account'
-                }
-              />
-            </div>
-            <CollapsibleTrigger className="flex min-w-0 items-center gap-2.5 text-left">
-              <span
-                className={cn(
-                  'flex min-w-0 items-center gap-2.5 font-medium',
-                  // Dim the name for a configured-but-disabled account so the
-                  // off state reads at a glance.
-                  configured && !enabled && 'opacity-50',
-                )}
-              >
-                <RegistrarLogo
-                  name={provider.name}
-                  label={provider.displayName}
-                />
-                <span className="truncate">{provider.displayName}</span>
-                {suffix && nickname === null && (
-                  <span className="-ml-1 flex min-w-0 items-center gap-1.5 font-normal text-muted-foreground">
-                    {/* The bullet is its own item so the gap is equal on both
-                        sides, whatever the font's space width. */}
-                    {suffix.startsWith(' · ') && <span aria-hidden>·</span>}
-                    <span className="truncate">
-                      {suffix.replace(/^ (· )?/, '')}
-                    </span>
-                  </span>
-                )}
-              </span>
-            </CollapsibleTrigger>
-            {/* Expanded: the nickname is edited right in the title bar. The input
-                can't sit inside the trigger (a button), so the status gets its
-                own trigger below and the row still expands/collapses on click. */}
-            {open &&
-              (nickname === null ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="-ml-2.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground"
-                  disabled={busy}
-                  aria-label={
-                    hasNickname
-                      ? `Rename ${title}`
-                      : `Add a nickname to ${title}`
-                  }
-                  title={hasNickname ? 'Rename' : 'Add a nickname'}
-                  onClick={() => setNickname(hasNickname ? currentLabel : '')}
-                >
-                  <Pencil className="size-3" />
-                </Button>
-              ) : (
-                <Input
-                  autoFocus
-                  value={nickname}
-                  disabled={renaming}
-                  maxLength={100}
-                  autoComplete="off"
-                  placeholder="Add a nickname"
-                  aria-label={`Nickname for ${title}`}
-                  className="h-8 w-44 shrink sm:-ml-1"
-                  aria-invalid={nicknameError ? true : undefined}
-                  onChange={(e) => {
-                    setNickname(e.target.value);
-                    setNicknameError(null);
-                  }}
-                  onBlur={() => void saveNickname()}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      void saveNickname();
-                    } else if (e.key === 'Escape') {
-                      e.preventDefault();
-                      setNicknameError(null);
-                      setNickname(null);
-                    }
-                  }}
-                />
-              ))}
-            {/* On phones a failure sits beside the name, not on a line of
-                its own (short, so the name still fits with the card open);
-                desktop shows "Sync failed" in the status slot. */}
-            {syncFailed && (
-              <span className="flex shrink-0 items-center gap-1 text-[13px] font-medium whitespace-nowrap text-destructive sm:hidden">
-                <CircleX className="size-3.5" />
-                Failed
-              </span>
-            )}
-            <CollapsibleTrigger
-              className="ml-auto shrink-0 sm:order-last sm:ml-0"
-              aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
-            >
-              <ChevronDown
-                className={cn(
-                  'size-4 text-muted-foreground transition-transform',
-                  open && 'rotate-180',
-                )}
-              />
-            </CollapsibleTrigger>
-          </div>
-
-          {/* Sync status (or a nickname error) — its own line on phones. */}
-          {open && nickname !== null && nicknameError ? (
+    <Card className="@container gap-0 overflow-hidden rounded-md py-0">
+      <Collapsible
+        open={open}
+        onOpenChange={(next) => {
+          if (Date.now() < ignoreToggleUntil) return;
+          setOpen(next);
+        }}
+      >
+        {/* Header: name · status · actions menu · chevron. The name and status
+            expand the card. On a narrow card (a phone, or an iPad-width window
+            with the settings sidebar) the status wraps onto its own line under
+            the name. A wide card keeps everything on one compact row that's
+            easy to scan. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-[13px] pr-5 pl-[15px] @min-[600px]:flex-nowrap">
+          <CollapsibleTrigger className="flex min-w-0 items-center gap-2.5 text-left">
             <span
-              role="alert"
-              className="min-w-0 text-sm text-destructive sm:flex-1"
-            >
-              {nicknameError}
-            </span>
-          ) : (
-            // The domain count is a link, so it sits beside the status trigger
-            // rather than inside it; the trailing trigger keeps the rest of
-            // the row clickable.
-            <div
               className={cn(
-                'flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 max-sm:w-full sm:flex-1',
-                syncFailed && 'max-sm:hidden',
+                'flex min-w-0 items-center gap-2.5 font-medium',
+                // Dim the name for a configured-but-disabled account so the
+                // off state reads at a glance.
+                configured && !enabled && 'opacity-50',
               )}
             >
-              <CollapsibleTrigger
-                tabIndex={-1}
-                aria-hidden
-                className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-left"
-              >
-                <SyncStatus meta={account} syncing={syncing} />
-              </CollapsibleTrigger>
-              <DomainCountLink meta={account} syncing={syncing} />
-              <CollapsibleTrigger
-                tabIndex={-1}
-                aria-hidden
-                className="min-w-0 flex-1 self-stretch"
+              <RegistrarLogo
+                name={provider.name}
+                label={provider.displayName}
+                className="size-[22px]"
               />
-            </div>
-          )}
-
-          {/* Sync only makes sense for an enabled account. Its own line
-              (left-aligned) on phones, inline on desktop. */}
-          {configured && enabled && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void runSync()}
-              disabled={busy}
-              title="Sync this account's domains"
-              // Full-width on phones (its own line); on desktop a slim inline
-              // button whose height is absorbed into the row's vertical padding
-              // so the row stays compact.
-              className="border-border text-muted-foreground hover:text-foreground max-sm:w-full max-sm:justify-center sm:-my-1 sm:shrink-0"
+              <span className="truncate">{provider.displayName}</span>
+              {suffix && (
+                <span className="-ml-1 flex min-w-0 items-center gap-1.5 font-normal text-muted-foreground">
+                  {/* The bullet is its own item so the gap is equal on both
+                      sides, whatever the font's space width. */}
+                  {suffix.startsWith(' · ') && <span aria-hidden>·</span>}
+                  <span className="truncate">
+                    {suffix.replace(/^ (· )?/, '')}
+                  </span>
+                </span>
+              )}
+            </span>
+          </CollapsibleTrigger>
+          {/* Sync status: fills the row on a wide card; on a narrow one, its
+              own line indented under the name. The domain count is a link, so
+              it sits beside the status trigger rather than inside it; the
+              trailing trigger keeps the rest of the row clickable. */}
+          <div className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-[32px] @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0">
+            <CollapsibleTrigger
+              tabIndex={-1}
+              aria-hidden
+              className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-left"
             >
-              <RefreshCw className={cn(syncing && 'animate-spin')} />
-              {syncing ? 'Syncing…' : 'Sync'}
-            </Button>
-          )}
+              <SyncStatus meta={account} syncing={syncing} />
+            </CollapsibleTrigger>
+            <DomainCountLink meta={account} syncing={syncing} />
+            <CollapsibleTrigger
+              tabIndex={-1}
+              aria-hidden
+              className="min-w-0 flex-1 self-stretch"
+            />
+          </div>
+
+          <DropdownMenu
+            onOpenChange={(next) => {
+              menuOpen.current = next;
+            }}
+          >
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="-my-1 ml-auto size-8 shrink-0 text-muted-foreground hover:text-foreground"
+                aria-label={`Actions for ${title}`}
+                title="Account actions"
+              >
+                <Ellipsis />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="min-w-48"
+              onPointerDownOutside={() => {
+                // Only a click that closes the menu. After picking an item the
+                // menu is already closed while it fades out, and a click then
+                // should act normally.
+                if (menuOpen.current) ignoreToggleUntil = Date.now() + 500;
+              }}
+              onCloseAutoFocus={(e) => {
+                const dialog = dialogFromMenu.current;
+                if (!dialog) return;
+                dialogFromMenu.current = null;
+                e.preventDefault();
+                if (dialog === 'rename')
+                  setNickname(hasNickname ? currentLabel : '');
+                else setRemoving(true);
+              }}
+            >
+              {/* Sync only makes sense for an enabled account. */}
+              {configured && enabled && (
+                <DropdownMenuItem
+                  disabled={acting}
+                  onSelect={() => void runSync()}
+                >
+                  <RefreshCw />
+                  Sync now
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                disabled={acting}
+                onSelect={() => {
+                  dialogFromMenu.current = 'rename';
+                }}
+              >
+                <Pencil />
+                Edit account name…
+              </DropdownMenuItem>
+              {/* Turning an account off keeps its credentials and cached
+                  data; on again syncs it. Needs credentials first. */}
+              {configured && (
+                <DropdownMenuItem
+                  disabled={acting}
+                  onSelect={() => void toggleEnabled(!enabled)}
+                >
+                  <Power />
+                  {enabled ? 'Disable account' : 'Enable account'}
+                </DropdownMenuItem>
+              )}
+              {configured && <DropdownMenuSeparator />}
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={acting}
+                onSelect={() => {
+                  dialogFromMenu.current = 'remove';
+                }}
+              >
+                <Trash2 />
+                Remove account…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <CollapsibleTrigger
+            className="shrink-0"
+            aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
+          >
+            <ChevronDown
+              className={cn(
+                'size-4 text-muted-foreground transition-transform',
+                open && 'rotate-180',
+              )}
+            />
+          </CollapsibleTrigger>
         </div>
 
         {/* The last sync's error, open or collapsed: this card is where the
@@ -738,15 +728,6 @@ function AccountCard({
               >
                 {saving ? 'Saving…' : 'Save'}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="ml-auto border-border text-muted-foreground"
-                disabled={busy}
-                onClick={() => setRemoving(true)}
-              >
-                Remove account
-              </Button>
             </div>
             {error && (
               <p role="alert" className="mt-3 text-sm text-destructive">
@@ -754,30 +735,74 @@ function AccountCard({
               </p>
             )}
           </form>
-          {removing && (
-            <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4 text-sm">
-              <span>
-                Remove {title} from DomBot? Its domains stay at{' '}
-                {provider.displayName}.
-              </span>
-              <Button
-                variant="destructive"
-                disabled={busy}
-                onClick={() => void remove()}
-              >
-                Remove
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={busy}
-                onClick={() => setRemoving(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          )}
         </CollapsibleContent>
       </Collapsible>
+      {removing && (
+        <ConfirmDialog
+          title={`Remove ${title}?`}
+          description={`DomBot forgets this account's credentials and cached domains. The domains stay at ${provider.displayName}, and you can add the account again later.`}
+          actionLabel="Remove account"
+          busyLabel="Removing…"
+          busy={saving}
+          destructive
+          onConfirm={() => void remove()}
+          onClose={() => {
+            setRemoveError(null);
+            setRemoving(false);
+          }}
+        >
+          {removeError && (
+            <p role="alert" className="text-sm text-destructive">
+              {removeError}
+            </p>
+          )}
+        </ConfirmDialog>
+      )}
+      {nickname !== null && (
+        <ConfirmDialog
+          title="Edit account name"
+          description={`Add an account name to tell your ${provider.displayName} accounts apart, like Personal or Client work. Leave it blank to remove it.`}
+          actionLabel="Save"
+          busyLabel="Saving…"
+          busy={renaming}
+          onConfirm={() => void saveNickname()}
+          onClose={() => {
+            setNicknameError(null);
+            setNickname(null);
+          }}
+        >
+          <Field>
+            <FieldLabel htmlFor={`${id}-account-name`}>Account name</FieldLabel>
+            <Input
+              id={`${id}-account-name`}
+              autoFocus
+              // Select the current name, so typing replaces it.
+              onFocus={(e) => e.currentTarget.select()}
+              value={nickname}
+              disabled={renaming}
+              maxLength={100}
+              autoComplete="off"
+              placeholder="e.g. Personal, Client work"
+              aria-invalid={nicknameError ? true : undefined}
+              onChange={(e) => {
+                setNickname(e.target.value);
+                setNicknameError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void saveNickname();
+                }
+              }}
+            />
+            {nicknameError && (
+              <p role="alert" className="text-sm text-destructive">
+                {nicknameError}
+              </p>
+            )}
+          </Field>
+        </ConfirmDialog>
+      )}
     </Card>
   );
 }
@@ -805,10 +830,8 @@ function DraftAccountCard({
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Optional, edited inline in the title bar like on a saved card. It only
-  // lives here until the account is saved.
+  // Optional. It only lives here until the account is saved.
   const [nickname, setNickname] = useState('');
-  const [editingNickname, setEditingNickname] = useState(false);
   // With the Namecheap proxy on, its outgoing IP supplies the required ClientIp,
   // so the direct field isn't needed; the proxy URL/IP are required instead.
   const proxySuppliesIp = provider.name === 'namecheap' && proxyEnabled;
@@ -843,8 +866,12 @@ function DraftAccountCard({
   const idPrefix = `${provider.name}-new`;
   return (
     <Card className="gap-0 overflow-hidden rounded-md border-primary/40 py-0">
-      <div className="flex items-center gap-2.5 px-5 py-[13px]">
-        <RegistrarLogo name={provider.name} label={provider.displayName} />
+      <div className="flex items-center gap-2.5 py-[13px] pr-5 pl-[15px]">
+        <RegistrarLogo
+          name={provider.name}
+          label={provider.displayName}
+          className="size-[22px]"
+        />
         <h3
           ref={heading}
           tabIndex={-1}
@@ -852,50 +879,6 @@ function DraftAccountCard({
         >
           New {provider.displayName} account
         </h3>
-        {editingNickname ? (
-          <Input
-            autoFocus
-            value={nickname}
-            disabled={saving}
-            maxLength={100}
-            autoComplete="off"
-            placeholder="Add a nickname"
-            aria-label={`Nickname for the new ${provider.displayName} account`}
-            className="h-8 w-44 shrink"
-            onChange={(e) => setNickname(e.target.value)}
-            onBlur={() => setEditingNickname(false)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === 'Escape') {
-                e.preventDefault();
-                if (e.key === 'Escape') setNickname('');
-                setEditingNickname(false);
-              }
-            }}
-          />
-        ) : (
-          <>
-            {nickname.trim() && (
-              <span className="-ml-1 flex min-w-0 items-center gap-1.5 text-muted-foreground">
-                <span aria-hidden>·</span>
-                <span className="truncate">{nickname.trim()}</span>
-              </span>
-            )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="-ml-1.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground"
-              disabled={saving}
-              aria-label={
-                nickname.trim() ? 'Change nickname' : 'Add a nickname'
-              }
-              title={nickname.trim() ? 'Change nickname' : 'Add a nickname'}
-              onClick={() => setEditingNickname(true)}
-            >
-              <Pencil className="size-3" />
-            </Button>
-          </>
-        )}
       </div>
       <form
         aria-label={`New ${provider.displayName} account`}
@@ -917,6 +900,21 @@ function DraftAccountCard({
             }
             hideFields={proxySuppliesIp ? new Set(['clientIp']) : undefined}
           />
+          <SettingsField
+            htmlFor={`${idPrefix}-account-name`}
+            label="Account name"
+            description="Optional. Tells accounts at the same registrar apart."
+          >
+            <Input
+              id={`${idPrefix}-account-name`}
+              value={nickname}
+              disabled={saving}
+              maxLength={100}
+              autoComplete="off"
+              placeholder="e.g. Personal, Client work"
+              onChange={(e) => setNickname(e.target.value)}
+            />
+          </SettingsField>
         </FieldGroup>
         <ProxyToggle
           id={`${idPrefix}-proxy`}
@@ -1213,7 +1211,12 @@ function SyncStatus({
   syncing: boolean;
 }) {
   if (syncing) {
-    return <span className="text-sm text-muted-foreground">Syncing…</span>;
+    return (
+      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <RefreshCw className="size-3.5 shrink-0 animate-spin" />
+        Syncing…
+      </span>
+    );
   }
   if (!meta.configured) {
     return (

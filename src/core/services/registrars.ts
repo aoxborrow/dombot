@@ -1058,7 +1058,7 @@ export async function connectRegistrarAccount(
   if (!Object.keys(clean).length)
     throw new Error('Enter your account credentials.');
   if ((label?.trim().length ?? 0) > 100)
-    throw new Error('Account label must contain at most 100 characters.');
+    throw new Error('Account name must contain at most 100 characters.');
   // Fail on a taken nickname before spending a network round trip.
   if (label?.trim()) assertUniqueAccountLabel(name, label);
   const assertNotDuplicate = () => {
