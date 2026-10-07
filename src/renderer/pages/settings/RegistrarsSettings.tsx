@@ -66,6 +66,11 @@ import {
 } from '@/components/ui/select';
 import { SettingsField } from './SettingsCard';
 
+/** Until when a card's expand toggle is ignored. A click outside an open
+ * actions menu just closes the menu; without this, that same click would land
+ * on a card header right after and expand it. */
+let ignoreToggleUntil = 0;
+
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 const idOf = (account: RegistrarMeta) => account.accountId ?? account.name;
@@ -502,14 +507,20 @@ function AccountCard({
 
   return (
     <Card className="@container gap-0 overflow-hidden rounded-md py-0">
-      <Collapsible open={open} onOpenChange={setOpen}>
+      <Collapsible
+        open={open}
+        onOpenChange={(next) => {
+          if (Date.now() < ignoreToggleUntil) return;
+          setOpen(next);
+        }}
+      >
         {/* Header: name · pencil · status · actions menu · chevron. The name and
             status expand the card; the pencil, menu and chevron sit beside them.
             On a narrow card (a phone, or an iPad-width window with the settings
             sidebar) the status wraps onto its own line under the name, so the
             name and the account-name input keep line one. A wide card keeps
             everything on one compact row that's easy to scan. */}
-        <div className="group/header flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-[13px] @min-[600px]:flex-nowrap">
+        <div className="group/header flex flex-wrap items-center gap-x-3 gap-y-1 py-[13px] pr-5 pl-[15px] @min-[600px]:flex-nowrap">
           <CollapsibleTrigger className="flex min-w-0 items-center gap-2.5 text-left">
             <span
               className={cn(
@@ -522,6 +533,7 @@ function AccountCard({
               <RegistrarLogo
                 name={provider.name}
                 label={provider.displayName}
+                className="size-[22px]"
               />
               <span className="truncate">{provider.displayName}</span>
               {suffix && nickname === null && (
@@ -545,7 +557,7 @@ function AccountCard({
               variant="ghost"
               size="icon"
               className={cn(
-                '-ml-2.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground',
+                '-mx-2.5 size-6 shrink-0 text-muted-foreground/60 hover:text-foreground',
                 !open &&
                   'opacity-0 group-hover/header:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100',
               )}
@@ -590,7 +602,7 @@ function AccountCard({
           {nickname !== null && nicknameError ? (
             <span
               role="alert"
-              className="order-last min-w-0 basis-full pl-[30px] text-sm text-destructive @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0"
+              className="order-last min-w-0 basis-full pl-[32px] text-sm text-destructive @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0"
             >
               {nicknameError}
             </span>
@@ -598,7 +610,7 @@ function AccountCard({
             <CollapsibleTrigger
               tabIndex={-1}
               aria-hidden
-              className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-[30px] text-left @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0"
+              className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-0.5 pl-[32px] text-left @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0"
             >
               <SyncStatus meta={account} syncing={syncing} />
             </CollapsibleTrigger>
@@ -617,7 +629,13 @@ function AccountCard({
                 <Ellipsis />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-48">
+            <DropdownMenuContent
+              align="end"
+              className="min-w-48"
+              onPointerDownOutside={() => {
+                ignoreToggleUntil = Date.now() + 500;
+              }}
+            >
               {/* Sync only makes sense for an enabled account. */}
               {configured && enabled && (
                 <DropdownMenuItem
@@ -822,8 +840,12 @@ function DraftAccountCard({
   const idPrefix = `${provider.name}-new`;
   return (
     <Card className="gap-0 overflow-hidden rounded-md border-primary/40 py-0">
-      <div className="flex items-center gap-2.5 px-5 py-[13px]">
-        <RegistrarLogo name={provider.name} label={provider.displayName} />
+      <div className="flex items-center gap-2.5 py-[13px] pr-5 pl-[15px]">
+        <RegistrarLogo
+          name={provider.name}
+          label={provider.displayName}
+          className="size-[22px]"
+        />
         <h3
           ref={heading}
           tabIndex={-1}
