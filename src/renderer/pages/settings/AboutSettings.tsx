@@ -174,14 +174,12 @@ export default function AboutSettings() {
               />
               Check now
             </Button>
-            {newer.length > 0 && (
-              <Button variant="outline" size="sm" asChild>
-                <ExtLink href={releaseNotesUrl(newer)}>
-                  <ExternalLink className="size-3.5" />
-                  Release notes
-                </ExtLink>
-              </Button>
-            )}
+            <Button variant="outline" size="sm" asChild>
+              <ExtLink href={releaseNotesUrl(newer)}>
+                <ExternalLink className="size-3.5" />
+                Release notes
+              </ExtLink>
+            </Button>
             {newer.length > 0 && inPlace && (
               <UpdateButton
                 version={newer[0].version}
