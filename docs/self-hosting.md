@@ -157,8 +157,9 @@ exist (Settings → Secrets and variables → Actions): `CLOUDFLARE_API_TOKEN` (
 API token from the "Edit Cloudflare Workers" template with D1 edit permission
 added) and `CLOUDFLARE_ACCOUNT_ID`. Without them the workflow exits quietly.
 Set the same `DOMBOT_WORKER_NAME` / `DOMBOT_D1_DATABASE_ID` (and optionally
-`DOMBOT_D1_DATABASE_NAME` / `DOMBOT_CUSTOM_DOMAIN`) values as repository
-_variables_ so the deploy targets your Worker and database. Don't use it
+`DOMBOT_D1_DATABASE_NAME` / `DOMBOT_CUSTOM_DOMAIN`, and the
+[Access](#using-cloudflare-access-instead-of-the-password) variables) values as
+repository _variables_ so the deploy targets your Worker and database. Don't use it
 alongside Cloudflare's own builds, or every push deploys twice.
 
 ## Day to day
@@ -220,8 +221,8 @@ web:rotate-secret` exports a sealed bundle to disk, sets a new secret, and
    | `CF_ACCESS_AUD`         | the AUD tag                           |
 
    Set them where your other instance details live: build variables for a
-   fork (or a Deploy-button copy you've joined), `vars` in
-   `wrangler.local.json` for the CLI. Then redeploy. Setting them on the
+   fork (or a Deploy-button copy you've joined), repository variables for the
+   GitHub Actions deploy, `vars` in `wrangler.local.json` for the CLI. Then redeploy. Setting them on the
    Worker's own Variables page doesn't stick: the next deploy replaces them.
 
 DomBot then verifies the Access token on every request, and `DOMBOT_PASSWORD`
