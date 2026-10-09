@@ -142,7 +142,7 @@ export default function App() {
             type="button"
             onClick={() => navigate('/')}
             aria-label="DomBot — go to Domains"
-            className="group relative -top-px -ml-1 flex items-center gap-2"
+            className="peer group relative -top-px -ml-1 flex items-center gap-2"
           >
             <svg
               viewBox="0 0 32 32"
@@ -165,7 +165,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => navigate('/settings?tab=about')}
-              className="ml-2 hidden rounded-sm text-[11px] text-muted-foreground/50 hover:text-muted-foreground sm:inline"
+              className="relative top-[2px] ml-0.5 hidden rounded-sm text-[11px] text-muted-foreground/50 transition-[margin] duration-200 peer-hover:ml-3 hover:text-muted-foreground sm:inline"
               title="About this version"
             >
               v{appInfo.version}
