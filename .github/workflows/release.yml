@@ -250,8 +250,8 @@ jobs:
           ref: main
 
       - name: Record the release for the site
-        # site/public/releases.json lists every published release with its
-        # notes, newest first. The landing page bakes its download links from
+        # site/public/releases.json lists every published release, newest
+        # first. The landing page bakes its download links from
         # the newest at build time, and the site serves the file as-is at
         # dombot.ai/releases.json, where installed copies check for updates.
         # Committing it here is what redeploys the site: Cloudflare's Workers
@@ -263,7 +263,7 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '[.[]
             | select(.draft | not) | select(.prerelease | not)
             | {version: (.tag_name | ltrimstr("v")), tag: .tag_name, name,
-               publishedAt: .published_at, notes: .body, url: .html_url,
+               publishedAt: .published_at, url: .html_url,
                assets: [.assets[] | {name, url: .browser_download_url}]}]' \
             | jq -s 'add | {releases: .}' > site/public/releases.json
           git config user.name "github-actions[bot]"

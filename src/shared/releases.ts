@@ -1,7 +1,7 @@
-// The release feed: every published DomBot release with its notes, served as
-// a static file from the website (site/public/releases.json, written by the
-// release workflow). Both hosts read it to tell the user a newer version
-// exists and to show release notes. Pure helpers here; fetching lives in
+// The release feed: every published DomBot release, served as a static file
+// from the website (site/public/releases.json, written by the release
+// workflow). Both hosts read it to tell the user a newer version exists; the
+// notes themselves stay on GitHub. Pure helpers here; fetching lives in
 // src/core/services/releases.ts.
 
 /** Where the hosts fetch the feed from. */
@@ -14,8 +14,6 @@ export interface Release {
   name: string;
   /** ISO timestamp. */
   publishedAt: string;
-  /** The GitHub release body, markdown. */
-  notes: string;
   /** The release page on GitHub. */
   url: string;
 }
@@ -69,7 +67,6 @@ export function parseReleaseFeed(json: unknown): Release[] {
       tag: tag || `v${version}`,
       name: str(r.name) || `DomBot ${version}`,
       publishedAt: str(r.publishedAt),
-      notes: str(r.notes),
       url: /^https:\/\//.test(url)
         ? url
         : `https://github.com/aoxborrow/dombot/releases/tag/v${version}`,

@@ -1,9 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useEffect, type ReactNode } from 'react';
 import {
   BookOpen,
   Bug,
-  ChevronRight,
+  ExternalLink,
   Globe,
   Heart,
   RefreshCw,
@@ -12,15 +11,9 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import { isDemo, isWeb } from '@/lib/platform';
-import { openUpdate, useUpdates } from '@/lib/updates';
+import { openUpdate, releaseNotesUrl, useUpdates } from '@/lib/updates';
 import { timeAgo } from '@/lib/time';
-import ReleaseNotes from '@/components/ReleaseNotes';
 import { releasesNewerThan } from '../../../shared/releases';
 import { useAppStore } from '../../store/app';
 import { SettingsCard } from './SettingsCard';
@@ -35,34 +28,20 @@ const PLATFORM_LABEL: Record<string, string> = {
   web: 'Self-hosted',
 };
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ''
-    : d.toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      });
-}
-
 const open = (url: string) => void window.api.openExternal(url);
 
 /**
- * Which DomBot this is and whether a newer one is out, with the notes for
- * the releases not installed yet; then the project itself (sponsoring, links,
- * license). Arriving from the banner, footer or bell (`?notes=1`) opens the
- * notes.
+ * Which DomBot this is and whether a newer one is out (with a link to its
+ * release notes on GitHub), then the project itself: sponsoring, links and
+ * the license.
  */
 export default function AboutSettings() {
-  const [params] = useSearchParams();
   const appInfo = useAppStore((s) => s.appInfo);
   const loadAppInfo = useAppStore((s) => s.loadAppInfo);
   const settings = useAppStore((s) => s.settings);
   const loadSettings = useAppStore((s) => s.loadSettings);
   const setUpdateChecks = useAppStore((s) => s.setUpdateChecks);
   const { feed, checking, check } = useUpdates();
-  const [notesOpen, setNotesOpen] = useState(params.get('notes') === '1');
   const demo = isDemo();
   const current = appInfo?.version;
   const updateChecks = settings?.updateChecks ?? true;
@@ -98,7 +77,8 @@ export default function AboutSettings() {
       <div>
         <h2 className="text-2xl font-bold">About</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your version of DomBot, what’s new since, and the project behind it.
+          Your version of DomBot, whether there’s a newer one, and the project
+          behind it.
         </p>
       </div>
 
@@ -142,6 +122,16 @@ export default function AboutSettings() {
                 Check now
               </Button>
               {newer.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => open(releaseNotesUrl(newer))}
+                >
+                  <ExternalLink className="size-3.5" />
+                  Release notes
+                </Button>
+              )}
+              {newer.length > 0 && (
                 <Button size="sm" onClick={() => openUpdate(newer[0])}>
                   {isWeb() ? 'How to update' : `Download ${newer[0].version}`}
                 </Button>
@@ -149,49 +139,6 @@ export default function AboutSettings() {
             </div>
           )}
         </div>
-
-        {newer.length > 0 && (
-          <Collapsible
-            open={notesOpen}
-            onOpenChange={setNotesOpen}
-            className="rounded-md border"
-          >
-            <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-foreground/5">
-              <ChevronRight
-                className={cn(
-                  'size-4 shrink-0 text-muted-foreground transition-transform',
-                  notesOpen && 'rotate-90',
-                )}
-              />
-              What’s new
-              <span className="font-normal text-muted-foreground">
-                {newer.length === 1
-                  ? `in ${newer[0].version}`
-                  : `in ${newer.length} releases since ${current}`}
-              </span>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="flex flex-col divide-y border-t">
-              {newer.map((r) => (
-                <section key={r.version} className="px-4 py-3">
-                  <div className="mb-2 flex items-baseline gap-2">
-                    <h3 className="font-semibold">{r.version}</h3>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(r.publishedAt)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => open(r.url)}
-                      className="ml-auto text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      View on GitHub
-                    </button>
-                  </div>
-                  <ReleaseNotes markdown={r.notes} />
-                </section>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        )}
 
         {!demo && (
           <div className="flex items-center justify-between gap-6 border-t pt-4">

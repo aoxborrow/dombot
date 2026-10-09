@@ -24,7 +24,7 @@ import Activity from './pages/Activity';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
 import DemoBanner from './components/DemoBanner';
-import UpdateBanner from './components/UpdateBanner';
+import { useWeeklyUpdateCheck } from './lib/updates';
 import StatusBar from './components/StatusBar';
 import { isDemo } from './lib/platform';
 import { useTabMetrics, type TabMetrics } from './lib/tab-metrics';
@@ -58,6 +58,7 @@ const TAB_OPTIONS: Record<
 };
 
 export default function App() {
+  useWeeklyUpdateCheck();
   const hydrateFromCache = useAppStore((s) => s.hydrateFromCache);
   const applyPortfolioCacheUpdate = useAppStore(
     (s) => s.applyPortfolioCacheUpdate,
@@ -124,7 +125,6 @@ export default function App() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       {isDemo() && <DemoBanner />}
-      {!isDemo() && <UpdateBanner />}
       {/* Three columns: the logo, the tab strip (centered, so the two side
           columns match), and the bell just right of the tabs. The tabs run
           along the bottom edge, on the tab bar color that also shows above

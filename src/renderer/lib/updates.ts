@@ -1,6 +1,6 @@
+import { useEffect } from 'react';
 import { create } from 'zustand';
 import {
-  compareVersions,
   parseReleaseFeed,
   releasesNewerThan,
   type Release,
@@ -10,23 +10,26 @@ import { isDemo, isWeb } from './platform';
 import { useAppStore } from '../store/app';
 
 // The release feed in the renderer, plus what this device remembers between
-// launches: the last list fetched, when it last checked on its own, the
-// newest release whose banner was dismissed, and the version it last ran.
-// All in localStorage like the other display preferences: they're about this
-// window, not the instance.
+// launches: the last list fetched, when it last checked on its own, and the
+// newest release dismissed from the bell. All in localStorage like the other
+// display preferences: they're about this window, not the instance.
 
 /** Where a self-hoster reads how to update their setup. */
 export const SELF_HOST_UPDATE_DOCS =
   'https://github.com/aoxborrow/dombot/blob/main/docs/self-hosting.md#choosing-a-setup';
 
+/** Every release, with notes, on GitHub. */
+export const RELEASES_PAGE = 'https://github.com/aoxborrow/dombot/releases';
+
 /** How often a device checks on its own. "Check now" ignores it. */
 export const AUTO_CHECK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** How often an open window asks whether its weekly check is due. */
+const POLL_MS = 6 * 60 * 60 * 1000;
 
 const FEED_KEY = 'dombot-release-feed';
 const AUTO_CHECKED_KEY = 'dombot-update-checked';
 const DISMISSED_KEY = 'dombot-update-dismissed';
-const LAST_SEEN_KEY = 'dombot-last-seen-version';
-const BELL_SEEN_KEY = 'dombot-update-bell-seen';
 
 function read(key: string): string | null {
   try {
@@ -66,27 +69,19 @@ function readFeed(): ReleaseFeed | null {
 interface UpdatesState {
   feed: ReleaseFeed | null;
   checking: boolean;
-  /** The newest release version whose banner was dismissed here. */
+  /** The newest release version dismissed from the bell on this device. */
   dismissed: string | null;
-  /** The version this device last ran, for the "updated" note. */
-  lastSeen: string | null;
-  /** The newest release the bell's badge has already counted. */
-  bellSeen: string | null;
   /** Fetch the feed now (`force` skips the host's few-hour cache). */
   check: (force?: boolean) => Promise<void>;
   /** Check if this device hasn't in a week; otherwise do nothing. */
   autoCheck: () => Promise<void>;
   dismiss: (version: string) => void;
-  markSeen: (version: string) => void;
-  markBellSeen: (version: string) => void;
 }
 
 export const useUpdates = create<UpdatesState>((set, get) => ({
   feed: readFeed(),
   checking: false,
   dismissed: read(DISMISSED_KEY),
-  lastSeen: read(LAST_SEEN_KEY),
-  bellSeen: read(BELL_SEEN_KEY),
   check: async (force = false) => {
     set({ checking: true });
     try {
@@ -124,18 +119,29 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
     write(DISMISSED_KEY, version);
     set({ dismissed: version });
   },
-  markSeen: (version) => {
-    write(LAST_SEEN_KEY, version);
-    set({ lastSeen: version });
-  },
-  markBellSeen: (version) => {
-    write(BELL_SEEN_KEY, version);
-    set({ bellSeen: version });
-  },
 }));
 
-/** A newer release than the one running, for the banner, the footer and the
- *  bell to share. Null in the demo, with update checks off, or when current. */
+/** Runs the weekly check for as long as the app is open (not in the demo,
+ *  and not with update checks turned off). Mounted once, in App. */
+export function useWeeklyUpdateCheck(): void {
+  const updateChecks = useAppStore((s) => s.settings?.updateChecks);
+  const appInfo = useAppStore((s) => s.appInfo);
+  const loadAppInfo = useAppStore((s) => s.loadAppInfo);
+  const autoCheck = useUpdates((s) => s.autoCheck);
+  // The running version, to compare releases against.
+  useEffect(() => {
+    if (!appInfo) void loadAppInfo();
+  }, [appInfo, loadAppInfo]);
+  useEffect(() => {
+    if (isDemo() || !updateChecks) return;
+    void autoCheck();
+    const timer = setInterval(() => void autoCheck(), POLL_MS);
+    return () => clearInterval(timer);
+  }, [updateChecks, autoCheck]);
+}
+
+/** A newer release than the one running. Null in the demo, with update
+ *  checks off, or when this is the latest. */
 export function useAvailableUpdate(): {
   current: string;
   latest: Release;
@@ -149,33 +155,10 @@ export function useAvailableUpdate(): {
   return newer.length ? { current, latest: newer[0], newer } : null;
 }
 
-/** The GitHub release page for a version, from the feed when it's listed. */
-export function releasePage(version: string, releases: Release[] = []): string {
-  return (
-    releases.find((r) => r.version === version)?.url ??
-    `https://github.com/aoxborrow/dombot/releases/tag/v${version}`
-  );
-}
-
-/** What the banner should say, if anything. */
-export type BannerState =
-  | { kind: 'available'; latest: Release; newer: Release[] }
-  | { kind: 'updated'; version: string }
-  | null;
-
-export function bannerState(
-  current: string | undefined,
-  releases: Release[],
-  dismissed: string | null,
-  lastSeen: string | null,
-): BannerState {
-  if (!current) return null;
-  const newer = releasesNewerThan(releases, current);
-  if (newer.length && newer[0].version !== dismissed)
-    return { kind: 'available', latest: newer[0], newer };
-  if (lastSeen && compareVersions(current, lastSeen) > 0)
-    return { kind: 'updated', version: current };
-  return null;
+/** The release notes worth reading: the one release if there's one, every
+ *  release otherwise. */
+export function releaseNotesUrl(newer: Release[]): string {
+  return newer.length === 1 ? newer[0].url : RELEASES_PAGE;
 }
 
 /** Opens what "update" means on this host: the release download on the

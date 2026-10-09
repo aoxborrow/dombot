@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpCircle, History } from 'lucide-react';
+import { ArrowUpCircle, History, X } from 'lucide-react';
 import { BellIcon } from '@heroicons/react/24/outline';
 import { toUnicode } from '../../../shared/domain-name';
 import {
@@ -32,8 +32,8 @@ const SHOWN = 10;
  * names removed from a registrar, then names added, newest first. It only
  * tells you; the actions are on the Activity page, which a row opens filtered
  * to that name. The badge counts everything and takes the most severe color.
- * A newer DomBot release sits on top in green; it counts toward the badge only
- * until the bell has been opened once for that release, so it never nags.
+ * A newer DomBot release sits on top in green and counts toward the badge
+ * until it's dismissed here; the next release brings it back.
  */
 export function ActivityBell() {
   const events = useAppStore((s) => s.domainEvents);
@@ -45,25 +45,22 @@ export function ActivityBell() {
     () => notifications(events, problems),
     [events, problems],
   );
-  const update = useAvailableUpdate();
-  const bellSeen = useUpdates((s) => s.bellSeen);
-  const markBellSeen = useUpdates((s) => s.markBellSeen);
-  const unseenUpdate = update !== null && bellSeen !== update.latest.version;
+  const available = useAvailableUpdate();
+  const dismissed = useUpdates((s) => s.dismissed);
+  const dismissUpdate = useUpdates((s) => s.dismiss);
+  const update =
+    available && available.latest.version !== dismissed ? available : null;
   const badge = notificationBadge(list);
-  const count = (badge?.count ?? 0) + (unseenUpdate ? 1 : 0);
+  const count = (badge?.count ?? 0) + (update ? 1 : 0);
   // The worst severity's color, or green when the update is all there is.
   const countColor = badge
     ? SEVERITY_COUNT[badge.severity]
     : 'bg-brand text-white';
   const reviews = list.filter((n) => n.severity !== 'error').length;
   const close = () => setOpen(false);
-  const onOpenChange = (next: boolean) => {
-    setOpen(next);
-    if (next && update) markBellSeen(update.latest.version);
-  };
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -121,25 +118,39 @@ export function ActivityBell() {
         </div>
 
         {update && (
-          <Link
-            to="/settings?tab=about&notes=1"
-            onClick={close}
-            className="flex items-center gap-2 border-b bg-brand/[0.06] px-3 py-2 text-sm hover:bg-brand/10"
-            title={`You have ${update.current}`}
-          >
-            <ArrowUpCircle className="size-4 shrink-0 text-brand" aria-hidden />
-            <span className="min-w-0 flex-1 truncate">
-              <span className="font-medium text-brand">
-                DomBot {update.latest.version}
-              </span>{' '}
-              <span className="text-muted-foreground">is available</span>
-            </span>
-            {update.latest.publishedAt && (
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {timeAgo(Date.parse(update.latest.publishedAt))}
+          <div className="flex items-center border-b bg-brand/[0.06]">
+            <Link
+              to="/settings?tab=about"
+              onClick={close}
+              className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 text-sm hover:bg-brand/10"
+              title={`You have ${update.current}`}
+            >
+              <ArrowUpCircle
+                className="size-4 shrink-0 text-brand"
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1 truncate">
+                <span className="font-medium text-brand">
+                  DomBot {update.latest.version}
+                </span>{' '}
+                <span className="text-muted-foreground">is available</span>
               </span>
-            )}
-          </Link>
+              {update.latest.publishedAt && (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {timeAgo(Date.parse(update.latest.publishedAt))}
+                </span>
+              )}
+            </Link>
+            <button
+              type="button"
+              onClick={() => dismissUpdate(update.latest.version)}
+              aria-label={`Dismiss DomBot ${update.latest.version}`}
+              title="Dismiss until the next release"
+              className="mx-1 shrink-0 rounded p-1.5 text-muted-foreground hover:bg-brand/10 hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
         )}
         {list.length === 0 && update ? null : list.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">

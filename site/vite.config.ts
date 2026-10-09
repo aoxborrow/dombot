@@ -15,7 +15,7 @@ import { bakeRelease } from '../scripts/inject-release.mjs';
 // custom domain at the root.
 // Every published release, newest first, recorded in the repo by the release
 // workflow. It's also served as-is at dombot.ai/releases.json, where the app
-// reads it for the update banner and release notes; the page bakes in the
+// reads it to tell users a newer version is out; the page bakes in the
 // newest one's downloads.
 const { releases = [] } = JSON.parse(
   readFileSync(new URL('./public/releases.json', import.meta.url), 'utf8'),
