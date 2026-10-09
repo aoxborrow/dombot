@@ -6,9 +6,8 @@ import { isWeb } from '@/lib/platform';
 import { bannerState, openUpdate, useUpdates } from '@/lib/updates';
 import { useAppStore } from '../store/app';
 
-/** How often an open window re-checks the feed. The host caches it for a few
- *  hours, so most of these are answered without a network call. */
-const RECHECK_MS = 12 * 60 * 60 * 1000;
+/** How often an open window asks whether its weekly check is due. */
+const POLL_MS = 6 * 60 * 60 * 1000;
 
 /**
  * The strip across the top that says a newer DomBot is out (with its notes
@@ -20,7 +19,8 @@ export default function UpdateBanner() {
   const appInfo = useAppStore((s) => s.appInfo);
   const loadAppInfo = useAppStore((s) => s.loadAppInfo);
   const updateChecks = useAppStore((s) => s.settings?.updateChecks);
-  const { feed, dismissed, lastSeen, check, dismiss, markSeen } = useUpdates();
+  const { feed, dismissed, lastSeen, autoCheck, dismiss, markSeen } =
+    useUpdates();
   const current = appInfo?.version;
 
   useEffect(() => {
@@ -34,10 +34,10 @@ export default function UpdateBanner() {
 
   useEffect(() => {
     if (!updateChecks) return;
-    void check();
-    const timer = setInterval(() => void check(), RECHECK_MS);
+    void autoCheck();
+    const timer = setInterval(() => void autoCheck(), POLL_MS);
     return () => clearInterval(timer);
-  }, [updateChecks, check]);
+  }, [updateChecks, autoCheck]);
 
   const state = bannerState(
     current,

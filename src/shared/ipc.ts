@@ -298,7 +298,7 @@ export interface AppSettings {
    */
   numberFormat: NumberFormatId;
   /**
-   * Whether DomBot checks dombot.ai for a newer release (about once a day) and
+   * Whether DomBot checks dombot.ai for a newer release (once a week) and
    * shows a banner when there is one. On by default; "Check now" in
    * Settings → About works either way.
    */

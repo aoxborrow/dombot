@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/collapsible';
 import { isDemo, isWeb } from '@/lib/platform';
 import { openUpdate, useUpdates } from '@/lib/updates';
+import { timeAgo } from '@/lib/time';
 import ReleaseNotes from '@/components/ReleaseNotes';
 import {
   compareVersions,
@@ -60,7 +61,7 @@ export default function AboutSettings() {
     void loadSettings();
   }, [appInfo, loadAppInfo, loadSettings]);
 
-  // Opening the page loads the notes (from the host's cache when fresh),
+  // Opening the page loads the notes if this device has none stored yet,
   // unless the user has turned checking off — then only "Check now" asks.
   useEffect(() => {
     if (!demo && settings?.updateChecks && !feed) void check();
@@ -109,6 +110,11 @@ export default function AboutSettings() {
             >
               {status}
             </p>
+            {feed?.checkedAt && !demo && (
+              <p className="text-xs text-muted-foreground">
+                Last checked {timeAgo(Date.parse(feed.checkedAt))}
+              </p>
+            )}
             {feed?.error && releases.length > 0 && (
               <p className="text-xs text-muted-foreground">
                 Last check failed ({feed.error}); showing the releases from the
@@ -144,7 +150,7 @@ export default function AboutSettings() {
                 Check for updates automatically
               </Label>
               <p className="mt-0.5 text-[13px] text-muted-foreground">
-                About once a day DomBot reads the release list at
+                Once a week DomBot reads the release list at
                 dombot.ai/releases.json and shows a banner when there’s a newer
                 version. Nothing about you or your portfolio is sent.
               </p>
