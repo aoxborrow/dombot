@@ -165,18 +165,23 @@ export default function AboutSettings() {
       </SettingsCard>
 
       <SettingsCard title="About DomBot" contentClassName="p-0!">
+        <p className="border-b px-6 py-4 text-sm text-muted-foreground">
+          DomBot is free and open-source software, released under the{' '}
+          <button
+            type="button"
+            onClick={() => open(`${REPO}/blob/main/LICENSE`)}
+            className="text-foreground underline-offset-2 hover:underline"
+          >
+            GNU AGPL v3.0
+          </button>
+          . <span className="whitespace-nowrap">© Aaron Oxborrow</span>
+        </p>
         <ul className="divide-y">
           <ProjectLink
             url={SPONSOR}
             icon={<Heart className="fill-pink-500 text-pink-500" />}
             title="Sponsor DomBot"
             hint="Help fund its development"
-          />
-          <ProjectLink
-            url={REPO}
-            icon={<GitHubMark />}
-            title="GitHub"
-            hint="Source code and releases"
           />
           <ProjectLink
             url={`${REPO}#readme`}
@@ -197,23 +202,18 @@ export default function AboutSettings() {
             hint="Ideas and new registrars welcome"
           />
           <ProjectLink
+            url={REPO}
+            icon={<GitHubMark />}
+            title="GitHub"
+            hint="Source code and releases"
+          />
+          <ProjectLink
             url="https://dombot.ai"
             icon={<Globe />}
             title="dombot.ai"
             hint="Downloads and the live demo"
           />
         </ul>
-        <p className="border-t bg-muted/40 px-6 py-3 text-xs text-muted-foreground">
-          Licensed under the{' '}
-          <button
-            type="button"
-            onClick={() => open(`${REPO}/blob/main/LICENSE`)}
-            className="underline-offset-2 hover:text-foreground hover:underline"
-          >
-            GNU AGPL v3.0
-          </button>{' '}
-          · © Aaron Oxborrow
-        </p>
       </SettingsCard>
     </div>
   );
@@ -242,7 +242,7 @@ function ProjectLink({
         <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground group-hover:text-foreground [&_svg]:size-4">
           {icon}
         </span>
-        <span className="min-w-0 flex-1 truncate text-sm">
+        <span className="min-w-0 flex-1 text-sm">
           <span className="font-medium">{title}</span>
           <span className="text-muted-foreground"> – {hint}</span>
         </span>
