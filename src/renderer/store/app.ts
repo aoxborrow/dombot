@@ -573,6 +573,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       // A name that already left the registrar, or one you added by hand, has
       // no registrar to ask.
       if (d.departed || d.source === 'imported') return false;
+      // Nor does a row without a name (core drops these; belt and braces).
+      if (!d.domainName) return false;
       // A forced refresh re-fetches on-screen rows regardless of prior state,
       // skipping only ones already in flight.
       if (force) return !enrichInFlight.has(key);
