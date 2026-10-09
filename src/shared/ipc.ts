@@ -127,6 +127,9 @@ export const IpcChannels = {
   ping: 'app:ping',
   getAppInfo: 'app:getAppInfo',
   getReleaseFeed: 'app:getReleaseFeed',
+  getUpdaterState: 'app:getUpdaterState',
+  downloadUpdate: 'app:downloadUpdate',
+  installUpdate: 'app:installUpdate',
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
   applyDomainOp: 'domain:apply',
@@ -232,6 +235,16 @@ export interface AppInfo {
   /** `process.platform` on desktop ('darwin', 'win32', 'linux', …); 'web'
    *  for a self-hosted browser instance. */
   platform: string;
+}
+
+/** The desktop app's update-on-click progress (Settings → About). */
+export interface UpdaterState {
+  /** Null when this copy can update itself; otherwise why not, shown next to
+   *  a plain download link instead. */
+  unsupportedReason: string | null;
+  status: 'idle' | 'downloading' | 'ready' | 'error';
+  /** The last download's failure, when `status` is 'error'. */
+  error: string | null;
 }
 
 /** Status of the embedded local MCP server. */
@@ -880,6 +893,13 @@ export interface DombotApi {
    * hours on the host; `force` refetches (Settings → About → Check now).
    */
   getReleaseFeed: (force: boolean) => Promise<ReleaseFeed>;
+  /** Desktop update-on-click: whether this copy can update itself, and how
+   *  far along a download is. Self-hosted and the demo can't. */
+  getUpdaterState: () => Promise<UpdaterState>;
+  /** Download the newest release; resolves when it's ready (or failed). */
+  downloadUpdate: () => Promise<UpdaterState>;
+  /** Quit and relaunch into the downloaded release. */
+  installUpdate: () => Promise<void>;
   /** Open a URL in the user's default browser. */
   openExternal: (url: string) => Promise<void>;
   /**

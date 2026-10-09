@@ -1,12 +1,20 @@
-import { useEffect, type ComponentProps, type ReactNode } from 'react';
+import {
+  useEffect,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react';
 import {
   BookOpen,
+  Download,
   Bug,
   ExternalLink,
   Globe,
   Heart,
   Lightbulb,
+  Loader2,
   RefreshCw,
+  RotateCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -16,6 +24,7 @@ import { isDemo, isWeb } from '@/lib/platform';
 import { releaseNotesUrl, updateUrl, useUpdates } from '@/lib/updates';
 import { timeAgo } from '@/lib/time';
 import { releasesNewerThan } from '../../../shared/releases';
+import type { UpdaterState } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { SettingsCard } from './SettingsCard';
 
@@ -66,6 +75,18 @@ export default function AboutSettings() {
   const releases = feed?.releases ?? [];
   const newer = current ? releasesNewerThan(releases, current) : [];
 
+  // Desktop update-on-click. The main process owns the download, so leaving
+  // and reopening this page picks its progress back up.
+  const [updater, setUpdater] = useState<UpdaterState | null>(null);
+  useEffect(() => {
+    if (!isWeb()) void window.api.getUpdaterState().then(setUpdater);
+  }, []);
+  const startUpdate = async () => {
+    setUpdater((u) => u && { ...u, status: 'downloading', error: null });
+    setUpdater(await window.api.downloadUpdate());
+  };
+  const inPlace = !isWeb() && updater !== null && !updater.unsupportedReason;
+
   let status: string;
   if (demo) status = 'The demo doesn’t check for updates.';
   else if (checking && !feed) status = 'Checking for updates…';
@@ -107,6 +128,26 @@ export default function AboutSettings() {
             >
               {status}
             </p>
+            {newer.length > 0 && updater?.status === 'error' && (
+              <p className="text-xs text-destructive">
+                The update didn’t download: {updater.error}{' '}
+                <ExtLink
+                  href={newer[0].url}
+                  className="underline underline-offset-2"
+                >
+                  Download it from GitHub
+                </ExtLink>{' '}
+                instead.
+              </p>
+            )}
+            {newer.length > 0 &&
+              !isWeb() &&
+              updater?.unsupportedReason &&
+              !demo && (
+                <p className="text-xs text-muted-foreground">
+                  {updater.unsupportedReason}
+                </p>
+              )}
             {feed?.checkedAt && !demo && (
               <p className="text-xs text-muted-foreground">
                 Last checked {timeAgo(Date.parse(feed.checkedAt))}
@@ -135,7 +176,14 @@ export default function AboutSettings() {
                   </ExtLink>
                 </Button>
               )}
-              {newer.length > 0 && (
+              {newer.length > 0 && inPlace && (
+                <UpdateButton
+                  version={newer[0].version}
+                  state={updater}
+                  onUpdate={() => void startUpdate()}
+                />
+              )}
+              {newer.length > 0 && !inPlace && (
                 <Button size="sm" asChild>
                   <ExtLink href={updateUrl(newer[0])}>
                     {isWeb() ? 'How to update' : `Download ${newer[0].version}`}
@@ -233,6 +281,38 @@ export default function AboutSettings() {
         </p>
       </SettingsCard>
     </div>
+  );
+}
+
+/** The desktop's in-place update: download, then restart into it. */
+function UpdateButton({
+  version,
+  state,
+  onUpdate,
+}: {
+  version: string;
+  state: UpdaterState | null;
+  onUpdate: () => void;
+}) {
+  if (state?.status === 'ready')
+    return (
+      <Button size="sm" onClick={() => void window.api.installUpdate()}>
+        <RotateCw className="size-3.5" />
+        Restart to update
+      </Button>
+    );
+  if (state?.status === 'downloading')
+    return (
+      <Button size="sm" disabled>
+        <Loader2 className="size-3.5 animate-spin" />
+        Downloading…
+      </Button>
+    );
+  return (
+    <Button size="sm" onClick={onUpdate}>
+      <Download className="size-3.5" />
+      Update to {version}
+    </Button>
   );
 }
 

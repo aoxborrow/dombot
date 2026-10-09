@@ -181,7 +181,14 @@ const proxyInput = z.object({
 
 export type CoreMethodName = Exclude<
   ApiMethodName,
-  'ping' | 'getAppInfo' | 'openExternal' | 'saveTextFile' | 'getMcpInfo'
+  | 'ping'
+  | 'getAppInfo'
+  | 'openExternal'
+  | 'saveTextFile'
+  | 'getMcpInfo'
+  | 'getUpdaterState'
+  | 'downloadUpdate'
+  | 'installUpdate'
 >;
 
 export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {

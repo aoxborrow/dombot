@@ -8,6 +8,7 @@ import {
   type CoreMethodName,
 } from '../core/api';
 import { getMcpInfo } from './mcp/server';
+import { downloadUpdate, getUpdaterState, installUpdate } from './updater';
 
 // The desktop host's half of the API table: methods that need Electron (a
 // native dialog, the OS browser, the local MCP server's status and approvals).
@@ -18,6 +19,10 @@ const none = z.tuple([]);
 
 const electronMethods: Omit<ApiTable, CoreMethodName> = {
   ping: method(none, async () => 'pong'),
+
+  getUpdaterState: method(none, async () => getUpdaterState()),
+  downloadUpdate: method(none, () => downloadUpdate()),
+  installUpdate: method(none, async () => installUpdate()),
 
   getAppInfo: method(none, async () => ({
     name: app.getName(),

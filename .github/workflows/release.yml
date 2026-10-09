@@ -193,13 +193,17 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          # No *.zip: the only zip is maker-zip's macOS build, which we don't ship
-          # (the .dmg is the mac download; a "darwin" .zip just confuses users).
+          # Besides the installers: what the desktop app's update-on-click
+          # reads through update.electronjs.org (src/electron/updater.ts) —
+          # maker-zip's macOS build (DomBot-darwin-<arch>-<version>.zip; the
+          # .dmg stays the download people click) and Squirrel's RELEASES +
+          # .nupkg for Windows.
           for d in out/make out/dmg; do
             if [ -d "$d" ]; then
               find "$d" -type f \
                 \( -name '*.dmg' -o -name '*.exe' \
-                   -o -name '*.deb' -o -name '*.rpm' \) \
+                   -o -name '*.deb' -o -name '*.rpm' \
+                   -o -name '*.zip' -o -name '*.nupkg' -o -name RELEASES \) \
                 -exec cp {} dist/ \;
             fi
           done

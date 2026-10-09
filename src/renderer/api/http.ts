@@ -253,6 +253,9 @@ export function createHttpApi(): DombotApi {
     ping: m<string>('ping'),
     getAppInfo: m('getAppInfo'),
     getReleaseFeed: m('getReleaseFeed'),
+    getUpdaterState: m('getUpdaterState'),
+    downloadUpdate: m('downloadUpdate'),
+    installUpdate: m('installUpdate'),
     openExternal: async (url) => openExternalInBrowser(url),
     saveTextFile: async (content, suggestedName) =>
       saveTextFileInBrowser(content, suggestedName),
