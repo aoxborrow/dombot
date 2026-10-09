@@ -2,7 +2,8 @@ import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CircleAlert, RefreshCw } from 'lucide-react';
+import { ArrowUpCircle, CircleAlert, RefreshCw } from 'lucide-react';
+import { useAvailableUpdate } from '../lib/updates';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
@@ -51,6 +52,7 @@ export default function StatusBar() {
   return (
     <footer className="relative z-40 flex h-8 shrink-0 items-center justify-between gap-4 border-t bg-background px-4 text-xs text-muted-foreground select-none">
       <div className="flex items-center gap-4">
+        <UpdateHint />
         {isWeb() && <SessionStatus />}
         <button
           type="button"
@@ -286,5 +288,26 @@ function SessionStatus() {
       {dot}
       {link('Sign out', () => void signOut())}
     </span>
+  );
+}
+
+/** A quiet "update available" at the far left, linking to Settings → About.
+ *  Unlike the banner it can't be dismissed: it stays until the update is
+ *  installed (or update checks are turned off). */
+function UpdateHint() {
+  const navigate = useNavigate();
+  const update = useAvailableUpdate();
+  if (!update) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => navigate('/settings?tab=about&notes=1')}
+      className="inline-flex items-center gap-1.5 rounded-sm font-medium text-brand hover:brightness-125"
+      title={`DomBot ${update.latest.version} is available — you have ${update.current}`}
+    >
+      <ArrowUpCircle className="size-3.5" aria-hidden />
+      <span className="sm:hidden">Update</span>
+      <span className="max-sm:hidden">Update available</span>
+    </button>
   );
 }

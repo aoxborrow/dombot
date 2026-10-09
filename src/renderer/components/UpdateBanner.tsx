@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowUpCircle, PartyPopper, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isWeb } from '@/lib/platform';
-import { bannerState, openUpdate, useUpdates } from '@/lib/updates';
+import {
+  bannerState,
+  openUpdate,
+  releasePage,
+  useUpdates,
+} from '@/lib/updates';
 import { useAppStore } from '../store/app';
 
 /** How often an open window asks whether its weekly check is due. */
@@ -12,7 +17,8 @@ const POLL_MS = 6 * 60 * 60 * 1000;
 /**
  * The strip across the top that says a newer DomBot is out (with its notes
  * and how to get it), or, once, that this device is now on a newer version.
- * Dismissing hides it until the next release.
+ * Dismissing hides it until the next release. It also runs the weekly check,
+ * since it's mounted for the app's whole life outside the demo.
  */
 export default function UpdateBanner() {
   const navigate = useNavigate();
@@ -47,9 +53,13 @@ export default function UpdateBanner() {
   );
   if (!state || !current) return null;
 
+  // About lists only releases not installed yet, so the notes for the one
+  // just installed open on GitHub.
   const showNotes = () => {
-    if (state.kind === 'updated') markSeen(current);
-    navigate('/settings?tab=about');
+    if (state.kind === 'updated') {
+      markSeen(current);
+      void window.api.openExternal(releasePage(current, feed?.releases));
+    } else navigate('/settings?tab=about&notes=1');
   };
   const close = () =>
     state.kind === 'available'

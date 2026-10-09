@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { History } from 'lucide-react';
+import { ArrowUpCircle, History } from 'lucide-react';
 import { BellIcon } from '@heroicons/react/24/outline';
 import { toUnicode } from '../../../shared/domain-name';
 import {
@@ -13,6 +13,7 @@ import { accountName } from '../../lib/domain-history';
 import { syncProblems } from '../../lib/activity';
 import { timeAgo } from '../../lib/time';
 import { useAppStore } from '../../store/app';
+import { useAvailableUpdate, useUpdates } from '../../lib/updates';
 import { EventTypeBadge } from './EventTypeBadge';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -31,6 +32,8 @@ const SHOWN = 10;
  * names removed from a registrar, then names added, newest first. It only
  * tells you; the actions are on the Activity page, which a row opens filtered
  * to that name. The badge counts everything and takes the most severe color.
+ * A newer DomBot release sits on top in green; it counts toward the badge only
+ * until the bell has been opened once for that release, so it never nags.
  */
 export function ActivityBell() {
   const events = useAppStore((s) => s.domainEvents);
@@ -42,13 +45,25 @@ export function ActivityBell() {
     () => notifications(events, problems),
     [events, problems],
   );
+  const update = useAvailableUpdate();
+  const bellSeen = useUpdates((s) => s.bellSeen);
+  const markBellSeen = useUpdates((s) => s.markBellSeen);
+  const unseenUpdate = update !== null && bellSeen !== update.latest.version;
   const badge = notificationBadge(list);
-  const count = badge?.count ?? 0;
+  const count = (badge?.count ?? 0) + (unseenUpdate ? 1 : 0);
+  // The worst severity's color, or green when the update is all there is.
+  const countColor = badge
+    ? SEVERITY_COUNT[badge.severity]
+    : 'bg-brand text-white';
   const reviews = list.filter((n) => n.severity !== 'error').length;
   const close = () => setOpen(false);
+  const onOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next && update) markBellSeen(update.latest.version);
+  };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -63,14 +78,14 @@ export function ActivityBell() {
           }
         >
           <BellIcon className="size-5" />
-          {badge && (
+          {count > 0 && (
             <span
               className={cn(
                 'absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums',
-                SEVERITY_COUNT[badge.severity],
+                countColor,
               )}
             >
-              {badge.count}
+              {count}
             </span>
           )}
         </button>
@@ -105,7 +120,28 @@ export function ActivityBell() {
           </Link>
         </div>
 
-        {list.length === 0 ? (
+        {update && (
+          <Link
+            to="/settings?tab=about&notes=1"
+            onClick={close}
+            className="flex items-center gap-2 border-b bg-brand/[0.06] px-3 py-2 text-sm hover:bg-brand/10"
+            title={`You have ${update.current}`}
+          >
+            <ArrowUpCircle className="size-4 shrink-0 text-brand" aria-hidden />
+            <span className="min-w-0 flex-1 truncate">
+              <span className="font-medium text-brand">
+                DomBot {update.latest.version}
+              </span>{' '}
+              <span className="text-muted-foreground">is available</span>
+            </span>
+            {update.latest.publishedAt && (
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {timeAgo(Date.parse(update.latest.publishedAt))}
+              </span>
+            )}
+          </Link>
+        )}
+        {list.length === 0 && update ? null : list.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">
             Nothing needs your attention.
           </p>

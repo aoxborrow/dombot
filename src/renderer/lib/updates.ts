@@ -6,7 +6,8 @@ import {
   type Release,
   type ReleaseFeed,
 } from '../../shared/releases';
-import { isWeb } from './platform';
+import { isDemo, isWeb } from './platform';
+import { useAppStore } from '../store/app';
 
 // The release feed in the renderer, plus what this device remembers between
 // launches: the last list fetched, when it last checked on its own, the
@@ -25,6 +26,7 @@ const FEED_KEY = 'dombot-release-feed';
 const AUTO_CHECKED_KEY = 'dombot-update-checked';
 const DISMISSED_KEY = 'dombot-update-dismissed';
 const LAST_SEEN_KEY = 'dombot-last-seen-version';
+const BELL_SEEN_KEY = 'dombot-update-bell-seen';
 
 function read(key: string): string | null {
   try {
@@ -68,12 +70,15 @@ interface UpdatesState {
   dismissed: string | null;
   /** The version this device last ran, for the "updated" note. */
   lastSeen: string | null;
+  /** The newest release the bell's badge has already counted. */
+  bellSeen: string | null;
   /** Fetch the feed now (`force` skips the host's few-hour cache). */
   check: (force?: boolean) => Promise<void>;
   /** Check if this device hasn't in a week; otherwise do nothing. */
   autoCheck: () => Promise<void>;
   dismiss: (version: string) => void;
   markSeen: (version: string) => void;
+  markBellSeen: (version: string) => void;
 }
 
 export const useUpdates = create<UpdatesState>((set, get) => ({
@@ -81,6 +86,7 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
   checking: false,
   dismissed: read(DISMISSED_KEY),
   lastSeen: read(LAST_SEEN_KEY),
+  bellSeen: read(BELL_SEEN_KEY),
   check: async (force = false) => {
     set({ checking: true });
     try {
@@ -122,7 +128,34 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
     write(LAST_SEEN_KEY, version);
     set({ lastSeen: version });
   },
+  markBellSeen: (version) => {
+    write(BELL_SEEN_KEY, version);
+    set({ bellSeen: version });
+  },
 }));
+
+/** A newer release than the one running, for the banner, the footer and the
+ *  bell to share. Null in the demo, with update checks off, or when current. */
+export function useAvailableUpdate(): {
+  current: string;
+  latest: Release;
+  newer: Release[];
+} | null {
+  const current = useAppStore((s) => s.appInfo?.version);
+  const updateChecks = useAppStore((s) => s.settings?.updateChecks);
+  const releases = useUpdates((s) => s.feed?.releases);
+  if (isDemo() || !updateChecks || !current || !releases) return null;
+  const newer = releasesNewerThan(releases, current);
+  return newer.length ? { current, latest: newer[0], newer } : null;
+}
+
+/** The GitHub release page for a version, from the feed when it's listed. */
+export function releasePage(version: string, releases: Release[] = []): string {
+  return (
+    releases.find((r) => r.version === version)?.url ??
+    `https://github.com/aoxborrow/dombot/releases/tag/v${version}`
+  );
+}
 
 /** What the banner should say, if anything. */
 export type BannerState =

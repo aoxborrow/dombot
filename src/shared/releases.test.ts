@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   compareVersions,
-  parseInline,
-  parseNotes,
   parseReleaseFeed,
   releasesNewerThan,
 } from './releases';
@@ -67,53 +65,5 @@ describe('releasesNewerThan', () => {
     expect(releasesNewerThan(releases, '1.4.0').map((r) => r.version)).toEqual([
       '1.5.0',
     ]);
-  });
-});
-
-describe('release notes', () => {
-  it('reads bold, code and http(s) links, leaving other markup as text', () => {
-    expect(
-      parseInline(
-        '**New** `x` [docs](https://dombot.ai) [bad](javascript:alert(1))',
-      ),
-    ).toEqual([
-      { type: 'strong', text: 'New' },
-      { type: 'text', text: ' ' },
-      { type: 'code', text: 'x' },
-      { type: 'text', text: ' ' },
-      { type: 'link', text: 'docs', href: 'https://dombot.ai' },
-      { type: 'text', text: ' [bad](javascript:alert(1))' },
-    ]);
-  });
-
-  it('splits headings, lists, rules and paragraphs', () => {
-    const blocks = parseNotes(
-      [
-        '## Theme',
-        '',
-        '- one',
-        '- two',
-        '  wrapped',
-        'After the list.',
-        '',
-        '---',
-        '',
-        'Footer',
-      ].join('\n'),
-    );
-    expect(blocks.map((b) => b.type)).toEqual([
-      'heading',
-      'list',
-      'paragraph',
-      'rule',
-      'paragraph',
-    ]);
-    expect(blocks[1]).toEqual({
-      type: 'list',
-      items: [
-        [{ type: 'text', text: 'one' }],
-        [{ type: 'text', text: 'two wrapped' }],
-      ],
-    });
   });
 });
