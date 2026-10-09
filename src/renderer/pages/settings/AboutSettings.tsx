@@ -1,6 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
 import {
-  ArrowUpRight,
   BookOpen,
   Bug,
   ExternalLink,
@@ -164,8 +163,8 @@ export default function AboutSettings() {
         )}
       </SettingsCard>
 
-      <SettingsCard title="About DomBot" contentClassName="p-0!">
-        <p className="border-b px-6 py-4 text-sm text-muted-foreground">
+      <SettingsCard title="About DomBot" contentClassName="flex flex-col gap-3">
+        <p className="text-sm text-muted-foreground">
           DomBot is free and open-source software, released under the{' '}
           <button
             type="button"
@@ -174,9 +173,12 @@ export default function AboutSettings() {
           >
             GNU AGPL v3.0
           </button>
-          . <span className="whitespace-nowrap">© Aaron Oxborrow</span>
+          . <span className="whitespace-nowrap">© 2026 Aaron Oxborrow</span> and
+          contributors.
         </p>
-        <ul className="divide-y">
+        {/* Pulled out a little so the rows' hover fill has room, while the
+            dividers stop short of the card's edges. */}
+        <ul className="-mx-3 divide-y divide-border/60">
           <ProjectLink
             url={SPONSOR}
             icon={<Heart className="fill-pink-500 text-pink-500" />}
@@ -237,7 +239,7 @@ function ProjectLink({
       <button
         type="button"
         onClick={() => open(url)}
-        className="group flex w-full items-center gap-3 px-6 py-2.5 text-left hover:bg-foreground/[0.04]"
+        className="group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-foreground/[0.04]"
       >
         <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground group-hover:text-foreground [&_svg]:size-4">
           {icon}
@@ -246,7 +248,10 @@ function ProjectLink({
           <span className="font-medium">{title}</span>
           <span className="text-muted-foreground"> – {hint}</span>
         </span>
-        <ArrowUpRight className="size-4 shrink-0 text-muted-foreground/50 group-hover:text-foreground" />
+        <ExternalLink
+          className="size-3.5 shrink-0 text-muted-foreground/60 group-hover:text-foreground"
+          aria-hidden
+        />
       </button>
     </li>
   );
