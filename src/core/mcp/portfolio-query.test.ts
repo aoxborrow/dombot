@@ -423,6 +423,13 @@ describe('imported names', () => {
     expect(names({ locked: false })).toEqual(['synced.com']);
     expect(names({ privacy: false })).toEqual(['synced.com']);
   });
+
+  it('never matches an account filter, even on a shared registrar id', () => {
+    const names = (args: QueryArgs) => rows(args).map((r) => r.domainName);
+    // A legacy account's id is its registrar id; gandi.net is imported at gandi.
+    expect(names({ accountId: 'gandi' })).toEqual([]);
+    expect(names({ accountId: 'dynadot' })).toEqual(['synced.com']);
+  });
 });
 
 describe('money, notes and prices on rows', () => {

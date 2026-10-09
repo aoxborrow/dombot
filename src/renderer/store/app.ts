@@ -406,15 +406,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   applyPortfolioCacheUpdate: async () => {
-    // DomBot's own data isn't cache: an MCP tool can change folders, notes,
-    // prices, imported names or an account's enabled state before the
-    // portfolio has ever loaded, so re-read it all unconditionally. Each is a
-    // local read, no network.
+    // DomBot's own data isn't cache: an MCP tool can change history, folders,
+    // notes, prices, imported names (read with the events) or an account's
+    // enabled state before the portfolio has ever loaded, so re-read it all
+    // unconditionally. Each is a local read, no network.
     const local = Promise.all([
+      get().loadDomainEvents(),
       get().loadFolders(),
       get().loadPurchases(),
       get().loadListPrices(),
-      get().loadImportedDomains(),
       get().loadPricing(),
       get().loadRegistrars(),
     ]).then(() => undefined);
@@ -456,7 +456,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         enriched,
       };
     });
-    await get().loadDomainEvents();
     await local;
   },
 

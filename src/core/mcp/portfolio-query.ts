@@ -263,7 +263,13 @@ export function queryPortfolio(
     const label = labelOf(d);
     if (scope === 'owned' && label) return false;
     if (scope === 'archive' && !label) return false;
-    if (args.accountId && (d.accountId ?? d.registrar) !== args.accountId)
+    // An imported name is at no account, even when its registrar id matches
+    // a legacy account id.
+    if (
+      args.accountId &&
+      (d.source === 'imported' ||
+        (d.accountId ?? d.registrar) !== args.accountId)
+    )
       return false;
     if (args.registrar != null && d.registrar !== args.registrar) return false;
     if (args.source != null && d.source !== args.source) return false;
