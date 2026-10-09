@@ -5,7 +5,7 @@ import type {
   ImportOutcome,
   ImportPlan,
   ImportRow,
-  ManualDomain,
+  ImportedDomain,
 } from '../../shared/ipc';
 import { HIDDEN_FOLDER_ID, builtInFolderName } from '../../shared/ipc';
 import { sameListPrice, toListPrice } from '../../shared/list-prices';
@@ -34,10 +34,10 @@ import { lastSyncedNames } from './domain-history';
 import { assignFolders, createFolder, getFolders } from './folders';
 import {
   cleanFields,
-  getManualDomains,
+  getImportedDomains,
   isKnownRegistrar,
-  putManualDomains,
-} from './manual-domains';
+  putImportedDomains,
+} from './imported-domains';
 import { getManualPrices, setManualPrices } from './pricing';
 import { holdings } from './purchases';
 import { getCachedPortfolio } from './registrars';
@@ -51,7 +51,7 @@ import { listAccounts } from './accounts';
 // - a blank (absent) field keeps what's stored, and a zero amount clears it;
 // - names missing from the file are left alone, and nothing is deleted, but
 //   a sale replaces your Dropped or Archived label, as Mark as Sold does;
-// - a new manual name waits for review like a sync arrival, even with a
+// - a new imported name waits for review like a sync arrival, even with a
 //   purchase in its row;
 // - a value in the file replaces what DomBot has;
 // - the row's Status decides Owned or Archive. With no Status a name stays
@@ -91,7 +91,7 @@ const listPriceText = (p: ListPrice | null | undefined) =>
 
 /** What an apply writes, gathered while planning. */
 interface Writes {
-  manual: [string, ManualDomain][];
+  imported: [string, ImportedDomain][];
   events: DomainEvent[];
   deleteEvents: string[];
   notes: [string, string][];
@@ -108,7 +108,7 @@ function compute(
   now: number,
 ): { plan: ImportPlan; writes: Writes } {
   const writes: Writes = {
-    manual: [],
+    imported: [],
     events: [],
     deleteEvents: [],
     notes: [],
@@ -118,7 +118,7 @@ function compute(
   };
 
   // The data as it stands.
-  // Every account you have, enabled or not: a name one holds isn't manual.
+  // Every account you have, enabled or not: a name one holds isn't imported.
   const accounts = listAccounts();
   const held = lastSyncedNames(accounts.map((a) => a.id));
   for (const d of getCachedPortfolio()?.domains ?? [])
@@ -127,7 +127,7 @@ function compute(
     const a = accounts.find((x) => x.id === id);
     return a ? a.label || a.registrar : id;
   };
-  const manual = getManualDomains();
+  const imported = getImportedDomains();
   const events = listEvents();
   const ownership = ownershipByDomain(events);
   const resolved = resolvedIds(events);
@@ -168,7 +168,7 @@ function compute(
       });
 
     const account = held.get(key);
-    const isManual = manual[key];
+    const entry = imported[key];
     const own = ownership.get(key);
     const label = own?.label ?? null;
     const userLabel = label && label !== 'removed' ? own!.event : null;
@@ -220,28 +220,28 @@ function compute(
         warnings.push(
           `${accountName(account)} reports this name, so its registrar details come from there.`,
         );
-    } else if (isManual) {
-      const next: ManualDomain = { ...isManual };
+    } else if (entry) {
+      const next: ImportedDomain = { ...entry };
       for (const f of regFields) {
-        if (fields[f] === isManual[f]) continue;
+        if (fields[f] === entry[f]) continue;
         // A known registrar replaces a typed one, and the other way round.
         if (f === 'registrarLabel' && fields.registrar) continue;
         (next as unknown as Record<string, unknown>)[f] = fields[f];
         change(
           f === 'registrarLabel' ? 'Registrar' : FIELD_LABEL[f],
-          isManual[f],
+          entry[f],
           fields[f],
         );
       }
       // A known registrar has no typed label.
       if (next.registrar) next.registrarLabel = null;
       if (changes.length > 0)
-        writes.manual.push([key, { ...next, updatedAt: now }]);
+        writes.imported.push([key, { ...next, updatedAt: now }]);
     } else {
       const endsOwned = !toArchive && (!userLabel || moveBack);
       if (endsOwned) {
         created = true;
-        writes.manual.push([
+        writes.imported.push([
           key,
           {
             registrar: fields.registrar ?? null,
@@ -589,7 +589,7 @@ function compute(
         ? 'new'
         : changes.length === 0
           ? 'unchanged'
-          : !account && !isManual
+          : !account && !entry
             ? 'history'
             : 'update',
       changes,
@@ -628,7 +628,7 @@ export function importDomains(
 ): ImportPlan & { importId: string } {
   const { plan, writes } = compute(rows, options.importId, Date.now());
 
-  putManualDomains(writes.manual);
+  putImportedDomains(writes.imported);
   if (writes.deleteEvents.length > 0) deleteDomainEvents(writes.deleteEvents);
   if (writes.events.length > 0) putEvents(writes.events);
   setNameNotes(writes.notes);

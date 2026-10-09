@@ -82,7 +82,7 @@ export function RowActionsMenu({
   onEditPurchase: () => void;
   onEditSale: () => void;
   onEditListPrice: () => void;
-  /** A manual name: edit its registrar, dates, and auto-renew. */
+  /** An imported name: edit its registrar, dates, and auto-renew. */
   onEditDetails: () => void;
   onAssignFolder: (folderId: string | null) => void;
   /** Why the name is in Archive, or null while you own it. */
@@ -98,9 +98,9 @@ export function RowActionsMenu({
   const labeled =
     archive === 'sold' || archive === 'dropped' || archive === 'archived';
   const key = domainKey(domain);
-  // A manual name isn't at a connected account: registrar actions can't run.
-  const manualReason =
-    domain.source === 'manual'
+  // An imported name isn't at a connected account: registrar actions can't run.
+  const importedReason =
+    domain.source === 'imported'
       ? 'Added by you. No connected account holds this name.'
       : null;
   const pending = useAppStore((s) => s.mutating[key] ?? false);
@@ -150,7 +150,7 @@ export function RowActionsMenu({
         {/* Registrar and organizing actions: only for a name you own. */}
         {archive === null && (
           <>
-            {domain.source === 'manual' ? (
+            {domain.source === 'imported' ? (
               <DropdownMenuItem onSelect={onEditDetails}>
                 <PencilLine className="text-muted-foreground" />
                 Edit details<span className="-ml-[6px] opacity-50">…</span>
@@ -177,16 +177,16 @@ export function RowActionsMenu({
             </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              disabled={manualReason !== null || urlReason !== null}
-              title={manualReason ?? urlReason ?? undefined}
+              disabled={importedReason !== null || urlReason !== null}
+              title={importedReason ?? urlReason ?? undefined}
               onSelect={onUrlForwarding}
             >
               <Link2 className="text-muted-foreground" />
               URL forwarding<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={manualReason !== null || emailReason !== null}
-              title={manualReason ?? emailReason ?? undefined}
+              disabled={importedReason !== null || emailReason !== null}
+              title={importedReason ?? emailReason ?? undefined}
               onSelect={onEmailForwarding}
             >
               <Mail className="text-muted-foreground" />
@@ -194,16 +194,16 @@ export function RowActionsMenu({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              disabled={manualReason !== null || renewReason !== null}
-              title={manualReason ?? renewReason ?? undefined}
+              disabled={importedReason !== null || renewReason !== null}
+              title={importedReason ?? renewReason ?? undefined}
               onSelect={onRenew}
             >
               <CalendarPlus className="text-muted-foreground" />
               Renew<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={manualReason !== null || authReason !== null}
-              title={manualReason ?? authReason ?? undefined}
+              disabled={importedReason !== null || authReason !== null}
+              title={importedReason ?? authReason ?? undefined}
               onSelect={onAuthCode}
             >
               <KeyRound className="text-muted-foreground" />

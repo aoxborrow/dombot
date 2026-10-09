@@ -79,7 +79,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 
 // Import domains (docs/domain-import-export.md, "The Import domains dialog"):
-// two tabs. Manual takes typed names plus an asking price and folder for all
+// two tabs. Enter names takes typed names plus an asking price and folder for all
 // of them; CSV upload takes a file and matches its columns. Both then review
 // every change before importing. Reading and matching happen here, so the
 // file never leaves the device; the server previews and writes the
@@ -102,10 +102,10 @@ const paint = () =>
   new Promise<void>((resolve) =>
     requestAnimationFrame(() => setTimeout(resolve, 0)),
   );
-type Source = 'manual' | 'file';
+type Source = 'typed' | 'file';
 
-/** What the Manual tab applies to every name it adds. */
-interface ManualFields {
+/** What the Enter names tab applies to every name it adds. */
+interface TypedFields {
   names: string;
   amount: string;
   minOffer: string;
@@ -204,8 +204,8 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
   const [setup, setSetup] = useState<ImportSetup | null>(null);
   const [built, setBuilt] = useState<BuiltRows | null>(null);
   const [plan, setPlan] = useState<ImportPlan | null>(null);
-  const [source, setSource] = useState<Source>('manual');
-  const [manual, setManual] = useState<ManualFields>({
+  const [source, setSource] = useState<Source>('typed');
+  const [typed, setTyped] = useState<TypedFields>({
     names: '',
     amount: '',
     minOffer: '',
@@ -277,10 +277,10 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
   }
 
   /**
-   * The Manual tab as a table DomBot's import reads: one row per name, with
+   * The Enter names tab as a table DomBot's import reads: one row per name, with
    * the same asking price and folder on each.
    */
-  async function addManual() {
+  async function addTyped() {
     setError(null);
     const formatId = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
     let amount: string | null;
@@ -288,20 +288,20 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
     let floor: string | null;
     try {
       amount = parseLocalizedAmount(
-        manual.amount,
-        manual.currency,
+        typed.amount,
+        typed.currency,
         formatId,
         'BIN price',
       );
       minOffer = parseLocalizedAmount(
-        manual.minOffer,
-        manual.currency,
+        typed.minOffer,
+        typed.currency,
         formatId,
         'Minimum offer',
       );
       floor = parseLocalizedAmount(
-        manual.floor,
-        manual.currency,
+        typed.floor,
+        typed.currency,
         formatId,
         'Floor price',
       );
@@ -320,8 +320,8 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
       setError('The floor price is above the BIN price.');
       return;
     }
-    const names = splitNames(manual.names);
-    const folder = manual.folder.trim();
+    const names = splitNames(typed.names);
+    const folder = typed.folder.trim();
     const t: ImportTable = {
       headers: [
         'Domain',
@@ -338,7 +338,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
           amount ?? '',
           minOffer ?? '',
           floor ?? '',
-          amount || minOffer || floor ? manual.currency : '',
+          amount || minOffer || floor ? typed.currency : '',
           folder,
         ],
       })),
@@ -358,13 +358,13 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
       datesAmbiguous: false,
       defaults: {
         registrar: null,
-        currency: manual.currency,
+        currency: typed.currency,
         folder: null,
         status: null,
         purchaseType: null,
       },
     };
-    setSource('manual');
+    setSource('typed');
     setFileName(null);
     setTable(t);
     setSetup(s);
@@ -484,7 +484,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
 
   const description =
     step === 'choose'
-      ? source === 'manual'
+      ? source === 'typed'
         ? 'Type or paste names. The price and folder below apply to every one.'
         : 'Upload a spreadsheet of your names, with any details it has.'
       : step === 'match'
@@ -528,7 +528,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
           <DialogTitle>Import domains</DialogTitle>
           <Stepper
             steps={
-              source === 'manual'
+              source === 'typed'
                 ? ['Add names', 'Review', 'Done']
                 : ['Upload', 'Match columns', 'Review', 'Done']
             }
@@ -538,10 +538,10 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
                 : step === 'match'
                   ? 1
                   : step === 'review'
-                    ? source === 'manual'
+                    ? source === 'typed'
                       ? 1
                       : 2
-                    : source === 'manual'
+                    : source === 'typed'
                       ? 2
                       : 3
             }
@@ -571,19 +571,19 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
                 variant="line"
                 className="w-full justify-start border-b"
               >
-                <TabsTrigger value="manual" className="gap-2">
+                <TabsTrigger value="typed" className="gap-2">
                   <Pencil className="size-4" />
-                  Manual
+                  Enter names
                 </TabsTrigger>
                 <TabsTrigger value="file" className="gap-2">
                   <Upload className="size-4" />
                   CSV upload
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="manual">
-                <ManualTab
-                  fields={manual}
-                  onChange={(patch) => setManual((m) => ({ ...m, ...patch }))}
+              <TabsContent value="typed">
+                <TypedTab
+                  fields={typed}
+                  onChange={(patch) => setTyped((m) => ({ ...m, ...patch }))}
                   folders={folders}
                   placeholder="0"
                 />
@@ -792,15 +792,15 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
               )}
             </div>
             <div className="ml-auto flex gap-2">
-              {step === 'choose' && source === 'manual' && (
+              {step === 'choose' && source === 'typed' && (
                 <Button
                   type="button"
-                  disabled={busy || splitNames(manual.names).length === 0}
-                  onClick={() => void addManual()}
+                  disabled={busy || splitNames(typed.names).length === 0}
+                  onClick={() => void addTyped()}
                 >
                   {busy
                     ? 'Reading…'
-                    : `Review ${splitNames(manual.names).length.toLocaleString('en-US')} name${splitNames(manual.names).length === 1 ? '' : 's'}`}
+                    : `Review ${splitNames(typed.names).length.toLocaleString('en-US')} name${splitNames(typed.names).length === 1 ? '' : 's'}`}
                 </Button>
               )}
               {step === 'match' && (
@@ -949,7 +949,7 @@ function message(err: unknown): string {
 
 // ── match ───────────────────────────────────────────────────────────────────
 
-/** TEMP (dev builds only): `count` made-up names for the Manual tab. */
+/** TEMP (dev builds only): `count` made-up names for the Enter names tab. */
 function sampleNames(count: number): string[] {
   const a = [
     'swift',
@@ -992,14 +992,14 @@ function sampleNames(count: number): string[] {
  * Names typed or pasted, plus what to apply to all of them: an asking price
  * (with minimum offer and floor) and a folder.
  */
-function ManualTab({
+function TypedTab({
   fields,
   onChange,
   folders,
   placeholder,
 }: {
-  fields: ManualFields;
-  onChange: (patch: Partial<ManualFields>) => void;
+  fields: TypedFields;
+  onChange: (patch: Partial<TypedFields>) => void;
   folders: Folder[];
   /** A zero in the number format and currency, e.g. "0.00". */
   placeholder: string;
@@ -1089,9 +1089,9 @@ function ManualTab({
         </div>
       </div>
       <div className="flex flex-col gap-2 sm:w-1/2">
-        <Label htmlFor="import-manual-folder">Folder</Label>
+        <Label htmlFor="import-typed-folder">Folder</Label>
         <FolderSelect
-          id="import-manual-folder"
+          id="import-typed-folder"
           value={fields.folder}
           onChange={(folder) => onChange({ folder })}
           folders={folders}

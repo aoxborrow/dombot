@@ -5,6 +5,7 @@ import {
   DomainEventType,
   localDay,
   type DomainEvent,
+  type UserSource,
 } from '../../shared/domain-events';
 import type { CurrencyCode } from '../../shared/currencies';
 import { ownershipByDomain } from '../../shared/ownership';
@@ -23,7 +24,7 @@ import {
 import { assignFolder } from './folders';
 import { setManualPrice } from './pricing';
 import { deleteListPrices } from './list-prices';
-import { removeManualDomains, takeOverManual } from './manual-domains';
+import { removeImportedDomains, takeOverImported } from './imported-domains';
 import { Namespace } from '../storage/namespace';
 
 // Ownership history on top of the event log: what sync saw, and what you say
@@ -100,9 +101,9 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
     newEvent,
   );
   const { newlyTracked } = diff;
-  // A manual name an account now reports isn't a new arrival: sync takes it
+  // An imported name an account now reports isn't a new arrival: sync takes it
   // over with a `moved` from no account, on the account's first sync too.
-  const takeover = takeOverManual(
+  const takeover = takeOverImported(
     after.filter((h) => h.synced),
     now,
   );
@@ -271,12 +272,14 @@ function dayOf(date: string | null | undefined, label: string): string {
  * Mark names Dropped or Archived, in one write: they move to Archive whatever
  * their registration status. Each `resolves` closes the sync alert it answers.
  * A name already in that state is left as is; one you'd labeled otherwise
- * gets the new label in place of the old (see replaceLabel).
+ * gets the new label in place of the old (see replaceLabel). `source` is
+ * `agent` when an MCP client asked.
  */
 export function setDispositions(
   items: OwnershipItem[],
   type: typeof DomainEventType.Dropped | typeof DomainEventType.Archived,
   date?: string | null,
+  source: UserSource = DomainEventSource.User,
 ): DomainEvent[] {
   const day = dayOf(date, 'Date');
   const now = Date.now();
@@ -291,7 +294,7 @@ export function setDispositions(
         {
           domain,
           type,
-          source: DomainEventSource.User,
+          source,
           date: day,
           ...(resolves ? { resolves } : {}),
         },
@@ -369,6 +372,6 @@ export function deleteDomains(domainNames: string[]): void {
     assignFolder(domain, null);
     setManualPrice(domain, null);
     deleteListPrices([domain]);
-    removeManualDomains([domain]);
+    removeImportedDomains([domain]);
   }
 }

@@ -182,8 +182,8 @@ export const importApply = z
   .object({ importId: z.string().min(1).max(80) })
   .strict();
 
-/** A manual name's registration fields, as edited. */
-export const manualDomainFields = z
+/** An imported name's registration fields, as edited. */
+export const importedDomainFields = z
   .object({
     registrar: z.string().max(40).nullable(),
     registrarLabel: z.string().max(100).nullable(),

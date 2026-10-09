@@ -144,9 +144,9 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.previewDomainImport, rows),
   importDomains: (rows, options) =>
     ipcRenderer.invoke(IpcChannels.importDomains, rows, options),
-  getManualDomains: () => ipcRenderer.invoke(IpcChannels.getManualDomains),
-  updateManualDomain: (domainName, fields) =>
-    ipcRenderer.invoke(IpcChannels.updateManualDomain, domainName, fields),
+  getImportedDomains: () => ipcRenderer.invoke(IpcChannels.getImportedDomains),
+  updateImportedDomain: (domainName, fields) =>
+    ipcRenderer.invoke(IpcChannels.updateImportedDomain, domainName, fields),
   getListPrices: () => ipcRenderer.invoke(IpcChannels.getListPrices),
   setListPrices: (inputs) =>
     ipcRenderer.invoke(IpcChannels.setListPrices, inputs),

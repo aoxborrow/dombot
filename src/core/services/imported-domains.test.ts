@@ -13,10 +13,10 @@ import { clearAll } from './cache';
 import { listEvents } from './domain-events';
 import { deleteDomains, recordSync } from './domain-history';
 import {
-  addManualDomains,
-  getManualDomains,
-  updateManualDomain,
-} from './manual-domains';
+  addImportedDomains,
+  getImportedDomains,
+  updateImportedDomain,
+} from './imported-domains';
 import { getPortfolioPricing } from './registrars';
 import { setManualPrice } from './pricing';
 
@@ -38,9 +38,9 @@ const open = () => {
   return events.filter((e) => isOpenAlert(e, resolved));
 };
 
-describe('manual domains', () => {
+describe('imported domains', () => {
   it('adds names with their fields, each waiting for review like an arrival', async () => {
-    const added = addManualDomains(
+    const added = addImportedDomains(
       [
         {
           domainName: 'Münich.DE',
@@ -55,7 +55,7 @@ describe('manual domains', () => {
       { source: 'import', importId: 'imp1' },
     );
     expect(added).toEqual(['xn--mnich-kva.de', 'epik-name.com']);
-    expect(getManualDomains()).toMatchObject({
+    expect(getImportedDomains()).toMatchObject({
       'xn--mnich-kva.de': {
         registrar: 'dynadot',
         registrarLabel: null,
@@ -73,22 +73,22 @@ describe('manual domains', () => {
     );
     // A second add of the same name changes nothing.
     expect(
-      addManualDomains([{ domainName: 'epik-name.com' }], { source: 'user' }),
+      addImportedDomains([{ domainName: 'epik-name.com' }], { source: 'user' }),
     ).toEqual([]);
     clearAll();
     await flushWrites();
-    expect(Object.keys(await store.list('manual-domains'))).toHaveLength(2);
+    expect(Object.keys(await store.list('imported-domains'))).toHaveLength(2);
   });
 
   it('refuses an unknown registrar id and a bad date', () => {
     expect(() =>
-      addManualDomains(
+      addImportedDomains(
         [{ domainName: 'a.com', fields: { registrar: 'nope' } }],
         { source: 'user' },
       ),
     ).toThrow('Unknown registrar nope.');
     expect(() =>
-      addManualDomains(
+      addImportedDomains(
         [{ domainName: 'a.com', fields: { expirationDate: '2027-02-30' } }],
         { source: 'user' },
       ),
@@ -96,8 +96,8 @@ describe('manual domains', () => {
   });
 
   it('edits the registration fields', () => {
-    addManualDomains([{ domainName: 'a.com' }], { source: 'user' });
-    const next = updateManualDomain('a.com', {
+    addImportedDomains([{ domainName: 'a.com' }], { source: 'user' });
+    const next = updateImportedDomain('a.com', {
       registrar: null,
       registrarLabel: 'Sav',
       createdDate: '2020-01-01',
@@ -110,46 +110,48 @@ describe('manual domains', () => {
       autoRenew: false,
       updatedAt: expect.any(Number),
     });
-    expect(() => updateManualDomain('b.com', {})).toThrow("isn't a manual");
+    expect(() => updateImportedDomain('b.com', {})).toThrow(
+      "isn't an imported",
+    );
   });
 
   it('takes a name that left an account back without a new review', () => {
     recordSync(holding(['a.com']));
     recordSync(holding([]));
     expect(open().map((e) => e.type)).toEqual(['removed']);
-    addManualDomains([{ domainName: 'a.com' }], { source: 'import' });
+    addImportedDomains([{ domainName: 'a.com' }], { source: 'import' });
     expect(open()).toEqual([]);
     expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
   });
 
   it('hands a name to the account that reports it, with no new arrival', () => {
     recordSync(holding(['b.com']));
-    addManualDomains([{ domainName: 'a.com' }], { source: 'user' });
+    addImportedDomains([{ domainName: 'a.com' }], { source: 'user' });
     const events = recordSync(holding(['a.com', 'b.com']));
     expect(events.map((e) => [e.type, e.domain, e.fromAccountId])).toEqual([
       ['moved', 'a.com', null],
     ]);
-    expect(getManualDomains()).toEqual({});
+    expect(getImportedDomains()).toEqual({});
     expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
   });
 
   it("hands over on an account's first sync too", () => {
-    addManualDomains([{ domainName: 'a.com' }], { source: 'user' });
+    addImportedDomains([{ domainName: 'a.com' }], { source: 'user' });
     const events = recordSync(holding(['a.com']));
     expect(events.map((e) => [e.type, e.toAccountId])).toEqual([
       ['moved', acct()],
     ]);
-    expect(getManualDomains()).toEqual({});
+    expect(getImportedDomains()).toEqual({});
   });
 
   it('is removed by Delete', () => {
-    addManualDomains([{ domainName: 'a.com' }], { source: 'user' });
+    addImportedDomains([{ domainName: 'a.com' }], { source: 'user' });
     deleteDomains(['a.com']);
-    expect(getManualDomains()).toEqual({});
+    expect(getImportedDomains()).toEqual({});
   });
 
   it('is priced from your price, or the base rate of a known registrar', () => {
-    addManualDomains(
+    addImportedDomains(
       [
         { domainName: 'a.com', fields: { registrar: 'dynadot' } },
         { domainName: 'b.com', fields: { registrarLabel: 'Epik' } },
@@ -167,7 +169,7 @@ describe('manual domains', () => {
   });
 
   it('travels in the data bundle', async () => {
-    addManualDomains(
+    addImportedDomains(
       [{ domainName: 'a.com', fields: { registrar: 'porkbun' } }],
       { source: 'user' },
     );
@@ -175,6 +177,8 @@ describe('manual domains', () => {
     configureStore(new MemoryDocStore());
     await hydrateStores();
     await importBundle(text);
-    expect(getManualDomains()['a.com']).toMatchObject({ registrar: 'porkbun' });
+    expect(getImportedDomains()['a.com']).toMatchObject({
+      registrar: 'porkbun',
+    });
   });
 });

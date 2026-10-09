@@ -179,9 +179,11 @@ third _adapter_ over the same `services/` core the UI uses — see
   at `portfolio_sync`, or says the name is in Archive.
   - _Portfolio:_ `registrar_list`, `portfolio_query`, and `portfolio_sync`.
     `portfolio_query` is the primary way to read the portfolio: list, search,
-    filter, sort, and page the cached portfolio (by registrar, TLD, folder,
-    name, nameserver, auto-renew/lock/privacy, status, and expiry), returning
-    only the fields an agent needs plus sync health (`total`, `stale`, and
+    filter, sort, and page the cached portfolio and your imported names (by
+    registrar, source, TLD, folder, name, nameserver, auto-renew/lock/privacy,
+    status, and expiry), returning only the fields an agent needs (including
+    what you paid, sold for, noted, and are asking, and the estimated renewal
+    price) plus sync health (`total`, `stale`, and
     per-registrar `errors`). Like the Domains page it covers the names you own
     by default; `ownership` switches to Archive (sold, dropped, archived, or
     gone from your accounts) or both, and each row says which, and whether
@@ -190,6 +192,21 @@ third _adapter_ over the same `services/` core the UI uses — see
     `portfolio_sync` runs the live cross-registrar pass that refreshes the
     cache, returning a per-registrar summary. An agent syncs once (or when
     `portfolio_query` reports `stale`/empty), then reads cheaply.
+  - _Folders:_ `folder_list` (with domain counts, including the built-in
+    Hidden folder), `folder_create`, `folder_rename`, `folder_delete` (its
+    domains go back to no folder), and `domain_set_folder` (by folder name or
+    id, or `null` to clear). They write the same folder store as the app, so
+    an open window updates live.
+  - _History and review:_ `domain_history` (every event for a name, with
+    alert status), `portfolio_alerts` (what the bell shows) and
+    `portfolio_alert_dismiss`.
+  - _Money, notes and ownership:_ `domain_purchase_set`, `domain_sale_set`,
+    `domain_note_set`, `domain_asking_price_set`, `domain_renewal_price_set`
+    (your own yearly price, overriding the estimate), and
+    `domain_ownership_set` (Dropped, Archived, or back to Owned). Each can
+    answer an open alert with `resolves` where it fits. DomBot-local, no
+    registrar calls; history they write is marked **Agent** in Activity.
+  - _Registrar accounts:_ `registrar_set_enabled`.
   - _Registrar reads:_ `registrar_test`, `registrar_domains`, `registrar_sync`
     (targeted single-registrar refresh of the cache),
     `registrar_check_availability`, `registrar_pricing`.

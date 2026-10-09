@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useAppStore } from '../store/app';
 import { notifications } from '../../shared/notifications';
 import { summarize, wholeMoney } from './renewals';
-import { manualRows } from '../../shared/manual-domains';
+import { importedRows } from '../../shared/imported-domains';
 
 export interface TabMetric {
   /** Short display value for the tab's pill, e.g. "1,050" or "$4.2k". */
@@ -35,12 +35,12 @@ export interface TabMetrics {
  */
 export function useTabMetrics(): TabMetrics {
   const synced = useAppStore((s) => s.portfolio);
-  const manualDomains = useAppStore((s) => s.manualDomains);
+  const importedDomains = useAppStore((s) => s.importedDomains);
   const pricing = useAppStore((s) => s.pricing);
   const events = useAppStore((s) => s.domainEvents);
 
   return useMemo(() => {
-    const portfolio = [...synced, ...manualRows(manualDomains, synced)];
+    const portfolio = [...synced, ...importedRows(importedDomains, synced)];
     const n = portfolio.length.toLocaleString('en-US');
     const domains =
       portfolio.length > 0
@@ -70,5 +70,5 @@ export function useTabMetrics(): TabMetrics {
         : null;
 
     return { domains, renewals, activity };
-  }, [synced, manualDomains, pricing, events]);
+  }, [synced, importedDomains, pricing, events]);
 }

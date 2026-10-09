@@ -11,7 +11,11 @@ import { parseNamecheapProxy } from '../../shared/namecheap-proxy';
 import { PROXIES_NAMESPACE, parseProxy } from '../../shared/proxy';
 import { migrateLegacyProxies } from '../services/proxies';
 import { sanitizeBundleDiagnostics } from './sanitize-diagnostics';
-import { hiddenFolderAssignments, upgradeLegacyNamespaces } from './migrations';
+import {
+  LEGACY_IMPORTED_NAMESPACE,
+  hiddenFolderAssignments,
+  upgradeLegacyNamespaces,
+} from './migrations';
 import {
   EVENTS_NAMESPACE,
   NOTES_NAMESPACE,
@@ -23,9 +27,9 @@ import { CREDENTIALS_NAMESPACE, RENEWAL_PRICES_NAMESPACE } from './names';
 import { LIST_PRICES_NAMESPACE, cleanListPrice } from '../services/list-prices';
 import { cleanRenewalPrice } from '../services/pricing';
 import {
-  MANUAL_DOMAINS_NAMESPACE,
-  cleanManualDomain,
-} from '../services/manual-domains';
+  IMPORTED_DOMAINS_NAMESPACE,
+  cleanImportedDomain,
+} from '../services/imported-domains';
 
 // A portable copy of everything DomBot stores — registrar keys, portfolio
 // cache, folders, manual prices, TLD rates, settings, MCP pairings, bulk-job
@@ -52,7 +56,8 @@ export const BUNDLE_FORMAT = 'dombot-data';
 // v6 adds `domain-list-prices` (docs/domain-import-export.md).
 // v7 stores manual renewal prices with a currency (`domain-prices` values
 // become `{ amount, currency }`); an older build would read them as no price.
-// v8 adds `manual-domains`.
+// v8 adds `imported-domains` (`manual-domains` in builds from main before
+// the rename, which import maps across).
 export const BUNDLE_VERSION = 8;
 
 export interface DataBundle {
@@ -129,6 +134,15 @@ export function parseBundle(text: string): DataBundle {
     head.namespaces['domain-folders'] =
       hiddenFolderAssignments(folderAssignments);
   }
+  // A v8 file from main before the rename has `manual-domains` (migration 4).
+  const legacyImported = head.namespaces[LEGACY_IMPORTED_NAMESPACE];
+  if (legacyImported) {
+    delete head.namespaces[LEGACY_IMPORTED_NAMESPACE];
+    head.namespaces[IMPORTED_DOMAINS_NAMESPACE] = {
+      ...legacyImported,
+      ...head.namespaces[IMPORTED_DOMAINS_NAMESPACE],
+    };
+  }
   head.version = BUNDLE_VERSION;
   try {
     validateAccountRecords(head.namespaces['registrar-accounts'] ?? {});
@@ -161,12 +175,12 @@ export function parseBundle(text: string): DataBundle {
       renewals,
       cleanRenewalPrice,
     );
-  const manual = head.namespaces[MANUAL_DOMAINS_NAMESPACE];
-  if (manual)
-    head.namespaces[MANUAL_DOMAINS_NAMESPACE] = cleanEntries(
-      MANUAL_DOMAINS_NAMESPACE,
-      manual,
-      cleanManualDomain,
+  const imported = head.namespaces[IMPORTED_DOMAINS_NAMESPACE];
+  if (imported)
+    head.namespaces[IMPORTED_DOMAINS_NAMESPACE] = cleanEntries(
+      IMPORTED_DOMAINS_NAMESPACE,
+      imported,
+      cleanImportedDomain,
     );
   const listPrices = head.namespaces[LIST_PRICES_NAMESPACE];
   if (listPrices)

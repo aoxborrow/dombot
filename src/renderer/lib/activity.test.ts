@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DomainEvent } from '../../shared/domain-events';
-import { manualRows } from '../../shared/manual-domains';
+import { importedRows } from '../../shared/imported-domains';
 import {
   alertDomain,
   eventAccounts,
@@ -57,8 +57,8 @@ describe('event helpers', () => {
 });
 
 describe('alertDomain', () => {
-  it("opens on a manual name's own row, and builds one for a departed name", () => {
-    const manual = manualRows(
+  it("opens on an imported name's own row, and builds one for a departed name", () => {
+    const imported = importedRows(
       {
         'hand.com': {
           registrar: 'gandi',
@@ -77,13 +77,13 @@ describe('alertDomain', () => {
       source: 'user',
       accountId: null,
     });
-    expect(alertDomain(arrival, manual, null)).toMatchObject({
+    expect(alertDomain(arrival, imported, null)).toMatchObject({
       domainName: 'hand.com',
       registrar: 'gandi',
-      source: 'manual',
+      source: 'imported',
     });
     expect(
-      alertDomain(event({ domain: 'gone.com' }), manual, null),
+      alertDomain(event({ domain: 'gone.com' }), imported, null),
     ).toMatchObject({ source: 'registrar', departed: true });
   });
 });

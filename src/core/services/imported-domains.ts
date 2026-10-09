@@ -1,5 +1,5 @@
 import { registrars } from '@aoxborrow/registrar-client';
-import type { ManualDomain, ManualDomainFields } from '../../shared/ipc';
+import type { ImportedDomain, ImportedDomainFields } from '../../shared/ipc';
 import {
   assertDomainName,
   isDomainKey,
@@ -16,21 +16,21 @@ import { parsePurchaseDate } from '../../shared/money';
 import { Namespace } from '../storage/namespace';
 import { listEvents, newEvent, putEvents } from './domain-events';
 
-// Manual domains (docs/domain-import-export.md): names you own that no
+// Imported domains (docs/domain-import-export.md): names you own that no
 // connected account reports, keyed by `toAscii(name)`. User data: never
 // cleared by "Clear cache", always exported. Folders, prices, notes, and
 // events are keyed by name too, so they need nothing extra here; when an
-// account later reports the name, sync takes it over (`takeOverManual`).
+// account later reports the name, sync takes it over (`takeOverImported`).
 
-export const MANUAL_DOMAINS_NAMESPACE = 'manual-domains';
+export const IMPORTED_DOMAINS_NAMESPACE = 'imported-domains';
 
-const manual = new Namespace<ManualDomain>(MANUAL_DOMAINS_NAMESPACE);
+const store = new Namespace<ImportedDomain>(IMPORTED_DOMAINS_NAMESPACE);
 
 const MAX_LABEL = 100;
 
-/** Every manual name, keyed by `toAscii(name)`. */
-export function getManualDomains(): Record<string, ManualDomain> {
-  return manual.all();
+/** Every imported name, keyed by `toAscii(name)`. */
+export function getImportedDomains(): Record<string, ImportedDomain> {
+  return store.all();
 }
 
 /** True when `id` is a registrar DomBot knows. */
@@ -44,9 +44,9 @@ export function isKnownRegistrar(id: unknown): id is string {
  * hold.
  */
 export function cleanFields(
-  fields: Partial<ManualDomainFields>,
-): Partial<ManualDomainFields> {
-  const out: Partial<ManualDomainFields> = {};
+  fields: Partial<ImportedDomainFields>,
+): Partial<ImportedDomainFields> {
+  const out: Partial<ImportedDomainFields> = {};
   if (fields.registrar !== undefined) {
     if (fields.registrar !== null && !isKnownRegistrar(fields.registrar))
       throw new Error(`Unknown registrar ${fields.registrar}.`);
@@ -72,15 +72,15 @@ export function cleanFields(
 }
 
 /**
- * Adds names as manual domains, in one write each for the entries and their
+ * Adds names as imported domains, in one write each for the entries and their
  * events. Each writes `added`, an open review like a sync arrival (it asks
  * what you paid). A name with an open "removed" review is coming back, not
  * new: its `added` closes that review and is written already dismissed, as
- * sync does. A name that's already manual is left alone. Returns the names
+ * sync does. A name that's already imported is left alone. Returns the names
  * added.
  */
-export function addManualDomains(
-  items: { domainName: string; fields?: Partial<ManualDomainFields> }[],
+export function addImportedDomains(
+  items: { domainName: string; fields?: Partial<ImportedDomainFields> }[],
   options: {
     source: typeof DomainEventSource.User | typeof DomainEventSource.Import;
     importId?: string;
@@ -94,12 +94,12 @@ export function addManualDomains(
     if (e.type === DomainEventType.Removed && isOpenAlert(e, resolved))
       openRemoval.set(e.domain, e.id);
 
-  const entries: [string, ManualDomain][] = [];
+  const entries: [string, ImportedDomain][] = [];
   const added: DomainEvent[] = [];
   const seen = new Set<string>();
   for (const item of items) {
     const key = assertDomainName(item.domainName);
-    if (seen.has(key) || manual.get(key)) continue;
+    if (seen.has(key) || store.get(key)) continue;
     seen.add(key);
     const fields = cleanFields(item.fields ?? {});
     entries.push([
@@ -131,47 +131,47 @@ export function addManualDomains(
       ),
     );
   }
-  void manual.setMany(entries);
+  void store.setMany(entries);
   putEvents(added);
   return entries.map(([key]) => key);
 }
 
-/** Writes manual entries in one write (an import's new and edited names). */
-export function putManualDomains(entries: [string, ManualDomain][]): void {
-  if (entries.length > 0) void manual.setMany(entries);
+/** Writes imported entries in one write (an import's new and edited names). */
+export function putImportedDomains(entries: [string, ImportedDomain][]): void {
+  if (entries.length > 0) void store.setMany(entries);
 }
 
-/** Edits a manual name's registration fields. Throws for a name that isn't manual. */
-export function updateManualDomain(
+/** Edits an imported name's registration fields. Throws for a name that isn't imported. */
+export function updateImportedDomain(
   domainName: string,
-  fields: Partial<ManualDomainFields>,
-): ManualDomain {
+  fields: Partial<ImportedDomainFields>,
+): ImportedDomain {
   const key = assertDomainName(domainName);
-  const existing = manual.get(key);
-  if (!existing) throw new Error(`${key} isn't a manual domain.`);
-  const next: ManualDomain = {
+  const existing = store.get(key);
+  if (!existing) throw new Error(`${key} isn't an imported domain.`);
+  const next: ImportedDomain = {
     ...existing,
     ...cleanFields(fields),
     updatedAt: Date.now(),
   };
-  void manual.set(key, next);
+  void store.set(key, next);
   return next;
 }
 
-/** Removes names' manual entries (Delete, or an account taking them over). */
-export function removeManualDomains(domains: string[]): void {
+/** Removes names' imported entries (Delete, or an account taking them over). */
+export function removeImportedDomains(domains: string[]): void {
   for (const domain of domains) {
     const key = toAscii(domain);
-    if (manual.get(key)) void manual.delete(key);
+    if (store.get(key)) void store.delete(key);
   }
 }
 
 /**
- * Names an account now reports stop being manual: the entry goes, and a
+ * Names an account now reports stop being imported: the entry goes, and a
  * `moved` from no account to that account is returned for the sync to
  * record ("Now synced from Dynadot"). It's info, not a new arrival.
  */
-export function takeOverManual(
+export function takeOverImported(
   reported: { accountId: string; names: string[] }[],
   now: number,
 ): { events: DomainEvent[]; names: Set<string> } {
@@ -180,7 +180,7 @@ export function takeOverManual(
   for (const { accountId, names: list } of reported) {
     for (const raw of list) {
       const key = toAscii(raw);
-      if (names.has(key) || !manual.get(key)) continue;
+      if (names.has(key) || !store.get(key)) continue;
       names.add(key);
       events.push(
         newEvent(
@@ -197,15 +197,15 @@ export function takeOverManual(
       );
     }
   }
-  removeManualDomains([...names]);
+  removeImportedDomains([...names]);
   return { events, names };
 }
 
-/** A manual domain read from a data bundle, re-checked; null when it doesn't hold. */
-export function cleanManualDomain(
+/** An imported domain read from a data bundle, re-checked; null when it doesn't hold. */
+export function cleanImportedDomain(
   key: string,
   value: unknown,
-): ManualDomain | null {
+): ImportedDomain | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   if (!isDomainKey(key) || toAscii(key) !== key) return null;
   const v = value as Record<string, unknown>;

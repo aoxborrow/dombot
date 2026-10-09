@@ -55,6 +55,7 @@ export const SOURCE_LABEL: Record<DomainEvent['source'], string> = {
   sync: 'Sync',
   import: 'Import',
   lookup: 'Lookup',
+  agent: 'Agent',
 };
 
 /** The day an event happened: its date, or the day it was recorded. */
@@ -91,8 +92,8 @@ export function eventDetails(
 
 /**
  * A Domain for the purchase and sale dialogs, from an alert: the name's row
- * in `domains` (synced and manual), else one built for a name no account or
- * manual entry holds.
+ * in `domains` (synced and imported), else one built for a name no account or
+ * imported entry holds.
  */
 export function alertDomain(
   e: DomainEvent,

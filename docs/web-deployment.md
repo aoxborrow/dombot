@@ -153,7 +153,7 @@ access, which is the right bar — nothing about the password can be changed
 from the browser. Lost `DOMBOT_SECRET` as well: set a new one, wipe the
 `docs` table, re-enter registrar keys, and the first sync rebuilds the
 portfolio. Everything that isn't registrar data (folders, prices, history,
-notes, manual domains, MCP pairings) is lost unless an export bundle restores
+notes, imported domains, MCP pairings) is lost unless an export bundle restores
 it.
 
 The same command accepts an operator-supplied value for anyone who insists on

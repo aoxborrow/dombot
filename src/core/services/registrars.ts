@@ -1,6 +1,6 @@
 import { protectRegistrar, redactRegistrarMessage } from './registrar-errors';
-import { manualRows } from '../../shared/manual-domains';
-import { getManualDomains } from './manual-domains';
+import { importedRows } from '../../shared/imported-domains';
+import { getImportedDomains } from './imported-domains';
 import {
   NotImplementedError,
   RegistrarClient,
@@ -908,9 +908,12 @@ export function getCachedDetail(): Record<string, Partial<Domain>> {
 export function getPortfolioPricing(): Record<string, RenewalPricing> {
   const portfolio = getCachedPortfolio();
   const out: Record<string, RenewalPricing> = {};
-  // Manual names: your price, else the base rate when the registrar is one
+  // Imported names: your price, else the base rate when the registrar is one
   // DomBot knows. Keyed like their rows (`domainKey`).
-  for (const d of manualRows(getManualDomains(), portfolio?.domains ?? [])) {
+  for (const d of importedRows(
+    getImportedDomains(),
+    portfolio?.domains ?? [],
+  )) {
     out[domainKey(d)] = resolvePricing(
       d.registrar as RegistrarName,
       d.domainName,

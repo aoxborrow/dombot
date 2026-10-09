@@ -2,8 +2,8 @@ import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
 import { create } from 'zustand';
 import type {
-  ManualDomain,
-  ManualDomainFields,
+  ImportedDomain,
+  ImportedDomainFields,
   ListPrice,
   ListPriceInput,
   AppInfo,
@@ -210,11 +210,11 @@ interface AppState {
    * Names you own that no connected account reports, keyed by normalized
    * domain name. Reloaded with the event log, since a sync can take one over.
    */
-  manualDomains: Record<string, ManualDomain>;
-  loadManualDomains: () => Promise<void>;
-  saveManualDomain: (
+  importedDomains: Record<string, ImportedDomain>;
+  loadImportedDomains: () => Promise<void>;
+  saveImportedDomain: (
     domainName: string,
-    fields: ManualDomainFields,
+    fields: ImportedDomainFields,
   ) => Promise<void>;
 
   /** Asking prices keyed by normalized domain name. */
@@ -378,7 +378,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (get().portfolioSource !== null || get().portfolioLoading) return;
     const snapshot = await window.api.hydrateFromCache();
     if (!snapshot.portfolio) {
-      // No registrar data, but manual names still have prices.
+      // No registrar data, but imported names still have prices.
       if (get().portfolioSource === null) set({ pricing: snapshot.pricing });
       return;
     }
@@ -406,9 +406,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   applyPortfolioCacheUpdate: async () => {
+    // DomBot's own data isn't cache: an MCP tool can change history, folders,
+    // notes, prices, imported names (read with the events) or an account's
+    // enabled state before the portfolio has ever loaded, so re-read it all
+    // unconditionally. Each is a local read, no network.
+    const local = Promise.all([
+      get().loadDomainEvents(),
+      get().loadFolders(),
+      get().loadPurchases(),
+      get().loadListPrices(),
+      get().loadPricing(),
+      get().loadRegistrars(),
+    ]).then(() => undefined);
     // Before the first load there's nothing in view to overlay; the launch
     // hydrate path covers a fresh start.
-    if (get().portfolioSource === null) return;
+    if (get().portfolioSource === null) return local;
     const snapshot = await window.api.hydrateFromCache();
     const portfolio = snapshot.portfolio;
     if (!portfolio) {
@@ -417,10 +429,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         portfolioErrors: [],
         portfolioRegistrars: [],
         enriched: {},
-        // Manual names keep their prices without registrar data.
+        // Imported names keep their prices without registrar data.
         pricing: snapshot.pricing,
       });
-      return;
+      return local;
     }
     set((state) => {
       // Overlay the freshly-cached summary + detail onto any existing enriched
@@ -444,8 +456,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         enriched,
       };
     });
-    await get().loadDomainEvents();
-    await get().loadFolders();
+    await local;
   },
 
   clearAllCaches: async () => {
@@ -467,7 +478,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       detailAllLoading: false,
       selected: new Set(),
     });
-    // Manual names aren't cache: re-read their prices.
+    // Imported names aren't cache: re-read their prices.
     await get().loadPricing();
   },
 
@@ -561,7 +572,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const key = domainKey(d);
       // A name that already left the registrar, or one you added by hand, has
       // no registrar to ask.
-      if (d.departed || d.source === 'manual') return false;
+      if (d.departed || d.source === 'imported') return false;
       // A forced refresh re-fetches on-screen rows regardless of prior state,
       // skipping only ones already in flight.
       if (force) return !enrichInFlight.has(key);
@@ -749,13 +760,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { purchases };
     });
   },
-  manualDomains: {},
-  loadManualDomains: async () => {
-    set({ manualDomains: await window.api.getManualDomains() });
+  importedDomains: {},
+  loadImportedDomains: async () => {
+    set({ importedDomains: await window.api.getImportedDomains() });
   },
-  saveManualDomain: async (domainName, fields) => {
+  saveImportedDomain: async (domainName, fields) => {
     set({
-      manualDomains: await window.api.updateManualDomain(domainName, fields),
+      importedDomains: await window.api.updateImportedDomain(
+        domainName,
+        fields,
+      ),
     });
     void get().loadPricing();
   },
@@ -785,12 +799,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   domainEvents: [],
   loadDomainEvents: async () => {
-    // A sync that writes events may also have taken manual names over.
-    const [domainEvents, manualDomains] = await Promise.all([
+    // A sync that writes events may also have taken imported names over.
+    const [domainEvents, importedDomains] = await Promise.all([
       window.api.getDomainEvents(),
-      window.api.getManualDomains(),
+      window.api.getImportedDomains(),
     ]);
-    set({ domainEvents, manualDomains });
+    set({ domainEvents, importedDomains });
   },
   setDispositions: async (items, type, date) => {
     set({
@@ -819,7 +833,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().loadFolders(),
       get().loadPricing(),
       get().loadListPrices(),
-      get().loadManualDomains(),
+      get().loadImportedDomains(),
     ]);
   },
   setMcpEnabled: async (enabled) => {

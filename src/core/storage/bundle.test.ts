@@ -258,4 +258,27 @@ describe('export → import', () => {
       'b.com': 'f1',
     });
   });
+
+  it('reads a v8 file from before the rename: manual-domains', async () => {
+    const entry = {
+      registrar: null,
+      registrarLabel: 'Epik',
+      createdDate: null,
+      expirationDate: null,
+      autoRenew: null,
+      addedAt: 1,
+      updatedAt: null,
+    };
+    const v8 = {
+      ...buildBundle(APP),
+      namespaces: {
+        ...buildBundle(APP).namespaces,
+        'manual-domains': { 'a.com': entry },
+      },
+    };
+    await importBundle(JSON.stringify(v8));
+    await flushWrites();
+    expect(await store.list('imported-domains')).toEqual({ 'a.com': entry });
+    expect(await store.list('manual-domains')).toEqual({});
+  });
 });
