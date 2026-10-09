@@ -13,10 +13,16 @@ import { bakeRelease } from '../scripts/inject-release.mjs';
 // base: './' keeps every asset URL relative, so the build works unchanged
 // whether it's served from a project path (aoxborrow.github.io/dombot/) or a
 // custom domain at the root.
-// The latest release, recorded in the repo by the release workflow.
-const release = JSON.parse(
-  readFileSync(new URL('./release.json', import.meta.url), 'utf8'),
-) as { tagName?: string; assets?: { name: string; url: string }[] };
+// Every published release, newest first, recorded in the repo by the release
+// workflow. It's also served as-is at dombot.ai/releases.json, where the app
+// reads it for the update banner and release notes; the page bakes in the
+// newest one's downloads.
+const { releases = [] } = JSON.parse(
+  readFileSync(new URL('./public/releases.json', import.meta.url), 'utf8'),
+) as { releases?: { tag: string; assets: { name: string; url: string }[] }[] };
+const release = releases[0]
+  ? { tagName: releases[0].tag, assets: releases[0].assets }
+  : {};
 
 export default defineConfig({
   plugins: [

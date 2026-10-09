@@ -14,6 +14,7 @@ import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
 import FoldersSettings from './settings/FoldersSettings';
 import ProxySettings from './settings/ProxySettings';
+import AboutSettings from './settings/AboutSettings';
 
 // One row per section: the URL `tab` value and its label. Both the desktop
 // sidebar and the phone picker render from this, so adding a section (which will
@@ -25,6 +26,7 @@ const SECTIONS = [
   { value: 'data', label: 'Sync' },
   { value: 'folders', label: 'Folders' },
   { value: 'mcp', label: 'MCP' },
+  { value: 'about', label: 'About' },
 ] as const;
 
 const TAB_VALUES = SECTIONS.map((s) => s.value);
@@ -109,6 +111,9 @@ export default function Settings() {
           </TabsContent>
           <TabsContent value="data">
             <DataSettings />
+          </TabsContent>
+          <TabsContent value="about">
+            <AboutSettings />
           </TabsContent>
         </div>
       </Tabs>

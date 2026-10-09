@@ -17,6 +17,7 @@ const DEFAULTS: AppSettings = {
   mcpEnabled: false,
   preferredCurrency: DEFAULT_CURRENCY,
   numberFormat: DEFAULT_NUMBER_FORMAT,
+  updateChecks: true,
 };
 
 /** How many recent nameserver sets to keep. */
@@ -54,6 +55,10 @@ function normalize(raw: Partial<AppSettings>): AppSettings {
     numberFormat: isNumberFormatId(raw.numberFormat)
       ? raw.numberFormat
       : DEFAULTS.numberFormat,
+    updateChecks:
+      typeof raw.updateChecks === 'boolean'
+        ? raw.updateChecks
+        : DEFAULTS.updateChecks,
   };
 }
 

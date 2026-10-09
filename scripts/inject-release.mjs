@@ -1,11 +1,11 @@
 // Bake the latest GitHub Release's download URLs + version into the landing page
 // at build time, so the shipped HTML is fully static (no client-side API calls).
 //
-// The release lives in the repo as site/release.json — `{ tagName, assets:
-// [{ name, url }] }`, written and committed by the release workflow right after
-// it publishes. That commit is also what redeploys the site. The site's Vite
-// config calls bakeRelease() from a transformIndexHtml hook, so index.html on
-// disk is never rewritten.
+// The releases live in the repo as site/public/releases.json, written and
+// committed by the release workflow right after it publishes (that commit is
+// also what redeploys the site). The site's Vite config passes the newest one
+// to bakeRelease() as `{ tagName, assets: [{ name, url }] }` from a
+// transformIndexHtml hook, so index.html on disk is never rewritten.
 //
 // Matches each download button (data-asset="…") to a release asset by filename
 // and rewrites its href; fills the version and reveals it. With no release

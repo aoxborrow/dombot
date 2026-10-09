@@ -1,0 +1,154 @@
+{
+  "releases": [
+    {
+      "assets": [
+        {
+          "name": "DomBot-1.4.0-mac-arm64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.4.0/DomBot-1.4.0-mac-arm64.dmg"
+        },
+        {
+          "name": "DomBot-1.4.0-mac-intel-x64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.4.0/DomBot-1.4.0-mac-intel-x64.dmg"
+        },
+        {
+          "name": "DomBot-1.4.0.Setup.exe",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.4.0/DomBot-1.4.0.Setup.exe"
+        },
+        {
+          "name": "dombot-linux-amd64-1.4.0.deb",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.4.0/dombot-linux-amd64-1.4.0.deb"
+        },
+        {
+          "name": "dombot-linux-x86_64-1.4.0.rpm",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.4.0/dombot-linux-x86_64-1.4.0.rpm"
+        }
+      ],
+      "name": "DomBot v1.4.0",
+      "notes": "## Light mode & theming\n\n- **Three-way theme switch** — dark / auto / light, in Settings → General and as an icon toggle in the status bar. Your stored choice is honored again (it was previously forced to dark), and native scrollbars follow the theme.\n- **New brand green palette** — every green in the app now comes from a single OKLCH-generated ramp, consistent across both themes: logo, status dots, accents, fills, and focus rings.\n- Dropdowns, selects, and popovers get a heavier two-layer shadow for separation, lightened in light mode.\n\n## New: Settings → General\n\nThe first section in Settings (`/settings` now lands here), with per-device preferences saved locally:\n\n- Theme (dark / auto / light)\n- **Domains table density** — normal or compact\n- Default rows per page\n- Default sort column and direction\n\nThe Domains table opens at whatever defaults you set.\n\n## Domains table\n\n- **Domain names are now links** — open `https://<domain>` in a new tab, with a hover-only external-link glyph.\n- Refreshed privacy / lock / auto-renew indicators: filled shield-check and lock in brand green when on; shield-ban and open lock in a new \"off\" yellow when off. Unsupported flags show a not-allowed cursor and a reason tooltip instead of just fading out.\n- Clearer expiry colors: the countdown stays yellow → orange → red; past-expiry steps pink → purple, with distinct lifecycle pills for Grace, Expired, Redemption, and Hold.\n- Compact rows, smaller auto-renew switches, and tidier search-clear and bulk-bar buttons.\n\n## Renewals\n\n- **New \"Spend by TLD\" donut** alongside Domains by TLD (yearly spend, top-8 + \"Other\").\n- Composition charts reorganized into a cleaner 2×2 grid on desktop, stacked on phones.\n- Fixed uneven month-label wrapping on the monthly bar chart.\n\n## Header & demo banner\n\n- Header nav and Sync control now fit cleanly at intermediate widths.\n- Demo banner is readable in light mode.\n\n---\n\nBinaries are signed, notarized (macOS), and cryptographically attested — verify with `gh attestation verify <file> --repo aoxborrow/dombot`.\n",
+      "publishedAt": "2026-09-18T05:24:00Z",
+      "tag": "v1.4.0",
+      "url": "https://github.com/aoxborrow/dombot/releases/tag/v1.4.0",
+      "version": "1.4.0"
+    },
+    {
+      "assets": [
+        {
+          "name": "DomBot-1.3.0-mac-arm64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.3.0/DomBot-1.3.0-mac-arm64.dmg"
+        },
+        {
+          "name": "DomBot-1.3.0-mac-intel-x64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.3.0/DomBot-1.3.0-mac-intel-x64.dmg"
+        },
+        {
+          "name": "DomBot-1.3.0.Setup.exe",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.3.0/DomBot-1.3.0.Setup.exe"
+        },
+        {
+          "name": "dombot-linux-amd64-1.3.0.deb",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.3.0/dombot-linux-amd64-1.3.0.deb"
+        },
+        {
+          "name": "dombot-linux-x86_64-1.3.0.rpm",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.3.0/dombot-linux-x86_64-1.3.0.rpm"
+        }
+      ],
+      "name": "DomBot v1.3.0",
+      "notes": "### Registrars & accounts\n- **Multiple accounts per registrar.** Add more than one account for the same provider — each gets its own card, with an optional nickname.\n- **Show/hide toggle** on API-key and password fields so you can check what you pasted.\n- **GoDaddy:** captures each account's own TLD renewal rates on sync, plus shopper-level renewal support.\n\n### Proxy\n- **New Proxy settings page.** Route any registrar's API traffic through your own outbound proxy, with a per-account on/off toggle.\n- Supports HTTP or HTTPS proxies and hostnames — useful for registrars that authenticate by whitelisted IP (e.g. Namecheap).\n\n### Folders\n- The built-in **\"Hidden\" folder is now \"Archive\"** everywhere.\n- The folder filter's **\"Unassigned\" bucket is now \"None.\"**\n- Tidier folder menus and icons.\n\n### Domains table\n- Account is now **merged into the registrar column** and filterable there.\n- Polished the **bulk-action bar** — clearer selection count and a green accent.\n- Shorter, cleaner filter labels.\n\n### Settings\n- Reorganized into tabs: **Registrars · Proxy · Sync · Folders · MCP.**\n\n### Web & self-hosting\n- **Live demo** at [demo.dombot.ai](https://demo.dombot.ai) — the whole app in your browser against a seeded portfolio.\n- **Self-host** your own private copy on a free Cloudflare account; configuration now comes from environment overrides for Workers Builds.\n- The web UI is now **mobile-responsive** (hamburger nav, collapsible filters, denser table).\n\n### Security\n- Hardened credential, authentication, and data handling.\n- Updated build and packaging dependencies.\n\n---\nAll binaries are [cryptographically attested](https://github.com/aoxborrow/dombot/attestations) to build from this commit. Verify with `gh attestation verify <file> --repo aoxborrow/dombot`.\n",
+      "publishedAt": "2026-09-17T22:13:30Z",
+      "tag": "v1.3.0",
+      "url": "https://github.com/aoxborrow/dombot/releases/tag/v1.3.0",
+      "version": "1.3.0"
+    },
+    {
+      "assets": [
+        {
+          "name": "DomBot-1.2.0-mac-arm64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.2.0/DomBot-1.2.0-mac-arm64.dmg"
+        },
+        {
+          "name": "DomBot-1.2.0-mac-intel-x64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.2.0/DomBot-1.2.0-mac-intel-x64.dmg"
+        },
+        {
+          "name": "DomBot-1.2.0.Setup.exe",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.2.0/DomBot-1.2.0.Setup.exe"
+        },
+        {
+          "name": "dombot-linux-amd64-1.2.0.deb",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.2.0/dombot-linux-amd64-1.2.0.deb"
+        },
+        {
+          "name": "dombot-linux-x86_64-1.2.0.rpm",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.2.0/dombot-linux-x86_64-1.2.0.rpm"
+        }
+      ],
+      "name": "DomBot v1.2.0",
+      "notes": "## What's Changed\n* Site: rework features list, add Renewals screenshot by @aoxborrow in https://github.com/aoxborrow/dombot/pull/52\n* Domain editing: shared op dispatcher, inline toggles, row actions by @aoxborrow in https://github.com/aoxborrow/dombot/pull/53\n* Logic-layer tests (Tier 1): dispatcher, MCP tools/query, bulk runner by @aoxborrow in https://github.com/aoxborrow/dombot/pull/54\n* Logic-layer tests (Tier 2): renewals, CSV, bulk gaps, pricing by @aoxborrow in https://github.com/aoxborrow/dombot/pull/55\n* Logic-layer tests (Tier 3): registrars service by @aoxborrow in https://github.com/aoxborrow/dombot/pull/58\n* Logic-layer tests (Tier 4): deferred registrar flows + MCP handlers by @aoxborrow in https://github.com/aoxborrow/dombot/pull/59\n* Remove Domains toolbar Export button; widen default window by @aoxborrow in https://github.com/aoxborrow/dombot/pull/65\n* Plan: self-hosting DomBot on Cloudflare by @aoxborrow in https://github.com/aoxborrow/dombot/pull/57\n* Core extraction: host-agnostic src/core with DocStore storage (phase 1) by @aoxborrow in https://github.com/aoxborrow/dombot/pull/60\n* API method table: one validated contract generates the IPC layer (phase 2) by @aoxborrow in https://github.com/aoxborrow/dombot/pull/62\n* Bulk jobs: persisted, step-driven runner; syncAll() (phase 3) by @aoxborrow in https://github.com/aoxborrow/dombot/pull/63\n* Web host: Cloudflare Worker + browser renderer (phase 4) by @aoxborrow in https://github.com/aoxborrow/dombot/pull/64\n* MCP on the web host: Hono routes + OAuth state in the store (phase 5) by @aoxborrow in https://github.com/aoxborrow/dombot/pull/66\n* Deploy experience: Deploy button, export/import bundle, rotate-secret (phase 6) by @aoxborrow in https://github.com/aoxborrow/dombot/pull/67\n* web:rotate-secret: passphrase up front, unattended mode by @aoxborrow in https://github.com/aoxborrow/dombot/pull/68\n* Support multiple registrar accounts with minimal UI changes by @heathermhuang in https://github.com/aoxborrow/dombot/pull/70\n* Prepare Name.com registrar help, icon and renewal pricing by @heathermhuang in https://github.com/aoxborrow/dombot/pull/71\n* Add optional fixed-IP proxies for Namecheap accounts by @heathermhuang in https://github.com/aoxborrow/dombot/pull/73\n\n## New Contributors\n* @heathermhuang made their first contribution in https://github.com/aoxborrow/dombot/pull/70\n\n**Full Changelog**: https://github.com/aoxborrow/dombot/compare/v1.1.0...v1.2.0",
+      "publishedAt": "2026-09-15T18:05:45Z",
+      "tag": "v1.2.0",
+      "url": "https://github.com/aoxborrow/dombot/releases/tag/v1.2.0",
+      "version": "1.2.0"
+    },
+    {
+      "assets": [
+        {
+          "name": "DomBot-1.1.0-mac-arm64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.1.0/DomBot-1.1.0-mac-arm64.dmg"
+        },
+        {
+          "name": "DomBot-1.1.0-mac-intel-x64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.1.0/DomBot-1.1.0-mac-intel-x64.dmg"
+        },
+        {
+          "name": "DomBot-1.1.0.Setup.exe",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.1.0/DomBot-1.1.0.Setup.exe"
+        },
+        {
+          "name": "dombot-linux-amd64-1.1.0.deb",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.1.0/dombot-linux-amd64-1.1.0.deb"
+        },
+        {
+          "name": "dombot-linux-x86_64-1.1.0.rpm",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.1.0/dombot-linux-x86_64-1.1.0.rpm"
+        }
+      ],
+      "name": "DomBot v1.1.0",
+      "notes": "## What's Changed\n* Restructure README for end users + set repo description by @aoxborrow in https://github.com/aoxborrow/dombot/pull/34\n* Fix CI mac signing (derive identity) + clearer mac asset names by @aoxborrow in https://github.com/aoxborrow/dombot/pull/35\n* Group + clarify release asset names (mac-intel-x64, dombot-linux-) by @aoxborrow in https://github.com/aoxborrow/dombot/pull/36\n* Fresh-install & registrar connection UX: per-registrar sync model by @aoxborrow in https://github.com/aoxborrow/dombot/pull/37\n* Add `DomBot --mcp-stdio`: stdio bridge to the MCP server for Claude Desktop by @aoxborrow in https://github.com/aoxborrow/dombot/pull/38\n* Site: stdio command snippet for Claude Desktop by @aoxborrow in https://github.com/aoxborrow/dombot/pull/39\n* Site: registrar logo cloud, features retitle, MCP chat polish by @aoxborrow in https://github.com/aoxborrow/dombot/pull/41\n* Add GitHub Sponsors: FUNDING.yml and README badge by @aoxborrow in https://github.com/aoxborrow/dombot/pull/42\n* MCP tools: cache-backed reads/writes + portfolio_query by @aoxborrow in https://github.com/aoxborrow/dombot/pull/40\n* Bump @aoxborrow/registrar-client to ^0.3.0 by @aoxborrow in https://github.com/aoxborrow/dombot/pull/43\n* CI: run typecheck, lint, and unit tests on PRs by @aoxborrow in https://github.com/aoxborrow/dombot/pull/44\n* Harden credential handling and make the trust model verifiable by @aoxborrow in https://github.com/aoxborrow/dombot/pull/46\n* Add per-registrar enable/disable toggle by @aoxborrow in https://github.com/aoxborrow/dombot/pull/45\n* MCP: add domain_auth_code_get and domain_dnssec_get tools by @aoxborrow in https://github.com/aoxborrow/dombot/pull/47\n* GoDaddy: simplify to a single PAT credential by @aoxborrow in https://github.com/aoxborrow/dombot/pull/48\n* Settings: own the registrar help copy, with real links and per-field help by @aoxborrow in https://github.com/aoxborrow/dombot/pull/49\n* Site: descriptive page title, og:site_name, og:image dimensions by @aoxborrow in https://github.com/aoxborrow/dombot/pull/50\n* Release 1.1.0 by @aoxborrow in https://github.com/aoxborrow/dombot/pull/51\n\n\n**Full Changelog**: https://github.com/aoxborrow/dombot/compare/v1.0.0...v1.1.0",
+      "publishedAt": "2026-09-03T09:49:29Z",
+      "tag": "v1.1.0",
+      "url": "https://github.com/aoxborrow/dombot/releases/tag/v1.1.0",
+      "version": "1.1.0"
+    },
+    {
+      "assets": [
+        {
+          "name": "DomBot-1.0.0-mac-arm64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.0.0/DomBot-1.0.0-mac-arm64.dmg"
+        },
+        {
+          "name": "DomBot-1.0.0-mac-intel-x64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.0.0/DomBot-1.0.0-mac-intel-x64.dmg"
+        },
+        {
+          "name": "DomBot-1.0.0.Setup.exe",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.0.0/DomBot-1.0.0.Setup.exe"
+        },
+        {
+          "name": "dombot-linux-amd64-1.0.0.deb",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.0.0/dombot-linux-amd64-1.0.0.deb"
+        },
+        {
+          "name": "dombot-linux-x86_64-1.0.0.rpm",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.0.0/dombot-linux-x86_64-1.0.0.rpm"
+        }
+      ],
+      "name": "DomBot v1.0.0",
+      "notes": "## What's Changed\n* Landing page: bake download links + version from the latest Release (build-time) by @aoxborrow in https://github.com/aoxborrow/dombot/pull/31\n* Bundle base renewal pricing for all supported registrars by @aoxborrow in https://github.com/aoxborrow/dombot/pull/32\n* Cut a release from the Actions UI (workflow_dispatch: publish) by @aoxborrow in https://github.com/aoxborrow/dombot/pull/33\n\n\n**Full Changelog**: https://github.com/aoxborrow/dombot/compare/preview...v1.0.0",
+      "publishedAt": "2026-09-02T20:28:40Z",
+      "tag": "v1.0.0",
+      "url": "https://github.com/aoxborrow/dombot/releases/tag/v1.0.0",
+      "version": "1.0.0"
+    }
+  ]
+}

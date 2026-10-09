@@ -4,6 +4,7 @@
  * gives us a single, type-checked source of truth for every IPC round trip.
  */
 
+import type { ReleaseFeed } from './releases';
 import type {
   Domain as ProviderDomain,
   ConnectionResult,
@@ -125,6 +126,7 @@ export interface ProxyTestResult {
 export const IpcChannels = {
   ping: 'app:ping',
   getAppInfo: 'app:getAppInfo',
+  getReleaseFeed: 'app:getReleaseFeed',
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
   applyDomainOp: 'domain:apply',
@@ -295,6 +297,12 @@ export interface AppSettings {
    * Separate from which currency the money is in. Fresh install is US style.
    */
   numberFormat: NumberFormatId;
+  /**
+   * Whether DomBot checks dombot.ai for a newer release (about once a day) and
+   * shows a banner when there is one. On by default; "Check now" in
+   * Settings → About works either way.
+   */
+  updateChecks: boolean;
 }
 
 /** The registrar's registration fee for one name. `amount` is null when unknown. */
@@ -867,6 +875,11 @@ export interface FoldersSnapshot {
 export interface DombotApi {
   ping: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
+  /**
+   * Published releases with their notes, from dombot.ai. Cached for a few
+   * hours on the host; `force` refetches (Settings → About → Check now).
+   */
+  getReleaseFeed: (force: boolean) => Promise<ReleaseFeed>;
   /** Open a URL in the user's default browser. */
   openExternal: (url: string) => Promise<void>;
   /**

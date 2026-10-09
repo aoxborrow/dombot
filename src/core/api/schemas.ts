@@ -88,6 +88,7 @@ export const appSettingsPatch = z
     mcpEnabled: z.boolean(),
     preferredCurrency: z.string(),
     numberFormat: z.enum(['us', 'eu-dot', 'fr', 'si', 'ch', 'ch-comma']),
+    updateChecks: z.boolean(),
   })
   .partial()
   .strict();

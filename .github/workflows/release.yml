@@ -24,7 +24,7 @@ on:
         default: false
 
 permissions:
-  contents: write # create tags/releases, upload assets, commit site/release.json
+  contents: write # create tags/releases, upload assets, commit site/public/releases.json
   id-token: write # mint the OIDC token that signs build provenance
   attestations: write # record build-provenance attestations for the artifacts
 
@@ -250,20 +250,27 @@ jobs:
           ref: main
 
       - name: Record the release for the site
-        # The landing page bakes its download links from site/release.json at
-        # build time. Committing it here is what redeploys the site: Cloudflare's
-        # Workers Builds rebuilds dombot.ai on every push to main.
+        # site/public/releases.json lists every published release with its
+        # notes, newest first. The landing page bakes its download links from
+        # the newest at build time, and the site serves the file as-is at
+        # dombot.ai/releases.json, where installed copies check for updates.
+        # Committing it here is what redeploys the site: Cloudflare's Workers
+        # Builds rebuilds dombot.ai on every push to main.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.setup.outputs.tag }}
         run: |
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,assets \
-            --jq '{tagName, assets: [.assets[] | {name, url}]}' > site/release.json
+          gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '[.[]
+            | select(.draft | not) | select(.prerelease | not)
+            | {version: (.tag_name | ltrimstr("v")), tag: .tag_name, name,
+               publishedAt: .published_at, notes: .body, url: .html_url,
+               assets: [.assets[] | {name, url: .browser_download_url}]}]' \
+            | jq -s 'add | {releases: .}' > site/public/releases.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add site/release.json
+          git add site/public/releases.json
           if git diff --cached --quiet; then
-            echo "site/release.json already current."
+            echo "site/public/releases.json already current."
           else
             git commit -m "site: $TAG download links"
             git push origin HEAD:main
