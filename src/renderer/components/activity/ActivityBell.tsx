@@ -118,11 +118,12 @@ export function ActivityBell() {
         </div>
 
         {update && (
-          <div className="flex items-center border-b bg-brand/[0.06]">
+          // The whole row highlights on hover, under the dismiss button too.
+          <div className="flex items-center border-b bg-brand/[0.06] hover:bg-brand/10">
             <Link
               to="/settings?tab=about"
               onClick={close}
-              className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 text-sm hover:bg-brand/10"
+              className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 text-sm"
               title={`You have ${update.current}`}
             >
               <ArrowUpCircle
@@ -146,7 +147,7 @@ export function ActivityBell() {
               onClick={() => dismissUpdate(update.latest.version)}
               aria-label={`Dismiss DomBot ${update.latest.version}`}
               title="Dismiss until the next release"
-              className="mx-1 shrink-0 rounded p-1.5 text-muted-foreground hover:bg-brand/10 hover:text-foreground"
+              className="mx-1 shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
             >
               <X className="size-3.5" />
             </button>

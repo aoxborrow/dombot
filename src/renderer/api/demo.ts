@@ -49,6 +49,7 @@ const none = z.tuple([]);
 
 /** The host-specific half of the table (cf. src/worker/api.ts). */
 const DEMO_UPDATE = {
+  supported: false,
   unsupportedReason: 'The demo doesn’t update.',
   status: 'idle' as const,
   error: null,

@@ -85,7 +85,7 @@ export default function AboutSettings() {
     setUpdater((u) => u && { ...u, status: 'downloading', error: null });
     setUpdater(await window.api.downloadUpdate());
   };
-  const inPlace = !isWeb() && updater !== null && !updater.unsupportedReason;
+  const inPlace = !isWeb() && updater?.supported === true;
 
   let status: string;
   if (demo) status = 'The demo doesn’t check for updates.';

@@ -20,6 +20,7 @@ import { getSettings } from '../core/services/settings';
 const none = z.tuple([]);
 
 const SELF_UPDATE = {
+  supported: false,
   unsupportedReason: 'Self-hosted instances update from their repository.',
   status: 'idle' as const,
   error: null,

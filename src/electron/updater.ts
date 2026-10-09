@@ -17,18 +17,17 @@ import type { UpdaterState } from '../shared/ipc';
 
 const FEED = `https://update.electronjs.org/aoxborrow/dombot/${process.platform}-${process.arch}/${app.getVersion()}`;
 
-let state: UpdaterState = {
-  unsupportedReason: null,
+let state: Omit<UpdaterState, 'supported' | 'unsupportedReason'> = {
   status: 'idle',
   error: null,
 };
 let wired = false;
 let pending: ((s: UpdaterState) => void)[] = [];
 
-/** Why this build can't update itself, or null when it can. */
+/** Why this build can't update itself: null when it can, '' for a dev
+ *  build (not worth a message), else a sentence for the user. */
 function unsupportedReason(): string | null {
-  if (!app.isPackaged)
-    return 'Updating in place works only in the installed app.';
+  if (!app.isPackaged) return '';
   if (process.platform === 'darwin') {
     // Squirrel.Mac replaces the .app where it is; run from the disk image or a
     // quarantined location, that fails.
@@ -45,12 +44,12 @@ function unsupportedReason(): string | null {
   return 'Linux packages update through a new download.';
 }
 
-function settle(next: Partial<UpdaterState>): void {
+function settle(next: Partial<typeof state>): void {
   state = { ...state, ...next };
   if (state.status === 'downloading') return;
   const waiting = pending;
   pending = [];
-  for (const resolve of waiting) resolve(state);
+  for (const resolve of waiting) resolve(getUpdaterState());
 }
 
 function wire(): void {
@@ -72,18 +71,21 @@ function wire(): void {
 }
 
 export function getUpdaterState(): UpdaterState {
-  return { ...state, unsupportedReason: unsupportedReason() };
+  const reason = unsupportedReason();
+  return {
+    ...state,
+    supported: reason === null,
+    unsupportedReason: reason || null,
+  };
 }
 
 /** Downloads the newest release; resolves when it's ready to install (or
  *  failed). A second call while downloading waits on the same download. */
 export function downloadUpdate(): Promise<UpdaterState> {
-  const reason = unsupportedReason();
-  if (reason) return Promise.resolve({ ...state, unsupportedReason: reason });
-  if (state.status === 'ready') return Promise.resolve(getUpdaterState());
-  const done = new Promise<UpdaterState>((resolve) =>
-    pending.push((s) => resolve({ ...s, unsupportedReason: null })),
-  );
+  const current = getUpdaterState();
+  if (!current.supported || state.status === 'ready')
+    return Promise.resolve(current);
+  const done = new Promise<UpdaterState>((resolve) => pending.push(resolve));
   if (state.status !== 'downloading') {
     wire();
     state = { ...state, status: 'downloading', error: null };

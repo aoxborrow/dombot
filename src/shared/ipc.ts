@@ -239,8 +239,10 @@ export interface AppInfo {
 
 /** The desktop app's update-on-click progress (Settings → About). */
 export interface UpdaterState {
-  /** Null when this copy can update itself; otherwise why not, shown next to
-   *  a plain download link instead. */
+  /** Whether this copy can update itself; if not, About shows a plain
+   *  download link instead. */
+  supported: boolean;
+  /** Why not, when that's worth telling the user (null for a dev build). */
   unsupportedReason: string | null;
   status: 'idle' | 'downloading' | 'ready' | 'error';
   /** The last download's failure, when `status` is 'error'. */
