@@ -205,8 +205,8 @@ export default function AboutSettings() {
           <ProjectLink
             url={REPO}
             icon={<GitHubMark />}
-            title="GitHub"
-            hint="Source code and releases"
+            title="View source"
+            hint="Code and releases on GitHub"
           />
           <ProjectLink
             url="https://dombot.ai"
@@ -250,17 +250,23 @@ function ProjectLink({
       <button
         type="button"
         onClick={() => open(url)}
-        className="group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-foreground/[0.04]"
+        className="group flex w-full items-center gap-3 rounded-md max-sm:items-start px-3 py-2.5 text-left hover:bg-foreground/[0.04]"
       >
-        <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground group-hover:text-foreground [&_svg]:size-4">
+        <span className="flex size-4 shrink-0 items-center justify-center max-sm:mt-0.5 text-muted-foreground group-hover:text-foreground [&_svg]:size-4">
           {icon}
         </span>
         <span className="min-w-0 flex-1 text-sm">
           <span className="font-medium">{title}</span>
           <span className="text-muted-foreground"> – {hint}</span>
+          {/* Phones: the icon follows the text, since a wrapped row would
+              leave a right-edge icon floating mid-height. */}
+          <ExternalLink
+            className="ml-1.5 inline size-3 align-[-1px] text-muted-foreground/60 group-hover:text-foreground sm:hidden"
+            aria-hidden
+          />
         </span>
         <ExternalLink
-          className="size-3.5 shrink-0 text-muted-foreground/60 group-hover:text-foreground"
+          className="size-3.5 shrink-0 text-muted-foreground/60 group-hover:text-foreground max-sm:hidden"
           aria-hidden
         />
       </button>
