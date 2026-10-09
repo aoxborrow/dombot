@@ -27,7 +27,7 @@ import { setDispositions } from '../../core/services/domain-history';
 import { setPurchase, setSale } from '../../core/services/purchases';
 import { setListPrices } from '../../core/services/list-prices';
 import { setManualPrice } from '../../core/services/pricing';
-import { addManualDomains } from '../../core/services/manual-domains';
+import { addImportedDomains } from '../../core/services/imported-domains';
 import { MemoryDocStore } from '../../core/storage/doc-store';
 import { configureStore, hydrateStores } from '../../core/storage/namespace';
 import pkg from '../../../package.json';
@@ -200,10 +200,10 @@ function recordSampleListPrices(): void {
  * and the demo also syncs a Gandi account, so both show), one at a
  * registrar it doesn't know.
  */
-function recordSampleManualDomains(): void {
+function recordSampleImportedDomains(): void {
   const day = (daysAhead: number) =>
     localDay(Date.now() + daysAhead * 86_400_000);
-  addManualDomains(
+  addImportedDomains(
     [
       {
         domainName: 'harborlight.com',
@@ -244,7 +244,7 @@ export async function createDemoApi(
   const demo = await installDemo({ latencyMs: 0, size: options.size });
   await getPortfolio(true);
   recordSampleListPrices();
-  recordSampleManualDomains();
+  recordSampleImportedDomains();
   if (options.sampleChanges) {
     stageSampleChanges(demo.world);
     await getPortfolio(true);

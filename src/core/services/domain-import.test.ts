@@ -10,14 +10,14 @@ import { ownershipByDomain } from '../../shared/ownership';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { domainsToCsv } from '../../shared/domain-csv';
 import { buildRows, guessSetup, readTable } from '../../shared/domain-import';
-import { manualRows } from '../../shared/manual-domains';
+import { importedRows } from '../../shared/imported-domains';
 import { listAccounts } from './accounts';
 import { getListPrices } from './list-prices';
 import { listEvents, nameNotes } from './domain-events';
 import { recordSync, setDispositions } from './domain-history';
 import { importDomains, planImport } from './domain-import';
 import { getFolders } from './folders';
-import { getManualDomains } from './manual-domains';
+import { getImportedDomains } from './imported-domains';
 import { getManualPrices } from './pricing';
 import { getPurchases, setPurchase, setSale } from './purchases';
 import { getPortfolioPricing } from './registrars';
@@ -50,7 +50,7 @@ const openReviews = () => {
 };
 
 describe('importing domains', () => {
-  it('adds new names as manual domains, each waiting for review, purchase or not', () => {
+  it('adds new names as imported domains, each waiting for review, purchase or not', () => {
     const result = apply([
       row('example.com', {
         registration: { registrar: 'gandi', expirationDate: '2027-01-01' },
@@ -64,7 +64,7 @@ describe('importing domains', () => {
       unchanged: 0,
       history: 0,
     });
-    expect(getManualDomains()['example.com']).toMatchObject({
+    expect(getImportedDomains()['example.com']).toMatchObject({
       registrar: 'gandi',
       expirationDate: '2027-01-01',
       importId: result.importId,
@@ -128,7 +128,7 @@ describe('importing domains', () => {
     expect(JSON.stringify(await store.loadAll())).toBe(before);
   });
 
-  it('adds to a synced name without making it manual or asking about it', () => {
+  it('adds to a synced name without making it imported or asking about it', () => {
     sync(['example.com']);
     const plan = apply([
       row('example.com', {
@@ -138,7 +138,7 @@ describe('importing domains', () => {
     ]);
     expect(plan.counts.update).toBe(1);
     expect(plan.outcomes[0].warnings[0]).toMatch(/registrar details come from/);
-    expect(getManualDomains()).toEqual({});
+    expect(getImportedDomains()).toEqual({});
     expect(openReviews()).toEqual([]);
     expect(getPurchases()['example.com']).toMatchObject({
       purchaseDate: '2021-05-05',
@@ -198,7 +198,7 @@ describe('importing domains', () => {
       row('held.com', { status: 'removed' }),
     ]);
     expect(openReviews()).toEqual([['removed', 'gone.com']]);
-    expect(getManualDomains()).toEqual({});
+    expect(getImportedDomains()).toEqual({});
     expect(plan.outcomes.map((o) => o.result)).toEqual([
       'history',
       'unchanged',
@@ -206,14 +206,14 @@ describe('importing domains', () => {
     expect(plan.outcomes[1].warnings[0]).toMatch(/still reports this name/);
   });
 
-  it('puts a name with a sale only in Archive, with no manual entry', () => {
+  it('puts a name with a sale only in Archive, with no imported entry', () => {
     const plan = apply([
       row('sold.com', {
         sale: { date: '2016-01-01', amount: '99.00', currency: 'USD' },
       }),
     ]);
     expect(plan.counts.history).toBe(1);
-    expect(getManualDomains()).toEqual({});
+    expect(getImportedDomains()).toEqual({});
     expect(ownershipByDomain(listEvents()).get('sold.com')?.label).toBe('sold');
   });
 
@@ -240,7 +240,7 @@ describe('importing domains', () => {
     expect(openReviews()).toEqual([['removed', 'a.com']]);
     apply([row('a.com', { registration: { registrarLabel: 'Epik' } })]);
     expect(openReviews()).toEqual([]);
-    expect(getManualDomains()['a.com'].registrarLabel).toBe('Epik');
+    expect(getImportedDomains()['a.com'].registrarLabel).toBe('Epik');
     expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
   });
 
@@ -265,14 +265,14 @@ describe('importing domains', () => {
     expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
   });
 
-  it('brings a sold manual name back to Owned on a buy-back', () => {
+  it('brings a sold imported name back to Owned on a buy-back', () => {
     apply([
       row('a.com', {
         purchase: { date: '2018-01-01', amount: '10.00', currency: 'USD' },
       }),
     ]);
     apply([row('a.com', { sale: { date: '2019-01-01' } })]);
-    expect(getManualDomains()['a.com']).toBeDefined();
+    expect(getImportedDomains()['a.com']).toBeDefined();
     expect(ownershipByDomain(listEvents()).get('a.com')?.label).toBe('sold');
 
     const plan = apply([
@@ -297,7 +297,7 @@ describe('importing domains', () => {
   it('clears the typed registrar when a known one replaces it', () => {
     apply([row('a.com', { registration: { registrarLabel: 'Epik' } })]);
     apply([row('a.com', { registration: { registrar: 'gandi' } })]);
-    expect(getManualDomains()['a.com']).toMatchObject({
+    expect(getImportedDomains()['a.com']).toMatchObject({
       registrar: 'gandi',
       registrarLabel: null,
     });
@@ -409,11 +409,11 @@ describe('importing domains', () => {
     const exportAll = () => {
       const events = listEvents();
       const own = ownershipByDomain(events);
-      const manual = manualRows(getManualDomains(), []);
+      const imported = importedRows(getImportedDomains(), []);
       const departed: Domain[] = [...own]
-        .filter(([name, o]) => o.archived && !getManualDomains()[name])
+        .filter(([name, o]) => o.archived && !getImportedDomains()[name])
         .map(([name]) => ({
-          ...manualRows(
+          ...importedRows(
             { [name]: { registrar: null, addedAt: 0, updatedAt: null } },
             [],
           )[0],
@@ -422,7 +422,7 @@ describe('importing domains', () => {
         }));
       const { folders, assignments } = getFolders();
       return domainsToCsv(
-        [...manual, ...departed].sort((a, b) =>
+        [...imported, ...departed].sort((a, b) =>
           a.domainName.localeCompare(b.domainName),
         ),
         {
@@ -434,7 +434,7 @@ describe('importing domains', () => {
           pricing: getPortfolioPricing(),
           manualPrices: getManualPrices(),
           archiveLabel: (name) => own.get(name)?.label ?? null,
-          accountName: () => 'Manual',
+          accountName: () => 'Imported',
           now: Date.parse('2026-06-15T00:00:00Z'),
         },
       );
@@ -504,9 +504,9 @@ describe('writing an import', () => {
     );
     apply(rows);
     await flushWrites();
-    // Manual entries, events (added + purchased), notes, assignments,
+    // Imported entries, events (added + purchased), notes, assignments,
     // prices, and asking prices: about 120 batches, plus the folder list.
     expect(subrequests).toBeLessThan(200);
-    expect(Object.keys(getManualDomains())).toHaveLength(2000);
+    expect(Object.keys(getImportedDomains())).toHaveLength(2000);
   });
 });

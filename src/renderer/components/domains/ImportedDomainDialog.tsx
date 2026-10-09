@@ -23,22 +23,22 @@ const NONE = '__none__';
 const UNKNOWN = 'unknown';
 
 /**
- * Edit a manual name's registration fields: the registrar (one DomBot knows,
+ * Edit an imported name's registration fields: the registrar (one DomBot knows,
  * or free text), the registration and expiration dates, and auto-renew. A
- * manual name isn't at a connected account, so nothing here touches a
+ * imported name isn't at a connected account, so nothing here touches a
  * registrar; DomBot just keeps what you enter.
  */
-export function ManualDomainDialog({
+export function ImportedDomainDialog({
   domain,
   onClose,
 }: {
   domain: Domain;
   onClose: () => void;
 }) {
-  const manualDomains = useAppStore((s) => s.manualDomains);
+  const importedDomains = useAppStore((s) => s.importedDomains);
   const registrars = useAppStore((s) => s.registrars);
-  const saveManualDomain = useAppStore((s) => s.saveManualDomain);
-  const record = manualDomains[toAscii(domain.domainName)];
+  const saveImportedDomain = useAppStore((s) => s.saveImportedDomain);
+  const record = importedDomains[toAscii(domain.domainName)];
 
   // Every registrar DomBot supports, once each.
   const options = useMemo(() => {
@@ -64,7 +64,7 @@ export function ManualDomainDialog({
     setSaving(true);
     try {
       const known = registrar !== OTHER && registrar !== NONE;
-      await saveManualDomain(domain.domainName, {
+      await saveImportedDomain(domain.domainName, {
         registrar: known ? registrar : null,
         registrarLabel: registrar === OTHER ? label.trim() || null : null,
         createdDate: created || null,
@@ -116,18 +116,18 @@ export function ManualDomainDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="manual-created">Registered</Label>
+              <Label htmlFor="imported-created">Registered</Label>
               <Input
-                id="manual-created"
+                id="imported-created"
                 type="date"
                 value={created}
                 onChange={(e) => setCreated(e.target.value)}
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="manual-expires">Expires</Label>
+              <Label htmlFor="imported-expires">Expires</Label>
               <Input
-                id="manual-expires"
+                id="imported-expires"
                 type="date"
                 value={expires}
                 onChange={(e) => setExpires(e.target.value)}

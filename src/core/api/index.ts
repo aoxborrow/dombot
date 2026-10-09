@@ -34,9 +34,9 @@ import { listEvents } from '../services/domain-events';
 import { getListPrices, setListPrices } from '../services/list-prices';
 import { importDomains, planImport } from '../services/domain-import';
 import {
-  getManualDomains,
-  updateManualDomain,
-} from '../services/manual-domains';
+  getImportedDomains,
+  updateImportedDomain,
+} from '../services/imported-domains';
 import { lookupRegistrations } from '../services/registration-lookup';
 import {
   getRegistrarCatalog,
@@ -195,7 +195,7 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     // registrars. Drop it and hydrate nothing.
     if (getConfiguredRegistrars().length === 0) {
       clearAll();
-      // Manual names aren't registrar data: their pricing stays.
+      // Imported names aren't registrar data: their pricing stays.
       return { portfolio: null, detail: {}, pricing: getPortfolioPricing() };
     }
     return {
@@ -394,13 +394,13 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     async (rows, options) => importDomains(rows, options),
   ),
 
-  // ── Manual domains ────────────────────────────────────────────────────────
-  getManualDomains: method(none, async () => getManualDomains()),
-  updateManualDomain: method(
-    z.tuple([s.domainName, s.manualDomainFields]),
+  // ── Imported domains ────────────────────────────────────────────────────────
+  getImportedDomains: method(none, async () => getImportedDomains()),
+  updateImportedDomain: method(
+    z.tuple([s.domainName, s.importedDomainFields]),
     async (domainName, fields) => {
-      updateManualDomain(domainName, fields);
-      return getManualDomains();
+      updateImportedDomain(domainName, fields);
+      return getImportedDomains();
     },
   ),
 

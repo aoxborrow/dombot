@@ -228,14 +228,14 @@ describe('domainsToCsv', () => {
     expect(row).toMatchObject({ Locked: 'No', Privacy: '' });
   });
 
-  it('writes a manual name: its own registrar, "Manual", no registrar-only values', () => {
+  it('writes an imported name: its own registrar, "Imported", no registrar-only values', () => {
     const [row] = read(
       domainsToCsv(
         [
           {
             ...domain({ domainName: 'example.net', registrar: '' }),
-            source: 'manual',
-            manualRegistrarLabel: 'Epik',
+            source: 'imported',
+            importedRegistrarLabel: 'Epik',
             autoRenewUnknown: true,
             expirationDate: new Date(NOW + 10 * 86_400_000),
           },
@@ -245,7 +245,7 @@ describe('domainsToCsv', () => {
     );
     expect(row).toMatchObject({
       Registrar: 'Epik',
-      Account: 'Manual',
+      Account: 'Imported',
       'Auto-renew': '',
       'Days until expiry': '10',
       Locked: '',

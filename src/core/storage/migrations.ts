@@ -10,7 +10,7 @@ import { toRenewalPrice, type RenewalPrice } from '../../shared/renewal-prices';
 // one table of renames and one set of re-keying rules.
 
 /** The storage schema this build writes. Stored at `meta/schemaVersion`. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** v0 → v1: old namespace name → new. */
 export const RENAMED_NAMESPACES: Readonly<Record<string, string>> = {
@@ -22,6 +22,11 @@ export const RENAMED_NAMESPACES: Readonly<Record<string, string>> = {
   'registrar-state': 'registrars',
   'pricing-overrides': 'domain-prices',
 };
+
+/** v3 → v4: the names you add yourself became imported domains. Never in a
+ *  release; only stores and bundles built from main between the two. */
+export const LEGACY_IMPORTED_NAMESPACE = 'manual-domains';
+const IMPORTED_NAMESPACE = 'imported-domains';
 
 /** Renamed namespaces whose keys also change, from account-scoped to name. */
 const REKEYED_BY_NAME = new Set(['pricing-overrides']);
@@ -141,6 +146,10 @@ export async function runMigrations(
     await migration3(store);
     await store.put('meta', 'schemaVersion', 3);
   }
+  if (version < 4) {
+    await migration4(raw);
+    await store.put('meta', 'schemaVersion', 4);
+  }
 }
 
 /** v1: namespace renames, and folders and prices keyed by name. */
@@ -203,4 +212,12 @@ async function migration3(store: DocStore): Promise<void> {
   );
   for (const [name, price] of converted)
     if (price === null) await store.delete(RENEWAL_PRICES_NAMESPACE, name);
+}
+
+/** v4: `manual-domains` becomes `imported-domains`, values copied as stored. */
+async function migration4(raw: DocStore): Promise<void> {
+  const entries = await raw.list(LEGACY_IMPORTED_NAMESPACE);
+  if (Object.keys(entries).length === 0) return;
+  await raw.putMany(IMPORTED_NAMESPACE, Object.entries(entries));
+  await raw.clear(LEGACY_IMPORTED_NAMESPACE);
 }

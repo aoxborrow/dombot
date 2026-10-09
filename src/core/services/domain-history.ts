@@ -23,7 +23,7 @@ import {
 import { assignFolder } from './folders';
 import { setManualPrice } from './pricing';
 import { deleteListPrices } from './list-prices';
-import { removeManualDomains, takeOverManual } from './manual-domains';
+import { removeImportedDomains, takeOverImported } from './imported-domains';
 import { Namespace } from '../storage/namespace';
 
 // Ownership history on top of the event log: what sync saw, and what you say
@@ -100,9 +100,9 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
     newEvent,
   );
   const { newlyTracked } = diff;
-  // A manual name an account now reports isn't a new arrival: sync takes it
+  // An imported name an account now reports isn't a new arrival: sync takes it
   // over with a `moved` from no account, on the account's first sync too.
-  const takeover = takeOverManual(
+  const takeover = takeOverImported(
     after.filter((h) => h.synced),
     now,
   );
@@ -369,6 +369,6 @@ export function deleteDomains(domainNames: string[]): void {
     assignFolder(domain, null);
     setManualPrice(domain, null);
     deleteListPrices([domain]);
-    removeManualDomains([domain]);
+    removeImportedDomains([domain]);
   }
 }

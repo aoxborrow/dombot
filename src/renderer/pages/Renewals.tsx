@@ -9,7 +9,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
-import { manualRows } from '../../shared/manual-domains';
+import { importedRows } from '../../shared/imported-domains';
 import { useAppStore } from '../store/app';
 import {
   dueWithin,
@@ -116,7 +116,7 @@ const MANUAL_PRICING_ENABLED = false;
 export default function Renewals() {
   const {
     portfolio: syncedDomains,
-    manualDomains,
+    importedDomains,
     portfolioLoadedAt,
     portfolioRegistrarLabels,
     pricing,
@@ -125,8 +125,8 @@ export default function Renewals() {
 
   // Synced names plus the ones you added by hand.
   const allDomains = useMemo(
-    () => [...syncedDomains, ...manualRows(manualDomains, syncedDomains)],
-    [syncedDomains, manualDomains],
+    () => [...syncedDomains, ...importedRows(importedDomains, syncedDomains)],
+    [syncedDomains, importedDomains],
   );
   const [account, setAccount] = useState('all');
   const accounts = useAppStore((s) => s.registrars);
@@ -169,7 +169,7 @@ export default function Renewals() {
   const hasPortfolio =
     portfolio.length > 0 &&
     (portfolioLoadedAt !== null ||
-      portfolio.some((d) => d.source === 'manual'));
+      portfolio.some((d) => d.source === 'imported'));
   const hasPricing = Object.keys(pricing).length > 0;
   // Pricing is computed locally in main and arrives with the portfolio (and is
   // re-read after each Sync), so "loading" is just the brief gap before it lands.

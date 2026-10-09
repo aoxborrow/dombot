@@ -91,8 +91,8 @@ export function eventDetails(
 
 /**
  * A Domain for the purchase and sale dialogs, from an alert: the name's row
- * in `domains` (synced and manual), else one built for a name no account or
- * manual entry holds.
+ * in `domains` (synced and imported), else one built for a name no account or
+ * imported entry holds.
  */
 export function alertDomain(
   e: DomainEvent,

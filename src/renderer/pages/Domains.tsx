@@ -42,7 +42,7 @@ import {
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { ARCHIVE_LABEL, accountName } from '../lib/domain-history';
 import {
-  ManualRegistrarIcon,
+  ImportedRegistrarIcon,
   RegistrarLogo,
 } from '../components/RegistrarLogo';
 import { NotesButton } from '../components/domains/NotesButton';
@@ -55,7 +55,7 @@ import {
 } from '../components/actions/OwnershipDialogs';
 import { useAppStore } from '../store/app';
 import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
-import { manualRows } from '../../shared/manual-domains';
+import { importedRows } from '../../shared/imported-domains';
 import { priceMoney } from '../lib/renewals';
 import { nameserverGroup } from '../lib/nameservers';
 import { folderColorStyle } from '../lib/folders';
@@ -80,7 +80,7 @@ import { purchaseColumns } from '../components/domains/purchase-columns';
 import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { ListPriceDialog } from '../components/domains/ListPriceDialog';
-import { ManualDomainDialog } from '../components/domains/ManualDomainDialog';
+import { ImportedDomainDialog } from '../components/domains/ImportedDomainDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import {
   DEFAULT_CURRENCY,
@@ -160,17 +160,17 @@ interface Column {
 /**
  * Registrar filter value for a name you added that no account reports: one
  * per registrar name (so a known "gandi" and a typed "Gandi.net" meet), and
- * "manual:" alone for names with no registrar (Unknown).
+ * "imported:" alone for names with no registrar (Unknown).
  */
-function manualRegistrarValue(label: string): string {
-  return `manual:${label.trim().toLowerCase()}`;
+function importedRegistrarValue(label: string): string {
+  return `imported:${label.trim().toLowerCase()}`;
 }
 
-/** A manual name's registrar as shown: DomBot's name for it, or your text. */
-function manualRegistrarName(d: Domain, labels: RegistrarLabels): string {
+/** An imported name's registrar as shown: DomBot's name for it, or your text. */
+function importedRegistrarName(d: Domain, labels: RegistrarLabels): string {
   return d.registrar
     ? registrarLabel(d.registrar, labels)
-    : (d.manualRegistrarLabel ?? '');
+    : (d.importedRegistrarLabel ?? '');
 }
 
 /** Distinct names among rows (a name two accounts hold is one row in a CSV). */
@@ -545,13 +545,13 @@ const COLUMNS: Column[] = [
           />
         </a>
         <LifecycleBadge status={d.status} />
-        {d.source === 'manual' && (
+        {d.source === 'imported' && (
           <Badge
             variant="outline"
             className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
             title="Added by you. No connected account reports this name."
           >
-            Manual
+            Imported
           </Badge>
         )}
       </span>
@@ -748,7 +748,7 @@ export default function Domains() {
     bulk,
     purchases,
     listPrices,
-    manualDomains,
+    importedDomains,
     settings,
     domainEvents,
     registrationLookups,
@@ -785,7 +785,7 @@ export default function Domains() {
   const [importing, setImporting] = useState(false);
   // Asking price for one name (its cell or row menu) or the selection.
   const [listPriceFor, setListPriceFor] = useState<Domain[] | null>(null);
-  // Edit details for a manual name.
+  // Edit details for an imported name.
   const [detailsFor, setDetailsFor] = useState<Domain | null>(null);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
   // Mark as Sold for one name: the sale dialog, which takes the price.
@@ -811,11 +811,11 @@ export default function Domains() {
             render: (d: Domain, labels: RegistrarLabels) => {
               // Names you added: a faint building rather than the logo, so
               // they read apart from a connected account's names.
-              if (d.source === 'manual') {
-                const name = manualRegistrarName(d, labels);
+              if (d.source === 'imported') {
+                const name = importedRegistrarName(d, labels);
                 return (
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                    <ManualRegistrarIcon />
+                    <ImportedRegistrarIcon />
                     {name || (
                       <span className="text-muted-foreground">Unknown</span>
                     )}
@@ -841,9 +841,10 @@ export default function Domains() {
               );
             },
             sortValue: (d: Domain, labels: RegistrarLabels) => {
-              if (d.source === 'manual')
+              if (d.source === 'imported')
                 return (
-                  d.manualRegistrarLabel ?? registrarLabel(d.registrar, labels)
+                  d.importedRegistrarLabel ??
+                  registrarLabel(d.registrar, labels)
                 ).toLowerCase();
               const name = registrarLabel(d.registrar, labels).toLowerCase();
               const n = accountNumber(d.accountLabel);
@@ -906,9 +907,9 @@ export default function Domains() {
   // Overlay lazily-fetched per-domain detail (nameservers/privacy/lock) onto the
   // fast summary. Filtering, sorting, and rendering all use this merged view.
   // Names you added that no account reports join the registrar rows.
-  const manualList = useMemo(
-    () => manualRows(manualDomains, portfolio),
-    [manualDomains, portfolio],
+  const importedList = useMemo(
+    () => importedRows(importedDomains, portfolio),
+    [importedDomains, portfolio],
   );
   const merged = useMemo(
     () => [
@@ -921,9 +922,9 @@ export default function Domains() {
             }
           : d,
       ),
-      ...manualList,
+      ...importedList,
     ],
-    [portfolio, enriched, manualList],
+    [portfolio, enriched, importedList],
   );
 
   // Names in Archive that no registrar reports any more. They're not in
@@ -931,9 +932,9 @@ export default function Domains() {
   const listed = useMemo(
     () => [
       ...merged,
-      ...archiveRows(ownership, [...portfolio, ...manualList], registrars),
+      ...archiveRows(ownership, [...portfolio, ...importedList], registrars),
     ],
-    [merged, ownership, portfolio, manualList, registrars],
+    [merged, ownership, portfolio, importedList, registrars],
   );
 
   // Archive asks RDAP for names that have left, so created and expires stay
@@ -1061,10 +1062,10 @@ export default function Domains() {
   // Distinct filter options with per-option domain counts, derived from the
   // loaded portfolio. Counts are over the whole portfolio (independent of the
   // other active filters), matching the Nameservers and Folder filters.
-  // Manual names count alongside the registrar rows.
+  // Imported names count alongside the registrar rows.
   const ownedRows = useMemo(
-    () => [...portfolio, ...manualList],
-    [portfolio, manualList],
+    () => [...portfolio, ...importedList],
+    [portfolio, importedList],
   );
   const tldOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1115,20 +1116,20 @@ export default function Domains() {
         />
       ),
     })).sort((a, b) => a.label.localeCompare(b.label));
-    const manual = new Map<string, { label: string; count: number }>();
-    for (const d of manualList) {
-      const label = manualRegistrarName(d, portfolioRegistrarLabels);
-      const value = manualRegistrarValue(label);
-      const existing = manual.get(value);
+    const imported = new Map<string, { label: string; count: number }>();
+    for (const d of importedList) {
+      const label = importedRegistrarName(d, portfolioRegistrarLabels);
+      const value = importedRegistrarValue(label);
+      const existing = imported.get(value);
       if (existing) existing.count += 1;
-      else manual.set(value, { label: label || 'Unknown', count: 1 });
+      else imported.set(value, { label: label || 'Unknown', count: 1 });
     }
-    const unknown = manualRegistrarValue('');
-    const added: FilterOption[] = Array.from(manual, ([value, v]) => ({
+    const unknown = importedRegistrarValue('');
+    const added: FilterOption[] = Array.from(imported, ([value, v]) => ({
       value,
       label: v.label,
       count: v.count,
-      icon: <ManualRegistrarIcon />,
+      icon: <ImportedRegistrarIcon />,
     })).sort(
       (a, b) =>
         Number(a.value === unknown) - Number(b.value === unknown) ||
@@ -1136,7 +1137,7 @@ export default function Domains() {
     );
     if (accounts.length > 0 && added.length > 0) added[0].divider = true;
     return [...accounts, ...added];
-  }, [portfolio, manualList, portfolioRegistrarLabels, multipleAccounts]);
+  }, [portfolio, importedList, portfolioRegistrarLabels, multipleAccounts]);
   // Expiration windows are cumulative, so their counts intentionally overlap
   // (a domain due in 20 days matches the 30-, 60-, and 90-day options).
 
@@ -1391,9 +1392,9 @@ export default function Domains() {
       if (
         registrar.length > 0 &&
         !registrar.includes(
-          d.source === 'manual'
-            ? manualRegistrarValue(
-                manualRegistrarName(d, portfolioRegistrarLabels),
+          d.source === 'imported'
+            ? importedRegistrarValue(
+                importedRegistrarName(d, portfolioRegistrarLabels),
               )
             : (d.accountId ?? d.registrar),
         )
@@ -1498,7 +1499,7 @@ export default function Domains() {
   // Registrar actions act on the selected names an account still holds.
   // The selected names at a connected account: what registrar actions run on.
   const selectedHeld = selectedDomains.filter(
-    (d) => !d.departed && d.source !== 'manual',
+    (d) => !d.departed && d.source !== 'imported',
   );
   const bulkRefresh = () => {
     const n = selectedHeld.length;
@@ -1697,14 +1698,14 @@ export default function Domains() {
           {d.registrationRegistrar}
         </span>
       );
-    if (d.source === 'manual' && col.key === 'autoRenew')
+    if (d.source === 'imported' && col.key === 'autoRenew')
       return (
         <span className="text-muted-foreground">
           {d.autoRenewUnknown ? '—' : d.autoRenew ? 'On' : 'Off'}
         </span>
       );
     if (
-      (d.departed || d.source === 'manual') &&
+      (d.departed || d.source === 'imported') &&
       (col.detail || col.key === 'autoRenew')
     )
       return <span className="text-muted-foreground/50">—</span>;
@@ -1904,7 +1905,7 @@ export default function Domains() {
           rowLabel: (d) => `Select ${d.domainName}`,
         }}
         empty={
-          noneConfigured && manualList.length === 0 ? (
+          noneConfigured && importedList.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-4">
               <div>
                 <p className="font-medium text-foreground">
@@ -1967,7 +1968,7 @@ export default function Domains() {
         />
       )}
       {detailsFor && (
-        <ManualDomainDialog
+        <ImportedDomainDialog
           domain={detailsFor}
           onClose={() => setDetailsFor(null)}
         />

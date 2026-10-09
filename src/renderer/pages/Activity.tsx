@@ -22,12 +22,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toAscii, toUnicode } from '../../shared/domain-name';
-import { manualRows } from '../../shared/manual-domains';
-import {
-  DomainEventSource,
-  DomainEventType,
-  type DomainEvent,
-} from '../../shared/domain-events';
+import { importedRows } from '../../shared/imported-domains';
+import { DomainEventType, type DomainEvent } from '../../shared/domain-events';
 import type { RegistrarMeta, RegistrarName } from '../../shared/ipc';
 import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
 import {
@@ -141,12 +137,12 @@ export default function Activity() {
   const events = useAppStore((s) => s.domainEvents);
   const registrars = useAppStore((s) => s.registrars);
   const portfolio = useAppStore((s) => s.portfolio);
-  const manualDomains = useAppStore((s) => s.manualDomains);
-  // Every name a dialog can open on: synced, and the manual names no account
+  const importedDomains = useAppStore((s) => s.importedDomains);
+  // Every name a dialog can open on: synced, and the imported names no account
   // reports.
   const domains = useMemo(
-    () => [...portfolio, ...manualRows(manualDomains, portfolio)],
-    [portfolio, manualDomains],
+    () => [...portfolio, ...importedRows(importedDomains, portfolio)],
+    [portfolio, importedDomains],
   );
   const settings = useAppStore((s) => s.settings);
   const setAlertsDismissed = useAppStore((s) => s.setAlertsDismissed);
@@ -527,7 +523,7 @@ export default function Activity() {
       key: 'account',
       label: 'Registrar',
       cell: ({ event: e }) =>
-        // A move from no account is sync taking over a manual name.
+        // A move from no account is sync taking over an imported name.
         e.type === DomainEventType.Moved && !e.fromAccountId ? (
           <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
             <span className="text-muted-foreground">Now synced from</span>
@@ -542,11 +538,9 @@ export default function Activity() {
         ) : e.accountId ? (
           <AccountLabel registrars={registrars} id={e.accountId} />
         ) : e.type === DomainEventType.Added ? (
-          // A manual name: added by hand, or by an import.
+          // An imported name, from a file or the Add domains form alike.
           <span className="whitespace-nowrap text-muted-foreground">
-            {e.source === DomainEventSource.Import
-              ? 'Imported'
-              : 'Added manually'}
+            Imported
           </span>
         ) : (
           <span className="text-muted-foreground/50">—</span>

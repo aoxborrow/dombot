@@ -2,7 +2,7 @@ import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
 import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
 import type { Domain } from '../../shared/ipc';
-import { manualRows } from '../../shared/manual-domains';
+import { importedRows } from '../../shared/imported-domains';
 import { archiveRows, ownershipByDomain } from '../../shared/ownership';
 import { useAppStore } from '../store/app';
 import { accountName } from './domain-history';
@@ -10,7 +10,7 @@ import { accountName } from './domain-history';
 // "Export all domains" from outside the Domains page (Settings → Sync): the
 // same rows the page lists, Owned and Archive, in the DomBot CSV.
 
-/** Every name DomBot lists: synced (with any loaded detail), manual, and Archive. */
+/** Every name DomBot lists: synced (with any loaded detail), imported, and Archive. */
 export function allDomainRows(): Domain[] {
   const s = useAppStore.getState();
   const synced = s.portfolio.map((d) =>
@@ -22,12 +22,12 @@ export function allDomainRows(): Domain[] {
         }
       : d,
   );
-  const manual = manualRows(s.manualDomains, s.portfolio);
+  const imported = importedRows(s.importedDomains, s.portfolio);
   const ownership = ownershipByDomain(s.domainEvents);
   return [
     ...synced,
-    ...manual,
-    ...archiveRows(ownership, [...s.portfolio, ...manual], s.registrars),
+    ...imported,
+    ...archiveRows(ownership, [...s.portfolio, ...imported], s.registrars),
   ].sort((a, b) => toAscii(a.domainName).localeCompare(toAscii(b.domainName)));
 }
 

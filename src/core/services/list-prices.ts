@@ -9,7 +9,7 @@ import { Namespace } from '../storage/namespace';
 
 // Asking prices (docs/domain-import-export.md, "Prices"): what you'd sell a
 // name for, keyed by `toAscii(name)` so the price follows the name between
-// accounts and works the same for synced and manual names. User data: never
+// accounts and works the same for synced and imported names. User data: never
 // cleared by "Clear cache", always exported.
 
 export const LIST_PRICES_NAMESPACE = 'domain-list-prices';

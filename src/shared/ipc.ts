@@ -32,7 +32,7 @@ export interface RegistrarAccount {
 }
 
 /** Where a Domain row comes from (see `Domain.source`). */
-export type DomainSource = 'registrar' | 'manual';
+export type DomainSource = 'registrar' | 'imported';
 
 export type Domain = ProviderDomain & {
   accountId?: string;
@@ -62,22 +62,22 @@ export type Domain = ProviderDomain & {
    * Where the row comes from. `registrar`: an account's sync. A name in
    * Archive is one too: `departed` says no account reports it any more, and
    * its registrar is the last one it was seen at (empty when unknown).
-   * `manual`: a name you added that no connected account reports
-   * (`manual-domains`); registrar actions don't apply, and its registrar
+   * `imported`: a name you added that no connected account reports
+   * (`imported-domains`); registrar actions don't apply, and its registrar
    * fields are yours to edit.
    */
   source: DomainSource;
-  /** A manual name's registrar as you typed it, when DomBot doesn't know it. */
-  manualRegistrarLabel?: string;
-  /** A manual name whose auto-renew you haven't set (`autoRenew` reads false). */
+  /** An imported name's registrar as you typed it, when DomBot doesn't know it. */
+  importedRegistrarLabel?: string;
+  /** An imported name whose auto-renew you haven't set (`autoRenew` reads false). */
   autoRenewUnknown?: boolean;
 };
 
 /**
  * A name you own that no connected account reports, kept in
- * `manual-domains` (docs/domain-import-export.md). Dates are `YYYY-MM-DD`.
+ * `imported-domains` (docs/domain-import-export.md). Dates are `YYYY-MM-DD`.
  */
-export interface ManualDomain {
+export interface ImportedDomain {
   /** A registrar DomBot knows (registrar-client's id), or null. */
   registrar: string | null;
   /** Free text when DomBot doesn't know the registrar, e.g. "Epik". */
@@ -93,8 +93,8 @@ export interface ManualDomain {
   importId?: string | null;
 }
 
-/** A manual name's registration fields, as edited. */
-export interface ManualDomainFields {
+/** An imported name's registration fields, as edited. */
+export interface ImportedDomainFields {
   registrar: string | null;
   registrarLabel: string | null;
   createdDate: string | null;
@@ -176,8 +176,8 @@ export const IpcChannels = {
   setNotes: 'purchases:setNotes',
   previewDomainImport: 'domainImport:preview',
   importDomains: 'domainImport:apply',
-  getManualDomains: 'manualDomains:list',
-  updateManualDomain: 'manualDomains:update',
+  getImportedDomains: 'importedDomains:list',
+  updateImportedDomain: 'importedDomains:update',
   getListPrices: 'listPrices:list',
   setListPrices: 'listPrices:set',
   getDomainEvents: 'domainEvents:list',
@@ -388,7 +388,7 @@ export interface SaleInput {
 }
 
 /**
- * Your asking price for a name, synced or manual (docs/domain-import-export.md).
+ * Your asking price for a name, synced or imported (docs/domain-import-export.md).
  * Amounts are canonical decimals, all in `currency`. At least one is set.
  */
 export interface ListPrice {
@@ -463,7 +463,7 @@ export interface ImportOutcome {
   line: number;
   domain: string;
   /**
-   * `new`: added as a manual name. `update`: something changes.
+   * `new`: added as an imported name. `update`: something changes.
    * `unchanged`: nothing to do. `history`: a name that's only in Archive.
    */
   result: 'new' | 'update' | 'unchanged' | 'history';
@@ -1074,16 +1074,16 @@ export interface DombotApi {
     options: { importId: string },
   ) => Promise<ImportPlan & { importId: string }>;
 
-  // Manual domains (names no connected account reports)
-  /** Every manual name, keyed by the normalized domain name. */
-  getManualDomains: () => Promise<Record<string, ManualDomain>>;
-  /** Edit a manual name's registration fields. Returns every manual name. */
-  updateManualDomain: (
+  // Imported domains (names no connected account reports)
+  /** Every imported name, keyed by the normalized domain name. */
+  getImportedDomains: () => Promise<Record<string, ImportedDomain>>;
+  /** Edit an imported name's registration fields. Returns every imported name. */
+  updateImportedDomain: (
     domainName: string,
-    fields: ManualDomainFields,
-  ) => Promise<Record<string, ManualDomain>>;
+    fields: ImportedDomainFields,
+  ) => Promise<Record<string, ImportedDomain>>;
 
-  // Asking prices (keyed by domain name; any name, synced or manual)
+  // Asking prices (keyed by domain name; any name, synced or imported)
   /** Every asking price, keyed by the normalized domain name. */
   getListPrices: () => Promise<Record<string, ListPrice>>;
   /**

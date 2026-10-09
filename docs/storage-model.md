@@ -2,7 +2,7 @@
 
 The naming and keying standard for everything DomBot persists, the domain
 event history (`domain-events`), and the migrations that move older installs
-and backups onto it. Manual domains and the CSV import are described in
+and backups onto it. Imported domains and the CSV import are described in
 [domain-import-export.md](domain-import-export.md).
 
 ## Two kinds of domain data
@@ -13,9 +13,9 @@ and backups onto it. Manual domains and the CSV import are described in
 | Keyed by          | account                                      | domain name                                                             |
 | Can be re-fetched | yes                                          | no                                                                      |
 | Authority         | the registrar                                | you                                                                     |
-| Namespace prefix  | `registrar-`                                 | `domain-`, `manual-domains`                                             |
+| Namespace prefix  | `registrar-`                                 | `domain-`, `imported-domains`                                           |
 
-The Domains page merges the two: the registrar's list plus manual domains,
+The Domains page merges the two: the registrar's list plus imported domains,
 annotated with your notes, folders, prices, and history.
 
 ## Naming
@@ -44,7 +44,7 @@ set passed to `EncryptedDocStore`.
 | `proxies`                                | `registrar-proxies`     | sealed | proxy id                   | proxy profiles                                    |
 | `registrar-state`                        | `registrars`            |        | fixed keys                 | which registrars are switched on                  |
 | —                                        | `registrar-last-sync`   |        | account id                 | names (and expiries) each account's last sync saw |
-| —                                        | `manual-domains`        |        | name                       | names you add that no connected registrar reports |
+| —                                        | `imported-domains`      |        | name                       | names you add that no connected registrar reports |
 | —                                        | `domain-notes`          |        | note id                    | notes on a domain, or on one of its events        |
 | `domain-purchases` + `portfolio-changes` | `domain-events`         |        | event id                   | purchases, sales, arrivals, moves, drops          |
 | `folders` (`assignments` key)            | `domain-folders`        |        | name                       | name → folder id                                  |
@@ -267,7 +267,7 @@ folder.
 ### Delete
 
 **Delete** removes everything DomBot holds about a name: its events, notes,
-folder, price override, and manual-domain entry. It's for mistakes and names
+folder, price override, and imported-domain entry. It's for mistakes and names
 you never want to see again, not for recording what happened (that's Sold,
 Dropped, or Archived). If a connected registrar still reports the name, the
 next sync brings it back as a fresh name with no history.
@@ -323,13 +323,13 @@ Its badge counts errors plus review items and takes the color of the most
 severe one: red for errors, amber for departures, gray when only new names
 are waiting. "View all activity" opens the Activity page.
 
-## Manual domains and notes
+## Imported domains and notes
 
-`manual-domains` holds names you own that no
+`imported-domains` holds names you own that no
 connected registrar reports — typed in, or imported from a CSV:
 
 ```ts
-interface ManualDomain {
+interface ImportedDomain {
   registrar: RegistrarName | null; // a registrar DomBot knows, or null
   registrarLabel?: string | null; // free text otherwise, e.g. "Epik"
   expirationDate?: string | null; // YYYY-MM-DD
@@ -346,9 +346,9 @@ prices, notes, and events like any other name. Clear cache never touches them.
 Adding one writes `added` (`source: 'user'`, or `'import'` from a CSV) with no
 account; like a sync arrival, it waits for review. If a connected registrar
 later reports the same name (on the account's first sync too), sync removes
-the `manual-domains` entry, the registrar's row takes over, and the diff
+the `imported-domains` entry, the registrar's row takes over, and the diff
 records a `moved` from no account. Notes, events, folders, and prices are
-keyed by name, not by the manual entry, so they carry straight across; the
+keyed by name, not by the imported entry, so they carry straight across; the
 name never leaves the table, it only changes source.
 
 `domain-notes` holds note records, keyed by note id, for any domain:
@@ -435,7 +435,7 @@ the bump it would import a newer file "successfully" and silently drop that
 data. The bump makes the older build refuse the file with "made by a newer
 DomBot".
 
-- **v8** adds `manual-domains`.
+- **v8** adds `imported-domains`.
 - **v7** stores manual renewal prices with a currency. An older build would
   read the new values as no price, so it must refuse the file. Rule: changing
   the shape of an exported namespace's values bumps the version too.
