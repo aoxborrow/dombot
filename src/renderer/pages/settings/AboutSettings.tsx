@@ -170,31 +170,31 @@ export default function AboutSettings() {
             url={SPONSOR}
             icon={<Heart className="fill-pink-500 text-pink-500" />}
             title="Sponsor DomBot"
-            hint="DomBot is free and open source. Sponsoring helps fund its development."
+            hint="Help fund its development"
           />
           <ProjectLink
             url={REPO}
             icon={<GitHubMark />}
             title="GitHub"
-            hint="Source code, releases, and pull requests"
+            hint="Source code and releases"
           />
           <ProjectLink
             url={`${REPO}#readme`}
             icon={<BookOpen />}
             title="Documentation"
-            hint="Setup, self-hosting, and connecting MCP clients"
+            hint="Setup, self-hosting, and MCP"
           />
           <ProjectLink
             url={`${REPO}/issues/new?labels=bug`}
             icon={<Bug />}
             title="Report a bug"
-            hint="Something not working right? Let us know on GitHub"
+            hint="Let us know what’s broken"
           />
           <ProjectLink
             url={`${REPO}/issues/new?labels=enhancement`}
             icon={<Lightbulb />}
             title="Request a feature"
-            hint="Ideas and missing registrars are welcome"
+            hint="Ideas and new registrars welcome"
           />
           <ProjectLink
             url="https://dombot.ai"
@@ -219,8 +219,8 @@ export default function AboutSettings() {
   );
 }
 
-/** One row of the project list: icon, title, a line on what's there, and an
- *  arrow saying it opens in the browser. The whole row is the link. */
+/** One row of the project list: icon, title, a few words on what's there,
+ *  and an arrow saying it opens in the browser. The whole row is the link. */
 function ProjectLink({
   url,
   icon,
@@ -237,16 +237,14 @@ function ProjectLink({
       <button
         type="button"
         onClick={() => open(url)}
-        className="group flex w-full items-center gap-3 px-6 py-3 text-left hover:bg-foreground/[0.04]"
+        className="group flex w-full items-center gap-3 px-6 py-2.5 text-left hover:bg-foreground/[0.04]"
       >
         <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground group-hover:text-foreground [&_svg]:size-4">
           {icon}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium">{title}</span>
-          <span className="block text-[13px] text-muted-foreground">
-            {hint}
-          </span>
+        <span className="min-w-0 flex-1 truncate text-sm">
+          <span className="font-medium">{title}</span>
+          <span className="text-muted-foreground"> – {hint}</span>
         </span>
         <ArrowUpRight className="size-4 shrink-0 text-muted-foreground/50 group-hover:text-foreground" />
       </button>
