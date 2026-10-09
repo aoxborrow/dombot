@@ -76,6 +76,15 @@ false`, and `registrarLabel` when you typed a registrar DomBot doesn't
     account reports has `inAccount: false`, its last known registrar, and
     `null` for the settings an account reports. The `domain_*` tools can't act
     on it.
+- **`portfolio_alerts`** — what needs you, as the bell shows it: failed
+  syncs (`sync-error`), names that left an account (`departure`, high
+  priority) and names that arrived (`arrival`, low). Most severe first, then
+  newest. `kind?`, `limit?`, `offset?`. Returns `{ total, counts, alerts }`;
+  each alert's `eventId` is what `resolves` and `portfolio_alert_dismiss`
+  take.
+- **`portfolio_alert_dismiss`** — `alertIds[]`, `dismissed?` (default
+  `true`; `false` brings them back). Dismisses without recording anything.
+  Returns the ids still open.
 - **`portfolio_sync`** — re-sync every active account and return a
   per-account summary (counts, last sync, errors).
 
@@ -100,11 +109,56 @@ names are kept unique (case-insensitive), and none may be called `Hidden`.
   any current one. The domain must be in your portfolio, owned or Archive.
   Returns `{ domain, folder, previous }`.
 
+## History, money, notes and ownership
+
+DomBot's own data about a name, read and written through the same services as
+the app. No registrar calls. Each takes `domain`, which must be in your
+portfolio: synced, imported, or with history.
+
+- **`domain_history`** — every event for the name, oldest first, with its
+  note and current `ownership` / `archiveLabel`. Each event has its `source`;
+  sync alerts (`added`, `removed`) also have `alert` (`open`, `dismissed` or
+  `resolved`) and `resolvedBy`.
+- **`domain_purchase_set`** — `date?`, `amount?`, `currency?`, `kind?`
+  (`registered` or `purchased`), `resolves?`. Edits the latest purchase;
+  with `resolves` (an open `added` alert) it records the purchase that
+  answers it. Leaving out both `date` and `amount` deletes the purchase.
+  Returns `{ domain, paid, sold }`.
+- **`domain_sale_set`** — `date?`, `amount?`, `currency?`, `resolves?`.
+  Records a sale (dated today by default) when none is on record or
+  `resolves` names a new alert, otherwise edits the latest; the name moves to
+  Archive as Sold. Undo it with `domain_ownership_set` `owned`. Returns
+  `{ domain, paid, sold, ownership, archiveLabel }`.
+
+- **`domain_note_set`** — `notes`, replacing the note; `""` deletes it.
+  Returns `{ domain, notes }`.
+- **`domain_asking_price_set`** — `amount?` (BIN), `minOffer?`, `floor?`,
+  `currency?`. Replaces the asking price: what's left out is cleared, and all
+  three left out removes it. `currency` is required unless clearing. Returns
+  `{ domain, askingPrice }`.
+- **`domain_renewal_price_set`** — `amount` (`null` clears it), `currency?`
+  (default `USD`). Your yearly price, which `domain_renewal_price` then
+  reports with source `manual`. Returns `{ domain, renewalPrice }`.
+- **`domain_ownership_set`** — `ownership`: `dropped` or `archived` moves the
+  name to Archive; `owned` undoes your Sold, Dropped or Archived mark (Move
+  back to Owned). `date?` defaults to today. A name in Archive only because
+  sync saw it leave can't be moved back. `resolves?` answers an open
+  `removed` alert. Returns `{ domain, ownership, archiveLabel }`.
+
+Purchases, sales and marks an agent records have `source: 'agent'`, shown as **Agent** in Activity, so
+you can tell what an agent did from what you did. Otherwise an agent's mark
+behaves like yours: your next mark replaces it, and Move back to Owned undoes
+it.
+
 ## Registrar
 
 - **`registrar_test`** — test an account's credentials.
 - **`registrar_domains`** — list every domain in the account, live.
 - **`registrar_sync`** — re-sync one account into the cache.
+- **`registrar_set_enabled`** — `enabled`: turn an account on or off, as the
+  app does. A disabled account keeps its credentials but doesn't sync, and its
+  names leave `portfolio_query`; enabling syncs it. Adding, removing and
+  credentials stay in the app.
 - **`registrar_check_availability`** — `domains[]`: whether each can be
   registered.
 - **`registrar_pricing`** — `tld` (or a domain): the registrar's live
