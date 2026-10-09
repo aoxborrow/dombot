@@ -283,6 +283,16 @@ describe('getCachedPortfolio / assemblePortfolio', () => {
       },
     ]);
   });
+
+  it('hides cached rows that have no domain name', () => {
+    seedSlice('dynadot', [
+      domain({ domainName: 'a.com', registrar: 'dynadot' }),
+      domain({ domainName: '', registrar: 'dynadot' }),
+      domain({ domainName: '  ', registrar: 'dynadot' }),
+    ]);
+    const p = getCachedPortfolio()!;
+    expect(p.domains.map((d) => d.domainName)).toEqual(['a.com']);
+  });
 });
 
 describe('getMergedPortfolio', () => {
@@ -339,6 +349,22 @@ describe('syncRegistrarInto — last-good on error (via getPortfolio)', () => {
     expect(
       (store.portfolio.dynadot.data as { lastError: string | null }).lastError,
     ).toBeNull();
+  });
+
+  it('drops listed rows that have no domain name', async () => {
+    enabled.porkbun = false;
+    listPortfolio.mockResolvedValue({
+      domains: [
+        domain({ domainName: 'named.com', registrar: 'dynadot' }),
+        domain({ domainName: '', registrar: 'dynadot' }),
+      ],
+      errors: [],
+    });
+
+    const p = await getPortfolio(true);
+    expect(p.domains.map((d) => d.domainName)).toEqual(['named.com']);
+    const slice = store.portfolio.dynadot.data as { domains: Domain[] };
+    expect(slice.domains.map((d) => d.domainName)).toEqual(['named.com']);
   });
 
   it('keeps last-good domains and lastSyncedAt when the list reports an error', async () => {
