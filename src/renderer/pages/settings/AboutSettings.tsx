@@ -173,8 +173,7 @@ export default function AboutSettings() {
           >
             GNU AGPL v3.0
           </button>
-          . <span className="whitespace-nowrap">© 2026 Aaron Oxborrow</span> and
-          contributors.
+          .
         </p>
         {/* Pulled out a little so the rows' hover fill has room, while the
             dividers stop short of the card's edges. */}
@@ -216,6 +215,18 @@ export default function AboutSettings() {
             hint="Downloads and the live demo"
           />
         </ul>
+        {/* Full-bleed footer strip, out to the card's edges. */}
+        <p className="-mx-6 -mb-[19px] border-t bg-muted/40 px-6 py-3 text-xs text-muted-foreground">
+          © 2026{' '}
+          <button
+            type="button"
+            onClick={() => open('https://x.com/aoxborrow')}
+            className="hover:text-foreground"
+          >
+            Aaron Oxborrow
+          </button>{' '}
+          and contributors
+        </p>
       </SettingsCard>
     </div>
   );
