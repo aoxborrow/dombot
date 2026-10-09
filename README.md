@@ -178,9 +178,11 @@ third _adapter_ over the same `services/` core the UI uses — see
   at `portfolio_sync`, or says the name is in Archive.
   - _Portfolio:_ `registrar_list`, `portfolio_query`, and `portfolio_sync`.
     `portfolio_query` is the primary way to read the portfolio: list, search,
-    filter, sort, and page the cached portfolio (by registrar, TLD, folder,
-    name, nameserver, auto-renew/lock/privacy, status, and expiry), returning
-    only the fields an agent needs plus sync health (`total`, `stale`, and
+    filter, sort, and page the cached portfolio and your imported names (by
+    registrar, source, TLD, folder, name, nameserver, auto-renew/lock/privacy,
+    status, and expiry), returning only the fields an agent needs (including
+    what you paid, sold for, noted, and are asking, and the estimated renewal
+    price) plus sync health (`total`, `stale`, and
     per-registrar `errors`). Like the Domains page it covers the names you own
     by default; `ownership` switches to Archive (sold, dropped, archived, or
     gone from your accounts) or both, and each row says which, and whether

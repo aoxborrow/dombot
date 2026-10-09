@@ -4,6 +4,7 @@ import {
   STALE_AFTER_MS,
   type Domain,
 } from '../../shared/ipc';
+import { importedRow } from '../../shared/imported-domains';
 import { archiveRows, type Ownership } from '../../shared/ownership';
 import {
   DEFAULT_LIMIT,
@@ -12,6 +13,7 @@ import {
   type FolderRef,
   type QueryArgs,
   type QueryMeta,
+  type RowExtras,
 } from './portfolio-query';
 
 const NOW = Date.parse('2026-06-01T00:00:00Z');
@@ -364,5 +366,158 @@ describe('ownership', () => {
     expect(names({ autoRenew: false })).toEqual([]);
     expect(names({ locked: false })).toEqual(['escrow.com']);
     expect(names({ privacy: false })).toEqual(['escrow.com']);
+  });
+});
+
+describe('imported names', () => {
+  const synced = domain({ domainName: 'synced.com', autoRenew: true });
+  const epik = importedRow('epik.com', {
+    registrar: null,
+    registrarLabel: 'Epik',
+    expirationDate: '2027-01-02',
+    autoRenew: true,
+    addedAt: 1,
+    updatedAt: null,
+  });
+  const gandi = importedRow('gandi.net', {
+    registrar: 'gandi',
+    addedAt: 1,
+    updatedAt: null,
+  });
+  const domains = [synced, epik, gandi];
+  const rows = (args: QueryArgs) =>
+    queryPortfolio(domains, [], {}, META, { sort: 'domainName', ...args }).rows;
+
+  it('lists them with no account, their typed registrar, and source', () => {
+    expect(rows({ source: 'imported' })).toMatchObject([
+      {
+        domainName: 'epik.com',
+        source: 'imported',
+        registrar: null,
+        registrarLabel: 'Epik',
+        accountId: null,
+        accountLabel: null,
+        inAccount: false,
+        autoRenew: true,
+        locked: null,
+        privacy: null,
+      },
+      {
+        domainName: 'gandi.net',
+        registrar: 'gandi',
+        registrarLabel: null,
+        accountId: null,
+        // Never set, so unknown rather than false.
+        autoRenew: null,
+      },
+    ]);
+    expect(rows({ source: 'registrar' }).map((r) => r.domainName)).toEqual([
+      'synced.com',
+    ]);
+  });
+
+  it('matches auto-renew only where you set it, and never lock or privacy', () => {
+    const names = (args: QueryArgs) => rows(args).map((r) => r.domainName);
+    expect(names({ autoRenew: true })).toEqual(['epik.com', 'synced.com']);
+    expect(names({ autoRenew: false })).toEqual([]);
+    expect(names({ locked: false })).toEqual(['synced.com']);
+    expect(names({ privacy: false })).toEqual(['synced.com']);
+  });
+});
+
+describe('money, notes and prices on rows', () => {
+  const a = domain({ domainName: 'a.com', accountId: 'acct' });
+  const b = domain({ domainName: 'b.com', accountId: 'acct' });
+  const c = domain({ domainName: 'c.com', accountId: 'acct' });
+  const extras: RowExtras = {
+    purchases: {
+      'a.com': {
+        purchaseDate: '2024-01-02',
+        amount: '1200.00',
+        currency: 'USD',
+        purchaseType: 'purchased',
+        notes: 'From a drop',
+        saleDate: '2026-05-01',
+        saleAmount: '5000.00',
+        saleCurrency: 'USD',
+      },
+      // A note on its own: no purchase or sale.
+      'b.com': {
+        purchaseDate: null,
+        amount: null,
+        currency: null,
+        notes: 'Brandable',
+      },
+    },
+    listPrices: {
+      'a.com': {
+        amount: '9000',
+        minOffer: '2000',
+        floor: '1500',
+        currency: 'USD',
+        updatedAt: 1,
+      },
+    },
+    pricing: {
+      'acct:a.com': {
+        domain: 'a.com',
+        registrar: 'dynadot',
+        renewal: 12.5,
+        currency: 'USD',
+        source: 'api',
+      },
+      'acct:b.com': {
+        domain: 'b.com',
+        registrar: 'dynadot',
+        renewal: 80,
+        currency: 'USD',
+        source: 'manual',
+      },
+      'acct:c.com': {
+        domain: 'c.com',
+        registrar: 'dynadot',
+        renewal: null,
+        currency: 'USD',
+        source: 'unavailable',
+      },
+    },
+  };
+  const query = (args: QueryArgs) =>
+    queryPortfolio([a, b, c], [], {}, META, args, new Map(), extras);
+
+  it('carries paid, sold, notes, asking and renewal prices', () => {
+    const [ra, rb, rc] = query({ sort: 'domainName' }).rows;
+    expect(ra).toMatchObject({
+      paid: {
+        date: '2024-01-02',
+        amount: '1200.00',
+        currency: 'USD',
+        kind: 'purchased',
+      },
+      sold: { date: '2026-05-01', amount: '5000.00', currency: 'USD' },
+      notes: 'From a drop',
+      askingPrice: {
+        amount: '9000',
+        minOffer: '2000',
+        floor: '1500',
+        currency: 'USD',
+      },
+      renewalPrice: { amount: 12.5, currency: 'USD', source: 'api' },
+    });
+    expect(rb).toMatchObject({
+      paid: null,
+      sold: null,
+      notes: 'Brandable',
+      askingPrice: null,
+      renewalPrice: { amount: 80, source: 'manual' },
+    });
+    expect(rc).toMatchObject({ notes: null, renewalPrice: null });
+  });
+
+  it('sorts by renewal price, names with no estimate last', () => {
+    const order = (args: QueryArgs) =>
+      query({ sort: 'renewalPrice', ...args }).rows.map((r) => r.domainName);
+    expect(order({})).toEqual(['a.com', 'b.com', 'c.com']);
+    expect(order({ order: 'desc' })).toEqual(['b.com', 'a.com', 'c.com']);
   });
 });

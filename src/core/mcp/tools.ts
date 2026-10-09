@@ -13,6 +13,7 @@ import {
   getDomainDetail,
   getMergedPortfolio,
   getPortfolio,
+  getPortfolioPricing,
   getRegistrarClient,
   getRegistrarMetadata,
   registerDomainCached,
@@ -21,6 +22,9 @@ import {
   syncRegistrar,
 } from '../services/registrars';
 import { accountById } from '../services/accounts';
+import { getImportedDomains } from '../services/imported-domains';
+import { getListPrices } from '../services/list-prices';
+import { getPurchases } from '../services/purchases';
 import { applyDomainOp } from '../services/domain-ops';
 import { eventsFor, listEvents } from '../services/domain-events';
 import {
@@ -39,6 +43,7 @@ import {
   type FolderColor,
   type Portfolio,
 } from '../../shared/ipc';
+import { importedRows } from '../../shared/imported-domains';
 import { archiveRows, ownershipByDomain } from '../../shared/ownership';
 import {
   DEFAULT_LIMIT,
@@ -106,9 +111,15 @@ function resolveRegistrar(
   const matches = findRegistrarsForDomain(domainName);
   if (matches.length === 1) return matches[0];
   if (matches.length === 0) {
+    const key = toAscii(domainName);
+    // An imported name isn't at any connected account.
+    if (Object.hasOwn(getImportedDomains(), key)) {
+      throw new Error(
+        `"${domainName}" is an imported domain: none of your connected accounts reports it, so there's no registrar to act on. Connect the account that holds it and run portfolio_sync, or pass "registrar" if an account holds it but hasn't synced it yet.`,
+      );
+    }
     // A name that left your accounts is in Archive: syncing won't bring it
     // back, so say that instead.
-    const key = toAscii(domainName);
     const left = ownershipByDomain(eventsFor(key)).get(key);
     if (left?.label) {
       throw new Error(
@@ -303,8 +314,16 @@ const transferInput = z.object({
 // caller that needs fresh data.
 
 const querySort = z
-  .enum(['domainName', 'registrar', 'expirationDate', 'createdDate'])
-  .describe('Field to sort by (default expirationDate).');
+  .enum([
+    'domainName',
+    'registrar',
+    'expirationDate',
+    'createdDate',
+    'renewalPrice',
+  ])
+  .describe(
+    'Field to sort by (default expirationDate). renewalPrice compares the estimated amounts as numbers, whatever their currency; names with no estimate sort last.',
+  );
 
 // Shared filter/sort/page params for portfolio_query. Every filter is optional
 // and ANDed together; an omitted filter doesn't constrain the results.
@@ -317,6 +336,12 @@ const queryShape = {
     ),
   accountId,
   registrar: registrar.optional().describe('Only this registrar.'),
+  source: z
+    .enum(['registrar', 'imported'])
+    .optional()
+    .describe(
+      'Only synced names ("registrar") or only imported ones ("imported": added from a file or by name, and no connected account reports them).',
+    ),
   tld: z
     .string()
     .optional()
@@ -395,15 +420,21 @@ function runQuery(args: QueryArgs): QueryResult {
   const { domains, fetchedAt, registrars, errors } = getMergedPortfolio();
   const { folders, assignments } = getFolders();
   const ownership = ownershipByDomain(listEvents());
+  // As on the Domains page: synced names, then imported names no account
+  // reports, then names in Archive that neither covers (from the event log).
+  const listed = [...domains, ...importedRows(getImportedDomains(), domains)];
   return queryPortfolio(
-    // Names in Archive that no account reports come from the event log, as
-    // in the Archive view.
-    [...domains, ...archiveRows(ownership, domains, getRegistrarMetadata())],
+    [...listed, ...archiveRows(ownership, listed, getRegistrarMetadata())],
     folders,
     assignments,
     { fetchedAt, registrars, errors },
     args,
     ownership,
+    {
+      purchases: getPurchases(),
+      listPrices: getListPrices(),
+      pricing: getPortfolioPricing(),
+    },
   );
 }
 
@@ -553,7 +584,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Query portfolio',
       description:
-        'List, search, and filter your whole portfolio across every configured registrar — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (sold, dropped, archived, or gone from your accounts) or both. Filter by registrar, TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel`, `hidden` (in the Hidden folder: still yours, still renews), and `inAccount` (false for an Archive name no account reports, which the domain_* tools can’t act on). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete. Rows carry only the fields you need — call domain_get for a single domain’s full record.',
+        'List, search, and filter your whole portfolio — every configured registrar plus the names you imported — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (sold, dropped, archived, or gone from your accounts) or both. Filter by registrar, source (synced or imported), TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort (including by estimated renewal price) and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel`, `hidden` (in the Hidden folder: still yours, still renews), `source` (`imported`: no connected account reports it), and `inAccount` (false for an imported name or an Archive name no account reports — the registrar-backed domain_* tools can’t act on those). Rows also carry what DomBot keeps per name: `paid` (date, amount, currency, registered or purchased), `sold`, `notes`, `askingPrice` (BIN price, minimum offer, floor), and `renewalPrice` (DomBot’s yearly estimate and its source, as domain_renewal_price). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete. Rows carry only the fields you need — call domain_get for a single domain’s full record.',
       inputSchema: queryShape,
       annotations: { readOnlyHint: true },
     },
@@ -892,7 +923,9 @@ export function registerTools(server: McpServer): void {
       const known =
         getMergedPortfolio().domains.some(
           (d) => toAscii(d.domainName) === key,
-        ) || eventsFor(key).length > 0;
+        ) ||
+        Object.hasOwn(getImportedDomains(), key) ||
+        eventsFor(key).length > 0;
       if (!known) {
         throw new Error(
           `"${domain}" isn't in your portfolio. Run portfolio_sync if it was added recently.`,

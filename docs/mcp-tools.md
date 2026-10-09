@@ -29,7 +29,8 @@ The name prefix says what a tool acts on:
 looked up in the cached portfolio, since you own the domain. A name the cache
 doesn't have fails with a message to pass `registrar` or run `portfolio_sync`;
 a name the cache lists under two registrars (a stale transfer) fails asking
-for `registrar`. Pass it to skip the lookup or for a name not synced yet.
+for `registrar`. An imported name fails saying no connected account reports
+it. Pass it to skip the lookup or for a name not synced yet.
 
 **Choosing an account.** Every `registrar_*` and `domain_*` tool takes an
 optional `accountId` (from `registrar_list`); labels aren't accepted. With
@@ -50,17 +51,27 @@ take `refresh` to fetch live and write the result through.
   through the fixed IP proxy) and `sync` state. Also the `configured` and
   `active` registrar ids. No secrets. Start here.
 - **`portfolio_query`** — list, search and filter the cached portfolio across
-  every account. Filters: `ownership` (`owned`, the default, `archive` or
-  `all`, as the Domains page's Owned / Archive switch), `accountId`,
-  `registrar`, `tld`, `folder` (a name, an id, or `Hidden`), `nameContains`,
+  every account, plus the names you imported. Filters: `ownership` (`owned`,
+  the default, `archive` or `all`, as the Domains page's Owned / Archive
+  switch), `accountId`, `registrar`, `source` (`registrar` or `imported`),
+  `tld`, `folder` (a name, an id, or `Hidden`), `nameContains`,
   `nameserverContains`, `autoRenew`, `locked`, `privacy`, `status`,
-  `expiresBefore`, `expiresAfter`, `expiringWithinDays`. Plus `sort`, `order`,
+  `expiresBefore`, `expiresAfter`, `expiringWithinDays`. Plus `sort` (also
+  by `renewalPrice`, compared as numbers whatever the currency), `order`,
   `limit` and `offset`. No registrar calls. Returns
   `{ total, fetchedAt, stale, registrars, errors, rows }`.
   - Each row carries `ownership`, `archiveLabel` (`sold`, `dropped`,
     `archived`, or `removed` for a removal you haven't labeled), `hidden`, and
     `inAccount`.
   - Hidden names count as owned: they're still yours and still renew.
+  - Each row also carries what DomBot keeps for the name: `paid` (date,
+    amount, currency, and `kind`: registered or purchased), `sold`, `notes`,
+    `askingPrice` (`amount`, `minOffer`, `floor`, `currency`) and
+    `renewalPrice` (DomBot's yearly estimate with its `source`, as
+    `domain_renewal_price`). Each is `null` when there's nothing on record.
+  - An imported name has `source: 'imported'`, no `accountId`, `inAccount:
+false`, and `registrarLabel` when you typed a registrar DomBot doesn't
+    know. Its `autoRenew` is what you told DomBot, or `null`.
   - An Archive name can still be in an account (a sale in escrow). One no
     account reports has `inAccount: false`, its last known registrar, and
     `null` for the settings an account reports. The `domain_*` tools can't act

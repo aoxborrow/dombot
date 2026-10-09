@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { DomainEvent } from '../../shared/domain-events';
+import type { ImportedDomain } from '../../shared/ipc';
 
 // ── Mock every service the tool handlers reach ───────────────────────────────
 // registrarNames must be a real non-empty array: tools.ts builds z.enum() from
@@ -19,6 +20,22 @@ const getRegistrarClient = vi.fn((name: string) => {
 const registerDomainCached = vi.fn();
 const getDomainDetail = vi.fn();
 const getMergedPortfolio = vi.fn();
+const getPortfolioPricing = vi.fn(() => ({}));
+
+const getImportedDomains = vi.fn<() => Record<string, ImportedDomain>>(
+  () => ({}),
+);
+vi.mock('../services/imported-domains', () => ({
+  getImportedDomains: () => getImportedDomains(),
+}));
+const getPurchases = vi.fn(() => ({}));
+vi.mock('../services/purchases', () => ({
+  getPurchases: () => getPurchases(),
+}));
+const getListPrices = vi.fn(() => ({}));
+vi.mock('../services/list-prices', () => ({
+  getListPrices: () => getListPrices(),
+}));
 
 vi.mock('../services/registrars', () => ({
   resolveAccount: (registrar: string, id?: string) => ({
@@ -40,6 +57,7 @@ vi.mock('../services/registrars', () => ({
   getDomainDetail: (...a: unknown[]) => getDomainDetail(...a),
   getMergedPortfolio: () => getMergedPortfolio(),
   getPortfolio: vi.fn(),
+  getPortfolioPricing: () => getPortfolioPricing(),
   getRegistrarMetadata: vi.fn(() => []),
   getRenewalPriceLive: vi.fn(),
   syncRegistrar: vi.fn(),
@@ -123,6 +141,10 @@ beforeEach(() => {
   getActiveRegistrars.mockReturnValue(['dynadot']);
   getFolders.mockReturnValue({ folders: [], assignments: {} });
   listEvents.mockReturnValue([]);
+  getImportedDomains.mockReturnValue({});
+  getPurchases.mockReturnValue({});
+  getListPrices.mockReturnValue({});
+  getPortfolioPricing.mockReturnValue({});
 });
 
 /** A sync or user event for one name. */
@@ -169,6 +191,17 @@ describe('resolveRegistrar (via domain_set_autorenew)', () => {
     await expect(
       call('domain_set_autorenew', { domain: 'gone.com', enabled: true }),
     ).rejects.toThrow(/is in Archive \(dropped\)/);
+    expect(applyDomainOp).not.toHaveBeenCalled();
+  });
+
+  it('says an imported name has no registrar to act on', async () => {
+    findRegistrarsForDomain.mockReturnValue([]);
+    getImportedDomains.mockReturnValue({
+      'mine.com': { registrar: null, addedAt: 1, updatedAt: null },
+    });
+    await expect(
+      call('domain_set_autorenew', { domain: 'Mine.com', enabled: true }),
+    ).rejects.toThrow(/is an imported domain/);
     expect(applyDomainOp).not.toHaveBeenCalled();
   });
 
@@ -374,6 +407,54 @@ describe('end-to-end handlers', () => {
     expect(out.total).toBe(1);
     expect((out.rows as { domainName: string }[])[0].domainName).toBe('a.com');
     expect(out.registrars).toEqual(['dynadot']);
+  });
+
+  it('portfolio_query adds imported names no account reports', async () => {
+    getMergedPortfolio.mockReturnValue({
+      domains: [
+        {
+          registrar: 'dynadot',
+          domainName: 'a.com',
+          status: 'active',
+          createdDate: null,
+          expirationDate: null,
+          renewalDate: null,
+          autoRenew: false,
+          locked: false,
+          privacy: false,
+          nameservers: [],
+          syncedAt: new Date(0),
+          deleted: false,
+          source: 'registrar',
+        },
+      ],
+      fetchedAt: 1000,
+      registrars: ['dynadot'],
+      errors: [],
+    });
+    getImportedDomains.mockReturnValue({
+      // Synced since: the registrar's row wins.
+      'a.com': { registrar: null, addedAt: 1, updatedAt: null },
+      'b.com': { registrar: null, addedAt: 1, updatedAt: null },
+    });
+    getPurchases.mockReturnValue({
+      'b.com': {
+        purchaseDate: null,
+        amount: null,
+        currency: null,
+        notes: 'hi',
+      },
+    });
+
+    const out = await call('portfolio_query', { sort: 'domainName' });
+    expect(
+      (out.rows as { domainName: string; source: string; notes: string }[]).map(
+        (r) => [r.domainName, r.source, r.notes],
+      ),
+    ).toEqual([
+      ['a.com', 'registrar', null],
+      ['b.com', 'imported', 'hi'],
+    ]);
   });
 
   it('portfolio_query reads Owned / Archive from the event log', async () => {
