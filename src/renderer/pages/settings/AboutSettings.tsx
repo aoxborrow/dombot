@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import {
+  ArrowUpRight,
   BookOpen,
   Bug,
   ExternalLink,
@@ -163,44 +164,46 @@ export default function AboutSettings() {
         )}
       </SettingsCard>
 
-      <SettingsCard title="About DomBot" contentClassName="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <p className="max-w-md text-sm text-muted-foreground">
-            DomBot is free and open source. If it saves you time or money,
-            sponsoring helps fund its development.
-          </p>
-          <Button size="sm" variant="outline" onClick={() => open(SPONSOR)}>
-            <Heart className="size-3.5 fill-pink-500 text-pink-500" />
-            Sponsor
-          </Button>
-        </div>
-        <div className="flex flex-col gap-3 border-t pt-4">
-          <p className="text-sm text-muted-foreground">
-            Contributions are welcome: report a bug, request a feature, or open
-            a pull request on GitHub.
-          </p>
-          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
-            <ProjectLink url={REPO} icon={<GitHubMark />}>
-              GitHub
-            </ProjectLink>
-            <ProjectLink url={`${REPO}#readme`} icon={<BookOpen />}>
-              Documentation
-            </ProjectLink>
-            <ProjectLink url={`${REPO}/issues/new?labels=bug`} icon={<Bug />}>
-              Report a bug
-            </ProjectLink>
-            <ProjectLink
-              url={`${REPO}/issues/new?labels=enhancement`}
-              icon={<Lightbulb />}
-            >
-              Request a feature
-            </ProjectLink>
-            <ProjectLink url="https://dombot.ai" icon={<Globe />}>
-              dombot.ai
-            </ProjectLink>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">
+      <SettingsCard title="About DomBot" contentClassName="p-0!">
+        <ul className="divide-y">
+          <ProjectLink
+            url={SPONSOR}
+            icon={<Heart className="fill-pink-500 text-pink-500" />}
+            title="Sponsor DomBot"
+            hint="DomBot is free and open source. Sponsoring helps fund its development."
+          />
+          <ProjectLink
+            url={REPO}
+            icon={<GitHubMark />}
+            title="GitHub"
+            hint="Source code, releases, and pull requests"
+          />
+          <ProjectLink
+            url={`${REPO}#readme`}
+            icon={<BookOpen />}
+            title="Documentation"
+            hint="Setup, self-hosting, and connecting MCP clients"
+          />
+          <ProjectLink
+            url={`${REPO}/issues/new?labels=bug`}
+            icon={<Bug />}
+            title="Report a bug"
+            hint="Something not working right? Let us know on GitHub"
+          />
+          <ProjectLink
+            url={`${REPO}/issues/new?labels=enhancement`}
+            icon={<Lightbulb />}
+            title="Request a feature"
+            hint="Ideas and missing registrars are welcome"
+          />
+          <ProjectLink
+            url="https://dombot.ai"
+            icon={<Globe />}
+            title="dombot.ai"
+            hint="Downloads and the live demo"
+          />
+        </ul>
+        <p className="border-t bg-muted/40 px-6 py-3 text-xs text-muted-foreground">
           Licensed under the{' '}
           <button
             type="button"
@@ -216,24 +219,38 @@ export default function AboutSettings() {
   );
 }
 
+/** One row of the project list: icon, title, a line on what's there, and an
+ *  arrow saying it opens in the browser. The whole row is the link. */
 function ProjectLink({
   url,
   icon,
-  children,
+  title,
+  hint,
 }: {
   url: string;
   icon: ReactNode;
-  children: ReactNode;
+  title: string;
+  hint: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={() => open(url)}
-      className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground [&_svg]:size-3.5"
-    >
-      {icon}
-      {children}
-    </button>
+    <li>
+      <button
+        type="button"
+        onClick={() => open(url)}
+        className="group flex w-full items-center gap-3 px-6 py-3 text-left hover:bg-foreground/[0.04]"
+      >
+        <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground group-hover:text-foreground [&_svg]:size-4">
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{title}</span>
+          <span className="block text-[13px] text-muted-foreground">
+            {hint}
+          </span>
+        </span>
+        <ArrowUpRight className="size-4 shrink-0 text-muted-foreground/50 group-hover:text-foreground" />
+      </button>
+    </li>
   );
 }
 
