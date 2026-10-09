@@ -406,9 +406,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   applyPortfolioCacheUpdate: async () => {
+    // Folders aren't cache: an MCP folder tool can change them before the
+    // portfolio has ever loaded, so re-read them unconditionally.
+    const folders = get().loadFolders();
     // Before the first load there's nothing in view to overlay; the launch
     // hydrate path covers a fresh start.
-    if (get().portfolioSource === null) return;
+    if (get().portfolioSource === null) return folders;
     const snapshot = await window.api.hydrateFromCache();
     const portfolio = snapshot.portfolio;
     if (!portfolio) {
@@ -420,7 +423,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         // Imported names keep their prices without registrar data.
         pricing: snapshot.pricing,
       });
-      return;
+      return folders;
     }
     set((state) => {
       // Overlay the freshly-cached summary + detail onto any existing enriched
@@ -445,7 +448,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
     });
     await get().loadDomainEvents();
-    await get().loadFolders();
+    await folders;
   },
 
   clearAllCaches: async () => {

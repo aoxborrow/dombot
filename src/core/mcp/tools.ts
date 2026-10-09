@@ -23,16 +23,29 @@ import {
 import { accountById } from '../services/accounts';
 import { applyDomainOp } from '../services/domain-ops';
 import { eventsFor, listEvents } from '../services/domain-events';
-import { getFolders } from '../services/folders';
+import {
+  assignFolder,
+  createFolder,
+  deleteFolder,
+  getFolders,
+  updateFolder,
+} from '../services/folders';
 import { broadcastPortfolioChanged } from '../events';
-import { toAscii } from '../../shared/domain-name';
-import type { DomainOp, Portfolio } from '../../shared/ipc';
+import { assertDomainName, toAscii } from '../../shared/domain-name';
+import {
+  FOLDER_COLORS,
+  HIDDEN_FOLDER_ID,
+  type DomainOp,
+  type FolderColor,
+  type Portfolio,
+} from '../../shared/ipc';
 import { archiveRows, ownershipByDomain } from '../../shared/ownership';
 import {
   DEFAULT_LIMIT,
   MAX_LIMIT,
   isStaleAt,
   queryPortfolio,
+  resolveFolderId,
   type QueryArgs,
   type QueryResult,
 } from './portfolio-query';
@@ -117,6 +130,7 @@ function resolveRegistrar(
 //   portfolio_* → ()                    global / cross-registrar aggregate
 //   registrar_* → (registrar)           one provider (registrar required)
 //   domain_*    → (domain[, registrar]) one domain you own
+//   folder_*    → ([folder])            DomBot's own folders; no registrar calls
 // For domain_* tools the registrar is optional: omitted, it's resolved from the
 // cached portfolio (you own the domain, so DomBot knows who holds it); pass it
 // to skip the lookup, or to act on a name not yet in the cache. registrar_*
@@ -415,10 +429,93 @@ function syncSummary(portfolio: Portfolio) {
   };
 }
 
+// ── folders ──────────────────────────────────────────────────────────────────
+//
+// Folders are DomBot-local (services/folders.ts, the same store Settings →
+// Folders and the Domains table write), so these tools never reach a registrar.
+// A folder is named by its name or id; "Hidden" is the built-in folder, which
+// can hold domains but can't be renamed or deleted. Names are matched
+// case-insensitively, so the tools keep them unique.
+
+const HIDDEN_NAME = 'Hidden';
+
+const folderParam = z
+  .string()
+  .min(1)
+  .describe('A folder name or id, as folder_list reports it.');
+
+// Same limits as the app's folder form (api/schemas.ts folderInput).
+const folderName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .describe('The folder name, unique among your folders (case-insensitive).');
+
+type FolderRef = { id: string; name: string };
+
+/** The folder with this id (Hidden included), or null. */
+function folderById(id: string | null | undefined): FolderRef | null {
+  if (!id) return null;
+  if (id === HIDDEN_FOLDER_ID) return { id, name: HIDDEN_NAME };
+  const folder = getFolders().folders.find((f) => f.id === id);
+  return folder ? { id: folder.id, name: folder.name } : null;
+}
+
+/** The folder a name or id names, or a guiding error. "Hidden" resolves to
+ *  the built-in folder. */
+function resolveFolder(param: string): FolderRef {
+  const folder = folderById(resolveFolderId(param, getFolders().folders));
+  if (!folder) {
+    throw new Error(
+      `No folder named "${param}". Call folder_list for your folders' names and ids, or folder_create to make it.`,
+    );
+  }
+  return folder;
+}
+
+/** resolveFolder, refusing the built-in Hidden folder (for rename/delete). */
+function resolveUserFolder(param: string, action: string) {
+  const folder = resolveFolder(param);
+  if (folder.id === HIDDEN_FOLDER_ID) {
+    throw new Error(`Hidden is a built-in folder and can't be ${action}.`);
+  }
+  return folder;
+}
+
+/** Throws when `name` would collide with another folder (or Hidden). */
+function assertFolderNameFree(name: string, exceptId?: string): void {
+  const lower = name.toLowerCase();
+  if (lower === HIDDEN_NAME.toLowerCase()) {
+    throw new Error(`"${name}" is the built-in Hidden folder's name.`);
+  }
+  const clash = getFolders().folders.find(
+    (f) => f.id !== exceptId && f.name.toLowerCase() === lower,
+  );
+  if (clash) {
+    throw new Error(`A folder named "${clash.name}" already exists.`);
+  }
+}
+
+/** Domains assigned to each folder id. */
+function folderCounts(assignments: Record<string, string>) {
+  const counts: Record<string, number> = {};
+  for (const id of Object.values(assignments))
+    counts[id] = (counts[id] ?? 0) + 1;
+  return counts;
+}
+
+/** Folder writes don't touch the portfolio cache, but the same event tells an
+ *  open window to re-read folders (store/app.ts applyPortfolioCacheUpdate). */
+function folderWrite<T>(result: T) {
+  broadcastPortfolioChanged();
+  return json(result);
+}
+
 /**
  * Registers the MCP portfolio tools. Each calls into the shared `services/`
  * layer — the same lower-level core the UI's IPC handlers use — and shapes its
- * own output. Tools group by scope prefix (portfolio / registrar / domain).
+ * own output. Tools group by scope prefix (portfolio / registrar / domain / folder).
  */
 export function registerTools(server: McpServer): void {
   // ── Portfolio / account (no scope params) ──────────────────────────────────
@@ -476,6 +573,116 @@ export function registerTools(server: McpServer): void {
       const portfolio = await getPortfolio(true);
       broadcastPortfolioChanged();
       return json(syncSummary(portfolio));
+    },
+  );
+
+  // ── Folders (DomBot-local; no registrar calls) ─────────────────────────────
+
+  server.registerTool(
+    'folder_list',
+    {
+      title: 'List folders',
+      description:
+        'List your folders — DomBot’s own groupings of domains, as in Settings → Folders — with each one’s id, name, description, color, and how many domains it holds. Includes the built-in Hidden folder (id "__hidden__", `builtIn: true`), which holds names you own but keep out of the usual list. Use a folder’s name or id with folder_rename, folder_delete, domain_set_folder, and portfolio_query’s `folder` filter.',
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      const { folders, assignments } = getFolders();
+      const counts = folderCounts(assignments);
+      return json({
+        folders: [
+          ...folders.map((f) => ({
+            id: f.id,
+            name: f.name,
+            description: f.description,
+            color: f.color,
+            builtIn: false,
+            domainCount: counts[f.id] ?? 0,
+          })),
+          {
+            id: HIDDEN_FOLDER_ID,
+            name: HIDDEN_NAME,
+            description: 'Names you own but keep out of the usual list.',
+            color: null,
+            builtIn: true,
+            domainCount: counts[HIDDEN_FOLDER_ID] ?? 0,
+          },
+        ],
+      });
+    },
+  );
+
+  server.registerTool(
+    'folder_create',
+    {
+      title: 'Create a folder',
+      description:
+        'Create a folder to group domains in. The name must not match an existing folder (case-insensitive) or "Hidden". Returns the new folder with its id; assign domains to it with domain_set_folder.',
+      inputSchema: {
+        name: folderName,
+        description: z
+          .string()
+          .max(500)
+          .optional()
+          .describe('A short description (default none).'),
+        color: z
+          .enum(FOLDER_COLORS as [FolderColor, ...FolderColor[]])
+          .optional()
+          .describe('The folder’s color in the app (default "blue").'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      },
+    },
+    async ({ name, description, color }) => {
+      assertFolderNameFree(name);
+      const folder = createFolder({
+        name,
+        description: description?.trim() ?? '',
+        color: color ?? 'blue',
+      });
+      return folderWrite({ ...folder, builtIn: false, domainCount: 0 });
+    },
+  );
+
+  server.registerTool(
+    'folder_rename',
+    {
+      title: 'Rename a folder',
+      description:
+        'Rename a folder. Its domains stay in it. The built-in Hidden folder can’t be renamed, and the new name must not match another folder (case-insensitive).',
+      inputSchema: { folder: folderParam, name: folderName },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ folder, name }) => {
+      const target = resolveUserFolder(folder, 'renamed');
+      assertFolderNameFree(name, target.id);
+      updateFolder(target.id, { name });
+      return folderWrite({ id: target.id, name, previousName: target.name });
+    },
+  );
+
+  server.registerTool(
+    'folder_delete',
+    {
+      title: 'Delete a folder',
+      description:
+        'Delete a folder. Its domains aren’t deleted or changed at any registrar — they just go back to no folder. The built-in Hidden folder can’t be deleted. Returns how many domains were unassigned.',
+      inputSchema: { folder: folderParam },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+      },
+    },
+    async ({ folder }) => {
+      const target = resolveUserFolder(folder, 'deleted');
+      const unassigned = folderCounts(getFolders().assignments)[target.id] ?? 0;
+      deleteFolder(target.id);
+      return folderWrite({ ...target, deleted: true, unassigned });
     },
   );
 
@@ -661,6 +868,40 @@ export function registerTools(server: McpServer): void {
         accountId: account.id,
         accountLabel: account.label,
       });
+    },
+  );
+
+  server.registerTool(
+    'domain_set_folder',
+    {
+      title: 'Set a domain’s folder',
+      description:
+        'For a single domain: put it in a folder (by name or id; "Hidden" for the built-in Hidden folder), or pass `folder: null` to take it out of its folder. A domain is in at most one folder, so this replaces any current one. DomBot-local — no registrar call. The domain must be in your portfolio (owned or Archive); run portfolio_sync if it was added recently.',
+      inputSchema: {
+        domain,
+        folder: folderParam
+          .nullable()
+          .describe(
+            'A folder name or id from folder_list, "Hidden", or null for no folder.',
+          ),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, folder }) => {
+      const key = assertDomainName(domain);
+      const known =
+        getMergedPortfolio().domains.some(
+          (d) => toAscii(d.domainName) === key,
+        ) || eventsFor(key).length > 0;
+      if (!known) {
+        throw new Error(
+          `"${domain}" isn't in your portfolio. Run portfolio_sync if it was added recently.`,
+        );
+      }
+      const previous = folderById(getFolders().assignments[key]);
+      const target = folder === null ? null : resolveFolder(folder);
+      assignFolder(key, target?.id ?? null);
+      return folderWrite({ domain: key, folder: target, previous });
     },
   );
 

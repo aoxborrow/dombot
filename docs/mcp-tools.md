@@ -22,6 +22,8 @@ The name prefix says what a tool acts on:
   registrar id such as `dynadot`).
 - **`domain_*`**: one domain you own. `domain` is required; `registrar` is
   optional.
+- **`folder_*`**: DomBot's own folders. A folder is named by its name or id
+  (case-insensitive); `Hidden` is the built-in folder. No registrar calls.
 
 **Resolving the registrar.** On `domain_*` tools, an omitted `registrar` is
 looked up in the cached portfolio, since you own the domain. A name the cache
@@ -66,6 +68,27 @@ take `refresh` to fetch live and write the result through.
 - **`portfolio_sync`** — re-sync every active account and return a
   per-account summary (counts, last sync, errors).
 
+## Folders
+
+The same folders as Settings → Folders and the Domains table's folder column,
+in the same store, so a change shows up in an open window right away. Folder
+names are kept unique (case-insensitive), and none may be called `Hidden`.
+
+- **`folder_list`** — every folder's `id`, `name`, `description`, `color`,
+  `builtIn` and `domainCount`, ending with the built-in Hidden folder
+  (`__hidden__`).
+- **`folder_create`** — `name`, `description?`, `color?` (one of the app's
+  palette keys; default `blue`). Returns the new folder.
+- **`folder_rename`** — `folder`, `name`. Returns `{ id, name, previousName }`.
+  Hidden can't be renamed.
+- **`folder_delete`** — `folder`. Its domains go back to no folder; nothing is
+  deleted at a registrar. Returns `{ id, name, deleted, unassigned }`. Hidden
+  can't be deleted.
+- **`domain_set_folder`** — `domain`, `folder` (a name, an id, `Hidden`, or
+  `null` for no folder). A domain is in at most one folder, so this replaces
+  any current one. The domain must be in your portfolio, owned or Archive.
+  Returns `{ domain, folder, previous }`.
+
 ## Registrar
 
 - **`registrar_test`** — test an account's credentials.
@@ -83,7 +106,8 @@ take `refresh` to fetch live and write the result through.
 
 ## Domain
 
-All take `domain`, optional `registrar` and optional `accountId`.
+All take `domain`, optional `registrar` and optional `accountId`, except
+`domain_set_folder`.
 
 Reads:
 
@@ -118,6 +142,8 @@ Writes:
   `temporary` or `permanent`). Replaces the whole set; an empty array clears
   it.
 - **`domain_renew`** — `years?` (default 1). Costs money.
+- **`domain_set_folder`** — see [Folders](#folders). Local only, so it takes
+  no `registrar` or `accountId`.
 
 Auto-renew, lock, privacy, nameservers, forwarding and renew run through the
 same dispatcher as the Domains table ([domain-editing.md](domain-editing.md)),

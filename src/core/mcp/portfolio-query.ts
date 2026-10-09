@@ -123,7 +123,10 @@ function tldSuffix(tld: string): string {
 
 /** Resolves a folder filter (name / id / "Hidden") to the folderId to match, or
  *  null when it names no known folder (→ the query returns no rows). */
-function resolveFolderId(param: string, folders: FolderRef[]): string | null {
+export function resolveFolderId(
+  param: string,
+  folders: FolderRef[],
+): string | null {
   const p = param.trim();
   if (param === HIDDEN_FOLDER_ID || p.toLowerCase() === 'hidden')
     return HIDDEN_FOLDER_ID;

@@ -50,8 +50,29 @@ vi.mock('../services/domain-ops', () => ({
   applyDomainOp: (...a: unknown[]) => applyDomainOp(...a),
 }));
 
-const getFolders = vi.fn(() => ({ folders: [], assignments: {} }));
-vi.mock('../services/folders', () => ({ getFolders: () => getFolders() }));
+type FolderStub = {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+};
+const getFolders = vi.fn<
+  () => { folders: FolderStub[]; assignments: Record<string, string> }
+>(() => ({ folders: [], assignments: {} }));
+const createFolder = vi.fn((input: Omit<FolderStub, 'id'>) => ({
+  id: 'new-id',
+  ...input,
+}));
+const updateFolder = vi.fn();
+const deleteFolder = vi.fn();
+const assignFolder = vi.fn();
+vi.mock('../services/folders', () => ({
+  getFolders: () => getFolders(),
+  createFolder: (i: Omit<FolderStub, 'id'>) => createFolder(i),
+  updateFolder: (...a: unknown[]) => updateFolder(...a),
+  deleteFolder: (...a: unknown[]) => deleteFolder(...a),
+  assignFolder: (...a: unknown[]) => assignFolder(...a),
+}));
 
 const listEvents = vi.fn<() => DomainEvent[]>(() => []);
 vi.mock('../services/domain-events', () => ({
@@ -492,3 +513,128 @@ function fullContact() {
     country: 'US',
   };
 }
+
+describe('folder tools', () => {
+  const work: FolderStub = {
+    id: 'f1',
+    name: 'Work',
+    description: 'Client names',
+    color: 'green',
+  };
+  beforeEach(() => {
+    getFolders.mockReturnValue({
+      folders: [
+        work,
+        { id: 'f2', name: 'Ideas', description: '', color: 'blue' },
+      ],
+      assignments: { 'a.com': 'f1', 'b.com': 'f1', 'c.com': '__hidden__' },
+    });
+    getMergedPortfolio.mockReturnValue({
+      domains: [{ domainName: 'a.com' }, { domainName: 'd.com' }],
+      fetchedAt: 0,
+      registrars: [],
+      errors: [],
+    });
+  });
+
+  it('folder_list counts domains per folder and includes Hidden', async () => {
+    const out = (await call('folder_list')) as {
+      folders: { id: string; domainCount: number; builtIn: boolean }[];
+    };
+    expect(out.folders.map((f) => [f.id, f.domainCount, f.builtIn])).toEqual([
+      ['f1', 2, false],
+      ['f2', 0, false],
+      ['__hidden__', 1, true],
+    ]);
+  });
+
+  it('folder_create defaults the color and broadcasts', async () => {
+    const out = await call('folder_create', { name: 'Sale' });
+    expect(createFolder).toHaveBeenCalledWith({
+      name: 'Sale',
+      description: '',
+      color: 'blue',
+    });
+    expect(out).toMatchObject({ id: 'new-id', name: 'Sale', domainCount: 0 });
+    expect(broadcastPortfolioChanged).toHaveBeenCalled();
+  });
+
+  it('folder_create rejects a duplicate name or "Hidden"', async () => {
+    await expect(call('folder_create', { name: 'work' })).rejects.toThrow(
+      /already exists/,
+    );
+    await expect(call('folder_create', { name: 'hidden' })).rejects.toThrow(
+      /built-in/,
+    );
+    expect(createFolder).not.toHaveBeenCalled();
+  });
+
+  it('folder_rename resolves by name and keeps its own name free', async () => {
+    const out = await call('folder_rename', { folder: 'work', name: 'Work' });
+    expect(updateFolder).toHaveBeenCalledWith('f1', { name: 'Work' });
+    expect(out).toEqual({ id: 'f1', name: 'Work', previousName: 'Work' });
+    await expect(
+      call('folder_rename', { folder: 'f1', name: 'Ideas' }),
+    ).rejects.toThrow(/already exists/);
+  });
+
+  it('folder_rename / folder_delete refuse Hidden and unknown folders', async () => {
+    await expect(
+      call('folder_rename', { folder: 'Hidden', name: 'X' }),
+    ).rejects.toThrow(/can't be renamed/);
+    await expect(
+      call('folder_delete', { folder: '__hidden__' }),
+    ).rejects.toThrow(/can't be deleted/);
+    await expect(call('folder_delete', { folder: 'Nope' })).rejects.toThrow(
+      /folder_list/,
+    );
+    expect(deleteFolder).not.toHaveBeenCalled();
+  });
+
+  it('folder_delete reports how many domains went back to no folder', async () => {
+    const out = await call('folder_delete', { folder: 'Work' });
+    expect(deleteFolder).toHaveBeenCalledWith('f1');
+    expect(out).toEqual({
+      id: 'f1',
+      name: 'Work',
+      deleted: true,
+      unassigned: 2,
+    });
+  });
+
+  it('domain_set_folder assigns by name, Hidden, or null', async () => {
+    expect(
+      await call('domain_set_folder', { domain: 'D.com', folder: 'ideas' }),
+    ).toEqual({
+      domain: 'd.com',
+      folder: { id: 'f2', name: 'Ideas' },
+      previous: null,
+    });
+    expect(assignFolder).toHaveBeenLastCalledWith('d.com', 'f2');
+
+    expect(
+      await call('domain_set_folder', { domain: 'a.com', folder: 'Hidden' }),
+    ).toMatchObject({ previous: { id: 'f1', name: 'Work' } });
+    expect(assignFolder).toHaveBeenLastCalledWith('a.com', '__hidden__');
+
+    await call('domain_set_folder', { domain: 'a.com', folder: null });
+    expect(assignFolder).toHaveBeenLastCalledWith('a.com', null);
+    expect(broadcastPortfolioChanged).toHaveBeenCalledTimes(3);
+  });
+
+  it('domain_set_folder accepts an Archive name from the event log', async () => {
+    listEvents.mockReturnValue([event({ domain: 'gone.com' })]);
+    await call('domain_set_folder', { domain: 'gone.com', folder: 'f1' });
+    expect(assignFolder).toHaveBeenCalledWith('gone.com', 'f1');
+  });
+
+  it('domain_set_folder rejects a name not in the portfolio or an unknown folder', async () => {
+    await expect(
+      call('domain_set_folder', { domain: 'x.com', folder: 'Work' }),
+    ).rejects.toThrow(/isn't in your portfolio/);
+    await expect(
+      call('domain_set_folder', { domain: 'a.com', folder: 'Nope' }),
+    ).rejects.toThrow(/No folder named/);
+    expect(assignFolder).not.toHaveBeenCalled();
+  });
+});
