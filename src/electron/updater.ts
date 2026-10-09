@@ -15,7 +15,11 @@ import type { UpdaterState } from '../shared/ipc';
 // .nupkg for Windows. Linux packages have no updater; they keep the plain
 // download link.
 
-const FEED = `https://update.electronjs.org/aoxborrow/dombot/${process.platform}-${process.arch}/${app.getVersion()}`;
+// DOMBOT_UPDATE_FEED_URL points a packaged build at another feed (a local
+// server returning Squirrel's JSON), to rehearse an update before a release.
+const FEED =
+  process.env.DOMBOT_UPDATE_FEED_URL ||
+  `https://update.electronjs.org/aoxborrow/dombot/${process.platform}-${process.arch}/${app.getVersion()}`;
 
 let state: Omit<UpdaterState, 'supported' | 'unsupportedReason'> = {
   status: 'idle',
