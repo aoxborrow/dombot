@@ -65,10 +65,25 @@ export default function UpdateBanner() {
     >
       <Icon className="-mr-1 size-3.5 shrink-0 text-brand" aria-hidden />
       <p className="min-w-0 truncate leading-snug text-foreground/60">
+        {/* Phones get the short form so the buttons still fit on one row. */}
         <span className="font-medium text-brand">
-          {state.kind === 'available'
-            ? `DomBot ${state.latest.version} is available`
-            : `Updated to DomBot ${state.version}`}
+          {state.kind === 'available' ? (
+            <>
+              <span className="sm:hidden">
+                {state.latest.version} available
+              </span>
+              <span className="max-sm:hidden">
+                DomBot {state.latest.version} is available
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="sm:hidden">Updated to {state.version}</span>
+              <span className="max-sm:hidden">
+                Updated to DomBot {state.version}
+              </span>
+            </>
+          )}
         </span>
         {state.kind === 'available' && (
           <span className="hidden md:inline">
