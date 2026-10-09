@@ -142,7 +142,7 @@ export default function App() {
             type="button"
             onClick={() => navigate('/')}
             aria-label="DomBot — go to Domains"
-            className="peer group relative -top-px -ml-1 flex items-center gap-2"
+            className="group relative -top-px -ml-1 flex items-center gap-2"
           >
             <svg
               viewBox="0 0 32 32"
@@ -158,24 +158,6 @@ export default function App() {
               Dom<span className="text-brand">Bot</span>
             </span>
           </button>
-          {/* The running version, dim, just after the logo (it slides over
-              as the wordmark opens on hover); opens Settings → About.
-              Desktop widths only. */}
-          {appInfo && (
-            <button
-              type="button"
-              onClick={() => navigate('/settings?tab=about')}
-              className="relative top-[3px] ml-0.5 hidden rounded-sm text-[11px] text-muted-foreground/40 transition-[margin] duration-200 peer-hover:ml-3 hover:text-muted-foreground sm:inline"
-              title="About this version"
-            >
-              {/* A serif italic "v", dimmer than the monospace digits (like
-                  the domain names) and set a little apart from them. */}
-              <span className="mr-px font-serif text-[12px] italic opacity-60">
-                v
-              </span>
-              <span className="font-mono text-[10px]">{appInfo.version}</span>
-            </button>
-          )}
         </div>
         {/* Desktop: the tab strip. On phones it collapses into the hamburger
             menu on the right (MobileNav). */}
@@ -204,6 +186,23 @@ export default function App() {
             <ActivityBell />
           </span>
           <MobileNav />
+          {/* The running version, dim, in the header's top-right corner;
+              opens Settings → About. Desktop widths only. */}
+          {appInfo && (
+            <button
+              type="button"
+              onClick={() => navigate('/settings?tab=about')}
+              className="ml-auto hidden rounded-sm text-[11px] text-muted-foreground/40 hover:text-muted-foreground sm:inline"
+              title="About this version"
+            >
+              {/* A serif italic "v", dimmer than the monospace digits (like
+                  the domain names) and set a little apart from them. */}
+              <span className="mr-px font-serif text-[12px] italic opacity-60">
+                v
+              </span>
+              <span className="font-mono text-[10px]">{appInfo.version}</span>
+            </button>
+          )}
         </div>
       </header>
 
