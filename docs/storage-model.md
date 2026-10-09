@@ -105,6 +105,7 @@ export const DomainEventSource = {
   Sync: 'sync',
   Import: 'import',
   Lookup: 'lookup', // the registration check (the automatic drop only)
+  Agent: 'agent', // an MCP client, on your behalf
 } as const;
 export type DomainEventSource =
   (typeof DomainEventSource)[keyof typeof DomainEventSource];

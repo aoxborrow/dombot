@@ -21,6 +21,7 @@ const registerDomainCached = vi.fn();
 const getDomainDetail = vi.fn();
 const getMergedPortfolio = vi.fn();
 const getPortfolioPricing = vi.fn(() => ({}));
+const setRegistrarEnabledCached = vi.fn();
 
 const getImportedDomains = vi.fn<() => Record<string, ImportedDomain>>(
   () => ({}),
@@ -29,12 +30,28 @@ vi.mock('../services/imported-domains', () => ({
   getImportedDomains: () => getImportedDomains(),
 }));
 const getPurchases = vi.fn(() => ({}));
+const setNotes = vi.fn();
 vi.mock('../services/purchases', () => ({
   getPurchases: () => getPurchases(),
+  setNotes: (...a: unknown[]) => setNotes(...a),
 }));
-const getListPrices = vi.fn(() => ({}));
+const getListPrices = vi.fn<() => Record<string, unknown>>(() => ({}));
+const setListPrices = vi.fn();
 vi.mock('../services/list-prices', () => ({
   getListPrices: () => getListPrices(),
+  setListPrices: (...a: unknown[]) => setListPrices(...a),
+}));
+const getManualPrices = vi.fn<() => Record<string, unknown>>(() => ({}));
+const setManualPrice = vi.fn();
+vi.mock('../services/pricing', () => ({
+  getManualPrices: () => getManualPrices(),
+  setManualPrice: (...a: unknown[]) => setManualPrice(...a),
+}));
+const restoreOwned = vi.fn();
+const setDispositions = vi.fn();
+vi.mock('../services/domain-history', () => ({
+  restoreOwned: (...a: unknown[]) => restoreOwned(...a),
+  setDispositions: (...a: unknown[]) => setDispositions(...a),
 }));
 
 vi.mock('../services/registrars', () => ({
@@ -58,6 +75,8 @@ vi.mock('../services/registrars', () => ({
   getMergedPortfolio: () => getMergedPortfolio(),
   getPortfolio: vi.fn(),
   getPortfolioPricing: () => getPortfolioPricing(),
+  setRegistrarEnabledCached: (...a: unknown[]) =>
+    setRegistrarEnabledCached(...a),
   getRegistrarMetadata: vi.fn(() => []),
   getRenewalPriceLive: vi.fn(),
   syncRegistrar: vi.fn(),
@@ -144,6 +163,7 @@ beforeEach(() => {
   getImportedDomains.mockReturnValue({});
   getPurchases.mockReturnValue({});
   getListPrices.mockReturnValue({});
+  getManualPrices.mockReturnValue({});
   getPortfolioPricing.mockReturnValue({});
 });
 
@@ -717,5 +737,130 @@ describe('folder tools', () => {
       call('domain_set_folder', { domain: 'a.com', folder: 'Nope' }),
     ).rejects.toThrow(/No folder named/);
     expect(assignFolder).not.toHaveBeenCalled();
+  });
+});
+
+describe('local write tools', () => {
+  beforeEach(() => {
+    getMergedPortfolio.mockReturnValue({
+      domains: [{ domainName: 'a.com' }],
+      fetchedAt: 0,
+      registrars: [],
+      errors: [],
+    });
+  });
+
+  it('refuse a name DomBot doesn’t know', async () => {
+    await expect(
+      call('domain_note_set', { domain: 'x.com', notes: 'hi' }),
+    ).rejects.toThrow(/isn't in your portfolio/);
+    expect(setNotes).not.toHaveBeenCalled();
+  });
+
+  it('domain_note_set saves the note and reports what was kept', async () => {
+    setNotes.mockReturnValue({ notes: 'Brandable' });
+    expect(
+      await call('domain_note_set', { domain: 'A.com', notes: 'Brandable' }),
+    ).toEqual({ domain: 'a.com', notes: 'Brandable' });
+    expect(setNotes).toHaveBeenCalledWith('a.com', 'Brandable');
+    expect(broadcastPortfolioChanged).toHaveBeenCalled();
+  });
+
+  it('domain_asking_price_set clears what it leaves out', async () => {
+    getListPrices.mockReturnValue({
+      'a.com': { amount: '2500', currency: 'USD', updatedAt: 1 },
+    });
+    expect(
+      await call('domain_asking_price_set', {
+        domain: 'a.com',
+        amount: '2500',
+        currency: 'usd',
+      }),
+    ).toEqual({
+      domain: 'a.com',
+      askingPrice: {
+        amount: '2500',
+        minOffer: null,
+        floor: null,
+        currency: 'USD',
+      },
+    });
+    expect(setListPrices).toHaveBeenCalledWith([
+      {
+        domainName: 'a.com',
+        amount: '2500',
+        minOffer: null,
+        floor: null,
+        currency: 'usd',
+      },
+    ]);
+  });
+
+  it('domain_renewal_price_set defaults to USD and clears with null', async () => {
+    await call('domain_renewal_price_set', { domain: 'a.com', amount: '89' });
+    expect(setManualPrice).toHaveBeenLastCalledWith('a.com', {
+      amount: '89',
+      currency: 'USD',
+    });
+    expect(
+      await call('domain_renewal_price_set', { domain: 'a.com', amount: null }),
+    ).toEqual({ domain: 'a.com', renewalPrice: null });
+    expect(setManualPrice).toHaveBeenLastCalledWith('a.com', null);
+  });
+
+  it('domain_ownership_set records an agent drop, or moves a name back', async () => {
+    await call('domain_ownership_set', {
+      domain: 'a.com',
+      ownership: 'dropped',
+      date: '2026-10-01',
+    });
+    expect(setDispositions).toHaveBeenCalledWith(
+      [{ domainName: 'a.com' }],
+      'dropped',
+      '2026-10-01',
+      'agent',
+    );
+    await call('domain_ownership_set', { domain: 'a.com', ownership: 'owned' });
+    expect(restoreOwned).toHaveBeenCalledWith(['a.com']);
+  });
+
+  it('domain_ownership_set reports the label from the event log', async () => {
+    listEvents.mockReturnValue([
+      event({ domain: 'a.com' }),
+      event({ domain: 'a.com', type: 'archived', source: 'agent' }),
+    ]);
+    expect(
+      await call('domain_ownership_set', {
+        domain: 'a.com',
+        ownership: 'archived',
+      }),
+    ).toEqual({
+      domain: 'a.com',
+      ownership: 'archive',
+      archiveLabel: 'archived',
+    });
+  });
+
+  it('registrar_set_enabled resolves the account and broadcasts', async () => {
+    setRegistrarEnabledCached.mockResolvedValue({
+      domains: [],
+      fetchedAt: null,
+      errors: [],
+    });
+    const out = await call('registrar_set_enabled', {
+      registrar: 'dynadot',
+      enabled: false,
+    });
+    expect(setRegistrarEnabledCached).toHaveBeenCalledWith(
+      'dynadot',
+      false,
+      'dynadot',
+    );
+    expect(out).toMatchObject({
+      accountId: 'dynadot',
+      registrar: 'dynadot',
+      enabled: false,
+    });
+    expect(broadcastPortfolioChanged).toHaveBeenCalled();
   });
 });

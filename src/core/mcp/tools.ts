@@ -18,15 +18,19 @@ import {
   getRegistrarMetadata,
   registerDomainCached,
   registrarNames,
+  setRegistrarEnabledCached,
   getRenewalPriceLive,
   syncRegistrar,
 } from '../services/registrars';
 import { accountById } from '../services/accounts';
 import { getImportedDomains } from '../services/imported-domains';
-import { getListPrices } from '../services/list-prices';
-import { getPurchases } from '../services/purchases';
+import { getListPrices, setListPrices } from '../services/list-prices';
+import { getPurchases, setNotes } from '../services/purchases';
+import { getManualPrices, setManualPrice } from '../services/pricing';
+import { restoreOwned, setDispositions } from '../services/domain-history';
 import { applyDomainOp } from '../services/domain-ops';
 import { eventsFor, listEvents } from '../services/domain-events';
+import { DomainEventSource, DomainEventType } from '../../shared/domain-events';
 import {
   assignFolder,
   createFolder,
@@ -536,11 +540,36 @@ function folderCounts(assignments: Record<string, string>) {
   return counts;
 }
 
-/** Folder writes don't touch the portfolio cache, but the same event tells an
- *  open window to re-read folders (store/app.ts applyPortfolioCacheUpdate). */
-function folderWrite<T>(result: T) {
+/** A write to DomBot's own data (folders, notes, prices, history). It doesn't
+ *  touch the portfolio cache, but the same event tells an open window to
+ *  re-read it all (store/app.ts applyPortfolioCacheUpdate). */
+function localWrite<T>(result: T) {
   broadcastPortfolioChanged();
   return json(result);
+}
+
+/** The normalized name, or an error when DomBot doesn't know it: not synced,
+ *  not imported, and with no history. */
+function assertInPortfolio(domain: string): string {
+  const key = assertDomainName(domain);
+  const known =
+    getMergedPortfolio().domains.some((d) => toAscii(d.domainName) === key) ||
+    Object.hasOwn(getImportedDomains(), key) ||
+    eventsFor(key).length > 0;
+  if (!known) {
+    throw new Error(
+      `"${domain}" isn't in your portfolio. Run portfolio_sync if it was added recently.`,
+    );
+  }
+  return key;
+}
+
+/** A name's Owned / Archive state, as portfolio_query rows report it. */
+function ownershipOf(key: string) {
+  const o = ownershipByDomain(eventsFor(key)).get(key);
+  return o?.label
+    ? { ownership: 'archive' as const, archiveLabel: o.label }
+    : { ownership: 'owned' as const, archiveLabel: null };
 }
 
 /**
@@ -675,7 +704,7 @@ export function registerTools(server: McpServer): void {
         description: description?.trim() ?? '',
         color: color ?? 'blue',
       });
-      return folderWrite({ ...folder, builtIn: false, domainCount: 0 });
+      return localWrite({ ...folder, builtIn: false, domainCount: 0 });
     },
   );
 
@@ -692,7 +721,7 @@ export function registerTools(server: McpServer): void {
       const target = resolveUserFolder(folder, 'renamed');
       assertFolderNameFree(name, target.id);
       updateFolder(target.id, { name });
-      return folderWrite({ id: target.id, name, previousName: target.name });
+      return localWrite({ id: target.id, name, previousName: target.name });
     },
   );
 
@@ -713,7 +742,7 @@ export function registerTools(server: McpServer): void {
       const target = resolveUserFolder(folder, 'deleted');
       const unassigned = folderCounts(getFolders().assignments)[target.id] ?? 0;
       deleteFolder(target.id);
-      return folderWrite({ ...target, deleted: true, unassigned });
+      return localWrite({ ...target, deleted: true, unassigned });
     },
   );
 
@@ -770,6 +799,36 @@ export function registerTools(server: McpServer): void {
       const portfolio = await syncRegistrar(registrar, accountId);
       broadcastPortfolioChanged();
       return json(syncSummary(portfolio));
+    },
+  );
+
+  server.registerTool(
+    'registrar_set_enabled',
+    {
+      title: 'Enable or disable a registrar account',
+      description:
+        'Turn one registrar account on or off, as the app’s Enable/Disable. A disabled account keeps its credentials but doesn’t sync, and its names drop out of portfolio_query until it’s enabled again; enabling syncs it right away. Credentials and accounts themselves are managed in the app only. Returns the account and enabled state, plus the same per-registrar summary as portfolio_sync.',
+      inputSchema: {
+        accountId,
+        registrar,
+        enabled: z.boolean().describe('true to enable, false to disable'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ accountId, registrar, enabled }) => {
+      const account = resolveAccount(registrar, accountId);
+      const portfolio = await setRegistrarEnabledCached(
+        registrar,
+        enabled,
+        account.id,
+      );
+      broadcastPortfolioChanged();
+      return json({
+        accountId: account.id,
+        registrar,
+        enabled,
+        ...syncSummary(portfolio),
+      });
     },
   );
 
@@ -919,22 +978,170 @@ export function registerTools(server: McpServer): void {
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
     async ({ domain, folder }) => {
-      const key = assertDomainName(domain);
-      const known =
-        getMergedPortfolio().domains.some(
-          (d) => toAscii(d.domainName) === key,
-        ) ||
-        Object.hasOwn(getImportedDomains(), key) ||
-        eventsFor(key).length > 0;
-      if (!known) {
-        throw new Error(
-          `"${domain}" isn't in your portfolio. Run portfolio_sync if it was added recently.`,
-        );
-      }
+      const key = assertInPortfolio(domain);
       const previous = folderById(getFolders().assignments[key]);
       const target = folder === null ? null : resolveFolder(folder);
       assignFolder(key, target?.id ?? null);
-      return folderWrite({ domain: key, folder: target, previous });
+      return localWrite({ domain: key, folder: target, previous });
+    },
+  );
+
+  server.registerTool(
+    'domain_note_set',
+    {
+      title: 'Set a domain’s note',
+      description:
+        'For a single domain: replace your note on it (the Domains table’s Notes). An empty string deletes it. DomBot-local — no registrar call. Works for synced, imported, and Archive names.',
+      inputSchema: {
+        domain,
+        notes: z
+          .string()
+          .max(4000)
+          .describe(
+            'The whole note, replacing the current one; "" deletes it.',
+          ),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, notes }) => {
+      const key = assertInPortfolio(domain);
+      const saved = setNotes(key, notes);
+      return localWrite({ domain: key, notes: saved?.notes || null });
+    },
+  );
+
+  server.registerTool(
+    'domain_asking_price_set',
+    {
+      title: 'Set a domain’s asking price',
+      description:
+        'For a single domain: replace your asking price — the BIN (buy-it-now) price, the minimum offer you’ll consider, and your floor (the lowest you’d accept, never shown to buyers). Any of the three left out or null is cleared; all three null removes the asking price. Amounts are decimals in `currency`, e.g. "2500". DomBot-local — no registrar or marketplace call.',
+      inputSchema: {
+        domain,
+        amount: z
+          .string()
+          .max(40)
+          .nullable()
+          .optional()
+          .describe('The BIN price, e.g. "2500".'),
+        minOffer: z
+          .string()
+          .max(40)
+          .nullable()
+          .optional()
+          .describe(
+            'The lowest offer you’ll consider; not above the BIN price.',
+          ),
+        floor: z
+          .string()
+          .max(40)
+          .nullable()
+          .optional()
+          .describe('The lowest price you’d accept; not above the BIN price.'),
+        currency: z
+          .string()
+          .max(10)
+          .optional()
+          .describe('ISO 4217 code, e.g. "USD". Required unless clearing.'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, amount, minOffer, floor, currency }) => {
+      const key = assertInPortfolio(domain);
+      setListPrices([
+        {
+          domainName: key,
+          amount: amount ?? null,
+          minOffer: minOffer ?? null,
+          floor: floor ?? null,
+          currency: currency ?? null,
+        },
+      ]);
+      const saved = getListPrices()[key];
+      return localWrite({
+        domain: key,
+        askingPrice: saved
+          ? {
+              amount: saved.amount,
+              minOffer: saved.minOffer ?? null,
+              floor: saved.floor ?? null,
+              currency: saved.currency,
+            }
+          : null,
+      });
+    },
+  );
+
+  server.registerTool(
+    'domain_renewal_price_set',
+    {
+      title: 'Set a domain’s renewal price',
+      description:
+        'For a single domain: set your own yearly renewal price, which overrides DomBot’s estimate (domain_renewal_price then reports source "manual"), or pass `amount: null` to go back to the estimate. Use it for a premium name or a registrar DomBot can’t quote. DomBot-local — changes nothing at the registrar.',
+      inputSchema: {
+        domain,
+        amount: z
+          .string()
+          .max(40)
+          .nullable()
+          .describe('The yearly price, e.g. "89.99"; null clears it.'),
+        currency: z
+          .string()
+          .max(10)
+          .optional()
+          .describe('ISO 4217 code, e.g. "USD" (default USD).'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, amount, currency }) => {
+      const key = assertInPortfolio(domain);
+      setManualPrice(
+        key,
+        amount === null ? null : { amount, currency: currency ?? 'USD' },
+      );
+      return localWrite({
+        domain: key,
+        renewalPrice: getManualPrices()[key] ?? null,
+      });
+    },
+  );
+
+  server.registerTool(
+    'domain_ownership_set',
+    {
+      title: 'Set a domain’s ownership',
+      description:
+        'For a single domain: mark it "dropped" (you let it go) or "archived" (you no longer track it in DomBot), which moves it to Archive whatever the registrar reports; or "owned" to undo your Sold, Dropped, or Archived mark (the app’s Move back to Owned). A name in Archive only because sync saw it leave an account can’t be moved back this way. DomBot-local — nothing changes at the registrar; dropping here doesn’t cancel a registration (turn auto-renew off for that). Recorded in the domain’s history as done by an agent. Returns the name’s `ownership` and `archiveLabel`.',
+      inputSchema: {
+        domain,
+        ownership: z
+          .enum(['dropped', 'archived', 'owned'])
+          .describe(
+            '"dropped" or "archived" moves it to Archive; "owned" undoes your mark.',
+          ),
+        date: z
+          .string()
+          .max(40)
+          .optional()
+          .describe(
+            'When, as YYYY-MM-DD (default today). Ignored for "owned".',
+          ),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, ownership, date }) => {
+      const key = assertInPortfolio(domain);
+      if (ownership === 'owned') restoreOwned([key]);
+      else
+        setDispositions(
+          [{ domainName: key }],
+          ownership === 'dropped'
+            ? DomainEventType.Dropped
+            : DomainEventType.Archived,
+          date,
+          DomainEventSource.Agent,
+        );
+      return localWrite({ domain: key, ...ownershipOf(key) });
     },
   );
 
