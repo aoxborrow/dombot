@@ -161,8 +161,8 @@ export function releaseNotesUrl(newer: Release[]): string {
   return newer.length === 1 ? newer[0].url : RELEASES_PAGE;
 }
 
-/** Opens what "update" means on this host: the release download on the
- *  desktop, the self-hosting instructions on the web. */
-export function openUpdate(release: Release): void {
-  void window.api.openExternal(isWeb() ? SELF_HOST_UPDATE_DOCS : release.url);
+/** Where "update" goes on this host: the release download on the desktop,
+ *  the self-hosting instructions on the web. */
+export function updateUrl(release: Release): string {
+  return isWeb() ? SELF_HOST_UPDATE_DOCS : release.url;
 }

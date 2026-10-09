@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, type ComponentProps, type ReactNode } from 'react';
 import {
   BookOpen,
   Bug,
@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { isDemo, isWeb } from '@/lib/platform';
-import { openUpdate, releaseNotesUrl, useUpdates } from '@/lib/updates';
+import { releaseNotesUrl, updateUrl, useUpdates } from '@/lib/updates';
 import { timeAgo } from '@/lib/time';
 import { releasesNewerThan } from '../../../shared/releases';
 import { useAppStore } from '../../store/app';
@@ -29,7 +29,12 @@ const PLATFORM_LABEL: Record<string, string> = {
   web: 'Self-hosted',
 };
 
-const open = (url: string) => void window.api.openExternal(url);
+/** A link out of the app, in a new tab on the web. On the desktop the main
+ *  process's window-open handler sends `_blank` links to the system browser
+ *  (the same as every other external link in the app). */
+function ExtLink(props: ComponentProps<'a'>) {
+  return <a target="_blank" rel="noopener noreferrer" {...props} />;
+}
 
 /**
  * Which DomBot this is and whether a newer one is out (with a link to its
@@ -123,18 +128,18 @@ export default function AboutSettings() {
                 Check now
               </Button>
               {newer.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => open(releaseNotesUrl(newer))}
-                >
-                  <ExternalLink className="size-3.5" />
-                  Release notes
+                <Button variant="outline" size="sm" asChild>
+                  <ExtLink href={releaseNotesUrl(newer)}>
+                    <ExternalLink className="size-3.5" />
+                    Release notes
+                  </ExtLink>
                 </Button>
               )}
               {newer.length > 0 && (
-                <Button size="sm" onClick={() => openUpdate(newer[0])}>
-                  {isWeb() ? 'How to update' : `Download ${newer[0].version}`}
+                <Button size="sm" asChild>
+                  <ExtLink href={updateUrl(newer[0])}>
+                    {isWeb() ? 'How to update' : `Download ${newer[0].version}`}
+                  </ExtLink>
                 </Button>
               )}
             </div>
@@ -166,13 +171,12 @@ export default function AboutSettings() {
       <SettingsCard title="About DomBot" contentClassName="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">
           DomBot is free and open-source software, released under the{' '}
-          <button
-            type="button"
-            onClick={() => open(`${REPO}/blob/main/LICENSE`)}
+          <ExtLink
+            href={`${REPO}/blob/main/LICENSE`}
             className="text-foreground underline-offset-2 hover:underline"
           >
             GNU AGPL v3.0
-          </button>
+          </ExtLink>
           .
         </p>
         {/* Pulled out a little so the rows' hover fill has room, while the
@@ -219,13 +223,12 @@ export default function AboutSettings() {
             the muted text in dark mode, where that grey still reads loud. */}
         <p className="-mx-6 -mb-[19px] border-t bg-muted/40 px-6 py-3 text-xs text-muted-foreground dark:text-muted-foreground/70">
           © 2026{' '}
-          <button
-            type="button"
-            onClick={() => open('https://x.com/aoxborrow')}
+          <ExtLink
+            href="https://x.com/aoxborrow"
             className="hover:text-foreground"
           >
             Aaron Oxborrow
-          </button>{' '}
+          </ExtLink>{' '}
           and contributors
         </p>
       </SettingsCard>
@@ -248,9 +251,8 @@ function ProjectLink({
 }) {
   return (
     <li>
-      <button
-        type="button"
-        onClick={() => open(url)}
+      <ExtLink
+        href={url}
         className="group flex w-full items-center gap-3 rounded-md max-sm:items-start px-3 py-2.5 text-left hover:bg-foreground/[0.04]"
       >
         <span className="flex size-4 shrink-0 items-center justify-center max-sm:mt-0.5 text-muted-foreground group-hover:text-foreground [&_svg]:size-4">
@@ -269,7 +271,7 @@ function ProjectLink({
           className="size-3.5 shrink-0 text-muted-foreground/60 group-hover:text-foreground max-sm:hidden"
           aria-hidden
         />
-      </button>
+      </ExtLink>
     </li>
   );
 }
