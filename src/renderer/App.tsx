@@ -136,7 +136,7 @@ export default function App() {
           columns match), and the bell just right of the tabs. The tabs run
           along the bottom edge, on the tab bar color that also shows above
           them. */}
-      <header className="grid h-12 grid-cols-[1fr_auto_1fr] border-b bg-tab-bar px-4 sm:px-6">
+      <header className="relative grid h-12 grid-cols-[1fr_auto_1fr] border-b bg-tab-bar px-4 sm:px-6">
         <div className="flex flex-1 items-center">
           <button
             type="button"
@@ -186,13 +186,13 @@ export default function App() {
             <ActivityBell />
           </span>
           <MobileNav />
-          {/* The running version, dim, in the header's top-right corner;
-              opens Settings → About. Desktop widths only. */}
+          {/* The running version, dim, pinned 20px from the window's top
+              and right edges; opens Settings → About. Desktop widths only. */}
           {appInfo && (
             <button
               type="button"
               onClick={() => navigate('/settings?tab=about')}
-              className="ml-auto hidden rounded-sm text-[11px] text-muted-foreground/40 hover:text-muted-foreground sm:inline"
+              className="absolute top-5 right-5 hidden rounded-sm text-[11px] leading-none text-muted-foreground/40 hover:text-muted-foreground sm:inline"
               title="About this version"
             >
               {/* A serif italic "v", dimmer than the monospace digits (like
