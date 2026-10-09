@@ -258,12 +258,6 @@ function ProjectLink({
         <span className="min-w-0 flex-1 text-sm">
           <span className="font-medium">{title}</span>
           <span className="text-muted-foreground"> – {hint}</span>
-          {/* Phones: the icon follows the text, since a wrapped row would
-              leave a right-edge icon floating mid-height. */}
-          <ExternalLink
-            className="ml-1.5 inline size-3 align-[-1px] text-muted-foreground/60 group-hover:text-foreground sm:hidden"
-            aria-hidden
-          />
         </span>
         <ExternalLink
           className="size-3.5 shrink-0 text-muted-foreground/60 group-hover:text-foreground max-sm:hidden"
