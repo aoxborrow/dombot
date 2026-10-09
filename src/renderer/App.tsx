@@ -165,7 +165,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => navigate('/settings?tab=about')}
-              className="relative top-[3.5px] ml-0.5 hidden rounded-sm text-[11px] text-muted-foreground/40 transition-[margin] duration-200 peer-hover:ml-3 hover:text-muted-foreground sm:inline"
+              className="relative top-[3px] ml-0.5 hidden rounded-sm text-[11px] text-muted-foreground/40 transition-[margin] duration-200 peer-hover:ml-3 hover:text-muted-foreground sm:inline"
               title="About this version"
             >
               {/* A serif italic "v", dimmer than the digits and set a little
