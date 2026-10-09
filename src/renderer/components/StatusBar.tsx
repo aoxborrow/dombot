@@ -25,7 +25,6 @@ import {
  */
 export default function StatusBar() {
   const mcpInfo = useAppStore((s) => s.mcpInfo);
-  const appInfo = useAppStore((s) => s.appInfo);
   const loadMcpInfo = useAppStore((s) => s.loadMcpInfo);
   const registrars = useAppStore((s) => s.registrars);
   const loadRegistrars = useAppStore((s) => s.loadRegistrars);
@@ -81,22 +80,7 @@ export default function StatusBar() {
         className="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 sm:inline-flex"
       />
 
-      <div className="flex items-center gap-4">
-        <SyncStatus />
-        {/* The running version, dimmer than its neighbours, at the far
-            right; opens Settings → About. Hidden on phones, where the bar is
-            already full. */}
-        {appInfo && (
-          <button
-            type="button"
-            onClick={() => navigate('/settings?tab=about')}
-            className="hidden rounded-sm text-muted-foreground/60 hover:text-foreground sm:inline"
-            title="About this version"
-          >
-            v{appInfo.version}
-          </button>
-        )}
-      </div>
+      <SyncStatus />
     </footer>
   );
 }

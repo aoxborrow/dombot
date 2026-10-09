@@ -59,6 +59,7 @@ const TAB_OPTIONS: Record<
 
 export default function App() {
   useWeeklyUpdateCheck();
+  const appInfo = useAppStore((s) => s.appInfo);
   const hydrateFromCache = useAppStore((s) => s.hydrateFromCache);
   const applyPortfolioCacheUpdate = useAppStore(
     (s) => s.applyPortfolioCacheUpdate,
@@ -185,6 +186,18 @@ export default function App() {
             <ActivityBell />
           </span>
           <MobileNav />
+          {/* The running version, dim, at the header's right edge; opens
+              Settings → About. Desktop widths only. */}
+          {appInfo && (
+            <button
+              type="button"
+              onClick={() => navigate('/settings?tab=about')}
+              className="ml-auto hidden rounded-sm text-xs text-muted-foreground/60 hover:text-foreground sm:inline"
+              title="About this version"
+            >
+              v{appInfo.version}
+            </button>
+          )}
         </div>
       </header>
 
