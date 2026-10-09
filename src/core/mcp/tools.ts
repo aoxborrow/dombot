@@ -13,16 +13,40 @@ import {
   getDomainDetail,
   getMergedPortfolio,
   getPortfolio,
+  getPortfolioPricing,
   getRegistrarClient,
   getRegistrarMetadata,
   registerDomainCached,
   registrarNames,
+  setRegistrarEnabledCached,
   getRenewalPriceLive,
   syncRegistrar,
 } from '../services/registrars';
 import { accountById } from '../services/accounts';
+import { getImportedDomains } from '../services/imported-domains';
+import { getListPrices, setListPrices } from '../services/list-prices';
+import {
+  getPurchases,
+  holdings,
+  setNotes,
+  setPurchase,
+  setSale,
+} from '../services/purchases';
+import { getManualPrices, setManualPrice } from '../services/pricing';
+import {
+  restoreOwned,
+  setAlertsDismissed,
+  setDispositions,
+} from '../services/domain-history';
 import { applyDomainOp } from '../services/domain-ops';
-import { eventsFor, listEvents } from '../services/domain-events';
+import { eventsFor, listEvents, nameNote } from '../services/domain-events';
+import { notifications } from '../../shared/notifications';
+import {
+  DomainEventSource,
+  DomainEventType,
+  localDay,
+  type DomainEvent,
+} from '../../shared/domain-events';
 import {
   assignFolder,
   createFolder,
@@ -39,6 +63,7 @@ import {
   type FolderColor,
   type Portfolio,
 } from '../../shared/ipc';
+import { importedRows } from '../../shared/imported-domains';
 import { archiveRows, ownershipByDomain } from '../../shared/ownership';
 import {
   DEFAULT_LIMIT,
@@ -106,9 +131,15 @@ function resolveRegistrar(
   const matches = findRegistrarsForDomain(domainName);
   if (matches.length === 1) return matches[0];
   if (matches.length === 0) {
+    const key = toAscii(domainName);
+    // An imported name isn't at any connected account.
+    if (Object.hasOwn(getImportedDomains(), key)) {
+      throw new Error(
+        `"${domainName}" is an imported domain: none of your connected accounts reports it, so there's no registrar to act on. Connect the account that holds it and run portfolio_sync, or pass "registrar" if an account holds it but hasn't synced it yet.`,
+      );
+    }
     // A name that left your accounts is in Archive: syncing won't bring it
     // back, so say that instead.
-    const key = toAscii(domainName);
     const left = ownershipByDomain(eventsFor(key)).get(key);
     if (left?.label) {
       throw new Error(
@@ -303,8 +334,16 @@ const transferInput = z.object({
 // caller that needs fresh data.
 
 const querySort = z
-  .enum(['domainName', 'registrar', 'expirationDate', 'createdDate'])
-  .describe('Field to sort by (default expirationDate).');
+  .enum([
+    'domainName',
+    'registrar',
+    'expirationDate',
+    'createdDate',
+    'renewalPrice',
+  ])
+  .describe(
+    'Field to sort by (default expirationDate). renewalPrice compares the estimated amounts as numbers, whatever their currency; names with no estimate sort last.',
+  );
 
 // Shared filter/sort/page params for portfolio_query. Every filter is optional
 // and ANDed together; an omitted filter doesn't constrain the results.
@@ -317,6 +356,12 @@ const queryShape = {
     ),
   accountId,
   registrar: registrar.optional().describe('Only this registrar.'),
+  source: z
+    .enum(['registrar', 'imported'])
+    .optional()
+    .describe(
+      'Only synced names ("registrar") or only imported ones ("imported": added from a file or by name, and no connected account reports them).',
+    ),
   tld: z
     .string()
     .optional()
@@ -395,15 +440,21 @@ function runQuery(args: QueryArgs): QueryResult {
   const { domains, fetchedAt, registrars, errors } = getMergedPortfolio();
   const { folders, assignments } = getFolders();
   const ownership = ownershipByDomain(listEvents());
+  // As on the Domains page: synced names, then imported names no account
+  // reports, then names in Archive that neither covers (from the event log).
+  const listed = [...domains, ...importedRows(getImportedDomains(), domains)];
   return queryPortfolio(
-    // Names in Archive that no account reports come from the event log, as
-    // in the Archive view.
-    [...domains, ...archiveRows(ownership, domains, getRegistrarMetadata())],
+    [...listed, ...archiveRows(ownership, listed, getRegistrarMetadata())],
     folders,
     assignments,
     { fetchedAt, registrars, errors },
     args,
     ownership,
+    {
+      purchases: getPurchases(),
+      listPrices: getListPrices(),
+      pricing: getPortfolioPricing(),
+    },
   );
 }
 
@@ -505,12 +556,82 @@ function folderCounts(assignments: Record<string, string>) {
   return counts;
 }
 
-/** Folder writes don't touch the portfolio cache, but the same event tells an
- *  open window to re-read folders (store/app.ts applyPortfolioCacheUpdate). */
-function folderWrite<T>(result: T) {
+/** A write to DomBot's own data (folders, notes, prices, history). It doesn't
+ *  touch the portfolio cache, but the same event tells an open window to
+ *  re-read it all (store/app.ts applyPortfolioCacheUpdate). */
+function localWrite<T>(result: T) {
   broadcastPortfolioChanged();
   return json(result);
 }
+
+/** The normalized name, or an error when DomBot doesn't know it: not synced,
+ *  not imported, and with no history. */
+function assertInPortfolio(domain: string): string {
+  const key = assertDomainName(domain);
+  const known =
+    getMergedPortfolio().domains.some((d) => toAscii(d.domainName) === key) ||
+    Object.hasOwn(getImportedDomains(), key) ||
+    eventsFor(key).length > 0;
+  if (!known) {
+    throw new Error(
+      `"${domain}" isn't in your portfolio. Run portfolio_sync if it was added recently.`,
+    );
+  }
+  return key;
+}
+
+/** A name's Owned / Archive state, as portfolio_query rows report it. */
+function ownershipOf(key: string) {
+  const o = ownershipByDomain(eventsFor(key)).get(key);
+  return o?.label
+    ? { ownership: 'archive' as const, archiveLabel: o.label }
+    : { ownership: 'owned' as const, archiveLabel: null };
+}
+
+/** A name's purchase and sale, as portfolio_query rows report them. */
+function moneyOf(key: string) {
+  const p = getPurchases()[key];
+  return {
+    paid:
+      p && (p.purchaseType || p.purchaseDate || p.amount)
+        ? {
+            date: p.purchaseDate,
+            amount: p.amount,
+            currency: p.currency,
+            kind: p.purchaseType ?? 'purchased',
+          }
+        : null,
+    sold:
+      p && (p.saleDate || p.saleAmount)
+        ? {
+            date: p.saleDate ?? null,
+            amount: p.saleAmount ?? null,
+            currency: p.saleCurrency ?? null,
+          }
+        : null,
+  };
+}
+
+/** Accounts whose last sync failed, for the needs-review list (as the bell's
+ *  syncProblems). */
+function syncFailures() {
+  return getRegistrarMetadata()
+    .filter((r) => r.configured && r.enabled && r.sync.lastError)
+    .map((r) => ({
+      accountId: r.accountId ?? r.name,
+      account: r.accountLabel ?? r.name,
+      message: r.sync.lastError!,
+      at: r.sync.lastErrorAt,
+    }));
+}
+
+const resolvesParam = z
+  .string()
+  .max(40)
+  .optional()
+  .describe(
+    'The id of the open alert this answers (from portfolio_alerts or domain_history), which closes it.',
+  );
 
 /**
  * Registers the MCP portfolio tools. Each calls into the shared `services/`
@@ -553,7 +674,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Query portfolio',
       description:
-        'List, search, and filter your whole portfolio across every configured registrar — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (sold, dropped, archived, or gone from your accounts) or both. Filter by registrar, TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel`, `hidden` (in the Hidden folder: still yours, still renews), and `inAccount` (false for an Archive name no account reports, which the domain_* tools can’t act on). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete. Rows carry only the fields you need — call domain_get for a single domain’s full record.',
+        'List, search, and filter your whole portfolio — every configured registrar plus the names you imported — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (sold, dropped, archived, or gone from your accounts) or both. Filter by registrar, source (synced or imported), TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort (including by estimated renewal price) and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel`, `hidden` (in the Hidden folder: still yours, still renews), `source` (`imported`: no connected account reports it), and `inAccount` (false for an imported name or an Archive name no account reports — the registrar-backed domain_* tools can’t act on those). Rows also carry what DomBot keeps per name: `paid` (date, amount, currency, registered or purchased), `sold`, `notes`, `askingPrice` (BIN price, minimum offer, floor), and `renewalPrice` (DomBot’s yearly estimate and its source, as domain_renewal_price). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete. Rows carry only the fields you need — call domain_get for a single domain’s full record.',
       inputSchema: queryShape,
       annotations: { readOnlyHint: true },
     },
@@ -644,7 +765,7 @@ export function registerTools(server: McpServer): void {
         description: description?.trim() ?? '',
         color: color ?? 'blue',
       });
-      return folderWrite({ ...folder, builtIn: false, domainCount: 0 });
+      return localWrite({ ...folder, builtIn: false, domainCount: 0 });
     },
   );
 
@@ -661,7 +782,7 @@ export function registerTools(server: McpServer): void {
       const target = resolveUserFolder(folder, 'renamed');
       assertFolderNameFree(name, target.id);
       updateFolder(target.id, { name });
-      return folderWrite({ id: target.id, name, previousName: target.name });
+      return localWrite({ id: target.id, name, previousName: target.name });
     },
   );
 
@@ -682,7 +803,81 @@ export function registerTools(server: McpServer): void {
       const target = resolveUserFolder(folder, 'deleted');
       const unassigned = folderCounts(getFolders().assignments)[target.id] ?? 0;
       deleteFolder(target.id);
-      return folderWrite({ ...target, deleted: true, unassigned });
+      return localWrite({ ...target, deleted: true, unassigned });
+    },
+  );
+
+  server.registerTool(
+    'portfolio_alerts',
+    {
+      title: 'List what needs review',
+      description:
+        'What needs you, as the app’s bell shows it: accounts whose last sync failed (`sync-error`), names that left an account (`departure`, high priority: sold? dropped?), and names that arrived (`arrival`, low priority: what did you pay?). Most severe first, then newest. Answer a departure with domain_sale_set or domain_ownership_set and an arrival with domain_purchase_set, passing the alert’s `eventId` as `resolves`; or dismiss alerts with portfolio_alert_dismiss. A sync error clears on the account’s next good sync. Local — no registrar calls. Returns { total, counts, alerts }: `total` counts the matching alerts before paging, `counts` every alert by kind.',
+      inputSchema: {
+        kind: z
+          .enum(['sync-error', 'departure', 'arrival'])
+          .optional()
+          .describe('Only this kind of alert.'),
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .max(MAX_LIMIT)
+          .optional()
+          .describe(
+            `Max alerts to return (default ${DEFAULT_LIMIT}, max ${MAX_LIMIT}).`,
+          ),
+        offset: z
+          .number()
+          .int()
+          .nonnegative()
+          .optional()
+          .describe('Alerts to skip, for paging (default 0).'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ kind, limit, offset }) => {
+      const all = notifications(listEvents(), syncFailures());
+      const counts = { 'sync-error': 0, departure: 0, arrival: 0 };
+      for (const n of all) counts[n.kind] += 1;
+      const matching = kind ? all.filter((n) => n.kind === kind) : all;
+      const start = offset ?? 0;
+      return json({
+        total: matching.length,
+        counts,
+        alerts: matching.slice(start, start + (limit ?? DEFAULT_LIMIT)),
+      });
+    },
+  );
+
+  server.registerTool(
+    'portfolio_alert_dismiss',
+    {
+      title: 'Dismiss alerts',
+      description:
+        'Dismiss sync alerts ("added" or "removed") without recording anything, as the app’s Dismiss review does, or bring them back with `dismissed: false`. Takes alert ids (`eventId`) from portfolio_alerts or domain_history; ids that aren’t alerts are skipped. A sync error can’t be dismissed. Local — no registrar calls. Returns which of the ids are still open.',
+      inputSchema: {
+        alertIds: z
+          .array(z.string().max(40))
+          .min(1)
+          .max(5000)
+          .describe('Alert (event) ids.'),
+        dismissed: z
+          .boolean()
+          .optional()
+          .describe('false brings them back (default true).'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ alertIds, dismissed }) => {
+      setAlertsDismissed(alertIds, dismissed ?? true);
+      const open = new Set(
+        notifications(listEvents(), []).map((n) => n.eventId),
+      );
+      return localWrite({
+        dismissed: dismissed ?? true,
+        stillOpen: alertIds.filter((id) => open.has(id)),
+      });
     },
   );
 
@@ -739,6 +934,36 @@ export function registerTools(server: McpServer): void {
       const portfolio = await syncRegistrar(registrar, accountId);
       broadcastPortfolioChanged();
       return json(syncSummary(portfolio));
+    },
+  );
+
+  server.registerTool(
+    'registrar_set_enabled',
+    {
+      title: 'Enable or disable a registrar account',
+      description:
+        'Turn one registrar account on or off, as the app’s Enable/Disable. A disabled account keeps its credentials but doesn’t sync, and its names drop out of portfolio_query until it’s enabled again; enabling syncs it right away. Credentials and accounts themselves are managed in the app only. Returns the account and enabled state, plus the same per-registrar summary as portfolio_sync.',
+      inputSchema: {
+        accountId,
+        registrar,
+        enabled: z.boolean().describe('true to enable, false to disable'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ accountId, registrar, enabled }) => {
+      const account = resolveAccount(registrar, accountId);
+      const portfolio = await setRegistrarEnabledCached(
+        registrar,
+        enabled,
+        account.id,
+      );
+      broadcastPortfolioChanged();
+      return json({
+        accountId: account.id,
+        registrar,
+        enabled,
+        ...syncSummary(portfolio),
+      });
     },
   );
 
@@ -888,20 +1113,322 @@ export function registerTools(server: McpServer): void {
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
     async ({ domain, folder }) => {
-      const key = assertDomainName(domain);
-      const known =
-        getMergedPortfolio().domains.some(
-          (d) => toAscii(d.domainName) === key,
-        ) || eventsFor(key).length > 0;
-      if (!known) {
-        throw new Error(
-          `"${domain}" isn't in your portfolio. Run portfolio_sync if it was added recently.`,
-        );
-      }
+      const key = assertInPortfolio(domain);
       const previous = folderById(getFolders().assignments[key]);
       const target = folder === null ? null : resolveFolder(folder);
       assignFolder(key, target?.id ?? null);
-      return folderWrite({ domain: key, folder: target, previous });
+      return localWrite({ domain: key, folder: target, previous });
+    },
+  );
+
+  server.registerTool(
+    'domain_note_set',
+    {
+      title: 'Set a domain’s note',
+      description:
+        'For a single domain: replace your note on it (the Domains table’s Notes). An empty string deletes it. DomBot-local — no registrar call. Works for synced, imported, and Archive names.',
+      inputSchema: {
+        domain,
+        notes: z
+          .string()
+          .max(4000)
+          .describe(
+            'The whole note, replacing the current one; "" deletes it.',
+          ),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, notes }) => {
+      const key = assertInPortfolio(domain);
+      const saved = setNotes(key, notes);
+      return localWrite({ domain: key, notes: saved?.notes || null });
+    },
+  );
+
+  server.registerTool(
+    'domain_asking_price_set',
+    {
+      title: 'Set a domain’s asking price',
+      description:
+        'For a single domain: replace your asking price — the BIN (buy-it-now) price, the minimum offer you’ll consider, and your floor (the lowest you’d accept, never shown to buyers). Any of the three left out or null is cleared; all three null removes the asking price. Amounts are decimals in `currency`, e.g. "2500". DomBot-local — no registrar or marketplace call.',
+      inputSchema: {
+        domain,
+        amount: z
+          .string()
+          .max(40)
+          .nullable()
+          .optional()
+          .describe('The BIN price, e.g. "2500".'),
+        minOffer: z
+          .string()
+          .max(40)
+          .nullable()
+          .optional()
+          .describe(
+            'The lowest offer you’ll consider; not above the BIN price.',
+          ),
+        floor: z
+          .string()
+          .max(40)
+          .nullable()
+          .optional()
+          .describe('The lowest price you’d accept; not above the BIN price.'),
+        currency: z
+          .string()
+          .max(10)
+          .optional()
+          .describe('ISO 4217 code, e.g. "USD". Required unless clearing.'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, amount, minOffer, floor, currency }) => {
+      const key = assertInPortfolio(domain);
+      setListPrices([
+        {
+          domainName: key,
+          amount: amount ?? null,
+          minOffer: minOffer ?? null,
+          floor: floor ?? null,
+          currency: currency ?? null,
+        },
+      ]);
+      const saved = getListPrices()[key];
+      return localWrite({
+        domain: key,
+        askingPrice: saved
+          ? {
+              amount: saved.amount,
+              minOffer: saved.minOffer ?? null,
+              floor: saved.floor ?? null,
+              currency: saved.currency,
+            }
+          : null,
+      });
+    },
+  );
+
+  server.registerTool(
+    'domain_renewal_price_set',
+    {
+      title: 'Set a domain’s renewal price',
+      description:
+        'For a single domain: set your own yearly renewal price, which overrides DomBot’s estimate (domain_renewal_price then reports source "manual"), or pass `amount: null` to go back to the estimate. Use it for a premium name or a registrar DomBot can’t quote. DomBot-local — changes nothing at the registrar.',
+      inputSchema: {
+        domain,
+        amount: z
+          .string()
+          .max(40)
+          .nullable()
+          .describe('The yearly price, e.g. "89.99"; null clears it.'),
+        currency: z
+          .string()
+          .max(10)
+          .optional()
+          .describe('ISO 4217 code, e.g. "USD" (default USD).'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, amount, currency }) => {
+      const key = assertInPortfolio(domain);
+      setManualPrice(
+        key,
+        amount === null ? null : { amount, currency: currency ?? 'USD' },
+      );
+      return localWrite({
+        domain: key,
+        renewalPrice: getManualPrices()[key] ?? null,
+      });
+    },
+  );
+
+  server.registerTool(
+    'domain_ownership_set',
+    {
+      title: 'Set a domain’s ownership',
+      description:
+        'For a single domain: mark it "dropped" (you let it go) or "archived" (you no longer track it in DomBot), which moves it to Archive whatever the registrar reports; or "owned" to undo your Sold, Dropped, or Archived mark (the app’s Move back to Owned; undoing Sold deletes the recorded sale). To mark it sold, use domain_sale_set. A name in Archive only because sync saw it leave an account can’t be moved back this way. DomBot-local — nothing changes at the registrar; dropping here doesn’t cancel a registration (turn auto-renew off for that). Recorded in the domain’s history as done by an agent. Returns the name’s `ownership` and `archiveLabel`.',
+      inputSchema: {
+        domain,
+        ownership: z
+          .enum(['dropped', 'archived', 'owned'])
+          .describe(
+            '"dropped" or "archived" moves it to Archive; "owned" undoes your mark.',
+          ),
+        date: z
+          .string()
+          .max(40)
+          .optional()
+          .describe(
+            'When, as YYYY-MM-DD (default today). Ignored for "owned".',
+          ),
+        resolves: resolvesParam,
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, ownership, date, resolves }) => {
+      const key = assertInPortfolio(domain);
+      if (ownership === 'owned') restoreOwned([key]);
+      else
+        setDispositions(
+          [{ domainName: key, resolves }],
+          ownership === 'dropped'
+            ? DomainEventType.Dropped
+            : DomainEventType.Archived,
+          date,
+          DomainEventSource.Agent,
+        );
+      return localWrite({ domain: key, ...ownershipOf(key) });
+    },
+  );
+
+  server.registerTool(
+    'domain_purchase_set',
+    {
+      title: 'Set what you paid for a domain',
+      description:
+        'For a single domain: record or replace what you paid for it — the date, amount, and whether you registered it or bought it. Edits the latest purchase on record; with `resolves` (an open "added" alert) it records the purchase that answers that alert and closes it. Leaving both `date` and `amount` out deletes the purchase. Your note and any sale are kept. DomBot-local — no registrar call; recorded in the history as done by an agent. Returns the name’s `paid` and `sold`.',
+      inputSchema: {
+        domain,
+        date: z.string().max(40).nullable().optional().describe('YYYY-MM-DD.'),
+        amount: z
+          .string()
+          .max(40)
+          .nullable()
+          .optional()
+          .describe('A decimal in `currency`, e.g. "1200".'),
+        currency: z
+          .string()
+          .max(10)
+          .nullable()
+          .optional()
+          .describe('ISO 4217 code, e.g. "USD". Required with an amount.'),
+        kind: z
+          .enum(['registered', 'purchased'])
+          .optional()
+          .describe(
+            'Hand-registered, or bought (aftermarket, auction, drop). Default: what’s on record, else purchased.',
+          ),
+        resolves: resolvesParam,
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, date, amount, currency, kind, resolves }) => {
+      const key = assertInPortfolio(domain);
+      setPurchase(
+        {
+          domainName: key,
+          kind,
+          resolves,
+          purchaseDate: date ?? null,
+          amount: amount ?? null,
+          currency: currency ?? null,
+          // The purchase and the note save together; keep the note as is.
+          notes: getPurchases()[key]?.notes ?? '',
+        },
+        DomainEventSource.Agent,
+      );
+      return localWrite({ domain: key, ...moneyOf(key) });
+    },
+  );
+
+  server.registerTool(
+    'domain_sale_set',
+    {
+      title: 'Record a domain’s sale',
+      description:
+        'For a single domain: record that you sold it, or correct the sale on record. Moves the name to Archive (Sold). With no sale on record — or with `resolves` (an open "removed" alert) — it records a new sale, dated today when `date` is left out, and closes that alert; otherwise it edits the latest sale. To undo a sale, use domain_ownership_set with "owned". Your note and the purchase are kept. DomBot-local — no registrar or marketplace call; recorded in the history as done by an agent. Returns the name’s `paid`, `sold`, `ownership` and `archiveLabel`.',
+      inputSchema: {
+        domain,
+        date: z
+          .string()
+          .max(40)
+          .nullable()
+          .optional()
+          .describe(
+            'YYYY-MM-DD (default: today for a new sale, else unchanged).',
+          ),
+        amount: z
+          .string()
+          .max(40)
+          .nullable()
+          .optional()
+          .describe('A decimal in `currency`, e.g. "5000".'),
+        currency: z
+          .string()
+          .max(10)
+          .nullable()
+          .optional()
+          .describe('ISO 4217 code, e.g. "USD". Required with an amount.'),
+        resolves: resolvesParam,
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, date, amount, currency, resolves }) => {
+      const key = assertInPortfolio(domain);
+      const existing = holdings().get(key)?.sale;
+      // Edit the sale that has the name in Archive as Sold, so a repeated call
+      // doesn't record a second one. A name that sold and came back is owned
+      // again: its old sale is history, and this records a new one.
+      const isNew =
+        !existing ||
+        ownershipOf(key).archiveLabel !== 'sold' ||
+        (!!resolves && existing.resolves !== resolves);
+      setSale(
+        {
+          domainName: key,
+          saleDate: date ?? (isNew ? localDay() : existing.date),
+          amount: amount ?? null,
+          currency: currency ?? null,
+          notes: getPurchases()[key]?.notes ?? '',
+          ...(isNew ? { mark: true, resolves } : {}),
+        },
+        DomainEventSource.Agent,
+      );
+      return localWrite({ domain: key, ...moneyOf(key), ...ownershipOf(key) });
+    },
+  );
+
+  server.registerTool(
+    'domain_history',
+    {
+      title: 'Get a domain’s history',
+      description:
+        'For a single domain: everything DomBot recorded about it, oldest first — arrivals and departures seen by sync, moves between your accounts, renewals, purchases, sales, and Dropped/Archived marks — plus its note and its current Owned/Archive state. Each event says who recorded it (`source`: sync, user, import, lookup, or agent). Sync alerts ("added" and "removed") carry `alert` (open, dismissed, or resolved) and `resolvedBy`, the id of the event that answered it. Works for names in Archive and names no account reports. Local — no registrar call.',
+      inputSchema: { domain },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ domain }) => {
+      const key = assertInPortfolio(domain);
+      // Answers can only come from the same name's events.
+      const events = eventsFor(key);
+      const answeredBy = new Map<string, string>();
+      for (const e of events) if (e.resolves) answeredBy.set(e.resolves, e.id);
+      const order = (e: DomainEvent) =>
+        `${e.date ?? localDay(e.createdAt)}|${e.id}`;
+      return json({
+        domain: key,
+        ...ownershipOf(key),
+        notes: nameNote(key)?.text || null,
+        events: [...events]
+          .sort((a, b) => order(a).localeCompare(order(b)))
+          .map((e) => {
+            const isAlert =
+              e.type === DomainEventType.Added ||
+              e.type === DomainEventType.Removed;
+            const resolvedBy = answeredBy.get(e.id) ?? null;
+            return {
+              ...e,
+              alert: !isAlert
+                ? null
+                : resolvedBy
+                  ? 'resolved'
+                  : e.dismissed
+                    ? 'dismissed'
+                    : 'open',
+              resolvedBy,
+            };
+          }),
+      });
     },
   );
 

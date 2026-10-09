@@ -29,7 +29,8 @@ The name prefix says what a tool acts on:
 looked up in the cached portfolio, since you own the domain. A name the cache
 doesn't have fails with a message to pass `registrar` or run `portfolio_sync`;
 a name the cache lists under two registrars (a stale transfer) fails asking
-for `registrar`. Pass it to skip the lookup or for a name not synced yet.
+for `registrar`. An imported name fails saying no connected account reports
+it. Pass it to skip the lookup or for a name not synced yet.
 
 **Choosing an account.** Every `registrar_*` and `domain_*` tool takes an
 optional `accountId` (from `registrar_list`); labels aren't accepted. With
@@ -50,21 +51,40 @@ take `refresh` to fetch live and write the result through.
   through the fixed IP proxy) and `sync` state. Also the `configured` and
   `active` registrar ids. No secrets. Start here.
 - **`portfolio_query`** — list, search and filter the cached portfolio across
-  every account. Filters: `ownership` (`owned`, the default, `archive` or
-  `all`, as the Domains page's Owned / Archive switch), `accountId`,
-  `registrar`, `tld`, `folder` (a name, an id, or `Hidden`), `nameContains`,
+  every account, plus the names you imported. Filters: `ownership` (`owned`,
+  the default, `archive` or `all`, as the Domains page's Owned / Archive
+  switch), `accountId`, `registrar`, `source` (`registrar` or `imported`),
+  `tld`, `folder` (a name, an id, or `Hidden`), `nameContains`,
   `nameserverContains`, `autoRenew`, `locked`, `privacy`, `status`,
-  `expiresBefore`, `expiresAfter`, `expiringWithinDays`. Plus `sort`, `order`,
+  `expiresBefore`, `expiresAfter`, `expiringWithinDays`. Plus `sort` (also
+  by `renewalPrice`, compared as numbers whatever the currency), `order`,
   `limit` and `offset`. No registrar calls. Returns
   `{ total, fetchedAt, stale, registrars, errors, rows }`.
   - Each row carries `ownership`, `archiveLabel` (`sold`, `dropped`,
     `archived`, or `removed` for a removal you haven't labeled), `hidden`, and
     `inAccount`.
   - Hidden names count as owned: they're still yours and still renew.
+  - Each row also carries what DomBot keeps for the name: `paid` (date,
+    amount, currency, and `kind`: registered or purchased), `sold`, `notes`,
+    `askingPrice` (`amount`, `minOffer`, `floor`, `currency`) and
+    `renewalPrice` (DomBot's yearly estimate with its `source`, as
+    `domain_renewal_price`). Each is `null` when there's nothing on record.
+  - An imported name has `source: 'imported'`, no `accountId`, `inAccount:
+false`, and `registrarLabel` when you typed a registrar DomBot doesn't
+    know. Its `autoRenew` is what you told DomBot, or `null`.
   - An Archive name can still be in an account (a sale in escrow). One no
     account reports has `inAccount: false`, its last known registrar, and
     `null` for the settings an account reports. The `domain_*` tools can't act
     on it.
+- **`portfolio_alerts`** — what needs you, as the bell shows it: failed
+  syncs (`sync-error`), names that left an account (`departure`, high
+  priority) and names that arrived (`arrival`, low). Most severe first, then
+  newest. `kind?`, `limit?`, `offset?`. Returns `{ total, counts, alerts }`;
+  each alert's `eventId` is what `resolves` and `portfolio_alert_dismiss`
+  take.
+- **`portfolio_alert_dismiss`** — `alertIds[]`, `dismissed?` (default
+  `true`; `false` brings them back). Dismisses without recording anything.
+  Returns the ids still open.
 - **`portfolio_sync`** — re-sync every active account and return a
   per-account summary (counts, last sync, errors).
 
@@ -89,11 +109,56 @@ names are kept unique (case-insensitive), and none may be called `Hidden`.
   any current one. The domain must be in your portfolio, owned or Archive.
   Returns `{ domain, folder, previous }`.
 
+## History, money, notes and ownership
+
+DomBot's own data about a name, read and written through the same services as
+the app. No registrar calls. Each takes `domain`, which must be in your
+portfolio: synced, imported, or with history.
+
+- **`domain_history`** — every event for the name, oldest first, with its
+  note and current `ownership` / `archiveLabel`. Each event has its `source`;
+  sync alerts (`added`, `removed`) also have `alert` (`open`, `dismissed` or
+  `resolved`) and `resolvedBy`.
+- **`domain_purchase_set`** — `date?`, `amount?`, `currency?`, `kind?`
+  (`registered` or `purchased`), `resolves?`. Edits the latest purchase;
+  with `resolves` (an open `added` alert) it records the purchase that
+  answers it. Leaving out both `date` and `amount` deletes the purchase.
+  Returns `{ domain, paid, sold }`.
+- **`domain_sale_set`** — `date?`, `amount?`, `currency?`, `resolves?`.
+  Records a sale (dated today by default) when none is on record or
+  `resolves` names a new alert, otherwise edits the latest; the name moves to
+  Archive as Sold. Undo it with `domain_ownership_set` `owned`. Returns
+  `{ domain, paid, sold, ownership, archiveLabel }`.
+
+- **`domain_note_set`** — `notes`, replacing the note; `""` deletes it.
+  Returns `{ domain, notes }`.
+- **`domain_asking_price_set`** — `amount?` (BIN), `minOffer?`, `floor?`,
+  `currency?`. Replaces the asking price: what's left out is cleared, and all
+  three left out removes it. `currency` is required unless clearing. Returns
+  `{ domain, askingPrice }`.
+- **`domain_renewal_price_set`** — `amount` (`null` clears it), `currency?`
+  (default `USD`). Your yearly price, which `domain_renewal_price` then
+  reports with source `manual`. Returns `{ domain, renewalPrice }`.
+- **`domain_ownership_set`** — `ownership`: `dropped` or `archived` moves the
+  name to Archive; `owned` undoes your Sold, Dropped or Archived mark (Move
+  back to Owned). `date?` defaults to today. A name in Archive only because
+  sync saw it leave can't be moved back. `resolves?` answers an open
+  `removed` alert. Returns `{ domain, ownership, archiveLabel }`.
+
+Purchases, sales and marks an agent records have `source: 'agent'`, shown as **Agent** in Activity, so
+you can tell what an agent did from what you did. Otherwise an agent's mark
+behaves like yours: your next mark replaces it, and Move back to Owned undoes
+it.
+
 ## Registrar
 
 - **`registrar_test`** — test an account's credentials.
 - **`registrar_domains`** — list every domain in the account, live.
 - **`registrar_sync`** — re-sync one account into the cache.
+- **`registrar_set_enabled`** — `enabled`: turn an account on or off, as the
+  app does. A disabled account keeps its credentials but doesn't sync, and its
+  names leave `portfolio_query`; enabling syncs it. Adding, removing and
+  credentials stay in the app.
 - **`registrar_check_availability`** — `domains[]`: whether each can be
   registered.
 - **`registrar_pricing`** — `tld` (or a domain): the registrar's live

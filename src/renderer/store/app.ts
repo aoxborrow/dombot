@@ -406,12 +406,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   applyPortfolioCacheUpdate: async () => {
-    // Folders aren't cache: an MCP folder tool can change them before the
-    // portfolio has ever loaded, so re-read them unconditionally.
-    const folders = get().loadFolders();
+    // DomBot's own data isn't cache: an MCP tool can change history, folders,
+    // notes, prices, imported names (read with the events) or an account's
+    // enabled state before the portfolio has ever loaded, so re-read it all
+    // unconditionally. Each is a local read, no network.
+    const local = Promise.all([
+      get().loadDomainEvents(),
+      get().loadFolders(),
+      get().loadPurchases(),
+      get().loadListPrices(),
+      get().loadPricing(),
+      get().loadRegistrars(),
+    ]).then(() => undefined);
     // Before the first load there's nothing in view to overlay; the launch
     // hydrate path covers a fresh start.
-    if (get().portfolioSource === null) return folders;
+    if (get().portfolioSource === null) return local;
     const snapshot = await window.api.hydrateFromCache();
     const portfolio = snapshot.portfolio;
     if (!portfolio) {
@@ -423,7 +432,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         // Imported names keep their prices without registrar data.
         pricing: snapshot.pricing,
       });
-      return folders;
+      return local;
     }
     set((state) => {
       // Overlay the freshly-cached summary + detail onto any existing enriched
@@ -447,8 +456,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         enriched,
       };
     });
-    await get().loadDomainEvents();
-    await folders;
+    await local;
   },
 
   clearAllCaches: async () => {

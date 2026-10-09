@@ -96,6 +96,25 @@ describe('domain history', () => {
     );
   });
 
+  it("records an agent's mark as the agent's, and your next mark replaces it", () => {
+    setDispositions([{ domainName: 'a.com' }], 'archived', null, 'agent');
+    expect(
+      listEvents()
+        .filter((e) => e.type === 'archived')
+        .map((e) => e.source),
+    ).toEqual(['agent']);
+    setDispositions([{ domainName: 'a.com' }], 'dropped');
+    expect(
+      listEvents()
+        .filter((e) => e.type === 'archived' || e.type === 'dropped')
+        .map((e) => [e.type, e.source]),
+    ).toEqual([['dropped', 'user']]);
+    restoreOwned(['a.com']);
+    expect(ownershipByDomain(listEvents()).get('a.com')?.label ?? null).toBe(
+      null,
+    );
+  });
+
   it('marks a name Sold with no details, dated today, closing its alert', () => {
     recordSync(holding(['a.com']));
     const [left] = recordSync(holding([]));

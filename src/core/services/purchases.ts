@@ -11,6 +11,7 @@ import {
   DomainEventType,
   localDay,
   type DomainEvent,
+  type UserSource,
 } from '../../shared/domain-events';
 import { parseCanonicalAmount, parsePurchaseDate } from '../../shared/money';
 import {
@@ -145,9 +146,12 @@ function upsert(
 /**
  * Save one name's purchase and its note. Blank date and amount delete the
  * purchase; the note and any sale are kept. Returns the name's summary, or
- * null when nothing is left.
+ * null when nothing is left. `source` is `agent` when an MCP client asked.
  */
-export function setPurchase(input: PurchaseInput): DomainPurchase | null {
+export function setPurchase(
+  input: PurchaseInput,
+  source: UserSource = DomainEventSource.User,
+): DomainPurchase | null {
   const domain = assertDomainName(input.domainName);
   const date = parsePurchaseDate(input.purchaseDate ?? '');
   const { amount, currency } = parseAmount(input.amount, input.currency);
@@ -169,7 +173,7 @@ export function setPurchase(input: PurchaseInput): DomainPurchase | null {
         : (existing?.type ?? DomainEventType.Purchased);
   const next = upsert(
     existing,
-    { domain, type, source: DomainEventSource.User, date, amount, currency },
+    { domain, type, source, date, amount, currency },
     Date.now(),
   );
   if (next) putEvents([withResolves(next, input.resolves)]);
@@ -197,9 +201,12 @@ export function setNotes(
 
 /**
  * Save what a name sold for, and its note. Blank date and amount delete the
- * sale; the purchase and note are kept.
+ * sale; the purchase and note are kept. `source` as for setPurchase.
  */
-export function setSale(input: SaleInput): DomainPurchase | null {
+export function setSale(
+  input: SaleInput,
+  source: UserSource = DomainEventSource.User,
+): DomainPurchase | null {
   const domain = assertDomainName(input.domainName);
   const typed = parsePurchaseDate(input.saleDate ?? '', 'Sale date');
   const { amount, currency } = parseAmount(input.amount, input.currency);
@@ -214,14 +221,7 @@ export function setSale(input: SaleInput): DomainPurchase | null {
     input.mark || input.resolves ? undefined : holdings().get(domain)?.sale;
   const next = upsert(
     existing,
-    {
-      domain,
-      type: DomainEventType.Sold,
-      source: DomainEventSource.User,
-      date,
-      amount,
-      currency,
-    },
+    { domain, type: DomainEventType.Sold, source, date, amount, currency },
     Date.now(),
   );
   if (next) putEvents([withResolves(next, resolves)]);

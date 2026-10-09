@@ -5,6 +5,7 @@ import {
   DomainEventType,
   localDay,
   type DomainEvent,
+  type UserSource,
 } from '../../shared/domain-events';
 import type { CurrencyCode } from '../../shared/currencies';
 import { ownershipByDomain } from '../../shared/ownership';
@@ -271,12 +272,14 @@ function dayOf(date: string | null | undefined, label: string): string {
  * Mark names Dropped or Archived, in one write: they move to Archive whatever
  * their registration status. Each `resolves` closes the sync alert it answers.
  * A name already in that state is left as is; one you'd labeled otherwise
- * gets the new label in place of the old (see replaceLabel).
+ * gets the new label in place of the old (see replaceLabel). `source` is
+ * `agent` when an MCP client asked.
  */
 export function setDispositions(
   items: OwnershipItem[],
   type: typeof DomainEventType.Dropped | typeof DomainEventType.Archived,
   date?: string | null,
+  source: UserSource = DomainEventSource.User,
 ): DomainEvent[] {
   const day = dayOf(date, 'Date');
   const now = Date.now();
@@ -291,7 +294,7 @@ export function setDispositions(
         {
           domain,
           type,
-          source: DomainEventSource.User,
+          source,
           date: day,
           ...(resolves ? { resolves } : {}),
         },

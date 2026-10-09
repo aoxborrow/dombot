@@ -55,6 +55,7 @@ export const SOURCE_LABEL: Record<DomainEvent['source'], string> = {
   sync: 'Sync',
   import: 'Import',
   lookup: 'Lookup',
+  agent: 'Agent',
 };
 
 /** The day an event happened: its date, or the day it was recorded. */
