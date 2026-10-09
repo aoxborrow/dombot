@@ -165,10 +165,13 @@ export default function App() {
             <button
               type="button"
               onClick={() => navigate('/settings?tab=about')}
-              className="relative top-[2px] ml-0.5 hidden rounded-sm text-[11px] text-muted-foreground/50 transition-[margin] duration-200 peer-hover:ml-3 hover:text-muted-foreground sm:inline"
+              className="relative top-[3.5px] ml-0.5 hidden rounded-sm text-[11px] text-muted-foreground/40 transition-[margin] duration-200 peer-hover:ml-3 hover:text-muted-foreground sm:inline"
               title="About this version"
             >
-              v{appInfo.version}
+              {/* A serif italic "v", dimmer than the digits and set a little
+                  apart from them. */}
+              <span className="mr-px font-serif italic opacity-60">v</span>
+              {appInfo.version}
             </button>
           )}
         </div>
