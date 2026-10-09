@@ -3,6 +3,51 @@
     {
       "assets": [
         {
+          "name": "dombot-1.5.0-full.nupkg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.5.0/dombot-1.5.0-full.nupkg"
+        },
+        {
+          "name": "DomBot-1.5.0-mac-arm64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.5.0/DomBot-1.5.0-mac-arm64.dmg"
+        },
+        {
+          "name": "DomBot-1.5.0-mac-intel-x64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.5.0/DomBot-1.5.0-mac-intel-x64.dmg"
+        },
+        {
+          "name": "DomBot-1.5.0.Setup.exe",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.5.0/DomBot-1.5.0.Setup.exe"
+        },
+        {
+          "name": "DomBot-darwin-arm64-1.5.0.zip",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.5.0/DomBot-darwin-arm64-1.5.0.zip"
+        },
+        {
+          "name": "DomBot-darwin-x64-1.5.0.zip",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.5.0/DomBot-darwin-x64-1.5.0.zip"
+        },
+        {
+          "name": "dombot-linux-amd64-1.5.0.deb",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.5.0/dombot-linux-amd64-1.5.0.deb"
+        },
+        {
+          "name": "dombot-linux-x86_64-1.5.0.rpm",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.5.0/dombot-linux-x86_64-1.5.0.rpm"
+        },
+        {
+          "name": "RELEASES",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.5.0/RELEASES"
+        }
+      ],
+      "name": "DomBot v1.5.0",
+      "publishedAt": "2026-10-09T22:17:28Z",
+      "tag": "v1.5.0",
+      "url": "https://github.com/aoxborrow/dombot/releases/tag/v1.5.0",
+      "version": "1.5.0"
+    },
+    {
+      "assets": [
+        {
           "name": "DomBot-1.4.0-mac-arm64.dmg",
           "url": "https://github.com/aoxborrow/dombot/releases/download/v1.4.0/DomBot-1.4.0-mac-arm64.dmg"
         },
