@@ -256,8 +256,13 @@ function ProjectLink({
           {icon}
         </span>
         <span className="min-w-0 flex-1 text-sm">
-          <span className="font-medium">{title}</span>
-          <span className="text-muted-foreground"> – {hint}</span>
+          {/* One line on wider screens; on phones the hint goes under the
+              title. */}
+          <span className="font-medium max-sm:block">{title}</span>
+          <span className="text-muted-foreground max-sm:block">
+            <span className="max-sm:hidden"> – </span>
+            {hint}
+          </span>
         </span>
         <ExternalLink
           className="size-3.5 shrink-0 text-muted-foreground/60 group-hover:text-foreground max-sm:hidden"
