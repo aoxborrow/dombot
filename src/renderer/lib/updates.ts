@@ -157,8 +157,8 @@ export function useAvailableUpdate(): {
   return newer.length ? { current, latest: newer[0], newer } : null;
 }
 
-/** The release notes worth reading: the one release if there's one, every
- *  release otherwise. */
+/** The release notes worth reading: the one newer release if there's one,
+ *  every release otherwise (including when this version is the latest). */
 export function releaseNotesUrl(newer: Release[]): string {
   return newer.length === 1 ? newer[0].url : RELEASES_PAGE;
 }
