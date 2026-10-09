@@ -168,10 +168,12 @@ export default function App() {
               className="relative top-[3px] ml-0.5 hidden rounded-sm text-[11px] text-muted-foreground/40 transition-[margin] duration-200 peer-hover:ml-3 hover:text-muted-foreground sm:inline"
               title="About this version"
             >
-              {/* A serif italic "v", dimmer than the digits and set a little
-                  apart from them. */}
-              <span className="mr-px font-serif italic opacity-60">v</span>
-              {appInfo.version}
+              {/* A serif italic "v", dimmer than the monospace digits (like
+                  the domain names) and set a little apart from them. */}
+              <span className="mr-px font-serif text-[12px] italic opacity-60">
+                v
+              </span>
+              <span className="font-mono text-[10px]">{appInfo.version}</span>
             </button>
           )}
         </div>
