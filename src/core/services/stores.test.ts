@@ -44,9 +44,12 @@ describe('settings', () => {
       mcpEnabled: false,
       preferredCurrency: 'USD',
       numberFormat: 'us',
+      updateChecks: true,
     });
     updateSettings({ autoSyncIntervalMinutes: -5 });
     expect(getSettings().autoSyncIntervalMinutes).toBe(1440);
+    updateSettings({ updateChecks: 'yes' as unknown as boolean });
+    expect(getSettings().updateChecks).toBe(true);
     updateSettings({
       autoSyncIntervalMinutes: 30.7,
       recentNameservers: [['a', 'b'], [], ['c']],
@@ -57,6 +60,7 @@ describe('settings', () => {
       mcpEnabled: false,
       preferredCurrency: 'USD',
       numberFormat: 'us',
+      updateChecks: true,
     });
     await flushWrites();
     expect(await store.list('settings')).toEqual({
@@ -65,6 +69,7 @@ describe('settings', () => {
       mcpEnabled: false,
       preferredCurrency: 'USD',
       numberFormat: 'us',
+      updateChecks: true,
     });
   });
 });

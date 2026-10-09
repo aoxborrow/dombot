@@ -14,6 +14,7 @@ import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
 import FoldersSettings from './settings/FoldersSettings';
 import ProxySettings from './settings/ProxySettings';
+import AboutSettings from './settings/AboutSettings';
 
 // One row per section: the URL `tab` value and its label. Both the desktop
 // sidebar and the phone picker render from this, so adding a section (which will
@@ -25,6 +26,7 @@ const SECTIONS = [
   { value: 'data', label: 'Sync' },
   { value: 'folders', label: 'Folders' },
   { value: 'mcp', label: 'MCP' },
+  { value: 'about', label: 'About' },
 ] as const;
 
 const TAB_VALUES = SECTIONS.map((s) => s.value);
@@ -50,7 +52,9 @@ export default function Settings() {
   const setTab = (v: string) => setParams({ tab: v }, { replace: true });
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 sm:gap-7">
+    // Bottom padding on the page itself, so every tab ends the same distance
+    // above the status bar however long its content runs.
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 pb-8 sm:gap-7 sm:pb-12">
       <h1 className="text-2xl font-bold sm:text-[32px]">Settings</h1>
 
       <Tabs
@@ -109,6 +113,9 @@ export default function Settings() {
           </TabsContent>
           <TabsContent value="data">
             <DataSettings />
+          </TabsContent>
+          <TabsContent value="about">
+            <AboutSettings />
           </TabsContent>
         </div>
       </Tabs>

@@ -194,6 +194,8 @@ interface AppState {
   rememberNameservers: (nameservers: string[]) => Promise<void>;
   /** Turn the embedded MCP server on or off; applied live in main. */
   setMcpEnabled: (enabled: boolean) => Promise<void>;
+  /** Turn the daily check for a newer release on or off. */
+  setUpdateChecks: (enabled: boolean) => Promise<void>;
   /** Save the preferred currency and the on-screen number format. */
   saveMoneySettings: (
     patch: Pick<AppSettings, 'preferredCurrency' | 'numberFormat'>,
@@ -837,6 +839,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().loadListPrices(),
       get().loadImportedDomains(),
     ]);
+  },
+  setUpdateChecks: async (enabled) => {
+    const settings = await window.api.updateSettings({
+      updateChecks: enabled,
+    });
+    set({ settings });
   },
   setMcpEnabled: async (enabled) => {
     const settings = await window.api.updateSettings({ mcpEnabled: enabled });

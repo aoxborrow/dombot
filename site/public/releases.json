@@ -1,0 +1,149 @@
+{
+  "releases": [
+    {
+      "assets": [
+        {
+          "name": "DomBot-1.4.0-mac-arm64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.4.0/DomBot-1.4.0-mac-arm64.dmg"
+        },
+        {
+          "name": "DomBot-1.4.0-mac-intel-x64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.4.0/DomBot-1.4.0-mac-intel-x64.dmg"
+        },
+        {
+          "name": "DomBot-1.4.0.Setup.exe",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.4.0/DomBot-1.4.0.Setup.exe"
+        },
+        {
+          "name": "dombot-linux-amd64-1.4.0.deb",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.4.0/dombot-linux-amd64-1.4.0.deb"
+        },
+        {
+          "name": "dombot-linux-x86_64-1.4.0.rpm",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.4.0/dombot-linux-x86_64-1.4.0.rpm"
+        }
+      ],
+      "name": "DomBot v1.4.0",
+      "publishedAt": "2026-09-18T05:24:00Z",
+      "tag": "v1.4.0",
+      "url": "https://github.com/aoxborrow/dombot/releases/tag/v1.4.0",
+      "version": "1.4.0"
+    },
+    {
+      "assets": [
+        {
+          "name": "DomBot-1.3.0-mac-arm64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.3.0/DomBot-1.3.0-mac-arm64.dmg"
+        },
+        {
+          "name": "DomBot-1.3.0-mac-intel-x64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.3.0/DomBot-1.3.0-mac-intel-x64.dmg"
+        },
+        {
+          "name": "DomBot-1.3.0.Setup.exe",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.3.0/DomBot-1.3.0.Setup.exe"
+        },
+        {
+          "name": "dombot-linux-amd64-1.3.0.deb",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.3.0/dombot-linux-amd64-1.3.0.deb"
+        },
+        {
+          "name": "dombot-linux-x86_64-1.3.0.rpm",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.3.0/dombot-linux-x86_64-1.3.0.rpm"
+        }
+      ],
+      "name": "DomBot v1.3.0",
+      "publishedAt": "2026-09-17T22:13:30Z",
+      "tag": "v1.3.0",
+      "url": "https://github.com/aoxborrow/dombot/releases/tag/v1.3.0",
+      "version": "1.3.0"
+    },
+    {
+      "assets": [
+        {
+          "name": "DomBot-1.2.0-mac-arm64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.2.0/DomBot-1.2.0-mac-arm64.dmg"
+        },
+        {
+          "name": "DomBot-1.2.0-mac-intel-x64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.2.0/DomBot-1.2.0-mac-intel-x64.dmg"
+        },
+        {
+          "name": "DomBot-1.2.0.Setup.exe",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.2.0/DomBot-1.2.0.Setup.exe"
+        },
+        {
+          "name": "dombot-linux-amd64-1.2.0.deb",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.2.0/dombot-linux-amd64-1.2.0.deb"
+        },
+        {
+          "name": "dombot-linux-x86_64-1.2.0.rpm",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.2.0/dombot-linux-x86_64-1.2.0.rpm"
+        }
+      ],
+      "name": "DomBot v1.2.0",
+      "publishedAt": "2026-09-15T18:05:45Z",
+      "tag": "v1.2.0",
+      "url": "https://github.com/aoxborrow/dombot/releases/tag/v1.2.0",
+      "version": "1.2.0"
+    },
+    {
+      "assets": [
+        {
+          "name": "DomBot-1.1.0-mac-arm64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.1.0/DomBot-1.1.0-mac-arm64.dmg"
+        },
+        {
+          "name": "DomBot-1.1.0-mac-intel-x64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.1.0/DomBot-1.1.0-mac-intel-x64.dmg"
+        },
+        {
+          "name": "DomBot-1.1.0.Setup.exe",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.1.0/DomBot-1.1.0.Setup.exe"
+        },
+        {
+          "name": "dombot-linux-amd64-1.1.0.deb",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.1.0/dombot-linux-amd64-1.1.0.deb"
+        },
+        {
+          "name": "dombot-linux-x86_64-1.1.0.rpm",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.1.0/dombot-linux-x86_64-1.1.0.rpm"
+        }
+      ],
+      "name": "DomBot v1.1.0",
+      "publishedAt": "2026-09-03T09:49:29Z",
+      "tag": "v1.1.0",
+      "url": "https://github.com/aoxborrow/dombot/releases/tag/v1.1.0",
+      "version": "1.1.0"
+    },
+    {
+      "assets": [
+        {
+          "name": "DomBot-1.0.0-mac-arm64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.0.0/DomBot-1.0.0-mac-arm64.dmg"
+        },
+        {
+          "name": "DomBot-1.0.0-mac-intel-x64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.0.0/DomBot-1.0.0-mac-intel-x64.dmg"
+        },
+        {
+          "name": "DomBot-1.0.0.Setup.exe",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.0.0/DomBot-1.0.0.Setup.exe"
+        },
+        {
+          "name": "dombot-linux-amd64-1.0.0.deb",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.0.0/dombot-linux-amd64-1.0.0.deb"
+        },
+        {
+          "name": "dombot-linux-x86_64-1.0.0.rpm",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v1.0.0/dombot-linux-x86_64-1.0.0.rpm"
+        }
+      ],
+      "name": "DomBot v1.0.0",
+      "publishedAt": "2026-09-02T20:28:40Z",
+      "tag": "v1.0.0",
+      "url": "https://github.com/aoxborrow/dombot/releases/tag/v1.0.0",
+      "version": "1.0.0"
+    }
+  ]
+}

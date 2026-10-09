@@ -15,6 +15,11 @@ import {
 const api: DombotApi = {
   ping: () => ipcRenderer.invoke(IpcChannels.ping),
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
+  getReleaseFeed: (force) =>
+    ipcRenderer.invoke(IpcChannels.getReleaseFeed, force),
+  getUpdaterState: () => ipcRenderer.invoke(IpcChannels.getUpdaterState),
+  downloadUpdate: () => ipcRenderer.invoke(IpcChannels.downloadUpdate),
+  installUpdate: () => ipcRenderer.invoke(IpcChannels.installUpdate),
   openExternal: (url) => ipcRenderer.invoke(IpcChannels.openExternal, url),
   saveTextFile: (content, suggestedName) =>
     ipcRenderer.invoke(IpcChannels.saveTextFile, content, suggestedName),
@@ -120,6 +125,12 @@ const api: DombotApi = {
     const listener = () => callback();
     ipcRenderer.on(IpcEvents.syncRequested, listener);
     return () => ipcRenderer.removeListener(IpcEvents.syncRequested, listener);
+  },
+  onNavigateRequested: (callback) => {
+    const listener = (_e: unknown, route: string) => callback(route);
+    ipcRenderer.on(IpcEvents.navigateRequested, listener);
+    return () =>
+      ipcRenderer.removeListener(IpcEvents.navigateRequested, listener);
   },
 
   // Folders

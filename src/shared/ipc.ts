@@ -4,6 +4,7 @@
  * gives us a single, type-checked source of truth for every IPC round trip.
  */
 
+import type { ReleaseFeed } from './releases';
 import type {
   Domain as ProviderDomain,
   ConnectionResult,
@@ -125,6 +126,10 @@ export interface ProxyTestResult {
 export const IpcChannels = {
   ping: 'app:ping',
   getAppInfo: 'app:getAppInfo',
+  getReleaseFeed: 'app:getReleaseFeed',
+  getUpdaterState: 'app:getUpdaterState',
+  downloadUpdate: 'app:downloadUpdate',
+  installUpdate: 'app:installUpdate',
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
   applyDomainOp: 'domain:apply',
@@ -205,6 +210,9 @@ export const IpcEvents = {
   portfolioChanged: 'portfolio:changed',
   /** The app menu's Sync Now was chosen (desktop only). */
   syncRequested: 'sync:requested',
+  /** An app menu item wants a route shown, e.g. Settings → About (payload:
+   *  the hash route; desktop only). */
+  navigateRequested: 'app:navigateRequested',
   /** One bulk-job item finished (payload: BulkProgress). */
   bulkProgress: 'bulk:progress',
   /** A bulk job ended — done or cancelled (payload: the final BulkJob). */
@@ -230,6 +238,18 @@ export interface AppInfo {
   /** `process.platform` on desktop ('darwin', 'win32', 'linux', …); 'web'
    *  for a self-hosted browser instance. */
   platform: string;
+}
+
+/** The desktop app's update-on-click progress (Settings → About). */
+export interface UpdaterState {
+  /** Whether this copy can update itself; if not, About shows a plain
+   *  download link instead. */
+  supported: boolean;
+  /** Why not, when that's worth telling the user (null for a dev build). */
+  unsupportedReason: string | null;
+  status: 'idle' | 'downloading' | 'ready' | 'error';
+  /** The last download's failure, when `status` is 'error'. */
+  error: string | null;
 }
 
 /** Status of the embedded local MCP server. */
@@ -295,6 +315,12 @@ export interface AppSettings {
    * Separate from which currency the money is in. Fresh install is US style.
    */
   numberFormat: NumberFormatId;
+  /**
+   * Whether DomBot checks dombot.ai for a newer release (once a week) and
+   * shows a banner when there is one. On by default; "Check now" in
+   * Settings → About works either way.
+   */
+  updateChecks: boolean;
 }
 
 /** The registrar's registration fee for one name. `amount` is null when unknown. */
@@ -867,6 +893,18 @@ export interface FoldersSnapshot {
 export interface DombotApi {
   ping: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
+  /**
+   * Published releases with their notes, from dombot.ai. Cached for a few
+   * hours on the host; `force` refetches (Settings → About → Check now).
+   */
+  getReleaseFeed: (force: boolean) => Promise<ReleaseFeed>;
+  /** Desktop update-on-click: whether this copy can update itself, and how
+   *  far along a download is. Self-hosted and the demo can't. */
+  getUpdaterState: () => Promise<UpdaterState>;
+  /** Download the newest release; resolves when it's ready (or failed). */
+  downloadUpdate: () => Promise<UpdaterState>;
+  /** Quit and relaunch into the downloaded release. */
+  installUpdate: () => Promise<void>;
   /** Open a URL in the user's default browser. */
   openExternal: (url: string) => Promise<void>;
   /**
@@ -1032,6 +1070,10 @@ export interface DombotApi {
   /** Subscribe to the app menu's Sync Now (desktop only; a no-op elsewhere).
    * Returns an unsubscribe function. */
   onSyncRequested: (callback: () => void) => () => void;
+  /** Subscribe to the app menu asking for a route (About DomBot, Check for
+   *  Updates…, Settings…; desktop only, a no-op elsewhere). Returns an
+   *  unsubscribe function. */
+  onNavigateRequested: (callback: (route: string) => void) => () => void;
 
   // Folders
   /** The folder definitions plus the domain→folder map, read from disk. */

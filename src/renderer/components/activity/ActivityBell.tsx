@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { History } from 'lucide-react';
+import { ArrowUpCircle, History, X } from 'lucide-react';
 import { BellIcon } from '@heroicons/react/24/outline';
 import { toUnicode } from '../../../shared/domain-name';
 import {
@@ -13,6 +13,7 @@ import { accountName } from '../../lib/domain-history';
 import { syncProblems } from '../../lib/activity';
 import { timeAgo } from '../../lib/time';
 import { useAppStore } from '../../store/app';
+import { useAvailableUpdate, useUpdates } from '../../lib/updates';
 import { EventTypeBadge } from './EventTypeBadge';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -31,6 +32,8 @@ const SHOWN = 10;
  * names removed from a registrar, then names added, newest first. It only
  * tells you; the actions are on the Activity page, which a row opens filtered
  * to that name. The badge counts everything and takes the most severe color.
+ * A newer DomBot release sits on top in green and counts toward the badge
+ * until it's dismissed here; the next release brings it back.
  */
 export function ActivityBell() {
   const events = useAppStore((s) => s.domainEvents);
@@ -42,8 +45,17 @@ export function ActivityBell() {
     () => notifications(events, problems),
     [events, problems],
   );
+  const available = useAvailableUpdate();
+  const dismissed = useUpdates((s) => s.dismissed);
+  const dismissUpdate = useUpdates((s) => s.dismiss);
+  const update =
+    available && available.latest.version !== dismissed ? available : null;
   const badge = notificationBadge(list);
-  const count = badge?.count ?? 0;
+  const count = (badge?.count ?? 0) + (update ? 1 : 0);
+  // The worst severity's color, or green when the update is all there is.
+  const countColor = badge
+    ? SEVERITY_COUNT[badge.severity]
+    : 'bg-brand text-white';
   const reviews = list.filter((n) => n.severity !== 'error').length;
   const close = () => setOpen(false);
 
@@ -63,14 +75,14 @@ export function ActivityBell() {
           }
         >
           <BellIcon className="size-5" />
-          {badge && (
+          {count > 0 && (
             <span
               className={cn(
                 'absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums',
-                SEVERITY_COUNT[badge.severity],
+                countColor,
               )}
             >
-              {badge.count}
+              {count}
             </span>
           )}
         </button>
@@ -105,7 +117,43 @@ export function ActivityBell() {
           </Link>
         </div>
 
-        {list.length === 0 ? (
+        {update && (
+          // The whole row highlights on hover, under the dismiss button too.
+          <div className="flex items-center border-b bg-brand/[0.06] hover:bg-brand/10">
+            <Link
+              to="/settings?tab=about"
+              onClick={close}
+              className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 text-sm"
+              title={`You have ${update.current}`}
+            >
+              <ArrowUpCircle
+                className="size-4 shrink-0 text-brand"
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1 truncate">
+                <span className="font-medium text-brand">
+                  DomBot {update.latest.version}
+                </span>{' '}
+                <span className="text-muted-foreground">is available</span>
+              </span>
+              {update.latest.publishedAt && (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {timeAgo(Date.parse(update.latest.publishedAt))}
+                </span>
+              )}
+            </Link>
+            <button
+              type="button"
+              onClick={() => dismissUpdate(update.latest.version)}
+              aria-label={`Dismiss DomBot ${update.latest.version}`}
+              title="Dismiss until the next release"
+              className="mx-1 shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        )}
+        {list.length === 0 && update ? null : list.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">
             Nothing needs your attention.
           </p>

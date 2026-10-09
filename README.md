@@ -92,6 +92,20 @@ into `claude_desktop_config.json`; it looks like:
 No approval prompt is needed for this route — it runs as you, on your machine —
 and if DomBot isn't open when the client starts, it launches automatically.
 
+## Staying up to date
+
+Once a week DomBot reads the list of releases at
+[dombot.ai/releases.json](https://dombot.ai/releases.json). When there's a newer
+version, a green notification appears in the bell; dismiss it and it stays
+quiet until the next release. Nothing about you or your portfolio is sent, and
+you can turn the check off, or check by hand, in **Settings → About**.
+
+On macOS and Windows, **Update to …** in Settings → About downloads the new
+version and **Restart to update** switches to it. Nothing downloads until you
+click. Linux packages, and copies run from somewhere other than an installed
+location, get a download link instead. Self-hosted instances link to
+[how to update your setup](docs/self-hosting.md).
+
 ## Self-hosting in the browser
 
 The same app runs as a private web app on your own Cloudflare account — a

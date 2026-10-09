@@ -31,6 +31,7 @@ import {
   setDispositions,
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
+import { getReleaseFeed } from '../services/releases';
 import { getListPrices, setListPrices } from '../services/list-prices';
 import { importDomains, planImport } from '../services/domain-import';
 import {
@@ -180,7 +181,14 @@ const proxyInput = z.object({
 
 export type CoreMethodName = Exclude<
   ApiMethodName,
-  'ping' | 'getAppInfo' | 'openExternal' | 'saveTextFile' | 'getMcpInfo'
+  | 'ping'
+  | 'getAppInfo'
+  | 'openExternal'
+  | 'saveTextFile'
+  | 'getMcpInfo'
+  | 'getUpdaterState'
+  | 'downloadUpdate'
+  | 'installUpdate'
 >;
 
 export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
@@ -207,6 +215,11 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   clearAllCaches: method(none, async () => {
     clearAll();
   }),
+
+  // ── Updates ───────────────────────────────────────────────────────────────
+  getReleaseFeed: method(z.tuple([z.boolean()]), async (force) =>
+    getReleaseFeed(force),
+  ),
 
   // ── Data bundle (backup / move / secret rotation) ──────────────────────────
   // Plain text both ways; the client seals/opens with the passphrase

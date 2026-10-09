@@ -48,8 +48,18 @@ export const DEMO_VERSION: string = pkg.version;
 const none = z.tuple([]);
 
 /** The host-specific half of the table (cf. src/worker/api.ts). */
+const DEMO_UPDATE = {
+  supported: false,
+  unsupportedReason: 'The demo doesn’t update.',
+  status: 'idle' as const,
+  error: null,
+};
+
 const demoMethods: Omit<ApiTable, CoreMethodName> = {
   ping: method(none, async () => 'pong'),
+  getUpdaterState: method(none, async () => DEMO_UPDATE),
+  downloadUpdate: method(none, async () => DEMO_UPDATE),
+  installUpdate: method(none, async () => {}),
   getAppInfo: method(none, async () => ({
     name: 'DomBot',
     version: DEMO_VERSION,
@@ -265,6 +275,7 @@ export async function createDemoApi(
     | 'onApprovalsChanged'
     | 'onPortfolioChanged'
     | 'onSyncRequested'
+    | 'onNavigateRequested'
   > = {
     onBulkProgress: (cb) => onCoreEvent('bulkProgress', cb),
     onBulkFinished: (cb) => onCoreEvent('bulkFinished', cb),
@@ -272,6 +283,7 @@ export async function createDemoApi(
     onPortfolioChanged: (cb) => onCoreEvent('portfolioChanged', cb),
     // No app menu in the browser.
     onSyncRequested: () => () => {},
+    onNavigateRequested: () => () => {},
   };
   return { api: { ...api, ...events } as DombotApi, demo };
 }

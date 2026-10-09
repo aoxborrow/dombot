@@ -1,7 +1,7 @@
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { CircleAlert, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
@@ -87,21 +87,20 @@ export default function StatusBar() {
 
 /**
  * The sync status, with one light for all of it: how many enabled accounts
- * synced (a link to Settings → Registrars), when, and the manual Sync button.
- * Red with an alert icon when an account failed, amber while some haven't
- * synced or the data is stale. Below lg the words shorten so they clear the
- * centered theme toggle; on phones the button moves to the menu.
+ * synced (a link to Settings → Registrars) and when. Syncing itself is on the
+ * Domains page and in Settings → Registrars (and the menu on phones). Red
+ * with an alert icon when an account failed, amber while some haven't synced
+ * or the data is stale. Below lg the words shorten so they clear the
+ * centered theme toggle.
  */
 function SyncStatus() {
   const navigate = useNavigate();
-  // Domains has its own Sync split button in the page header.
-  const onDomains = useLocation().pathname === '/';
   const registrars = useAppStore((s) => s.registrars);
   const state = useSyncState();
-  const { sync, syncing, disabled, title, lastSyncedAt, stale } = state;
+  const { syncing, lastSyncedAt, stale } = state;
 
-  // The desktop app menu's Sync Now does what the button does, or says why
-  // it can't (just synced, a bulk job running, nothing set up).
+  // The desktop app menu's Sync Now does what the Domains page's Sync does,
+  // or says why it can't (just synced, a bulk job running, nothing set up).
   const latest = useRef(state);
   useEffect(() => {
     latest.current = state;
@@ -202,22 +201,6 @@ function SyncStatus() {
           </span>
           {timeAgo(lastSyncedAt)}
         </span>
-      )}
-      {enabled.length > 0 && !onDomains && (
-        <button
-          type="button"
-          onClick={sync}
-          disabled={disabled}
-          title={title}
-          className={cn(
-            'hidden h-6 items-center gap-1.5 rounded-md border px-2 font-medium text-foreground outline-none hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 sm:inline-flex dark:hover:bg-accent/50',
-            stale &&
-              'border-amber-500/50 text-amber-700 dark:border-amber-500/40 dark:text-amber-400',
-          )}
-        >
-          <RefreshCw className={cn('size-3', syncing && 'animate-spin')} />
-          Sync
-        </button>
       )}
     </div>
   );

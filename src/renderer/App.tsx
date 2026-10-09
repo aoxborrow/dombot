@@ -24,6 +24,7 @@ import Activity from './pages/Activity';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
 import DemoBanner from './components/DemoBanner';
+import { useWeeklyUpdateCheck } from './lib/updates';
 import StatusBar from './components/StatusBar';
 import { isDemo } from './lib/platform';
 import { useTabMetrics, type TabMetrics } from './lib/tab-metrics';
@@ -57,6 +58,8 @@ const TAB_OPTIONS: Record<
 };
 
 export default function App() {
+  useWeeklyUpdateCheck();
+  const appInfo = useAppStore((s) => s.appInfo);
   const hydrateFromCache = useAppStore((s) => s.hydrateFromCache);
   const applyPortfolioCacheUpdate = useAppStore(
     (s) => s.applyPortfolioCacheUpdate,
@@ -99,6 +102,12 @@ export default function App() {
     loadRegistrars,
   ]);
 
+  // The macOS app menu's About DomBot / Check for Updates… / Settings….
+  useEffect(
+    () => window.api.onNavigateRequested((route) => navigate(route)),
+    [navigate],
+  );
+
   // An MCP tool write mutates the on-disk cache out of band; re-read it and
   // overlay the change so an open Domains table updates live, without a Sync.
   useEffect(() => {
@@ -127,7 +136,7 @@ export default function App() {
           columns match), and the bell just right of the tabs. The tabs run
           along the bottom edge, on the tab bar color that also shows above
           them. */}
-      <header className="grid h-12 grid-cols-[1fr_auto_1fr] border-b bg-tab-bar px-4 sm:px-6">
+      <header className="relative grid h-12 grid-cols-[1fr_auto_1fr] border-b bg-tab-bar px-4 sm:px-6">
         <div className="flex flex-1 items-center">
           <button
             type="button"
@@ -177,6 +186,24 @@ export default function App() {
             <ActivityBell />
           </span>
           <MobileNav />
+          {/* The running version, dim, tucked into the window's top-right
+              corner; opens Settings → About. Hidden below lg, where the tab
+              pills hide too and the header gets tight. */}
+          {appInfo && (
+            <button
+              type="button"
+              onClick={() => navigate('/settings?tab=about')}
+              className="absolute top-[7px] right-[10px] hidden rounded-sm text-[11px] leading-none text-muted-foreground/40 hover:text-muted-foreground lg:inline"
+              title="About this version"
+            >
+              {/* A serif italic "v", dimmer than the monospace digits (like
+                  the domain names) and set a little apart from them. */}
+              <span className="mr-px font-serif text-[12px] italic opacity-60">
+                v
+              </span>
+              <span className="font-mono text-[10px]">{appInfo.version}</span>
+            </button>
+          )}
         </div>
       </header>
 

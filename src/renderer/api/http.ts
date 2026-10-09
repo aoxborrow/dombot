@@ -252,6 +252,10 @@ export function createHttpApi(): DombotApi {
   return {
     ping: m<string>('ping'),
     getAppInfo: m('getAppInfo'),
+    getReleaseFeed: m('getReleaseFeed'),
+    getUpdaterState: m('getUpdaterState'),
+    downloadUpdate: m('downloadUpdate'),
+    installUpdate: m('installUpdate'),
     openExternal: async (url) => openExternalInBrowser(url),
     saveTextFile: async (content, suggestedName) =>
       saveTextFileInBrowser(content, suggestedName),
@@ -386,6 +390,7 @@ export function createHttpApi(): DombotApi {
     onPortfolioChanged: (cb) => poller.subscribe('portfolio', cb),
     // No app menu in the browser.
     onSyncRequested: () => () => {},
+    onNavigateRequested: () => () => {},
 
     getFolders: m('getFolders'),
     createFolder: m('createFolder'),

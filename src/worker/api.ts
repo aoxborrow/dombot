@@ -19,12 +19,26 @@ import { getSettings } from '../core/services/settings';
 
 const none = z.tuple([]);
 
+const SELF_UPDATE = {
+  supported: false,
+  unsupportedReason: 'Self-hosted instances update from their repository.',
+  status: 'idle' as const,
+  error: null,
+};
+
 import pkg from '../../package.json';
 
 export const APP_VERSION: string = pkg.version;
 
 const webMethods: Omit<ApiTable, CoreMethodName> = {
   ping: method(none, async () => 'pong'),
+
+  // Self-hosted instances update from their repository, not in place.
+  getUpdaterState: method(none, async () => SELF_UPDATE),
+  downloadUpdate: method(none, async () => SELF_UPDATE),
+  installUpdate: method(none, async () => {
+    throw new Error('Self-hosted instances update from their repository.');
+  }),
 
   getAppInfo: method(none, async () => ({
     name: 'DomBot',
