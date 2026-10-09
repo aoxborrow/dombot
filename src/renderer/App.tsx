@@ -158,6 +158,19 @@ export default function App() {
               Dom<span className="text-brand">Bot</span>
             </span>
           </button>
+          {/* The running version, dim, just after the logo (it slides over
+              as the wordmark opens on hover); opens Settings → About.
+              Desktop widths only. */}
+          {appInfo && (
+            <button
+              type="button"
+              onClick={() => navigate('/settings?tab=about')}
+              className="ml-2 hidden rounded-sm text-[11px] text-muted-foreground/50 hover:text-muted-foreground sm:inline"
+              title="About this version"
+            >
+              v{appInfo.version}
+            </button>
+          )}
         </div>
         {/* Desktop: the tab strip. On phones it collapses into the hamburger
             menu on the right (MobileNav). */}
@@ -186,18 +199,6 @@ export default function App() {
             <ActivityBell />
           </span>
           <MobileNav />
-          {/* The running version, dim, at the header's right edge; opens
-              Settings → About. Desktop widths only. */}
-          {appInfo && (
-            <button
-              type="button"
-              onClick={() => navigate('/settings?tab=about')}
-              className="ml-auto hidden rounded-sm text-[11px] text-muted-foreground/50 hover:text-foreground sm:inline"
-              title="About this version"
-            >
-              v{appInfo.version}
-            </button>
-          )}
         </div>
       </header>
 
