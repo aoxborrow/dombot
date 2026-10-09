@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { DomainEvent } from '../../shared/domain-events';
+import { localDay, type DomainEvent } from '../../shared/domain-events';
 import type { ImportedDomain } from '../../shared/ipc';
 
 // ── Mock every service the tool handlers reach ───────────────────────────────
@@ -931,19 +931,24 @@ describe('history, purchases, sales and alerts', () => {
       currency: 'USD',
       resolves: 'E1',
     });
+    // A priced new sale is dated today too.
     expect(setSale).toHaveBeenLastCalledWith(
-      expect.objectContaining({ mark: true, resolves: 'E1', saleDate: null }),
+      expect.objectContaining({
+        mark: true,
+        resolves: 'E1',
+        saleDate: localDay(),
+      }),
       'agent',
     );
 
-    holdings.mockReturnValue(
-      new Map([
-        [
-          'a.com',
-          { sale: event({ type: 'sold', date: '2026-10-01', resolves: 'E1' }) },
-        ],
-      ]),
-    );
+    const sale = event({
+      domain: 'a.com',
+      type: 'sold',
+      date: '2026-10-01',
+      resolves: 'E1',
+    });
+    holdings.mockReturnValue(new Map([['a.com', { sale }]]));
+    listEvents.mockReturnValue([sale]);
     await call('domain_sale_set', {
       domain: 'a.com',
       amount: '5500',
@@ -953,6 +958,22 @@ describe('history, purchases, sales and alerts', () => {
     const [input] = setSale.mock.lastCall!;
     expect(input).toMatchObject({ saleDate: '2026-10-01', amount: '5500' });
     expect(input).not.toHaveProperty('mark');
+  });
+
+  it('domain_sale_set records a new sale for a name that sold and came back', async () => {
+    const sale = event({ domain: 'a.com', type: 'sold', date: '2025-05-01' });
+    const back = event({ domain: 'a.com', type: 'added', date: '2026-02-01' });
+    holdings.mockReturnValue(new Map([['a.com', { sale }]]));
+    listEvents.mockReturnValue([sale, back]);
+    await call('domain_sale_set', {
+      domain: 'a.com',
+      amount: '900',
+      currency: 'USD',
+    });
+    expect(setSale).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mark: true, saleDate: localDay() }),
+      'agent',
+    );
   });
 
   it('domain_history lists events oldest first with their alert status', async () => {

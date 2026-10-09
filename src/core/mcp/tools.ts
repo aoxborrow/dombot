@@ -1366,13 +1366,17 @@ export function registerTools(server: McpServer): void {
     async ({ domain, date, amount, currency, resolves }) => {
       const key = assertInPortfolio(domain);
       const existing = holdings().get(key)?.sale;
-      // A sale that already answers this alert is edited, so a repeated call
-      // doesn't record a second sale.
-      const isNew = !existing || (!!resolves && existing.resolves !== resolves);
+      // Edit the sale that has the name in Archive as Sold, so a repeated call
+      // doesn't record a second one. A name that sold and came back is owned
+      // again: its old sale is history, and this records a new one.
+      const isNew =
+        !existing ||
+        ownershipOf(key).archiveLabel !== 'sold' ||
+        (!!resolves && existing.resolves !== resolves);
       setSale(
         {
           domainName: key,
-          saleDate: date ?? (isNew ? null : existing.date),
+          saleDate: date ?? (isNew ? localDay() : existing.date),
           amount: amount ?? null,
           currency: currency ?? null,
           notes: getPurchases()[key]?.notes ?? '',
