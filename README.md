@@ -196,11 +196,15 @@ third _adapter_ over the same `services/` core the UI uses — see
     domains go back to no folder), and `domain_set_folder` (by folder name or
     id, or `null` to clear). They write the same folder store as the app, so
     an open window updates live.
-  - _Notes, prices and ownership:_ `domain_note_set`,
-    `domain_asking_price_set`, `domain_renewal_price_set` (your own yearly
-    price, overriding the estimate), and `domain_ownership_set` (Dropped,
-    Archived, or back to Owned). DomBot-local, no registrar calls; history
-    they write is marked **Agent** in Activity.
+  - _History and review:_ `domain_history` (every event for a name, with
+    alert status), `portfolio_alerts` (what the bell shows) and
+    `portfolio_alert_dismiss`.
+  - _Money, notes and ownership:_ `domain_purchase_set`, `domain_sale_set`,
+    `domain_note_set`, `domain_asking_price_set`, `domain_renewal_price_set`
+    (your own yearly price, overriding the estimate), and
+    `domain_ownership_set` (Dropped, Archived, or back to Owned). Each can
+    answer an open alert with `resolves` where it fits. DomBot-local, no
+    registrar calls; history they write is marked **Agent** in Activity.
   - _Registrar accounts:_ `registrar_set_enabled`.
   - _Registrar reads:_ `registrar_test`, `registrar_domains`, `registrar_sync`
     (targeted single-registrar refresh of the cache),
