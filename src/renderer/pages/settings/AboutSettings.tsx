@@ -58,7 +58,6 @@ export default function AboutSettings() {
   const loadSettings = useAppStore((s) => s.loadSettings);
   const setUpdateChecks = useAppStore((s) => s.setUpdateChecks);
   const { feed, checking, check } = useUpdates();
-  const demo = isDemo();
   const current = appInfo?.version;
   const updateChecks = settings?.updateChecks ?? true;
 
@@ -70,17 +69,17 @@ export default function AboutSettings() {
   // Opening the page loads the list if this device has none stored yet,
   // unless the user has turned checking off — then only "Check now" asks.
   useEffect(() => {
-    if (!demo && settings?.updateChecks && !feed) void check();
-  }, [demo, settings?.updateChecks, feed, check]);
+    if (settings?.updateChecks && !feed) void check();
+  }, [settings?.updateChecks, feed, check]);
 
   // The app menu's Check for Updates… arrives with ?check=1: check now, once,
   // and drop the flag so a reload doesn't check again.
   const [params, setParams] = useSearchParams();
   useEffect(() => {
-    if (demo || params.get('check') !== '1') return;
+    if (params.get('check') !== '1') return;
     void check(true);
     setParams({ tab: 'about' }, { replace: true });
-  }, [demo, params, setParams, check]);
+  }, [params, setParams, check]);
 
   const releases = feed?.releases ?? [];
   const newer = current ? releasesNewerThan(releases, current) : [];
@@ -98,8 +97,7 @@ export default function AboutSettings() {
   const inPlace = !isWeb() && updater?.supported === true;
 
   let status: string;
-  if (demo) status = 'The demo doesn’t check for updates.';
-  else if (checking && !feed) status = 'Checking for updates…';
+  if (checking && !feed) status = 'Checking for updates…';
   else if (feed?.error && !releases.length)
     status = `Couldn’t check for updates: ${feed.error}`;
   else if (!feed) status = 'Not checked yet.';
@@ -126,7 +124,9 @@ export default function AboutSettings() {
               DomBot {current ?? '…'}
               {appInfo && (
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {PLATFORM_LABEL[appInfo.platform] ?? appInfo.platform}
+                  {isDemo()
+                    ? 'Demo'
+                    : (PLATFORM_LABEL[appInfo.platform] ?? appInfo.platform)}
                 </span>
               )}
             </p>
@@ -150,80 +150,73 @@ export default function AboutSettings() {
                 instead.
               </p>
             )}
-            {newer.length > 0 &&
-              !isWeb() &&
-              updater?.unsupportedReason &&
-              !demo && (
-                <p className="text-xs text-muted-foreground">
-                  {updater.unsupportedReason}
-                </p>
-              )}
-            {feed?.checkedAt && !demo && (
+            {newer.length > 0 && !isWeb() && updater?.unsupportedReason && (
+              <p className="text-xs text-muted-foreground">
+                {updater.unsupportedReason}
+              </p>
+            )}
+            {feed?.checkedAt && (
               <p className="text-xs text-muted-foreground">
                 Last checked {timeAgo(Date.parse(feed.checkedAt))}
                 {feed.error && ` · the latest check failed (${feed.error})`}
               </p>
             )}
           </div>
-          {!demo && (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={checking}
-                onClick={() => void check(true)}
-              >
-                <RefreshCw
-                  className={cn('size-3.5', checking && 'animate-spin')}
-                />
-                Check now
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={checking}
+              onClick={() => void check(true)}
+            >
+              <RefreshCw
+                className={cn('size-3.5', checking && 'animate-spin')}
+              />
+              Check now
+            </Button>
+            {newer.length > 0 && (
+              <Button variant="outline" size="sm" asChild>
+                <ExtLink href={releaseNotesUrl(newer)}>
+                  <ExternalLink className="size-3.5" />
+                  Release notes
+                </ExtLink>
               </Button>
-              {newer.length > 0 && (
-                <Button variant="outline" size="sm" asChild>
-                  <ExtLink href={releaseNotesUrl(newer)}>
-                    <ExternalLink className="size-3.5" />
-                    Release notes
-                  </ExtLink>
-                </Button>
-              )}
-              {newer.length > 0 && inPlace && (
-                <UpdateButton
-                  version={newer[0].version}
-                  state={updater}
-                  onUpdate={() => void startUpdate()}
-                />
-              )}
-              {newer.length > 0 && !inPlace && (
-                <Button size="sm" asChild>
-                  <ExtLink href={updateUrl(newer[0])}>
-                    {isWeb() ? 'How to update' : `Download ${newer[0].version}`}
-                  </ExtLink>
-                </Button>
-              )}
-            </div>
-          )}
+            )}
+            {newer.length > 0 && inPlace && (
+              <UpdateButton
+                version={newer[0].version}
+                state={updater}
+                onUpdate={() => void startUpdate()}
+              />
+            )}
+            {newer.length > 0 && !inPlace && (
+              <Button size="sm" asChild>
+                <ExtLink href={updateUrl(newer[0])}>
+                  {isWeb() ? 'How to update' : `Download ${newer[0].version}`}
+                </ExtLink>
+              </Button>
+            )}
+          </div>
         </div>
 
-        {!demo && (
-          <div className="flex items-center justify-between gap-6 border-t pt-4">
-            <div>
-              <Label htmlFor="update-checks" className="text-sm font-medium">
-                Check for updates automatically
-              </Label>
-              <p className="mt-0.5 text-[13px] text-muted-foreground">
-                Once a week DomBot reads the release list at
-                dombot.ai/releases.json and lets you know when there’s a newer
-                version. Nothing about you or your portfolio is sent.
-              </p>
-            </div>
-            <Switch
-              id="update-checks"
-              checked={updateChecks}
-              disabled={!settings}
-              onCheckedChange={(v) => void setUpdateChecks(v)}
-            />
+        <div className="flex items-center justify-between gap-6 border-t pt-4">
+          <div>
+            <Label htmlFor="update-checks" className="text-sm font-medium">
+              Check for updates automatically
+            </Label>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">
+              Once a week DomBot reads the release list at
+              dombot.ai/releases.json and lets you know when there’s a newer
+              version. Nothing about you or your portfolio is sent.
+            </p>
           </div>
-        )}
+          <Switch
+            id="update-checks"
+            checked={updateChecks}
+            disabled={!settings}
+            onCheckedChange={(v) => void setUpdateChecks(v)}
+          />
+        </div>
       </SettingsCard>
 
       <SettingsCard title="About DomBot" contentClassName="flex flex-col gap-3">

@@ -6,7 +6,7 @@ import {
   type Release,
   type ReleaseFeed,
 } from '../../shared/releases';
-import { isDemo, isWeb } from './platform';
+import { isWeb } from './platform';
 import { useAppStore } from '../store/app';
 
 // The release feed in the renderer, plus what this device remembers between
@@ -121,8 +121,10 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
   },
 }));
 
-/** Runs the weekly check for as long as the app is open (not in the demo,
- *  and not with update checks turned off). Mounted once, in App. */
+/** Runs the weekly check for as long as the app is open (not with update
+ *  checks turned off). Mounted once, in App. The demo checks too: it reads
+ *  the same public list (dombot.ai allows that cross-origin) and, built from
+ *  main, is always on the latest release. */
 export function useWeeklyUpdateCheck(): void {
   const updateChecks = useAppStore((s) => s.settings?.updateChecks);
   const appInfo = useAppStore((s) => s.appInfo);
@@ -133,15 +135,15 @@ export function useWeeklyUpdateCheck(): void {
     if (!appInfo) void loadAppInfo();
   }, [appInfo, loadAppInfo]);
   useEffect(() => {
-    if (isDemo() || !updateChecks) return;
+    if (!updateChecks) return;
     void autoCheck();
     const timer = setInterval(() => void autoCheck(), POLL_MS);
     return () => clearInterval(timer);
   }, [updateChecks, autoCheck]);
 }
 
-/** A newer release than the one running. Null in the demo, with update
- *  checks off, or when this is the latest. */
+/** A newer release than the one running. Null with update checks off or
+ *  when this is the latest. */
 export function useAvailableUpdate(): {
   current: string;
   latest: Release;
@@ -150,7 +152,7 @@ export function useAvailableUpdate(): {
   const current = useAppStore((s) => s.appInfo?.version);
   const updateChecks = useAppStore((s) => s.settings?.updateChecks);
   const releases = useUpdates((s) => s.feed?.releases);
-  if (isDemo() || !updateChecks || !current || !releases) return null;
+  if (!updateChecks || !current || !releases) return null;
   const newer = releasesNewerThan(releases, current);
   return newer.length ? { current, latest: newer[0], newer } : null;
 }

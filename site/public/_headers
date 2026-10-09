@@ -1,0 +1,4 @@
+# Let other origins (the demo at demo.dombot.ai, which checks for updates
+# from the browser) read the public release list.
+/releases.json
+  Access-Control-Allow-Origin: *
