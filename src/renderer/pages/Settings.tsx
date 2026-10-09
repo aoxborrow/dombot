@@ -52,7 +52,9 @@ export default function Settings() {
   const setTab = (v: string) => setParams({ tab: v }, { replace: true });
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 sm:gap-7">
+    // Bottom padding on the page itself, so every tab ends the same distance
+    // above the status bar however long its content runs.
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 pb-8 sm:gap-7 sm:pb-12">
       <h1 className="text-2xl font-bold sm:text-[32px]">Settings</h1>
 
       <Tabs
