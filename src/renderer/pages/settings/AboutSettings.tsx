@@ -3,7 +3,6 @@ import {
   BookOpen,
   Bug,
   ExternalLink,
-  Globe,
   Heart,
   Lightbulb,
   RefreshCw,
@@ -173,6 +172,14 @@ export default function AboutSettings() {
           >
             GNU AGPL v3.0
           </button>
+          . Learn more at{' '}
+          <button
+            type="button"
+            onClick={() => open('https://dombot.ai')}
+            className="text-foreground underline-offset-2 hover:underline"
+          >
+            dombot.ai
+          </button>
           .
         </p>
         {/* Pulled out a little so the rows' hover fill has room, while the
@@ -207,12 +214,6 @@ export default function AboutSettings() {
             icon={<GitHubMark />}
             title="View source"
             hint="Code and releases on GitHub"
-          />
-          <ProjectLink
-            url="https://dombot.ai"
-            icon={<Globe />}
-            title="dombot.ai"
-            hint="Downloads and the live demo"
           />
         </ul>
         {/* Full-bleed footer strip, out to the card's edges. */}
