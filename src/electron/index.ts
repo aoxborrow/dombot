@@ -101,7 +101,9 @@ function isAllowedNavigation(target: string): boolean {
   return target.startsWith('file://');
 }
 
-const createWindow = () => {
+/** Opens the app window, optionally at a hash route (e.g. the app menu's
+ *  Settings… when no window is open). */
+const createWindow = (route?: string) => {
   const mainWindow = new BrowserWindow({
     width: 1240,
     height: 760,
@@ -156,10 +158,15 @@ const createWindow = () => {
 
   // Load the Vite dev server in development, or the built index.html in prod.
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    mainWindow.loadURL(
+      route
+        ? `${MAIN_WINDOW_VITE_DEV_SERVER_URL}#${route}`
+        : MAIN_WINDOW_VITE_DEV_SERVER_URL,
+    );
   } else {
     mainWindow.loadFile(
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
+      route ? { hash: route } : undefined,
     );
   }
 };
@@ -190,7 +197,7 @@ function runApp(): void {
     abandonInterruptedBulk();
     forwardCoreEventsToWindows();
     registerIpcHandlers();
-    setAppMenu();
+    setAppMenu(createWindow);
     createWindow();
 
     // The MCP server runs only when the setting says so (Settings → MCP).

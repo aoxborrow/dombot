@@ -12,17 +12,26 @@ function focusedWindow(): BrowserWindow | undefined {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
 }
 
-/** Brings the window forward and asks it to show `route`. */
+/** Opens a window at a route, for when none is open (macOS keeps running
+ *  after the last window closes). Set by setAppMenu. */
+let openWindow: (route: string) => void = () => {};
+
+/** Brings the window forward and asks it to show `route`, or opens one there
+ *  when every window has been closed. */
 function show(route: string): void {
   const win = focusedWindow();
-  if (!win) return;
+  if (!win) {
+    openWindow(route);
+    return;
+  }
   if (win.isMinimized()) win.restore();
   win.show();
   win.webContents.send(IpcEvents.navigateRequested, route);
 }
 
-export function setAppMenu(): void {
+export function setAppMenu(open: (route: string) => void): void {
   if (process.platform !== 'darwin') return;
+  openWindow = open;
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
