@@ -2,9 +2,8 @@ import { app, BrowserWindow, Menu } from 'electron';
 import { IpcEvents } from '../shared/ipc';
 
 /**
- * The macOS application menu: the standard one, except that About DomBot
- * opens Settings → About (version, updates, project links) instead of the
- * bare system panel, with Check for Updates… and Settings… (⌘,) beside it;
+ * The macOS application menu: the standard one, with Check for Updates…
+ * (opens Settings → About and checks) and Settings… (⌘,) after About;
  * plus File → Sync Now, which asks the focused window to sync like the status
  * bar's Sync button. Windows and Linux have no menu bar (see removeMenu in
  * index.ts).
@@ -24,15 +23,19 @@ function show(route: string): void {
 
 export function setAppMenu(): void {
   if (process.platform !== 'darwin') return;
+  // The system About panel can't hold a link, so its credits point the way
+  // to the in-app page.
+  app.setAboutPanelOptions({
+    copyright: '© 2026 Aaron Oxborrow and contributors',
+    credits:
+      'Free and open source under the GNU AGPL v3.0.\nUpdates, release notes and project links: Settings → About.',
+  });
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
         label: app.name,
         submenu: [
-          {
-            label: `About ${app.name}`,
-            click: () => show('/settings?tab=about'),
-          },
+          { role: 'about' },
           {
             label: 'Check for Updates…',
             click: () => show('/settings?tab=about&check=1'),
