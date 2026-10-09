@@ -98,12 +98,13 @@ The same app runs as a private web app on your own Cloudflare account — a
 Worker plus one D1 database, encrypted under a key only you hold, with the MCP
 server reachable at `https://<your-host>/mcp`.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/aoxborrow/dombot)
+The recommended setup is to fork this repository and connect your fork in the
+Cloudflare dashboard; updating is then GitHub's **Sync fork** button. The
+Deploy button is faster to start, but updates are trickier, so it isn't
+recommended. Both, plus the CLI and putting it behind Cloudflare Access, are in
+[docs/self-hosting.md](docs/self-hosting.md).
 
-The button forks the repo, creates the database, and asks for the two secrets
-(the deploy page tells you how to generate them). Then open the URL and sign
-in. Prefer the CLI, want to redeploy from GitHub Actions, or need to put it
-behind Cloudflare Access? See [docs/self-hosting.md](docs/self-hosting.md).
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/aoxborrow/dombot)
 
 Moving from the desktop app: **Settings → Sync → Export data**, then import
 the file on your instance.

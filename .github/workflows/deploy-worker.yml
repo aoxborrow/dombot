@@ -72,4 +72,9 @@ jobs:
           DOMBOT_D1_DATABASE_ID: ${{ vars.DOMBOT_D1_DATABASE_ID }}
           DOMBOT_D1_DATABASE_NAME: ${{ vars.DOMBOT_D1_DATABASE_NAME }}
           DOMBOT_CUSTOM_DOMAIN: ${{ vars.DOMBOT_CUSTOM_DOMAIN }}
+          # The auth mode (docs/self-hosting.md, "Using Cloudflare Access").
+          # Unset, the template's password mode deploys.
+          DOMBOT_AUTH: ${{ vars.DOMBOT_AUTH }}
+          CF_ACCESS_TEAM_DOMAIN: ${{ vars.CF_ACCESS_TEAM_DOMAIN }}
+          CF_ACCESS_AUD: ${{ vars.CF_ACCESS_AUD }}
         run: npm run deploy

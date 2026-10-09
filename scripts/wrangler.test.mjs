@@ -67,6 +67,27 @@ describe('applyOverrides', () => {
     ).toEqual({
       routes: [{ pattern: 'dombot.example.com', custom_domain: true }],
     });
+    expect(
+      envOverrides({
+        DOMBOT_AUTH: 'cloudflare-access',
+        CF_ACCESS_TEAM_DOMAIN: 'https://team.cloudflareaccess.com',
+        CF_ACCESS_AUD: 'aud-1',
+      }),
+    ).toEqual({
+      vars: {
+        DOMBOT_AUTH: 'cloudflare-access',
+        CF_ACCESS_TEAM_DOMAIN: 'https://team.cloudflareaccess.com',
+        CF_ACCESS_AUD: 'aud-1',
+      },
+    });
+  });
+
+  it('merges env vars over the template vars', () => {
+    const cfg = applyOverrides(
+      template,
+      envOverrides({ DOMBOT_AUTH: 'cloudflare-access' }),
+    );
+    expect(cfg.vars.DOMBOT_AUTH).toBe('cloudflare-access');
   });
 
   it('passes unknown keys through as top-level wrangler settings', () => {

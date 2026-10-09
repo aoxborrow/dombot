@@ -5,27 +5,113 @@ build, served by a Cloudflare Worker with your data in a D1 database,
 encrypted under a key only you hold. Two Cloudflare products, two secrets,
 no other services. (Design notes: [web-deployment.md](web-deployment.md).)
 
-## The one-click way
+## Choosing a setup
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/aoxborrow/dombot)
+| Setup                                                               | Getting started            | Updating                                       |
+| ------------------------------------------------------------------- | -------------------------- | ---------------------------------------------- |
+| [Fork + Cloudflare dashboard](#recommended-fork-it-then-connect-it) | a few minutes, no terminal | **Sync fork** on GitHub; Cloudflare redeploys  |
+| [Deploy button](#the-deploy-button)                                 | fastest, one page          | trickier, needs git once — **not recommended** |
+| [CLI](#the-cli-way)                                                 | a terminal and Node 22.13+ | `git pull`, `npm run web:deploy`               |
 
-The button forks this repository into your GitHub account, creates the D1
-database, and prompts for the two secrets:
+All three run the same app on the same two Cloudflare products. You need a
+Cloudflare account (the free plan runs the app; a full sync of a large
+portfolio may need **Workers Paid**, $5/month, for the extra CPU time — see
+[Limits](#limits)).
+
+Whichever you pick, you'll set two secrets:
 
 - `DOMBOT_SECRET` — the root key. Everything in D1 is encrypted under it.
   Generate it with `openssl rand -base64 32`. Lose it and the instance's data
   is unreadable; there is no recovery, so keep it in your password manager.
 - `DOMBOT_PASSWORD` — your login password. Same command, or one of your own.
 
-It then builds and deploys. Open the URL it gives you and sign in. Your fork
-also gets a workflow (below) that redeploys on push once you add a Cloudflare
-API token to it, so updating is `git pull upstream main && git push`.
+## Recommended: fork it, then connect it
+
+1. **Fork** [aoxborrow/dombot](https://github.com/aoxborrow/dombot) on GitHub.
+   GitHub keeps forks of a public repository public; nothing of yours goes in
+   it — the secrets live in Cloudflare and your data in D1.
+2. **Create the database.** In the Cloudflare dashboard: Storage & databases →
+   D1 SQLite Database → Create, name it `dombot`, and copy its database ID.
+3. **Create the Worker from your fork.** Workers & Pages → Create application
+   → Continue with GitHub, pick your fork, choose a name for your Worker
+   (e.g. `dombot-yourname`), and set:
+
+   | Setting        | Value            |
+   | -------------- | ---------------- |
+   | Build command  | `npm run build`  |
+   | Deploy command | `npm run deploy` |
+
+   plus these build variables, which tell the deploy which Worker and database
+   are yours:
+
+   | Variable                        | Value                                                             |
+   | ------------------------------- | ----------------------------------------------------------------- |
+   | `DOMBOT_WORKER_NAME`            | your Worker's name                                                |
+   | `DOMBOT_D1_DATABASE_ID`         | the database ID from step 2                                       |
+   | `DOMBOT_D1_DATABASE_NAME`       | its name, if not `dombot`                                         |
+   | `DOMBOT_CUSTOM_DOMAIN`          | optional: your own hostname, on a zone in your Cloudflare account |
+   | `ELECTRON_SKIP_BINARY_DOWNLOAD` | `1` (skips a large download)                                      |
+
+   The dashboard may warn that the repository's `wrangler.jsonc` names a
+   different Worker; that's the public template, and the deploy uses your
+   name. Don't merge a pull request that offers to rename it.
+
+4. **Add the two secrets.** Your Worker → Settings → Variables and secrets →
+   Add, type **Secret**: `DOMBOT_SECRET` and `DOMBOT_PASSWORD` (see above).
+5. Open the Worker's URL and sign in.
+
+**Updating:** on your fork's GitHub page, **Sync fork → Update branch**.
+Cloudflare builds the new commit and `npm run deploy` applies any new D1
+migrations before it deploys. Your instance's details are build variables, not
+edits to the code, so syncing never conflicts.
+
+## The Deploy button
+
+Fastest to start, but updates are trickier, so it isn't the recommended route.
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/aoxborrow/dombot)
+
+On one page it creates a repository in your GitHub account, the D1 database,
+and the Worker, and asks for the two secrets. Leave `DOMBOT_AUTH` as
+`password` (to use Cloudflare Access instead, see
+[below](#using-cloudflare-access-instead-of-the-password)).
+
+What it creates is a **copy, not a fork**: one "source repo import" commit
+with none of this repository's history and without its `.github/workflows`,
+plus your Worker name and database ID written into `wrangler.jsonc` (and the
+name into `package.json`). So there's no **Sync fork** button, and a plain
+`git pull` from this repository is refused ("unrelated histories").
+
+Don't press the button again to update: it always makes a new instance.
+
+**Updating, once, by hand.** This joins your copy to this repository's history
+and moves your instance's details into build variables, after which updates
+are a plain pull:
+
+1. In Cloudflare, your Worker → Settings → Builds → Variables, add
+   `DOMBOT_WORKER_NAME` (your Worker's name), `DOMBOT_D1_DATABASE_ID` and
+   `DOMBOT_D1_DATABASE_NAME` (both in your `wrangler.jsonc`).
+2. Then:
+
+   ```bash
+   git clone https://github.com/<you>/<your-repo> && cd <your-repo>
+   git remote add upstream https://github.com/aoxborrow/dombot
+   git fetch upstream
+   git merge --allow-unrelated-histories upstream/main
+   git checkout --theirs package.json wrangler.jsonc   # the template again
+   git add -A && git commit -m "Join upstream history"
+   git push
+   ```
+
+   The push brings this repository's workflows along, so your git credentials
+   must be allowed to change workflow files (`gh auth login` grants that).
+
+From then on, update with `git pull upstream main && git push`. Cloudflare
+redeploys on every push, and your data stays where it is.
 
 ## The CLI way
 
-You need a Cloudflare account (the free plan runs the app; a full sync of a
-large portfolio may need **Workers Paid**, $5/month, for the extra CPU time —
-see [Limits](#limits)), Node 22.13+, and this repository cloned or forked.
+You need Node 22.13+ and this repository cloned or forked.
 
 ```bash
 npm ci
@@ -54,13 +140,7 @@ npm run web:secrets
 ```
 
 That generates and applies the two secrets and prints them **once** — put
-them in your password manager:
-
-- `DOMBOT_SECRET` — the root key. Everything in D1 is encrypted under it.
-  Lose it and the instance's data is unreadable; there is no recovery.
-- `DOMBOT_PASSWORD` — your login password.
-
-Finally:
+them in your password manager. Finally:
 
 ```bash
 npm run web:deploy
@@ -69,44 +149,18 @@ npm run web:deploy
 This builds the renderer, applies the D1 schema, and deploys the Worker.
 Open the URL it prints and sign in.
 
-## Redeploying automatically
+**Updating:** `git pull`, then `npm run web:deploy` again.
 
-Two ways to have your instance follow a branch. Neither touches
-`DOMBOT_SECRET` / `DOMBOT_PASSWORD`; those stay Worker secrets.
-
-**Workers Builds (no token).** In the Cloudflare dashboard open your Worker
-→ Settings → Builds, connect the repository (yours or a fork) and the branch
-to follow, and set:
-
-| Setting        | Value            |
-| -------------- | ---------------- |
-| Build command  | `npm run build`  |
-| Deploy command | `npm run deploy` |
-
-plus these build variables, which stand in for the `wrangler.local.json` a
-build machine doesn't have:
-
-| Variable                        | Value                                                             |
-| ------------------------------- | ----------------------------------------------------------------- |
-| `DOMBOT_WORKER_NAME`            | your Worker's name                                                |
-| `DOMBOT_D1_DATABASE_ID`         | your D1 database id                                               |
-| `DOMBOT_D1_DATABASE_NAME`       | its name, if not `dombot`                                         |
-| `DOMBOT_CUSTOM_DOMAIN`          | optional: your own hostname, on a zone in your Cloudflare account |
-| `ELECTRON_SKIP_BINARY_DOWNLOAD` | `1` (skips a large download)                                      |
-
-`npm run deploy` applies any new D1 migrations and then deploys. The
-dashboard may warn that the repository's `wrangler.jsonc` names a different
-Worker; that's the public template, and the deploy uses your name. Don't
-merge a pull request that offers to rename it.
-
-**GitHub Actions.** `.github/workflows/deploy-worker.yml` deploys on every
-push to `main` of _your_ fork, once two repository secrets exist (Settings →
-Secrets and variables → Actions): `CLOUDFLARE_API_TOKEN` (an API token from
-the "Edit Cloudflare Workers" template with D1 edit permission added) and
-`CLOUDFLARE_ACCOUNT_ID`. Without them the workflow exits quietly. Set the
-same `DOMBOT_WORKER_NAME` / `DOMBOT_D1_DATABASE_ID` (and optionally
-`DOMBOT_D1_DATABASE_NAME` / `DOMBOT_CUSTOM_DOMAIN`) values as repository
-_variables_ so the deploy targets your Worker and database.
+**Deploying from GitHub Actions instead.** `.github/workflows/deploy-worker.yml`
+deploys on every push to `main` of _your_ fork, once two repository secrets
+exist (Settings → Secrets and variables → Actions): `CLOUDFLARE_API_TOKEN` (an
+API token from the "Edit Cloudflare Workers" template with D1 edit permission
+added) and `CLOUDFLARE_ACCOUNT_ID`. Without them the workflow exits quietly.
+Set the same `DOMBOT_WORKER_NAME` / `DOMBOT_D1_DATABASE_ID` (and optionally
+`DOMBOT_D1_DATABASE_NAME` / `DOMBOT_CUSTOM_DOMAIN`, and the
+[Access](#using-cloudflare-access-instead-of-the-password) variables) values as
+repository _variables_ so the deploy targets your Worker and database. Don't use it
+alongside Cloudflare's own builds, or every push deploys twice.
 
 ## Day to day
 
@@ -133,8 +187,9 @@ _variables_ so the deploy targets your Worker and database.
   not raw IPs. Cloudflare's `CF-Connecting-IP` header is required outside local
   development. Use a long random password; distributed attackers still warrant
   an additional edge rate-limit rule or Cloudflare Access restricted to you.
-- **Updating**: pull, then `npm run web:deploy` again (or push, with the
-  workflow above).
+- **Updating** depends on how you set up: see
+  [fork](#recommended-fork-it-then-connect-it),
+  [Deploy button](#the-deploy-button) or [CLI](#the-cli-way).
 - **Backups and moving**: Settings → Sync → **Export data** writes everything
   (registrar keys, portfolio, folders, prices, settings, MCP pairings) to one
   JSON file, optionally sealed with a passphrase (in your browser, so the
@@ -150,24 +205,51 @@ web:rotate-secret` exports a sealed bundle to disk, sets a new secret, and
   running job; reopening resumes it. A job interrupted mid-request shows
   those items as "outcome unknown" rather than re-running them.
 
-## Using Cloudflare Access or another gate instead of the password
+## Using Cloudflare Access instead of the password
 
-Set `DOMBOT_AUTH` in `wrangler.jsonc` (`vars`):
+1. **Put the Worker behind Access.** Your Worker → **Access** → **Protect this
+   Worker behind Access**, scope **All traffic**, and a policy such as
+   **Cloudflare account** (members of your Cloudflare account). This needs no
+   Zero Trust plan. The page then shows the application's **AUD tag** and a
+   JWKS URL, `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`.
+2. **Switch DomBot to it** with three values:
 
-- `password` (default) — the built-in login above.
-- `cloudflare-access` — put the Worker behind a Cloudflare Access
-  application, then set `CF_ACCESS_TEAM_DOMAIN`
-  (`https://<team>.cloudflareaccess.com`) and `CF_ACCESS_AUD` (the
-  application's audience tag). The Worker verifies the Access JWT on every
-  request; `DOMBOT_PASSWORD` is unused.
-- `external` — you've put your own gate in front (a reverse proxy, a
-  platform's password protection). The app runs with **no login of its
-  own**. Only choose this if the gate is really there.
+   | Variable                | Value                                 |
+   | ----------------------- | ------------------------------------- |
+   | `DOMBOT_AUTH`           | `cloudflare-access`                   |
+   | `CF_ACCESS_TEAM_DOMAIN` | `https://<team>.cloudflareaccess.com` |
+   | `CF_ACCESS_AUD`         | the AUD tag                           |
 
-MCP clients can't pass an Access login or a password prompt. Behind a gate,
-MCP works only if the gate excludes the MCP paths (`/mcp`, `/authorize`,
-`/token`, `/register`, `/revoke`, `/oauth/status`, `/.well-known/*`), which
-Cloudflare Access can do and platform password protection generally can't.
+   Set them where your other instance details live: build variables for a
+   fork (or a Deploy-button copy you've joined), repository variables for the
+   GitHub Actions deploy, `vars` in `wrangler.local.json` for the CLI. Then redeploy. Setting them on the
+   Worker's own Variables page doesn't stick: the next deploy replaces them.
+
+DomBot then verifies the Access token on every request, and `DOMBOT_PASSWORD`
+is unused.
+
+**MCP behind Access.** MCP clients can't sign in to Access, so the MCP paths
+have to skip it. That needs a second Access application covering just those
+paths, which Cloudflare only offers once Zero Trust is set up (the free plan
+is enough):
+
+1. Zero Trust → Access controls → Applications → Create new application →
+   Self-hosted.
+2. Under Public hostnames, add one destination per path on your instance's
+   host: `/mcp`, `/authorize`, `/token`, `/register`, `/revoke`,
+   `/oauth/status` and `/.well-known/*`. For a `workers.dev` address, use
+   **Switch to custom input** and enter `<host>/<path>`.
+3. Add a policy with action **Bypass** and include **Everyone**, then save.
+
+Cloudflare checks this path-specific application before the Worker-wide one,
+so everything else stays behind Access. The paths aren't left open: they
+answer only to DomBot's own MCP sign-in, and stay off until you turn MCP on.
+Approving a pairing happens inside DomBot, behind Access as usual.
+
+**Another gate.** Set `DOMBOT_AUTH` to `external` if you've put your own gate
+in front (a reverse proxy, a platform's password protection). The app then
+runs with **no login of its own**, so only choose this if the gate is really
+there. Most such gates can't exempt the MCP paths.
 
 Version preview URLs are disabled by default (`preview_urls: false`) so a gate
 configured for the production hostname cannot be bypassed through a preview
