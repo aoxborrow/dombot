@@ -12,6 +12,9 @@
       },
       "DOMBOT_PASSWORD": {
         "description": "The password you'll sign in with. Generate one with `openssl rand -base64 32` (or choose your own long one). Rotate later with `npm run web:rotate-password`."
+      },
+      "DOMBOT_AUTH": {
+        "description": "Leave as `password`. To sign in with Cloudflare Access instead, follow docs/self-hosting.md: changing only this value locks you out."
       }
     }
   },
@@ -86,7 +89,7 @@
     "wrangler": "^4.146.0"
   },
   "dependencies": {
-    "@aoxborrow/registrar-client": "^0.9.1",
+    "@aoxborrow/registrar-client": "^0.9.2",
     "@heroicons/react": "^2.2.0",
     "@hono/node-server": "^2.1.1",
     "@modelcontextprotocol/sdk": "^1.31.0",

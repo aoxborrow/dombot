@@ -1,6 +1,6 @@
 import { protectRegistrar, redactRegistrarMessage } from './registrar-errors';
-import { manualRows } from '../../shared/manual-domains';
-import { getManualDomains } from './manual-domains';
+import { importedRows } from '../../shared/imported-domains';
+import { getImportedDomains } from './imported-domains';
 import {
   NotImplementedError,
   RegistrarClient,
@@ -345,6 +345,14 @@ export function getActiveRegistrars(): RegistrarName[] {
   return [...new Set(getActiveAccounts().map((a) => a.registrar))];
 }
 
+// A registrar row needs a name to be a domain. A bad registrar response can
+// list rows without one (NameBright did when its API changed casing); they'd
+// show as blank rows and fail every per-domain call, so they're dropped on sync
+// and on read (the latter for rows cached before this guard).
+function hasDomainName(d: { domainName: string }): boolean {
+  return typeof d.domainName === 'string' && d.domainName.trim() !== '';
+}
+
 /** One registrar's cached slice (dates revived), or null when never synced. */
 function readRegistrarEntry(name: string): RegistrarPortfolioEntry | null {
   const cached = readEntry<RegistrarPortfolioEntry>('portfolio', name);
@@ -354,7 +362,7 @@ function readRegistrarEntry(name: string): RegistrarPortfolioEntry | null {
     lastError: cached.data.lastError
       ? redactRegistrarMessage(cached.data.lastError, accountSecrets(name))
       : null,
-    domains: cached.data.domains.map(reviveDomainDates),
+    domains: cached.data.domains.filter(hasDomainName).map(reviveDomainDates),
   };
 }
 
@@ -439,7 +447,7 @@ async function syncRegistrarInto(account: RegistrarAccount): Promise<void> {
           lastErrorAt: Date.now(),
         }
       : {
-          domains,
+          domains: domains.filter(hasDomainName),
           lastSyncedAt: Date.now(),
           lastError: null,
           lastErrorAt: null,
@@ -908,9 +916,12 @@ export function getCachedDetail(): Record<string, Partial<Domain>> {
 export function getPortfolioPricing(): Record<string, RenewalPricing> {
   const portfolio = getCachedPortfolio();
   const out: Record<string, RenewalPricing> = {};
-  // Manual names: your price, else the base rate when the registrar is one
+  // Imported names: your price, else the base rate when the registrar is one
   // DomBot knows. Keyed like their rows (`domainKey`).
-  for (const d of manualRows(getManualDomains(), portfolio?.domains ?? [])) {
+  for (const d of importedRows(
+    getImportedDomains(),
+    portfolio?.domains ?? [],
+  )) {
     out[domainKey(d)] = resolvePricing(
       d.registrar as RegistrarName,
       d.domainName,
@@ -1029,7 +1040,7 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
         lastSyncedAt: sync?.lastSyncedAt ?? null,
         lastError: sync?.lastError ?? null,
         lastErrorAt: sync?.lastError ? (sync.lastErrorAt ?? null) : null,
-        domainCount: sync?.domains.length ?? 0,
+        domainCount: sync?.domains.filter(hasDomainName).length ?? 0,
         trackedSince: account.trackedSince ?? null,
       },
     };

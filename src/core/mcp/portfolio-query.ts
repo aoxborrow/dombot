@@ -1,10 +1,19 @@
 // Pure query logic for the MCP `portfolio_query` tool — filtering, sorting, and
 // paging over the merged portfolio. Kept free of Electron and the MCP SDK so it
 // can be unit-tested in isolation; tools.ts owns the zod schema and feeds this
-// the cache reads (merged domains plus Archive rows, folders, assignments, and
-// each name's ownership from the event log).
+// the cache reads (merged domains plus imported and Archive rows, folders,
+// assignments, each name's ownership from the event log, and the money, notes
+// and prices DomBot keeps per name).
 
-import type { Domain } from '../../shared/ipc';
+import { domainKey } from '../../shared/account-key';
+import type {
+  Domain,
+  DomainPurchase,
+  DomainSource,
+  ListPrice,
+  PriceSource,
+  RenewalPricing,
+} from '../../shared/ipc';
 import { toAscii } from '../../shared/domain-name';
 import { reportsPrivacy } from '../../shared/domain-ops';
 import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
@@ -15,7 +24,11 @@ export const MAX_LIMIT = 500;
 
 /** Fields portfolio_query can sort by. */
 export type QuerySort =
-  'domainName' | 'registrar' | 'expirationDate' | 'createdDate';
+  | 'domainName'
+  | 'registrar'
+  | 'expirationDate'
+  | 'createdDate'
+  | 'renewalPrice';
 
 /**
  * Which names a query covers, as the Domains page's Owned / Archive switch:
@@ -29,6 +42,9 @@ export interface QueryArgs {
   ownership?: OwnershipFilter;
   accountId?: string;
   registrar?: string;
+  /** `registrar`: synced from an account. `imported`: added from a file or
+   *  by name, and no account reports it. */
+  source?: DomainSource;
   tld?: string;
   folder?: string;
   nameContains?: string;
@@ -46,14 +62,62 @@ export interface QueryArgs {
   offset?: number;
 }
 
+/** What you paid for a name: its latest acquisition. */
+export interface PaidSummary {
+  date: string | null;
+  amount: string | null;
+  currency: string | null;
+  /** Hand-registered or bought. */
+  kind: 'registered' | 'purchased';
+}
+
+/** What a name sold for. */
+export interface SoldSummary {
+  date: string | null;
+  amount: string | null;
+  currency: string | null;
+}
+
+/** Your asking (BIN) price and offer thresholds. `floor` is never shown to
+ *  buyers. */
+export interface AskingPrice {
+  amount: string | null;
+  minOffer: string | null;
+  floor: string | null;
+  currency: string;
+}
+
+/** DomBot's estimated yearly renewal price and where it came from (as
+ *  domain_renewal_price). */
+export interface RenewalEstimate {
+  amount: number;
+  currency: string;
+  source: PriceSource;
+}
+
+/** The per-name data DomBot keeps beside the registrar's, keyed as the
+ *  services key it: by `toAscii(name)`, and pricing by `domainKey(row)`. */
+export interface RowExtras {
+  purchases?: Record<string, DomainPurchase>;
+  listPrices?: Record<string, ListPrice>;
+  pricing?: Record<string, RenewalPricing>;
+}
+
 /** Only the fields an agent needs for a row — drops `syncedAt`/`deleted`, adds
  *  the domain's folder name (user-assigned grouping) when it has one, and
  *  whether it's still yours. */
 export interface QueryRow {
-  /** null for a name in Archive whose last account is unknown. */
+  /** null for an imported name, or a name in Archive whose last account is
+   *  unknown. */
   accountId: string | null;
   accountLabel: string | null;
   registrar: string | null;
+  /** An imported name's registrar as you typed it, when DomBot doesn't know
+   *  it (e.g. "Epik"); null otherwise. */
+  registrarLabel: string | null;
+  /** `registrar`: synced from an account. `imported`: added by you; no
+   *  account reports it, so the registrar tools can't act on it. */
+  source: DomainSource;
   domainName: string;
   /** `archive`: sold, dropped, archived, or removed from your accounts. */
   ownership: 'owned' | 'archive';
@@ -77,6 +141,13 @@ export interface QueryRow {
   privacy: boolean | null;
   nameservers: string[];
   folder: string | null;
+  paid: PaidSummary | null;
+  sold: SoldSummary | null;
+  /** Your note on the name; null when there's none. */
+  notes: string | null;
+  askingPrice: AskingPrice | null;
+  /** null when DomBot has no estimate. */
+  renewalPrice: RenewalEstimate | null;
 }
 
 /** A per-registrar sync failure — a registrar whose last sync errored. */
@@ -123,7 +194,10 @@ function tldSuffix(tld: string): string {
 
 /** Resolves a folder filter (name / id / "Hidden") to the folderId to match, or
  *  null when it names no known folder (→ the query returns no rows). */
-function resolveFolderId(param: string, folders: FolderRef[]): string | null {
+export function resolveFolderId(
+  param: string,
+  folders: FolderRef[],
+): string | null {
   const p = param.trim();
   if (param === HIDDEN_FOLDER_ID || p.toLowerCase() === 'hidden')
     return HIDDEN_FOLDER_ID;
@@ -148,6 +222,7 @@ export function queryPortfolio(
   meta: QueryMeta,
   args: QueryArgs,
   ownership: Map<string, Ownership> = new Map(),
+  extras: RowExtras = {},
 ): QueryResult {
   const labelOf = (d: Domain): ArchiveLabel | null =>
     ownership.get(toAscii(d.domainName))?.label ?? null;
@@ -175,15 +250,29 @@ export function queryPortfolio(
       ? Date.now() + args.expiringWithinDays * 86_400_000
       : undefined;
 
+  const renewalOf = (d: Domain): RenewalEstimate | null => {
+    const p = extras.pricing?.[domainKey(d)];
+    return p && p.renewal != null
+      ? { amount: p.renewal, currency: p.currency, source: p.source }
+      : null;
+  };
+
   const filtered = domains.filter((d) => {
     // Owned vs Archive, as on the Domains page: a name with an Archive label
     // is in Archive, even while an account still reports it.
     const label = labelOf(d);
     if (scope === 'owned' && label) return false;
     if (scope === 'archive' && !label) return false;
-    if (args.accountId && (d.accountId ?? d.registrar) !== args.accountId)
+    // An imported name is at no account, even when its registrar id matches
+    // a legacy account id.
+    if (
+      args.accountId &&
+      (d.source === 'imported' ||
+        (d.accountId ?? d.registrar) !== args.accountId)
+    )
       return false;
     if (args.registrar != null && d.registrar !== args.registrar) return false;
+    if (args.source != null && d.source !== args.source) return false;
     if (suffix != null && !d.domainName.toLowerCase().endsWith(suffix))
       return false;
     if (folderId !== undefined) {
@@ -196,10 +285,14 @@ export function queryPortfolio(
       !d.nameservers.some((ns) => ns.toLowerCase().includes(nsNeedle))
     )
       return false;
-    // A name no account reports has no settings to match.
+    // A name no account reports has no settings to match, except an imported
+    // name's auto-renew when you've said what it is.
+    const reported = !d.departed && d.source !== 'imported';
+    if (!reported && (args.locked != null || args.privacy != null))
+      return false;
     if (
-      d.departed &&
-      (args.autoRenew != null || args.locked != null || args.privacy != null)
+      args.autoRenew != null &&
+      (d.departed || (d.source === 'imported' && d.autoRenewUnknown))
     )
       return false;
     if (args.autoRenew != null && d.autoRenew !== args.autoRenew) return false;
@@ -229,12 +322,23 @@ export function queryPortfolio(
   // fields sort case-insensitively.
   const sort = args.sort ?? 'expirationDate';
   const dir = args.order === 'desc' ? -1 : 1;
-  const dateVal = (d: Domain, field: 'expirationDate' | 'createdDate') =>
-    d[field] ? d[field]!.getTime() : null;
+  const numberVal = (
+    d: Domain,
+    field: 'expirationDate' | 'createdDate' | 'renewalPrice',
+  ) =>
+    field === 'renewalPrice'
+      ? (renewalOf(d)?.amount ?? null)
+      : d[field]
+        ? d[field]!.getTime()
+        : null;
   filtered.sort((a, b) => {
-    if (sort === 'expirationDate' || sort === 'createdDate') {
-      const av = dateVal(a, sort);
-      const bv = dateVal(b, sort);
+    if (
+      sort === 'expirationDate' ||
+      sort === 'createdDate' ||
+      sort === 'renewalPrice'
+    ) {
+      const av = numberVal(a, sort);
+      const bv = numberVal(b, sort);
       if (av == null && bv == null) return 0;
       if (av == null) return 1; // nulls last
       if (bv == null) return -1;
@@ -254,13 +358,22 @@ export function queryPortfolio(
   const limit = args.limit ?? DEFAULT_LIMIT;
   const rows: QueryRow[] = filtered.slice(offset, offset + limit).map((d) => {
     const label = labelOf(d);
-    const inAccount = !d.departed;
-    // An Archive row whose last account is gone has no registrar.
+    const imported = d.source === 'imported';
+    const inAccount = !d.departed && !imported;
+    // An Archive row whose last account is gone has no registrar, and an
+    // imported name may have only the text you typed.
     const registrar = d.registrar || null;
+    const key = toAscii(d.domainName);
+    const purchase = extras.purchases?.[key];
+    const asking = extras.listPrices?.[key];
     return {
       registrar,
-      accountId: d.accountId ?? registrar,
-      accountLabel: d.accountLabel ?? (registrar ? 'Default' : null),
+      accountId: imported ? null : (d.accountId ?? registrar),
+      accountLabel: imported
+        ? null
+        : (d.accountLabel ?? (registrar ? 'Default' : null)),
+      registrarLabel: d.importedRegistrarLabel || null,
+      source: d.source,
       domainName: d.domainName,
       ownership: label ? 'archive' : 'owned',
       archiveLabel: label,
@@ -270,11 +383,40 @@ export function queryPortfolio(
       createdDate: d.createdDate,
       expirationDate: d.expirationDate,
       renewalDate: d.renewalDate,
-      autoRenew: inAccount ? d.autoRenew : null,
+      // An imported name's auto-renew is what you told DomBot, if anything.
+      autoRenew:
+        inAccount || (imported && !d.autoRenewUnknown) ? d.autoRenew : null,
       locked: inAccount ? d.locked : null,
       privacy: inAccount && reportsPrivacy(d.registrar) ? d.privacy : null,
       nameservers: d.nameservers,
       folder: folderNameFor(d),
+      paid:
+        purchase?.purchaseType || purchase?.purchaseDate || purchase?.amount
+          ? {
+              date: purchase.purchaseDate,
+              amount: purchase.amount,
+              currency: purchase.currency,
+              kind: purchase.purchaseType ?? 'purchased',
+            }
+          : null,
+      sold:
+        purchase?.saleDate || purchase?.saleAmount
+          ? {
+              date: purchase.saleDate ?? null,
+              amount: purchase.saleAmount ?? null,
+              currency: purchase.saleCurrency ?? null,
+            }
+          : null,
+      notes: purchase?.notes || null,
+      askingPrice: asking
+        ? {
+            amount: asking.amount,
+            minOffer: asking.minOffer ?? null,
+            floor: asking.floor ?? null,
+            currency: asking.currency,
+          }
+        : null,
+      renewalPrice: renewalOf(d),
     };
   });
 
