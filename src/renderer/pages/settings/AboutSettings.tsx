@@ -208,30 +208,26 @@ export default function AboutSettings() {
             title="View source"
             hint="Code and releases on GitHub"
           />
+          <ProjectLink
+            url="https://dombot.ai"
+            icon={<Globe />}
+            title="DomBot.ai"
+            hint="Learn more on our website"
+          />
         </ul>
-        {/* Full-bleed footer strip, out to the card's edges: copyright on
-            the left, the website on the right. */}
-        <div className="-mx-6 -mb-[19px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t bg-muted/40 px-6 py-3 text-xs text-muted-foreground">
-          <p>
-            © 2026{' '}
-            <button
-              type="button"
-              onClick={() => open('https://x.com/aoxborrow')}
-              className="hover:text-foreground"
-            >
-              Aaron Oxborrow
-            </button>{' '}
-            and contributors
-          </p>
+        {/* Full-bleed footer strip, out to the card's edges. Dimmer than
+            the muted text in dark mode, where that grey still reads loud. */}
+        <p className="-mx-6 -mb-[19px] border-t bg-muted/40 px-6 py-3 text-xs text-muted-foreground dark:text-muted-foreground/70">
+          © 2026{' '}
           <button
             type="button"
-            onClick={() => open('https://dombot.ai')}
-            className="inline-flex items-center gap-1.5 hover:text-foreground"
+            onClick={() => open('https://x.com/aoxborrow')}
+            className="hover:text-foreground"
           >
-            <Globe className="size-3.5" aria-hidden />
-            DomBot.ai
-          </button>
-        </div>
+            Aaron Oxborrow
+          </button>{' '}
+          and contributors
+        </p>
       </SettingsCard>
     </div>
   );
