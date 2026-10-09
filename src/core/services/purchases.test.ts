@@ -20,6 +20,34 @@ beforeEach(async () => {
 });
 
 describe('purchases', () => {
+  it('records what an agent saves as the agent’s', () => {
+    setPurchase(
+      {
+        domainName: 'a.com',
+        purchaseDate: '2024-01-02',
+        amount: '10',
+        currency: 'USD',
+        notes: '',
+      },
+      'agent',
+    );
+    setSale(
+      {
+        domainName: 'a.com',
+        saleDate: null,
+        amount: null,
+        currency: null,
+        notes: '',
+        mark: true,
+      },
+      'agent',
+    );
+    expect(listEvents().map((e) => [e.type, e.source])).toEqual([
+      ['purchased', 'agent'],
+      ['sold', 'agent'],
+    ]);
+  });
+
   it('saves by domain name and keeps the record when the cache is cleared', async () => {
     setPurchase({
       domainName: 'Example.COM',

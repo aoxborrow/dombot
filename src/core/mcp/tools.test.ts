@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { DomainEvent } from '../../shared/domain-events';
+import { localDay, type DomainEvent } from '../../shared/domain-events';
+import type { ImportedDomain } from '../../shared/ipc';
 
 // ── Mock every service the tool handlers reach ───────────────────────────────
 // registrarNames must be a real non-empty array: tools.ts builds z.enum() from
@@ -19,6 +20,48 @@ const getRegistrarClient = vi.fn((name: string) => {
 const registerDomainCached = vi.fn();
 const getDomainDetail = vi.fn();
 const getMergedPortfolio = vi.fn();
+const getPortfolioPricing = vi.fn(() => ({}));
+const setRegistrarEnabledCached = vi.fn();
+const getRegistrarMetadata = vi.fn<() => unknown[]>(() => []);
+
+const getImportedDomains = vi.fn<() => Record<string, ImportedDomain>>(
+  () => ({}),
+);
+vi.mock('../services/imported-domains', () => ({
+  getImportedDomains: () => getImportedDomains(),
+}));
+const getPurchases = vi.fn<() => Record<string, unknown>>(() => ({}));
+const setNotes = vi.fn();
+const setPurchase = vi.fn();
+const setSale = vi.fn();
+const holdings = vi.fn(() => new Map<string, { sale?: DomainEvent }>());
+vi.mock('../services/purchases', () => ({
+  getPurchases: () => getPurchases(),
+  setNotes: (...a: unknown[]) => setNotes(...a),
+  setPurchase: (...a: unknown[]) => setPurchase(...a),
+  setSale: (...a: unknown[]) => setSale(...a),
+  holdings: () => holdings(),
+}));
+const getListPrices = vi.fn<() => Record<string, unknown>>(() => ({}));
+const setListPrices = vi.fn();
+vi.mock('../services/list-prices', () => ({
+  getListPrices: () => getListPrices(),
+  setListPrices: (...a: unknown[]) => setListPrices(...a),
+}));
+const getManualPrices = vi.fn<() => Record<string, unknown>>(() => ({}));
+const setManualPrice = vi.fn();
+vi.mock('../services/pricing', () => ({
+  getManualPrices: () => getManualPrices(),
+  setManualPrice: (...a: unknown[]) => setManualPrice(...a),
+}));
+const restoreOwned = vi.fn();
+const setDispositions = vi.fn();
+const setAlertsDismissed = vi.fn();
+vi.mock('../services/domain-history', () => ({
+  restoreOwned: (...a: unknown[]) => restoreOwned(...a),
+  setDispositions: (...a: unknown[]) => setDispositions(...a),
+  setAlertsDismissed: (...a: unknown[]) => setAlertsDismissed(...a),
+}));
 
 vi.mock('../services/registrars', () => ({
   resolveAccount: (registrar: string, id?: string) => ({
@@ -40,7 +83,10 @@ vi.mock('../services/registrars', () => ({
   getDomainDetail: (...a: unknown[]) => getDomainDetail(...a),
   getMergedPortfolio: () => getMergedPortfolio(),
   getPortfolio: vi.fn(),
-  getRegistrarMetadata: vi.fn(() => []),
+  getPortfolioPricing: () => getPortfolioPricing(),
+  setRegistrarEnabledCached: (...a: unknown[]) =>
+    setRegistrarEnabledCached(...a),
+  getRegistrarMetadata: () => getRegistrarMetadata(),
   getRenewalPriceLive: vi.fn(),
   syncRegistrar: vi.fn(),
 }));
@@ -50,13 +96,36 @@ vi.mock('../services/domain-ops', () => ({
   applyDomainOp: (...a: unknown[]) => applyDomainOp(...a),
 }));
 
-const getFolders = vi.fn(() => ({ folders: [], assignments: {} }));
-vi.mock('../services/folders', () => ({ getFolders: () => getFolders() }));
+type FolderStub = {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+};
+const getFolders = vi.fn<
+  () => { folders: FolderStub[]; assignments: Record<string, string> }
+>(() => ({ folders: [], assignments: {} }));
+const createFolder = vi.fn((input: Omit<FolderStub, 'id'>) => ({
+  id: 'new-id',
+  ...input,
+}));
+const updateFolder = vi.fn();
+const deleteFolder = vi.fn();
+const assignFolder = vi.fn();
+vi.mock('../services/folders', () => ({
+  getFolders: () => getFolders(),
+  createFolder: (i: Omit<FolderStub, 'id'>) => createFolder(i),
+  updateFolder: (...a: unknown[]) => updateFolder(...a),
+  deleteFolder: (...a: unknown[]) => deleteFolder(...a),
+  assignFolder: (...a: unknown[]) => assignFolder(...a),
+}));
 
 const listEvents = vi.fn<() => DomainEvent[]>(() => []);
+const nameNote = vi.fn<(d: string) => { text: string } | undefined>();
 vi.mock('../services/domain-events', () => ({
   listEvents: () => listEvents(),
   eventsFor: (d: string) => listEvents().filter((e) => e.domain === d),
+  nameNote: (d: string) => nameNote(d),
 }));
 
 const broadcastPortfolioChanged = vi.fn();
@@ -102,6 +171,14 @@ beforeEach(() => {
   getActiveRegistrars.mockReturnValue(['dynadot']);
   getFolders.mockReturnValue({ folders: [], assignments: {} });
   listEvents.mockReturnValue([]);
+  getImportedDomains.mockReturnValue({});
+  getPurchases.mockReturnValue({});
+  getListPrices.mockReturnValue({});
+  getManualPrices.mockReturnValue({});
+  getPortfolioPricing.mockReturnValue({});
+  getRegistrarMetadata.mockReturnValue([]);
+  holdings.mockReturnValue(new Map());
+  nameNote.mockReturnValue(undefined);
 });
 
 /** A sync or user event for one name. */
@@ -148,6 +225,17 @@ describe('resolveRegistrar (via domain_set_autorenew)', () => {
     await expect(
       call('domain_set_autorenew', { domain: 'gone.com', enabled: true }),
     ).rejects.toThrow(/is in Archive \(dropped\)/);
+    expect(applyDomainOp).not.toHaveBeenCalled();
+  });
+
+  it('says an imported name has no registrar to act on', async () => {
+    findRegistrarsForDomain.mockReturnValue([]);
+    getImportedDomains.mockReturnValue({
+      'mine.com': { registrar: null, addedAt: 1, updatedAt: null },
+    });
+    await expect(
+      call('domain_set_autorenew', { domain: 'Mine.com', enabled: true }),
+    ).rejects.toThrow(/is an imported domain/);
     expect(applyDomainOp).not.toHaveBeenCalled();
   });
 
@@ -355,6 +443,54 @@ describe('end-to-end handlers', () => {
     expect(out.registrars).toEqual(['dynadot']);
   });
 
+  it('portfolio_query adds imported names no account reports', async () => {
+    getMergedPortfolio.mockReturnValue({
+      domains: [
+        {
+          registrar: 'dynadot',
+          domainName: 'a.com',
+          status: 'active',
+          createdDate: null,
+          expirationDate: null,
+          renewalDate: null,
+          autoRenew: false,
+          locked: false,
+          privacy: false,
+          nameservers: [],
+          syncedAt: new Date(0),
+          deleted: false,
+          source: 'registrar',
+        },
+      ],
+      fetchedAt: 1000,
+      registrars: ['dynadot'],
+      errors: [],
+    });
+    getImportedDomains.mockReturnValue({
+      // Synced since: the registrar's row wins.
+      'a.com': { registrar: null, addedAt: 1, updatedAt: null },
+      'b.com': { registrar: null, addedAt: 1, updatedAt: null },
+    });
+    getPurchases.mockReturnValue({
+      'b.com': {
+        purchaseDate: null,
+        amount: null,
+        currency: null,
+        notes: 'hi',
+      },
+    });
+
+    const out = await call('portfolio_query', { sort: 'domainName' });
+    expect(
+      (out.rows as { domainName: string; source: string; notes: string }[]).map(
+        (r) => [r.domainName, r.source, r.notes],
+      ),
+    ).toEqual([
+      ['a.com', 'registrar', null],
+      ['b.com', 'imported', 'hi'],
+    ]);
+  });
+
   it('portfolio_query reads Owned / Archive from the event log', async () => {
     const live = (domainName: string) => ({
       registrar: 'dynadot',
@@ -492,3 +628,436 @@ function fullContact() {
     country: 'US',
   };
 }
+
+describe('folder tools', () => {
+  const work: FolderStub = {
+    id: 'f1',
+    name: 'Work',
+    description: 'Client names',
+    color: 'green',
+  };
+  beforeEach(() => {
+    getFolders.mockReturnValue({
+      folders: [
+        work,
+        { id: 'f2', name: 'Ideas', description: '', color: 'blue' },
+      ],
+      assignments: { 'a.com': 'f1', 'b.com': 'f1', 'c.com': '__hidden__' },
+    });
+    getMergedPortfolio.mockReturnValue({
+      domains: [{ domainName: 'a.com' }, { domainName: 'd.com' }],
+      fetchedAt: 0,
+      registrars: [],
+      errors: [],
+    });
+  });
+
+  it('folder_list counts domains per folder and includes Hidden', async () => {
+    const out = (await call('folder_list')) as {
+      folders: { id: string; domainCount: number; builtIn: boolean }[];
+    };
+    expect(out.folders.map((f) => [f.id, f.domainCount, f.builtIn])).toEqual([
+      ['f1', 2, false],
+      ['f2', 0, false],
+      ['__hidden__', 1, true],
+    ]);
+  });
+
+  it('folder_create defaults the color and broadcasts', async () => {
+    const out = await call('folder_create', { name: 'Sale' });
+    expect(createFolder).toHaveBeenCalledWith({
+      name: 'Sale',
+      description: '',
+      color: 'blue',
+    });
+    expect(out).toMatchObject({ id: 'new-id', name: 'Sale', domainCount: 0 });
+    expect(broadcastPortfolioChanged).toHaveBeenCalled();
+  });
+
+  it('folder_create rejects a duplicate name or "Hidden"', async () => {
+    await expect(call('folder_create', { name: 'work' })).rejects.toThrow(
+      /already exists/,
+    );
+    await expect(call('folder_create', { name: 'hidden' })).rejects.toThrow(
+      /built-in/,
+    );
+    expect(createFolder).not.toHaveBeenCalled();
+  });
+
+  it('folder_rename resolves by name and keeps its own name free', async () => {
+    const out = await call('folder_rename', { folder: 'work', name: 'Work' });
+    expect(updateFolder).toHaveBeenCalledWith('f1', { name: 'Work' });
+    expect(out).toEqual({ id: 'f1', name: 'Work', previousName: 'Work' });
+    await expect(
+      call('folder_rename', { folder: 'f1', name: 'Ideas' }),
+    ).rejects.toThrow(/already exists/);
+  });
+
+  it('folder_rename / folder_delete refuse Hidden and unknown folders', async () => {
+    await expect(
+      call('folder_rename', { folder: 'Hidden', name: 'X' }),
+    ).rejects.toThrow(/can't be renamed/);
+    await expect(
+      call('folder_delete', { folder: '__hidden__' }),
+    ).rejects.toThrow(/can't be deleted/);
+    await expect(call('folder_delete', { folder: 'Nope' })).rejects.toThrow(
+      /folder_list/,
+    );
+    expect(deleteFolder).not.toHaveBeenCalled();
+  });
+
+  it('folder_delete reports how many domains went back to no folder', async () => {
+    const out = await call('folder_delete', { folder: 'Work' });
+    expect(deleteFolder).toHaveBeenCalledWith('f1');
+    expect(out).toEqual({
+      id: 'f1',
+      name: 'Work',
+      deleted: true,
+      unassigned: 2,
+    });
+  });
+
+  it('domain_set_folder assigns by name, Hidden, or null', async () => {
+    expect(
+      await call('domain_set_folder', { domain: 'D.com', folder: 'ideas' }),
+    ).toEqual({
+      domain: 'd.com',
+      folder: { id: 'f2', name: 'Ideas' },
+      previous: null,
+    });
+    expect(assignFolder).toHaveBeenLastCalledWith('d.com', 'f2');
+
+    expect(
+      await call('domain_set_folder', { domain: 'a.com', folder: 'Hidden' }),
+    ).toMatchObject({ previous: { id: 'f1', name: 'Work' } });
+    expect(assignFolder).toHaveBeenLastCalledWith('a.com', '__hidden__');
+
+    await call('domain_set_folder', { domain: 'a.com', folder: null });
+    expect(assignFolder).toHaveBeenLastCalledWith('a.com', null);
+    expect(broadcastPortfolioChanged).toHaveBeenCalledTimes(3);
+  });
+
+  it('domain_set_folder accepts an Archive name from the event log', async () => {
+    listEvents.mockReturnValue([event({ domain: 'gone.com' })]);
+    await call('domain_set_folder', { domain: 'gone.com', folder: 'f1' });
+    expect(assignFolder).toHaveBeenCalledWith('gone.com', 'f1');
+  });
+
+  it('domain_set_folder rejects a name not in the portfolio or an unknown folder', async () => {
+    await expect(
+      call('domain_set_folder', { domain: 'x.com', folder: 'Work' }),
+    ).rejects.toThrow(/isn't in your portfolio/);
+    await expect(
+      call('domain_set_folder', { domain: 'a.com', folder: 'Nope' }),
+    ).rejects.toThrow(/No folder named/);
+    expect(assignFolder).not.toHaveBeenCalled();
+  });
+});
+
+describe('local write tools', () => {
+  beforeEach(() => {
+    getMergedPortfolio.mockReturnValue({
+      domains: [{ domainName: 'a.com' }],
+      fetchedAt: 0,
+      registrars: [],
+      errors: [],
+    });
+  });
+
+  it('refuse a name DomBot doesn’t know', async () => {
+    await expect(
+      call('domain_note_set', { domain: 'x.com', notes: 'hi' }),
+    ).rejects.toThrow(/isn't in your portfolio/);
+    expect(setNotes).not.toHaveBeenCalled();
+  });
+
+  it('domain_note_set saves the note and reports what was kept', async () => {
+    setNotes.mockReturnValue({ notes: 'Brandable' });
+    expect(
+      await call('domain_note_set', { domain: 'A.com', notes: 'Brandable' }),
+    ).toEqual({ domain: 'a.com', notes: 'Brandable' });
+    expect(setNotes).toHaveBeenCalledWith('a.com', 'Brandable');
+    expect(broadcastPortfolioChanged).toHaveBeenCalled();
+  });
+
+  it('domain_asking_price_set clears what it leaves out', async () => {
+    getListPrices.mockReturnValue({
+      'a.com': { amount: '2500', currency: 'USD', updatedAt: 1 },
+    });
+    expect(
+      await call('domain_asking_price_set', {
+        domain: 'a.com',
+        amount: '2500',
+        currency: 'usd',
+      }),
+    ).toEqual({
+      domain: 'a.com',
+      askingPrice: {
+        amount: '2500',
+        minOffer: null,
+        floor: null,
+        currency: 'USD',
+      },
+    });
+    expect(setListPrices).toHaveBeenCalledWith([
+      {
+        domainName: 'a.com',
+        amount: '2500',
+        minOffer: null,
+        floor: null,
+        currency: 'usd',
+      },
+    ]);
+  });
+
+  it('domain_renewal_price_set defaults to USD and clears with null', async () => {
+    await call('domain_renewal_price_set', { domain: 'a.com', amount: '89' });
+    expect(setManualPrice).toHaveBeenLastCalledWith('a.com', {
+      amount: '89',
+      currency: 'USD',
+    });
+    expect(
+      await call('domain_renewal_price_set', { domain: 'a.com', amount: null }),
+    ).toEqual({ domain: 'a.com', renewalPrice: null });
+    expect(setManualPrice).toHaveBeenLastCalledWith('a.com', null);
+  });
+
+  it('domain_ownership_set records an agent drop, or moves a name back', async () => {
+    await call('domain_ownership_set', {
+      domain: 'a.com',
+      ownership: 'dropped',
+      date: '2026-10-01',
+    });
+    expect(setDispositions).toHaveBeenCalledWith(
+      [{ domainName: 'a.com' }],
+      'dropped',
+      '2026-10-01',
+      'agent',
+    );
+    await call('domain_ownership_set', { domain: 'a.com', ownership: 'owned' });
+    expect(restoreOwned).toHaveBeenCalledWith(['a.com']);
+  });
+
+  it('domain_ownership_set reports the label from the event log', async () => {
+    listEvents.mockReturnValue([
+      event({ domain: 'a.com' }),
+      event({ domain: 'a.com', type: 'archived', source: 'agent' }),
+    ]);
+    expect(
+      await call('domain_ownership_set', {
+        domain: 'a.com',
+        ownership: 'archived',
+      }),
+    ).toEqual({
+      domain: 'a.com',
+      ownership: 'archive',
+      archiveLabel: 'archived',
+    });
+  });
+
+  it('registrar_set_enabled resolves the account and broadcasts', async () => {
+    setRegistrarEnabledCached.mockResolvedValue({
+      domains: [],
+      fetchedAt: null,
+      errors: [],
+    });
+    const out = await call('registrar_set_enabled', {
+      registrar: 'dynadot',
+      enabled: false,
+    });
+    expect(setRegistrarEnabledCached).toHaveBeenCalledWith(
+      'dynadot',
+      false,
+      'dynadot',
+    );
+    expect(out).toMatchObject({
+      accountId: 'dynadot',
+      registrar: 'dynadot',
+      enabled: false,
+    });
+    expect(broadcastPortfolioChanged).toHaveBeenCalled();
+  });
+});
+
+describe('history, purchases, sales and alerts', () => {
+  beforeEach(() => {
+    getMergedPortfolio.mockReturnValue({
+      domains: [{ domainName: 'a.com' }],
+      fetchedAt: 0,
+      registrars: [],
+      errors: [],
+    });
+  });
+
+  it('domain_purchase_set records as the agent and keeps the note', async () => {
+    getPurchases.mockReturnValue({
+      'a.com': {
+        purchaseDate: '2025-01-02',
+        amount: '1200.00',
+        currency: 'USD',
+        purchaseType: 'purchased',
+        notes: 'keep me',
+      },
+    });
+    const out = await call('domain_purchase_set', {
+      domain: 'a.com',
+      date: '2025-01-02',
+      amount: '1200',
+      currency: 'USD',
+      resolves: 'E1',
+    });
+    expect(setPurchase).toHaveBeenCalledWith(
+      {
+        domainName: 'a.com',
+        kind: undefined,
+        resolves: 'E1',
+        purchaseDate: '2025-01-02',
+        amount: '1200',
+        currency: 'USD',
+        notes: 'keep me',
+      },
+      'agent',
+    );
+    expect(out).toMatchObject({
+      paid: { amount: '1200.00', kind: 'purchased' },
+      sold: null,
+    });
+  });
+
+  it('domain_sale_set marks a new sale, and edits one that already answers the alert', async () => {
+    await call('domain_sale_set', {
+      domain: 'a.com',
+      amount: '5000',
+      currency: 'USD',
+      resolves: 'E1',
+    });
+    // A priced new sale is dated today too.
+    expect(setSale).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        mark: true,
+        resolves: 'E1',
+        saleDate: localDay(),
+      }),
+      'agent',
+    );
+
+    const sale = event({
+      domain: 'a.com',
+      type: 'sold',
+      date: '2026-10-01',
+      resolves: 'E1',
+    });
+    holdings.mockReturnValue(new Map([['a.com', { sale }]]));
+    listEvents.mockReturnValue([sale]);
+    await call('domain_sale_set', {
+      domain: 'a.com',
+      amount: '5500',
+      currency: 'USD',
+      resolves: 'E1',
+    });
+    const [input] = setSale.mock.lastCall!;
+    expect(input).toMatchObject({ saleDate: '2026-10-01', amount: '5500' });
+    expect(input).not.toHaveProperty('mark');
+  });
+
+  it('domain_sale_set records a new sale for a name that sold and came back', async () => {
+    const sale = event({ domain: 'a.com', type: 'sold', date: '2025-05-01' });
+    const back = event({ domain: 'a.com', type: 'added', date: '2026-02-01' });
+    holdings.mockReturnValue(new Map([['a.com', { sale }]]));
+    listEvents.mockReturnValue([sale, back]);
+    await call('domain_sale_set', {
+      domain: 'a.com',
+      amount: '900',
+      currency: 'USD',
+    });
+    expect(setSale).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mark: true, saleDate: localDay() }),
+      'agent',
+    );
+  });
+
+  it('domain_history lists events oldest first with their alert status', async () => {
+    const added = event({ domain: 'a.com', date: '2026-01-01' });
+    const left = event({
+      domain: 'a.com',
+      type: 'removed',
+      date: '2026-03-01',
+    });
+    const sold = event({
+      domain: 'a.com',
+      type: 'sold',
+      source: 'agent',
+      date: '2026-03-02',
+      resolves: left.id,
+    });
+    const quiet = event({
+      domain: 'b.com',
+      dismissed: true,
+      date: '2026-02-01',
+    });
+    listEvents.mockReturnValue([sold, left, added, quiet]);
+    nameNote.mockReturnValue({ text: 'Sold to a startup' });
+
+    const out = (await call('domain_history', { domain: 'a.com' })) as {
+      events: { id: string; alert: string | null; resolvedBy: string | null }[];
+    };
+    expect(out).toMatchObject({
+      domain: 'a.com',
+      ownership: 'archive',
+      archiveLabel: 'sold',
+      notes: 'Sold to a startup',
+    });
+    expect(out.events.map((e) => [e.id, e.alert, e.resolvedBy])).toEqual([
+      [added.id, 'open', null],
+      [left.id, 'resolved', sold.id],
+      [sold.id, null, null],
+    ]);
+  });
+
+  it('portfolio_alerts lists what the bell shows, by kind and paged', async () => {
+    const arrival = event({ domain: 'new.com' });
+    const departure = event({ domain: 'gone.com', type: 'removed' });
+    listEvents.mockReturnValue([
+      arrival,
+      departure,
+      event({ domain: 'old.com', dismissed: true }),
+    ]);
+    getRegistrarMetadata.mockReturnValue([
+      {
+        name: 'dynadot',
+        accountId: 'dynadot',
+        accountLabel: 'Main',
+        configured: true,
+        enabled: true,
+        sync: { lastError: 'Bad key', lastErrorAt: 5 },
+      },
+    ]);
+    const out = (await call('portfolio_alerts')) as {
+      total: number;
+      counts: Record<string, number>;
+      alerts: { kind: string; eventId: string | null; message: string }[];
+    };
+    expect(out.counts).toEqual({ 'sync-error': 1, departure: 1, arrival: 1 });
+    expect(out.alerts.map((a) => [a.kind, a.eventId])).toEqual([
+      ['sync-error', null],
+      ['departure', departure.id],
+      ['arrival', arrival.id],
+    ]);
+    expect(out.alerts[0].message).toBe('Main: Bad key');
+    const page = (await call('portfolio_alerts', {
+      kind: 'arrival',
+      limit: 1,
+    })) as { total: number; alerts: unknown[] };
+    expect(page.total).toBe(1);
+  });
+
+  it('portfolio_alert_dismiss dismisses and reports what is still open', async () => {
+    const a = event({ domain: 'new.com' });
+    listEvents.mockReturnValue([a]);
+    const out = await call('portfolio_alert_dismiss', { alertIds: [a.id] });
+    expect(setAlertsDismissed).toHaveBeenCalledWith([a.id], true);
+    // The mock didn't change the log, so it still reads as open.
+    expect(out).toEqual({ dismissed: true, stillOpen: [a.id] });
+    expect(broadcastPortfolioChanged).toHaveBeenCalled();
+  });
+});
