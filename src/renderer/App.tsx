@@ -192,7 +192,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => navigate('/settings?tab=about')}
-              className="ml-auto hidden rounded-sm text-xs text-muted-foreground/60 hover:text-foreground sm:inline"
+              className="ml-auto hidden rounded-sm text-[11px] text-muted-foreground/50 hover:text-foreground sm:inline"
               title="About this version"
             >
               v{appInfo.version}
