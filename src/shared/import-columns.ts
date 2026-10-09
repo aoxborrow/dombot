@@ -189,7 +189,6 @@ export const IMPORT_FIELDS: ImportFieldInfo[] = [
       'minimum offer',
       'minimum price',
       'min price',
-      'starting offer',
       '*Minimum Offer (Required)',
       'Minimum Offer REQUIRED',
     ],
@@ -495,12 +494,6 @@ export const KNOWN_FORMATS: KnownFormat[] = [
     label: 'Sedo export',
     requires: [n('Domain Name (ACE)'), n('SedoMLS Status'), n('Price Option')],
     fields: { [n('Domain Name (ACE)')]: null, [n('Inserted')]: null },
-  },
-  {
-    id: 'dan',
-    label: 'Dan export',
-    requires: [n('domain name'), n('added on'), n('starting offer')],
-    fields: { [n('added on')]: null },
   },
 ];
 
