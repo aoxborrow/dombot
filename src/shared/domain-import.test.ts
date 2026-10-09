@@ -283,7 +283,7 @@ describe('reading a file', () => {
     });
   });
 
-  it('reads Afternic listings, a Dan export with a title row, and Uniregistry instructions', () => {
+  it('reads Afternic listings, a title row above the headers, and Uniregistry instructions', () => {
     const afternic = run(
       [
         '*Name (Required),*Minimum Offer (Required),Reserve Price,Floor Price,Buy Now Price,Top Category,Second-Level Category,Leave Blank,Leave Blank,Leave Blank,Listing Status,Listing Page,GROUPNAME',
@@ -296,20 +296,20 @@ describe('reading a file', () => {
       currency: 'USD',
     });
 
-    const dan = run(
+    const titled = run(
       [
-        'example_with_prices,,,,',
-        'Domain name,Buy now price,Starting offer,Description,',
+        'My portfolio,,,,',
+        'Domain name,Buy now price,Minimum offer,Description,',
         'example.com,100,75,My description,',
       ].join('\n'),
     );
-    expect(dan.table.headers).toEqual([
+    expect(titled.table.headers).toEqual([
       'Domain name',
       'Buy now price',
-      'Starting offer',
+      'Minimum offer',
       'Description',
     ]);
-    expect(dan.rows[0].listPrice).toMatchObject({
+    expect(titled.rows[0].listPrice).toMatchObject({
       amount: '100',
       minOffer: '75',
     });
