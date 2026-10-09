@@ -210,6 +210,9 @@ export const IpcEvents = {
   portfolioChanged: 'portfolio:changed',
   /** The app menu's Sync Now was chosen (desktop only). */
   syncRequested: 'sync:requested',
+  /** An app menu item wants a route shown, e.g. Settings → About (payload:
+   *  the hash route; desktop only). */
+  navigateRequested: 'app:navigateRequested',
   /** One bulk-job item finished (payload: BulkProgress). */
   bulkProgress: 'bulk:progress',
   /** A bulk job ended — done or cancelled (payload: the final BulkJob). */
@@ -1067,6 +1070,10 @@ export interface DombotApi {
   /** Subscribe to the app menu's Sync Now (desktop only; a no-op elsewhere).
    * Returns an unsubscribe function. */
   onSyncRequested: (callback: () => void) => () => void;
+  /** Subscribe to the app menu asking for a route (About DomBot, Check for
+   *  Updates…, Settings…; desktop only, a no-op elsewhere). Returns an
+   *  unsubscribe function. */
+  onNavigateRequested: (callback: (route: string) => void) => () => void;
 
   // Folders
   /** The folder definitions plus the domain→folder map, read from disk. */

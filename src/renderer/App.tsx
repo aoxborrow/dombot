@@ -101,6 +101,12 @@ export default function App() {
     loadRegistrars,
   ]);
 
+  // The macOS app menu's About DomBot / Check for Updates… / Settings….
+  useEffect(
+    () => window.api.onNavigateRequested((route) => navigate(route)),
+    [navigate],
+  );
+
   // An MCP tool write mutates the on-disk cache out of band; re-read it and
   // overlay the change so an open Domains table updates live, without a Sync.
   useEffect(() => {

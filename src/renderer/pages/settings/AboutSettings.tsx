@@ -4,9 +4,10 @@ import {
   type ComponentProps,
   type ReactNode,
 } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
+  ArrowUpCircle,
   BookOpen,
-  Download,
   Bug,
   ExternalLink,
   Globe,
@@ -71,6 +72,15 @@ export default function AboutSettings() {
   useEffect(() => {
     if (!demo && settings?.updateChecks && !feed) void check();
   }, [demo, settings?.updateChecks, feed, check]);
+
+  // The app menu's Check for Updates… arrives with ?check=1: check now, once,
+  // and drop the flag so a reload doesn't check again.
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (demo || params.get('check') !== '1') return;
+    void check(true);
+    setParams({ tab: 'about' }, { replace: true });
+  }, [demo, params, setParams, check]);
 
   const releases = feed?.releases ?? [];
   const newer = current ? releasesNewerThan(releases, current) : [];
@@ -310,7 +320,7 @@ function UpdateButton({
     );
   return (
     <Button size="sm" onClick={onUpdate}>
-      <Download className="size-3.5" />
+      <ArrowUpCircle className="size-3.5" />
       Update to {version}
     </Button>
   );

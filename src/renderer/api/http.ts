@@ -390,6 +390,7 @@ export function createHttpApi(): DombotApi {
     onPortfolioChanged: (cb) => poller.subscribe('portfolio', cb),
     // No app menu in the browser.
     onSyncRequested: () => () => {},
+    onNavigateRequested: () => () => {},
 
     getFolders: m('getFolders'),
     createFolder: m('createFolder'),

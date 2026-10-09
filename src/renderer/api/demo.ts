@@ -275,6 +275,7 @@ export async function createDemoApi(
     | 'onApprovalsChanged'
     | 'onPortfolioChanged'
     | 'onSyncRequested'
+    | 'onNavigateRequested'
   > = {
     onBulkProgress: (cb) => onCoreEvent('bulkProgress', cb),
     onBulkFinished: (cb) => onCoreEvent('bulkFinished', cb),
@@ -282,6 +283,7 @@ export async function createDemoApi(
     onPortfolioChanged: (cb) => onCoreEvent('portfolioChanged', cb),
     // No app menu in the browser.
     onSyncRequested: () => () => {},
+    onNavigateRequested: () => () => {},
   };
   return { api: { ...api, ...events } as DombotApi, demo };
 }
