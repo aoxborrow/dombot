@@ -186,13 +186,13 @@ export default function App() {
             <ActivityBell />
           </span>
           <MobileNav />
-          {/* The running version, dim, pinned 20px from the window's top
-              and right edges; opens Settings → About. Desktop widths only. */}
+          {/* The running version, dim, tucked into the window's top-right
+              corner; opens Settings → About. Desktop widths only. */}
           {appInfo && (
             <button
               type="button"
               onClick={() => navigate('/settings?tab=about')}
-              className="absolute top-5 right-5 hidden rounded-sm text-[11px] leading-none text-muted-foreground/40 hover:text-muted-foreground sm:inline"
+              className="absolute top-[7px] right-[10px] hidden rounded-sm text-[11px] leading-none text-muted-foreground/40 hover:text-muted-foreground sm:inline"
               title="About this version"
             >
               {/* A serif italic "v", dimmer than the monospace digits (like
