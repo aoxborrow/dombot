@@ -28,6 +28,8 @@
 //   DOMBOT_D1_DATABASE_NAME   optional
 //   DOMBOT_CUSTOM_DOMAIN      optional: a hostname on a zone in your account,
 //                             attached as the Worker's custom domain
+//   DOMBOT_AUTH, CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD
+//                             optional: merged into `vars` (auth mode)
 //
 //   node scripts/wrangler.mjs deploy
 //   node scripts/wrangler.mjs secret put DOMBOT_SECRET
@@ -90,6 +92,12 @@ export function envOverrides(env = process.env) {
     out.database_name = env.DOMBOT_D1_DATABASE_NAME;
   if (env.DOMBOT_CUSTOM_DOMAIN)
     out.routes = [{ pattern: env.DOMBOT_CUSTOM_DOMAIN, custom_domain: true }];
+  // The auth-mode vars, so a fork never has to edit the template to use
+  // Cloudflare Access (an edit there would conflict with upstream updates).
+  const vars = {};
+  for (const key of ['DOMBOT_AUTH', 'CF_ACCESS_TEAM_DOMAIN', 'CF_ACCESS_AUD'])
+    if (env[key]) vars[key] = env[key];
+  if (Object.keys(vars).length) out.vars = vars;
   return out;
 }
 
