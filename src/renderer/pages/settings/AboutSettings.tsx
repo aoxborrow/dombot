@@ -5,6 +5,7 @@ import {
   ExternalLink,
   Globe,
   Heart,
+  Lightbulb,
   RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -165,27 +166,39 @@ export default function AboutSettings() {
       <SettingsCard title="About DomBot" contentClassName="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="max-w-md text-sm text-muted-foreground">
-            DomBot is free and open source, built and maintained by one person.
-            If it saves you time or money, sponsoring helps keep it going.
+            DomBot is free and open source. If it saves you time or money,
+            sponsoring helps fund its development.
           </p>
           <Button size="sm" variant="outline" onClick={() => open(SPONSOR)}>
             <Heart className="size-3.5 fill-pink-500 text-pink-500" />
             Sponsor
           </Button>
         </div>
-        <div className="flex flex-wrap gap-x-5 gap-y-2 border-t pt-4 text-sm">
-          <ProjectLink url={REPO} icon={<GitHubMark />}>
-            GitHub
-          </ProjectLink>
-          <ProjectLink url={`${REPO}#readme`} icon={<BookOpen />}>
-            Documentation
-          </ProjectLink>
-          <ProjectLink url={`${REPO}/issues`} icon={<Bug />}>
-            Report an issue
-          </ProjectLink>
-          <ProjectLink url="https://dombot.ai" icon={<Globe />}>
-            dombot.ai
-          </ProjectLink>
+        <div className="flex flex-col gap-3 border-t pt-4">
+          <p className="text-sm text-muted-foreground">
+            Contributions are welcome: report a bug, request a feature, or open
+            a pull request on GitHub.
+          </p>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+            <ProjectLink url={REPO} icon={<GitHubMark />}>
+              GitHub
+            </ProjectLink>
+            <ProjectLink url={`${REPO}#readme`} icon={<BookOpen />}>
+              Documentation
+            </ProjectLink>
+            <ProjectLink url={`${REPO}/issues/new?labels=bug`} icon={<Bug />}>
+              Report a bug
+            </ProjectLink>
+            <ProjectLink
+              url={`${REPO}/issues/new?labels=enhancement`}
+              icon={<Lightbulb />}
+            >
+              Request a feature
+            </ProjectLink>
+            <ProjectLink url="https://dombot.ai" icon={<Globe />}>
+              dombot.ai
+            </ProjectLink>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground">
           Licensed under the{' '}
