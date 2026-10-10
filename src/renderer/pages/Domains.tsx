@@ -7,6 +7,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   EyeOff,
   Building2,
+  Calendar,
   CalendarClock,
   ChevronDown,
   CircleCheck,
@@ -76,7 +77,10 @@ import {
 } from '../components/activity/EventTypeBadge';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
-import { purchaseColumns } from '../components/domains/purchase-columns';
+import {
+  purchaseColumns,
+  purchaseDateColumn,
+} from '../components/domains/purchase-columns';
 import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { ListPriceDialog } from '../components/domains/ListPriceDialog';
@@ -97,10 +101,17 @@ import {
 import { BulkBar, type OwnershipAction } from '../components/domains/BulkBar';
 import { BulkActionDialog } from '../components/domains/BulkActionDialog';
 import { defaultBulkOp } from '../lib/bulk';
+import {
+  calendarDay,
+  dateRangeSummary,
+  matchesDateRange,
+  utcDay,
+} from '../lib/date-range';
 import { usePreferences } from '../lib/preferences';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { paginate, sortRows } from '../components/data-table/table-state';
 import {
+  DateRangeInputs,
   RangeInputs,
   rangeSummary,
   type FilterOption,
@@ -208,8 +219,7 @@ function toTime(date: Date | null): number | null {
 }
 
 function fmtDate(date: Date | null): string {
-  const t = toTime(date);
-  return t === null ? '—' : new Date(t).toISOString().slice(0, 10);
+  return utcDay(date) ?? '—';
 }
 
 /** Days until expiry, for the color-coded expiry cell. */
@@ -510,8 +520,10 @@ function ShieldCheckFilled(props: React.ComponentProps<typeof ShieldCheck>) {
   );
 }
 
-/** Not useful once a name has left: there is nothing to renew or reconfigure. */
+/** Not useful once a name has left: there is nothing to renew or reconfigure.
+ *  Registrar stays out too. Purchase and sale are what Archive is for. */
 const ARCHIVE_HIDDEN_COLUMNS = new Set([
+  'registrar',
   'autoRenew',
   'privacy',
   'locked',
@@ -860,7 +872,8 @@ export default function Domains() {
         : c,
     );
     // Owned: pricing sits right after the name (and its Folder, added when
-    // the table is drawn). Archive: Sold and Sold for come after Created.
+    // the table is drawn). Archive: Purchased, Purchased for, Sold, and
+    // Sold for come after Created.
     const at = base.findIndex(
       (c) => c.key === (archiveView ? 'createdDate' : 'domainName'),
     );
@@ -868,6 +881,7 @@ export default function Domains() {
       purchases,
       preferredCurrency: settings?.preferredCurrency ?? DEFAULT_CURRENCY,
       numberFormat: settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+      onEditPurchase: setPurchaseFor,
       onEditSale: setSaleFor,
       showSale: archiveView,
       isSold: (d) => ownership.get(toAscii(d.domainName))?.label === 'sold',
@@ -1004,6 +1018,16 @@ export default function Domains() {
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
   const pricingFilter = priceMin !== '' || priceMax !== '';
+  // Date filters: "" on a side means unbounded. Created, Expires, and
+  // Purchased apply on both tabs. Sold applies on Archive only.
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
+  const [expiresFrom, setExpiresFrom] = useState('');
+  const [expiresTo, setExpiresTo] = useState('');
+  const [purchasedFrom, setPurchasedFrom] = useState('');
+  const [purchasedTo, setPurchasedTo] = useState('');
+  const [soldFrom, setSoldFrom] = useState('');
+  const [soldTo, setSoldTo] = useState('');
   // Sort and page size open at the Settings → General defaults; changes made
   // here last for this visit only.
   const [sortKey, setSortKey] = useState(
@@ -1270,6 +1294,34 @@ export default function Domains() {
       set(next);
       setPage(0);
     });
+  const dateField = (
+    key: string,
+    label: string,
+    from: string,
+    to: string,
+    apply: (from: string, to: string) => void,
+  ): FilterField => ({
+    kind: 'custom',
+    key,
+    label,
+    icon: Calendar,
+    summary: dateRangeSummary(from, to),
+    onClear: () => {
+      apply('', '');
+      setPage(0);
+    },
+    content: (
+      <DateRangeInputs
+        label={label}
+        from={from}
+        to={to}
+        onChange={(nextFrom, nextTo) => {
+          apply(nextFrom, nextTo);
+          setPage(0);
+        }}
+      />
+    ),
+  });
   const filterFields: FilterField[] = [
     listFilter(
       {
@@ -1368,7 +1420,59 @@ export default function Domains() {
             ),
           },
         ]),
+    dateField('createdDate', 'Created', createdFrom, createdTo, (from, to) => {
+      setCreatedFrom(from);
+      setCreatedTo(to);
+    }),
+    dateField(
+      'expirationDate',
+      'Expires',
+      expiresFrom,
+      expiresTo,
+      (from, to) => {
+        setExpiresFrom(from);
+        setExpiresTo(to);
+      },
+    ),
+    dateField(
+      'purchaseDate',
+      'Purchased',
+      purchasedFrom,
+      purchasedTo,
+      (from, to) => {
+        setPurchasedFrom(from);
+        setPurchasedTo(to);
+      },
+    ),
+    ...(archiveView
+      ? [
+          dateField('saleDate', 'Sold', soldFrom, soldTo, (from, to) => {
+            setSoldFrom(from);
+            setSoldTo(to);
+          }),
+        ]
+      : []),
   ];
+
+  // Archive always shows Purchased and Purchased for. Active has no standing
+  // purchase column, so the date appears there only while that filter is set,
+  // after Created (the slot Sold uses on Archive).
+  const viewColumns = useMemo(() => {
+    if (
+      archiveView ||
+      (!calendarDay(purchasedFrom) && !calendarDay(purchasedTo))
+    ) {
+      return tableColumns;
+    }
+    const next = [...tableColumns];
+    const createdAt = next.findIndex((c) => c.key === 'createdDate');
+    next.splice(
+      createdAt + 1,
+      0,
+      purchaseDateColumn(purchases, setPurchaseFor),
+    );
+    return next;
+  }, [tableColumns, archiveView, purchasedFrom, purchasedTo, purchases]);
 
   function setListView(next: 'owned' | 'archive') {
     setFolder([]);
@@ -1416,6 +1520,17 @@ export default function Domains() {
         if (priceMin !== '' && price < Number(priceMin)) return false;
         if (priceMax !== '' && price > Number(priceMax)) return false;
       }
+      // Date bounds are inclusive calendar days. A blank date on the row
+      // stays out. Sold is an Archive column, so that bound waits there.
+      const record = purchases[toAscii(d.domainName)];
+      if (!matchesDateRange(utcDay(d.createdDate), createdFrom, createdTo))
+        return false;
+      if (!matchesDateRange(utcDay(d.expirationDate), expiresFrom, expiresTo))
+        return false;
+      if (!matchesDateRange(record?.purchaseDate, purchasedFrom, purchasedTo))
+        return false;
+      if (archiveView && !matchesDateRange(record?.saleDate, soldFrom, soldTo))
+        return false;
       // Owned vs Archive comes from the event log. In Archive the filter is
       // the status; in Owned it's the folder (a real folder, Hidden, or None),
       // and Hidden stays out unless the filter picks it.
@@ -1442,7 +1557,7 @@ export default function Domains() {
       return true;
     });
 
-    const col = columns.find((c) => c.key === sortKey) ?? columns[0];
+    const col = viewColumns.find((c) => c.key === sortKey) ?? viewColumns[0];
     // Renewal isn't a Domain field — sort it from the pricing map.
     const valueOf = (d: Domain): SortValue | null => {
       if (sortKey === RENEWAL) {
@@ -1463,7 +1578,7 @@ export default function Domains() {
     return sortRows(rows, valueOf, sortDir);
   }, [
     shown,
-    columns,
+    viewColumns,
     portfolioRegistrarLabels,
     search,
     tld,
@@ -1478,6 +1593,15 @@ export default function Domains() {
     priceMin,
     priceMax,
     listPrices,
+    purchases,
+    createdFrom,
+    createdTo,
+    expiresFrom,
+    expiresTo,
+    purchasedFrom,
+    purchasedTo,
+    soldFrom,
+    soldTo,
     archiveView,
     archiveLabelOf,
     sortKey,
@@ -1714,7 +1838,7 @@ export default function Domains() {
     return col.render(d, portfolioRegistrarLabels);
   };
   const dataColumns: DataColumn<Domain>[] = [];
-  for (const col of tableColumns) {
+  for (const col of viewColumns) {
     dataColumns.push({
       key: col.key,
       label: col.label,

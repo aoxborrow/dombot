@@ -3,6 +3,7 @@ import { CircleX, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { calendarDay, yearBounds, yearPreset } from '../../lib/date-range';
 import { MoneyInput } from '../domains/MoneyInput';
 import { stopMenuKeys } from './FilterBar';
 
@@ -144,6 +145,123 @@ export function RangeInputs({
       {min !== '' && max !== '' && Number(min) > Number(max) && (
         <p className="text-xs text-destructive">Min is above max.</p>
       )}
+    </div>
+  );
+}
+
+// Same size and focus as the money range, wide enough for a native date
+// control and its picker icon.
+const COMPACT_DATE = cn(
+  'h-8 w-[10.5rem] rounded-[6px] bg-muted px-2 text-[13px] shadow-none dark:bg-background dark:[color-scheme:dark]',
+  'focus-visible:border-[#337544] focus-visible:ring-0',
+);
+
+/**
+ * From / To dates for a filter chip's dropdown. Either can be blank.
+ * Both days count. From after To is called out, same as a price range
+ * whose min is above its max.
+ */
+export function DateRangeInputs({
+  label,
+  from,
+  to,
+  onChange,
+}: {
+  label: string;
+  /** `YYYY-MM-DD`, or "" when that side is unbounded. */
+  from: string;
+  to: string;
+  onChange: (from: string, to: string) => void;
+}) {
+  const lo = calendarDay(from);
+  const hi = calendarDay(to);
+  return (
+    <div
+      className="flex flex-col gap-1.5 p-1.5"
+      onKeyDown={(e) => {
+        stopMenuKeys(e);
+        // Arrow keys step the date. They must not move the menu's highlight.
+        if (e.key.startsWith('Arrow')) e.stopPropagation();
+      }}
+    >
+      <div className="flex items-center gap-1.5">
+        <Input
+          type="date"
+          value={from}
+          max={hi ?? undefined}
+          aria-label={`From ${label}`}
+          onChange={(e) => onChange(e.target.value, to)}
+          className={COMPACT_DATE}
+        />
+        <span className="text-muted-foreground" aria-hidden>
+          {'→'}
+        </span>
+        <Input
+          type="date"
+          value={to}
+          min={lo ?? undefined}
+          aria-label={`To ${label}`}
+          onChange={(e) => onChange(from, e.target.value)}
+          className={COMPACT_DATE}
+        />
+      </div>
+      {lo && hi && lo > hi && (
+        <p className="text-xs text-destructive">From is after To.</p>
+      )}
+      <YearButtons from={from} to={to} onChange={onChange} />
+    </div>
+  );
+}
+
+// The set-filter green, same tint as a filter chip that has a value.
+const YEAR_ON = cn(
+  'border-[#4f9d6b] bg-[#f1f8f3] text-[#3a5644]',
+  'dark:border-[#4f9d6b]/70 dark:bg-[#4f9d6b]/15 dark:text-[#c5e4d0]',
+);
+
+/**
+ * This year and Last year, under the date fields. A click fills both
+ * ends of that calendar year. The one that matches the boxes is filled in.
+ */
+function YearButtons({
+  from,
+  to,
+  onChange,
+}: {
+  from: string;
+  to: string;
+  onChange: (from: string, to: string) => void;
+}) {
+  const today = new Date();
+  const selected = yearPreset(from, to, today);
+  const years = [
+    { id: 'this' as const, label: 'This year', year: today.getFullYear() },
+    { id: 'last' as const, label: 'Last year', year: today.getFullYear() - 1 },
+  ];
+  return (
+    <div className="flex gap-1.5">
+      {years.map((y) => {
+        const on = selected === y.id;
+        return (
+          <button
+            key={y.id}
+            type="button"
+            aria-pressed={on}
+            onClick={() => {
+              const bounds = yearBounds(y.year);
+              onChange(bounds.from, bounds.to);
+            }}
+            className={cn(
+              'h-7 flex-1 rounded-[6px] border text-[13px] transition-colors',
+              on
+                ? YEAR_ON
+                : 'border-input bg-muted text-muted-foreground hover:border-[#a3a3a3] hover:text-foreground dark:bg-background dark:hover:border-muted-foreground/70',
+            )}
+          >
+            {y.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
