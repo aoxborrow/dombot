@@ -62,14 +62,100 @@ function PurchaseCell({
 }
 
 /**
- * Money columns for the Domains table: Archive gets the sold date and
- * amount, Owned gets the BIN price and minimum offer. What you paid is edited
- * from the row menu (Purchase details).
+ * The purchase date. A click opens Purchase details. Archive shows this
+ * all the time; Active shows it only while the Purchased filter is set.
+ */
+export function purchaseDateColumn(
+  purchases: Record<string, DomainPurchase>,
+  onEdit?: (domain: Domain) => void,
+): PurchaseColumn {
+  return {
+    key: 'purchaseDate',
+    label: 'Purchased',
+    hideOnMobile: true,
+    render: (d) => {
+      const date = recordOf(purchases, d)?.purchaseDate;
+      const text = date || '—';
+      if (!onEdit) {
+        return (
+          <span className={!date ? 'text-muted-foreground' : undefined}>
+            {text}
+          </span>
+        );
+      }
+      return (
+        <PurchaseCell
+          domain={d}
+          onEdit={onEdit}
+          empty={!date}
+          editLabel="Purchase details"
+        >
+          {text}
+        </PurchaseCell>
+      );
+    },
+    sortValue: (d) => recordOf(purchases, d)?.purchaseDate ?? null,
+  };
+}
+
+/** What you paid. Sits beside Purchased, the same way Sold for sits beside Sold. */
+export function purchaseAmountColumn(
+  purchases: Record<string, DomainPurchase>,
+  preferredCurrency: string,
+  numberFormat: NumberFormatId,
+  onEdit?: (domain: Domain) => void,
+): PurchaseColumn {
+  return {
+    key: 'purchaseAmount',
+    label: 'Purchased for',
+    align: 'right',
+    render: (d) => {
+      const record = recordOf(purchases, d);
+      const text =
+        record?.amount && record.currency
+          ? formatMoney(
+              record.amount,
+              record.currency,
+              preferredCurrency,
+              numberFormat,
+            )
+          : null;
+      const shown = text || '—';
+      if (!onEdit) {
+        return (
+          <span className={!text ? 'text-muted-foreground' : undefined}>
+            {shown}
+          </span>
+        );
+      }
+      return (
+        <PurchaseCell
+          domain={d}
+          onEdit={onEdit}
+          align="right"
+          empty={!text}
+          editLabel="Purchase details"
+        >
+          {shown}
+        </PurchaseCell>
+      );
+    },
+    sortValue: (d) => {
+      const amount = recordOf(purchases, d)?.amount;
+      return amount == null ? null : Number(amount);
+    },
+  };
+}
+
+/**
+ * Money columns for the Domains table: Archive gets the purchase and sale,
+ * Owned gets the BIN price and minimum offer.
  */
 export function purchaseColumns({
   purchases,
   preferredCurrency,
   numberFormat,
+  onEditPurchase,
   onEditSale,
   showSale = false,
   isSold,
@@ -79,8 +165,9 @@ export function purchaseColumns({
   purchases: Record<string, DomainPurchase>;
   preferredCurrency: string;
   numberFormat: NumberFormatId;
+  onEditPurchase?: (domain: Domain) => void;
   onEditSale?: (domain: Domain) => void;
-  /** Archive view: sold date and sold amount. */
+  /** Archive view: purchase date, purchase amount, sold date, sold amount. */
   showSale?: boolean;
   isSold?: (domain: Domain) => boolean;
   /** Owned view: the BIN price and Min offer columns. */
@@ -207,5 +294,17 @@ export function purchaseColumns({
       ]
     : [];
 
-  return [...sale, ...pricing];
+  const bought: PurchaseColumn[] = showSale
+    ? [
+        purchaseDateColumn(purchases, onEditPurchase),
+        purchaseAmountColumn(
+          purchases,
+          preferredCurrency,
+          numberFormat,
+          onEditPurchase,
+        ),
+      ]
+    : [];
+
+  return [...bought, ...sale, ...pricing];
 }
