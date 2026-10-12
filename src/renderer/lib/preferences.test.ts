@@ -15,7 +15,10 @@ describe('parsePreferences', () => {
       sortDir: 'desc',
       density: 'compact',
     };
-    expect(parsePreferences(JSON.stringify(stored))).toEqual(stored);
+    expect(parsePreferences(JSON.stringify(stored))).toEqual({
+      ...stored,
+      columnLayouts: {},
+    });
   });
 
   it('falls back per field, keeping the valid ones', () => {
@@ -25,6 +28,28 @@ describe('parsePreferences', () => {
       sortKey: 'renewal',
       sortDir: DEFAULT_PREFERENCES.sortDir,
       density: DEFAULT_PREFERENCES.density,
+      columnLayouts: {},
     });
+  });
+
+  it('keeps column layouts shaped like one and drops the rest', () => {
+    const layout = {
+      order: ['domainName', 'registrar'],
+      hidden: ['registrar'],
+    };
+    const stored = {
+      columnLayouts: {
+        'domains.active': layout,
+        'domains.archive': { order: 'nope', hidden: [] },
+        other: { order: [1], hidden: [] },
+      },
+    };
+    expect(parsePreferences(JSON.stringify(stored)).columnLayouts).toEqual({
+      'domains.active': layout,
+    });
+    expect(
+      parsePreferences(JSON.stringify({ columnLayouts: [layout] }))
+        .columnLayouts,
+    ).toEqual({});
   });
 });

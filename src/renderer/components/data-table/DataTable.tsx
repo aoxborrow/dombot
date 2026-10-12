@@ -16,6 +16,7 @@ import {
   type Preferences,
 } from '../../lib/preferences';
 import { paginate, rangeKeys, type SortDir } from './table-state';
+import { applyColumnLayout, type ColumnLayout } from './column-layout';
 import { cn } from '@/lib/utils';
 import {
   SegmentedControl,
@@ -43,6 +44,12 @@ import {
 export interface DataColumn<T> {
   key: string;
   label: ReactNode;
+  /** The column's name as text, for the column picker when `label` isn't a string. */
+  title?: string;
+  /** With a layout: always shown, first, and not movable. */
+  locked?: boolean;
+  /** With a layout: off until the column picker turns it on. */
+  defaultHidden?: boolean;
   cell: (row: T) => ReactNode;
   /** Clicking the header sorts by `key` (default true). */
   sortable?: boolean;
@@ -76,7 +83,7 @@ export interface TableSelection<T> {
  */
 export function DataTable<T>({
   rows,
-  columns,
+  columns: allColumns,
   rowKey,
   sort,
   onSort,
@@ -89,8 +96,11 @@ export function DataTable<T>({
   empty,
   className,
   density: fixedDensity,
+  layout,
+  forceVisible,
 }: {
   rows: T[];
+  /** Every column, in default order. With a `layout`, it picks and orders them. */
   columns: DataColumn<T>[];
   rowKey: (row: T) => string;
   sort: { key: string; dir: SortDir };
@@ -108,7 +118,14 @@ export function DataTable<T>({
   className?: string;
   /** A fixed density: ignores the preference and hides its switch. */
   density?: Preferences['density'];
+  /** Which columns show and in what order (see ColumnPicker / useColumnLayout). */
+  layout?: ColumnLayout;
+  /** Columns shown even while the layout hides them, e.g. one being filtered. */
+  forceVisible?: readonly string[];
 }) {
+  const columns = layout
+    ? applyColumnLayout(allColumns, layout, forceVisible)
+    : allColumns;
   const preferred = usePreferences((s) => s.density);
   const density = fixedDensity ?? preferred;
   const setPreferences = usePreferences((s) => s.setPreferences);
