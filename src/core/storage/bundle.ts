@@ -24,6 +24,7 @@ import {
   cleanNote,
 } from '../services/domain-events';
 import { CREDENTIALS_NAMESPACE, RENEWAL_PRICES_NAMESPACE } from './names';
+import { FOR_SALE_NAMESPACE, cleanForSale } from '../services/for-sale';
 import { LIST_PRICES_NAMESPACE, cleanListPrice } from '../services/list-prices';
 import { cleanRenewalPrice } from '../services/pricing';
 import {
@@ -181,6 +182,13 @@ export function parseBundle(text: string): DataBundle {
       IMPORTED_DOMAINS_NAMESPACE,
       imported,
       cleanImportedDomain,
+    );
+  const forSale = head.namespaces[FOR_SALE_NAMESPACE];
+  if (forSale)
+    head.namespaces[FOR_SALE_NAMESPACE] = cleanEntries(
+      FOR_SALE_NAMESPACE,
+      forSale,
+      cleanForSale,
     );
   const listPrices = head.namespaces[LIST_PRICES_NAMESPACE];
   if (listPrices)

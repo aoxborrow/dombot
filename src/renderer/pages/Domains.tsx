@@ -1,3 +1,4 @@
+import { matchesSaleFilter, type SaleFilter } from '../../shared/for-sale';
 import { accountNumber, accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
@@ -16,6 +17,7 @@ import {
   Server,
   ShieldBan,
   ShieldCheck,
+  Tag,
   Upload,
 } from 'lucide-react';
 import type {
@@ -74,6 +76,7 @@ import {
   EventTypeBadge,
   EventTypeDot,
 } from '../components/activity/EventTypeBadge';
+import { ForSaleCheckbox } from '../components/domains/ForSaleCheckbox';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { purchaseColumns } from '../components/domains/purchase-columns';
@@ -540,6 +543,7 @@ const VIEW_COLUMNS: Record<'active' | 'archive', ColumnLayout> = {
     order: [
       'domainName',
       FOLDER,
+      'forSale',
       'binPrice',
       'minOffer',
       'registrar',
@@ -808,6 +812,8 @@ export default function Domains() {
     bulk,
     purchases,
     listPrices,
+    forSale,
+    setForSale,
     importedDomains,
     settings,
     domainEvents,
@@ -1044,6 +1050,7 @@ export default function Domains() {
   });
   const [ns, setNs] = useState<string[]>([]);
   const [folder, setFolder] = useState<string[]>([]);
+  const [saleFilter, setSaleFilter] = useState<string[]>([]);
   // Owned only: names with or without an asking price.
   // BIN price range ("" is unbounded). A name without a price counts as $0,
   // so a max of 0 finds the unpriced ones.
@@ -1331,6 +1338,40 @@ export default function Domains() {
     });
   const purchaseOf = (d: Domain) => purchases[toAscii(d.domainName)];
   const filterFields: FilterField[] = [
+    ...(!archiveView
+      ? [
+          listFilter(
+            {
+              key: 'forSale',
+              label: 'For sale',
+              icon: Tag,
+              options: [
+                {
+                  value: 'for-sale',
+                  label: 'For sale',
+                  count: listed.filter(
+                    (d) =>
+                      !archiveLabelOf(d) &&
+                      matchesSaleFilter(d.domainName, forSale, 'for-sale'),
+                  ).length,
+                },
+                {
+                  value: 'not-for-sale',
+                  label: 'Not for sale',
+                  count: listed.filter(
+                    (d) =>
+                      !archiveLabelOf(d) &&
+                      matchesSaleFilter(d.domainName, forSale, 'not-for-sale'),
+                  ).length,
+                },
+              ],
+              selected: saleFilter,
+              plural: 'states',
+            },
+            setSaleFilter,
+          ),
+        ]
+      : []),
     listFilter(
       {
         key: 'registrar',
@@ -1505,6 +1546,7 @@ export default function Domains() {
 
   function setListView(next: 'owned' | 'archive') {
     setFolder([]);
+    setSaleFilter([]);
     setPriceMin('');
     setPriceMax('');
     // Created is Active only and Sold is Archive only; neither waits,
@@ -1523,6 +1565,14 @@ export default function Domains() {
     const q = search.trim().toLowerCase();
     const rows = shown.filter((d) => {
       if (q && !d.domainName.toLowerCase().includes(q)) return false;
+      if (
+        !archiveView &&
+        saleFilter.length > 0 &&
+        !saleFilter.some((filter) =>
+          matchesSaleFilter(d.domainName, forSale, filter as SaleFilter),
+        )
+      )
+        return false;
       if (tld.length > 0 && !tld.includes(tldOf(d.domainName))) return false;
       // The "Registrar" filter picks individual accounts (by account id), or
       // the names you added by their registrar.
@@ -1587,6 +1637,8 @@ export default function Domains() {
     const col = columnByKey.get(sortKey) ?? columnByKey.get('domainName');
     // Renewal isn't a Domain field — sort it from the pricing map.
     const valueOf = (d: Domain): SortValue | null => {
+      if (sortKey === 'forSale')
+        return Number(forSale[toAscii(d.domainName)] === true);
       if (sortKey === RENEWAL) {
         return pricing[domainKey(d)]?.renewal ?? null;
       }
@@ -1619,6 +1671,8 @@ export default function Domains() {
     priceMin,
     priceMax,
     listPrices,
+    forSale,
+    saleFilter,
     purchases,
     created,
     expires,
@@ -1751,6 +1805,7 @@ export default function Domains() {
         registrarLabels: portfolioRegistrarLabels,
         folders,
         assignments: folderAssignments,
+        forSale,
         purchases,
         listPrices,
         pricing,
@@ -1862,6 +1917,12 @@ export default function Domains() {
   // Every column this tab can show, in default order; the saved layout picks
   // and orders them.
   const dataColumn = (key: string): Omit<DataColumn<Domain>, 'key'> => {
+    if (key === 'forSale')
+      return {
+        label: 'For sale',
+        align: 'center',
+        cell: (d) => <ForSaleCheckbox domainName={d.domainName} />,
+      };
     if (key === FOLDER)
       return {
         label: archiveView ? 'Status' : 'Folder',
@@ -2005,7 +2066,11 @@ export default function Domains() {
             }}
             searchPlaceholder="Search domains…"
             fields={filterFields}
-            presets={['registrar', 'tld', 'folder']}
+            presets={
+              archiveView
+                ? ['registrar', 'tld', 'folder']
+                : ['registrar', 'tld', 'folder', 'forSale']
+            }
           >
             {exportNote && (
               <span
@@ -2030,6 +2095,12 @@ export default function Domains() {
           folders={folders}
           onClear={clearSelection}
           onRefresh={bulkRefresh}
+          onForSale={(enabled) => {
+            void setForSale(
+              selectedDomains.map((d) => d.domainName),
+              enabled,
+            ).catch((error) => toast.error(String(error)));
+          }}
           onExport={() => void exportCsv(selectedDomains)}
           onAssignFolder={(folderId) => applyFolders(selectedDomains, folderId)}
           onNotes={() => setBulkNotesFor(selectedDomains)}

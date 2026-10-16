@@ -163,6 +163,7 @@ connected account reports.
 | Column                      | Imported               | Notes                                                                          |
 | --------------------------- | ---------------------- | ------------------------------------------------------------------------------ |
 | `Domain`                    | required               | ASCII (punycode). Import also takes Unicode, any case, and URL forms.          |
+| `For sale`                  | yes                    | Yes/No portfolio flag, independent of BIN price; blank keeps the current value |
 | `IDN`                       | when `Domain` is blank | the Unicode spelling, written only for internationalized names                 |
 | `Status`                    | yes                    | `Owned`, `Sold`, `Dropped`, `Archived`, `Removed` (Archive's Status column)    |
 | `Folder`                    | yes                    | a folder name, or `Hidden`; missing folders are created                        |
@@ -284,8 +285,8 @@ interface ListPrice {
 - **At least one amount is set.** Clearing all three deletes the record.
 - **A minimum offer or floor** can't be above the BIN price. A zero reads as
   blank.
-- **"Allow offers" and "for sale" aren't stored.** A name with a BIN price is
-  for sale, and a minimum offer (or no BIN price) means offers are welcome.
+- **"Allow offers" is not stored.** The separate **For sale** checkbox is
+  stored independently of BIN price, minimum offer, and floor price.
 - **Bundle checks.** `cleanListPrice` re-checks entries read from a bundle,
   the way `cleanEvent` does for events.
 
@@ -639,6 +640,7 @@ dropped; spaces and punctuation stripped.
 | Domain               | `Domain`            | domain name, name, domains, `*Name (Required)`, `Domain Name REQUIRED`, domain_name                                             |
 | Domain (fallback)    | `IDN`               | international domain name, punycode, unicode, `Domain Name (ACE)`                                                               |
 | Status               | `Status`            | ownership; only matched when most values are ownership words (Hexonet's `ACTIVE clientTransferProhibited` is a registry status) |
+| For sale             | `For sale`          | for_sale; explicit Yes/No, with blank preserving the existing flag |
 | Folder               | `Folder`            | folder name, group, groupname, FolderMemberships (takes the first folder, with a warning when there are several)                |
 | Registrar            | `Registrar`         | registrar name, sponsoring registrar                                                                                            |
 | Created              | `Created`           | create date, created date, creation date, registration date, date registered, registered on                                     |
@@ -663,7 +665,8 @@ dropped; spaces and punctuation stripped.
 
 Some columns aren't read yet:
 
-- `For sale`, `Listed`, and `Listing Status`: there's no listing status.
+- `Listed` and `Listing Status`: marketplace listing status is not imported.
+  `For sale` is imported as an explicit Yes/No portfolio flag.
 - `Sold Net` and other net or fee columns wait for venues and fees (#109).
 
 ## Appendix B: known formats
@@ -674,7 +677,7 @@ headers.
 | Source                            | Imports                                                                                                   | Quirks                                                                                                                                                                          |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | DomBot export or template         | everything in the format                                                                                  | exact headers, so no matching step                                                                                                                                              |
-| Previous app export or template   | names, purchase, sale, renewal price, BIN price (`Price`), minimum offer, floor, notes                    | one `Currency` for every amount; `Sold Net` isn't read yet; the landing-page, `For Sale`, `Allow Offers`, and installment columns are ignored                                   |
+| Previous app export or template   | names, purchase, sale, renewal price, BIN price (`Price`), minimum offer, floor, For sale (Yes/No), notes                    | one `Currency` for every amount; `Sold Net` isn't read yet; the landing-page, `Allow Offers`, and installment columns are ignored                                   |
 | GoDaddy                           | names, created, expires, auto-renew, folder, renewal price; Registrar is GoDaddy                          | renewal prices written as `$ 18.99`; the contact columns are personal data and are never read; `Estimated Value` isn't a price you set; `Ownership Date` is left for you to map |
 | Dynadot                           | names, created, expires, auto-renew, folder, notes; Registrar is Dynadot                                  | a UTF-8 BOM; dates like `2021/11/24 11:43 PST` (take the date as written); `Registration Date` appears twice, the second time as an epoch; `(no folder)`                        |
 | Namecheap                         | names, expires, auto-renew; Registrar is Namecheap                                                        | dates like `Dec 13 2021`; `ON` and `OFF`                                                                                                                                        |
@@ -687,3 +690,22 @@ headers.
 | Afternic 2.0 export               | names, BIN price (`Buy Now Price`), minimum offer, floor                                                  | `0` means not set; `Listing Status` isn't read yet                                                                                                                              |
 | Sedo export                       | names, BIN price (`Price`), minimum offer, currency; Registrar from its legal name                        | semicolons; `Currency` appears twice; `Price Option` is ignored                                                                                                                 |
 | Uniregistry template (historical) | names, BIN price (`price`)                                                                                | instruction lines before the data; `for_sale` isn't read yet                                                                                                                    |
+
+## For-sale metadata
+
+`For sale` is a per-domain portfolio checkbox, independent of asking price,
+folder, ownership status and registrar settings. Existing and new domains start
+unchecked; no price or folder automatically marks a domain for sale. Bulk marking
+is available in the Domains table. The Active filter offers For sale and Not for
+sale; clearing it shows all domains. Changing the checkbox never lists a domain
+on a marketplace or changes registrar settings.
+
+Renewals offers All domains, For sale and Not for sale views. Account selection
+combines with the view, and all totals, charts and the dated renewal list use the
+same domain set. Archived names do not contribute, even if their saved flag is on.
+
+The flag lives in the `domain-for-sale` namespace, keyed by normalized name. It
+survives sync, cache clearing and account moves, is included in full backups and
+CSV export, and is removed by Delete domain. CSV Yes/No changes it explicitly;
+a missing/blank cell preserves the existing value. Older backups restore with
+all flags unset. Older Dombot releases do not understand this new namespace.

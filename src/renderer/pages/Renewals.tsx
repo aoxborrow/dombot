@@ -1,3 +1,8 @@
+import { utcDay } from '../lib/date-range';
+import { type SaleFilter } from '../../shared/for-sale';
+import { ownershipByDomain } from '../../shared/ownership';
+import { ViewSwitch } from '../components/data-table/Toolbar';
+import { Link } from 'react-router-dom';
 import { accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
@@ -13,6 +18,9 @@ import { importedRows } from '../../shared/imported-domains';
 import { useAppStore } from '../store/app';
 import {
   dueWithin,
+  renewalScope,
+  renewalDate,
+  priceMoney,
   groupBy,
   mainCurrency,
   priceOf,
@@ -117,6 +125,8 @@ export default function Renewals() {
   const {
     portfolio: syncedDomains,
     importedDomains,
+    forSale,
+    domainEvents,
     portfolioLoadedAt,
     portfolioRegistrarLabels,
     pricing,
@@ -129,6 +139,16 @@ export default function Renewals() {
     [syncedDomains, importedDomains],
   );
   const [account, setAccount] = useState('all');
+  const [saleView, setSaleView] = useState<SaleFilter>('all');
+  const archived = useMemo(
+    () =>
+      new Set(
+        [...ownershipByDomain(domainEvents)]
+          .filter(([, value]) => value.label)
+          .map(([name]) => name),
+      ),
+    [domainEvents],
+  );
   const accounts = useAppStore((s) => s.registrars);
   const multipleAccounts = useMemo(
     () => multiAccountRegistrars(accounts, allDomains),
@@ -137,10 +157,37 @@ export default function Renewals() {
   const showAccountDetails = multipleAccounts.size > 0;
   const portfolio = useMemo(
     () =>
-      !showAccountDetails || account === 'all'
-        ? allDomains
-        : allDomains.filter((d) => (d.accountId ?? d.registrar) === account),
-    [allDomains, account, showAccountDetails],
+      renewalScope(
+        allDomains,
+        forSale,
+        saleView,
+        showAccountDetails ? account : 'all',
+        archived,
+      ),
+    [allDomains, forSale, saleView, account, showAccountDetails, archived],
+  );
+  const saleViews: { id: SaleFilter; label: string }[] = [
+    { id: 'all', label: 'All domains' },
+    { id: 'for-sale', label: 'For sale' },
+    { id: 'not-for-sale', label: 'Not for sale' },
+  ];
+  const saleSwitch = (
+    <ViewSwitch
+      label="Renewal view"
+      className="self-start"
+      options={saleViews.map((view) => ({
+        ...view,
+        active: saleView === view.id,
+        onClick: () => setSaleView(view.id),
+        count: renewalScope(
+          allDomains,
+          forSale,
+          view.id,
+          showAccountDetails ? account : 'all',
+          archived,
+        ).length,
+      }))}
+    />
   );
   const accountFilter = showAccountDetails && (
     <label className="flex items-center gap-3 text-sm">
@@ -247,13 +294,19 @@ export default function Renewals() {
     return (
       <div className="mx-auto max-w-[1400px]">
         <PageHeader loading={pricingLoading} summary={summary} />
+        {saleSwitch}
         {accountFilter}
         <Empty className="mt-6 rounded-lg border border-dashed">
           <EmptyHeader>
-            <EmptyTitle>No portfolio loaded</EmptyTitle>
+            <EmptyTitle>
+              {allDomains.length
+                ? 'No domains match this view'
+                : 'No portfolio loaded'}
+            </EmptyTitle>
             <EmptyDescription>
-              Load your domains on the Domains tab first — the renewals
-              dashboard is built from that portfolio.
+              {allDomains.length
+                ? 'Mark domains with the For sale checkbox, or choose another view or account.'
+                : 'Load your domains on the Domains tab first.'}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -266,7 +319,10 @@ export default function Renewals() {
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-6">
       <PageHeader loading={pricingLoading} summary={summary} />
-      {accountFilter}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {saleSwitch}
+        {accountFilter}
+      </div>
 
       {/* Totals */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -302,6 +358,66 @@ export default function Renewals() {
       {/* Spend over time — sits between the totals and the composition donuts so
           the two rows of three never read as paired. */}
       <MonthlyBarChart months={months} fmt={usd} />
+
+      {saleView !== 'all' && (
+        <section className="rounded-lg border p-4">
+          <h2 className="mb-3 text-lg font-semibold">
+            {saleView === 'for-sale'
+              ? 'For-sale renewals'
+              : 'Not-for-sale renewals'}
+          </h2>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Renewal dates and expiry dates for this view. Undated domains appear
+            last.
+          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Domain</TableHead>
+                <TableHead>Renews</TableHead>
+                <TableHead>Expires</TableHead>
+                <TableHead className="text-right">Annual renewal</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[...portfolio]
+                .sort(
+                  (a, b) =>
+                    (renewalDate(a)?.getTime() ?? Infinity) -
+                      (renewalDate(b)?.getTime() ?? Infinity) ||
+                    a.domainName.localeCompare(b.domainName),
+                )
+                .map((d) => {
+                  const p = priceOf(d, pricing);
+                  return (
+                    <TableRow key={domainKey(d)}>
+                      <TableCell>
+                        <Link
+                          className="font-mono hover:underline"
+                          to={`/?q=${encodeURIComponent(d.domainName)}`}
+                        >
+                          {d.domainName}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        {renewalDate(d)?.toISOString().slice(0, 10) ??
+                          'Unknown'}
+                      </TableCell>
+                      <TableCell>
+                        {utcDay(d.expirationDate) ?? 'Unknown'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {p?.renewal != null
+                          ? priceMoney(p.renewal, p.currency)
+                          : 'Unpriced'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+            </TableBody>
+          </Table>
+        </section>
+      )}
 
       {/* Composition: two pairs (count + spend), one row per dimension. */}
       <div className="grid gap-4 md:grid-cols-2">
@@ -366,7 +482,7 @@ function PageHeader({
             ? `Pricing… ${summary.priced}/${summary.total}`
             : summary.priced > 0
               ? `Forward-looking renewal costs · ${summary.priced}/${summary.total} priced`
-              : 'Annual renewal costs across your whole portfolio.'}
+              : 'Annual renewal costs for the selected view.'}
         </p>
       </div>
     </div>

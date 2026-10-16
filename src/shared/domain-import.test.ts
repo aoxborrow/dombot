@@ -497,3 +497,15 @@ describe('the template', () => {
     });
   });
 });
+
+it('reads explicit for-sale No and retains it when duplicate rows merge', () => {
+  const result = run(
+    'Domain,For sale\nexample.com,Yes\nexample.com,No\nexample.net,\n',
+  );
+  expect(result.rows.find((r) => r.domain === 'example.com')?.forSale).toBe(
+    false,
+  );
+  expect(
+    result.rows.find((r) => r.domain === 'example.net')?.forSale,
+  ).toBeUndefined();
+});

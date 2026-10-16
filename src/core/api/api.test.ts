@@ -188,3 +188,45 @@ describe('contract', () => {
     }
   });
 });
+
+describe('for-sale API', () => {
+  it('persists bulk changes across hydration and preserves unrelated flags', async () => {
+    await invoke('setForSale', coreMethods.setForSale, [
+      ['EXAMPLE.COM', 'bücher.de', 'keep.com'],
+      true,
+    ]);
+    await invoke('setForSale', coreMethods.setForSale, [
+      ['example.com', 'EXAMPLE.COM'],
+      false,
+    ]);
+    await flushWrites();
+    await hydrateStores();
+    expect(await invoke('getForSale', coreMethods.getForSale, [])).toEqual({
+      'example.com': false,
+      'xn--bcher-kva.de': true,
+      'keep.com': true,
+    });
+  });
+
+  it('rejects malformed wire requests without partial writes', async () => {
+    await invoke('setForSale', coreMethods.setForSale, [['keep.com'], true]);
+    await expect(
+      invoke('setForSale', coreMethods.setForSale, [
+        ['example.com', 'not a domain'],
+        true,
+      ]),
+    ).rejects.toThrow('is not a domain name');
+    for (const args of [
+      [['example.com'], 'false'],
+      [['example.com'], null],
+      [Array(10001).fill('example.com'), true],
+    ]) {
+      await expect(
+        invoke('setForSale', coreMethods.setForSale, args),
+      ).rejects.toBeInstanceOf(ApiValidationError);
+    }
+    expect(await invoke('getForSale', coreMethods.getForSale, [])).toEqual({
+      'keep.com': true,
+    });
+  });
+});

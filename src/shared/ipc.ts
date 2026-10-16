@@ -124,6 +124,8 @@ export interface ProxyTestResult {
 
 /** Channel identifiers for `ipcRenderer.invoke` / `ipcMain.handle`. */
 export const IpcChannels = {
+  getForSale: 'forSale:list',
+  setForSale: 'forSale:set',
   ping: 'app:ping',
   getAppInfo: 'app:getAppInfo',
   getReleaseFeed: 'app:getReleaseFeed',
@@ -444,6 +446,7 @@ export interface RenewalPriceInput {
  * in stored form; an absent field was blank in the file and means "keep".
  */
 export interface ImportRow {
+  forSale?: boolean;
   /** The file line the row came from (the first, when rows were merged). */
   line: number;
   /** `toAscii(name)`. */
@@ -891,6 +894,11 @@ export interface FoldersSnapshot {
  * methods here and they become type-checked on both sides of the bridge.
  */
 export interface DombotApi {
+  getForSale: () => Promise<Record<string, boolean>>;
+  setForSale: (
+    domains: string[],
+    enabled: boolean,
+  ) => Promise<Record<string, boolean>>;
   ping: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
   /**

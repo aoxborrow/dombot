@@ -21,6 +21,7 @@ import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import type { RenewalPrice } from '../../shared/renewal-prices';
 import { toCurrencyCode, type CurrencyCode } from '../../shared/currencies';
 import { broadcastPortfolioChanged } from '../events';
+import { getForSale, setForSale } from './for-sale';
 import { getListPrices, setListPrices } from './list-prices';
 import {
   deleteDomainEvents,
@@ -91,6 +92,7 @@ const listPriceText = (p: ListPrice | null | undefined) =>
 
 /** What an apply writes, gathered while planning. */
 interface Writes {
+  forSale: [string, boolean][];
   imported: [string, ImportedDomain][];
   events: DomainEvent[];
   deleteEvents: string[];
@@ -108,6 +110,7 @@ function compute(
   now: number,
 ): { plan: ImportPlan; writes: Writes } {
   const writes: Writes = {
+    forSale: [],
     imported: [],
     events: [],
     deleteEvents: [],
@@ -144,6 +147,7 @@ function compute(
   const newFolders = new Map<string, string>();
   const renewals = getManualPrices();
   const listPrices = getListPrices();
+  const forSale = getForSale();
 
   const fresh = (fields: Omit<DomainEvent, 'id' | 'createdAt' | 'updatedAt'>) =>
     newEvent(
@@ -167,6 +171,14 @@ function compute(
         to: to === null || to === undefined ? null : String(to),
       });
 
+    if (row.forSale !== undefined && row.forSale !== (forSale[key] === true)) {
+      change(
+        'For sale',
+        forSale[key] === true ? 'Yes' : 'No',
+        row.forSale ? 'Yes' : 'No',
+      );
+      writes.forSale.push([key, row.forSale]);
+    }
     const account = held.get(key);
     const entry = imported[key];
     const own = ownership.get(key);
@@ -628,6 +640,13 @@ export function importDomains(
 ): ImportPlan & { importId: string } {
   const { plan, writes } = compute(rows, options.importId, Date.now());
 
+  for (const enabled of [true, false])
+    setForSale(
+      writes.forSale
+        .filter(([, value]) => value === enabled)
+        .map(([name]) => name),
+      enabled,
+    );
   putImportedDomains(writes.imported);
   if (writes.deleteEvents.length > 0) deleteDomainEvents(writes.deleteEvents);
   if (writes.events.length > 0) putEvents(writes.events);

@@ -220,6 +220,9 @@ interface AppState {
   ) => Promise<void>;
 
   /** Asking prices keyed by normalized domain name. */
+  forSale: Record<string, boolean>;
+  loadForSale: () => Promise<void>;
+  setForSale: (domains: string[], enabled: boolean) => Promise<void>;
   listPrices: Record<string, ListPrice>;
   loadListPrices: () => Promise<void>;
   /** Set or clear (all amounts blank) asking prices in one write. */
@@ -417,6 +420,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().loadFolders(),
       get().loadPurchases(),
       get().loadListPrices(),
+      get().loadForSale(),
       get().loadPricing(),
       get().loadRegistrars(),
     ]).then(() => undefined);
@@ -777,6 +781,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     void get().loadPricing();
   },
+  forSale: {},
+  loadForSale: async () => {
+    set({ forSale: await window.api.getForSale() });
+  },
+  setForSale: async (domains, enabled) => {
+    await window.api.setForSale(domains, enabled);
+    await get().loadForSale();
+  },
   listPrices: {},
   loadListPrices: async () => {
     set({ listPrices: await window.api.getListPrices() });
@@ -837,6 +849,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().loadFolders(),
       get().loadPricing(),
       get().loadListPrices(),
+      get().loadForSale(),
       get().loadImportedDomains(),
     ]);
   },
