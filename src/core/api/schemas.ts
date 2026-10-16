@@ -124,6 +124,7 @@ const currencyCode = z.string().regex(/^[A-Z]{3}$/);
 
 export const importRow = z
   .object({
+    forSale: z.boolean().optional(),
     line: z.number().int().min(0),
     domain: z.string().trim().min(1).max(253),
     status: z

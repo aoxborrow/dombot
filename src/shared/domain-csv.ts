@@ -22,6 +22,7 @@ import type { ArchiveLabel } from './ownership';
 
 /** What the export needs besides the rows themselves. */
 export interface DomainCsvContext {
+  forSale?: Record<string, boolean>;
   /** Registrar id → display name ("dynadot" → "Dynadot"). */
   registrarLabels: Record<string, string>;
   folders: Folder[];
@@ -107,6 +108,11 @@ const manualPrice = (r: NameRow) => r.ctx.manualPrices[r.key];
 /** The columns, in file order (see the plan's "Columns" table). */
 export const DOMAIN_CSV_COLUMNS: DomainCsvColumn[] = [
   { header: 'Domain', importable: true, value: (r) => r.key },
+  {
+    header: 'For sale',
+    importable: true,
+    value: (r) => yesNo(r.ctx.forSale?.[r.key] === true),
+  },
   {
     header: 'IDN',
     importable: true,

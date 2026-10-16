@@ -453,6 +453,7 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
           store.loadFolders(),
           store.loadPricing(),
           store.loadListPrices(),
+          store.loadForSale(),
         ]).catch(() => {});
       }
       setBusy(false);

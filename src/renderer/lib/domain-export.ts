@@ -42,6 +42,7 @@ export async function exportAllDomains(): Promise<number | null> {
     assignments: s.folderAssignments,
     purchases: s.purchases,
     listPrices: s.listPrices,
+    forSale: s.forSale,
     pricing: s.pricing,
     manualPrices: await window.api.getManualPrices(),
     archiveLabel: (name) => ownership.get(name)?.label ?? null,

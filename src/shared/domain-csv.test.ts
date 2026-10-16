@@ -275,3 +275,21 @@ describe('domainsCsvTemplate', () => {
     ]);
   });
 });
+
+it('exports explicit for-sale flags independently of asking prices', () => {
+  const rows = read(
+    domainsToCsv(
+      [
+        domain({ domainName: 'example.com' }),
+        domain({ domainName: 'other.com' }),
+      ],
+      ctx({
+        forSale: { 'example.com': true },
+        listPrices: {
+          'other.com': { amount: '1000', currency: 'USD', updatedAt: NOW },
+        },
+      }),
+    ),
+  );
+  expect(rows.map((r) => r['For sale'])).toEqual(['Yes', 'No']);
+});

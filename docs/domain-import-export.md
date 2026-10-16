@@ -163,6 +163,7 @@ connected account reports.
 | Column                      | Imported               | Notes                                                                          |
 | --------------------------- | ---------------------- | ------------------------------------------------------------------------------ |
 | `Domain`                    | required               | ASCII (punycode). Import also takes Unicode, any case, and URL forms.          |
+| `For sale`                  | yes                    | Yes/No portfolio flag, independent of BIN price; blank keeps the current value |
 | `IDN`                       | when `Domain` is blank | the Unicode spelling, written only for internationalized names                 |
 | `Status`                    | yes                    | `Owned`, `Sold`, `Dropped`, `Archived`, `Removed` (Archive's Status column)    |
 | `Folder`                    | yes                    | a folder name, or `Hidden`; missing folders are created                        |

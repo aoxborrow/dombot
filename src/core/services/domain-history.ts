@@ -23,6 +23,7 @@ import {
 } from './domain-events';
 import { assignFolder } from './folders';
 import { setManualPrice } from './pricing';
+import { deleteForSale } from './for-sale';
 import { deleteListPrices } from './list-prices';
 import { removeImportedDomains, takeOverImported } from './imported-domains';
 import { Namespace } from '../storage/namespace';
@@ -372,6 +373,7 @@ export function deleteDomains(domainNames: string[]): void {
     assignFolder(domain, null);
     setManualPrice(domain, null);
     deleteListPrices([domain]);
+    deleteForSale([domain]);
     removeImportedDomains([domain]);
   }
 }

@@ -63,6 +63,7 @@ export function BulkBar({
   archiveView,
   onOwnership,
   onListPrice,
+  onForSale,
 }: {
   /** The selected domains (merged rows). */
   domains: Domain[];
@@ -81,6 +82,7 @@ export function BulkBar({
   onOwnership: (action: OwnershipAction) => void;
   /** Set or clear the selection's asking price. */
   onListPrice: () => void;
+  onForSale: (enabled: boolean) => void;
 }) {
   const bulk = useAppStore((s) => s.bulk);
   const running = bulk?.status === 'running';
@@ -144,6 +146,17 @@ export function BulkBar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
+            {!archiveView && (
+              <>
+                <DropdownMenuItem onSelect={() => onForSale(true)}>
+                  Mark for sale
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onForSale(false)}>
+                  Mark not for sale
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             {!archiveView && (
               <>
                 <DropdownMenuItem onSelect={onRefresh}>

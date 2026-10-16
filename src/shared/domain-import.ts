@@ -275,6 +275,8 @@ function readRow(
   const status =
     at('status', () => readStatus(cells.status ?? '')) ?? setup.defaults.status;
   if (status) row.status = status;
+  const forSale = at('forSale', () => readBoolean(cells.forSale ?? ''));
+  if (forSale !== null && forSale !== undefined) row.forSale = forSale;
   const folder = cells.folder?.trim().split(/\s*[;|]\s*/)[0];
   const folderName =
     folder && !/^(\(no folder\)|none|-|—)$/i.test(folder)
@@ -391,6 +393,7 @@ type Flat = Record<string, unknown>;
 /** A merge key as a field name for the duplicate warning. */
 const MERGE_FIELD: Record<string, string> = {
   status: 'status',
+  forSale: 'for sale',
   folder: 'folder',
   notes: 'note',
   'registration.registrar': 'registrar',
@@ -414,6 +417,7 @@ function flatten(row: ImportRow): Flat {
     if (value !== undefined) out[key] = value;
   };
   put('status', row.status);
+  put('forSale', row.forSale);
   put('folder', row.folder);
   put('notes', row.notes);
   for (const [k, v] of Object.entries(row.registration ?? {}))
@@ -438,6 +442,7 @@ function unflatten(line: number, domain: string, flat: Flat): ImportRow {
       .map(([k, v]) => [k.slice(prefix.length + 1), v] as const);
     return entries.length > 0 ? Object.fromEntries(entries) : undefined;
   };
+  if (typeof flat.forSale === 'boolean') row.forSale = flat.forSale;
   if (flat.status) row.status = flat.status as ImportRow['status'];
   if (flat.folder) row.folder = flat.folder as string;
   if (flat.notes) row.notes = flat.notes as string;

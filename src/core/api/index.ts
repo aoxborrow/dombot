@@ -1,3 +1,4 @@
+import { broadcastPortfolioChanged } from '../events';
 import { z } from 'zod';
 import type { DombotApi, DomainTarget } from '../../shared/ipc';
 import { clearAll } from '../services/cache';
@@ -32,6 +33,7 @@ import {
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
 import { getReleaseFeed } from '../services/releases';
+import { getForSale, setForSale } from '../services/for-sale';
 import { getListPrices, setListPrices } from '../services/list-prices';
 import { importDomains, planImport } from '../services/domain-import';
 import {
@@ -418,6 +420,15 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   ),
 
   // ── Asking prices ─────────────────────────────────────────────────────────
+  getForSale: method(none, async () => getForSale()),
+  setForSale: method(
+    z.tuple([z.array(s.domainName).max(10000), z.boolean()]),
+    async (domains, enabled) => {
+      setForSale(domains, enabled);
+      broadcastPortfolioChanged();
+      return getForSale();
+    },
+  ),
   getListPrices: method(none, async () => getListPrices()),
   setListPrices: method(z.tuple([s.listPriceInputs]), async (inputs) => {
     setListPrices(inputs);

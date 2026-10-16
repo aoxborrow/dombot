@@ -74,6 +74,7 @@ import {
   EventTypeBadge,
   EventTypeDot,
 } from '../components/activity/EventTypeBadge';
+import { ForSaleCheckbox } from '../components/domains/ForSaleCheckbox';
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { purchaseColumns } from '../components/domains/purchase-columns';
@@ -540,6 +541,7 @@ const VIEW_COLUMNS: Record<'active' | 'archive', ColumnLayout> = {
     order: [
       'domainName',
       FOLDER,
+      'forSale',
       'binPrice',
       'minOffer',
       'registrar',
@@ -808,6 +810,8 @@ export default function Domains() {
     bulk,
     purchases,
     listPrices,
+    forSale,
+    setForSale,
     importedDomains,
     settings,
     domainEvents,
@@ -1587,6 +1591,8 @@ export default function Domains() {
     const col = columnByKey.get(sortKey) ?? columnByKey.get('domainName');
     // Renewal isn't a Domain field — sort it from the pricing map.
     const valueOf = (d: Domain): SortValue | null => {
+      if (sortKey === 'forSale')
+        return Number(forSale[toAscii(d.domainName)] === true);
       if (sortKey === RENEWAL) {
         return pricing[domainKey(d)]?.renewal ?? null;
       }
@@ -1619,6 +1625,7 @@ export default function Domains() {
     priceMin,
     priceMax,
     listPrices,
+    forSale,
     purchases,
     created,
     expires,
@@ -1751,6 +1758,7 @@ export default function Domains() {
         registrarLabels: portfolioRegistrarLabels,
         folders,
         assignments: folderAssignments,
+        forSale,
         purchases,
         listPrices,
         pricing,
@@ -1862,6 +1870,12 @@ export default function Domains() {
   // Every column this tab can show, in default order; the saved layout picks
   // and orders them.
   const dataColumn = (key: string): Omit<DataColumn<Domain>, 'key'> => {
+    if (key === 'forSale')
+      return {
+        label: 'For sale',
+        align: 'center',
+        cell: (d) => <ForSaleCheckbox domainName={d.domainName} />,
+      };
     if (key === FOLDER)
       return {
         label: archiveView ? 'Status' : 'Folder',
@@ -2030,6 +2044,12 @@ export default function Domains() {
           folders={folders}
           onClear={clearSelection}
           onRefresh={bulkRefresh}
+          onForSale={(enabled) => {
+            void setForSale(
+              selectedDomains.map((d) => d.domainName),
+              enabled,
+            ).catch((error) => toast.error(String(error)));
+          }}
           onExport={() => void exportCsv(selectedDomains)}
           onAssignFolder={(folderId) => applyFolders(selectedDomains, folderId)}
           onNotes={() => setBulkNotesFor(selectedDomains)}

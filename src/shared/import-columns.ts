@@ -5,6 +5,7 @@
 
 export type ImportField =
   | 'domain'
+  | 'forSale'
   | 'idn'
   | 'status'
   | 'folder'
@@ -54,6 +55,13 @@ export interface ImportFieldInfo {
 
 /** Every field an import can fill, in the matching step's order. */
 export const IMPORT_FIELDS: ImportFieldInfo[] = [
+  {
+    field: 'forSale',
+    header: 'For sale',
+    label: 'For sale',
+    kind: 'boolean',
+    aliases: ['for_sale'],
+  },
   {
     field: 'domain',
     header: 'Domain',
