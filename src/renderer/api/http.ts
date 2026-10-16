@@ -407,6 +407,8 @@ export function createHttpApi(): DombotApi {
     importDomains: m('importDomains'),
     getImportedDomains: m('getImportedDomains'),
     updateImportedDomain: m('updateImportedDomain'),
+    getSalesDetails: m('getSalesDetails'),
+    setSalesDetails: m('setSalesDetails'),
     getListPrices: m('getListPrices'),
     setListPrices: m('setListPrices'),
     setSale: m('setSale'),

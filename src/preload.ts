@@ -13,6 +13,9 @@ import {
 } from './shared/ipc';
 
 const api: DombotApi = {
+  getSalesDetails: () => ipcRenderer.invoke(IpcChannels.getSalesDetails),
+  setSalesDetails: (id, details) =>
+    ipcRenderer.invoke(IpcChannels.setSalesDetails, id, details),
   ping: () => ipcRenderer.invoke(IpcChannels.ping),
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
   getReleaseFeed: (force) =>

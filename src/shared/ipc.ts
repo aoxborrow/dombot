@@ -1,3 +1,4 @@
+import type { SalesDetails } from './sales-details';
 /**
  * Shared IPC contract used by both the main process and the renderer (via the
  * preload bridge). Keeping channel names and payload/return types in one place
@@ -124,6 +125,8 @@ export interface ProxyTestResult {
 
 /** Channel identifiers for `ipcRenderer.invoke` / `ipcMain.handle`. */
 export const IpcChannels = {
+  getSalesDetails: 'salesDetails:list',
+  setSalesDetails: 'salesDetails:set',
   ping: 'app:ping',
   getAppInfo: 'app:getAppInfo',
   getReleaseFeed: 'app:getReleaseFeed',
@@ -891,6 +894,11 @@ export interface FoldersSnapshot {
  * methods here and they become type-checked on both sides of the bridge.
  */
 export interface DombotApi {
+  getSalesDetails: () => Promise<Record<string, SalesDetails>>;
+  setSalesDetails: (
+    id: string,
+    details: SalesDetails,
+  ) => Promise<Record<string, SalesDetails>>;
   ping: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
   /**
