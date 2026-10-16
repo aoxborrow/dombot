@@ -18,10 +18,7 @@ export const salesDetailsSchema = z
     for (const key of ['received', 'fees', 'renewalCost'] as const) {
       if (value[key] === null) continue;
       try {
-        const parsed = parseCanonicalAmount(
-          value[key],
-          value.currency as import('./currencies').CurrencyCode,
-        );
+        const parsed = parseCanonicalAmount(value[key], value.currency);
         if (
           parsed !== null &&
           (!Number.isFinite(Number(parsed)) || Number(parsed) > 1e12)

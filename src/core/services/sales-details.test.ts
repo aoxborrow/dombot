@@ -83,3 +83,20 @@ it('imports older backups and discards malformed sale details', () => {
     good: details,
   });
 });
+
+it('rejects a fully-paid claim with missing or partial receipts at the service boundary', () => {
+  const sale = newEvent({
+    domain: 'example.com',
+    type: 'sold',
+    source: 'user',
+    date: '2026-01-01',
+    amount: '1000',
+    currency: 'USD',
+  });
+  putEvents([sale]);
+  for (const received of [null, '100'])
+    expect(() =>
+      setSalesDetails(sale.id, { ...details, payment: 'paid', received }),
+    ).toThrow('Fully paid');
+  expect(getSalesDetails()).toEqual({});
+});
