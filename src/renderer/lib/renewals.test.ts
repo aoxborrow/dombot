@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Domain, RenewalPricing } from '../../shared/ipc';
 import {
+  renewalScope,
   dueWithin,
   groupBy,
   summarize,
@@ -349,4 +350,19 @@ it('scopes every renewal calculation to sale status and account, excluding archi
   expect(renewalScope([a, b, c, d], {}, 'for-sale', 'all', archived)).toEqual(
     [],
   );
+});
+
+it('excludes departed and deleted domains from every sale view', () => {
+  const active = domain({ domainName: 'active.com' });
+  const departed = domain({ domainName: 'departed.com', departed: true });
+  const deleted = domain({ domainName: 'deleted.com', deleted: true });
+  const domains = [active, departed, deleted];
+  const flags = {
+    'active.com': true,
+    'departed.com': true,
+    'deleted.com': true,
+  };
+  expect(renewalScope(domains, flags, 'all')).toEqual([active]);
+  expect(renewalScope(domains, flags, 'for-sale')).toEqual([active]);
+  expect(renewalScope(domains, {}, 'not-for-sale')).toEqual([active]);
 });

@@ -285,8 +285,8 @@ interface ListPrice {
 - **At least one amount is set.** Clearing all three deletes the record.
 - **A minimum offer or floor** can't be above the BIN price. A zero reads as
   blank.
-- **"Allow offers" and "for sale" aren't stored.** A name with a BIN price is
-  for sale, and a minimum offer (or no BIN price) means offers are welcome.
+- **"Allow offers" is not stored.** The separate **For sale** checkbox is
+  stored independently of BIN price, minimum offer, and floor price.
 - **Bundle checks.** `cleanListPrice` re-checks entries read from a bundle,
   the way `cleanEvent` does for events.
 
@@ -640,6 +640,7 @@ dropped; spaces and punctuation stripped.
 | Domain               | `Domain`            | domain name, name, domains, `*Name (Required)`, `Domain Name REQUIRED`, domain_name                                             |
 | Domain (fallback)    | `IDN`               | international domain name, punycode, unicode, `Domain Name (ACE)`                                                               |
 | Status               | `Status`            | ownership; only matched when most values are ownership words (Hexonet's `ACTIVE clientTransferProhibited` is a registry status) |
+| For sale             | `For sale`          | for_sale; explicit Yes/No, with blank preserving the existing flag |
 | Folder               | `Folder`            | folder name, group, groupname, FolderMemberships (takes the first folder, with a warning when there are several)                |
 | Registrar            | `Registrar`         | registrar name, sponsoring registrar                                                                                            |
 | Created              | `Created`           | create date, created date, creation date, registration date, date registered, registered on                                     |
@@ -664,7 +665,8 @@ dropped; spaces and punctuation stripped.
 
 Some columns aren't read yet:
 
-- `For sale`, `Listed`, and `Listing Status`: there's no listing status.
+- `Listed` and `Listing Status`: marketplace listing status is not imported.
+  `For sale` is imported as an explicit Yes/No portfolio flag.
 - `Sold Net` and other net or fee columns wait for venues and fees (#109).
 
 ## Appendix B: known formats
@@ -675,7 +677,7 @@ headers.
 | Source                            | Imports                                                                                                   | Quirks                                                                                                                                                                          |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | DomBot export or template         | everything in the format                                                                                  | exact headers, so no matching step                                                                                                                                              |
-| Previous app export or template   | names, purchase, sale, renewal price, BIN price (`Price`), minimum offer, floor, notes                    | one `Currency` for every amount; `Sold Net` isn't read yet; the landing-page, `For Sale`, `Allow Offers`, and installment columns are ignored                                   |
+| Previous app export or template   | names, purchase, sale, renewal price, BIN price (`Price`), minimum offer, floor, For sale (Yes/No), notes                    | one `Currency` for every amount; `Sold Net` isn't read yet; the landing-page, `Allow Offers`, and installment columns are ignored                                   |
 | GoDaddy                           | names, created, expires, auto-renew, folder, renewal price; Registrar is GoDaddy                          | renewal prices written as `$ 18.99`; the contact columns are personal data and are never read; `Estimated Value` isn't a price you set; `Ownership Date` is left for you to map |
 | Dynadot                           | names, created, expires, auto-renew, folder, notes; Registrar is Dynadot                                  | a UTF-8 BOM; dates like `2021/11/24 11:43 PST` (take the date as written); `Registration Date` appears twice, the second time as an epoch; `(no folder)`                        |
 | Namecheap                         | names, expires, auto-renew; Registrar is Namecheap                                                        | dates like `Dec 13 2021`; `ON` and `OFF`                                                                                                                                        |
