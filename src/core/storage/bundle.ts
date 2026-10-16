@@ -62,7 +62,7 @@ export const BUNDLE_FORMAT = 'dombot-data';
 // become `{ amount, currency }`); an older build would read them as no price.
 // v8 adds `imported-domains` (`manual-domains` in builds from main before
 // the rename, which import maps across).
-// v9 adds sale details and persistent for-sale metadata.
+// v9 adds reviewed financial details per sale.
 export const BUNDLE_VERSION = 9;
 
 export interface DataBundle {
