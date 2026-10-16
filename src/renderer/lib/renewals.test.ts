@@ -312,3 +312,41 @@ describe('currencies', () => {
     });
   });
 });
+
+it('scopes every renewal calculation to sale status and account, excluding archived names', async () => {
+  const { renewalScope } = await import('./renewals');
+  const a = domain({
+    domainName: 'sale.com',
+    accountId: 'first',
+    expirationDate: new Date('2026-07-01'),
+  });
+  const b = domain({ domainName: 'keep.com', accountId: 'first' });
+  const c = domain({
+    domainName: 'imported.com',
+    source: 'imported',
+    expirationDate: new Date('2026-07-10'),
+  });
+  const d = domain({ domainName: 'sold.com', accountId: 'first' });
+  const flags = { 'sale.com': true, 'imported.com': true, 'sold.com': true };
+  const archived = new Set(['sold.com']);
+  const scope = renewalScope([a, b, c, d], flags, 'for-sale', 'all', archived);
+  expect(scope).toEqual([a, c]);
+  const pricing = {
+    [a.accountId + ':' + a.domainName]: price(a, 10)[1],
+    ...Object.fromEntries([price(b, 99), price(c, 20), price(d, 999)]),
+  };
+  expect(summarize(scope, pricing).yearly).toBe(30);
+  expect(dueWithin(scope, pricing, 90).count).toBe(2);
+  expect(
+    upcomingByMonth(scope, pricing, 12).reduce((sum, m) => sum + m.count, 0),
+  ).toBe(2);
+  expect(
+    renewalScope([a, b, c, d], flags, 'for-sale', 'first', archived),
+  ).toEqual([a]);
+  expect(
+    renewalScope([a, b, c, d], flags, 'not-for-sale', 'all', archived),
+  ).toEqual([b]);
+  expect(renewalScope([a, b, c, d], {}, 'for-sale', 'all', archived)).toEqual(
+    [],
+  );
+});

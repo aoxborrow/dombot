@@ -1,3 +1,5 @@
+import { matchesSaleFilter, type SaleFilter } from '../../shared/for-sale';
+import { toAscii } from '../../shared/domain-name';
 import { domainKey } from '../../shared/account-key';
 // Pure aggregation over the portfolio + renewal pricing, for the Renewals
 // dashboard. No React, no IPC — just numbers in, numbers out. A price carries
@@ -258,7 +260,7 @@ export interface MonthBucket {
 }
 
 /** The date a domain next comes up for renewal (renewalDate ?? expirationDate). */
-function renewalDate(d: Domain): Date | null {
+export function renewalDate(d: Domain): Date | null {
   const raw = d.renewalDate ?? d.expirationDate;
   if (!raw) return null;
   const date = raw instanceof Date ? raw : new Date(raw);
@@ -359,4 +361,22 @@ export function dueWithin(
     else addOther(others, p.currency, p.renewal);
   }
   return { count, yearly, others };
+}
+
+/** One shared scope for every renewal total, chart and row. */
+export function renewalScope(
+  domains: Domain[],
+  flags: Record<string, boolean>,
+  filter: SaleFilter,
+  account = 'all',
+  archived: ReadonlySet<string> = new Set(),
+): Domain[] {
+  return domains.filter(
+    (d) =>
+      !d.departed &&
+      !d.deleted &&
+      !archived.has(toAscii(d.domainName)) &&
+      (account === 'all' || (d.accountId ?? d.registrar) === account) &&
+      matchesSaleFilter(d.domainName, flags, filter),
+  );
 }

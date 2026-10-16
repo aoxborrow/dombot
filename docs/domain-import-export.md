@@ -688,3 +688,22 @@ headers.
 | Afternic 2.0 export               | names, BIN price (`Buy Now Price`), minimum offer, floor                                                  | `0` means not set; `Listing Status` isn't read yet                                                                                                                              |
 | Sedo export                       | names, BIN price (`Price`), minimum offer, currency; Registrar from its legal name                        | semicolons; `Currency` appears twice; `Price Option` is ignored                                                                                                                 |
 | Uniregistry template (historical) | names, BIN price (`price`)                                                                                | instruction lines before the data; `for_sale` isn't read yet                                                                                                                    |
+
+## For-sale metadata
+
+`For sale` is a per-domain portfolio checkbox, independent of asking price,
+folder, ownership status and registrar settings. Existing and new domains start
+unchecked; no price or folder automatically marks a domain for sale. Bulk marking
+is available in the Domains table. The Active filter offers For sale and Not for
+sale; clearing it shows all domains. Changing the checkbox never lists a domain
+on a marketplace or changes registrar settings.
+
+Renewals offers All domains, For sale and Not for sale views. Account selection
+combines with the view, and all totals, charts and the dated renewal list use the
+same domain set. Archived names do not contribute, even if their saved flag is on.
+
+The flag lives in the `domain-for-sale` namespace, keyed by normalized name. It
+survives sync, cache clearing and account moves, is included in full backups and
+CSV export, and is removed by Delete domain. CSV Yes/No changes it explicitly;
+a missing/blank cell preserves the existing value. Older backups restore with
+all flags unset. Older Dombot releases do not understand this new namespace.
