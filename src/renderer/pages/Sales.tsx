@@ -163,7 +163,7 @@ export default function Sales() {
     }
   }
   return (
-    <div className="mx-auto flex max-w-[1400px] flex-col gap-6">
+    <div className="mx-auto flex w-full min-w-0 max-w-[1400px] flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Sales</h1>
@@ -630,7 +630,7 @@ function FinancialsDialog({
   }
   return (
     <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Review sale financials</DialogTitle>
           <DialogDescription>
