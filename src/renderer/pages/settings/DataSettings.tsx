@@ -265,6 +265,7 @@ function ExportCard() {
         >
           <PasswordInput
             id="export-pass"
+            revealLabel="export passphrase"
             autoComplete="new-password"
             value={exportPass}
             onChange={(e) => setExportPass(e.target.value)}
@@ -379,6 +380,7 @@ function ImportCard() {
               <Label htmlFor="import-pass">Passphrase</Label>
               <PasswordInput
                 id="import-pass"
+                revealLabel="import passphrase"
                 autoComplete="off"
                 value={importPass}
                 onChange={(e) => setImportPass(e.target.value)}

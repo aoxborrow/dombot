@@ -698,6 +698,7 @@ function AccountCard({
             <RegistrarHelp provider={provider} />
             <FieldGroup className="gap-4">
               <CredentialFields
+                accountName={title}
                 provider={provider}
                 idPrefix={id}
                 values={values}
@@ -891,6 +892,7 @@ function DraftAccountCard({
         <RegistrarHelp provider={provider} />
         <FieldGroup className="gap-4">
           <CredentialFields
+            accountName={`New ${provider.displayName} account`}
             provider={provider}
             idPrefix={idPrefix}
             values={values}
@@ -1075,6 +1077,7 @@ function ProxyToggle({
 }
 
 function CredentialFields({
+  accountName,
   provider,
   idPrefix,
   values,
@@ -1082,6 +1085,7 @@ function CredentialFields({
   onChange,
   hideFields,
 }: {
+  accountName: string;
   provider: RegistrarDefinition;
   idPrefix: string;
   values: CredentialValues;
@@ -1132,6 +1136,7 @@ function CredentialFields({
             ) : field.type === 'password' ? (
               <PasswordInput
                 id={id}
+                revealLabel={`${accountName} ${field.label}`}
                 value={values[field.name] ?? ''}
                 disabled={disabled}
                 autoComplete="off"
