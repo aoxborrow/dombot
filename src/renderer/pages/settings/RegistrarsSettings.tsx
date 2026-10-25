@@ -355,6 +355,8 @@ function AccountCard({
   const usesProxy = Boolean(account.proxy);
   const [proxyEnabled, setProxyEnabled] = useState(usesProxy);
   const [loading, setLoading] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   // A Sync all (or the automatic sync) covers every enabled account.
   const syncingAll = useAppStore((s) => s.portfolioLoading) && account.enabled;
@@ -370,6 +372,7 @@ function AccountCard({
     let current = true;
     setError(null);
     setLoading(true);
+    setLoadFailed(false);
     window.api
       .getRegistrarCredentials(provider.name, id)
       .then((creds) => {
@@ -377,15 +380,20 @@ function AccountCard({
         setValues(creds);
         setOriginal(creds);
         setProxyEnabled(usesProxy);
-        setLoading(false);
       })
       .catch((err) => {
-        if (current) setError(errorMessage(err));
+        if (current) {
+          setLoadFailed(true);
+          setError(errorMessage(err));
+        }
+      })
+      .finally(() => {
+        if (current) setLoading(false);
       });
     return () => {
       current = false;
     };
-  }, [open, id, provider.name, usesProxy]);
+  }, [open, id, provider.name, usesProxy, loadAttempt]);
 
   const runSync = async () => {
     setSyncing(true);
@@ -401,7 +409,7 @@ function AccountCard({
   };
 
   const save = async () => {
-    if (loading) return;
+    if (loading || loadFailed) return;
     setSaving(true);
     setError(null);
     try {
@@ -494,7 +502,7 @@ function AccountCard({
   // only on these: none of them need the credentials the open card loads, so
   // a slow or failed load mustn't lock them.
   const acting = saving || syncing || toggling;
-  const busy = acting || loading;
+  const busy = acting || loading || loadFailed;
   // The demo is fully interactive over its browser-local data — edit keys,
   // Save, toggle, rename, even Remove (Reset demo brings it all back), since
   // the fake registrar always connects. `locked` stays only on the fixed-IP
@@ -729,9 +737,21 @@ function AccountCard({
                 {saving ? 'Saving…' : 'Save'}
               </Button>
             </div>
-            {error && (
+            {(error || loadFailed) && (
               <p role="alert" className="mt-3 text-sm text-destructive">
-                {error}
+                {error ||
+                  'Credentials could not be loaded. Retry before editing.'}
+                {loadFailed && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="ml-2"
+                    onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+                  >
+                    Retry loading credentials
+                  </Button>
+                )}
               </p>
             )}
           </form>
