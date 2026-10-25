@@ -331,6 +331,90 @@ describe('getMergedPortfolio', () => {
 });
 
 describe('syncRegistrarInto — last-good on error (via getPortfolio)', () => {
+  it('reconciles renewed expiry dates without dropping cached detail or quotes', async () => {
+    const oldExpiry = new Date('2026-10-14T12:00:54.000Z');
+    const newExpiry = new Date('2027-10-14T12:00:54.000Z');
+    const old = domain({
+      domainName: 'example.you',
+      registrar: 'dynadot',
+      expirationDate: oldExpiry,
+      renewalDate: oldExpiry,
+      nameservers: ['ns1.dyna-ns.net'],
+    });
+    seedSlice('dynadot', [old]);
+    const otherAccount = { data: old, fetchedAt: 100 };
+    store.detail['other-account:example.you'] = otherAccount;
+    store.detail['dynadot:example.you'] = {
+      data: {
+        ...old,
+        renewalQuote: { renewal: 55, currency: 'USD' },
+        renewalQuoteFetchedAt: 123,
+      },
+      fetchedAt: 123,
+    };
+    listPortfolio.mockResolvedValue({
+      domains: [
+        {
+          ...old,
+          expirationDate: newExpiry,
+          renewalDate: newExpiry,
+          nameservers: [],
+        },
+      ],
+      errors: [],
+    });
+
+    await syncRegistrar('dynadot');
+
+    expect(getMergedPortfolio().domains[0]).toMatchObject({
+      expirationDate: newExpiry,
+      renewalDate: newExpiry,
+      nameservers: ['ns1.dyna-ns.net'],
+    });
+    expect(await getDomainDetail('dynadot', 'example.you')).toMatchObject({
+      expirationDate: newExpiry,
+      renewalDate: newExpiry,
+    });
+    expect(store.detail['dynadot:example.you']).toMatchObject({
+      fetchedAt: 123,
+      data: {
+        renewalQuote: { renewal: 55, currency: 'USD' },
+        renewalQuoteFetchedAt: 123,
+      },
+    });
+    expect(store.detail['other-account:example.you']).toEqual(otherAccount);
+  });
+
+  it.each(['missing dates', 'failed sync'])(
+    'retains known detail dates on %s and leaves other accounts untouched',
+    async (scenario) => {
+      const expiry = new Date('2027-10-14T12:00:54.000Z');
+      const old = domain({
+        domainName: 'example.you',
+        registrar: 'dynadot',
+        expirationDate: expiry,
+        renewalDate: expiry,
+      });
+      seedSlice('dynadot', [old]);
+      const cached = { data: old, fetchedAt: 123 };
+      store.detail['dynadot:example.you'] = cached;
+      store.detail['other-account:example.you'] = cached;
+      listPortfolio.mockResolvedValue({
+        domains: [domain({ domainName: 'example.you', registrar: 'dynadot' })],
+        errors:
+          scenario === 'failed sync'
+            ? [{ registrar: 'dynadot', error: new Error('unavailable') }]
+            : [],
+      });
+
+      await syncRegistrar('dynadot');
+
+      expect(store.detail['dynadot:example.you']).toEqual(cached);
+      expect(store.detail['other-account:example.you']).toEqual(cached);
+      expect(getMergedPortfolio().domains[0].expirationDate).toEqual(expiry);
+    },
+  );
+
   it('replaces the slice and clears the error on success', async () => {
     seedSlice('dynadot', [], { lastSyncedAt: 1, lastError: 'old' });
     listPortfolio.mockImplementation(async (clients: unknown[]) => {
