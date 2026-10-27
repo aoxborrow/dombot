@@ -352,9 +352,9 @@ Storage:
    domanio.com.
 3. **Client, jobs:** jobs CSV both ways, create/upload/poll/results/close,
    `runJob`. Live one-row job on domanio.com; one careful `RECONCILE_JOB` test.
-4. **DomBot, read-only:** Settings → Markets with Afternic accounts, sync listings and
-   sales, listing columns/filters (including searches and offers), sales as
-   `sold` events.
+4. **DomBot, read-only:** Settings → Markets with Afternic accounts; sync
+   listings and sales, listing columns/filters (including searches and
+   offers), sales as `sold` events.
 5. **DomBot, writes:** list/delist/reprice/relist from the table, Afternic
    jobs for large pushes, auth-code automation.
 6. **DomBot, reporting:** views/leads with incremental per-domain stats,
