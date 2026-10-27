@@ -36,7 +36,7 @@ import { useAppStore } from '../../store/app';
 import { Link } from 'react-router-dom';
 import { isDemo } from '../../lib/platform';
 import { timeAgo } from '../../lib/time';
-import { useSyncState } from '../../lib/sync-state';
+import { isStale, useSyncState } from '../../lib/sync-state';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -1256,10 +1256,25 @@ function SyncStatus({
       </span>
     );
   }
+  // Past the staleness window: amber, matching the status bar's count.
+  const old = isStale(lastSyncedAt);
   return (
-    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 max-sm:w-full">
-      <span className="size-2 shrink-0 rounded-full bg-brand" />
-      <span className="whitespace-nowrap text-[13px] font-medium text-brand">
+    <span
+      className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 max-sm:w-full"
+      title={old ? 'Not synced in over a week' : undefined}
+    >
+      <span
+        className={cn(
+          'size-2 shrink-0 rounded-full',
+          old ? 'bg-amber-500 dark:bg-amber-400' : 'bg-brand',
+        )}
+      />
+      <span
+        className={cn(
+          'whitespace-nowrap text-[13px] font-medium',
+          old ? 'text-amber-600 dark:text-amber-400' : 'text-brand',
+        )}
+      >
         Last synced {timeAgo(lastSyncedAt)}
       </span>
     </span>

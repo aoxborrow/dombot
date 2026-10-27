@@ -12,6 +12,7 @@ import type {
   DomainSource,
   ListPrice,
   PriceSource,
+  RegistrarMeta,
   RenewalPricing,
 } from '../../shared/ipc';
 import { toAscii } from '../../shared/domain-name';
@@ -165,13 +166,25 @@ export interface QueryMeta {
   registrars: string[];
   /** Registrars whose last sync errored — their domains may be missing/stale. */
   errors: SyncError[];
+  /** Active accounts whose own last sync is missing or past the staleness
+   *  threshold, even when another account synced since. */
+  staleAccounts?: StaleAccount[];
+}
+
+/** An active account whose domains may be out of date. */
+export interface StaleAccount {
+  registrar: string;
+  accountId?: string;
+  lastSyncedAt: number | null;
 }
 
 export interface QueryResult extends QueryMeta {
   /** Total matches before paging. */
   total: number;
-  /** True when the data is missing or past the staleness threshold. */
+  /** True when the data is missing, past the staleness threshold, or any
+   *  active account is (see staleAccounts). */
   stale: boolean;
+  staleAccounts: StaleAccount[];
   rows: QueryRow[];
 }
 
@@ -184,6 +197,26 @@ export interface FolderRef {
 /** ms epoch → true when missing or older than the staleness threshold. */
 export function isStaleAt(fetchedAt: number | null): boolean {
   return fetchedAt == null || Date.now() - fetchedAt >= STALE_AFTER_MS;
+}
+
+/** Active (configured, enabled) accounts whose own last sync is missing or past
+ *  the staleness threshold. The headline fetchedAt is the newest sync, so one
+ *  account syncing would otherwise hide the rest going stale. A failed account
+ *  is left out: it's already reported in `errors`. */
+export function staleAccounts(meta: RegistrarMeta[]): StaleAccount[] {
+  return meta
+    .filter(
+      (r) =>
+        r.configured &&
+        r.enabled &&
+        r.sync.lastError == null &&
+        isStaleAt(r.sync.lastSyncedAt),
+    )
+    .map((r) => ({
+      registrar: r.name,
+      accountId: r.accountId,
+      lastSyncedAt: r.sync.lastSyncedAt,
+    }));
 }
 
 /** Normalizes a TLD filter ("com" / ".com" / "example.com" → the suffix to match). */
@@ -425,7 +458,8 @@ export function queryPortfolio(
     fetchedAt: meta.fetchedAt,
     registrars: meta.registrars,
     errors: meta.errors,
-    stale: isStaleAt(meta.fetchedAt),
+    stale: isStaleAt(meta.fetchedAt) || (meta.staleAccounts?.length ?? 0) > 0,
+    staleAccounts: meta.staleAccounts ?? [],
     rows,
   };
 }

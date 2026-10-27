@@ -71,6 +71,7 @@ import {
   isStaleAt,
   queryPortfolio,
   resolveFolderId,
+  staleAccounts,
   type QueryArgs,
   type QueryResult,
 } from './portfolio-query';
@@ -443,11 +444,12 @@ function runQuery(args: QueryArgs): QueryResult {
   // As on the Domains page: synced names, then imported names no account
   // reports, then names in Archive that neither covers (from the event log).
   const listed = [...domains, ...importedRows(getImportedDomains(), domains)];
+  const meta = getRegistrarMetadata();
   return queryPortfolio(
-    [...listed, ...archiveRows(ownership, listed, getRegistrarMetadata())],
+    [...listed, ...archiveRows(ownership, listed, meta)],
     folders,
     assignments,
-    { fetchedAt, registrars, errors },
+    { fetchedAt, registrars, errors, staleAccounts: staleAccounts(meta) },
     args,
     ownership,
     {
@@ -471,10 +473,12 @@ function syncSummary(portfolio: Portfolio) {
       accountLabel: r.accountLabel,
       ...r.sync,
     }));
+  const stale = staleAccounts(meta);
   return {
     total: portfolio.domains.length,
     fetchedAt: portfolio.fetchedAt,
-    stale: isStaleAt(portfolio.fetchedAt),
+    stale: isStaleAt(portfolio.fetchedAt) || stale.length > 0,
+    staleAccounts: stale,
     registrars,
     errors: portfolio.errors,
   };
@@ -674,7 +678,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Query portfolio',
       description:
-        'List, search, and filter your whole portfolio — every configured registrar plus the names you imported — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (sold, dropped, archived, or gone from your accounts) or both. Filter by registrar, source (synced or imported), TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort (including by estimated renewal price) and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel`, `hidden` (in the Hidden folder: still yours, still renews), `source` (`imported`: no connected account reports it), and `inAccount` (false for an imported name or an Archive name no account reports — the registrar-backed domain_* tools can’t act on those). Rows also carry what DomBot keeps per name: `paid` (date, amount, currency, registered or purchased), `sold`, `notes`, `askingPrice` (BIN price, minimum offer, floor), and `renewalPrice` (DomBot’s yearly estimate and its source, as domain_renewal_price). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete. Rows carry only the fields you need — call domain_get for a single domain’s full record.',
+        'List, search, and filter your whole portfolio — every configured registrar plus the names you imported — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (sold, dropped, archived, or gone from your accounts) or both. Filter by registrar, source (synced or imported), TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort (including by estimated renewal price) and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel`, `hidden` (in the Hidden folder: still yours, still renews), `source` (`imported`: no connected account reports it), and `inAccount` (false for an imported name or an Archive name no account reports — the registrar-backed domain_* tools can’t act on those). Rows also carry what DomBot keeps per name: `paid` (date, amount, currency, registered or purchased), `sold`, `notes`, `askingPrice` (BIN price, minimum offer, floor), and `renewalPrice` (DomBot’s yearly estimate and its source, as domain_renewal_price). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, staleAccounts, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete; `staleAccounts` lists accounts whose own last sync is old even if another synced since (`stale` is true then too — registrar_sync just those, or portfolio_sync). Rows carry only the fields you need — call domain_get for a single domain’s full record.',
       inputSchema: queryShape,
       annotations: { readOnlyHint: true },
     },

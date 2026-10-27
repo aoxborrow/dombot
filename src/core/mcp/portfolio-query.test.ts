@@ -3,6 +3,7 @@ import {
   HIDDEN_FOLDER_ID,
   STALE_AFTER_MS,
   type Domain,
+  type RegistrarMeta,
 } from '../../shared/ipc';
 import { importedRow } from '../../shared/imported-domains';
 import { archiveRows, type Ownership } from '../../shared/ownership';
@@ -10,6 +11,7 @@ import {
   DEFAULT_LIMIT,
   isStaleAt,
   queryPortfolio,
+  staleAccounts,
   type FolderRef,
   type QueryArgs,
   type QueryMeta,
@@ -295,6 +297,19 @@ describe('meta and edge cases', () => {
     expect(stale.stale).toBe(true);
   });
 
+  it('reports stale when one account is old though another just synced', () => {
+    const old = { registrar: 'dynadot', lastSyncedAt: NOW - STALE_AFTER_MS };
+    const res = queryPortfolio(
+      [],
+      [],
+      {},
+      { ...META, staleAccounts: [old] },
+      {},
+    );
+    expect(res.stale).toBe(true);
+    expect(res.staleAccounts).toEqual([old]);
+  });
+
   it('handles an empty portfolio', () => {
     const res = run([], {});
     expect(res.total).toBe(0);
@@ -526,5 +541,41 @@ describe('money, notes and prices on rows', () => {
       query({ sort: 'renewalPrice', ...args }).rows.map((r) => r.domainName);
     expect(order({})).toEqual(['a.com', 'b.com', 'c.com']);
     expect(order({ order: 'desc' })).toEqual(['b.com', 'a.com', 'c.com']);
+  });
+});
+
+describe('staleAccounts', () => {
+  const account = (
+    name: string,
+    sync: Partial<RegistrarMeta['sync']>,
+    extra: Partial<RegistrarMeta> = {},
+  ) =>
+    ({
+      name,
+      accountId: name,
+      configured: true,
+      enabled: true,
+      sync: { lastSyncedAt: NOW, lastError: null, ...sync },
+      ...extra,
+    }) as RegistrarMeta;
+
+  it('lists active accounts that are old or never synced', () => {
+    const res = staleAccounts([
+      account('namebright', {}),
+      account('dynadot', { lastSyncedAt: NOW - STALE_AFTER_MS }),
+      account('godaddy', { lastSyncedAt: null }),
+    ]);
+    expect(res.map((a) => a.registrar)).toEqual(['dynadot', 'godaddy']);
+  });
+
+  it('skips failed, disabled and unconfigured accounts', () => {
+    const old = NOW - STALE_AFTER_MS;
+    expect(
+      staleAccounts([
+        account('dynadot', { lastSyncedAt: old, lastError: 'boom' }),
+        account('gandi', { lastSyncedAt: old }, { enabled: false }),
+        account('porkbun', { lastSyncedAt: old }, { configured: false }),
+      ]),
+    ).toEqual([]);
   });
 });
