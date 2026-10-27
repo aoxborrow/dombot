@@ -1,3 +1,6 @@
+import { getSalesDetails, setSalesDetails } from '../services/sales-details';
+import { salesDetailsSchema } from '../../shared/sales-details';
+import { broadcastPortfolioChanged } from '../events';
 import { z } from 'zod';
 import type { DombotApi, DomainTarget } from '../../shared/ipc';
 import { clearAll } from '../services/cache';
@@ -418,6 +421,15 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   ),
 
   // ── Asking prices ─────────────────────────────────────────────────────────
+  getSalesDetails: method(none, async () => getSalesDetails()),
+  setSalesDetails: method(
+    z.tuple([s.eventId, salesDetailsSchema]),
+    async (id, details) => {
+      setSalesDetails(id, details);
+      broadcastPortfolioChanged();
+      return getSalesDetails();
+    },
+  ),
   getListPrices: method(none, async () => getListPrices()),
   setListPrices: method(z.tuple([s.listPriceInputs]), async (inputs) => {
     setListPrices(inputs);

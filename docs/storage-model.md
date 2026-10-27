@@ -436,6 +436,8 @@ the bump it would import a newer file "successfully" and silently drop that
 data. The bump makes the older build refuse the file with "made by a newer
 DomBot".
 
+- **v9** adds `sale-details`, keyed by sale event ID. Financial facts are
+  user-reviewed; null costs are unknown.
 - **v8** adds `imported-domains`.
 - **v7** stores manual renewal prices with a currency. An older build would
   read the new values as no price, so it must refuse the file. Rule: changing

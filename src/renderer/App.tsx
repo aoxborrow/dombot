@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
+  BarChart3,
   CalendarClock,
   Globe,
   History,
@@ -20,6 +21,7 @@ import {
 import { useAppStore } from './store/app';
 import Domains from './pages/Domains';
 import Renewals from './pages/Renewals';
+import Sales from './pages/Sales';
 import Activity from './pages/Activity';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
@@ -215,6 +217,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Domains />} />
           <Route path="/renewals" element={<Renewals />} />
+          <Route path="/sales" element={<Sales />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
@@ -235,6 +238,7 @@ export default function App() {
 const NAV_ITEMS = [
   { to: '/', label: 'Domains', icon: Globe },
   { to: '/renewals', label: 'Renewals', icon: CalendarClock },
+  { to: '/sales', label: 'Sales', icon: BarChart3 },
   { to: '/activity', label: 'Activity', icon: History },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ] as const;

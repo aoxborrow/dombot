@@ -1,3 +1,4 @@
+import { salesDetailsStore } from './sales-details-store';
 import { isCurrencyCode } from '../../shared/currencies';
 import { isDomainKey, toAscii } from '../../shared/domain-name';
 import {
@@ -66,7 +67,10 @@ export function deleteEvent(id: string): void {
  */
 export function deleteDomainEvents(ids: string[], domain?: string): void {
   const gone = new Set(ids);
-  for (const id of gone) void events.delete(id);
+  for (const id of gone) {
+    void events.delete(id);
+    void salesDetailsStore.delete(id);
+  }
   for (const note of Object.values(notes.all())) {
     const attached = note.eventId !== null && gone.has(note.eventId);
     const ownNote = domain !== undefined && note.domain === domain;
