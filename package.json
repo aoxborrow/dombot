@@ -86,7 +86,7 @@
     "typescript": "~5.6.3",
     "vite": "^6.4.3",
     "vitest": "^4.1.11",
-    "wrangler": "^4.146.0"
+    "wrangler": "^4.152.0"
   },
   "dependencies": {
     "@aoxborrow/registrar-client": "^0.9.2",
@@ -96,7 +96,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "electron-squirrel-startup": "^1.0.1",
-    "hono": "^4.13.7",
+    "hono": "^4.13.13",
     "https-proxy-agent": "7.0.6",
     "jose": "^6.2.12",
     "lucide-react": "^1.37.0",
