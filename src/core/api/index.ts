@@ -145,7 +145,7 @@ export async function invoke<K extends ApiMethodName>(
   entry: ApiMethod<K>,
   rawArgs: unknown[],
 ): Promise<Result<K>> {
-  const arity = entry.args.items.length;
+  const arity = entry.args.def.items.length;
   const padded =
     rawArgs.length < arity
       ? [...rawArgs, ...new Array<undefined>(arity - rawArgs.length)]
@@ -153,7 +153,7 @@ export async function invoke<K extends ApiMethodName>(
   // JSON preserves omitted middle arguments as null; restore only optional
   // slots whose schema rejects null, keeping meaningful/required nulls intact.
   const restored = padded.map((value, index) => {
-    const schema = entry.args.items[index];
+    const schema = entry.args.def.items[index];
     return value === null &&
       schema?.isOptional() &&
       !schema.safeParse(null).success
