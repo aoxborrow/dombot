@@ -1,3 +1,8 @@
+import {
+  connectRegistrarWithActivationWait,
+  DYNADOT_ACTIVATION_NOTICE,
+  DynadotActivationPending,
+} from '../../lib/connect-registrar';
 import { accountCards } from '../../lib/registrar-accounts';
 import {
   accountSuffix,
@@ -843,14 +848,18 @@ function DraftAccountCard({
   onCancel: () => void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const connection = useRef<AbortController | null>(null);
   useEffect(() => {
     heading.current?.scrollIntoView({ block: 'nearest' });
     heading.current?.focus({ preventScroll: true });
+    return () => connection.current?.abort();
   }, []);
   const [values, setValues] = useState<CredentialValues>({});
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(false);
+  const [activationNotice, setActivationNotice] = useState<string | null>(null);
   // Optional. It only lives here until the account is saved.
   const [nickname, setNickname] = useState('');
   // With the Namecheap proxy on, its outgoing IP supplies the required ClientIp,
@@ -869,19 +878,52 @@ function DraftAccountCard({
     if (!ready || saving) return;
     setSaving(true);
     setError(null);
+    setActivationNotice(null);
+    const controller = new AbortController();
+    connection.current = controller;
     try {
-      const account = await window.api.connectRegistrarAccount(
+      const account = await connectRegistrarWithActivationWait(
         provider.name,
-        values,
-        // Without a nickname the account takes the next number.
-        nickname.trim() || undefined,
-        proxyEnabled,
+        () =>
+          window.api.connectRegistrarAccount(
+            provider.name,
+            values,
+            // Without a nickname the account takes the next number.
+            nickname.trim() || undefined,
+            proxyEnabled,
+          ),
+        controller.signal,
+        (isWaiting) => {
+          if (controller.signal.aborted) return;
+          setWaiting(isWaiting);
+          if (isWaiting) setActivationNotice(DYNADOT_ACTIVATION_NOTICE);
+        },
       );
-      onAdded(account);
+      if (!controller.signal.aborted) onAdded(account);
     } catch (err) {
-      setError(errorMessage(err));
-      setSaving(false);
+      if (controller.signal.aborted) return;
+      if (err instanceof DynadotActivationPending)
+        setActivationNotice(err.message);
+      else {
+        setActivationNotice(null);
+        setError(errorMessage(err));
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setWaiting(false);
+        setSaving(false);
+      }
     }
+  };
+
+  const cancel = () => {
+    connection.current?.abort();
+    onCancel();
+  };
+
+  const clearFeedback = () => {
+    setActivationNotice(null);
+    setError(null);
   };
 
   const idPrefix = `${provider.name}-new`;
@@ -910,6 +952,12 @@ function DraftAccountCard({
         }}
       >
         <RegistrarHelp provider={provider} />
+        {provider.name === 'dynadot' && (
+          <p className="mb-4 text-[13px] leading-relaxed text-muted-foreground">
+            Just created your API key? It may take a few minutes to become
+            active. We’ll retry while you wait.
+          </p>
+        )}
         <FieldGroup className="gap-4">
           <CredentialFields
             accountName={`New ${provider.displayName} account`}
@@ -917,9 +965,10 @@ function DraftAccountCard({
             idPrefix={idPrefix}
             values={values}
             disabled={saving}
-            onChange={(name, value) =>
-              setValues((current) => ({ ...current, [name]: value }))
-            }
+            onChange={(name, value) => {
+              setValues((current) => ({ ...current, [name]: value }));
+              clearFeedback();
+            }}
             hideFields={proxySuppliesIp ? new Set(['clientIp']) : undefined}
           />
           <SettingsField
@@ -944,8 +993,16 @@ function DraftAccountCard({
           proxy={proxy}
           enabled={proxyEnabled}
           disabled={saving}
-          onChange={setProxyEnabled}
+          onChange={(enabled) => {
+            setProxyEnabled(enabled);
+            clearFeedback();
+          }}
         />
+        {activationNotice && (
+          <p role="status" className="mt-4 text-sm text-muted-foreground">
+            {activationNotice}
+          </p>
+        )}
         {error && (
           <p role="alert" className="mt-4 text-sm text-destructive">
             {error}
@@ -953,13 +1010,19 @@ function DraftAccountCard({
         )}
         <div className="mt-5 flex items-center gap-3">
           <Button type="submit" disabled={!ready || saving}>
-            {saving ? 'Testing connection…' : 'Add account'}
+            {saving
+              ? waiting
+                ? 'Waiting for Dynadot…'
+                : 'Testing connection…'
+              : activationNotice
+                ? 'Retry connection'
+                : 'Add account'}
           </Button>
           <Button
             type="button"
             variant="ghost"
-            disabled={saving}
-            onClick={onCancel}
+            disabled={saving && !waiting}
+            onClick={cancel}
           >
             Cancel
           </Button>
