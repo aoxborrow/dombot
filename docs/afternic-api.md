@@ -284,8 +284,8 @@ Storage:
   encrypts everything already.
 - Data bundles (export/import) carry registrar credentials; market
   credentials must get the same treatment in `src/core/storage/bundle.ts`.
-- The MCP server gets the same accounts, so an MCP client can read listings
-  and sales without its own keys.
+- The MCP server gets the same accounts, so an MCP client can use them
+  without its own keys (see MCP below).
 
 ### Listings
 
@@ -342,11 +342,74 @@ Storage:
 - **Price vs. outcome:** sold prices against what the name was listed at, once
   we keep listing price history from sync.
 
+### MCP
+
+Everything the app can do with Afternic, an MCP client can do too, through
+the same services (docs/mcp-tools.md), so an agent's write updates an open
+Domains table like a row control does. Names follow the existing pattern
+(`<scope>_<noun>_<get|set>`, `<scope>_set_<toggle>`). The scope is `market`
+for an account and `domain` for a name; `market` is the market id
+(`afternic`, later `atom`, `sedo`), and `accountId` picks an account when
+there's more than one, exactly as `registrar_*` tools do. Tools are written
+for markets in general from the start, so Atom and Sedo add cases rather than
+new tools.
+
+Accounts, like the registrar tools:
+
+- **`market_list`**: every market account with `accountId`, `market`,
+  `label`, `configured`, `enabled`, sync state, and what it gets (search
+  data, listing and sales counts). No secrets. Start here.
+- **`market_test`**, **`market_sync`**, **`market_set_enabled`**.
+
+Listings:
+
+- **`market_listings`**: query the synced listings across market accounts.
+  Filters: `market`, `accountId`, `listStatus`, `fastTransferStatus`, price
+  ranges, `leasing`, `hidden`, `hasOffers`, `minSearches` (30/90/365 days),
+  `nameContains`, `tld`, listed-date range; `sort`, `order`, `limit`,
+  `offset`. Cached; `refresh` reads live.
+- **`domain_listing_get`**: one name's listing on every market it's on (or
+  one, with `market`), with status, Fast Transfer, offers and searches.
+- **`domain_listing_set`**: list or update one name: `buyNow`, `minOffer`,
+  `floor`, lander and lease-to-own fields. Creates the listing if there isn't
+  one; otherwise changes only the fields given. Optionally sets DomBot's
+  asking price to match (`domain_asking_price_set` remains DomBot-only).
+- **`domain_listing_delete`**: delist.
+- **`market_listings_set`**: the bulk form of `domain_listing_set`, any
+  number of names. Uses `$each` batches, or an Afternic job past the jobs
+  threshold, and returns per-name results (or a job id while it runs).
+- **`market_listings_delete`**, **`market_listings_relist`** (`mode`:
+  `RESYNC` or `REACTIVATE`): bulk delist and relist.
+- **`market_job_get`**: progress and per-row results of a bulk job.
+- **`portfolio_query`** gains `listedOn` / `notListedOn` (a market id) so an
+  agent can find names that aren't listed anywhere.
+
+Stats and sales:
+
+- **`market_stats_get`**: daily views and leads for an account (`days`,
+  `endDate`).
+- **`domain_stats_get`**: the same for one name.
+- **`market_sales`**: sales from sync, filtered by date range, `status`,
+  `saleType`, `nameContains`; with totals (gross, commission, net). Never
+  returns auth codes.
+- **`market_sale_get`**: one sale by `transactionId`, with lease
+  installments.
+- **`market_sale_auth_code_set`**: submit the transfer code for a sale
+  waiting on one. With no `authCode`, DomBot fetches it from the registrar
+  holding the name (`domain_auth_code_get`) and sends that.
+- **`market_sale_message_send`**: message the transaction agent (up to 1,000
+  characters). The description says it reaches a person at Afternic.
+
+Settings:
+
+- **`market_settings_get`**, **`market_settings_set`**: the account's
+  listing defaults.
+
 ## Phases
 
-1. **Client, read side** (`src/core/markets/afternic/`): auth, paging, money, errors,
-   shared rate limit; domains list/get/many with every `includes`, stats,
-   sales, settings. Fixtures, the scale fixture, live read tests.
+1. **Client, read side** (`src/core/markets/afternic/`): auth, paging,
+   money, errors, shared rate limit; domains list/get/many with every
+   `includes`, stats, sales, settings. Fixtures, the scale fixture, live read tests.
 2. **Client, write side:** create, PATCH, delete, upsert/delete/relist many,
    settings update, sale update and message. Live round-trip tests on
    domanio.com.
@@ -354,9 +417,9 @@ Storage:
    `runJob`. Live one-row job on domanio.com; one careful `RECONCILE_JOB` test.
 4. **DomBot, read-only:** Settings → Markets with Afternic accounts; sync
    listings and sales, listing columns/filters (including searches and
-   offers), sales as `sold` events.
+   offers), sales as `sold` events; the read-only MCP tools.
 5. **DomBot, writes:** list/delist/reprice/relist from the table, Afternic
-   jobs for large pushes, auth-code automation.
+   jobs for large pushes, auth-code automation; the MCP write tools.
 6. **DomBot, reporting:** views/leads with incremental per-domain stats,
    search demand, sales dashboards.
 
