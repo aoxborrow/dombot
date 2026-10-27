@@ -385,6 +385,32 @@ describe('syncRegistrarInto — last-good on error (via getPortfolio)', () => {
     expect(store.detail['other-account:example.you']).toEqual(otherAccount);
   });
 
+  it('skips the detail write when the listed dates already match', async () => {
+    const expiry = new Date('2027-10-14T12:00:54.000Z');
+    const listed = domain({
+      domainName: 'example.you',
+      registrar: 'dynadot',
+      expirationDate: expiry,
+      renewalDate: expiry,
+    });
+    seedSlice('dynadot', [listed]);
+    // As reloaded from disk: dates are JSON strings, not Dates.
+    const cached = {
+      data: {
+        ...listed,
+        expirationDate: expiry.toISOString(),
+        renewalDate: expiry.toISOString(),
+      },
+      fetchedAt: 123,
+    };
+    store.detail['dynadot:example.you'] = cached;
+    listPortfolio.mockResolvedValue({ domains: [listed], errors: [] });
+
+    await syncRegistrar('dynadot');
+
+    expect(store.detail['dynadot:example.you']).toBe(cached);
+  });
+
   it.each(['missing dates', 'failed sync'])(
     'retains known detail dates on %s and leaves other accounts untouched',
     async (scenario) => {
