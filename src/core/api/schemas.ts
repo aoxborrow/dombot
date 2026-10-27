@@ -31,6 +31,7 @@ export const urlForwardInput = z.object({
   host: z.string().trim().min(1).max(253),
   url: z.string().trim().min(1).max(2048),
   type: z.enum(['temporary', 'permanent']),
+  https: z.enum(['off', 'on', 'only']).optional(),
 });
 
 export const emailForward = z.object({

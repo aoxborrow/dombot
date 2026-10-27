@@ -9,6 +9,7 @@ import type {
   Domain as ProviderDomain,
   ConnectionResult,
   DomainForward,
+  DomainForwardHttps,
   EmailForward,
   RegistrarName,
 } from '@aoxborrow/registrar-client';
@@ -643,6 +644,9 @@ export interface UrlForwardInput {
   /** Destination URL. */
   url: string;
   type: 'temporary' | 'permanent';
+  /** Whether the source host answers on HTTPS. Unset keeps the rule's current
+   *  mode; only some registrars accept a value (see registrar-client). */
+  https?: DomainForwardHttps;
 }
 
 export type DomainOp =
