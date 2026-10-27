@@ -6,7 +6,7 @@ import { CircleAlert, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
-import { useSyncState } from '../lib/sync-state';
+import { isStale, staleAccounts, useSyncState } from '../lib/sync-state';
 import { ModeToggle } from './mode-toggle';
 import {
   isDemo,
@@ -90,14 +90,15 @@ export default function StatusBar() {
  * synced (a link to Settings → Registrars) and when. Syncing itself is on the
  * Domains page and in Settings → Registrars (and the menu on phones). Red
  * with an alert icon when an account failed, amber while some haven't synced
- * or the data is stale. Below lg the words shorten so they clear the
+ * yet or not in over a week. The time is the latest sync of any account, amber only once
+ * even that is old. Below lg the words shorten so they clear the
  * centered theme toggle.
  */
 function SyncStatus() {
   const navigate = useNavigate();
   const registrars = useAppStore((s) => s.registrars);
   const state = useSyncState();
-  const { syncing, lastSyncedAt, stale } = state;
+  const { syncing, lastSyncedAt } = state;
 
   // The desktop app menu's Sync Now does what the Domains page's Sync does,
   // or says why it can't (just synced, a bulk job running, nothing set up).
@@ -120,13 +121,16 @@ function SyncStatus() {
   if (registrars === null) return null;
 
   // Only enabled accounts count: a disabled one keeps its credentials but
-  // never syncs. One counts as synced when its last sync succeeded.
+  // never syncs. One counts as synced when its last sync succeeded within the
+  // staleness window; syncing one account doesn't vouch for the others.
   const enabled = registrars.filter((r) => r.configured && r.enabled);
   const unit =
     multiAccountRegistrars(registrars).size > 0 ? 'accounts' : 'registrars';
-  const synced = enabled.filter(
-    (r) => r.sync.lastSyncedAt != null && r.sync.lastError == null,
-  ).length;
+  const stale = staleAccounts(enabled).length;
+  const synced =
+    enabled.filter(
+      (r) => r.sync.lastSyncedAt != null && r.sync.lastError == null,
+    ).length - stale;
   const failed = enabled.filter((r) => r.sync.lastError != null).length;
   const one = (n: number) => (n === 1 ? unit.replace(/s$/, '') : unit);
   const tone =
@@ -156,14 +160,18 @@ function SyncStatus() {
       ? `No ${unit} to sync`
       : failed > 0
         ? `${failed} of ${enabled.length} ${one(enabled.length)} failed`
-        : `${synced}/${enabled.length} ${unit} synced`;
+        : stale > 0
+          ? `${stale} of ${enabled.length} ${one(enabled.length)} stale`
+          : `${synced}/${enabled.length} ${unit} synced`;
   const short = syncing
     ? 'Syncing…'
     : enabled.length === 0
       ? `No ${unit}`
       : failed > 0
         ? `${failed} failed`
-        : `${synced}/${enabled.length} synced`;
+        : stale > 0
+          ? `${stale} stale`
+          : `${synced}/${enabled.length} synced`;
 
   return (
     <div className="flex items-center gap-3">
@@ -179,9 +187,11 @@ function SyncStatus() {
             ? `No ${unit} set up — open registrar settings`
             : failed > 0
               ? `${failed} ${one(failed)} failed to sync — open registrar settings`
-              : synced === enabled.length
-                ? `All ${unit} synced — open registrar settings`
-                : `${enabled.length - synced} ${one(enabled.length - synced)} not synced yet — open registrar settings`
+              : stale > 0
+                ? `${stale} ${one(stale)} not synced in over a week — open registrar settings`
+                : synced === enabled.length
+                  ? `All ${unit} synced — open registrar settings`
+                  : `${enabled.length - synced} ${one(enabled.length - synced)} not synced yet — open registrar settings`
         }
       >
         {light}
@@ -192,7 +202,7 @@ function SyncStatus() {
         <span
           className={cn(
             '-ml-1.5',
-            stale && 'text-amber-600 dark:text-amber-400',
+            isStale(lastSyncedAt) && 'text-amber-600 dark:text-amber-400',
           )}
           title={`Last synced ${new Date(lastSyncedAt).toLocaleString()}`}
         >

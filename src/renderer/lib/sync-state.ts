@@ -1,5 +1,6 @@
 import { useEffect, useReducer } from 'react';
 import { toast } from 'sonner';
+import type { RegistrarMeta } from '../../shared/ipc';
 import { useAppStore } from '../store/app';
 import { isDemo } from './platform';
 
@@ -13,9 +14,25 @@ const SYNC_COOLDOWN_MS = 60 * 1000; // 1 minute
 const SYNC_STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /** At/past the staleness threshold — highlight the control to nudge a manual sync. */
-function isStale(fetchedAt: number): boolean {
+export function isStale(fetchedAt: number): boolean {
   return Date.now() - fetchedAt >= SYNC_STALE_AFTER_MS;
 }
+
+/** Enabled accounts whose own last successful sync is past the threshold. The
+ * portfolio's fetchedAt is the newest sync, so syncing one account would
+ * otherwise hide the rest going stale. Failed and never-synced accounts are
+ * counted separately. */
+export function staleAccounts(registrars: RegistrarMeta[] | null) {
+  return (registrars ?? []).filter(
+    (r) =>
+      r.configured &&
+      r.enabled &&
+      r.sync.lastError == null &&
+      r.sync.lastSyncedAt != null &&
+      isStale(r.sync.lastSyncedAt),
+  );
+}
+
 /** Still within the cooldown window after the last sync. */
 function onCooldown(fetchedAt: number): boolean {
   return Date.now() - fetchedAt < SYNC_COOLDOWN_MS;
@@ -61,7 +78,10 @@ export function useSyncState() {
 
   const noneConfigured =
     registrars !== null && registrars.every((r) => !r.configured);
-  const stale = portfolioLoadedAt !== null && isStale(portfolioLoadedAt);
+  const staleCount = staleAccounts(registrars).length;
+  const stale =
+    (portfolioLoadedAt !== null && isStale(portfolioLoadedAt)) ||
+    staleCount > 0;
   // The demo syncs as it boots (and Reset demo reloads), so the first visit
   // would open on a cooldown nobody caused. Its boot result is read from the
   // cache: let that one sync again straight away.
@@ -91,9 +111,11 @@ export function useSyncState() {
         ? `Last synced ${new Date(portfolioLoadedAt).toLocaleString()}${
             tooSoon
               ? ' — just synced, try again in a minute'
-              : stale
-                ? ' — data may be stale, click to sync'
-                : ' — click to sync'
+              : staleCount > 0
+                ? ` — ${staleCount} ${staleCount === 1 ? 'account' : 'accounts'} not synced in over a week, click to sync`
+                : stale
+                  ? ' — data may be stale, click to sync'
+                  : ' — click to sync'
           }`
         : 'Click to sync your portfolio';
 
@@ -124,6 +146,7 @@ export function useSyncState() {
     title,
     lastSyncedAt: portfolioLoadedAt,
     stale,
+    staleCount,
     noneConfigured,
     // A whole-portfolio failure, or one/more accounts that failed in the last
     // pull — surfaced as a compact error state alongside the last-synced time.
