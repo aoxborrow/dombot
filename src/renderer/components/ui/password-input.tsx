@@ -15,14 +15,19 @@ function PasswordInput({
   className,
   value,
   disabled,
+  id,
+  revealLabel,
   ...props
-}: Omit<React.ComponentProps<'input'>, 'type'>) {
+}: Omit<React.ComponentProps<'input'>, 'type'> & { revealLabel: string }) {
   const [visible, setVisible] = React.useState(false);
+  const generatedId = React.useId();
+  const inputId = id ?? generatedId;
   const hasValue = value != null && String(value).length > 0;
 
   return (
     <div className="relative">
       <Input
+        id={inputId}
         type={visible ? 'text' : 'password'}
         value={value}
         disabled={disabled}
@@ -33,10 +38,9 @@ function PasswordInput({
       {hasValue && (
         <button
           type="button"
-          // Not a tab stop: it's a convenience, and keeping it out of the tab
-          // order means Tab moves straight from the field to the next control.
-          tabIndex={-1}
-          aria-label={visible ? 'Hide value' : 'Show value'}
+          aria-label={`${visible ? 'Hide' : 'Show'} ${revealLabel}`}
+          aria-controls={inputId}
+          aria-pressed={visible}
           title={visible ? 'Hide' : 'Show'}
           onClick={() => setVisible((v) => !v)}
           className="absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground/70 transition-colors hover:text-foreground"
