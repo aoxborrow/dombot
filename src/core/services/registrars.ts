@@ -90,6 +90,18 @@ function withoutQuote(record: DetailRecord): Partial<Domain> {
   return rest;
 }
 
+/** True when a listed date needs no write: the list omits it, or the cached
+ *  value (a Date, or its JSON string once reloaded) is the same instant. */
+function sameDate(
+  listed: Date | null | undefined,
+  cached: Date | string | null | undefined,
+): boolean {
+  if (listed == null) return true;
+  return (
+    cached != null && new Date(cached).getTime() === new Date(listed).getTime()
+  );
+}
+
 /** A cached row: what the account's list returned. `assemblePortfolio`
  *  stamps the account and `source` on it. */
 type CachedDomain = Omit<Domain, 'source'>;
@@ -463,8 +475,35 @@ async function syncRegistrarInto(account: RegistrarAccount): Promise<void> {
   if ((generations.get(accountId) ?? 0) !== generation) return;
   writeEntry('portfolio', accountId, entry);
   // Refresh renewal quotes as part of the sync (see syncRenewalQuotes).
-  if (!entry.lastError)
+  if (!entry.lastError) {
+    // Older detail is overlaid on list rows by both the UI and MCP. Carry
+    // reported expiry dates into that cache so an external renewal survives
+    // the overlay. Keep detail-only fields, quotes and their age intact; a
+    // list that omits a date must not erase a previously known value. Skip
+    // entries whose dates already match: each write persists the whole
+    // namespace, and the dates rarely change between syncs.
+    for (const domain of entry.domains) {
+      if (domain.expirationDate == null && domain.renewalDate == null) continue;
+      const key = detailKey(accountId, domain.domainName);
+      const cached = readEntry<DetailRecord>('detail', key)?.data;
+      if (
+        !cached ||
+        (sameDate(domain.expirationDate, cached.expirationDate) &&
+          sameDate(domain.renewalDate, cached.renewalDate))
+      )
+        continue;
+      patchEntryData<DetailRecord>('detail', key, (detail) => ({
+        ...detail,
+        ...(domain.expirationDate != null
+          ? { expirationDate: domain.expirationDate }
+          : {}),
+        ...(domain.renewalDate != null
+          ? { renewalDate: domain.renewalDate }
+          : {}),
+      }));
+    }
     await syncRenewalQuotes(name, entry.domains, accountId, generation);
+  }
 }
 
 /**
