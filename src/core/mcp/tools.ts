@@ -268,6 +268,12 @@ const domainForward = z.object({
     .describe(
       'Redirect style: "temporary" (302) or "permanent" (301). Both show the destination URL in the address bar.',
     ),
+  https: z
+    .enum(['off', 'on', 'only'])
+    .optional()
+    .describe(
+      'Whether the SOURCE host answers on HTTPS: "off" (HTTP only), "on" (HTTP and HTTPS), "only" (HTTPS, redirecting HTTP to it). The destination scheme is part of `url`. Omit it to keep the rule\'s current mode (or the registrar default for a new rule). Only Gandi lets you choose; Cloudflare accepts "on" (always on); other registrars reject a value. On Gandi, turning HTTPS on can leave the forward unreachable until its certificate is issued.',
+    ),
 });
 
 // Consent to a registrar's registration/transfer agreements, where required
@@ -1746,7 +1752,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Get URL forwarding',
       description:
-        'For a single domain: read its URL forwarding rules (HTTP redirects from a host at the domain to a destination URL). A rule may report a read-only "masked" type; the set tool cannot create one. Not supported by every registrar.',
+        'For a single domain: read its URL forwarding rules (HTTP redirects from a host at the domain to a destination URL). A rule may report a read-only "masked" type; the set tool cannot create one. Where the registrar exposes it (Gandi), a rule also reports `https`, its source-host HTTPS mode. Not supported by every registrar.',
       inputSchema: { accountId, registrar: optionalRegistrar, domain },
       annotations: { readOnlyHint: true },
     },

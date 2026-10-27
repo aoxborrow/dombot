@@ -402,6 +402,21 @@ describe('input schemas', () => {
     ).toBe(true);
   });
 
+  it('domainForward accepts an optional https mode and rejects unknown ones', () => {
+    const s = schema('domain_url_forwarding_set');
+    const rule = { host: '@', url: 'https://x', type: 'permanent' };
+    for (const https of ['off', 'on', 'only']) {
+      expect(
+        s.safeParse({ domain: 'a.com', forwards: [{ ...rule, https }] })
+          .success,
+      ).toBe(true);
+    }
+    expect(
+      s.safeParse({ domain: 'a.com', forwards: [{ ...rule, https: 'yes' }] })
+        .success,
+    ).toBe(false);
+  });
+
   it('registrar enum rejects an unknown registrar', () => {
     const s = schema('domain_set_autorenew');
     expect(
