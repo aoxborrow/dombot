@@ -244,10 +244,51 @@ leads are the likely overlap).
 These are the product features the API supports; each is a later phase, not
 part of the client work.
 
+### Settings: Markets
+
+A new **Markets** section in Settings, between Registrars and Proxy, for
+Afternic now and Sedo, Atom and others later. "Markets" over "Integrations":
+it matches `src/core/markets/`, and says what's in it; "Integrations" would
+invite unrelated things (MCP already has its own section).
+
+It works like Registrars, so it reuses that page's pieces:
+
+- **One card per market account.** Multiple Afternic accounts are allowed
+  (separate businesses, a partner's account), keyed by account id like
+  registrar accounts (docs/multi-account.md), with an editable account name.
+- **Credentials:** API key and secret, with a link to Afternic's
+  [Account Profile → API Keys](https://www.afternic.com/account/profile).
+  Saving runs a connection test (one `listListings({ limit: 1 })`) and shows
+  the listing count, or Afternic's error with its request id.
+- **What the account gets**, shown after the test: listing count, sales
+  count, and whether search data comes back (Discount Domain Club Domain
+  Pro), so it's clear why search columns do or don't appear.
+- **Sync:** on/off per account, on the same schedule as registrar sync
+  (Settings → Sync), with last-synced time and the last error. The ⋯ menu
+  holds Sync now, Edit name, Disable and Remove, like registrar cards.
+- **Listing defaults:** Afternic's account settings (lander type, intake
+  style, which lander options show, lease-to-own on/off and max payments),
+  read from and saved to `/accountSettings`. These apply to listings created
+  later, including from DomBot.
+- **Later markets** don't appear until they're built: no "coming soon"
+  cards.
+
+Storage:
+
+- Market credentials go in their own namespace, `market-credentials`, keyed
+  by account id, and accounts in `market-accounts`, mirroring
+  `registrar-credentials` and `registrar-accounts` (docs/storage-model.md).
+- **The desktop host only encrypts namespaces it's told to**
+  (`src/electron/storage/index.ts` lists `registrar-credentials` and
+  `proxies`), so `market-credentials` must be added to that set. The web host
+  encrypts everything already.
+- Data bundles (export/import) carry registrar credentials; market
+  credentials must get the same treatment in `src/core/storage/bundle.ts`.
+- The MCP server gets the same accounts, so an MCP client can read listings
+  and sales without its own keys.
+
 ### Listings
 
-- **Afternic as a connected account**, beside registrar accounts: key + secret
-  in Settings, synced on the same schedule.
 - **Listing columns and filters** on the Domains table: listed on Afternic or
   not, listing status (`ACTIVE`, `PENDING`, `INACTIVE`, `FAILED_COMPLIANCE`, …),
   Fast Transfer status, lease-to-own on/off, offer count, and for Domain Pro
@@ -311,7 +352,7 @@ part of the client work.
    domanio.com.
 3. **Client, jobs:** jobs CSV both ways, create/upload/poll/results/close,
    `runJob`. Live one-row job on domanio.com; one careful `RECONCILE_JOB` test.
-4. **DomBot, read-only:** Afternic account in Settings, sync listings and
+4. **DomBot, read-only:** Settings → Markets with Afternic accounts, sync listings and
    sales, listing columns/filters (including searches and offers), sales as
    `sold` events.
 5. **DomBot, writes:** list/delist/reprice/relist from the table, Afternic
