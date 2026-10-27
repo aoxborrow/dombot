@@ -14,13 +14,13 @@ Everything under "Observed" was checked live against the account in `.env`
 24 operations in five groups, all under
 `https://api.afternic.com/v3/aftermarket/customers/my`:
 
-| Group | Operations |
-| --- | --- |
+| Group              | Operations                                                                                                        |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | Domains (listings) | list, get, get many by name, create, replace (PUT), update (PATCH), delete, upsert many, relist many, delete many |
-| Stats | account views/leads per day, one domain's views/leads per day |
-| Sales | list, get, update (auth code), send message to the transaction agent |
-| Account settings | get, update (defaults for new listings) |
-| Jobs | list, create, get, update (close/cancel), upload CSV, download results |
+| Stats              | account views/leads per day, one domain's views/leads per day                                                     |
+| Sales              | list, get, update (auth code), send message to the transaction agent                                              |
+| Account settings   | get, update (defaults for new listings)                                                                           |
+| Jobs               | list, create, get, update (close/cancel), upload CSV, download results                                            |
 
 Conventions:
 
@@ -39,19 +39,19 @@ Conventions:
 
 ### Observed: where the API and the docs disagree
 
-| Topic | Docs | Actual |
-| --- | --- | --- |
-| Stats `startDate` | start of the window ("30 days starting Sep 1") | the **end** of the window; days count backwards from it. Omit it for the last N days. |
-| Stats `days` | 1–366 in the guide | 1–365 (the reference is right) |
-| Sales `limit` | max 1000 | max **100** (`limit must be at most 100`) |
-| Settings path | — | `/accountSettings`, camelCase; `/accountsettings` is a 404 |
-| `PATCH ?resource=true` | returns the updated domain | returns 204 anyway; re-read to confirm |
-| `tld` on a domain | in the example response | not returned |
-| `includes=offerCount` | per-domain offer count | not returned here; most likely omitted for names with no offers, which is all of this account's. Treat a missing count as 0. |
-| `includes=searches` | searches 30/90/365d | not returned here: needs a Discount Domain Club Domain Pro membership, which this account doesn't have (many DomBot users will) |
-| Per-domain leads | list sorts by `LEADS_DESC`, examples show `intakeLeads` | never returned; the only per-domain leads are from `/stats/{domain}` |
-| `registrar` include | an enum (`GODADDY`, …) | free text: `"Dynadot Inc"` and `"Dynadot, LLC"`, `UNKNOWN`, sometimes missing |
-| New listing defaults | — | `leasingEnabled: true, maxLeasePeriod: 30` even though account settings say 60 |
+| Topic                  | Docs                                                    | Actual                                                                                                                          |
+| ---------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Stats `startDate`      | start of the window ("30 days starting Sep 1")          | the **end** of the window; days count backwards from it. Omit it for the last N days.                                           |
+| Stats `days`           | 1–366 in the guide                                      | 1–365 (the reference is right)                                                                                                  |
+| Sales `limit`          | max 1000                                                | max **100** (`limit must be at most 100`)                                                                                       |
+| Settings path          | —                                                       | `/accountSettings`, camelCase; `/accountsettings` is a 404                                                                      |
+| `PATCH ?resource=true` | returns the updated domain                              | returns 204 anyway; re-read to confirm                                                                                          |
+| `tld` on a domain      | in the example response                                 | not returned                                                                                                                    |
+| `includes=offerCount`  | per-domain offer count                                  | not returned here; most likely omitted for names with no offers, which is all of this account's. Treat a missing count as 0.    |
+| `includes=searches`    | searches 30/90/365d                                     | not returned here: needs a Discount Domain Club Domain Pro membership, which this account doesn't have (many DomBot users will) |
+| Per-domain leads       | list sorts by `LEADS_DESC`, examples show `intakeLeads` | never returned; the only per-domain leads are from `/stats/{domain}`                                                            |
+| `registrar` include    | an enum (`GODADDY`, …)                                  | free text: `"Dynadot Inc"` and `"Dynadot, LLC"`, `UNKNOWN`, sometimes missing                                                   |
+| New listing defaults   | —                                                       | `leasingEnabled: true, maxLeasePeriod: 30` even though account settings say 60                                                  |
 
 Other observed behavior worth designing around:
 
@@ -77,23 +77,23 @@ All of it except Replace domain (PUT): 23 of the 24 operations, plus every
 
 ### Implement
 
-| Operation | Why DomBot wants it |
-| --- | --- |
-| List domains (all filters, all `includes`) | The listing snapshot: which names are listed, at what prices, status, lander, leasing, Fast Transfer, registrar, offer count, and (for Domain Pro members) search counts. Basis of sync. |
-| Get domain, get many by name | Refresh one name or a selection after an edit, without re-pulling everything. |
-| Create domain | "List on Afternic" from DomBot. |
-| Update domain (PATCH) | Price and lander edits. Maps onto DomBot's asking price. |
-| Delete domain | Delist. Also needed when a name sells elsewhere or is dropped. |
-| Upsert many | Bulk list/reprice up to 500 at a time; the bulk path for "push my prices to Afternic". |
-| Delete many | Bulk delist. |
-| Relist many (`RESYNC`, `REACTIVATE`) | Fixes `INACTIVE`/`FAILED_COMPLIANCE` listings; DomBot can offer it next to those statuses. Exact effect of each mode needs a live test. |
-| Account stats, domain stats | Views and leads per day: the only traffic data the API has. Feeds dashboards. |
-| List sales, get sale | Full sales history with commission and payout dates; feeds `sold` events and reporting. |
-| Update sale (auth code) | When a sale is `AWAITING_AUTH_CODE`, DomBot can fetch the code from the registrar (registrar-client `getAuthCode`) and submit it. This is the most valuable automation in the whole API. |
-| Send sale message | Small, and the only way to reach the transaction agent from DomBot. Needs a confirm step since it's a message to a person. |
-| Get / update account settings | Defaults for new listings. Tiny; useful in Settings. |
-| Search statistics (`includes=searches`) | GoDaddy search counts per name (total and unique, 30/90/365 days) for Domain Pro members. One of the best demand signals available; feeds columns, sorting, and reporting. Hidden when the account doesn't get it. |
-| Bulk jobs: create, list, get, upload, results, close/cancel | Large portfolios. See below. |
+| Operation                                                   | Why DomBot wants it                                                                                                                                                                                                |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| List domains (all filters, all `includes`)                  | The listing snapshot: which names are listed, at what prices, status, lander, leasing, Fast Transfer, registrar, offer count, and (for Domain Pro members) search counts. Basis of sync.                           |
+| Get domain, get many by name                                | Refresh one name or a selection after an edit, without re-pulling everything.                                                                                                                                      |
+| Create domain                                               | "List on Afternic" from DomBot.                                                                                                                                                                                    |
+| Update domain (PATCH)                                       | Price and lander edits. Maps onto DomBot's asking price.                                                                                                                                                           |
+| Delete domain                                               | Delist. Also needed when a name sells elsewhere or is dropped.                                                                                                                                                     |
+| Upsert many                                                 | Bulk list/reprice up to 500 at a time; the bulk path for "push my prices to Afternic".                                                                                                                             |
+| Delete many                                                 | Bulk delist.                                                                                                                                                                                                       |
+| Relist many (`RESYNC`, `REACTIVATE`)                        | Fixes `INACTIVE`/`FAILED_COMPLIANCE` listings; DomBot can offer it next to those statuses. Exact effect of each mode needs a live test.                                                                            |
+| Account stats, domain stats                                 | Views and leads per day: the only traffic data the API has. Feeds dashboards.                                                                                                                                      |
+| List sales, get sale                                        | Full sales history with commission and payout dates; feeds `sold` events and reporting.                                                                                                                            |
+| Update sale (auth code)                                     | When a sale is `AWAITING_AUTH_CODE`, DomBot can fetch the code from the registrar (registrar-client `getAuthCode`) and submit it. This is the most valuable automation in the whole API.                           |
+| Send sale message                                           | Small, and the only way to reach the transaction agent from DomBot. Needs a confirm step since it's a message to a person.                                                                                         |
+| Get / update account settings                               | Defaults for new listings. Tiny; useful in Settings.                                                                                                                                                               |
+| Search statistics (`includes=searches`)                     | GoDaddy search counts per name (total and unique, 30/90/365 days) for Domain Pro members. One of the best demand signals available; feeds columns, sorting, and reporting. Hidden when the account doesn't get it. |
+| Bulk jobs: create, list, get, upload, results, close/cancel | Large portfolios. See below.                                                                                                                                                                                       |
 
 ### Leave out
 
@@ -148,11 +148,13 @@ src/core/markets/
     client.ts       AfternicClient: one method per operation
     types.ts        listing, sale, stats, job, settings types (dollars, not microunits)
     wire.ts         the API's JSON shapes and the microunit conversions
+    convert.ts      wire shapes → types
     jobs-csv.ts     listing objects ↔ the bulk-jobs CSV format
     errors.ts       AfternicError
+    rate-limit.ts   the per-account 150/min token bucket
     registrars.ts   free-text registrar → registrar-client key
-    fixtures/       recorded responses for tests
-    *.test.ts
+    fixtures.ts     live response shapes with made-up names, for tests
+    *.test.ts       unit tests; *.live.test.ts run against the real API
   sedo/           later
   atom/           later
 src/core/services/markets/
@@ -171,16 +173,17 @@ leads are the likely overlap).
 - `AfternicClient({ apiKey, apiSecret, userAgent, fetch? })`, with an
   injectable `fetch` so it can go through DomBot's proxy transport like
   registrar calls do.
-- One method per operation, named after the operation (`listDomains`,
-  `getDomain`, `getDomains`, `createDomain`, `updateDomain`, `deleteDomain`,
-  `upsertDomains`, `deleteDomains`, `relistDomains`, `getAccountStats`,
-  `getDomainStats`, `listSales`, `getSale`, `updateSale`, `sendSaleMessage`,
-  `getAccountSettings`, `updateAccountSettings`, `listJobs`, `createJob`,
-  `getJob`, `uploadJob`, `getJobResults`, `closeJob`, `cancelJob`), plus
-  async iterators `allDomains()` and `allSales()` that walk every page, and a
-  `runJob(listings)` helper that creates, uploads, polls and returns parsed
-  results.
-- **Paging big portfolios:** `allDomains()` pages at 500 in a fixed order
+- One method per operation. The API calls a listing a "domain"; the client
+  says "listing" so it never reads as a registrar domain: `listListings`,
+  `getListing`, `getListings`, `createListing`, `updateListing`,
+  `deleteListing`, `upsertListings`, `deleteListings`, `relistListings`,
+  `getAccountStats`, `getDomainStats`, `listSales`, `getSale`, `updateSale`,
+  `sendSaleMessage`, `getAccountSettings`, `updateAccountSettings`,
+  `listJobs`, `createJob`, `getJob`, `uploadJob`, `getJobResults`,
+  `closeJob`, `cancelJob`; plus `allListings()` and `allSales()`, which walk
+  every page, and a `runJob(listings)` helper that creates, uploads, polls
+  and returns parsed results.
+- **Paging big portfolios:** `allListings()` pages at 500 in a fixed order
   (`NAME_ASC`) and re-checks `pagination.total` at the end; if it changed
   mid-walk, the caller knows the snapshot may be torn and can re-run it.
 - **Money at the edges:** the client converts microunits to whole-dollar
@@ -199,9 +202,9 @@ leads are the likely overlap).
   10,000 calls, over an hour of budget, so per-domain stats must be fetched
   incrementally and cached (see Reporting).
 - **Optional data stays optional:** `searches`, `offerCount`, `registrar` and
-  `fastTransferStatus` are typed as possibly missing, and the client reports
-  whether the account returned search data at all, so the UI can hide those
-  columns instead of showing zeros.
+  `fastTransferStatus` are null when Afternic doesn't send them, never a
+  made-up 0, so the UI can hide search columns for an account where no
+  listing has search data.
 - **Errors:** one `AfternicError` with `status`, `code`, `message`,
   `fields[]`, and the `requestId` we sent, so failures can quote it to support.
 - **Normalize what's messy:** map the free-text `registrar` to a stable key
@@ -212,20 +215,24 @@ leads are the likely overlap).
 
 ### Testing
 
-- **Unit tests** in DomBot's normal `npm test` run, against fixtures recorded
-  from the live account (with `authCode` scrubbed): paging, money conversion,
+- **Unit tests** in DomBot's normal `npm test` run, against fixtures in the
+  exact shapes the live API returned but with made-up names and amounts (the
+  repo is public; real fixtures would publish a portfolio and its sales):
+  paging, money conversion,
   batch chunking and result merging, jobs CSV both ways, error parsing, the
   stats date window, retry and rate-limit behavior.
-- **Live tests**, kept out of `npm test` and CI: a separate vitest config
-  (e.g. `vitest.afternic.config.ts`, run by `npm run test:afternic`) that
-  skips unless `AFTERNIC_API_KEY` is set. Reads: list, get, many, stats,
-  sales, settings, jobs list.
+- **Live tests** (`*.live.test.ts`), kept out of `npm test` and CI:
+  `npm run test:live` runs them with `vitest.live.config.ts`, which loads the
+  nearest `.env`. Each suite skips when its credentials are missing, so the
+  same command will cover Sedo and others later. Reads: list, get, many,
+  stats, sales, settings, jobs list, plus checks that the API still behaves
+  the way "Observed" says (a failure there means Afternic changed it).
 - **Live write tests on one dedicated name** (domanio.com, now listed): PATCH
   each price and restore it, toggle `hidden` and restore it, relist in both
   modes, delete and re-create, and a one-row `BULK_JOB` that sets its price.
   Never touch other listings from tests.
-- **Scale:** a synthetic 12,000-listing fixture to test paging, chunking and
-  the rate limiter without the live API.
+- **Scale:** synthetic portfolios of thousands of listings to test paging,
+  chunking and the rate limiter without the live API.
 - **Can't be tested on this account:** search data (no Domain Pro membership;
   use the spec's example response and ask a member for a real one),
   `offerCount` (no offers), and `updateSale`/`sendSaleMessage` (need a live
@@ -255,7 +262,7 @@ part of the client work.
   - read-only first: show Afternic's prices and flag where they differ from
     DomBot's;
   - then push: edit in DomBot and save to Afternic.
-  Afternic is USD-only, so a non-USD asking price can't be pushed as-is.
+    Afternic is USD-only, so a non-USD asking price can't be pushed as-is.
 - **List on Afternic** from DomBot for a selection of names: create the
   listings, then offer to set the nameservers to Afternic through the
   registrar, which is what turned domanio.com `ACTIVE`. DomBot already
