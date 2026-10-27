@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const getActiveRegistrars = vi.fn<() => string[]>();
 const getCachedPortfolio = vi.fn<() => { fetchedAt: number | null } | null>();
 const getPortfolio = vi.fn();
+const retryDeferredSyncs = vi.fn();
 vi.mock('./registrars', () => ({
   getActiveRegistrars: () => getActiveRegistrars(),
   getCachedPortfolio: () => getCachedPortfolio(),
   getPortfolio: (...a: unknown[]) => getPortfolio(...a),
+  retryDeferredSyncs: () => retryDeferredSyncs(),
 }));
 const isBulkRunning = vi.fn<() => boolean>();
 vi.mock('./bulk-jobs', () => ({ isBulkRunning: () => isBulkRunning() }));
@@ -28,12 +30,13 @@ beforeEach(() => {
   isBulkRunning.mockReturnValue(false);
   getCachedPortfolio.mockReturnValue({ fetchedAt: Date.now() - 30 * 60_000 });
   getPortfolio.mockResolvedValue({});
+  retryDeferredSyncs.mockResolvedValue(false);
 });
 
 describe('syncAll', () => {
   it('syncs and notifies', async () => {
     expect(await syncAll()).toBe(true);
-    expect(getPortfolio).toHaveBeenCalledWith(true);
+    expect(getPortfolio).toHaveBeenCalledWith(true, true);
     expect(broadcastPortfolioChanged).toHaveBeenCalledTimes(1);
   });
 

@@ -3,6 +3,7 @@ import { importedRows } from '../../shared/imported-domains';
 import { getImportedDomains } from './imported-domains';
 import {
   NotImplementedError,
+  RateLimitError,
   RegistrarClient,
   createRegistrar,
   listPortfolio,
@@ -120,6 +121,7 @@ interface RegistrarPortfolioEntry {
   lastError: string | null;
   /** Absent in entries written before it was recorded. */
   lastErrorAt?: number | null;
+  recovery?: RegistrarMeta['sync']['recovery'];
 }
 
 /** Dates round-trip through JSON as ISO strings; revive them back to `Date`. */
@@ -133,6 +135,7 @@ function reviveDomainDates<T extends Partial<Domain>>(d: T): T {
 
 // Cache one client per account so we don't rebuild it on every call.
 const clients = new Map<string, RegistrarClient>();
+const inventoryInFlight = new Map<string, Promise<void>>();
 
 /** Builds the provider behind a client. Hosts swap it to run the app against
  *  something other than the real registrars (the demo's in-memory one). */
@@ -164,6 +167,7 @@ function buildProvider(
 const clientCredentials = new Map<string, string>();
 const generations = new Map<string, number>();
 function invalidateAccount(id: string): void {
+  inventoryInFlight.delete(id);
   clients.delete(id);
   clientCredentials.delete(id);
   generations.set(id, (generations.get(id) ?? 0) + 1);
@@ -440,10 +444,18 @@ function assemblePortfolio(): Portfolio {
  * `lastSyncedAt` and only record `lastError`, so a transient failure doesn't blank
  * a registrar that was working.
  */
-async function syncRegistrarInto(account: RegistrarAccount): Promise<void> {
+async function performInventorySync(
+  account: RegistrarAccount,
+  scheduled: boolean,
+): Promise<void> {
   const { registrar: name, id: accountId } = account;
   let generation = generations.get(accountId) ?? 0;
   const prev = readRegistrarEntry(accountId);
+  if (name === 'dynadot' && prev?.recovery) {
+    if (prev.recovery.retryAt > Date.now()) return;
+    if (scheduled && prev.recovery.state === 'failed') return;
+  }
+  let failure: unknown;
   let entry: RegistrarPortfolioEntry;
   try {
     const client = getRegistrarClient(name, accountId);
@@ -451,6 +463,7 @@ async function syncRegistrarInto(account: RegistrarAccount): Promise<void> {
     generations.set(accountId, generation);
     const { domains, errors } = await listPortfolio([client]);
     const error = errors[0]?.error;
+    failure = error;
     entry = error
       ? {
           domains: prev?.domains ?? [],
@@ -465,6 +478,7 @@ async function syncRegistrarInto(account: RegistrarAccount): Promise<void> {
           lastErrorAt: null,
         };
   } catch (err) {
+    failure = err;
     entry = {
       domains: prev?.domains ?? [],
       lastSyncedAt: prev?.lastSyncedAt ?? null,
@@ -473,6 +487,24 @@ async function syncRegistrarInto(account: RegistrarAccount): Promise<void> {
     };
   }
   if ((generations.get(accountId) ?? 0) !== generation) return;
+  if (name === 'dynadot' && failure instanceof RateLimitError) {
+    const attempts = (scheduled ? (prev?.recovery?.attempts ?? 0) : 0) + 1;
+    const reported = failure.retryAfter;
+    const retryAfter =
+      reported != null && Number.isFinite(reported) && reported >= 0
+        ? reported
+        : 60;
+    entry.recovery = {
+      state: attempts >= 3 ? 'failed' : 'deferred',
+      attempts,
+      retryAt:
+        Date.now() + Math.max(retryAfter, 60 * 2 ** (attempts - 1)) * 1000,
+    };
+    entry.lastError =
+      attempts >= 3
+        ? 'Dynadot rate limit: automatic inventory retries stopped after three attempts. Cached domains are preserved. Try Sync after the cooldown.'
+        : 'Dynadot rate limit: inventory refresh is deferred. Cached domains are preserved. Retry on the next scheduled sync or use Sync after the cooldown.';
+  }
   writeEntry('portfolio', accountId, entry);
   // Refresh renewal quotes as part of the sync (see syncRenewalQuotes).
   if (!entry.lastError) {
@@ -504,6 +536,38 @@ async function syncRegistrarInto(account: RegistrarAccount): Promise<void> {
     }
     await syncRenewalQuotes(name, entry.domains, accountId, generation);
   }
+}
+
+/** Scheduled work reuses an account refresh already in progress, including
+ * its quote work. Explicit manual refreshes retain their existing ability to
+ * supersede an older read; generations prevent its late result from winning. */
+function syncRegistrarInto(
+  account: RegistrarAccount,
+  scheduled: boolean,
+): Promise<void> {
+  const running = inventoryInFlight.get(account.id);
+  if (scheduled && running) return running;
+  const work = performInventorySync(account, scheduled);
+  inventoryInFlight.set(account.id, work);
+  const clear = () => {
+    if (inventoryInFlight.get(account.id) === work)
+      inventoryInFlight.delete(account.id);
+  };
+  void work.then(clear, clear);
+  return work;
+}
+
+/** Recover due accounts even when a healthy sibling makes the aggregate cache
+ * look fresh. Uses the host's existing scheduler; creates no extra timer. */
+export async function retryDeferredSyncs(): Promise<boolean> {
+  const due = getActiveAccounts().filter((account) => {
+    if (account.registrar !== 'dynadot') return false;
+    const recovery = readRegistrarEntry(account.id)?.recovery;
+    return recovery?.state === 'deferred' && recovery.retryAt <= Date.now();
+  });
+  if (!due.length) return false;
+  await syncAccounts(due, true);
+  return true;
 }
 
 /**
@@ -826,8 +890,13 @@ function holdingsOf(
 }
 
 /** Pull these accounts, then record arrivals, departures, moves, and renewals. */
-async function syncAccounts(accounts: RegistrarAccount[]): Promise<void> {
-  await Promise.all(accounts.map((account) => syncRegistrarInto(account)));
+async function syncAccounts(
+  accounts: RegistrarAccount[],
+  scheduled = false,
+): Promise<void> {
+  await Promise.all(
+    accounts.map((account) => syncRegistrarInto(account, scheduled)),
+  );
   const attempted = new Set(accounts.map((account) => account.id));
   const after = getActiveAccounts().map((account) =>
     holdingsOf(account, attempted.has(account.id)),
@@ -848,11 +917,14 @@ async function syncAccounts(accounts: RegistrarAccount[]): Promise<void> {
  * the "Sync domains" button) we re-sync every configured registrar in parallel,
  * then return the assembled result.
  */
-export async function getPortfolio(refresh = true): Promise<Portfolio> {
+export async function getPortfolio(
+  refresh = true,
+  scheduled = false,
+): Promise<Portfolio> {
   if (refresh) {
     // Only sync enabled registrars — a disabled one keeps its credentials but is
     // deliberately skipped.
-    await syncAccounts(getActiveAccounts());
+    await syncAccounts(getActiveAccounts(), scheduled);
   }
   return assemblePortfolio();
 }
@@ -1081,6 +1153,7 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
         lastErrorAt: sync?.lastError ? (sync.lastErrorAt ?? null) : null,
         domainCount: sync?.domains.filter(hasDomainName).length ?? 0,
         trackedSince: account.trackedSince ?? null,
+        ...(sync?.recovery ? { recovery: sync.recovery } : {}),
       },
     };
   });

@@ -1264,7 +1264,9 @@ function SyncStatus({
       <span className="flex items-center gap-1.5">
         <CircleX className="size-3.5 shrink-0 text-destructive" />
         <span className="text-[13px] font-medium text-destructive">
-          Sync failed
+          {meta.sync.recovery?.state === 'deferred'
+            ? 'Sync deferred'
+            : 'Sync failed'}
         </span>
       </span>
     );
