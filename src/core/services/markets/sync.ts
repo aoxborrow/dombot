@@ -72,6 +72,36 @@ export function marketListings(): MarketListing[] {
   return Object.values(listings.all()).filter((l) => ids.has(l.accountId));
 }
 
+/**
+ * A name DomBot listed for sale that the market lists but not for sale yet
+ * is still being checked (Sedo verifies ownership of every new name, through
+ * the registry or a TXT record, on its site). It stays pending, and keeps
+ * the for-sale choice it was listed with, so the next sync or write still
+ * knows to hold it, until the market puts it up for sale.
+ */
+export function holdPending(
+  cached: MarketListing | undefined,
+  next: MarketListing,
+): MarketListing {
+  if (cached?.status !== 'pending' || !cached.forSale || next.forSale) {
+    return next;
+  }
+  return {
+    ...next,
+    status: 'pending',
+    forSale: true,
+    listedAt: next.listedAt ?? cached.listedAt,
+  };
+}
+
+/** The stored listing for a name on an account, if any. */
+export function cachedListing(
+  accountId: string,
+  name: string,
+): MarketListing | undefined {
+  return listings.get(`${accountId}:${name}`);
+}
+
 /** Store listings a write returned, so the table shows them before a sync. */
 export function putMarketListings(
   accountId: string,
@@ -183,20 +213,13 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
         void listings.delete(key);
       }
     }
-    // A name DomBot listed for sale that the market lists but not for sale
-    // yet is still being checked (Sedo verifies ownership of every new name,
-    // through the registry or a TXT record, on its site). Keep it pending
-    // until the market puts it up for sale.
+    // Names still in the market's ownership check stay pending.
     let verifying = 0;
     if (caps.asyncInsert) {
       for (const [key, row] of fresh) {
-        const cached = listings.get(key);
-        if (cached?.status === 'pending' && cached.forSale && !row.forSale) {
-          fresh.set(key, {
-            ...row,
-            status: 'pending',
-            listedAt: row.listedAt ?? cached.listedAt,
-          });
+        const held = holdPending(listings.get(key), row);
+        if (held !== row) {
+          fresh.set(key, held);
           verifying++;
         }
       }

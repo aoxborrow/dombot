@@ -23,6 +23,8 @@ const fake = {
   authCodes: [] as [string, string][],
   sales: [] as MarketSale[],
   batch: 500,
+  asyncInsert: false,
+  savedForSale: true,
 };
 const listingOf = (name: string, accountId: string): MarketListing => ({
   market: 'afternic',
@@ -67,7 +69,11 @@ vi.mock('./registry', async () => {
       market: 'afternic',
       accountId,
       get capabilities() {
-        return { ...AFTERNIC_CAPABILITIES, writeBatch: fake.batch };
+        return {
+          ...AFTERNIC_CAPABILITIES,
+          writeBatch: fake.batch,
+          asyncInsert: fake.asyncInsert,
+        };
       },
       test: async () => ({ listings: 0, notes: [] }),
       allListings: async () => ({ listings: [], complete: true }),
@@ -75,7 +81,13 @@ vi.mock('./registry', async () => {
       accountStats: async () => [],
       writeListings: async (changes: MarketListingChange[]) => {
         fake.written.push(changes);
-        return changes.map((c) => ok(c.name, listingOf(c.name, accountId)));
+        return changes.map((c) =>
+          ok(c.name, {
+            ...listingOf(c.name, accountId),
+            status: 'active',
+            forSale: c.forSale ?? fake.savedForSale,
+          }),
+        );
       },
       deleteListings: async (names: string[]) => {
         fake.deleted.push(names);
@@ -143,6 +155,8 @@ beforeEach(async () => {
     authCodes: [],
     sales: [],
     batch: 500,
+    asyncInsert: false,
+    savedForSale: true,
   });
   held.clear();
   applyDomainOp.mockReset();
@@ -333,5 +347,32 @@ describe('listingAccount', () => {
     expect(writes.listingAccount('new.com')).toBe(ID);
     await writes.writeMarketListings(ID, [{ name: 'a.com', price: '1' }]);
     expect(writes.listingAccount('A.com')).toBe(ID);
+  });
+});
+
+describe('names in the market’s ownership check', () => {
+  it('stay pending through a price edit, unless taken off sale', async () => {
+    fake.asyncInsert = true;
+    // The market saves the edit but still has the name off sale.
+    fake.savedForSale = false;
+    putMarketListings(ID, [
+      { ...listingOf('verifying.com', ID), status: 'pending', forSale: true },
+      { ...listingOf('parked.com', ID), status: 'pending', forSale: true },
+    ]);
+    const results = await writes.writeMarketListings(ID, [
+      { name: 'verifying.com', price: '900' },
+      { name: 'parked.com', forSale: false },
+    ]);
+    expect(results.map((r) => [r.name, r.pending])).toEqual([
+      ['verifying.com', true],
+      ['parked.com', false],
+    ]);
+    const stored = Object.fromEntries(
+      marketListings().map((l) => [l.name, [l.status, l.forSale]]),
+    );
+    expect(stored).toEqual({
+      'verifying.com': ['pending', true],
+      'parked.com': ['active', false],
+    });
   });
 });
