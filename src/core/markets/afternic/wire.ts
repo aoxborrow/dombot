@@ -207,6 +207,32 @@ export interface WireAccountSettings {
   selfBrokerEnabled?: boolean;
 }
 
+/** The writable part of a domain, for create, PATCH and upsert. */
+export type WireDomainFields = Partial<
+  Pick<
+    WireDomain,
+    | 'displayName'
+    | 'buynowPrice'
+    | 'floorPrice'
+    | 'minbidPrice'
+    | 'leasingEnabled'
+    | 'maxLeasePeriod'
+    | 'intakeStyle'
+    | 'landingPage'
+    | 'showLanderBuynowOption'
+    | 'showLanderMakeOfferOption'
+    | 'showLanderLeaseToOwnOption'
+    | 'featured'
+    | 'hidden'
+  >
+>;
+
+/** A bulk call's answer: one entry per name, keyed by name. */
+export type WireOperationsMap = Record<
+  string,
+  { code: number; domain?: WireDomain; error?: WireError }
+>;
+
 export interface WireError {
   code?: string;
   message?: string;

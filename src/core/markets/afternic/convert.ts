@@ -1,9 +1,12 @@
 import { registrarFromAfternic } from './registrars';
 import type {
+  AccountSettingsInput,
   AfternicAccountSettings,
   AfternicListing,
   AfternicSale,
   DailyStats,
+  ListingFields,
+  ListingResult,
   SearchCounts,
 } from './types';
 import {
@@ -12,13 +15,17 @@ import {
   microToDollars,
   type WireAccountSettings,
   type WireDomain,
+  type WireDomainFields,
+  type WireOperationsMap,
   type WireSale,
   type WireSearchCounts,
   type WireStats,
 } from './wire';
 
-// Wire shapes → client types. Missing fields become null rather than a
-// default, so callers can tell "Afternic didn't say" from "false" or "0".
+// Wire shapes ↔ client types. Reading, missing fields become null rather than
+// a default, so callers can tell "Afternic didn't say" from "false" or "0".
+// Writing, only the fields the caller set are sent, so an update leaves the
+// rest alone.
 
 /** A price that 0 means "not set" for (Buy Now, floor). */
 function optionalPrice(micro: number | undefined): number | null {
@@ -125,4 +132,120 @@ export function toSettings(wire: WireAccountSettings): AfternicAccountSettings {
 /** Whole dollars → microunits for a query filter. */
 export function priceFilter(dollars: number | undefined): string | undefined {
   return dollars == null ? undefined : String(dollarsToMicro(dollars));
+}
+
+// Writes
+
+/** The API's ceiling on any price: $49,999,999. */
+const MAX_PRICE = 49_999_999;
+const MIN_OFFER = 20;
+
+function price(dollars: number, label: string): number {
+  if (dollars > MAX_PRICE) {
+    throw new Error(
+      `${label} can't be over $${MAX_PRICE.toLocaleString('en-US')}.`,
+    );
+  }
+  try {
+    return dollarsToMicro(dollars);
+  } catch {
+    throw new Error(`${label} must be a whole number of dollars: ${dollars}`);
+  }
+}
+
+/**
+ * The fields to send for a create, update or upsert. Checks the rules the API
+ * would otherwise reject one name at a time.
+ */
+export function toWireFields(fields: ListingFields): WireDomainFields {
+  const wire: WireDomainFields = {};
+  if (fields.displayName !== undefined) wire.displayName = fields.displayName;
+  if (fields.buyNow !== undefined) {
+    wire.buynowPrice =
+      fields.buyNow === null ? 0 : price(fields.buyNow, 'Buy Now price');
+  }
+  if (fields.floor !== undefined) {
+    wire.floorPrice =
+      fields.floor === null ? 0 : price(fields.floor, 'Floor price');
+  }
+  if (fields.minOffer !== undefined) {
+    if (fields.minOffer < MIN_OFFER) {
+      throw new Error(`Minimum offer must be at least $${MIN_OFFER}.`);
+    }
+    wire.minbidPrice = price(fields.minOffer, 'Minimum offer');
+  }
+  if (fields.maxLeasePeriod !== undefined) {
+    const n = fields.maxLeasePeriod;
+    if (!Number.isInteger(n) || n < 2 || n > 60) {
+      throw new Error(`Lease-to-own payments must be 2–60, not ${n}.`);
+    }
+    wire.maxLeasePeriod = n;
+  }
+  for (const key of [
+    'leasingEnabled',
+    'landingPage',
+    'intakeStyle',
+    'showLanderBuynowOption',
+    'showLanderMakeOfferOption',
+    'showLanderLeaseToOwnOption',
+    'featured',
+    'hidden',
+  ] as const) {
+    if (fields[key] !== undefined) {
+      (wire as Record<string, unknown>)[key] = fields[key];
+    }
+  }
+  return wire;
+}
+
+export function toWireSettings(
+  settings: AccountSettingsInput,
+): WireAccountSettings {
+  if (settings.maxLeasePeriod !== undefined) {
+    const n = settings.maxLeasePeriod;
+    if (!Number.isInteger(n) || n < 2 || n > 60) {
+      throw new Error(`Lease-to-own payments must be 2–60, not ${n}.`);
+    }
+  }
+  return Object.fromEntries(
+    Object.entries(settings).filter(([, v]) => v !== undefined),
+  ) as WireAccountSettings;
+}
+
+/**
+ * One result per requested name, in request order. A name Afternic left out
+ * of its answer is reported as a failure rather than dropped.
+ */
+export function toResults(
+  names: readonly string[],
+  map: WireOperationsMap | null,
+): ListingResult[] {
+  return names.map((name) => {
+    const entry = map?.[name];
+    if (!entry) {
+      return {
+        name,
+        ok: false,
+        status: 0,
+        listing: null,
+        error: {
+          code: 'NO_RESULT',
+          message: 'Afternic returned no result for this name.',
+        },
+      };
+    }
+    const ok = entry.code >= 200 && entry.code < 300;
+    return {
+      name,
+      ok,
+      status: entry.code,
+      listing: entry.domain ? toListing(entry.domain) : null,
+      error: ok
+        ? null
+        : {
+            code: entry.error?.code ?? `HTTP_${entry.code}`,
+            message: entry.error?.message ?? `HTTP ${entry.code}`,
+          },
+    };
+  });
 }

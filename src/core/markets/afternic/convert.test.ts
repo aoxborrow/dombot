@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { toListing, toSale, toSettings, toStats } from './convert';
+import {
+  toListing,
+  toResults,
+  toSale,
+  toSettings,
+  toStats,
+  toWireFields,
+  toWireSettings,
+} from './convert';
 import { errorFromResponse } from './errors';
 import * as fx from './fixtures';
 import { registrarFromAfternic } from './registrars';
@@ -172,5 +180,70 @@ describe('errorFromResponse', () => {
     expect(
       errorFromResponse(404, '404 page not found', 'r', null).message,
     ).toBe('404 page not found');
+  });
+});
+
+describe('toWireFields', () => {
+  it('sends only what was set, in microunits', () => {
+    expect(toWireFields({ buyNow: 7500 })).toEqual({
+      buynowPrice: 7_500_000_000,
+    });
+    expect(
+      toWireFields({
+        buyNow: null,
+        floor: 1000,
+        minOffer: 100,
+        hidden: false,
+        intakeStyle: 'BUYNOW',
+        maxLeasePeriod: 36,
+      }),
+    ).toEqual({
+      buynowPrice: 0,
+      floorPrice: 1_000_000_000,
+      minbidPrice: 100_000_000,
+      hidden: false,
+      intakeStyle: 'BUYNOW',
+      maxLeasePeriod: 36,
+    });
+    expect(toWireFields({})).toEqual({});
+  });
+
+  it('rejects what the API would', () => {
+    expect(() => toWireFields({ buyNow: 99.5 })).toThrow(/whole number/);
+    expect(() => toWireFields({ minOffer: 19 })).toThrow(/at least \$20/);
+    expect(() => toWireFields({ floor: 50_000_000 })).toThrow(/over/);
+    expect(() => toWireFields({ maxLeasePeriod: 61 })).toThrow(/2–60/);
+  });
+});
+
+describe('toWireSettings', () => {
+  it('drops unset fields and checks lease payments', () => {
+    expect(toWireSettings({ leasingEnabled: false })).toEqual({
+      leasingEnabled: false,
+    });
+    expect(() => toWireSettings({ maxLeasePeriod: 1 })).toThrow(/2–60/);
+  });
+});
+
+describe('toResults', () => {
+  it('reports each name in request order, success or not', () => {
+    const results = toResults(['example.com', 'example.net', 'example.org'], {
+      'example.net': {
+        code: 404,
+        error: { code: 'RESOURCE_NOT_FOUND', message: 'not listed' },
+      },
+      'example.com': { code: 200, domain: fx.domainFull },
+    });
+    expect(results.map((r) => [r.name, r.ok, r.status])).toEqual([
+      ['example.com', true, 200],
+      ['example.net', false, 404],
+      ['example.org', false, 0],
+    ]);
+    expect(results[0].listing?.buyNow).toBe(2499);
+    expect(results[1].error).toEqual({
+      code: 'RESOURCE_NOT_FOUND',
+      message: 'not listed',
+    });
+    expect(results[2].error?.code).toBe('NO_RESULT');
   });
 });

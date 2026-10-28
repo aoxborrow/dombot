@@ -59,6 +59,12 @@ Other observed behavior worth designing around:
   pointing the nameservers at `ns1/ns2.afternic.com`.
 - Changes made in the Afternic web UI show up in the API immediately (floor
   price on domanio.com).
+- Deleting a listing and creating it again keeps its original `createdAt` but
+  sends it back to `PENDING`; it was `ACTIVE` again within a minute or two.
+- A bulk call answers a name it couldn't act on with that name's own status
+  and no error body (`{"name": {"code": 404}}` for delete), inside a 200.
+- `RESYNC` on an `ACTIVE` listing succeeds and changes nothing visible.
+- Creating a listing that exists returns 409, as documented.
 - Sales history covers every sale back to 2020, not just recent ones, once
   you pass a wide `soldAtStartDate`. The default window is the last month.
 - A sale record includes the transfer `authCode` in plain text.
@@ -227,10 +233,14 @@ leads are the likely overlap).
   same command will cover Sedo and others later. Reads: list, get, many,
   stats, sales, settings, jobs list, plus checks that the API still behaves
   the way "Observed" says (a failure there means Afternic changed it).
-- **Live write tests on one dedicated name** (domanio.com, now listed): PATCH
-  each price and restore it, toggle `hidden` and restore it, relist in both
-  modes, delete and re-create, and a one-row `BULK_JOB` that sets its price.
-  Never touch other listings from tests.
+- **Live write tests on one dedicated name** (domanio.com), with
+  `AFTERNIC_LIVE_WRITES=1`: change a price and restore it, toggle `hidden`
+  and restore it, upsert it unchanged, `RESYNC` it, save account settings
+  unchanged, a bulk delete of a name that isn't listed, and a create that
+  must conflict. Delete and re-create also needs `AFTERNIC_LIVE_DELIST=1`,
+  since it takes the listing off the market for a minute or two. Later, a
+  one-row `BULK_JOB` that sets its price. Every test restores the listing,
+  and nothing touches other listings.
 - **Scale:** synthetic portfolios of thousands of listings to test paging,
   chunking and the rate limiter without the live API.
 - **Can't be tested on this account:** search data (no Domain Pro membership;

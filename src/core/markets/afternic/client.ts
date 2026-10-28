@@ -1,6 +1,15 @@
 import { userAgentHeaders } from '../../app-info';
 import { assertDomainName } from '../../../shared/domain-name';
-import { priceFilter, toListing, toSale, toSettings, toStats } from './convert';
+import {
+  priceFilter,
+  toListing,
+  toResults,
+  toSale,
+  toSettings,
+  toStats,
+  toWireFields,
+  toWireSettings,
+} from './convert';
 import { AfternicError, errorFromResponse } from './errors';
 import {
   limiterFor,
@@ -9,14 +18,19 @@ import {
   type RateLimiter,
 } from './rate-limit';
 import type {
+  AccountSettingsInput,
   AfternicAccountSettings,
   AfternicListing,
   AfternicSale,
   AllListingsResult,
   DailyStats,
+  ListingFields,
+  ListingInput,
+  ListingResult,
   ListingsPage,
   ListListingsOptions,
   ListSalesOptions,
+  RelistMode,
   SalesPage,
   StatsOptions,
 } from './types';
@@ -27,16 +41,22 @@ import {
   type WireDomain,
   type WireDomainsList,
   type WireDomainsPage,
+  type WireOperationsMap,
   type WireSale,
   type WireSalesPage,
   type WireStats,
 } from './wire';
 
 // A client for the Afternic Portfolio API (docs/afternic-api.md). One method
-// per operation; reads only for now. Every request goes through the shared
-// per-account rate limit, and reads retry on 429, 5xx and network failures.
+// per operation. Every request goes through the shared per-account rate
+// limit. Reads, and writes that land the same however often they're sent
+// (PATCH, upsert, delete, relist), retry on 429, 5xx and network failures;
+// creating a listing and messaging a transaction agent never retry.
 
 export const AFTERNIC_BASE_URL = 'https://api.afternic.com';
+
+/** Longest message to a transaction agent. */
+const MAX_MESSAGE = 1000;
 
 /** Most names per `$each` call. */
 export const BATCH_SIZE = 500;
@@ -324,6 +344,181 @@ export class AfternicClient {
       (await this.request<WireAccountSettings>('GET', '/accountSettings')) ??
         {},
     );
+  }
+
+  /** Change the defaults for listings created from now on. */
+  async updateAccountSettings(settings: AccountSettingsInput): Promise<void> {
+    await this.request('PATCH', '/accountSettings', {
+      body: toWireSettings(settings),
+      retry: true,
+    });
+  }
+
+  // Listing writes
+
+  /**
+   * List a name. Fields left out take the account's listing defaults. Throws
+   * `CONFLICT` (409) when it's already listed.
+   */
+  async createListing(input: ListingInput): Promise<AfternicListing> {
+    const name = assertDomainName(input.name);
+    const wire = await this.request<WireDomain>('POST', '/domains', {
+      body: { name, ...toWireFields(input) },
+    });
+    return wire ? toListing(wire) : this.mustGetListing(name);
+  }
+
+  /**
+   * Change some of a listing's settings and return it as saved. Fields left
+   * out stay as they are.
+   */
+  async updateListing(
+    name: string,
+    fields: ListingFields,
+  ): Promise<AfternicListing> {
+    const domain = assertDomainName(name);
+    const wire = await this.request<WireDomain>('PATCH', `/domains/${domain}`, {
+      query: { resource: true },
+      body: toWireFields(fields),
+      retry: true,
+    });
+    // The API answers 204 even when asked for the resource: read it back.
+    return wire?.name ? toListing(wire) : this.mustGetListing(domain);
+  }
+
+  /** Delist a name. False when it wasn't listed. */
+  async deleteListing(name: string): Promise<boolean> {
+    const domain = assertDomainName(name);
+    try {
+      await this.request('DELETE', `/domains/${domain}`, { retry: true });
+      return true;
+    } catch (error) {
+      if (error instanceof AfternicError && error.status === 404) return false;
+      throw error;
+    }
+  }
+
+  /**
+   * Create or update many listings, 500 per call. Each name's fields replace
+   * only what's given, and a name that isn't listed yet is created.
+   */
+  async upsertListings(
+    inputs: readonly ListingInput[],
+  ): Promise<ListingResult[]> {
+    // Validate every name and price before sending anything.
+    const wire = new Map<string, object>();
+    for (const input of inputs) {
+      const name = assertDomainName(input.name);
+      wire.set(name, { name, ...toWireFields(input) });
+    }
+    return this.eachBatch([...wire.keys()], (batch) =>
+      this.request<WireOperationsMap>('POST', '/domains/$each/upsert', {
+        body: { domains: batch.map((name) => wire.get(name)) },
+        retry: true,
+      }),
+    );
+  }
+
+  /** Delist many names, 500 per call. */
+  async deleteListings(names: readonly string[]): Promise<ListingResult[]> {
+    return this.eachBatch(this.keys(names), (batch) =>
+      this.request<WireOperationsMap>('POST', '/domains/$each/delete', {
+        body: { names: batch },
+        retry: true,
+      }),
+    );
+  }
+
+  /**
+   * Re-run the listing process for many names, 500 per call: `RESYNC`
+   * re-checks a listing, `REACTIVATE` brings back an inactive one.
+   */
+  async relistListings(
+    names: readonly string[],
+    mode?: RelistMode,
+  ): Promise<ListingResult[]> {
+    return this.eachBatch(this.keys(names), (batch) =>
+      this.request<WireOperationsMap>('POST', '/domains/$each/relist', {
+        body: { names: batch, ...(mode ? { mode } : {}) },
+        retry: true,
+      }),
+    );
+  }
+
+  // Sale writes
+
+  /** Give (or correct) the transfer code for a sale waiting on one. */
+  async updateSale(
+    transactionId: string,
+    update: { authCode: string },
+  ): Promise<void> {
+    if (!update.authCode.trim()) throw new Error('The auth code is empty.');
+    await this.request('PATCH', `/sales/${encodeURIComponent(transactionId)}`, {
+      body: { authCode: update.authCode.trim() },
+      retry: true,
+    });
+  }
+
+  /** Message the transaction agent handling a sale. Reaches a person. */
+  async sendSaleMessage(transactionId: string, message: string): Promise<void> {
+    const text = message.trim();
+    if (!text) throw new Error('The message is empty.');
+    if (text.length > MAX_MESSAGE) {
+      throw new Error(`Messages are limited to ${MAX_MESSAGE} characters.`);
+    }
+    await this.request(
+      'POST',
+      `/sales/${encodeURIComponent(transactionId)}/sendMessage`,
+      { body: { message: text } },
+    );
+  }
+
+  // Helpers
+
+  private keys(names: readonly string[]): string[] {
+    return [...new Set(names.map(assertDomainName))];
+  }
+
+  private async mustGetListing(name: string): Promise<AfternicListing> {
+    const listing = await this.getListing(name);
+    if (!listing) {
+      throw new AfternicError({
+        status: 404,
+        code: 'RESOURCE_NOT_FOUND',
+        message: `${name} was saved but Afternic can't find it now.`,
+        requestId: '',
+      });
+    }
+    return listing;
+  }
+
+  /**
+   * Run a `$each` call per 500 names and merge the per-name results. A batch
+   * that fails as a whole marks each of its names failed and the rest go on,
+   * so one bad batch doesn't hide what the others did.
+   */
+  private async eachBatch(
+    names: string[],
+    call: (batch: string[]) => Promise<WireOperationsMap | null>,
+  ): Promise<ListingResult[]> {
+    const results: ListingResult[] = [];
+    for (const batch of chunks(names, BATCH_SIZE)) {
+      try {
+        results.push(...toResults(batch, await call(batch)));
+      } catch (error) {
+        if (!(error instanceof AfternicError)) throw error;
+        results.push(
+          ...batch.map((name) => ({
+            name,
+            ok: false,
+            status: error.status,
+            listing: null,
+            error: { code: error.code, message: error.message },
+          })),
+        );
+      }
+    }
+    return results;
   }
 
   // Transport

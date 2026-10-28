@@ -181,3 +181,49 @@ export interface AfternicAccountSettings {
   showLanderLeaseToOwnOption: boolean | null;
   selfBrokerEnabled: boolean | null;
 }
+
+// Writes
+
+export type RelistMode = 'RESYNC' | 'REACTIVATE';
+
+/**
+ * Listing settings to write. Omitted fields are left as they are on an update
+ * and take Afternic's account defaults on a create. Prices are whole dollars;
+ * `null` clears Buy Now or floor (the API's 0).
+ */
+export interface ListingFields {
+  displayName?: string;
+  buyNow?: number | null;
+  /** At least $20, Afternic's minimum. */
+  minOffer?: number;
+  floor?: number | null;
+  leasingEnabled?: boolean;
+  /** 2–60. */
+  maxLeasePeriod?: number;
+  landingPage?: LandingPage;
+  intakeStyle?: IntakeStyle;
+  showLanderBuynowOption?: boolean;
+  showLanderMakeOfferOption?: boolean;
+  showLanderLeaseToOwnOption?: boolean;
+  featured?: boolean;
+  hidden?: boolean;
+}
+
+export interface ListingInput extends ListingFields {
+  name: string;
+}
+
+/** What happened to one name in a bulk call. */
+export interface ListingResult {
+  name: string;
+  ok: boolean;
+  /** The per-name HTTP status Afternic reported (or the whole call's). */
+  status: number;
+  /** The listing as saved, when Afternic sent it back (upserts do). */
+  listing: AfternicListing | null;
+  error: { code: string; message: string } | null;
+}
+
+export type AccountSettingsInput = Partial<{
+  [K in keyof AfternicAccountSettings]: NonNullable<AfternicAccountSettings[K]>;
+}>;

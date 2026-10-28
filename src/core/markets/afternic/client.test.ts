@@ -320,3 +320,168 @@ describe('RateLimiter', () => {
     expect(sleeps).toEqual([]);
   });
 });
+
+describe('listing writes', () => {
+  it('creates a listing with only the fields given', async () => {
+    const { afternic, calls } = client(() => ({
+      status: 201,
+      body: fx.domainBare,
+    }));
+    const listing = await afternic.createListing({
+      name: 'Example.NET',
+      buyNow: 2500,
+      minOffer: 100,
+    });
+    expect(listing.name).toBe('example.net');
+    expect(calls[0].method).toBe('POST');
+    expect(calls[0].body).toEqual({
+      name: 'example.net',
+      buynowPrice: 2_500_000_000,
+      minbidPrice: 100_000_000,
+    });
+  });
+
+  it('never retries a create', async () => {
+    const { afternic, calls } = client(() => ({ status: 503, body: '' }));
+    await expect(
+      afternic.createListing({ name: 'example.net', buyNow: 1 }),
+    ).rejects.toBeInstanceOf(AfternicError);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('validates before sending', async () => {
+    const { afternic, calls } = client(() => ({ status: 201 }));
+    await expect(
+      afternic.createListing({ name: 'example.net', minOffer: 5 }),
+    ).rejects.toThrow(/at least \$20/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('updates, then reads the listing back after a 204', async () => {
+    const { afternic, calls } = client((call) =>
+      call.method === 'PATCH'
+        ? { status: 204 }
+        : { body: { ...fx.domainFull, floorPrice: 1_000_000_000 } },
+    );
+    const listing = await afternic.updateListing('example.com', {
+      floor: 1000,
+    });
+    expect(listing.floor).toBe(1000);
+    expect(calls.map((c) => c.method)).toEqual(['PATCH', 'GET']);
+    expect(calls[0].url.searchParams.get('resource')).toBe('true');
+    expect(calls[0].body).toEqual({ floorPrice: 1_000_000_000 });
+  });
+
+  it('retries an update, which lands the same either way', async () => {
+    let n = 0;
+    const { afternic, calls } = client((call) =>
+      call.method === 'PATCH' && n++ === 0
+        ? { status: 500, body: '' }
+        : { body: fx.domainFull },
+    );
+    await afternic.updateListing('example.com', { hidden: false });
+    expect(calls.map((c) => c.method)).toEqual(['PATCH', 'PATCH']);
+  });
+
+  it('deletes, and says false when the name was not listed', async () => {
+    const { afternic } = client((call) =>
+      call.url.pathname.endsWith('example.com')
+        ? { status: 204 }
+        : { status: 404, body: { code: 'RESOURCE_NOT_FOUND' } },
+    );
+    expect(await afternic.deleteListing('example.com')).toBe(true);
+    expect(await afternic.deleteListing('example.net')).toBe(false);
+  });
+
+  it('upserts in batches of 500 with one result per name', async () => {
+    const inputs = fx
+      .manyDomains(1001)
+      .map((d) => ({ name: d.name, buyNow: 499 }));
+    const { afternic, calls } = client((call) => {
+      const { domains } = call.body as { domains: { name: string }[] };
+      return {
+        body: Object.fromEntries(
+          domains.map((d) => [
+            d.name,
+            { code: 200, domain: { ...fx.domainBare, name: d.name } },
+          ]),
+        ),
+      };
+    });
+    const results = await afternic.upsertListings(inputs);
+    expect(results).toHaveLength(1001);
+    expect(results.every((r) => r.ok)).toBe(true);
+    const sizes = calls.map(
+      (c) => (c.body as { domains: unknown[] }).domains.length,
+    );
+    expect(sizes).toEqual([500, 500, 1]);
+    expect((calls[0].body as { domains: object[] }).domains[0]).toEqual({
+      name: inputs[0].name,
+      buynowPrice: 499_000_000,
+    });
+  });
+
+  it('keeps going when one batch fails as a whole', async () => {
+    let n = 0;
+    const { afternic } = client((call) => {
+      const { names } = call.body as { names: string[] };
+      return n++ === 0
+        ? { status: 400, body: { code: 'BAD_REQUEST', message: 'nope' } }
+        : {
+            body: Object.fromEntries(
+              names.map((name) => [name, { code: 204 }]),
+            ),
+          };
+    });
+    const names = fx.manyDomains(600).map((d) => d.name);
+    const results = await afternic.deleteListings(names);
+    expect(results.filter((r) => !r.ok)).toHaveLength(500);
+    expect(results[0].error).toEqual({ code: 'BAD_REQUEST', message: 'nope' });
+    expect(results.slice(500).every((r) => r.ok)).toBe(true);
+  });
+
+  it('relists with a mode', async () => {
+    const { afternic, calls } = client(() => ({
+      body: { 'example.com': { code: 200 } },
+    }));
+    const [result] = await afternic.relistListings(['example.com'], 'RESYNC');
+    expect(result.ok).toBe(true);
+    expect(calls[0].url.pathname).toMatch(/\/domains\/\$each\/relist$/);
+    expect(calls[0].body).toEqual({ names: ['example.com'], mode: 'RESYNC' });
+  });
+});
+
+describe('settings and sale writes', () => {
+  it('sends only the settings given', async () => {
+    const { afternic, calls } = client(() => ({ status: 204 }));
+    await afternic.updateAccountSettings({ maxLeasePeriod: 36 });
+    expect(calls[0].method).toBe('PATCH');
+    expect(calls[0].body).toEqual({ maxLeasePeriod: 36 });
+  });
+
+  it('sends an auth code, trimmed', async () => {
+    const { afternic, calls } = client(() => ({ status: 204 }));
+    await afternic.updateSale('t-1', { authCode: '  abc123 ' });
+    expect(calls[0].url.pathname).toMatch(/\/sales\/t-1$/);
+    expect(calls[0].body).toEqual({ authCode: 'abc123' });
+    await expect(afternic.updateSale('t-1', { authCode: ' ' })).rejects.toThrow(
+      /empty/,
+    );
+  });
+
+  it('sends a message once, never retrying', async () => {
+    const { afternic, calls } = client(() => ({ status: 500, body: '' }));
+    await expect(afternic.sendSaleMessage('t-1', 'Hello')).rejects.toThrow();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url.pathname).toMatch(/\/sales\/t-1\/sendMessage$/);
+    expect(calls[0].body).toEqual({ message: 'Hello' });
+  });
+
+  it('checks message length', async () => {
+    const { afternic, calls } = client(() => ({ status: 204 }));
+    await expect(
+      afternic.sendSaleMessage('t-1', 'x'.repeat(1001)),
+    ).rejects.toThrow(/1000 characters/);
+    expect(calls).toHaveLength(0);
+  });
+});
