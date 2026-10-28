@@ -124,7 +124,7 @@ describe('syncDomainTraffic with snapshot counters (Atom)', () => {
         name,
         views: totals[read++],
         shortlists: 2,
-        trackers: 1,
+        offers: 1,
       }),
     } as unknown as AnyMarketAdapter;
     await syncDomainTraffic(fake, [listing('a.com')], 10, NOW);

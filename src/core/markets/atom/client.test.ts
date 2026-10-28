@@ -159,9 +159,10 @@ describe('failureOf', () => {
 });
 
 describe('dates', () => {
-  it('reads zone-less Atom dates as UTC', () => {
+  it('reads Atom’s dates as UTC', () => {
+    expect(isoDate('May 02, 2026 17:45:10')).toBe('2026-05-02T17:45:10Z');
+    expect(isoDate('Sep 8, 2025')).toBe('2025-09-08T00:00:00Z');
     expect(isoDate('2026-03-14 09:30:00')).toBe('2026-03-14T09:30:00Z');
-    expect(isoDate('2026-08-19')).toBe('2026-08-19T00:00:00Z');
     expect(isoDate('2026-08-19T10:00:00+02:00')).toBe(
       '2026-08-19T08:00:00.000Z',
     );
@@ -175,63 +176,64 @@ describe('listings', () => {
     expect(await atom.getListing('brightloom.com')).toEqual({
       name: 'brightloom.com',
       displayName: 'BrightLoom.com',
-      id: null,
+      id: '100002',
       type: 'standard',
       typeRaw: 'Standard',
       status: 'Seller Approved',
-      price: 2500,
-      discount: 200,
+      price: 2400,
+      discount: null,
       primaryCategory: 'Technology',
-      description: 'brightloom.com for a fast-growing brand',
-      listedAt: '2026-03-14T09:30:00Z',
-      views: null,
-      shortlists: null,
-      trackers: null,
+      description:
+        'BrightLoom.com is a bright, memorable name for a fast-growing brand.',
+      listedAt: null,
     });
   });
 
-  it('reads "not found" as not listed', async () => {
-    const { atom } = client(() => ({ body: { message: 'Domain not found' } }));
+  it('reads a $0 price as Make an Offer, and the full price over a partner price', async () => {
+    const { atom } = client(({ path }) => ({
+      body: path === '/domains' ? [fx.makeOffer] : [fx.syndicated],
+    }));
+    expect((await atom.listListings()).items[0]).toMatchObject({
+      price: null,
+      primaryCategory: null,
+      description: null,
+    });
+    const { items } = await atom.listSyndicationAuthorized();
+    expect(items).toEqual(['quillnest.io']);
+    const { atom: details } = client(() => ({ body: fx.syndicated }));
+    expect((await details.getListing('quillnest.io'))?.price).toBe(4200);
+  });
+
+  it('reads Atom’s "Wrong Domain name" as not listed', async () => {
+    const { atom } = client(() => ({ body: fx.notListed }));
     expect(await atom.getListing('nope.com')).toBeNull();
   });
 
-  it('walks every tier and every page, tagging each row by tier', async () => {
-    const standard = Array.from({ length: 150 }, (_, i) => `std${i}.com`);
+  it('walks every page in one pass, without a tier filter', async () => {
+    const names = Array.from({ length: 150 }, (_, i) => `n${i}.com`);
     const { atom, calls } = client(({ query }) => {
-      const type = query.get('type');
       const page = Number(query.get('page'));
-      if (type === 'premium')
-        return { body: fx.listingsPage(['quillnest.com'], 1, 1) };
-      if (type === 'standard') {
-        return {
-          body: fx.listingsPage(
-            page === 1 ? standard.slice(0, 100) : standard.slice(100),
-            page,
-            2,
-          ),
-        };
-      }
-      return { body: { message: 'No domains found' } };
+      return {
+        body: fx.listingsPage(
+          page === 1 ? names.slice(0, 100) : page === 2 ? names.slice(100) : [],
+        ),
+      };
     });
     const { listings, complete } = await atom.allListings();
     expect(complete).toBe(true);
-    expect(listings).toHaveLength(151);
-    expect(listings.find((l) => l.name === 'quillnest.com')?.type).toBe(
-      'premium',
-    );
-    expect(listings.find((l) => l.name === 'std120.com')?.type).toBe(
-      'standard',
-    );
+    expect(listings).toHaveLength(150);
+    expect(listings[0].type).toBe('premium');
     expect(
-      calls.map((c) => `${c.query.get('type')}:${c.query.get('page')}`),
-    ).toEqual(['premium:1', 'standard:1', 'standard:2', 'geo:1']);
+      calls.map((c) => [c.query.get('type'), c.query.get('page')]),
+    ).toEqual([
+      [null, '1'],
+      [null, '2'],
+    ]);
   });
 
   it('stops and says so when Atom ignores the page number', async () => {
     const names = Array.from({ length: 100 }, (_, i) => `n${i}.com`);
-    const { atom } = client(() => ({
-      body: [...names.map((n) => fx.listingRecord(n))],
-    }));
+    const { atom } = client(() => ({ body: fx.listingsPage(names) }));
     const { listings, complete } = await atom.allListings();
     expect(complete).toBe(false);
     expect(listings).toHaveLength(100);
@@ -332,48 +334,52 @@ describe('writes', () => {
 describe('sales, analytics and the rest', () => {
   it('reads sales', async () => {
     const { atom } = client(() => ({ body: fx.sales }));
-    const [premium, plan] = await atom.allSales();
-    expect(premium).toMatchObject({
-      id: '9001',
-      name: 'quillnest.com',
+    const [recent, older] = await atom.allSales();
+    expect(recent).toEqual({
+      id: 'quillnest.io:2026-05-02',
+      name: 'quillnest.io',
       type: 'premium',
       soldOn: '2026-05-02',
+      terms: 'Outright',
+      transferStatus: 'AuthCode Sent',
       price: 4200,
       commission: null,
+      // Atom sends 0 when it doesn't say.
+      net: null,
+      paidOutOn: null,
+      listedOn: '2020-12-03',
+      installments: null,
     });
-    expect(plan).toMatchObject({
-      commission: 135,
-      net: 1665,
-      installments: { paid: 3, total: 12 },
-    });
+    expect(older).toMatchObject({ soldOn: '2025-09-08', transferStatus: null });
   });
 
-  it('reads analytics, adding up views when Atom splits them', async () => {
+  it('reads analytics', async () => {
     const { atom } = client(() => ({ body: fx.analytics }));
     expect(await atom.getAnalytics('brightloom.com')).toEqual({
       name: 'brightloom.com',
-      views: 250,
-      shortlists: 3,
-      trackers: 2,
-      directVisits: 40,
-      discoveryViews: 210,
-      repeatViews: 6,
+      views: 412,
+      shortlists: 37,
+      offers: 2,
     });
   });
 
-  it('reads categories, syndication, grading and appraisal', async () => {
+  it('reads categories, grading and appraisal', async () => {
     const replies: Record<string, unknown> = {
+      '/categories': fx.categories,
       '/primary-categories': fx.primaryCategories,
-      '/syndication-authorized-domains': fx.syndication,
       '/get-grade-domain-result': fx.grading,
       '/domain-appraisal': fx.appraisal,
     };
     const { atom } = client(({ path }) => ({ body: replies[path] }));
-    expect(await atom.listPrimaryCategories()).toEqual([
-      { id: '1', name: 'Technology' },
-      { id: '2', name: 'Health & Wellness' },
+    expect(await atom.listCategories()).toEqual([
+      { id: '9', name: 'Fitness & Gym' },
+      { id: '56', name: 'Music & Audio' },
     ]);
-    expect(await atom.allSyndicationAuthorized()).toEqual(['quillnest.com']);
+    // A message beside the list is data, not a failure.
+    expect(await atom.listPrimaryCategories()).toEqual([
+      { id: null, name: 'Technology' },
+      { id: null, name: 'Health & Wellness' },
+    ]);
     expect((await atom.getGradingResults()).items).toEqual([
       {
         name: 'brightloom.com',
@@ -385,9 +391,19 @@ describe('sales, analytics and the rest', () => {
     ]);
     expect(await atom.getAppraisal('brightloom.com')).toMatchObject({
       estimate: 3400,
-      score: 7,
+      score: 6.2,
+      positiveSignals: ['Registered in 12 TLDs', 'Aged Domain (6 Years)'],
       rootWords: ['bright', 'loom'],
-      trademarkConflicts: 0,
+      registeredOn: '2020-07-05',
+      listed: true,
+      binPrice: 2400,
+      usedToday: 1,
+      dailyLimit: 10,
     });
+  });
+
+  it('reads an empty grading list', async () => {
+    const { atom } = client(() => ({ body: fx.noGrading }));
+    expect((await atom.getGradingResults()).items).toEqual([]);
   });
 });

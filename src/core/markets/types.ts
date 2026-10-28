@@ -55,7 +55,7 @@ export interface MarketCounters {
   name: string;
   views: number | null;
   shortlists: number | null;
-  trackers: number | null;
+  offers: number | null;
 }
 
 /** Afternic's market-only actions, gated by its capabilities. */

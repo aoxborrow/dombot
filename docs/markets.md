@@ -6,9 +6,9 @@ bulk writes, MCP). Each market's own API, quirks and client are in its plan:
 
 - [afternic-api.md](afternic-api.md): client built
   (`src/core/markets/afternic/`), verified live.
-- [atom-api.md](atom-api.md): client and adapter built from Atom's specs
-  (`src/core/markets/atom/`, `src/core/services/markets/atom.ts`),
-  unverified; live checks wait on an Atom API key.
+- [atom-api.md](atom-api.md): client and adapter
+  (`src/core/markets/atom/`, `src/core/services/markets/atom.ts`); reads
+  verified live, writes not yet run.
 - [sedo-api.md](sedo-api.md): client and adapter built from the docs
   (`src/core/markets/sedo/`, `src/core/services/markets/sedo.ts`),
   unverified; live checks wait on Sedo partner access.

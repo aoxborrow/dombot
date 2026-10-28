@@ -27,10 +27,7 @@ function listing(overrides: Partial<AtomListing> = {}): AtomListing {
     discount: null,
     primaryCategory: 'Technology',
     description: 'A bright name',
-    listedAt: '2026-03-14T09:30:00Z',
-    views: null,
-    shortlists: null,
-    trackers: null,
+    listedAt: null,
     ...overrides,
   };
 }
@@ -58,11 +55,12 @@ function fakeAtom(
         return reply(
           l
             ? {
-                data: fx.listingRecord(l.name, {
-                  domain_type: l.type,
+                data: fx.listingRecord(l.displayName ?? l.name, {
+                  listing_type: l.typeRaw,
                   status: l.status,
-                  selling_price: l.price,
-                  discount_price: l.discount ?? 0,
+                  full_price: l.price ?? 0,
+                  selling_price: l.price ?? 0,
+                  discount: l.discount ?? 0,
                   primary_category: l.primaryCategory,
                   description: l.description,
                 }),
@@ -76,6 +74,8 @@ function fakeAtom(
             name,
             displayName: null,
             type: q.get('domain_type') as AtomListing['type'],
+            typeRaw: q.get('domain_type') === 'plus' ? 'Plus' : 'Standard',
+            status: 'Seller Approved',
             price: Number(q.get('price')),
             primaryCategory: null,
             description: null,
@@ -123,6 +123,8 @@ describe('reading', () => {
     expect(statusFromAtom('DNS Unverified')).toBe('inactive');
     expect(statusFromAtom('Rejected')).toBe('rejected');
     expect(statusFromAtom('Sold')).toBe('sold');
+    // Observed: sold names stay listed with this status.
+    expect(statusFromAtom('Transfer Complete')).toBe('sold');
     expect(statusFromAtom('')).toBe('unknown');
   });
 
@@ -184,11 +186,13 @@ describe('reading', () => {
         name: 'quillnest.com',
         type: 'premium',
         soldOn: '2026-05-02',
-        status: 'Completed',
+        terms: 'Outright',
+        transferStatus: 'AuthCode Sent',
         price: 4200,
         commission: null,
         net: null,
         paidOutOn: null,
+        listedOn: '2020-12-03',
         installments: null,
       },
       'acct-1',
@@ -317,7 +321,7 @@ describe('writing', () => {
   it('delists Standard names, counts unlisted ones as done, refuses Premium', async () => {
     const { atom, listings } = fakeAtom([
       listing(),
-      listing({ name: 'quillnest.com', type: 'premium' }),
+      listing({ name: 'quillnest.com', type: 'premium', typeRaw: 'Premium' }),
     ]);
     expect((await atom.deleteListings(['brightloom.com']))[0].ok).toBe(true);
     expect(listings.has('brightloom.com')).toBe(false);

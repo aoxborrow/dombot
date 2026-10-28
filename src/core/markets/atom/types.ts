@@ -1,10 +1,8 @@
 // The Atom client's own types (docs/atom-api.md). Money is whole US dollars,
 // as Atom sends it; the adapter turns it into DomBot's decimal strings.
 //
-// UNVERIFIED: Atom's specs give almost no response schemas, so every field
-// below beyond `domain_name`, `status`, `selling_price`, `primary_category`,
-// `discount_price` and `description` is a guess at a likely name, read
-// leniently by wire.ts. docs/atom-api.md, "Unverified", lists what to check.
+// Field by field these follow what Atom sent live (docs/atom-api.md,
+// "Observed"); what's still a guess says UNVERIFIED.
 
 /** Atom's listing tiers. The API filters by premium, standard and geo. */
 export type AtomListingType = 'standard' | 'plus' | 'premium' | 'geo';
@@ -18,26 +16,22 @@ export interface AtomListing {
   name: string;
   /** The name as Atom shows it (Atom CamelCases names), when it differs. */
   displayName: string | null;
-  /** Atom's id for the listing, when it sends one. */
+  /** Atom's id for the listing. */
   id: string | null;
   type: AtomListingType | null;
-  /** Atom's word for the tier, as sent. */
+  /** Atom's word for the tier, as sent ("Premium", "Standard"). */
   typeRaw: string | null;
-  /** Atom's status word ("Approved", "Seller Approved", …). */
+  /** Atom's status ("Approved", "Seller Approved", "Transfer Complete"). */
   status: string;
-  /** Whole USD; null when Atom shows Make an Offer (0 or missing). */
+  /** Whole USD; null when Atom shows Make an Offer (a price of 0). */
   price: number | null;
   /** Whole USD off the price until Monday; null when none. */
   discount: number | null;
-  /** Atom's primary category (industry), by name or id as sent. */
+  /** Atom's primary category (industry), by name. */
   primaryCategory: string | null;
   description: string | null;
-  /** ISO 8601 when Atom says. */
+  /** ISO 8601 when Atom says; listing records don't. */
   listedAt: string | null;
-  /** Counters when the list sends them (UNVERIFIED that it does). */
-  views: number | null;
-  shortlists: number | null;
-  trackers: number | null;
 }
 
 export interface AtomPage<T> {
@@ -49,32 +43,36 @@ export interface AtomPage<T> {
 }
 
 export interface AtomSale {
-  /** Atom's id for the sale; the name and day when it sends none. */
+  /** Atom sends no sale id: the name and the day it sold. */
   id: string;
   name: string;
   type: AtomListingType | null;
   /** YYYY-MM-DD. */
   soldOn: string | null;
-  status: string;
-  /** Whole or decimal USD as sent. */
+  /** "Outright", or a payment plan's terms. */
+  terms: string | null;
+  /** Where the transfer is ("AuthCode Sent"), or null. */
+  transferStatus: string | null;
+  /** USD. */
   price: number | null;
+  /** Atom doesn't send it; the adapter estimates it from the tier. */
   commission: number | null;
+  /** Null when Atom sends 0, which it does for completed sales too. */
   net: number | null;
   /** YYYY-MM-DD. */
   paidOutOn: string | null;
+  /** YYYY-MM-DD, when the name was added to Atom. */
+  listedOn: string | null;
   /** A payment plan: installments paid of total, when Atom says. */
   installments: { paid: number | null; total: number | null } | null;
 }
 
-/** One name's counters. Lifetime totals, as far as Atom says (UNVERIFIED). */
+/** One name's running totals (observed: lifetime counts). */
 export interface AtomAnalytics {
   name: string;
   views: number | null;
   shortlists: number | null;
-  trackers: number | null;
-  directVisits: number | null;
-  discoveryViews: number | null;
-  repeatViews: number | null;
+  offers: number | null;
 }
 
 export interface AtomCategory {
@@ -96,11 +94,20 @@ export interface AtomAppraisal {
   /** Whole USD; null when Atom has no estimate (`message` says why). */
   estimate: number | null;
   score: number | null;
-  signals: string[];
+  positiveSignals: string[];
+  negativeSignals: string[];
   rootWords: string[];
   /** How many of this name's other TLDs are taken. */
   tldTakenCount: number | null;
   trademarkConflicts: number | null;
+  /** YYYY-MM-DD. */
+  registeredOn: string | null;
+  /** Listed on Atom (by anyone), and at what BIN. */
+  listed: boolean | null;
+  binPrice: number | null;
+  /** Appraisals used today, of the daily limit (10 by default). */
+  usedToday: number | null;
+  dailyLimit: number | null;
   message: string | null;
 }
 

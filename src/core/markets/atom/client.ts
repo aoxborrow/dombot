@@ -50,23 +50,23 @@ import {
 // Not built, on purpose: boost (spends AI credits) and Premium listings
 // (spend a credit and go to review). Submit those on atom.com.
 //
-// UNVERIFIED: no authenticated call has been made (no API key yet). Built
-// from Atom's OpenAPI specs and help center (2026-10-28). docs/atom-api.md,
-// "Unverified", lists what to check first.
+// Reads checked live (2026-10-28, docs/atom-api.md, "Observed"). Writes
+// are UNVERIFIED: built from Atom's spec and help center, not yet run (the
+// write live test needs a Standard listing to use).
 
-/** Listings and sales per page. UNVERIFIED: Atom's maximum. */
+/** Listings and sales per page. Paging works (observed); Atom's maximum is
+ *  unknown (an account of four names can't show it). */
 export const LIST_PAGE = 100;
 /** Names per grading upload, to keep the URL short. UNVERIFIED: Atom's cap. */
 export const GRADE_BATCH = 100;
 /** Longest description sent; it travels in the URL. */
 export const MAX_DESCRIPTION = 2000;
 /**
- * Requests a minute per account. UNVERIFIED: Atom publishes no limit; one a
- * second is a guess to revise once there are 429s to learn from.
+ * Requests a minute per account. Atom publishes no limit; 40 calls in eight
+ * seconds (about 300 a minute) drew no 429 (observed), so two a second
+ * leaves room for sync and a bulk push sharing the key.
  */
-export const REQUESTS_PER_MINUTE = 60;
-/** The tiers Atom's list filter takes; walked one at a time to tag each row. */
-const LIST_TYPES = ['premium', 'standard', 'geo'] as const;
+export const REQUESTS_PER_MINUTE = 120;
 /** A walk stops here whatever Atom says, in case it ignores `page`. */
 const MAX_PAGES = 1000;
 
@@ -170,23 +170,18 @@ export class AtomClient {
   }
 
   /**
-   * Every listing, one tier at a time so each row knows its tier even if
-   * Atom's records don't say. Plus listings come back under whichever tier
-   * Atom files them (UNVERIFIED). `complete` is false when a walk ended
-   * oddly: Atom repeated a page, or the count didn't match its total.
+   * Every listing, every tier, sold names included (status "Transfer
+   * Complete"). Each record says its tier, and Atom ignores a `type` it
+   * doesn't know rather than failing (observed), so one walk does it.
+   * `complete` is false when the walk ended oddly (Atom repeated a page).
    */
   async allListings(): Promise<{ listings: AtomListing[]; complete: boolean }> {
+    const walk = await this.walk((page) =>
+      this.listListings({ page, limit: LIST_PAGE }),
+    );
     const byName = new Map<string, AtomListing>();
-    let complete = true;
-    for (const type of LIST_TYPES) {
-      const walk = await this.walk((page) =>
-        this.listListings({ type, page, limit: LIST_PAGE }),
-      );
-      complete &&= walk.complete;
-      for (const l of walk.items)
-        if (!byName.has(l.name)) byName.set(l.name, l);
-    }
-    return { listings: [...byName.values()], complete };
+    for (const l of walk.items) if (!byName.has(l.name)) byName.set(l.name, l);
+    return { listings: [...byName.values()], complete: walk.complete };
   }
 
   /** One listing's details; null when it isn't listed on this account. */

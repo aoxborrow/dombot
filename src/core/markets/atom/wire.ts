@@ -11,15 +11,12 @@ import type {
   AtomSale,
 } from './types';
 
-// Reading Atom's JSON. The seller spec types every response as the same
-// five-field record, which can't be true of sales or analytics, so these
-// readers accept the shapes Atom is likely to send: a bare array, an array
-// under `data` (or `domains`, `sales`, …), or one record, with paging in
-// `pagination` (the registrar API's shape) or at the top level.
-//
-// UNVERIFIED: no authenticated call has been made (no API key yet). The
-// field names tried for each value are guesses beyond the spec's; once there
-// are live responses, trim each list to what Atom actually sends.
+// Reading Atom's JSON. Checked live (2026-10-28, docs/atom-api.md,
+// "Observed"): lists come as a bare array with no paging fields, one record
+// as a bare object, and every failure as `{ "message": … }` with HTTP 200.
+// The envelope readers still accept `data`-wrapped shapes (grading results
+// come as `{ count, data }`, the primary categories under `categories`).
+// What's still a guess says UNVERIFIED.
 
 export const ATOM_BASE_URL = 'https://www.atom.com/api/marketplace';
 
@@ -73,9 +70,40 @@ function positive(v: unknown): number | null {
  * ISO 8601 from Atom's dates. The registrar API sends `YYYY-MM-DD HH:MM:SS`
  * with no zone; read as UTC. UNVERIFIED for the seller API.
  */
+const MONTHS = [
+  'jan',
+  'feb',
+  'mar',
+  'apr',
+  'may',
+  'jun',
+  'jul',
+  'aug',
+  'sep',
+  'oct',
+  'nov',
+  'dec',
+];
+
 export function isoDate(v: unknown): string | null {
   const s = str(v);
   if (!s) return null;
+  // Sales send "May 02, 2026 17:45:10" (observed); read as UTC too.
+  const us =
+    /^([a-z]{3})[a-z]* (\d{1,2}), (\d{4})(?: (\d{2}:\d{2}(?::\d{2})?))?/i.exec(
+      s,
+    );
+  if (us) {
+    const month = MONTHS.indexOf(us[1].toLowerCase());
+    if (month < 0) return null;
+    const date = `${us[3]}-${String(month + 1).padStart(2, '0')}-${us[2].padStart(2, '0')}`;
+    const time = us[4]
+      ? us[4].length === 5
+        ? `${us[4]}:00`
+        : us[4]
+      : '00:00:00';
+    return `${date}T${time}Z`;
+  }
   const m = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?/.exec(s);
   if (!m) return null;
   if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) {
@@ -239,7 +267,8 @@ export function pageOf<T>(
 // Records
 
 function nameOf(rec: Rec): { name: string; displayName: string | null } | null {
-  const raw = str(pick(rec, 'domain_name', 'domain', 'name'));
+  // Sales spell it "Domain Name" (observed).
+  const raw = str(pick(rec, 'domain_name', 'Domain Name'));
   if (!raw || !raw.includes('.')) return null;
   let name: string;
   try {
@@ -250,6 +279,13 @@ function nameOf(rec: Rec): { name: string; displayName: string | null } | null {
   return { name, displayName: raw !== name ? raw : null };
 }
 
+/**
+ * A listing, as /domains, /domain-details and the syndication list send it
+ * (observed): `id`, `domain_name` (CamelCased), `status`, `full_price`,
+ * `selling_price`, `primary_category`, `discount`, `description`,
+ * `logo_image`, `listing_type` ("Premium", "Standard"). Sold names stay in
+ * the list with status "Transfer Complete".
+ */
 export function readListing(
   item: unknown,
   typeHint: AtomListingType | null = null,
@@ -257,151 +293,92 @@ export function readListing(
   if (!isRecord(item)) return null;
   const named = nameOf(item);
   if (!named) return null;
-  const typeRaw = str(
-    pick(item, 'domain_type', 'listing_type', 'type', 'listing'),
-  );
+  const typeRaw = str(item.listing_type);
   return {
     ...named,
-    id: str(pick(item, 'id', 'domain_id', 'listing_id')),
+    id: str(item.id),
     type: listingTypeOf(typeRaw) ?? typeHint,
     typeRaw,
-    status: str(pick(item, 'status', 'listing_status', 'domain_status')) ?? '',
-    price: positive(pick(item, 'selling_price', 'price', 'bin_price')),
-    // UNVERIFIED: whether `discount_price` is the amount off (as the
-    // add-discount parameter and Atom's Sheets column are) or the price after
-    // it. Read as the amount off.
-    discount: positive(
-      pick(item, 'discount', 'discount_amount', 'discount_price'),
-    ),
-    primaryCategory: str(
-      pick(item, 'primary_category', 'category', 'industry'),
-    ),
-    description: str(pick(item, 'description', 'domain_description')),
-    listedAt: isoDate(
-      pick(
-        item,
-        'created_at',
-        'date_added',
-        'added_on',
-        'listed_at',
-        'approved_date',
-      ),
-    ),
-    views: num(pick(item, 'views', 'total_views', 'page_views')),
-    shortlists: num(
-      pick(item, 'shortlists', 'shortlist', 'shortlisted', 'shortlist_count'),
-    ),
-    trackers: num(
-      pick(item, 'trackers', 'price_trackers', 'track_price', 'tracking_count'),
-    ),
+    status: str(item.status) ?? '',
+    // `full_price` is the listing's price. `selling_price` matches it in the
+    // account's own list, but the syndication list sends a partner price
+    // there (about 10% higher, observed), so it's only a fallback.
+    price: positive(item.full_price ?? item.selling_price),
+    // UNVERIFIED: no discounted listing seen yet; read as dollars off, as
+    // add-discount takes it and Atom's Sheets column shows it.
+    discount: positive(item.discount),
+    primaryCategory: str(item.primary_category),
+    description: str(item.description),
+    // Not in listing records; a sale's `added_on` has it for sold names.
+    listedAt: isoDate(item.added_on),
   };
 }
 
+/**
+ * A sale (observed): `Domain Name`, `sales_type` ("Premium"), `sale_date`
+ * ("May 02, 2026 17:45:10"), `sale_amount`, `sale_amount_net` (0 when Atom
+ * doesn't say), `sale_terms` ("Outright"), `transfer_status` ("AuthCode
+ * Sent" or null), `added_on`. No sale id, so the name and day make one.
+ */
 export function readSale(item: unknown): AtomSale | null {
   if (!isRecord(item)) return null;
   const named = nameOf(item);
   if (!named) return null;
-  const soldOn = dayOf(
-    pick(
-      item,
-      'sold_date',
-      'sale_date',
-      'sold_at',
-      'order_date',
-      'date',
-      'created_at',
-    ),
-  );
+  const soldOn = dayOf(item.sale_date);
+  // UNVERIFIED: no payment-plan sale seen; these names are guesses.
   const paid = num(pick(item, 'installments_paid', 'paid_installments'));
   const total = num(pick(item, 'total_installments', 'installments'));
   return {
-    id:
-      str(pick(item, 'id', 'order_id', 'sale_id', 'transaction_id')) ??
-      `${named.name}:${soldOn ?? 'undated'}`,
+    id: `${named.name}:${soldOn ?? 'undated'}`,
     name: named.name,
-    type: listingTypeOf(pick(item, 'domain_type', 'listing_type', 'type')),
+    type: listingTypeOf(item.sales_type),
     soldOn,
-    status:
-      str(
-        pick(item, 'status', 'order_status', 'sale_status', 'transfer_status'),
-      ) ?? '',
-    price: num(
-      pick(
-        item,
-        'sale_price',
-        'sold_price',
-        'selling_price',
-        'price',
-        'amount',
-      ),
-    ),
-    commission: num(
-      pick(item, 'commission', 'commission_amount', 'atom_commission'),
-    ),
-    net: num(
-      pick(
-        item,
-        'net',
-        'net_amount',
-        'net_payout',
-        'actual_net_payout',
-        'payout',
-        'expected_net_payout',
-      ),
-    ),
-    paidOutOn: dayOf(
-      pick(item, 'payout_date', 'paid_on', 'paid_at', 'disbursed_at'),
-    ),
+    terms: str(item.sale_terms),
+    transferStatus: str(item.transfer_status),
+    price: positive(item.sale_amount),
+    commission: null,
+    net: positive(item.sale_amount_net),
+    paidOutOn: null,
+    listedOn: dayOf(item.added_on),
     installments: paid === null && total === null ? null : { paid, total },
   };
 }
 
+/** One name's counters (observed): total views, shortlists and offers. */
 export function readAnalytics(body: unknown, name: string): AtomAnalytics {
-  const rec = recordOf(body) ?? {};
-  const direct = num(
-    pick(rec, 'direct_lander_visits', 'direct_visits', 'lander_visits'),
-  );
-  const discovery = num(
-    pick(rec, 'platform_discovery_views', 'discovery_views'),
-  );
-  const views =
-    num(pick(rec, 'views', 'total_views', 'page_views')) ??
-    (direct !== null || discovery !== null
-      ? (direct ?? 0) + (discovery ?? 0)
-      : null);
+  const rec = isRecord(body) ? body : {};
   return {
     name,
-    views,
-    shortlists: num(
-      pick(rec, 'shortlists', 'shortlist', 'shortlisted', 'shortlist_count'),
-    ),
-    trackers: num(
-      pick(rec, 'trackers', 'price_trackers', 'track_price', 'tracking_count'),
-    ),
-    directVisits: direct,
-    discoveryViews: discovery,
-    repeatViews: num(pick(rec, 'repeat_views', 'repeat_buyer_views')),
+    views: num(rec.total_views),
+    shortlists: num(rec.total_shortlists),
+    offers: num(rec.total_offers),
   };
 }
 
+/**
+ * A category: /categories sends `{ id, name }`, /primary-categories a list
+ * of names under `categories` (observed; the two lists differ).
+ */
 export function readCategory(item: unknown): AtomCategory | null {
-  if (typeof item === 'string')
+  if (typeof item === 'string') {
     return item.trim() ? { id: null, name: item.trim() } : null;
+  }
   if (!isRecord(item)) return null;
-  const name = str(pick(item, 'name', 'category_name', 'category', 'title'));
-  return name ? { id: str(pick(item, 'id', 'category_id')), name } : null;
+  const name = str(item.name);
+  return name ? { id: str(item.id), name } : null;
 }
 
+/** A grading result, per the spec. UNVERIFIED: the account had none. */
 export function readGrade(item: unknown): AtomGradeResult | null {
   if (!isRecord(item)) return null;
   const named = nameOf(item);
   if (!named) return null;
   return {
     name: named.name,
-    brandFit: bool(pick(item, 'is_brand_fit', 'brand_fit')),
-    premiumFit: bool(pick(item, 'premium_fit', 'is_premium_fit')),
+    brandFit: bool(item.is_brand_fit),
+    premiumFit: bool(item.premium_fit),
     status: str(item.status) ?? '',
-    submittedOn: dayOf(pick(item, 'date_submitted', 'submitted_at')),
+    submittedOn: dayOf(item.date_submitted),
   };
 }
 
@@ -409,16 +386,28 @@ function strings(v: unknown): string[] {
   return Array.isArray(v) ? v.flatMap((x) => str(x) ?? []) : [];
 }
 
+/**
+ * An appraisal (observed): estimate, score, positive and negative signals,
+ * root words, TLDs taken, trademark conflicts, whether it's listed and at
+ * what BIN, and `usage` (used today of the daily limit).
+ */
 export function readAppraisal(body: unknown, name: string): AtomAppraisal {
-  const rec = recordOf(body) ?? {};
+  const rec = isRecord(body) ? body : {};
+  const usage = isRecord(rec.usage) ? rec.usage : {};
   return {
     name,
     estimate: positive(rec.atom_appraisal),
     score: num(rec.domain_score),
-    signals: strings(rec.key_signals),
+    positiveSignals: strings(rec.positive_signals),
+    negativeSignals: strings(rec.negative_signals),
     rootWords: strings(rec.root_words),
     tldTakenCount: num(rec.tld_taken_count),
     trademarkConflicts: num(rec.tm_conflicts),
+    registeredOn: dayOf(rec.date_registered),
+    listed: bool(rec.is_listed),
+    binPrice: positive(rec.bin_price),
+    usedToday: num(usage.used_today),
+    dailyLimit: num(usage.daily_limit),
     message: str(rec.external_message),
   };
 }

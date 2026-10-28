@@ -53,8 +53,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     create: (accountId, credentials) =>
       createAfternicAdapter(accountId, credentials),
   },
-  // UNVERIFIED: built from Atom's specs; no authenticated call has been made
-  // yet (docs/atom-api.md).
+  // Reads checked live; writes unverified (docs/atom-api.md).
   atom: {
     info: {
       id: 'atom',

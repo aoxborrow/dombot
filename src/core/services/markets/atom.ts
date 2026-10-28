@@ -33,8 +33,8 @@ import {
 // because Atom's success answers are at most a message, so the read-back is
 // what says what Atom saved.
 //
-// UNVERIFIED: written from Atom's specs with no API key to test against.
-// docs/atom-api.md, "Unverified", lists what to check first.
+// Reads checked live (2026-10-28); writes UNVERIFIED until the write live
+// test runs (docs/atom-api.md, "Observed" and "Unverified").
 
 export const ATOM_CAPABILITIES: MarketCapabilities = {
   currencies: ['USD'],
@@ -76,11 +76,16 @@ export const MIN_PRICE = 100;
 
 // Reading
 
-/** The shared status for Atom's word. UNVERIFIED: Atom's full vocabulary. */
+/**
+ * The shared status for Atom's word. Seen live: "Approved" (Premium),
+ * "Seller Approved" (Standard), "Transfer Complete" (sold; sold names stay
+ * in Atom's list). The rest are guesses at Atom's other words.
+ */
 export function statusFromAtom(raw: string): ListingStatus {
   const s = raw.trim().toLowerCase();
   if (!s) return 'unknown';
-  if (/sold/.test(s)) return 'sold';
+  if (/sold|transfer complete|transferred/.test(s)) return 'sold';
+  if (/transfer|escrow|payment/.test(s)) return 'on_hold';
   if (/reject|declin|denied/.test(s)) return 'rejected';
   if (/pending|review|submitted|waiting|processing/.test(s)) return 'pending';
   if (
@@ -146,9 +151,6 @@ export function listingFromAtom(
       id: l.id,
       category: l.primaryCategory,
       description: l.description,
-      views: l.views,
-      shortlists: l.shortlists,
-      trackers: l.trackers,
       syndicationAuthorized:
         l.type === 'premium' && options.syndicated
           ? options.syndicated.has(l.name)
@@ -178,16 +180,17 @@ export function estimatedCommission(
   }
 }
 
-function saleStatus(raw: string): MarketSale['status'] {
-  const s = raw.trim().toLowerCase();
-  if (/cancel|refund|void|fail|declin/.test(s)) return 'cancelled';
-  if (/complete|paid|closed|transferred|success|sold|finished/.test(s)) {
-    return 'completed';
-  }
-  if (/pending|progress|escrow|transfer|await|payment|process/.test(s)) {
-    return 'in_progress';
-  }
-  return 'unknown';
+/**
+ * Every row of Atom's sales is a sale that happened; its transfer status
+ * ("AuthCode Sent", or null once done, observed) says where the transfer
+ * is, not whether it sold. Only a refund or cancellation undoes it.
+ */
+function saleStatus(s: AtomSale): MarketSale['status'] {
+  return /cancel|refund|void|revers/i.test(
+    `${s.transferStatus ?? ''} ${s.terms ?? ''}`,
+  )
+    ? 'cancelled'
+    : 'completed';
 }
 
 export function saleFromAtom(s: AtomSale, accountId: string): MarketSale {
@@ -200,15 +203,17 @@ export function saleFromAtom(s: AtomSale, accountId: string): MarketSale {
   const net =
     s.net ??
     (s.price !== null && commission !== null ? s.price - commission : null);
-  const plan = s.installments && (s.installments.total ?? 0) > 1;
+  const plan =
+    (s.installments && (s.installments.total ?? 0) > 1) ||
+    /install|plan|lease|month/i.test(s.terms ?? '');
   return {
     market: 'atom',
     accountId,
     id: s.id,
     name: s.name,
     soldOn: s.soldOn,
-    status: saleStatus(s.status),
-    statusRaw: s.status,
+    status: saleStatus(s),
+    statusRaw: [s.terms, s.transferStatus].filter(Boolean).join(', '),
     kind: plan ? 'lease' : 'unknown',
     price: amountOf(s.price),
     commission: amountOf(commission),
@@ -530,7 +535,7 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
       name: a.name,
       views: a.views,
       shortlists: a.shortlists,
-      trackers: a.trackers,
+      offers: a.offers,
     };
   }
 

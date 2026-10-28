@@ -115,11 +115,6 @@ export interface AtomExtra {
   /** The primary (industry) category. */
   category: string | null;
   description: string | null;
-  /** Counters, when Atom's list sends them; sync also snapshots them. */
-  views: number | null;
-  shortlists: number | null;
-  /** Buyers tracking the price (Atom emails them when it changes). */
-  trackers: number | null;
   /**
    * Premium only: Atom allows this name on other marketplaces too. Null for
    * other tiers, or when the syndication list couldn't be read.

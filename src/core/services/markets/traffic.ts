@@ -40,7 +40,7 @@ export interface DomainTraffic {
   counters?: {
     views: number | null;
     shortlists: number | null;
-    trackers: number | null;
+    offers: number | null;
   };
 }
 
@@ -125,7 +125,7 @@ export async function syncDomainTraffic(
         counters = {
           views: c.views,
           shortlists: c.shortlists,
-          trackers: c.trackers,
+          offers: c.offers,
         };
       } else if (adapter.domainStats) {
         const rows = await adapter.domainStats(

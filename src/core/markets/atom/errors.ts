@@ -63,7 +63,13 @@ export function codeFor(message: string): AtomErrorCode {
   if (/token|user ?id|permission|unauthori[sz]ed|access/.test(m)) return 'AUTH';
   if (/daily (rate )?limit/.test(m)) return 'DAILY_LIMIT';
   if (/rate limit|too many/.test(m)) return 'RATE_LIMITED';
-  if (/not found|does not exist|doesn't exist|no such|not listed/.test(m)) {
+  // Atom says "Wrong Domain name in the request" for a name that isn't one
+  // of the account's listings (observed).
+  if (
+    /not found|does not exist|doesn't exist|no such|not listed|wrong domain/.test(
+      m,
+    )
+  ) {
     return 'NOT_FOUND';
   }
   return 'REJECTED';
