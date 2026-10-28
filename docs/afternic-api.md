@@ -1,7 +1,8 @@
 # Afternic Portfolio API
 
-Plan for an Afternic Aftermarket Portfolio API client inside DomBot, and for
-what DomBot builds on it. The API left beta in October 2026. Docs:
+The Afternic Aftermarket Portfolio API client inside DomBot, and what
+DomBot builds on it. All six phases below are built; what's left is under
+"Open questions" and in [afternic-api-issues.md](afternic-api-issues.md). The API left beta in October 2026. Docs:
 <https://api.afternic.com/docs/portfolio-api/>. The full OpenAPI 3.0 spec is
 published at `/docs/portfolio-api/openapi-bundled.yaml`, so we can generate or
 check types against it rather than transcribing the reference pages.
@@ -437,8 +438,6 @@ job.
    snapshots, a Markets page (traffic by month, top names, sales by year,
    sell-through, most searched), Views/Leads/Searches columns, and the
    `market_traffic` and `market_report_get` tools. Done.
-
-Phases 1–3 can each be one PR; nothing in DomBot's UI changes until phase 4.
 
 ## Open questions
 

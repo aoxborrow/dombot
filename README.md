@@ -32,6 +32,11 @@ browser on an invented portfolio, no install and no account.
   and breakdowns by registrar and TLD. Prices come from registrar quotes where
   available and a base per-TLD price database otherwise, and you can enter a
   price by hand for anything still unpriced.
+- **Marketplaces.** Connect Afternic, Sedo and Atom accounts to see each
+  name's listing, price, views and leads in the table, list or delist names at
+  your DomBot prices from the row menu or in bulk, and follow traffic and sales
+  on the Markets page. Completed sales are recorded in each name's history. See
+  [Connecting marketplaces](#connecting-marketplaces).
 - **Export.** One click exports the current (filtered, sorted) view to a
   spreadsheet-friendly CSV.
 - **Instant, offline-friendly launch.** The whole portfolio is cached on disk
@@ -57,6 +62,16 @@ After saving a registrar’s first account, use **Add another account** inside i
 card to connect more. An account selector appears only for registrars with multiple
 accounts; single-account registrars keep the original flow. See
 [multiple registrar accounts](docs/multi-account.md) for migration and MCP selection.
+
+## Connecting marketplaces
+
+DomBot supports **Afternic, Sedo, and Atom**. Add an account in
+**Settings → Markets**; each market's card says which keys it needs and where to
+get them (Sedo's partner ID and sign key come from applying to Sedo, and Atom's
+API access is a beta for sellers with 500+ listings). Market keys are stored
+encrypted like registrar keys and are sent only to that market's API. How the
+markets map into one model, and what each API can and can't do, is in
+[docs/markets.md](docs/markets.md).
 
 ## Connecting an AI agent
 
@@ -144,6 +159,7 @@ the repo, `npm install`, and `npm start` to run the app with hot reload.
 | `npm run lint`       | Lint `.ts`/`.tsx` files                            |
 | `npm run format`     | Format the codebase with Prettier                  |
 | `npm run typecheck`  | Type-check without emitting                        |
+| `npm run test:live`  | Live tests against real accounts (keys in `.env`)  |
 | `npm run site:build` | Minify the landing page (`site/src` → `site/dist`) |
 | `npm run web:dev`    | Run the self-hosted web app locally (wrangler dev) |
 | `npm run web:deploy` | Build and deploy the web app to Cloudflare         |

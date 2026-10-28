@@ -406,7 +406,7 @@ Checked live on 2026-10-28 against an account with 43 listings
   2026-10-28; by 06:35 UTC it was for sale at that price, with nothing sent
   from DomBot. So DomBot only has to wait: it keeps the name pending until
   Sedo shows it for sale.
-  not the order asked; the
+- **`DomainStatus` answers in its own order,** not the order asked; the
   client matches by name.
 - **Parking stats:** period 1 gives 31 daily rows for the account, and for
   one name when `domain` is set; period 3 gives 12 monthly rows.
@@ -434,19 +434,16 @@ examples, with recorded shapes (made-up names, as Afternic's), and remove
 
 ## Open questions
 
-1. **Partner access:** can an individual seller get a partner ID and sign
-   key, or does Sedo only grant them to businesses? If DomBot (or its hosted
-   instance) became the partner, how would self-hosted users authenticate?
-2. **Rate limits:** what are they, and what does exceeding them return?
-3. **HTTP status of faults:** 200 with a `SEDOFAULT` body, or 4xx/5xx?
-4. **GET/POST limits:** is `DomainList` over POST capped at 100 like SOAP,
+Answered live and moved to "Observed": faults come with HTTP 200, and a
+name awaiting checks is listed, not for sale. Rate limits, earnings
+currency and `minprice` on a fixed price are under "Unverified".
+
+1. **Partner access:** can every seller get a partner ID and sign key, or
+   does Sedo only grant them to some? If DomBot (or its hosted instance)
+   became the partner, how would self-hosted users authenticate?
+2. **GET/POST limits:** is `DomainList` over POST capped at 100 like SOAP,
    or at 10,000 like the stats functions?
-5. **Earnings currency and time zone:** which currency are parking earnings
-   in, and which zone are dates and insert times in (likely CET)?
-6. **Pending inserts:** does a name awaiting checks appear anywhere in the
-   API, or only by its absence?
-7. **What `minprice` does on a fixed-price listing:** ignored, or a floor for
-   offers alongside Buy Now?
-8. **`DomainEdit` on a name with open offers or in transfer** fails with
+3. **Time zone:** which zone are dates and insert times in (likely CET)?
+4. **`DomainEdit` on a name with open offers or in transfer** fails with
    `E3124`/`E5101`/`E5102`; are those listings shown as locked anywhere
    before an edit is tried?

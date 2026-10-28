@@ -133,6 +133,7 @@ interface DomainEvent {
   currency?: CurrencyCode | null; // ISO 4217, from CURRENCIES
   years?: number | null; // registered, purchased, renewed: term length
   resolves?: string; // a user event closing a sync-detected one
+  marketSale?: string; // sold: the market-sales key it came from (docs/markets.md)
   dismissed?: boolean; // sync alert acknowledged with no action
 }
 ```

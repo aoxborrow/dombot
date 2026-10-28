@@ -32,8 +32,8 @@ AtomRegistrar for the registrar API).
 
 Built, and verified live (2026-10-28): every seller read against the account
 in `.env`, every write DomBot makes on one test listing, and a Premium
-reprice. On the shared model in [markets.md](markets.md); in review as
-PR #201, stacked on Sedo (#200) and Afternic (#197).
+reprice. On the shared model in [markets.md](markets.md); merged with
+Sedo into the Afternic PR (#197).
 
 - **Client** `src/core/markets/atom/`: every seller operation except boost,
   plus appraisal. Reads every body for errors (Atom answers failures with
@@ -169,8 +169,8 @@ Conventions:
 ### Observed: where the API and the docs disagree
 
 Checked live, read-only, against the account in `.env` (2026-10-28): every
-seller read, plus one appraisal (of the 10 a day). No write has been made.
-The test account is small, so paging was checked with `limit=2`, and
+seller read, plus one appraisal (of the 10 a day). Writes are in the
+second table, below. The test account is small, so paging was checked with `limit=2`, and
 page-size limits couldn't be. Examples below are made up.
 
 | Topic                | Docs                                                                                          | Actual                                                                                                                                                                                                                                                                                                                            |
@@ -582,6 +582,9 @@ the same key twice or keep two cards in step, so:
 
 ## Phases
 
+The plan as written before credentials; "Status", above, says what was
+built and what wasn't (boost, nameserver changes, exclusivity flags).
+
 1. **Spec check with a key:** capture every seller read's real response
    (list, details, sales, analytics, syndication, categories, grading,
    appraisal), record the "Observed" table properly, ask Atom about rate
@@ -613,11 +616,11 @@ Separately, in registrar-client: an `atom` registrar.
 | Listing kinds    | one kind; lander type (`BUY_NOW`, `REQUEST_PRICE`, …)                         | Standard, Plus, Premium (curated, reviewed, paid submission, exclusive), Geo                     |
 | Prices           | `buynowPrice`, `minbidPrice` (min $20), `floorPrice`                          | `selling_price` only, plus a weekly `discount`; min offer is an account-wide %, floor not in API |
 | Money            | USD microunits, whole dollars                                                 | USD integer dollars                                                                              |
-| Statuses         | `ACTIVE`, `PENDING`, `INACTIVE`, `FAILED_COMPLIANCE`, …                       | unverified (`Approved`, `Seller Approved`, pending review, …)                                    |
+| Statuses         | `ACTIVE`, `PENDING`, `INACTIVE`, `FAILED_COMPLIANCE`, …                       | `Approved`, `Seller Approved`, `Transfer Complete` (sold), `Delisted`                            |
 | Activation       | point NS at Afternic; `PENDING` → `ACTIVE`; relist `RESYNC`/`REACTIVATE`      | Premium needs Atom NS; Standard NS or TXT; `verify-dns` triggers the check                       |
 | Exclusivity      | none                                                                          | Premium is exclusive except syndication-authorized names                                         |
 | Merchandising    | lander options, `hidden`                                                      | categories, description, boost (paid)                                                            |
-| Sales            | list/get with status, commission, payout dates, lease installments, auth code | one list call; shape unverified                                                                  |
+| Sales            | list/get with status, commission, payout dates, lease installments, auth code | one list call: name, type, date, price; commission estimated from the tier                       |
 | Sale workflow    | submit auth code, message the transaction agent                               | none                                                                                             |
 | Stats            | daily views and leads, account and per name, up to 365 days                   | per-name lifetime counters (views, shortlists, offers); no account level, no dates               |
 | Search demand    | GoDaddy searches 30/90/365d (Domain Pro members)                              | none; Atom grading and appraisal instead                                                         |
@@ -649,22 +652,21 @@ plugs in.
 
 ## Open questions
 
+Answered live (see "Observed"): response shapes and paging (bare arrays,
+no totals); `discount` is dollars off, 0 is refused, and repricing clears
+it; price 0 is Make an Offer; sale records carry no commission or payout.
+
 1. Rate limit for the seller API, and whether Atom offers bulk endpoints or a
-   higher limit for large portfolios. (Ask service@atom.com.)
-2. Real response shapes for list, details, sales, analytics and syndication,
-   and what paging metadata comes back. Needs a key.
-3. Is `discount` a dollar amount (as in Sheets) or a percent, and does `0`
-   clear it?
-4. Does `add-domain` accept `plus` and `geo`, and does `price=0` (or
-   `selling_price=0`) mean Make an Offer through the API?
-5. Which `source_of_deduction` spends AI credits now that coins and points are
-   gone?
-6. Does a sale record include commission and payout, and how do payment-plan
-   sales look?
-7. Can a seller token call the partnership or trademark endpoints, or only
+   higher limit for large portfolios. (Ask service@atom.com.) None was hit
+   at about 300 calls a minute.
+2. Does `add-domain` accept `geo`, and can it add a name as Plus on request
+   rather than by Atom's own choice?
+3. Which `source_of_deduction` spends AI credits now that coins and points are
+   gone? (Only matters if boost is ever built.)
+4. Can a seller token call the partnership or trademark endpoints, or only
    seller and appraisal? (Matters only if trademark checks move up.)
-8. Is the appraisal daily cap per token, and does it reset at midnight UTC?
-9. Does one Atom token work for both the seller and registrar APIs, or are
+5. Is the appraisal daily cap per token, and does it reset at midnight UTC?
+6. Does one Atom token work for both the seller and registrar APIs, or are
    they always separate? And is the seller `user_id` the same account as the
    registrar's? This decides whether the Atom market account usually borrows
    the registrar key or keeps its own.

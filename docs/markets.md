@@ -28,18 +28,15 @@ replaces both; where they disagreed, the choice and the reason are below.
    bulk writes, MCP) sees only shared types and the market's capabilities,
    never a market's own shapes, and never `if (market === 'atom')`.
 
-**Build the shared layer before Afternic's DomBot work, not after.** Phase 4
-of the Afternic plan writes stored records (`market-*` namespaces, `sold`
-events) and MCP tool schemas. Stored values don't change once written
-without a migration, and MCP tools are a public interface. Built
-Afternic-shaped first, both would need reworking when Atom or Sedo arrives;
-built on these types, the next market adds an adapter and some capability
-flags. (Sedo's plan suggested extracting the shared types after phase 4, from
-working code; with three plans in hand the overlap is clear enough now.)
+**The shared layer came before Afternic's DomBot work.** Stored records
+(`market-*` namespaces, `sold` events) don't change once written without a
+migration, and MCP tools are a public interface, so both started out
+market-neutral. Sedo and Atom then each added a client, an adapter and some
+capability flags.
 
 ## Shared types
 
-`src/core/markets/types.ts`. A sketch; names may shift when it's written.
+`src/core/markets/types.ts`, abridged; the file is the reference.
 
 ```ts
 type MarketId = 'afternic' | 'atom' | 'sedo';
@@ -285,10 +282,11 @@ Following docs/storage-model.md:
   Settings flow for it comes with the first such market.
 - **Sales become `sold` events.** A completed sale writes one `sold` event
   (source `sync`, date `soldOn`, amount `price`, `currency`) unless one already
-  exists for that sale. That needs the event to carry which sale it came from:
-  add `marketSale?: string` (the `market-sales` key) to `DomainEvent`. A user's
-  own `sold` event for the same name and day is matched and linked rather than
-  duplicated. Commission and net stay on the sale record; reports join them.
+  exists for that sale: the event carries `marketSale`, the sale's
+  `market-sales` key (`src/core/services/markets/sale-events.ts`). A `sold`
+  event you recorded yourself within 14 days of the sale is linked rather
+  than duplicated. A name an account still holds is only marked sold for a
+  sale in the last 90 days; an older one means you bought it back. Commission and net stay on the sale record; reports join them.
   Cancelled sales write nothing, and a sale cancelled after its event was
   written raises an alert rather than deleting the event.
 
@@ -494,23 +492,16 @@ a person (a sale message) says so in its description.
    Settings → Markets, listing columns and the Listing filter, `sold`
    events, read-only MCP tools.
 3. **Afternic phases 5–6** (done): writes, reporting.
-4. **Atom and Sedo** when there are credentials: client, then an adapter, then
-   their capability-gated extras. Atom's API access needs approval and 500+
-   listings; Sedo needs a partner ID and sign key. Both are done: built from
-   their docs, then verified live once credentials arrived (2026-10-28).
-   Atom also brought market bulk jobs (see "Bulk writes"). Status and
+4. **Atom and Sedo** (done): client, adapter, then their capability-gated
+   extras, built from their docs and verified live once credentials arrived
+   (2026-10-28). Atom's API access needs approval and 500+ listings; Sedo
+   needs a partner ID and sign key. Atom also brought market bulk jobs (see "Bulk writes"). Status and
    what's left: atom-api.md, "Status"; sedo-api.md.
 5. **Ownership verification** for every market: planned above, not built.
 
 ## Open questions
 
-1. The `marketSale` link on `DomainEvent`: confirm it against
-   docs/storage-model.md's rules before phase 4 writes the first event.
-2. Do Atom and Sedo report errors with HTTP 200 for every failure? Both
-   do, checked live: Atom answers every failure with a lone `message`
-   (atom-api.md, "Observed"), Sedo with a fault document. Adapters check
-   bodies either way.
-3. Market rate limits for Atom and Sedo are unpublished. Atom drew no
+1. Market rate limits for Atom and Sedo are unpublished. Atom drew no
    throttling at about 300 calls a minute, and its client paces at 120; its
    DNS check is limited to one per account every 12 hours. Sedo's default
    (60 a minute) is a guess until throttling shows or Sedo says.

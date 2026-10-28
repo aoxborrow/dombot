@@ -16,7 +16,8 @@ word on; it's structurally absent, and you can watch the network to prove it.
 
 ## What DomBot does with your credentials
 
-- **Storage.** Registrar API keys entered in **Settings → Registrars** are
+- **Storage.** Registrar and marketplace API keys entered in **Settings →
+  Registrars** and **Settings → Markets** are
   encrypted with your operating system's credential store — Keychain on macOS,
   DPAPI on Windows, the system keyring (libsecret/kwallet) on Linux — via
   Electron [`safeStorage`](https://www.electronjs.org/docs/latest/api/safe-storage).
@@ -26,9 +27,12 @@ word on; it's structurally absent, and you can watch the network to prove it.
   writing plaintext keys to disk (a plaintext fallback exists only behind an
   explicit `DOMBOT_ALLOW_PLAINTEXT_CREDENTIALS=1` opt-in for headless setups).
 - **Use.** Credentials are read only to make requests **directly from your
-  machine to that registrar's own API.** The registrar HTTP calls live in
+  machine to that registrar's or marketplace's own API.** The registrar HTTP
+  calls live in
   [`@aoxborrow/registrar-client`](https://github.com/aoxborrow/registrar-client),
-  a separate open-source package.
+  a separate open-source package; the marketplace clients are in
+  [`src/core/markets/`](src/core/markets/). Auth codes fetched for a market
+  sale go straight to that market and are never stored.
 - **No telemetry, analytics, or crash reporting.** The app contains no Sentry,
   no analytics SDK, no usage pings — nothing that could carry a key off-device.
 - **No auto-update phone-home.** Updates are downloaded manually from GitHub
