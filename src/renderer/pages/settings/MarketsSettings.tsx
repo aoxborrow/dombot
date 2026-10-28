@@ -17,6 +17,12 @@ import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
 import { timeAgo } from '../../lib/time';
 import { Button } from '@/components/ui/button';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import { Card } from '@/components/ui/card';
 import {
   Collapsible,
@@ -153,10 +159,15 @@ function AddMarketMenu({
 
 function EmptyMarkets() {
   return (
-    <p className="text-sm text-muted-foreground">
-      No market accounts yet. Add one to see which names are listed, at what
-      prices, what sold, and how much traffic they get.
-    </p>
+    <Empty className="rounded-md border border-dashed">
+      <EmptyHeader>
+        <EmptyTitle>No market accounts yet</EmptyTitle>
+        <EmptyDescription>
+          Add one to see which names are listed, at what prices, what sold, and
+          how much traffic they get.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }
 
