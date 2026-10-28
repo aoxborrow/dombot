@@ -64,12 +64,15 @@ PR #201, stacked on Sedo (#200) and Afternic (#197).
   description, which can't be cleared, `ATOM_TEST_DESCRIPTION=1`.
 - **Not built, on purpose:** boost and Premium listings (both spend Atom
   credits), and changing a listing's tier (no API for it).
-- **Planned, app work:** buttons for discount, verify, grading and
-  appraisal (MCP-only so far); recognizing `ns1/ns2.atom.com` as Atom's
-  marketplace nameservers; warnings for a Premium Atom name listed on
-  Afternic without syndication rights, and for a name on both markets
-  pointing at one market's nameservers; ownership verification
-  (markets.md).
+- **Nameservers:** Atom's marketplace pair, AtomRegistrar's default pair
+  and its old Squadhelp pair are declared in
+  `src/core/markets/atom/nameservers.ts`, and the Nameservers filter names
+  them.
+- **Planned:** verify DNS in the app, as the last step of ownership
+  verification for every market (markets.md). Not planned: buttons for
+  Atom's discounts, and warnings about Atom's exclusivity, which Atom
+  enforces itself; a name can be listed on several markets whatever its
+  nameservers.
 - **Elsewhere:** Atom as a registrar, in registrar-client; then the shared
   key for an account that's both ("One provider, registrar and market").
 
@@ -428,15 +431,15 @@ An Atom card in the Markets section, built the same way as Afternic's:
   the name is premium-fit. Then offer to point nameservers at
   `ns1/ns2.atom.com` (required for Premium, recommended otherwise) through the
   registrar, and call `verifyDns`.
-- **Nameservers:** `src/renderer/lib/nameservers.ts` should recognize
-  `ns1/ns2.atom.com` as Atom's marketplace pair, `ns*.atomregistrar.com` as
-  Atom parking, and `ns1/ns2.squadhelp.com` as the old name for the former.
+- **Nameservers:** done: `src/core/markets/atom/nameservers.ts` lists
+  `ns1/ns2.atom.com` (marketplace), `ns1/ns2.atomregistrar.com`
+  (AtomRegistrar's default) and
+  `ns1/ns2.squadhelp.com` (the old name), and the Nameservers filter names
+  them.
 - **Exclusivity.** Premium listings are exclusive to Atom except for names in
-  `syndication-authorized-domains`, and Premium also needs Atom's nameservers,
-  while an active Afternic listing wants Afternic's. DomBot is the one place
-  that sees both, so it should flag: a Premium Atom name listed on Afternic but
-  not syndication-authorized; a name listed on both whose nameservers point at
-  only one; and block (with an explanation) listing a Premium name elsewhere.
+  `syndication-authorized-domains`. Atom enforces that itself, so DomBot only
+  shows the flag on the listing and doesn't warn or block. (A name can be
+  listed on several markets whatever its nameservers point at.)
 - **Things to flag:** names on Atom nameservers but not listed, listings for
   names no longer in any registrar account, names awaiting DNS verification.
 

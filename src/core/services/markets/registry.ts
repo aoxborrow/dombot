@@ -1,4 +1,7 @@
 import type { MarketId, MarketInfo } from '../../../shared/markets';
+import { AFTERNIC_NAMESERVERS } from '../../markets/afternic';
+import { ATOM_NAMESERVERS } from '../../markets/atom';
+import { SEDO_NAMESERVERS } from '../../markets/sedo';
 import type {
   AfternicActions,
   AtomActions,
@@ -49,6 +52,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
         'Create an API key under Account Profile → Security → API Keys on Afternic, and paste both the key and the secret.',
       configFields: AFTERNIC_CONFIG_FIELDS,
       capabilities: AFTERNIC_CAPABILITIES,
+      nameservers: AFTERNIC_NAMESERVERS,
     },
     create: (accountId, credentials) =>
       createAfternicAdapter(accountId, credentials),
@@ -64,6 +68,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
         'Request API access under Dashboard → API Access on atom.com, then paste the API token and the user ID shown with it.',
       configFields: ATOM_CONFIG_FIELDS,
       capabilities: ATOM_CAPABILITIES,
+      nameservers: ATOM_NAMESERVERS,
     },
     create: (accountId, credentials) =>
       createAtomAdapter(accountId, credentials),
@@ -79,6 +84,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
         'Sedo’s API needs a partner ID and sign key, which Sedo grants on request (ask Sedo support for API access), plus your Sedo username and password. Sedo’s API has no sales, so record Sedo sales by hand or import Sedo’s CSV export.',
       configFields: SEDO_CONFIG_FIELDS,
       capabilities: SEDO_CAPABILITIES,
+      nameservers: SEDO_NAMESERVERS,
     },
     create: (accountId, credentials) =>
       createSedoAdapter(accountId, credentials),

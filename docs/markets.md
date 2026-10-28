@@ -383,8 +383,8 @@ Most markets accept two or three of these:
 
 | Method                   | What you set                                            | Example                                                            |
 | ------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------ |
-| Default nameservers      | The name's nameservers, to the market's shared pair     | `ns1/ns2.afternic.com`, `ns1.sedo.com`                             |
-| Per-customer nameservers | The name's nameservers, to a pair assigned to you       | `xxx3434-ns.atom.com`                                              |
+| Default nameservers      | The name's nameservers, to the market's shared pair     | `ns1/ns2.afternic.com`, `ns1/ns2.sedoparking.com`                  |
+| Per-customer nameservers | The name's nameservers, to a pair assigned to you       | none of Afternic, Atom or Sedo seen doing this                     |
 | TXT record               | A TXT record holding a verification ID from the market  | Sedo: one ID per account, shown in its dashboard                   |
 | CNAME record             | A CNAME from the verification ID to the market's target | Sedo: host `<verification ID>`, value `verify.sedo.com.`, TTL 3600 |
 
@@ -418,7 +418,12 @@ What each costs:
   custom nameservers assigned to you, and which method you prefer.
 - **Capabilities, per market:** which methods it accepts, its default
   nameservers and CNAME target, and whether it has a "check now" call (Atom's
-  verify DNS). Settings shows only the fields a market's methods need.
+  verify DNS). Each market already declares its nameservers next to its
+  client (`src/core/markets/<market>/nameservers.ts`), published in the
+  catalog as `MarketInfo.nameservers`; the Nameservers filter groups by
+  them, and `defaultMarketNameservers` gives the pair to point a name at. A
+  market that assigns nameservers per customer can list them as a pattern
+  (`*.ns.example.com`), or through the account later. Settings shows only the fields a market's methods need.
   Atom's check-now allows one request per account every 12 hours, for any
   name (seen live, docs/atom-api.md): the action should apply DNS to every
   selected name first and ask once, not once per name.

@@ -10,3 +10,4 @@ export {
 export { AtomError, redact, type AtomErrorCode } from './errors';
 export * from './types';
 export { ATOM_BASE_URL } from './wire';
+export { ATOM_NAMESERVERS } from './nameservers';

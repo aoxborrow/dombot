@@ -1294,7 +1294,7 @@ export default function Domains() {
     for (const d of merged) {
       const keys = new Set<string>();
       for (const host of d.nameservers) {
-        const group = nameserverGroup(host);
+        const group = nameserverGroup(host, marketCatalog);
         if (!group) continue;
         // Count each domain once per group even with multiple hosts in it.
         if (!keys.has(group.key)) {
@@ -1312,7 +1312,7 @@ export default function Domains() {
       count: v.count,
     })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
     return { nsGroups: groups, nsKeysByDomain: keysByDomain };
-  }, [merged]);
+  }, [merged, marketCatalog]);
 
   // Owned: the Folder filter offers the user's folders, None, and Hidden.
   // Archive: the same control filters by status (Sold, Dropped, …).
