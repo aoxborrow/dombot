@@ -214,6 +214,23 @@ describe('toWireFields', () => {
     expect(() => toWireFields({ floor: 50_000_000 })).toThrow(/over/);
     expect(() => toWireFields({ maxLeasePeriod: 61 })).toThrow(/2–60/);
   });
+
+  it('keeps minimum offer ≤ floor ≤ Buy Now, as Afternic does', () => {
+    expect(() => toWireFields({ buyNow: 900, floor: 1000 })).toThrow(
+      /floor price is above the Buy Now/,
+    );
+    expect(() => toWireFields({ minOffer: 200, floor: 100 })).toThrow(
+      /minimum offer is above the floor/,
+    );
+    expect(() => toWireFields({ minOffer: 3000, buyNow: 2500 })).toThrow(
+      /minimum offer is above the Buy Now/,
+    );
+    // Equal is fine, and an unset price (null) doesn't count.
+    expect(() =>
+      toWireFields({ buyNow: 1000, floor: 1000, minOffer: 1000 }),
+    ).not.toThrow();
+    expect(() => toWireFields({ buyNow: null, minOffer: 500 })).not.toThrow();
+  });
 });
 
 describe('toWireSettings', () => {

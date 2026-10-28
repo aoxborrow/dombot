@@ -172,6 +172,27 @@ function price(dollars: number, label: string): number {
 }
 
 /**
+ * Afternic's rule, checked live: minimum offer ≤ floor ≤ Buy Now, equal
+ * allowed. Afternic checks it against the whole saved listing; this can only
+ * check the prices given together, so a change of one price can still be
+ * refused by Afternic.
+ */
+function checkPriceOrder(fields: ListingFields): void {
+  const buyNow = fields.buyNow || null;
+  const floor = fields.floor || null;
+  const minOffer = fields.minOffer || null;
+  if (floor != null && buyNow != null && floor > buyNow) {
+    throw new Error('The floor price is above the Buy Now price.');
+  }
+  if (minOffer != null && floor != null && minOffer > floor) {
+    throw new Error('The minimum offer is above the floor price.');
+  }
+  if (minOffer != null && buyNow != null && minOffer > buyNow) {
+    throw new Error('The minimum offer is above the Buy Now price.');
+  }
+}
+
+/**
  * The fields to send for a create, update or upsert. Checks the rules the API
  * would otherwise reject one name at a time.
  */
@@ -192,6 +213,7 @@ export function toWireFields(fields: ListingFields): WireDomainFields {
     }
     wire.minbidPrice = price(fields.minOffer, 'Minimum offer');
   }
+  checkPriceOrder(fields);
   if (fields.maxLeasePeriod !== undefined) {
     const n = fields.maxLeasePeriod;
     if (!Number.isInteger(n) || n < 2 || n > 60) {

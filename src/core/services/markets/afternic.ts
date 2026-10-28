@@ -94,8 +94,9 @@ export function listingFromAfternic(
     statusRaw: l.listStatus,
     forSale: !l.hidden && l.listStatus !== 'HIDDEN',
     price: dollars(l.buyNow),
-    // Afternic's Buy Now price is binding whatever the lander shows, since
-    // it's syndicated with Fast Transfer (docs/markets.md, open question 1).
+    // A Buy Now price can always be paid outright: GoDaddy and partner
+    // registrars sell at it whatever the lander shows. The lander only
+    // changes what the name's own page displays.
     buyNow: l.buyNow != null,
     minOffer: dollars(l.minOffer),
     floor: dollars(l.floor),

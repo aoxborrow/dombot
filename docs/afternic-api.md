@@ -65,6 +65,14 @@ Other observed behavior worth designing around:
   and no error body (`{"name": {"code": 404}}` for delete), inside a 200.
 - `RESYNC` on an `ACTIVE` listing succeeds and changes nothing visible.
 - Creating a listing that exists returns 409, as documented.
+- Prices must keep minimum offer ≤ floor ≤ Buy Now (equal allowed), checked
+  against the whole saved listing: a PATCH of just the floor is refused if it
+  falls below the saved minimum offer. Each break is a 422 `MALFORMED_INPUT`
+  naming the field (`floorPrice cannot be less than minbidPrice`). The
+  client checks the prices given together before sending.
+- The lander only changes what the name's own page shows. Buyers also reach
+  a listing through GoDaddy and partner registrars, which show its Buy Now
+  price and minimum offer whatever the lander is.
 - A one-row bulk job finished in about a second, from upload to `COMPLETED`.
 - A job's results file is `operation,domain,result,errorMessage`, with a
   byte-order mark before the first data row (not before the header). Results

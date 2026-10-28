@@ -167,11 +167,17 @@ keeps dated snapshots of them so trends show over time.
   EUR, USD or GBP with cents, and Afternic sales carry cents. Afternic's and
   Atom's adapters convert.
 - **`price` + `buyNow`** rather than Atom's `buyNow` price or Sedo's
-  `fixedPrice`: one listed price, and a flag for whether it's binding. Atom:
-  always binding. Sedo: `fixedprice`. Afternic: binding whenever a Buy Now
-  price is set, whatever the lander, because Afternic syndicates it to its
-  network with Fast Transfer. (Sedo's plan asked about this; confirm with one
-  Afternic `PRICE_FORM` listing before relying on it.)
+  `fixedPrice`: one listed price, and a flag for whether a buyer can pay it
+  outright, with no negotiation. Atom: always. Sedo: `fixedprice`. Afternic:
+  whenever a Buy Now price is set. The lander doesn't change that; it only
+  changes what the name's own page shows, and buyers also reach the name
+  through GoDaddy and partner registrars, which show the Buy Now price and
+  minimum offer.
+- **What the three prices mean** (Afternic, the market with all three):
+  `price` is what a buyer can pay outright; `minOffer` is the lowest offer
+  that starts a negotiation (the seller may still accept below the floor);
+  `floor` is the lowest price a broker may accept without asking. Afternic
+  enforces minimum offer ≤ floor ≤ Buy Now, equal allowed (checked live).
 - **`forSale` is separate from `status`**: a listing can be live and not for
   sale (Sedo parks it, Afternic hides it). Sedo's `not_for_sale` status
   became this flag.
@@ -374,11 +380,9 @@ a person (a sale message) says so in its description.
 
 ## Open questions
 
-1. Is an Afternic Buy Now price binding on a `PRICE_FORM` listing (the basis
-   for `buyNow: true`)?
-2. The `marketSale` link on `DomainEvent`: confirm it against
+1. The `marketSale` link on `DomainEvent`: confirm it against
    docs/storage-model.md's rules before phase 4 writes the first event.
-3. Do Atom and Sedo report errors with HTTP 200 for every failure? Both plans
+2. Do Atom and Sedo report errors with HTTP 200 for every failure? Both plans
    suspect so; adapters must check bodies either way.
-4. Market rate limits for Atom and Sedo are unpublished; the defaults (60 a
+3. Market rate limits for Atom and Sedo are unpublished; the defaults (60 a
    minute, one a second) are guesses until 429s or the markets say.
