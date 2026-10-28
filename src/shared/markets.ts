@@ -96,8 +96,32 @@ export interface AfternicExtra {
   searches: { total: SearchCounts; unique: SearchCounts } | null;
 }
 
-// Atom's and Sedo's extras join this union when their adapters exist.
-export type MarketExtra = AfternicExtra;
+export interface SedoExtra {
+  market: 'sedo';
+  /** Up to three Sedo category ids. */
+  categories: number[];
+  /** ISO 639-1 language of the name. */
+  language: string | null;
+  /** Lifetime parking earnings. UNVERIFIED: in which currency. */
+  parkingEarnings: Amount | null;
+  /** The name's master keywords for parking. */
+  keywords: string[];
+}
+
+// Atom's extra joins this union when its adapter exists.
+export type MarketExtra = AfternicExtra | SedoExtra;
+
+/** A listing's GoDaddy search counts, when its market sends them. */
+export function searchesOf(l: MarketListing): AfternicExtra['searches'] | null {
+  return l.extra.market === 'afternic' ? l.extra.searches : null;
+}
+
+/** A listing's Afternic Fast Transfer status, if it's on Afternic. */
+export function fastTransferOf(
+  l: MarketListing,
+): AfternicFastTransferStatus | null {
+  return l.extra.market === 'afternic' ? l.extra.fastTransferStatus : null;
+}
 
 export interface AfternicExtraChange {
   market: 'afternic';
@@ -109,7 +133,15 @@ export interface AfternicExtraChange {
   featured?: boolean;
 }
 
-export type MarketExtraChange = AfternicExtraChange;
+export interface SedoExtraChange {
+  market: 'sedo';
+  /** Up to three Sedo category ids (market_categories_get lists them). */
+  categories?: number[];
+  /** ISO 639-1; Sedo needs one to list a name. */
+  language?: string;
+}
+
+export type MarketExtraChange = AfternicExtraChange | SedoExtraChange;
 
 /** A change to one listing. Only the fields given are changed. */
 export interface MarketListingChange {

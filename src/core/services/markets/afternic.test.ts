@@ -71,8 +71,11 @@ describe('listingFromAfternic', () => {
 
   it('carries search counts through', () => {
     const listing = listingFromAfternic(toListing(fx.domainWithSearches), 'a');
-    expect(listing.extra.searches?.total.days30).toBe(120);
-    expect(listing.extra.offerCount).toBe(3);
+    expect(listing.extra).toMatchObject({
+      market: 'afternic',
+      offerCount: 3,
+      searches: { total: { days30: 120 } },
+    });
   });
 });
 

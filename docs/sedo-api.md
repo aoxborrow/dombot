@@ -5,10 +5,14 @@ the overlap with Afternic (docs/afternic-api.md) worked out so the two can
 share one market model. Docs: <https://api.sedo.com/apidocs/v1/Basic/>. The
 WSDL is at <https://api.sedo.com/api/v1/?wsdl>.
 
-Nothing here has been checked against the live API: there are no Sedo
-credentials in `.env`, and getting them takes a Sedo partner account (see
-"Credentials"). Everything below is from the docs, read 2026-10-27; claims to
-verify first are collected under "Open questions".
+**Status: built, unverified.** The client (`src/core/markets/sedo/`), the
+adapter (`src/core/services/markets/sedo.ts`) and the registry entry are in
+place, so Sedo accounts can be added in Settings → Markets, sync, show in the
+Domains columns and work through the MCP tools. None of it has made a live
+call: there are no Sedo credentials yet, and getting them takes Sedo partner
+access (see "Credentials"). Everything is built from the docs and their
+example responses, read 2026-10-27, and marked `UNVERIFIED` in the code where
+it guesses. What to check first is under "Unverified", below.
 
 ## The API at a glance
 
@@ -147,17 +151,17 @@ namespace, as the Afternic plan describes.
 src/core/markets/sedo/
   client.ts       SedoClient: one method per function
   types.ts        listing, stats, payment types (decimal strings, currency codes)
-  wire.ts         XML request encoding and response parsing
-  convert.ts      wire shapes → types
+  wire.ts         form encoding, XML parsing, wire shapes → values
   errors.ts       SedoError (fault code + fault string)
   fixtures.ts     the docs' example responses, for tests
+  index.ts
   *.test.ts
 ```
 
 Where Sedo forces a different design from Afternic:
 
 - **Requests are form-encoded, responses are XML.** Arrays are sent PHP style
-  (`domainentry[0][domain]=…`, `domainentry[0][category][]=1`), as the docs'
+  (`domainentry[0][domain]=…`, `domainentry[0][category][0]=1`), as the docs'
   `http_build_query` examples produce. Responses go through `fast-xml-parser`
   (already a DomBot dependency, and Worker-safe) with values kept as strings
   and coerced explicitly, as registrar-client does for Namecheap.
@@ -211,8 +215,9 @@ Where Sedo forces a different design from Afternic:
 
 The market tools in the Afternic plan take `market: 'sedo'` with no new
 tools. Where Sedo lacks something, the tool says so instead of returning
-empty data: `market_sales` and `market_sale_*` fail with "Sedo's API has no
-sales", `domain_listing_set` refuses `floor` and lease-to-own fields.
+empty data: `market_sales` for a Sedo account fails with "its API has no
+sales", the sale actions fail the same way, and `domain_listing_set` refuses
+`floor` and lease-to-own fields.
 `market_stats_get` and `domain_stats_get` return Sedo's visitors, clicks and
 earnings. Sedo-only extras: `market_categories_get` and
 `market_payments_get` (parking payouts).
@@ -280,18 +285,96 @@ none.
 ## Phases
 
 0. **Credentials:** apply for Sedo partner access; add the four values to
-   `.env`. Nothing live can be verified before this.
-1. **Client, read side:** form-POST transport, XML parsing, faults, retries;
-   `CheckMember`, `DomainList`, `DomainListExtended`, `DomainStatus`,
-   parking statistics and payments, categories and languages.
-2. **Client, write side:** insert, edit (read-merge-write), delete, in
-   batches of 50.
-3. **Sedo adapter** into the shared model ([markets.md](markets.md)), which
-   is built first, with Afternic's adapter, before Afternic's DomBot phase 4.
-4. **DomBot:** Sedo accounts, listing sync, pending-insert tracking, parking
-   reporting, MCP cases.
-5. **Later:** SOAP transport and the deferred parking functions, starting
+   `.env`. Nothing live can be verified before this. **Waiting.**
+1. **Client, read side** (built, unverified): form-POST transport, XML
+   parsing, faults, retries; `CheckMember`, `DomainList`,
+   `DomainListExtended`, `DomainStatus`, parking statistics and payments,
+   categories and languages.
+2. **Client, write side** (built, unverified): insert, edit
+   (read-merge-write), delete, in batches of 50.
+3. **Sedo adapter** into the shared model ([markets.md](markets.md)) and
+   its registry entry (built, unverified).
+4. **DomBot** (built, unverified): Sedo accounts in Settings → Markets,
+   listing sync with pending-insert tracking, the Domains columns, parking
+   stats as account and per-name traffic, and the MCP cases, including
+   `market_categories_get` and `market_payments_get`.
+5. **Verify** with credentials: work through "Unverified" below, then
+   replace the docs-based fixtures with recorded shapes.
+6. **Later:** SOAP transport and the deferred parking functions, starting
    with `SetDomainSetup`'s buy box.
+
+## What the build decided
+
+Choices made without live answers, each easy to change once checked:
+
+- **Every call is a form POST** to `/api/v1/<Function>` with
+  `output_method=xml`. The docs only show GET for the plain-HTTP interface
+  and say "GET / POST"; POST keeps the password out of URLs.
+- **Retries:** faults `E11`, `E17` and `E2000` (statistics unavailable) are
+  retried 3 times at 2, 4 and 8 seconds, for writes too, since a busy fault
+  means nothing happened. Network and 5xx failures are retried for reads
+  only. `E11` says "try again in five minutes", which these retries won't
+  wait out; the next sync does.
+- **Pace:** 60 requests a minute per account, shared like Afternic's
+  limiter (`src/core/markets/rate-limit.ts`, now used by both).
+- **A new listing** gets a Buy Now price when it has a price (as on Afternic
+  and in DomBot's asking price), USD unless told, language `en` unless told,
+  no categories, for sale. A Buy Now price under 199 USD or EUR is refused
+  before sending (fault `E3123`), with a hint to list it as an asking price.
+- **Pending inserts:** a name `DomainInsert` accepted is stored `pending`.
+  Sync keeps it while Sedo's list doesn't have it, for up to 7 days, then
+  drops it and notes on the account card that Sedo may have refused it.
+  This is gated by the `asyncInsert` capability, not by market name.
+- **Edits are taken as live at once:** the saved listing is the merged one,
+  with no read-back. The next sync corrects it if Sedo applies edits later.
+- **Every listed name is `active`;** `forSale` carries for sale or parked.
+- **Parking earnings have no currency** in the shared stats
+  (`currency: null`) until it's known which one Sedo reports.
+- **Per-name traffic** uses `DomainParkingFinalStatistics` period 1 with a
+  `domain`, 31 days at most, through the same rotation as Afternic's.
+- **An empty account** (fault `E15`, "There is no data for your request")
+  reads as no listings, and "no statistics" faults (`E15`, `E2102`, `E2104`)
+  as no rows.
+
+## Unverified: what to check first
+
+In this order once the four credentials are in `.env` (`npm run test:live`
+runs `src/core/markets/sedo/client.live.test.ts`, which prints what it
+finds; `SEDO_LIVE_WRITES=1` with `SEDO_TEST_DOMAIN` adds the write round
+trip):
+
+1. **Auth and transport:** `CheckMember` answers `1` to a form POST at
+   `/api/v1/CheckMember`. If POST is refused, fall back to GET for reads
+   only and rethink writes.
+2. **Faults:** the HTTP status that comes with a `SEDOFAULT`, and that a
+   wrong password gives `E6`.
+3. **Array encoding:** `domainentry[0][domain]=…` and
+   `domainentry[0][category][0]=…` are understood (PHP's
+   `http_build_query` form, which the docs' examples use).
+4. **`DomainList` paging:** the page cap over POST (100 assumed), the order
+   (`orderby=0`, by name), and what an empty account returns (empty list or
+   `E15`).
+5. **Field formats:** `currency` as `0`/`1`/`2` in lists and `"EUR"` in
+   `DomainStatus` (as the docs' examples show); prices as plain decimals; the
+   `inserted` date (string or UNIX timestamp, and its time zone, read as
+   UTC).
+6. **Inserts:** how long Sedo's checks take, whether a pending name appears
+   anywhere before they pass, and what a second insert of the same name
+   returns.
+7. **Edits:** that an `ok` edit shows in `DomainList` at once; what
+   `minprice` does on a fixed-price listing; whether the 199 minimum applies
+   in GBP.
+8. **Parking stats:** that period 1 with a `domain` gives that name's daily
+   rows; which currency earnings are in; the `payout_status` values; whether
+   payments come back as `payments` or `earnings`.
+9. **Rate limits:** what happens past 60 a minute, and whether `E11`/`E17`
+   are what Sedo sends when throttling.
+10. **Public and reference calls:** `DomainStatus` with only the partner
+    pair, and `DomainCategories`/`DomainLanguages` with no auth at all.
+
+Then replace `src/core/markets/sedo/fixtures.ts`, which is the docs'
+examples, with recorded shapes (made-up names, as Afternic's), and remove
+`UNVERIFIED` comments as each item is confirmed.
 
 ## Open questions
 

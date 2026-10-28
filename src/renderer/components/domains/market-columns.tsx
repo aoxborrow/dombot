@@ -1,10 +1,12 @@
 import { toAscii } from '../../../shared/domain-name';
 import type { Domain, ListPrice } from '../../../shared/ipc';
-import type {
-  ListingStatus,
-  MarketInfo,
-  MarketListing,
-  MarketTraffic,
+import {
+  fastTransferOf,
+  searchesOf,
+  type ListingStatus,
+  type MarketInfo,
+  type MarketListing,
+  type MarketTraffic,
 } from '../../../shared/markets';
 import { formatMoney, type NumberFormatId } from '../../../shared/money';
 import { cn } from '@/lib/utils';
@@ -85,9 +87,10 @@ function describe(
     parts.push(`${money(l.price)} ${l.buyNow ? 'Buy Now' : 'asking'}`);
   if (l.minOffer) parts.push(`${money(l.minOffer)} min offer`);
   if (l.floor) parts.push(`${money(l.floor)} floor`);
-  if (l.extra.fastTransferStatus) {
+  const fastTransfer = fastTransferOf(l);
+  if (fastTransfer) {
     parts.push(
-      `Fast Transfer ${(FAST_TRANSFER_LABEL[l.extra.fastTransferStatus] ?? l.extra.fastTransferStatus).toLowerCase()}`,
+      `Fast Transfer ${(FAST_TRANSFER_LABEL[fastTransfer] ?? fastTransfer).toLowerCase()}`,
     );
   }
   return parts.join(' · ');
@@ -214,8 +217,7 @@ export function marketColumns({
       label: 'Fast Transfer',
       hideOnMobile: true,
       render: (d) => {
-        const status = of(d).find((l) => l.extra.fastTransferStatus)?.extra
-          .fastTransferStatus;
+        const status = of(d).map(fastTransferOf).find(Boolean);
         return status ? (
           <span className={cn(status !== 'ACTIVE' && 'text-muted-foreground')}>
             {FAST_TRANSFER_LABEL[status] ?? status}
@@ -224,9 +226,7 @@ export function marketColumns({
           dash
         );
       },
-      sortValue: (d) =>
-        of(d).find((l) => l.extra.fastTransferStatus)?.extra
-          .fastTransferStatus ?? null,
+      sortValue: (d) => of(d).map(fastTransferOf).find(Boolean) ?? null,
     },
     count(
       'views30',
@@ -241,9 +241,7 @@ export function marketColumns({
     count(
       'searches30',
       'Searches (30d)',
-      (d) =>
-        of(d).find((l) => l.extra.searches)?.extra.searches?.total.days30 ??
-        undefined,
+      (d) => of(d).map(searchesOf).find(Boolean)?.total.days30 ?? undefined,
     ),
   ];
 }

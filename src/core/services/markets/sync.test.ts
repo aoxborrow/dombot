@@ -28,6 +28,7 @@ const fake = {
   testFails: false,
   salesSince: [] as (string | undefined)[],
   statsDays: [] as number[],
+  asyncInsert: false,
 };
 vi.mock('./registry', async () => {
   const { AFTERNIC_CONFIG_FIELDS } = await import('./afternic');
@@ -42,7 +43,9 @@ vi.mock('./registry', async () => {
     buildAdapter: (_market: string, accountId: string) => ({
       market: 'afternic',
       accountId,
-      capabilities: AFTERNIC_CAPABILITIES,
+      get capabilities() {
+        return { ...AFTERNIC_CAPABILITIES, asyncInsert: fake.asyncInsert };
+      },
       test: async () => {
         if (fake.testFails) throw new Error('Bad key');
         return { listings: fake.listings.length, notes: ['note'] };
@@ -74,8 +77,13 @@ vi.mock('../registrars', () => ({
 
 const { connectMarketAccount, marketAccountViews, removeMarketAccount } =
   await import('./accounts');
-const { marketAccountStats, marketListings, marketSales, syncMarketAccount } =
-  await import('./sync');
+const {
+  marketAccountStats,
+  marketListings,
+  marketSales,
+  putMarketListings,
+  syncMarketAccount,
+} = await import('./sync');
 
 function listing(name: string): MarketListing {
   return {
@@ -148,6 +156,7 @@ beforeEach(async () => {
     fail: null,
     testFails: false,
     salesSince: [],
+    asyncInsert: false,
     statsDays: [],
   });
   held.clear();
@@ -351,5 +360,51 @@ describe('sales as sold events', () => {
     fake.sales = [sale('t1', 'left.com', '2026-10-08')];
     await syncMarketAccount(ACCOUNT);
     expect(sold()[0].resolves).toBe(removed.id);
+  });
+});
+
+describe('listings a market is still checking', () => {
+  const DAY = 86_400_000;
+  const pending = (name: string, daysAgo: number): MarketListing => ({
+    ...listing(name),
+    accountId: ACCOUNT,
+    status: 'pending',
+    listedAt: new Date(Date.now() - daysAgo * DAY).toISOString(),
+  });
+
+  it('keeps a pending insert the market doesn’t list yet, for a week', async () => {
+    fake.asyncInsert = true;
+    await connect();
+    fake.listings = [listing('live.com')];
+    putMarketListings(ACCOUNT, [pending('new.com', 2), pending('old.com', 9)]);
+    await syncMarketAccount(ACCOUNT);
+    expect(
+      marketListings()
+        .map((l) => [l.name, l.status])
+        .sort(),
+    ).toEqual([
+      ['live.com', 'active'],
+      ['new.com', 'pending'],
+    ]);
+    const note = marketAccountViews()[0].sync?.notes.find((n) =>
+      n.startsWith('Not listed after a week'),
+    );
+    expect(note).toMatch(/1 name DomBot sent/);
+  });
+
+  it('replaces the pending row once the market lists the name', async () => {
+    fake.asyncInsert = true;
+    await connect();
+    putMarketListings(ACCOUNT, [pending('new.com', 1)]);
+    fake.listings = [listing('new.com')];
+    await syncMarketAccount(ACCOUNT);
+    expect(marketListings().map((l) => l.status)).toEqual(['active']);
+  });
+
+  it('drops pending rows on markets that list names straight away', async () => {
+    await connect();
+    putMarketListings(ACCOUNT, [pending('new.com', 1)]);
+    await syncMarketAccount(ACCOUNT);
+    expect(marketListings()).toEqual([]);
   });
 });

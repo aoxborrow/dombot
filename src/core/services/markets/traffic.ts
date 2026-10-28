@@ -1,8 +1,9 @@
-import type {
-  MarketListing,
-  MarketStatsDay,
-  MarketTraffic,
-  SearchCounts,
+import {
+  searchesOf,
+  type MarketListing,
+  type MarketStatsDay,
+  type MarketTraffic,
+  type SearchCounts,
 } from '../../../shared/markets';
 import { localDay } from '../../../shared/domain-events';
 import { getAppIdentity } from '../../app-info';
@@ -131,7 +132,7 @@ export function snapshotSearches(
 ): void {
   const writes: [string, Record<string, SearchSnapshot>][] = [];
   for (const l of listings) {
-    const counts = l.extra.searches;
+    const counts = searchesOf(l);
     if (!counts) continue;
     const k = key(accountId, l.name);
     const kept = searches.get(k) ?? {};

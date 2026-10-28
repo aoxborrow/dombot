@@ -13,6 +13,7 @@ import type {
   AfternicAccountSettings,
   RelistMode,
 } from './afternic/types';
+import type { SedoCategory, SedoLanguage, SedoPayment } from './sedo/types';
 
 // The core side of the shared market model (docs/markets.md): the adapter
 // each market implements, and its market-only actions. The data types are
@@ -49,6 +50,14 @@ export interface AfternicActions {
   ): Promise<MarketWriteResult[]>;
   getListingDefaults(): Promise<AfternicAccountSettings>;
   setListingDefaults(settings: AccountSettingsInput): Promise<void>;
+}
+
+/** Sedo's market-only reads: its listing vocabularies and parking payouts. */
+export interface SedoActions {
+  categories(): Promise<SedoCategory[]>;
+  languages(): Promise<SedoLanguage[]>;
+  /** Parking payouts for the month containing `month` (YYYY-MM-DD). */
+  parkingPayments(month: string): Promise<SedoPayment[]>;
 }
 
 /** Thrown for a change a market can't make, before anything is sent. */

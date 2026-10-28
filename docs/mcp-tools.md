@@ -251,6 +251,10 @@ saying so.
   Live from the market that lists the name.
 - **`market_settings_get`** — `accountId`. The account's defaults for new
   listings, live.
+- **`market_categories_get`** — `accountId`. The categories and name
+  languages the market's listings take (Sedo), live.
+- **`market_payments_get`** — `accountId`, `month` (any day in it). Parking
+  payouts for that month (Sedo), live.
 
 - **`market_traffic`** — `accountId?`, `days?` (30 or 365), `sort?`
   (`leads`, `views`), `minViews?`, `limit`, `offset`. Listed names ranked by
@@ -268,9 +272,12 @@ differently, like Afternic's lease-to-own cap) and `error`. Prices are
 decimal strings or numbers.
 
 - **`domain_listing_set`** — `domain`, `accountId?`, and the fields to set:
-  `price` (null: offers only), `minOffer`, `floor` (null clears), `currency`,
-  `forSale`, `leaseToOwn`, `afternic` (lander settings). Lists the name if it
-  isn't listed. `fromAskingPrice: true` takes the prices from DomBot's
+  `price` (null: offers only), `buyNow` (whether `price` can be paid outright
+  or is an asking price; Sedo only, Afternic prices always are), `minOffer`,
+  `floor` (null clears), `currency`, `forSale`, `leaseToOwn`, `afternic`
+  (lander settings), `sedo` (`categories`, `language`). Lists the name if it
+  isn't listed. On Sedo a new listing comes back `pending` until Sedo's
+  checks pass. `fromAskingPrice: true` takes the prices from DomBot's
   asking price instead. `accountId` can be left out when the name is listed
   in one account or there's only one.
 - **`domain_listing_delete`** — `domain`, `accountId?`. Delists; the name

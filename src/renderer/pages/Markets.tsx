@@ -9,7 +9,7 @@ import {
   trafficByMonth,
   type TrafficMonth,
 } from '../../shared/market-reports';
-import type { MarketListing } from '../../shared/markets';
+import { searchesOf, type MarketListing } from '../../shared/markets';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
@@ -282,15 +282,15 @@ export default function Markets() {
                 <TableRow key={`${l.accountId}:${l.name}`}>
                   <TableCell className="font-mono">{l.name}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {count(l.extra.searches?.total.days30 ?? 0)}
+                    {count(searchesOf(l)?.total.days30 ?? 0)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {count(l.extra.searches?.unique.days30 ?? 0)}
+                    {count(searchesOf(l)?.unique.days30 ?? 0)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {l.extra.searches?.total.days365 == null
+                    {searchesOf(l)?.total.days365 == null
                       ? '—'
-                      : count(l.extra.searches.total.days365)}
+                      : count(searchesOf(l)?.total.days365 ?? 0)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {l.price ? money(l.price, l.currency) : '—'}

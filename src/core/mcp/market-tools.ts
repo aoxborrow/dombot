@@ -26,11 +26,14 @@ import {
   setSaleAuthCode,
   writeMarketListings,
 } from '../services/markets/writes';
-import type {
-  MarketListing,
-  MarketListingChange,
-  MarketSale,
-  MarketWriteResult,
+import {
+  searchesOf,
+  type AfternicExtraChange,
+  type MarketListing,
+  type MarketListingChange,
+  type MarketSale,
+  type MarketWriteResult,
+  type SedoExtraChange,
 } from '../../shared/markets';
 import {
   marketAccountStats,
@@ -105,7 +108,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'List market accounts',
       description:
-        'List every connected marketplace account (Afternic, …) with its `accountId`, `market`, `label`, whether it is `configured` and `enabled`, its last `sync` (when, listing and sale counts, any error), and what its market supports (`capabilities`). No secrets. Start here before the other market_* tools.',
+        'List every connected marketplace account (Afternic, Sedo) with its `accountId`, `market`, `label`, whether it is `configured` and `enabled`, its last `sync` (when, listing and sale counts, any error), and what its market supports (`capabilities`). No secrets. Start here before the other market_* tools.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -151,7 +154,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'Query market listings',
       description:
-        'List and filter your listings on marketplaces, as last synced (run market_sync to refresh). Each row is one name on one market: `status` (active, pending, inactive, rejected, on_hold, sold), `statusRaw` (the market’s word), `forSale`, `price` (with `buyNow`: buyers can pay it outright), `minOffer`, `floor`, `currency`, `leaseToOwn`, and `extra` with the market’s own fields (Afternic: lander, Fast Transfer, registrar, offer count, GoDaddy search counts for Domain Pro members). Prices are decimal strings. Returns { total, rows }; page with `limit`/`offset`.',
+        'List and filter your listings on marketplaces, as last synced (run market_sync to refresh). Each row is one name on one market: `status` (active, pending, inactive, rejected, on_hold, sold), `statusRaw` (the market’s word), `forSale`, `price` (with `buyNow`: buyers can pay it outright), `minOffer`, `floor`, `currency`, `leaseToOwn`, and `extra` with the market’s own fields (Afternic: lander, Fast Transfer, registrar, offer count, GoDaddy search counts for Domain Pro members; Sedo: categories, language, lifetime parking earnings, parking keywords). Prices are decimal strings. Returns { total, rows }; page with `limit`/`offset`.',
       inputSchema: {
         market: marketId,
         accountId,
@@ -213,7 +216,7 @@ export function registerMarketTools(server: McpServer): void {
           case 'listedAt':
             return l.listedAt;
           case 'searches30':
-            return l.extra.searches?.total.days30 ?? null;
+            return searchesOf(l)?.total.days30 ?? null;
           default:
             return l.name;
         }
@@ -280,6 +283,14 @@ export function registerMarketTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
     },
     async (args) => {
+      const asked = args.accountId
+        ? marketAccount(args.accountId).market
+        : args.market;
+      if (asked && !marketInfo(asked).capabilities.sales) {
+        throw new Error(
+          `Sales are not supported for ${asked}: its API has no sales. Record them with domain_sale_set.`,
+        );
+      }
       const ids = args.accountId
         ? new Set([marketAccount(args.accountId).id])
         : null;
@@ -312,7 +323,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'Get market account stats',
       description:
-        'Daily traffic for a market account, as stored by sync (up to a year): `views` and `leads` on Afternic, and whatever else the market reports. With `days`, only the most recent that many. Returns { accountId, days, totals }. Markets without account-level stats say so.',
+        'Daily traffic for a market account, as stored by sync (up to a year): `views` and `leads` on Afternic; parking `views` (visitors), `clicks` and `earnings` on Sedo, which keeps only the last 31 days. With `days`, only the most recent that many. Returns { accountId, days, totals }. Markets without account-level stats say so.',
       inputSchema: {
         accountId: z.string().max(64).describe('From market_list.'),
         days: z.number().int().min(1).max(365).optional(),
@@ -417,6 +428,58 @@ export function registerMarketTools(server: McpServer): void {
   );
 
   server.registerTool(
+    'market_categories_get',
+    {
+      title: 'Get listing categories',
+      description:
+        'The categories and name languages a market account’s listings can use, read live (Sedo: up to three category ids per name, and an ISO 639-1 language, both set through the `sedo` settings of domain_listing_set). Returns { categories: [{ id, name, parentId }], languages: [{ code, name }] }. Markets without categories say so.',
+      inputSchema: {
+        accountId: z.string().max(64).describe('From market_list.'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ accountId: id }) => {
+      const adapter = marketAdapter(id);
+      if (!adapter.categories || !adapter.languages) {
+        throw new Error(`Categories are not supported for ${adapter.market}.`);
+      }
+      return json({
+        categories: await adapter.categories(),
+        languages: await adapter.languages(),
+      });
+    },
+  );
+
+  server.registerTool(
+    'market_payments_get',
+    {
+      title: 'Get parking payments',
+      description:
+        'Parking payouts a market account received for one month, read live (Sedo). `month` is any day in it, YYYY-MM-DD. Returns { accountId, payments: [{ month, earnings }] }; earnings are decimal strings. Markets without parking earnings say so.',
+      inputSchema: {
+        accountId: z.string().max(64).describe('From market_list.'),
+        month: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .describe('A day in the month, e.g. 2026-09-01.'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ accountId: id, month }) => {
+      const adapter = marketAdapter(id);
+      if (!adapter.capabilities.parkingEarnings || !adapter.parkingPayments) {
+        throw new Error(
+          `Parking payments are not supported for ${adapter.market}.`,
+        );
+      }
+      return json({
+        accountId: id,
+        payments: await adapter.parkingPayments(month),
+      });
+    },
+  );
+
+  server.registerTool(
     'market_traffic',
     {
       title: 'Rank listings by traffic',
@@ -512,6 +575,12 @@ const changeShape = {
     .describe(
       'The listed price (BIN on Afternic); null clears it, leaving offers only.',
     ),
+  buyNow: z
+    .boolean()
+    .optional()
+    .describe(
+      'Whether buyers can pay `price` outright (Sedo: fixed price, at least 199 USD or EUR) or it is an asking price open to offers. Afternic prices are always Buy Now.',
+    ),
   minOffer: money
     .optional()
     .describe('Lowest offer that starts a negotiation.'),
@@ -544,6 +613,21 @@ const changeShape = {
     })
     .optional()
     .describe('Afternic’s own listing settings: what the name’s page shows.'),
+  sedo: z
+    .object({
+      categories: z
+        .array(z.number().int().positive())
+        .max(3)
+        .optional()
+        .describe('Up to three Sedo category ids (market_categories_get).'),
+      language: z
+        .string()
+        .length(2)
+        .optional()
+        .describe('ISO 639-1 language of the name; Sedo defaults to en.'),
+    })
+    .optional()
+    .describe('Sedo’s own listing fields.'),
 };
 
 type ChangeArgs = {
@@ -551,9 +635,11 @@ type ChangeArgs = {
   minOffer?: string | number;
   floor?: string | number | null;
   currency?: string;
+  buyNow?: boolean;
   forSale?: boolean;
   leaseToOwn?: { enabled: boolean; maxPayments?: number };
-  afternic?: Omit<NonNullable<MarketListingChange['extra']>, 'market'>;
+  afternic?: Omit<AfternicExtraChange, 'market'>;
+  sedo?: Omit<SedoExtraChange, 'market'>;
 };
 
 /** An amount as a decimal string, whether it came as a number or not. */
@@ -561,6 +647,9 @@ const amount = <T extends string | number | null | undefined>(v: T) =>
   (typeof v === 'number' ? String(v) : v) as Exclude<T, number> | string;
 
 function toChange(name: string, c: ChangeArgs): MarketListingChange {
+  if (c.afternic && c.sedo) {
+    throw new Error('Give `afternic` or `sedo` settings, not both.');
+  }
   return {
     name,
     ...(c.price !== undefined ? { price: amount(c.price) } : {}),
@@ -571,9 +660,11 @@ function toChange(name: string, c: ChangeArgs): MarketListingChange {
           currency: c.currency.toUpperCase() as MarketListingChange['currency'],
         }
       : {}),
+    ...(c.buyNow !== undefined ? { buyNow: c.buyNow } : {}),
     ...(c.forSale !== undefined ? { forSale: c.forSale } : {}),
     ...(c.leaseToOwn ? { leaseToOwn: c.leaseToOwn } : {}),
     ...(c.afternic ? { extra: { market: 'afternic', ...c.afternic } } : {}),
+    ...(c.sedo ? { extra: { market: 'sedo', ...c.sedo } } : {}),
   };
 }
 

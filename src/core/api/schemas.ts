@@ -269,15 +269,24 @@ export const marketListingChange = z.object({
     })
     .optional(),
   extra: z
-    .object({
-      market: z.literal('afternic'),
-      landingPage: z.enum(['PARKING_TYPE', 'SALES_TYPE']).optional(),
-      intakeStyle: z.enum(['BUYNOW', 'PRICE_FORM', 'CUSTOM_LANDER']).optional(),
-      showLanderBuynowOption: z.boolean().optional(),
-      showLanderMakeOfferOption: z.boolean().optional(),
-      showLanderLeaseToOwnOption: z.boolean().optional(),
-      featured: z.boolean().optional(),
-    })
+    .discriminatedUnion('market', [
+      z.object({
+        market: z.literal('afternic'),
+        landingPage: z.enum(['PARKING_TYPE', 'SALES_TYPE']).optional(),
+        intakeStyle: z
+          .enum(['BUYNOW', 'PRICE_FORM', 'CUSTOM_LANDER'])
+          .optional(),
+        showLanderBuynowOption: z.boolean().optional(),
+        showLanderMakeOfferOption: z.boolean().optional(),
+        showLanderLeaseToOwnOption: z.boolean().optional(),
+        featured: z.boolean().optional(),
+      }),
+      z.object({
+        market: z.literal('sedo'),
+        categories: z.array(z.number().int().positive()).max(3).optional(),
+        language: z.string().length(2).optional(),
+      }),
+    ])
     .optional(),
 });
 export const marketListingChanges = z

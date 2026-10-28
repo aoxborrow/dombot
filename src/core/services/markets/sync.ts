@@ -57,6 +57,9 @@ const SALES_OVERLAP_DAYS = 45;
 /** Stats read on an account's first sync, then on later ones. */
 const FIRST_STATS_DAYS = 365;
 const LATER_STATS_DAYS = 7;
+/** How long a listing the market is still checking stays pending. */
+const PENDING_KEEP_DAYS = 7;
+const UNCONFIRMED_NOTE = 'Not listed after a week';
 
 const enabledIds = () => new Set(activeMarketAccounts().map((a) => a.id));
 
@@ -140,10 +143,19 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
     const read = await adapter.allListings();
     const prefix = `${accountId}:`;
     const fresh = new Map(read.listings.map((l) => [prefix + l.name, l]));
+    // A market that checks new listings before adding them (Sedo) leaves
+    // them out of its list meanwhile: keep DomBot's pending row for a while,
+    // then drop it and say so, since the market may have refused it.
+    let unconfirmed = 0;
     if (read.complete) {
-      for (const key of Object.keys(listings.all())) {
-        if (key.startsWith(prefix) && !fresh.has(key))
-          void listings.delete(key);
+      for (const [key, row] of Object.entries(listings.all())) {
+        if (!key.startsWith(prefix) || fresh.has(key)) continue;
+        if (caps.asyncInsert && row.status === 'pending') {
+          const since = Date.parse(row.listedAt ?? '') || 0;
+          if (Date.now() - since < PENDING_KEEP_DAYS * 86_400_000) continue;
+          unconfirmed++;
+        }
+        void listings.delete(key);
       }
     }
     void listings.setMany([...fresh]);
@@ -185,18 +197,24 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
       }
     }
 
+    const kept = notes.filter(
+      (n) =>
+        !n.startsWith('Per-domain traffic') &&
+        !(unconfirmed && n.startsWith(UNCONFIRMED_NOTE)),
+    );
+    if (trafficNote) kept.push(trafficNote);
+    if (unconfirmed) {
+      kept.push(
+        `${UNCONFIRMED_NOTE}: ${unconfirmed} ${unconfirmed === 1 ? 'name' : 'names'} DomBot sent never showed up. The market may have refused ${unconfirmed === 1 ? 'it' : 'them'}; check the account's email.`,
+      );
+    }
     setMarketSyncState(accountId, {
       at: Date.now(),
       lastError: null,
       listings: read.listings.length,
       sales: accountSales(accountId).length,
       incomplete: !read.complete,
-      notes: trafficNote
-        ? [
-            ...notes.filter((n) => !n.startsWith('Per-domain traffic')),
-            trafficNote,
-          ]
-        : notes.filter((n) => !n.startsWith('Per-domain traffic')),
+      notes: kept,
     });
   } catch (error) {
     setMarketSyncState(accountId, {

@@ -20,6 +20,7 @@ const listing = (name: string, searches30?: number): MarketListing =>
   ({
     name,
     extra: {
+      market: 'afternic',
       searches:
         searches30 === undefined
           ? null
