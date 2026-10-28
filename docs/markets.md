@@ -333,7 +333,28 @@ saved, so the Domains table shows it before the next sync.
   for a few seconds.
 - Afternic's CSV jobs (`runJob`) stay available for pushes past what the
   `$each` calls handle comfortably; nothing uses them yet.
+- **Sedo, built:** 50 names a call, the same direct path.
 - Writes that cost money (`capabilities.spends`) need a confirmed total first.
+
+## Domains table and actions
+
+- **A listing column per connected market** (Afternic, Atom, Sedo, …), in the slot
+  saved layouts call `listing`, so a name listed on two markets stays on one
+  line: the price (or "Offers"), a status dot, and the status when it isn't
+  active. A name can only be in one account per market, so each cell holds
+  one listing. A table with every market side by side may follow on the
+  Markets page.
+- **The Listing filter** (price-tag icon) filters by market and status and
+  keeps the filtered markets' columns on screen.
+- **List at your price** pushes DomBot's asking prices to every market account
+  you tick (all of them to start), one account after another, with results
+  grouped by market. A listing that was inactive, rejected or stuck pending
+  also gets the market's checks re-run (`relist`), so there's no separate
+  Relist action in the app; `market_listings_relist` stays for agents.
+- **Delist** ticks accounts the same way, starting from those that list the
+  names.
+- Both sit directly beside Pricing in the row menu and the bulk bar; a
+  Markets submenu returns when these menus are split into submenus.
 
 ## Settings → Markets
 
@@ -341,7 +362,10 @@ As in the Afternic plan, generalized: one card per market account, built from
 the adapter's `configFields` and `test()`, with the same ⋯ menu as registrar
 cards. Market-specific rows come from capabilities: listing defaults where
 `accountSettings`, a rate-limit field where `rateLimit` is null, the
-partner-access note for Sedo, the API-beta note for Atom.
+partner-access note for Sedo, the API-beta note for Atom. What an account
+has shows as status dots (`MarketSyncState.status`), such as Afternic's
+Discount Domain Club Domain Pro, which decides whether search counts come
+back; sync keeps it current.
 
 ## Ownership verification
 
@@ -464,21 +488,24 @@ a person (a sale message) says so in its description.
 2. **Afternic phase 4 on top of them** (done): storage namespaces, sync,
    Settings → Markets, listing columns and the Listing filter, `sold`
    events, read-only MCP tools.
-3. **Afternic phases 5–6:** writes through the bulk runner, reporting.
+3. **Afternic phases 5–6** (done): writes, reporting.
 4. **Atom and Sedo** when there are credentials: client, then an adapter, then
    their capability-gated extras. Atom's API access needs approval and 500+
-   listings; Sedo needs a partner ID and sign key. Both were built from
+   listings; Sedo needs a partner ID and sign key. Both are done: built from
    their docs, then verified live once credentials arrived (2026-10-28).
    Atom also brought market bulk jobs (see "Bulk writes"). Status and
    what's left: atom-api.md, "Status"; sedo-api.md.
+5. **Ownership verification** for every market: planned above, not built.
 
 ## Open questions
 
 1. The `marketSale` link on `DomainEvent`: confirm it against
    docs/storage-model.md's rules before phase 4 writes the first event.
-2. Do Atom and Sedo report errors with HTTP 200 for every failure? Atom:
-   yes, every failure seen live was HTTP 200 with a lone `message`
-   (atom-api.md, "Observed"). Adapters check bodies either way.
-3. Market rate limits for Atom and Sedo are unpublished. Atom drew no 429 at
-   about 300 calls a minute, and its client paces at 120; its DNS check is
-   limited to one per account every 12 hours.
+2. Do Atom and Sedo report errors with HTTP 200 for every failure? Both
+   do, checked live: Atom answers every failure with a lone `message`
+   (atom-api.md, "Observed"), Sedo with a fault document. Adapters check
+   bodies either way.
+3. Market rate limits for Atom and Sedo are unpublished. Atom drew no
+   throttling at about 300 calls a minute, and its client paces at 120; its
+   DNS check is limited to one per account every 12 hours. Sedo's default
+   (60 a minute) is a guess until throttling shows or Sedo says.

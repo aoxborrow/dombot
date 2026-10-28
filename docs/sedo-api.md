@@ -290,14 +290,14 @@ none.
 2. **Client, write side** (built, verified live): insert, edit
    (read-merge-write), delete, in batches of 50.
 3. **Sedo adapter** into the shared model ([markets.md](markets.md)) and
-   its registry entry (built, unverified).
-4. **DomBot** (built, unverified): Sedo accounts in Settings → Markets,
+   its registry entry (built, verified live).
+4. **DomBot** (built, verified live): Sedo accounts in Settings → Markets,
    listing sync with pending-insert tracking, the Domains columns, parking
    stats as account and per-name traffic, and the MCP cases, including
    `market_categories_get` and `market_payments_get`.
-5. **Verify:** reads and writes done 2026-10-28; the rest of
-   "Unverified" below is left, then replace the docs-based fixtures with
-   recorded shapes.
+5. **Verify:** reads, writes and the verification hold done 2026-10-28;
+   the small items under "Unverified" below are left, then replace the
+   docs-based fixtures with recorded shapes.
 6. **Not planned:** parking configuration, and with it any SOAP transport.
 
 ## What the build decided
