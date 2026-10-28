@@ -6,7 +6,9 @@ bulk writes, MCP). Each market's own API, quirks and client are in its plan:
 
 - [afternic-api.md](afternic-api.md): client built
   (`src/core/markets/afternic/`), verified live.
-- [atom-api.md](atom-api.md): plan only; no API key yet.
+- [atom-api.md](atom-api.md): client and adapter built from Atom's specs
+  (`src/core/markets/atom/`, `src/core/services/markets/atom.ts`),
+  unverified; live checks wait on an Atom API key.
 - [sedo-api.md](sedo-api.md): client and adapter built from the docs
   (`src/core/markets/sedo/`, `src/core/services/markets/sedo.ts`),
   unverified; live checks wait on Sedo partner access.
@@ -313,12 +315,22 @@ saved, so the Domains table shows it before the next sync.
   That runs directly in the request (the desktop app, or the Worker, where
   waiting on the network doesn't count against its CPU time), and returns
   one result per name.
-- **Atom, later:** one name a call, so a large push takes hours. That's when
-  market accounts join DomBot's bulk runner
-  (`src/core/services/bulk-jobs.ts`) as lanes next to registrars: persisted,
-  resumable after a restart, progress per name. `market_listings_set` then
-  returns a bulk job for markets with a small `writeBatch`, and a
-  `market_job_get` tool reads it.
+- **Atom, built:** one name a call, so a large push takes hours. More than
+  10 names on such a market (`writeBatch` 1) run as a **market job** in
+  DomBot's bulk runner (`src/core/services/bulk-jobs.ts`, "Market jobs"):
+  one lane per market account, persisted, a name at a time per account
+  about a second apart (the market's rate, when it publishes one). Names
+  whose synced listing already has the asked values are skipped without a
+  call. A rate-limited name goes back in the queue (up to three times);
+  every other outcome is final, since a write is never retried. It's a job
+  of its own beside the registrar job, so an hours-long push doesn't hold
+  up registrar bulk operations, and unlike a registrar job it resumes after
+  a restart (a name that was mid-request is recorded as unknown, not
+  re-sent). The Domains table's List and Delist dialog follows it with
+  progress and a Stop button; MCP's `market_listings_set` and
+  `market_listings_delete` return `{ job }`, and `market_job_get` reads it.
+  The web host's Worker can't hold the loop, so each progress read runs it
+  for a few seconds.
 - Afternic's CSV jobs (`runJob`) stay available for pushes past what the
   `$each` calls handle comfortably; nothing uses them yet.
 - Writes that cost money (`capabilities.spends`) need a confirmed total first.

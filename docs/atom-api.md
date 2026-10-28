@@ -22,12 +22,64 @@ metadata, dates, or errors. The help center fills some gaps
 and the listing-type and commission articles. Much of the client's wire shape
 will have to come from live responses.
 
-**No Atom key is in `.env`**, so nothing authenticated has been checked.
+**No Atom key is in `.env` yet**, so nothing authenticated has been checked.
 "Observed" below covers only unauthenticated calls (2026-10-27); everything
 else about responses is from the specs and help center and is marked
 unverified where it matters. Access is a limited beta: sellers apply from the
 dashboard and need at least 500 listings to be considered (100 names at
 AtomRegistrar for the registrar API).
+
+## Status
+
+Built from the specs, ahead of a key (2026-10-28), on the shared model in
+[markets.md](markets.md):
+
+- **Client** `src/core/markets/atom/`: every seller operation except boost,
+  plus appraisal. Reads every body for errors (HTTP 200 failures), keeps the
+  token out of every error, sends each write once and never retries it, and
+  refuses Premium listings. Unit tests on made-up fixtures.
+- **Adapter** `src/core/services/markets/atom.ts`, registered in
+  `registry.ts`: listings (tier, discount until Monday, category,
+  description, syndication rights), sales (commission estimated from the
+  tier when Atom doesn't send it), per-name counters that sync turns into
+  daily views, and Atom-only actions (discount, verify DNS, primary
+  categories, grading, appraisal). Writes read the listing before (add or
+  reprice) and after (what Atom saved).
+- **Bulk:** more than 10 names run as a market job in the bulk runner
+  (markets.md, "Bulk writes"), from the Domains table and MCP.
+- **Not built, on purpose:** boost and Premium listings (both spend Atom
+  credits), and changing a listing's tier (no API for it).
+- **Live tests** skip until there's a key: `ATOM_API_TOKEN` and
+  `ATOM_USER_ID` for reads (`npm run test:live`); writes also need
+  `ATOM_LIVE_WRITES=1` and `ATOM_TEST_DOMAIN`, a Standard listing kept for
+  it, which the tests reprice, discount, recategorize, describe, verify,
+  delist and relist, then put back. They refuse to run on anything but a
+  Standard listing, and never touch another name.
+
+### Unverified: what to check first
+
+With a key, in this order (`npm run test:live` covers the reads; record
+what's found in "Observed" and trim the guesses in `wire.ts`):
+
+1. **The list response:** where the records are (`data`, a bare array, …),
+   the paging fields, the page-size cap (the client asks for 100), and
+   whether records say their tier (the client walks premium, standard and
+   geo separately and tags rows by walk). Where Plus listings come back.
+2. **Statuses:** Atom's full vocabulary, so `statusFromAtom` stops guessing
+   (the adapter live test fails on any status it maps to `unknown`).
+3. **`discount_price`:** the amount off (as read now) or the price after it.
+   And whether `add-discount` takes dollars and `0` clears it.
+4. **Success bodies of writes:** what add, reprice, discount, category,
+   description and verify answer. The client treats a lone message as
+   success unless it reads as a failure; a wording it misjudges shows up in
+   the write live test.
+5. **Sales:** the record's fields (id, price, commission, net, dates,
+   payment plans) and its status words.
+6. **Analytics:** whether the counters are lifetime totals (sync assumes so
+   and diffs them) and their field names.
+7. **Rate limit:** whether a 429 ever comes, with `Retry-After`; the client
+   paces itself at a guessed 60 a minute.
+8. **Dates:** whether the seller API's zone-less dates are UTC.
 
 ## The API at a glance
 
@@ -172,7 +224,7 @@ registrar").
 - **Search own domains:** implement in the client, but DomBot's UI doesn't
   need it (local filters on synced data do the same).
 
-### Bulk: there isn't any
+### Bulk: there isn't any (DomBot's bulk runner instead; built)
 
 The biggest difference from Afternic. Afternic has 500-name `$each` calls and
 async CSV jobs; Atom has one name per call for every write, and the dashboard's

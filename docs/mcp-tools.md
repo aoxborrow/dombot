@@ -252,7 +252,8 @@ saying so.
 - **`market_settings_get`** — `accountId`. The account's defaults for new
   listings, live.
 - **`market_categories_get`** — `accountId`. The categories and name
-  languages the market's listings take (Sedo), live.
+  languages the market's listings take (Sedo; Atom's primary categories,
+  no languages), live.
 - **`market_payments_get`** — `accountId`, `month` (any day in it). Parking
   payouts for that month (Sedo), live.
 
@@ -275,17 +276,25 @@ decimal strings or numbers.
   `price` (null: offers only), `buyNow` (whether `price` can be paid outright
   or is an asking price; Sedo only, Afternic prices always are), `minOffer`,
   `floor` (null clears), `currency`, `forSale`, `leaseToOwn`, `afternic`
-  (lander settings), `sedo` (`categories`, `language`). Lists the name if it
-  isn't listed. On Sedo a new listing comes back `pending` until Sedo's
-  checks pass. `fromAskingPrice: true` takes the prices from DomBot's
+  (lander settings), `sedo` (`categories`, `language`), `atom` (`tier` for
+  a new listing, Standard or Plus; `category`; `description`). Lists the
+  name if it isn't listed. On Sedo a new listing comes back `pending` until
+  Sedo's checks pass. Atom takes one whole-dollar price of $100 or more and
+  rejects `minOffer` and `floor`. `fromAskingPrice: true` takes the prices from DomBot's
   asking price instead. `accountId` can be left out when the name is listed
   in one account or there's only one.
 - **`domain_listing_delete`** — `domain`, `accountId?`. Delists; the name
   stays in your registrar account.
 - **`market_listings_set`** — `accountId`, and `changes[]` (each a `name` and
   fields, as above) or `domains[]` with `fromAskingPrice: true`. Any number
-  of names, in the market's batch size.
-- **`market_listings_delete`** — `accountId`, `domains[]`.
+  of names, in the market's batch size. On a market that writes one name a
+  call (Atom), more than 10 names start a market bulk job instead, returned
+  as `{ job }`.
+- **`market_listings_delete`** — `accountId`, `domains[]`. Same job rule.
+- **`market_job_get`** — `cancel?`. The latest market bulk job: status,
+  done of total, counts by outcome (`skipped`: already as asked), and the
+  failures so far. Poll until it isn't running; on the web app each call
+  also runs it a few seconds.
 - **`market_listings_relist`** — `accountId`, `domains[]`, `mode?`
   (`RESYNC` re-checks, `REACTIVATE` brings back an inactive listing).
 - **`market_sale_auth_code_set`** — `accountId`, `saleId`, `authCode?`.
@@ -295,3 +304,19 @@ decimal strings or numbers.
   a person at the market.
 - **`market_settings_set`** — `accountId`, and the listing defaults to
   change.
+
+Atom only (each fails saying so on markets without it):
+
+- **`domain_listing_discount_set`** — `domain`, `accountId?`, `amount`
+  (whole dollars off; null clears). Lasts until Atom resets discounts on
+  Monday.
+- **`domain_listing_verify`** — `domain`, `accountId?`. Asks Atom to check
+  the name's nameservers or TXT record now.
+- **`market_grading_submit`** — `accountId`, `domains[]`. Atom's AI grading
+  (brand fit, Premium fit); **`market_grading_get`** — `accountId`,
+  `page?`, `brandFitOnly?` reads the results.
+- **`domain_appraisal_get`** — `domain`, `accountId?`. Atom's appraisal of
+  any name; 10 a day.
+
+There is no boost tool and no way to add a Premium Atom listing: both spend
+Atom credits, so they're done on atom.com.

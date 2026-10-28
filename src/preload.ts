@@ -184,6 +184,11 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.writeMarketListings, ...args),
   pushMarketPrices: (...args) =>
     ipcRenderer.invoke(IpcChannels.pushMarketPrices, ...args),
+  startMarketBulk: (...args) =>
+    ipcRenderer.invoke(IpcChannels.startMarketBulk, ...args),
+  advanceMarketBulk: () => ipcRenderer.invoke(IpcChannels.advanceMarketBulk),
+  cancelMarketBulk: (jobId) =>
+    ipcRenderer.invoke(IpcChannels.cancelMarketBulk, jobId),
   deleteMarketListings: (...args) =>
     ipcRenderer.invoke(IpcChannels.deleteMarketListings, ...args),
   relistMarketListings: (...args) =>

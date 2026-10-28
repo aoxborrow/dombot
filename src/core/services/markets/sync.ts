@@ -69,6 +69,14 @@ export function marketListings(): MarketListing[] {
   return Object.values(listings.all()).filter((l) => ids.has(l.accountId));
 }
 
+/** One account's synced listing for a name, if it has one. */
+export function marketListing(
+  accountId: string,
+  name: string,
+): MarketListing | undefined {
+  return listings.get(`${accountId}:${name}`);
+}
+
 /** Store listings a write returned, so the table shows them before a sync. */
 export function putMarketListings(
   accountId: string,

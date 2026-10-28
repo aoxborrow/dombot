@@ -17,6 +17,9 @@ import type { NumberFormatId } from './money';
 import type { DomainEvent } from './domain-events';
 import type {
   MarketAccountView,
+  MarketBulkJob,
+  MarketBulkOp,
+  MarketBulkTarget,
   MarketId,
   MarketInfo,
   MarketListing,
@@ -212,6 +215,9 @@ export const IpcChannels = {
   pushMarketPrices: 'markets:pushPrices',
   deleteMarketListings: 'markets:deleteListings',
   relistMarketListings: 'markets:relist',
+  startMarketBulk: 'markets:bulkStart',
+  advanceMarketBulk: 'markets:bulkAdvance',
+  cancelMarketBulk: 'markets:bulkCancel',
   setMarketSaleAuthCode: 'markets:saleAuthCode',
   sendMarketSaleMessage: 'markets:saleMessage',
   getMarketListingDefaults: 'markets:getDefaults',
@@ -1223,6 +1229,20 @@ export interface DombotApi {
     names: string[],
     mode?: 'RESYNC' | 'REACTIVATE',
   ) => Promise<MarketWriteResult[]>;
+  /**
+   * Start a market bulk job, for writes too large to wait on (markets that
+   * write one name per call). One at a time; runs beside registrar jobs.
+   */
+  startMarketBulk: (
+    targets: MarketBulkTarget[],
+    op: MarketBulkOp,
+  ) => Promise<MarketBulkJob>;
+  /**
+   * The market job's progress. On a host that doesn't drive jobs itself
+   * (web), each call also runs it for a few seconds; poll it.
+   */
+  advanceMarketBulk: () => Promise<MarketBulkJob | null>;
+  cancelMarketBulk: (jobId: string) => Promise<void>;
   /** Send a sale its auth code; without one, DomBot gets it from the registrar. */
   setMarketSaleAuthCode: (
     accountId: string,

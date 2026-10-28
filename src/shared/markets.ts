@@ -195,6 +195,8 @@ export interface MarketWriteResult {
   /** Fields the market saved differently from what was asked. */
   adjusted: { field: string; asked: unknown; saved: unknown }[];
   error: { code: string; message: string } | null;
+  /** Nothing was sent: the listing already matched (bulk writes only). */
+  unchanged?: boolean;
 }
 
 export interface MarketSale {
@@ -342,4 +344,70 @@ export interface MarketTraffic {
     string,
     { views30: number; leads30: number; views365: number; leads365: number }
   >;
+}
+
+// Bulk market writes (src/core/services/bulk-jobs.ts, "Market jobs")
+
+/** What a market job does to each name. */
+export type MarketBulkOp =
+  /** Each target's own `change`. */
+  | { kind: 'write' }
+  /** Make the market's price match DomBot's asking price. */
+  | { kind: 'pushAskingPrices' }
+  | { kind: 'delete' };
+
+export interface MarketBulkTarget {
+  accountId: string;
+  /** toAscii(name). */
+  name: string;
+  /** For `write` jobs. */
+  change?: MarketListingChange;
+}
+
+export type MarketBulkStatus =
+  | 'ok'
+  /** Already as asked: nothing was sent. */
+  | 'skipped'
+  | 'failed'
+  | 'unsupported'
+  /** Still rate-limited after being put back in the queue. */
+  | 'rate-limited'
+  | 'cancelled';
+
+export interface MarketBulkResult {
+  accountId: string;
+  name: string;
+  status: MarketBulkStatus;
+  /** Empty when it went through. */
+  message: string;
+  /** The market's or DomBot's error code. */
+  code: string | null;
+  /** Accepted but not live yet. */
+  pending: boolean;
+  /** Fields the market saved differently from what was asked. */
+  adjusted: MarketWriteResult['adjusted'];
+}
+
+/**
+ * A bulk write to market accounts, run by the bulk runner one name at a
+ * time per account. Persisted, one at a time, separate from registrar bulk
+ * jobs so a long push doesn't hold those up. The saved listings go straight
+ * into the synced listings; the job keeps only the outcome per name.
+ */
+export interface MarketBulkJob {
+  id: string;
+  op: MarketBulkOp;
+  status: 'running' | 'done' | 'cancelled';
+  total: number;
+  /** Results so far, in completion order. */
+  results: MarketBulkResult[];
+  counts: Record<MarketBulkStatus, number>;
+  startedAt: number;
+  finishedAt: number | null;
+}
+
+export interface MarketBulkStep {
+  job: MarketBulkJob;
+  /** The earliest time another slice can do work; null once finished. */
+  nextAt: number | null;
 }
