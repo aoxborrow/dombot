@@ -331,6 +331,65 @@ cards. Market-specific rows come from capabilities: listing defaults where
 `accountSettings`, a rate-limit field where `rateLimit` is null, the
 partner-access note for Sedo, the API-beta note for Atom.
 
+## Ownership verification
+
+**Planned, not built.** Every market checks that you own a name before its
+listing goes live or for sale, and the APIs mostly don't report it or offer a
+way to complete it. Afternic keeps a listing `PENDING` until the name points
+at its nameservers. Sedo lists a new name not for sale, refuses to change
+that (`E3124`), and shows it under "Ownership Verification Pending" on
+sedo.com (seen live, docs/sedo-api.md). Atom checks DNS "at random
+intervals" unless asked to check now.
+
+### The four ways markets verify
+
+Most markets accept two or three of these:
+
+| Method                   | What you set                                            | Example                                                            |
+| ------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------ |
+| Default nameservers      | The name's nameservers, to the market's shared pair     | `ns1/ns2.afternic.com`, `ns1.sedo.com`                             |
+| Per-customer nameservers | The name's nameservers, to a pair assigned to you       | `xxx3434-ns.atom.com`                                              |
+| TXT record               | A TXT record holding a verification ID from the market  | Sedo: one ID per account, shown in its dashboard                   |
+| CNAME record             | A CNAME from the verification ID to the market's target | Sedo: host `<verification ID>`, value `verify.sedo.com.`, TTL 3600 |
+
+What each costs:
+
+- **Nameservers** hand the name's DNS to the market, which then serves its
+  lander or parked page. That ends whatever the name did before: a website,
+  or email (domainio.com, for one, forwards mail through ImprovMX). Some
+  features need it anyway: Afternic's lander and Fast Transfer, Atom
+  Premium.
+- **TXT and CNAME** leave DNS where it is and add one record. They need the
+  name's DNS hosted at a registrar account DomBot is connected to, and every
+  existing record kept: registrar DNS APIs mostly replace the whole record
+  set, so DomBot reads, adds and writes back (done by hand on domainio.com,
+  2026-10-28: Sedo's TXT ID added beside its A, MX and SPF records).
+
+### What DomBot will need
+
+- **Settings, per market account** (stored on the `market-accounts` record;
+  they aren't secrets): the verification ID (used by both TXT and CNAME), any
+  custom nameservers assigned to you, and which method you prefer.
+- **Capabilities, per market:** which methods it accepts, its default
+  nameservers and CNAME target, and whether it has a "check now" call (Atom's
+  verify DNS). Settings shows only the fields a market's methods need.
+- **A "Verify ownership" action** for selected names on an account, in the
+  Domains table and as an MCP tool (`domain_listing_verify`, generalized from
+  Atom's). For each name, it applies the chosen method through the registrar
+  account that holds it (nameservers via the registrar, TXT or CNAME via a
+  DNS read-merge-write), asks the market to check now when it can, and
+  reports per name: done, DNS not hosted at the registrar, registrar not
+  connected, or the registrar has no DNS API. Changing nameservers asks first
+  and says what the name will stop doing.
+- **Maybe a per-account preference to verify on list,** off by default,
+  since it changes DNS. With it on, listing a name also runs the action.
+- **Status:** a name stays `pending` until the market puts it up for sale
+  (already the case for Sedo, `asyncInsert`), and the account card says how
+  many are waiting.
+
+Open: whether a TXT or CNAME record can be removed once a market has
+verified a name, and how each market reports a failed check.
+
 ## MCP
 
 The tool list, for all markets (naming as docs/mcp-tools.md). A tool or
@@ -355,19 +414,19 @@ Sales and stats: `market_sales`, `market_sale_get`, `market_stats_get`,
 Market-only actions, each with a `market` parameter and gated by a
 capability:
 
-| Tool                           | Capability        | Market     |
-| ------------------------------ | ----------------- | ---------- |
-| `market_sale_auth_code_set`    | `saleAuthCode`    | Afternic   |
-| `market_sale_message_send`     | `saleMessages`    | Afternic   |
-| `market_settings_get`/`_set`   | `accountSettings` | Afternic   |
-| `market_listings_relist`       | `relist`          | Afternic   |
-| `domain_listing_discount_set`  | `discount`        | Atom       |
-| `domain_listing_verify`        | `verifyDns`       | Atom       |
-| `domain_listing_boost`         | `spends`          | Atom       |
-| `market_grading_submit`/`_get` | —                 | Atom       |
-| `domain_appraisal_get`         | —                 | Atom       |
-| `market_categories_get`        | —                 | Atom, Sedo |
-| `market_payments_get`          | `parkingEarnings` | Sedo       |
+| Tool                           | Capability                            | Market     |
+| ------------------------------ | ------------------------------------- | ---------- |
+| `market_sale_auth_code_set`    | `saleAuthCode`                        | Afternic   |
+| `market_sale_message_send`     | `saleMessages`                        | Afternic   |
+| `market_settings_get`/`_set`   | `accountSettings`                     | Afternic   |
+| `market_listings_relist`       | `relist`                              | Afternic   |
+| `domain_listing_discount_set`  | `discount`                            | Atom       |
+| `domain_listing_verify`        | (planned, see Ownership verification) | All        |
+| `domain_listing_boost`         | `spends`                              | Atom       |
+| `market_grading_submit`/`_get` | —                                     | Atom       |
+| `domain_appraisal_get`         | —                                     | Atom       |
+| `market_categories_get`        | —                                     | Atom, Sedo |
+| `market_payments_get`          | `parkingEarnings`                     | Sedo       |
 
 Anything that spends money takes `confirmSpend: true`; anything that reaches
 a person (a sale message) says so in its description.
