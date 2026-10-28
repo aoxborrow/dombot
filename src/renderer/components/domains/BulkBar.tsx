@@ -14,13 +14,13 @@ import {
   Receipt,
   RefreshCw,
   Server,
-  Store,
   Trash2,
   Undo2,
   X,
 } from 'lucide-react';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
+import { MarketLogo } from '../RegistrarLogo';
 import { bulkOpTitle } from '../../lib/bulk';
 import { FolderIcon } from '../icons/FolderIcon';
 import { FolderMenuItems } from './FolderMenuItems';
@@ -67,6 +67,7 @@ export function BulkBar({
   onListPrice,
   onMarket,
   marketLabel = 'markets',
+  marketId = null,
   marketReasons,
 }: {
   /** The selected domains (merged rows). */
@@ -90,6 +91,8 @@ export function BulkBar({
   onMarket?: (action: MarketAction) => void;
   /** The market's name for the menu, e.g. "Afternic" (or "markets"). */
   marketLabel?: string;
+  /** The one market behind the menu, for its logo; null for several. */
+  marketId?: string | null;
   /** Why each market action can't apply here; null when it can. */
   marketReasons?: Record<MarketAction, string | null>;
 }) {
@@ -255,7 +258,11 @@ export function BulkBar({
                 {onMarket && (
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>
-                      <Store className="text-muted-foreground" />
+                      <MarketLogo
+                        market={marketId}
+                        label={marketLabel}
+                        className="size-4 text-muted-foreground"
+                      />
                       {marketLabel}
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent>

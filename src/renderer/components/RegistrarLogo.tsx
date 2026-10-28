@@ -1,11 +1,11 @@
-import { Building2 } from 'lucide-react';
+import { Building2, Store } from 'lucide-react';
 import type { RegistrarName } from '../../shared/ipc';
 import { cn } from '@/lib/utils';
 
 // Brand SVGs live with the marketing site (site/src/assets/logos); share that
-// one folder so adding a registrar is just dropping in `<name>.svg` — the glob
-// picks it up here, no import to edit. Keyed by filename, which matches the
-// RegistrarName (e.g. godaddy.svg → "godaddy").
+// one folder so adding a registrar or market is just dropping in `<name>.svg`
+// — the glob picks it up here, no import to edit. Keyed by filename, which
+// matches the RegistrarName or market id (e.g. godaddy.svg → "godaddy").
 const LOGO_RAW = import.meta.glob('../../../site/src/assets/logos/*.svg', {
   query: '?raw',
   import: 'default',
@@ -63,6 +63,34 @@ export function RegistrarLogo({
       aria-label={`${label} logo`}
       className={cn(
         'inline-flex size-[27px] shrink-0 items-center justify-center text-muted-foreground/70 [&>svg]:size-full',
+        className,
+      )}
+      dangerouslySetInnerHTML={{ __html: monochrome(svg) }}
+    />
+  );
+}
+
+/**
+ * A market's logo (e.g. Afternic), drawn like RegistrarLogo; a store icon
+ * when there's none, or no single market to show.
+ */
+export function MarketLogo({
+  market,
+  label,
+  className,
+}: {
+  market: string | null;
+  label: string;
+  className?: string;
+}) {
+  const svg = market ? LOGOS[market] : undefined;
+  if (!svg) return <Store className={cn('shrink-0', className)} aria-hidden />;
+  return (
+    <span
+      role="img"
+      aria-label={`${label} logo`}
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center [&>svg]:size-full',
         className,
       )}
       dangerouslySetInnerHTML={{ __html: monochrome(svg) }}

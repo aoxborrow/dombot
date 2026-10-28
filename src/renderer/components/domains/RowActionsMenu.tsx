@@ -13,7 +13,6 @@ import {
   Receipt,
   PencilLine,
   RefreshCw,
-  Store,
   Trash2,
   Undo2,
 } from 'lucide-react';
@@ -21,6 +20,7 @@ import type { Domain, Folder } from '../../../shared/ipc';
 import { toAscii } from '../../../shared/domain-name';
 import type { ArchiveLabel } from '../../../shared/ownership';
 import { useAppStore } from '../../store/app';
+import { MarketLogo } from '../RegistrarLogo';
 import { useOpUnsupportedReason } from '../../lib/domain-ops';
 import { FolderIcon } from '../icons/FolderIcon';
 import { FolderMenuItems } from './FolderMenuItems';
@@ -73,6 +73,7 @@ export function RowActionsMenu({
   onDelete,
   onMarket,
   marketLabel = 'markets',
+  marketId = null,
   marketReasons,
 }: {
   domain: Domain;
@@ -100,6 +101,8 @@ export function RowActionsMenu({
   /** List, relist or delist on a market; absent with no market account. */
   onMarket?: (action: MarketAction) => void;
   marketLabel?: string;
+  /** The one market behind the menu, for its logo; null for several. */
+  marketId?: string | null;
   /** Why each market action can't apply here; null when it can. */
   marketReasons?: Record<MarketAction, string | null>;
 }) {
@@ -249,7 +252,11 @@ export function RowActionsMenu({
             {onMarket && (
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
-                  <Store className="text-muted-foreground" />
+                  <MarketLogo
+                    market={marketId}
+                    label={marketLabel}
+                    className="size-4 text-muted-foreground"
+                  />
                   {marketLabel}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>

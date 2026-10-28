@@ -8,13 +8,13 @@ import {
   Plus,
   Power,
   RefreshCw,
-  Store,
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MarketAccountView, MarketInfo } from '../../../shared/markets';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
+import { MarketLogo } from '../../components/RegistrarLogo';
 import { timeAgo } from '../../lib/time';
 import { Button } from '@/components/ui/button';
 import {
@@ -148,7 +148,11 @@ function AddMarketMenu({
       <DropdownMenuContent align="end" className="min-w-48">
         {catalog.map((market) => (
           <DropdownMenuItem key={market.id} onSelect={() => onPick(market)}>
-            <Store />
+            <MarketLogo
+              market={market.id}
+              label={market.name}
+              className="size-4"
+            />
             {market.name}
           </DropdownMenuItem>
         ))}
@@ -279,7 +283,11 @@ function DraftMarketCard({
   return (
     <Card className="gap-0 rounded-md px-5 py-4">
       <div className="mb-3 flex items-center gap-2.5 font-medium">
-        <Store className="size-[22px]" />
+        <MarketLogo
+          market={market.id}
+          label={market.name}
+          className="size-[22px] text-muted-foreground/70"
+        />
         New {market.name} account
       </div>
       <form
@@ -453,7 +461,11 @@ function MarketCard({
                 !account.enabled && 'opacity-50',
               )}
             >
-              <Store className="size-[22px] shrink-0" />
+              <MarketLogo
+                market={market.id}
+                label={market.name}
+                className="size-[22px] text-muted-foreground/70"
+              />
               <span className="truncate">{market.name}</span>
               {title !== market.name && (
                 <span className="flex min-w-0 items-center gap-1.5 font-normal text-muted-foreground">

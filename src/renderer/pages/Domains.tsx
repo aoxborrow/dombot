@@ -849,12 +849,11 @@ export default function Domains() {
   // is connected.
   const marketsOn = (marketAccounts?.length ?? 0) > 0;
   // The row and bulk menus name the market when there's only one kind.
-  const marketLabel = useMemo(() => {
-    const ids = [...new Set((marketAccounts ?? []).map((a) => a.market))];
-    return ids.length === 1
-      ? (marketCatalog.find((m) => m.id === ids[0])?.name ?? 'Markets')
-      : 'Markets';
-  }, [marketAccounts, marketCatalog]);
+  const marketIds = [...new Set((marketAccounts ?? []).map((a) => a.market))];
+  const marketId = marketIds.length === 1 ? marketIds[0] : null;
+  const marketLabel =
+    (marketId && marketCatalog.find((m) => m.id === marketId)?.name) ||
+    'Markets';
   // Why a market action can't apply to these names; null when it can (for
   // a selection: when it applies to at least one of them).
   const marketReasonsFor = (domains: Domain[]) => {
@@ -1945,6 +1944,7 @@ export default function Domains() {
                   : undefined
               }
               marketLabel={marketLabel}
+              marketId={marketId}
               marketReasons={marketReasonsFor([d])}
             />
           </div>
@@ -2176,6 +2176,7 @@ export default function Domains() {
               : undefined
           }
           marketLabel={marketLabel}
+          marketId={marketId}
           marketReasons={marketReasonsFor(selectedDomains)}
         />
       </div>
