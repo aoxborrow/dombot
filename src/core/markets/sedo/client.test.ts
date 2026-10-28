@@ -499,3 +499,19 @@ it('adds a hint to a per-name fault Sedo explains badly', async () => {
   const [r] = await sedo.deleteListings(['taken.com']);
   expect(r.message).toMatch(/another account.*watch the account’s email/);
 });
+
+it('explains E3124 on a name Sedo is still checking', async () => {
+  const { sedo } = client(() =>
+    fx.resultsOf([
+      [
+        'new.com',
+        [
+          'E3124',
+          "Sorry, you cannot change your domain's status from Not for Sale to For Sale, because there are either open bids on your domain or your domain is currently in transfer",
+        ],
+      ],
+    ]),
+  );
+  const [r] = await sedo.deleteListings(['new.com']);
+  expect(r.message).toMatch(/still checking it/);
+});

@@ -68,6 +68,9 @@ export function faultHint(code: string): string | null {
       return 'Accept Sedo’s user agreement on sedo.com first.';
     case 'E12':
       return 'This Sedo partner account isn’t allowed to use that function.';
+    case 'E3124':
+      // Seen live on every newly listed name, with no bids or transfer.
+      return 'On a newly listed name this usually means Sedo is still checking it; it stays not for sale until then.';
     case 'E3131':
       // Seen live: inserting a name another Sedo account already lists.
       return 'Sedo will check that you own it; watch the account’s email.';

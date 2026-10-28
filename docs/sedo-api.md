@@ -379,7 +379,17 @@ Checked live on 2026-10-28 against an account with 43 listings
   worked. `DomainDelete` took effect at once: the name left the list, and
   `DomainStatus` showed it on no account. A delete sent before an insert
   shows up misses it, so the write test waits for the name first.
-- **`DomainStatus` answers in its own order,** not the order asked; the
+- **New names start not for sale, and can't be put up for sale yet.**
+  Every name inserted (a re-added one, domainio.com, and one never on any
+  Sedo account, based.domains) appeared in `DomainList` with `forsale: 0`
+  within 15–50 seconds, and an edit to `forsale: 1` failed with `E3124`
+  ("you cannot change your domain's status from Not for Sale to For Sale,
+  because there are either open bids on your domain or your domain is
+  currently in transfer"), with no bids or transfer. Sedo is evidently still
+  checking the name; the API says nothing more. DomBot adds a hint to that
+  fault. How long the hold lasts, and whether Sedo then lists the name for
+  sale itself, is being watched (see "Unverified").
+  not the order asked; the
   client matches by name.
 - **Parking stats:** period 1 gives 31 daily rows for the account, and for
   one name when `domain` is set; period 3 gives 12 monthly rows.
@@ -389,10 +399,10 @@ Checked live on 2026-10-28 against an account with 43 listings
 
 Still to check:
 
-1. **For sale after an insert:** when (or whether) Sedo flips a new name to
-   for sale on its own once its checks pass, or whether DomBot has to edit
-   it to `forsale: 1` afterwards. Until known, a new Sedo listing can show
-   as not for sale in DomBot.
+1. **For sale after an insert:** how long Sedo holds a new name not for
+   sale (`E3124` meanwhile), and whether it then lists it for sale itself
+   or DomBot has to edit it to `forsale: 1`. Until known, a new Sedo
+   listing shows as not for sale in DomBot.
 2. **Edit details:** what `minprice` does on a fixed-price listing; whether
    the 199 Buy Now minimum applies in GBP; whether sending category `990000`
    back on an edit is accepted.
