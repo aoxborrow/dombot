@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { localDay } from '../../shared/domain-events';
 import {
@@ -9,14 +9,15 @@ import {
   trafficByMonth,
   type TrafficMonth,
 } from '../../shared/market-reports';
-import type { MarketListing } from '../../shared/markets';
+import type { MarketListing, MarketSale } from '../../shared/markets';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
   formatMoney,
 } from '../../shared/money';
 import { useAppStore } from '../store/app';
-import { Store } from 'lucide-react';
+import { ChevronRight, Store } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -72,6 +73,27 @@ export default function Markets() {
   }, [traffic.accountDays]);
   const years = useMemo(() => salesByYear(sales), [sales]);
   const total = useMemo(() => salesTotal(years), [years]);
+  // Each year's sales, newest first, for the rows that open.
+  const salesByYearList = useMemo(() => {
+    const out = new Map<string, MarketSale[]>();
+    for (const sale of sales) {
+      if (!sale.soldOn || sale.currency !== 'USD') continue;
+      const year = sale.soldOn.slice(0, 4);
+      (out.get(year) ?? out.set(year, []).get(year)!).push(sale);
+    }
+    for (const list of out.values()) {
+      list.sort((a, b) => (b.soldOn ?? '').localeCompare(a.soldOn ?? ''));
+    }
+    return out;
+  }, [sales]);
+  const [openYears, setOpenYears] = useState<ReadonlySet<string>>(new Set());
+  const toggleYear = (year: string) =>
+    setOpenYears((current) => {
+      const next = new Set(current);
+      if (next.has(year)) next.delete(year);
+      else next.add(year);
+      return next;
+    });
   const through = useMemo(
     () => sellThrough(sales, listings, localDay()),
     [sales, listings],
@@ -215,38 +237,69 @@ export default function Markets() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {years.map((y) => (
-                <TableRow key={y.year}>
-                  <TableCell>
-                    {y.year}
-                    {(y.inProgress > 0 || y.cancelled > 0) && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {[
-                          y.inProgress && `${y.inProgress} in progress`,
-                          y.cancelled && `${y.cancelled} cancelled`,
-                        ]
-                          .filter(Boolean)
-                          .join(', ')}
-                      </span>
+              {years.map((y) => {
+                const open = openYears.has(y.year);
+                return (
+                  <Fragment key={y.year}>
+                    <TableRow
+                      className="cursor-pointer"
+                      onClick={() => toggleYear(y.year)}
+                    >
+                      <TableCell>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1.5"
+                          aria-expanded={open}
+                          aria-label={`${open ? 'Hide' : 'Show'} ${y.year} sales`}
+                        >
+                          <ChevronRight
+                            className={cn(
+                              'size-4 text-muted-foreground transition-transform',
+                              open && 'rotate-90',
+                            )}
+                          />
+                          {y.year}
+                        </button>
+                        {(y.inProgress > 0 || y.cancelled > 0) && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {[
+                              y.inProgress && `${y.inProgress} in progress`,
+                              y.cancelled && `${y.cancelled} cancelled`,
+                            ]
+                              .filter(Boolean)
+                              .join(', ')}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {y.sold}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {money(y.gross)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {money(y.commission)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {money(y.net)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {y.average ? money(y.average) : '—'}
+                      </TableCell>
+                    </TableRow>
+                    {open && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={6} className="bg-muted/30 p-0">
+                          <YearSales
+                            sales={salesByYearList.get(y.year) ?? []}
+                            money={money}
+                          />
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {y.sold}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {money(y.gross)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {money(y.commission)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {money(y.net)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {y.average ? money(y.average) : '—'}
-                  </TableCell>
-                </TableRow>
-              ))}
+                  </Fragment>
+                );
+              })}
               <TableRow className="font-medium">
                 <TableCell>All years</TableCell>
                 <TableCell className="text-right tabular-nums">
@@ -459,6 +512,102 @@ function MonthBars({ months }: { months: TrafficMonth[] }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** A year shows at most this many sales inline. */
+const YEAR_SALES_SHOWN = 100;
+
+const SALE_STATUS: Record<MarketSale['status'], string> = {
+  completed: 'Completed',
+  in_progress: 'In progress',
+  cancelled: 'Cancelled',
+  unknown: 'Unknown',
+};
+const SALE_KIND: Record<MarketSale['kind'], string> = {
+  buy_now: 'Buy Now',
+  offer: 'Offer',
+  lease: 'Lease',
+  unknown: '—',
+};
+
+/** One year's sales, newest first, up to YEAR_SALES_SHOWN. */
+function YearSales({
+  sales,
+  money,
+}: {
+  sales: MarketSale[];
+  money: (amount: string, currency?: string) => string;
+}) {
+  const shown = sales.slice(0, YEAR_SALES_SHOWN);
+  const amount = (a: string | null, currency: string) =>
+    a ? money(a, currency) : '—';
+  return (
+    <div className="px-2 py-1">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>Sold</TableHead>
+            <TableHead>Domain</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Price</TableHead>
+            <TableHead className="text-right">Commission</TableHead>
+            <TableHead className="text-right">Net</TableHead>
+            <TableHead className="text-right">Paid out</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {shown.map((s) => (
+            <TableRow key={`${s.accountId}:${s.id}`}>
+              <TableCell className="tabular-nums text-muted-foreground">
+                {s.soldOn}
+              </TableCell>
+              <TableCell className="font-medium">{s.name}</TableCell>
+              <TableCell>
+                {SALE_KIND[s.kind]}
+                {s.installments?.total != null && (
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    {s.installments.paid ?? 0}/{s.installments.total} paid
+                  </span>
+                )}
+              </TableCell>
+              <TableCell
+                className={cn(
+                  s.status !== 'completed' && 'text-muted-foreground',
+                )}
+              >
+                {SALE_STATUS[s.status]}
+              </TableCell>
+              <TableCell
+                className={cn(
+                  'text-right tabular-nums',
+                  s.status === 'cancelled' &&
+                    'text-muted-foreground line-through',
+                )}
+              >
+                {amount(s.price, s.currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">
+                {amount(s.commission, s.currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {s.status === 'cancelled' ? '—' : amount(s.net, s.currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">
+                {s.paidOutOn ?? '—'}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {sales.length > shown.length && (
+        <p className="px-2 pt-1 pb-2 text-xs text-muted-foreground">
+          Showing the latest {shown.length.toLocaleString()} of{' '}
+          {sales.length.toLocaleString()} sales this year.
+        </p>
+      )}
     </div>
   );
 }
