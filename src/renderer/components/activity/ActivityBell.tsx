@@ -69,12 +69,17 @@ export function ActivityBell() {
     [registrars, marketAccounts, marketCatalog],
   );
   // Market sales waiting on you: an auth code, a transfer, payee details.
+  // Only for accounts still connected: a removed account's sales stay in
+  // history, but there's no account to act through.
   const salesToAct = useMemo(
     () =>
       marketSales.filter(
-        (s) => s.status === 'in_progress' && s.action !== null,
+        (s) =>
+          marketIds.has(s.accountId) &&
+          s.status === 'in_progress' &&
+          s.action !== null,
       ),
-    [marketSales],
+    [marketSales, marketIds],
   );
   const list = useMemo(
     () => notifications(events, problems),

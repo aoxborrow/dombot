@@ -17,7 +17,17 @@ import {
 } from '../../shared/money';
 import { useAppStore } from '../store/app';
 import { cn } from '@/lib/utils';
+import { Store } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import {
+  Empty as EmptyState,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import {
   Table,
   TableBody,
@@ -86,15 +96,25 @@ export default function Markets() {
 
   if (accounts !== null && accounts.length === 0) {
     return (
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
-        <p className="text-sm text-muted-foreground">
-          Connect a marketplace account in{' '}
-          <Link to="/settings?tab=markets" className="underline">
-            Settings → Markets
-          </Link>{' '}
-          to see traffic and sales here.
-        </p>
+        <EmptyState className="rounded-md border border-dashed">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Store />
+            </EmptyMedia>
+            <EmptyTitle>No market accounts yet</EmptyTitle>
+            <EmptyDescription>
+              Connect a marketplace like Afternic to see your listings&apos;
+              traffic, leads and sales here, beside your registrar data.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button asChild>
+              <Link to="/settings?tab=markets">Add a market account</Link>
+            </Button>
+          </EmptyContent>
+        </EmptyState>
       </div>
     );
   }

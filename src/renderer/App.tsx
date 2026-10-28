@@ -79,7 +79,6 @@ export default function App() {
   const applyBulkFinished = useAppStore((s) => s.applyBulkFinished);
   const navigate = useNavigate();
   const metrics = useTabMetrics();
-  const navItems = useNavItems();
 
   // Restore the last-cached portfolio, detail, and pricing on launch so the app
   // opens fully populated with no network calls. The user
@@ -169,7 +168,7 @@ export default function App() {
         {/* Desktop: the tab strip. On phones it collapses into the hamburger
             menu on the right (MobileNav). */}
         <TabStrip className="hidden self-end sm:flex">
-          {navItems.map(({ to, label, icon }) => {
+          {NAV_ITEMS.map(({ to, label, icon }) => {
             const { metric, ...options } = TAB_OPTIONS[to] ?? {};
             return (
               <TabLink
@@ -248,12 +247,6 @@ const NAV_ITEMS = [
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ] as const;
 
-/** The nav, with Markets only once a market account is connected. */
-function useNavItems() {
-  const marketsOn = useAppStore((s) => (s.marketAccounts?.length ?? 0) > 0);
-  return NAV_ITEMS.filter((item) => marketsOn || item.to !== '/markets');
-}
-
 /**
  * Phone-only hamburger: the primary destinations in a dropdown, since the
  * labeled nav doesn't fit a narrow header. Hidden at sm+, where the centered nav
@@ -271,7 +264,6 @@ function MobileNav() {
     title: syncTitle,
   } = useSyncState();
   const metrics = useTabMetrics();
-  const navItems = useNavItems();
 
   return (
     <DropdownMenu>
@@ -286,7 +278,7 @@ function MobileNav() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        {navItems.map(({ to, label, icon: Icon }) => {
+        {NAV_ITEMS.map(({ to, label, icon: Icon }) => {
           const active = isActive(to);
           const metric = TAB_OPTIONS[to]?.metric;
           return (
