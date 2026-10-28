@@ -211,9 +211,17 @@ export async function pushAskingPrices(
       });
     }
   }
+  // Listings stuck before the push get their checks re-run after it.
+  const stuck = stuckListings(
+    accountId,
+    changes.map((c) => c.name),
+  );
   const written = changes.length
     ? await writeMarketListings(accountId, changes, options)
     : [];
+  if (stuck.size && adapter.capabilities.relist && adapter.relist) {
+    await relistAfterPush(accountId, adapter, written, stuck);
+  }
   const byName = new Map(written.map((r) => [r.name, r]));
   return names.map((raw) => {
     const name = toAscii(raw);
@@ -241,6 +249,78 @@ export async function deleteMarketListings(
   );
   if (!options.silent) broadcastPortfolioChanged();
   return results;
+}
+
+const STUCK: ReadonlySet<string> = new Set(['inactive', 'rejected', 'pending']);
+
+/** Names listed on the account whose listing is stuck, with that status. */
+function stuckListings(
+  accountId: string,
+  names: readonly string[],
+): Map<string, string> {
+  const wanted = new Set(names);
+  return new Map(
+    marketListings()
+      .filter(
+        (l) =>
+          l.accountId === accountId &&
+          wanted.has(l.name) &&
+          STUCK.has(l.status),
+      )
+      .map((l) => [l.name, l.status]),
+  );
+}
+
+/**
+ * After pushing prices, ask the market to re-run its checks on the names
+ * that were stuck: reactivate the inactive ones, resync the rest. Each
+ * result says how that went; a failed relist doesn't undo the prices.
+ */
+async function relistAfterPush(
+  accountId: string,
+  adapter: AnyMarketAdapter,
+  written: MarketWriteResult[],
+  stuck: Map<string, string>,
+): Promise<void> {
+  const relist = adapter.relist!.bind(adapter);
+  const byMode = new Map<RelistMode, string[]>();
+  for (const r of written) {
+    const status = r.ok ? stuck.get(r.name) : undefined;
+    if (!status) continue;
+    const mode: RelistMode = status === 'inactive' ? 'REACTIVATE' : 'RESYNC';
+    byMode.set(mode, [...(byMode.get(mode) ?? []), r.name]);
+  }
+  const outcome = new Map<string, MarketWriteResult['relisted']>();
+  for (const [mode, names] of byMode) {
+    try {
+      for (const r of await inBatches(adapter, names, (b) => relist(b, mode))) {
+        outcome.set(r.name, {
+          ok: r.ok,
+          message: r.ok ? null : (r.error?.message ?? 'The market refused it.'),
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      for (const name of names) outcome.set(name, { ok: false, message });
+    }
+  }
+  for (const r of written) {
+    const o = outcome.get(r.name);
+    if (o) r.relisted = o;
+  }
+  // Statuses move after a relist: read those names back.
+  const relisted = [...outcome].filter(([, o]) => o?.ok).map(([n]) => n);
+  if (relisted.length) {
+    const fresh = await adapter.getListings(relisted).catch(() => []);
+    putMarketListings(accountId, fresh);
+    for (const l of fresh) {
+      const r = written.find((w) => w.name === l.name);
+      if (r) {
+        r.saved = l;
+        r.pending = l.status === 'pending';
+      }
+    }
+  }
 }
 
 /** Ask the market to re-run its listing checks (Afternic's relist). */

@@ -192,6 +192,11 @@ export interface MarketWriteResult {
   error: { code: string; message: string } | null;
   /** Nothing was sent: the listing already matched (bulk writes only). */
   unchanged?: boolean;
+  /**
+   * The listing was stuck (inactive, rejected or pending), so listing it
+   * also asked the market to re-run its checks: `ok` or why it couldn't.
+   */
+  relisted?: { ok: boolean; message: string | null };
 }
 
 export interface MarketSale {

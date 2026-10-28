@@ -98,7 +98,7 @@ export function RowActionsMenu({
   onMarkArchived: () => void;
   onRestoreOwned: () => void;
   onDelete: () => void;
-  /** List, relist or delist on a market; absent with no market account. */
+  /** List or delist on a market; absent with no market account. */
   onMarket?: (action: MarketAction) => void;
   marketLabel?: string;
   /** The one market behind the menu, for its logo; null for several. */
@@ -267,13 +267,6 @@ export function RowActionsMenu({
                   >
                     List at your price
                     <span className="-ml-[6px] opacity-50">…</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={Boolean(marketReasons?.relist)}
-                    title={marketReasons?.relist ?? undefined}
-                    onSelect={() => onMarket('relist')}
-                  >
-                    Relist<span className="-ml-[6px] opacity-50">…</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     variant="destructive"
