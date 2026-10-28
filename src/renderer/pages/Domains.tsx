@@ -14,7 +14,7 @@ import {
   Globe,
   Plug,
   Server,
-  Store,
+  Tag,
   ShieldBan,
   ShieldCheck,
   Upload,
@@ -1464,7 +1464,7 @@ export default function Domains() {
             {
               key: 'listing',
               label: 'Listing',
-              icon: Store,
+              icon: Tag,
               options: listingFilterOptions(
                 shown,
                 marketListings,
