@@ -117,7 +117,7 @@ export default function Markets() {
 
   if (accounts !== null && accounts.length === 0) {
     return (
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
+      <div className="flex w-full flex-col gap-6">
         <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
         <EmptyState className="rounded-md border border-dashed">
           <EmptyHeader>
@@ -141,7 +141,7 @@ export default function Markets() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 pb-12">
+    <div className="flex w-full flex-col gap-6 pb-12">
       <div>
         <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
         <p className="mt-1 text-sm text-muted-foreground">

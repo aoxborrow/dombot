@@ -245,7 +245,7 @@ export default function Renewals() {
 
   if (!hasPortfolio) {
     return (
-      <div className="mx-auto w-full max-w-[1400px]">
+      <div className="w-full">
         <PageHeader loading={pricingLoading} summary={summary} />
         {accountFilter}
         <Empty className="mt-6 rounded-lg border border-dashed">
@@ -264,7 +264,7 @@ export default function Renewals() {
   const monthly = summary.yearly / 12;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <PageHeader loading={pricingLoading} summary={summary} />
       {accountFilter}
 
