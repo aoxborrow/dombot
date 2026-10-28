@@ -215,6 +215,10 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
 
 ## Owned, Archive, and Hidden
 
+Planned: [owned-and-archive.md](owned-and-archive.md) limits Archive to names
+you no longer hold and removes Dropped, Archived, Hidden, and Delete for held
+names. Not renewing a name becomes turning off its auto-renew.
+
 The Domains page switches between **Owned** and **Archive**. Archive is a list
 of domains you no longer own, not a timeline; the timeline is the Activity page
 (below).
@@ -459,6 +463,11 @@ import; today that's only `meta`. An unknown namespace in a file is skipped.
 
 ## Future work
 
+- **Archive is only names you no longer hold**
+  ([owned-and-archive.md](owned-and-archive.md)): Owned shows Expiring,
+  Expired and Sold from facts, Archive labels Sold, Deleted, Expired and
+  Removed, Remove from DomBot replaces Delete, Hidden goes, and Renewals
+  counts Owned names only.
 - **The automatic drop** (`source: 'lookup'`, above) waits on the central RDAP
   module ([#105](https://github.com/aoxborrow/dombot/issues/105)).
 - **Every domain change writes an event:** auto-renew, privacy, lock,
