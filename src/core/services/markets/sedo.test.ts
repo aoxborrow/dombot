@@ -147,6 +147,15 @@ describe('changes', () => {
     });
   });
 
+  it('keeps an unset language on edit instead of forcing one', () => {
+    expect(
+      mergeSedoChange(
+        { name: 'example.com', minOffer: '200' },
+        listed({ language: null }),
+      ).language,
+    ).toBeNull();
+  });
+
   it('gives a new name a Buy Now price in USD and English by default', () => {
     expect(mergeSedoChange({ name: 'new.com', price: '2500' }, null)).toEqual({
       name: 'new.com',

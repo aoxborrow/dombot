@@ -44,9 +44,10 @@ import {
 // `output_method=xml`, never GET, because the account password is a
 // parameter and a query string ends up in logs.
 //
-// UNVERIFIED: no call here has been made against the live API. Built from
-// the docs and their example XML (2026-10-27). What to check first is listed
-// in docs/sedo-api.md, "Unverified".
+// Reads were checked against a live account on 2026-10-28 (form POST, XML,
+// faults, paging, name lookup, stats, payments, reference lists). Writes
+// are still UNVERIFIED: built from the docs and their example XML. What's
+// left to check is in docs/sedo-api.md, "Unverified".
 
 /** Most names per write call (DomainInsert, DomainEdit, DomainDelete). */
 export const WRITE_BATCH = 50;
@@ -224,10 +225,11 @@ export class SedoClient {
   }
 
   /**
-   * Every listing, a page of 100 at a time in name order. Sedo returns no
-   * total, so the walk ends at a short page. UNVERIFIED: that an empty
-   * account answers with an empty list rather than fault E15 ("There is no
-   * data for your request"); both are read as "no listings".
+   * Every listing, a page of 100 at a time. Sedo returns no total, so the
+   * walk ends at a short page. Its order isn't by name, but `startfrom` is a
+   * plain 0-based offset into a stable order (checked live). UNVERIFIED:
+   * that an empty account answers with an empty list rather than fault E15
+   * ("There is no data for your request"); both are read as "no listings".
    */
   async allListings(extended = true): Promise<SedoListing[]> {
     const out: SedoListing[] = [];
@@ -244,7 +246,14 @@ export class SedoClient {
     }
   }
 
-  /** The listings for these names, 100 a call; unlisted names are left out. */
+  /**
+   * The listings for these names, 100 a call; unlisted names are left out.
+   *
+   * Sedo fails the whole call with E2104 ("does not belong to you") when any
+   * one name isn't on the account (checked live, 2026-10-28), so a batch
+   * that fails that way is split in halves until the unlisted names are
+   * isolated: a few extra calls rather than one per name.
+   */
   async getListings(
     names: readonly string[],
     extended = false,
@@ -252,19 +261,33 @@ export class SedoClient {
     const keys = [...new Set(names.map(assertDomainName))];
     const out: SedoListing[] = [];
     for (const batch of chunks(keys, LIST_PAGE)) {
-      try {
-        out.push(
-          ...(await this.listListings({
-            names: batch,
-            results: LIST_PAGE,
-            extended,
-          })),
-        );
-      } catch (error) {
-        if (!(error instanceof SedoError && error.code === 'E15')) throw error;
-      }
+      out.push(...(await this.listedAmong(batch, extended)));
     }
     return out;
+  }
+
+  private async listedAmong(
+    names: string[],
+    extended: boolean,
+  ): Promise<SedoListing[]> {
+    try {
+      return await this.listListings({
+        names,
+        results: LIST_PAGE,
+        extended,
+      });
+    } catch (error) {
+      const notListed =
+        error instanceof SedoError &&
+        (error.code === 'E2104' || error.code === 'E15');
+      if (!notListed) throw error;
+      if (names.length === 1) return [];
+      const half = Math.ceil(names.length / 2);
+      return [
+        ...(await this.listedAmong(names.slice(0, half), extended)),
+        ...(await this.listedAmong(names.slice(half), extended)),
+      ];
+    }
   }
 
   /**
@@ -299,9 +322,8 @@ export class SedoClient {
 
   /**
    * Daily parking statistics for the last 31 days (period 1), for one name or
-   * the whole account. UNVERIFIED: that period 1 with a `domain` gives that
-   * name's days; the docs list `domain` as optional for every period but only
-   * say rows carry the name for periods 0, 2 and 4.
+   * the whole account. Period 1 with a `domain` gives that name's days
+   * (checked live).
    */
   async dailyParkingStats(name?: string): Promise<SedoParkingStats[]> {
     return this.parkingStats({ period: 1, domain: name });
@@ -356,9 +378,10 @@ export class SedoClient {
   }
 
   /**
-   * Parking payments for the month containing `month` (YYYY-MM-DD).
-   * UNVERIFIED: the docs' table calls the amount `earnings`, their example
-   * `payments`; either is read.
+   * Parking payments for the month containing `month` (YYYY-MM-DD). A month
+   * without payments is fault E2102 ("Statistics for this date do not
+   * exist"), read as none (checked live). UNVERIFIED: the docs' table calls
+   * the amount `earnings`, their example `payments`; either is read.
    */
   async parkingPayments(month: string): Promise<SedoPayment[]> {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(month)) {
@@ -372,7 +395,12 @@ export class SedoClient {
         { idempotent: true },
       );
     } catch (error) {
-      if (error instanceof SedoError && error.code === 'E15') return [];
+      if (
+        error instanceof SedoError &&
+        (error.code === 'E15' || error.code === 'E2102')
+      ) {
+        return [];
+      }
       throw error;
     }
     return items(res).map((i) => ({
@@ -595,8 +623,8 @@ export class SedoClient {
       );
     }
     const raw = await response.text();
-    // A fault document wins over the status: UNVERIFIED which status Sedo
-    // sends with one.
+    // A fault document wins over the status. Sedo sends faults with HTTP 200
+    // (checked live), but a proxy or outage may not.
     let res: ParsedResponse | null = null;
     try {
       res = raw.trim() ? parseXml(raw) : null;

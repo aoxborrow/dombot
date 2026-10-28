@@ -6,8 +6,8 @@ export type { SedoCurrency };
 // ("99.99", "500") with the listing's currency, as DomBot stores amounts;
 // Sedo prices carry cents and come in EUR, USD or GBP.
 //
-// UNVERIFIED: every shape here is from Sedo's docs and example responses,
-// not from live calls (docs/sedo-api.md).
+// The listing, status, stats and payment shapes were checked against a live
+// account (2026-10-28); see docs/sedo-api.md for what's still unverified.
 
 export interface SedoKeyword {
   keyword: string;

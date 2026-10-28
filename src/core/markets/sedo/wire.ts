@@ -3,10 +3,9 @@ import { XMLParser } from 'fast-xml-parser';
 // Sedo's Basic API on the wire (docs/sedo-api.md): form-encoded requests and
 // XML responses. Nothing outside this folder sees these shapes.
 //
-// UNVERIFIED: built from the docs (https://api.sedo.com/apidocs/v1/Basic/)
-// and their example responses, read 2026-10-27; there were no credentials
-// to check any of it against the live API. "Unverified" comments below
-// mark the guesses most likely to be wrong.
+// Built from the docs (https://api.sedo.com/apidocs/v1/Basic/) and checked
+// against a live account for reads (2026-10-28). "UNVERIFIED" comments mark
+// what still isn't confirmed.
 
 export const SEDO_BASE_URL = 'https://api.sedo.com/api/v1/';
 
