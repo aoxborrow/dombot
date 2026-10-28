@@ -308,7 +308,7 @@ describe('SedoAdapter reads', () => {
     const { sedo } = adapter(() => fx.checkMember);
     const result = await sedo.test();
     expect(result.listings).toBeNull();
-    expect(result.notes[0]).toMatch(/no sales/);
+    expect(result.notes).toEqual([]);
     const bad = adapter(() => fx.checkMember.replace('>1<', '>0<'));
     await expect(bad.sedo.test()).rejects.toThrow(/doesn’t recognize/);
   });

@@ -294,16 +294,15 @@ describe('AfternicAdapter', () => {
     expect(results[2].error?.message).toBe('on hold');
   });
 
-  it('notes an account without search data', async () => {
+  it('flags whether the account gets search data', async () => {
     const { adapter: afternic } = adapter(() => ({
       domains: [fx.domainFull],
       pagination: { total: 50 },
     }));
     expect(await afternic.test()).toEqual({
       listings: 50,
-      notes: [
-        'No search data on this account (Discount Domain Club Domain Pro only).',
-      ],
+      notes: [],
+      status: [{ label: 'Discount Domain Club Domain Pro', on: false }],
     });
   });
 });

@@ -13,7 +13,6 @@ import {
   Receipt,
   PencilLine,
   RefreshCw,
-  Store,
   Trash2,
   Undo2,
 } from 'lucide-react';
@@ -21,6 +20,7 @@ import type { Domain, Folder } from '../../../shared/ipc';
 import { toAscii } from '../../../shared/domain-name';
 import type { ArchiveLabel } from '../../../shared/ownership';
 import { useAppStore } from '../../store/app';
+import { MarketLogo } from '../RegistrarLogo';
 import { useOpUnsupportedReason } from '../../lib/domain-ops';
 import { FolderIcon } from '../icons/FolderIcon';
 import { FolderMenuItems } from './FolderMenuItems';
@@ -73,6 +73,8 @@ export function RowActionsMenu({
   onDelete,
   onMarket,
   marketLabel = 'markets',
+  marketId = null,
+  marketReasons,
 }: {
   domain: Domain;
   folders: Folder[];
@@ -99,6 +101,10 @@ export function RowActionsMenu({
   /** List, relist or delist on a market; absent with no market account. */
   onMarket?: (action: MarketAction) => void;
   marketLabel?: string;
+  /** The one market behind the menu, for its logo; null for several. */
+  marketId?: string | null;
+  /** Why each market action can't apply here; null when it can. */
+  marketReasons?: Record<MarketAction, string | null>;
 }) {
   // A name you labeled that an account still holds can go back to Owned. One
   // gone from every account stays Sold, Dropped, or Archived.
@@ -235,34 +241,52 @@ export function RowActionsMenu({
           <Calculator className="text-muted-foreground" />
           Purchase details<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
+        {/* Pricing and the markets, in a section of their own. */}
         {archive === null && (
-          <DropdownMenuItem onSelect={onEditListPrice}>
-            <CashIcon className="text-muted-foreground" />
-            Pricing<span className="-ml-[6px] opacity-50">…</span>
-          </DropdownMenuItem>
-        )}
-        {archive === null && onMarket && (
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <Store className="text-muted-foreground" />
-              {marketLabel}
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onSelect={() => onMarket('list')}>
-                List at your price
-                <span className="-ml-[6px] opacity-50">…</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onMarket('relist')}>
-                Relist<span className="-ml-[6px] opacity-50">…</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => onMarket('delist')}
-              >
-                Delist<span className="-ml-[6px] opacity-50">…</span>
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onEditListPrice}>
+              <CashIcon className="text-muted-foreground" />
+              Pricing<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+            {onMarket && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <MarketLogo
+                    market={marketId}
+                    label={marketLabel}
+                    className="size-4 p-[1.5px] text-muted-foreground"
+                  />
+                  {marketLabel}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem
+                    disabled={Boolean(marketReasons?.list)}
+                    title={marketReasons?.list ?? undefined}
+                    onSelect={() => onMarket('list')}
+                  >
+                    List at your price
+                    <span className="-ml-[6px] opacity-50">…</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={Boolean(marketReasons?.relist)}
+                    title={marketReasons?.relist ?? undefined}
+                    onSelect={() => onMarket('relist')}
+                  >
+                    Relist<span className="-ml-[6px] opacity-50">…</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={Boolean(marketReasons?.delist)}
+                    title={marketReasons?.delist ?? undefined}
+                    onSelect={() => onMarket('delist')}
+                  >
+                    Delist<span className="-ml-[6px] opacity-50">…</span>
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+          </>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem

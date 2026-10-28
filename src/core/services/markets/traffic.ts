@@ -1,5 +1,7 @@
 import {
   searchesOf,
+  type DomainTrafficTotals,
+  type MarketId,
   type MarketListing,
   type MarketStatsDay,
   type MarketTraffic,
@@ -235,24 +237,42 @@ export function dropAccountTraffic(accountId: string): void {
 
 /** Traffic for the Markets page and MCP, over the enabled accounts. */
 export function marketTraffic(
-  accountIds: ReadonlySet<string>,
+  /** Account id → its market, for every account to count. */
+  accounts: ReadonlyMap<string, MarketId>,
   accountDays: MarketStatsDay[],
   today: string = localDay(),
 ): MarketTraffic {
-  const d30 = trafficTotals(accountIds, 30, today);
-  const d365 = trafficTotals(accountIds, 365, today);
   const domains: MarketTraffic['domains'] = {};
-  for (const [name, year] of d365) {
-    const month = d30.get(name);
-    domains[name] = {
-      views30: month?.views ?? 0,
-      leads30: month?.leads ?? 0,
-      views365: year.views,
-      leads365: year.leads,
-    };
+  const byMarket: MarketTraffic['byMarket'] = {};
+  for (const market of new Set(accounts.values())) {
+    const ids = new Set(
+      [...accounts].filter(([, m]) => m === market).map(([id]) => id),
+    );
+    const d30 = trafficTotals(ids, 30, today);
+    const out: Record<string, DomainTrafficTotals> = {};
+    for (const [name, year] of trafficTotals(ids, 365, today)) {
+      const t = {
+        views30: d30.get(name)?.views ?? 0,
+        leads30: d30.get(name)?.leads ?? 0,
+        views365: year.views,
+        leads365: year.leads,
+      };
+      out[name] = t;
+      const all = domains[name];
+      domains[name] = all
+        ? {
+            views30: all.views30 + t.views30,
+            leads30: all.leads30 + t.leads30,
+            views365: all.views365 + t.views365,
+            leads365: all.leads365 + t.leads365,
+          }
+        : { ...t };
+    }
+    byMarket[market] = out;
   }
   return {
     accountDays: [...accountDays].sort((a, b) => a.date.localeCompare(b.date)),
     domains,
+    byMarket,
   };
 }

@@ -75,8 +75,12 @@ vi.mock('../registrars', () => ({
   }),
 }));
 
-const { connectMarketAccount, marketAccountViews, removeMarketAccount } =
-  await import('./accounts');
+const {
+  connectMarketAccount,
+  marketAccountViews,
+  removeMarketAccount,
+  setMarketSyncState,
+} = await import('./accounts');
 const {
   marketAccountStats,
   marketListings,
@@ -129,7 +133,8 @@ function sale(
     net: '349.3',
     currency: 'USD',
     installments: null,
-    paidOutOn: null,
+    // Completed sales are paid out; one without a payout is a purchase.
+    paidOutOn: status === 'completed' ? soldOn : null,
     action: null,
   };
 }
@@ -401,10 +406,128 @@ describe('listings a market is still checking', () => {
     expect(marketListings().map((l) => l.status)).toEqual(['active']);
   });
 
+  it('keeps a name pending while the market lists it but not for sale', async () => {
+    fake.asyncInsert = true;
+    await connect();
+    putMarketListings(ACCOUNT, [pending('new.com', 1)]);
+    fake.listings = [{ ...listing('new.com'), forSale: false }];
+    await syncMarketAccount(ACCOUNT);
+    expect(marketListings()[0]).toMatchObject({
+      status: 'pending',
+      forSale: false,
+    });
+    expect(marketAccountViews()[0].sync?.notes).toContainEqual(
+      expect.stringMatching(
+        /^Waiting on ownership checks: 1 name DomBot listed/,
+      ),
+    );
+
+    // Once the market puts it up for sale, it's an ordinary listing.
+    fake.listings = [listing('new.com')];
+    await syncMarketAccount(ACCOUNT);
+    expect(marketListings()[0]).toMatchObject({ status: 'active' });
+    expect(
+      marketAccountViews()[0].sync?.notes.some((n) =>
+        n.startsWith('Waiting on ownership checks'),
+      ),
+    ).toBe(false);
+  });
+
+  it('leaves a name the seller took off sale alone', async () => {
+    fake.asyncInsert = true;
+    await connect();
+    putMarketListings(ACCOUNT, [
+      { ...listing('parked.com'), accountId: ACCOUNT, forSale: false },
+    ]);
+    fake.listings = [{ ...listing('parked.com'), forSale: false }];
+    await syncMarketAccount(ACCOUNT);
+    expect(marketListings()[0].status).toBe('active');
+  });
+
   it('drops pending rows on markets that list names straight away', async () => {
     await connect();
     putMarketListings(ACCOUNT, [pending('new.com', 1)]);
     await syncMarketAccount(ACCOUNT);
     expect(marketListings()).toEqual([]);
+  });
+});
+
+describe('purchases in the sales list', () => {
+  it('leaves out completed sales with no payout, and undoes their sold events', async () => {
+    await connect();
+    const bought = {
+      ...sale('p1', 'bought.com', '2022-04-28'),
+      paidOutOn: null,
+    };
+    // A sync from before the rule recorded it as sold.
+    putEvents([
+      newEvent({
+        domain: 'bought.com',
+        type: DomainEventType.Sold,
+        source: DomainEventSource.Sync,
+        date: '2022-04-28',
+        amount: '4995.00',
+        currency: 'USD',
+        marketSale: `${ACCOUNT}:p1`,
+      }),
+    ]);
+    fake.sales = [bought, sale('t1', 'sold.com', '2021-05-04')];
+    await syncMarketAccount(ACCOUNT);
+    expect(marketSales().map((s) => s.name)).toEqual(['sold.com']);
+    expect(sold().map((e) => e.domain)).toEqual(['sold.com']);
+    expect(marketAccountViews()[0].sync?.sales).toBe(1);
+  });
+
+  it('keeps leases and sales still under way, which have no payout yet', async () => {
+    await connect();
+    fake.sales = [
+      {
+        ...sale('l1', 'lease.com', '2024-11-19'),
+        kind: 'lease',
+        paidOutOn: null,
+      },
+      sale('w1', 'waiting.com', '2026-10-20', 'in_progress'),
+    ];
+    await syncMarketAccount(ACCOUNT);
+    expect(
+      marketSales()
+        .map((s) => s.name)
+        .sort(),
+    ).toEqual(['lease.com', 'waiting.com']);
+  });
+});
+
+describe('account status on the card', () => {
+  it('flags Discount Domain Club Domain Pro from the listings, and drops the old note', async () => {
+    await connect();
+    setMarketSyncState(ACCOUNT, {
+      ...marketAccountViews()[0].sync!,
+      notes: [
+        'No search data on this account (Discount Domain Club Domain Pro only).',
+        'note',
+      ],
+    });
+    fake.listings = [listing('plain.com')];
+    await syncMarketAccount(ACCOUNT);
+    let sync = marketAccountViews()[0].sync!;
+    expect(sync.status).toEqual([
+      { label: 'Discount Domain Club Domain Pro', on: false },
+    ]);
+    expect(sync.notes).toEqual(['note']);
+
+    fake.listings = [
+      {
+        ...listing('searched.com'),
+        extra: {
+          market: 'afternic',
+          searches: { total: {}, unique: {} },
+        } as unknown as MarketListing['extra'],
+      },
+    ];
+    await syncMarketAccount(ACCOUNT);
+    sync = marketAccountViews()[0].sync!;
+    expect(sync.status).toEqual([
+      { label: 'Discount Domain Club Domain Pro', on: true },
+    ]);
   });
 });

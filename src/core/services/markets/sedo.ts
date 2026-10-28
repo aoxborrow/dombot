@@ -311,9 +311,7 @@ export class SedoAdapter implements MarketAdapter, SedoActions {
     return {
       // Sedo's list has no total; counting means reading every page.
       listings: null,
-      notes: [
-        'Sedo’s API has no sales: record Sedo sales by hand or import Sedo’s CSV export.',
-      ],
+      notes: [],
     };
   }
 
