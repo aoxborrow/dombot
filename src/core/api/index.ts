@@ -504,10 +504,10 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   getMarketListings: method(none, async () => marketListings()),
   getMarketSales: method(none, async () => marketSales()),
   getMarketTraffic: method(none, async () => {
-    const ids = activeMarketAccounts().map((a) => a.id);
+    const accounts = activeMarketAccounts();
     return marketTraffic(
-      new Set(ids),
-      ids.flatMap((id) => marketAccountStats(id)),
+      new Map(accounts.map((a) => [a.id, a.market])),
+      accounts.flatMap((a) => marketAccountStats(a.id)),
     );
   }),
   writeMarketListings: method(

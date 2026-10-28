@@ -11,6 +11,7 @@ import {
 } from '../../shared/market-reports';
 import {
   searchesOf,
+  type MarketId,
   type MarketListing,
   type MarketSale,
 } from '../../shared/markets';
@@ -20,10 +21,16 @@ import {
   formatMoney,
 } from '../../shared/money';
 import { useAppStore } from '../store/app';
-import { ChevronRight, Store } from 'lucide-react';
+import { StatCard } from '../components/StatCard';
+import {
+  BadgeDollarSign,
+  ChevronRight,
+  CircleDollarSign,
+  Eye,
+  Store,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import {
   Empty as EmptyState,
   EmptyContent,
@@ -49,10 +56,11 @@ const MONTHS_SHOWN = 12;
 const TOP_NAMES = 15;
 
 export default function Markets() {
-  const accounts = useAppStore((s) => s.marketAccounts);
-  const listingsByName = useAppStore((s) => s.marketListings);
-  const sales = useAppStore((s) => s.marketSales);
-  const traffic = useAppStore((s) => s.marketTraffic);
+  const allAccounts = useAppStore((s) => s.marketAccounts);
+  const allListings = useAppStore((s) => s.marketListings);
+  const allSales = useAppStore((s) => s.marketSales);
+  const allTraffic = useAppStore((s) => s.marketTraffic);
+  const catalog = useAppStore((s) => s.marketCatalog);
   const settings = useAppStore((s) => s.settings);
   const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
@@ -60,10 +68,26 @@ export default function Markets() {
     formatMoney(amount, currency, preferred, numberFormat, true);
   const count = (n: number) => n.toLocaleString();
 
-  const listings = useMemo(
-    () => Object.values(listingsByName).flat(),
-    [listingsByName],
-  );
+  // With accounts on more than one market, the page can show one at a time.
+  // Traffic adds up across markets otherwise: lander views and parking
+  // visitors are both visits to the name.
+  const marketIds = [...new Set((allAccounts ?? []).map((a) => a.market))];
+  const [picked, setMarket] = useState<string>('all');
+  const market = marketIds.find((id) => id === picked) ?? null;
+  const { accounts, listings, sales, traffic } = useMemo(() => {
+    const keep = (x: { market: MarketId }) => !market || x.market === market;
+    return {
+      accounts: allAccounts?.filter(keep) ?? null,
+      listings: Object.values(allListings).flat().filter(keep),
+      sales: allSales.filter(keep),
+      traffic: {
+        accountDays: allTraffic.accountDays.filter(keep),
+        domains: market
+          ? (allTraffic.byMarket[market] ?? {})
+          : allTraffic.domains,
+      },
+    };
+  }, [allAccounts, allListings, allSales, allTraffic, market]);
   const months = useMemo(
     () => trafficByMonth(traffic.accountDays).slice(-MONTHS_SHOWN),
     [traffic.accountDays],
@@ -116,10 +140,11 @@ export default function Markets() {
         .slice(0, TOP_NAMES),
     [traffic.domains],
   );
-  const priceOf = (name: string) => listingsByName[name]?.find((l) => l.price);
+  const priceOf = (name: string) =>
+    allListings[name]?.find((l) => l.price && (!market || l.market === market));
   const covered = Object.keys(traffic.domains).length;
 
-  if (accounts !== null && accounts.length === 0) {
+  if (allAccounts !== null && allAccounts.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
         <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
@@ -148,32 +173,64 @@ export default function Markets() {
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 pb-12">
       <div>
         <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="-mt-0.5 text-sm text-muted-foreground">
           Traffic and sales from your marketplace accounts, as of their last
           sync.
         </p>
       </div>
+      {marketIds.length > 1 && (
+        <label className="flex items-center gap-3 text-sm">
+          Market
+          <select
+            aria-label="Market"
+            className="rounded-md border bg-background px-3 py-2"
+            value={market ?? 'all'}
+            onChange={(e) => setMarket(e.target.value)}
+          >
+            <option value="all">All markets</option>
+            {marketIds.map((id) => (
+              <option key={id} value={id}>
+                {catalog.find((m) => m.id === id)?.name ?? id}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Listed" value={count(listings.length)} />
-        <Stat
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+        <StatCard
+          icon={Store}
+          accentClass="text-blue-500"
+          label="Listed"
+          value={count(listings.length)}
+          hint={`On ${accounts?.length ?? 0} market account${
+            accounts?.length === 1 ? '' : 's'
+          }`}
+        />
+        <StatCard
+          icon={Eye}
+          accentClass="text-amber-500"
           label="Views, last 30 days"
           value={count(last30.views)}
-          note={`${count(last30.leads)} lead${last30.leads === 1 ? '' : 's'}`}
+          hint={`${count(last30.leads)} lead${last30.leads === 1 ? '' : 's'}`}
         />
-        <Stat
+        <StatCard
+          icon={BadgeDollarSign}
+          accentClass="text-violet-500"
           label="Sold, last 12 months"
           value={count(through.sold)}
-          note={
+          hint={
             through.rate === null
-              ? undefined
+              ? 'Nothing listed'
               : `${(through.rate * 100).toFixed(1)}% sell-through`
           }
         />
-        <Stat
+        <StatCard
+          icon={CircleDollarSign}
+          accentClass="text-brand-500"
           label="Net, all time"
           value={money(total.net)}
-          note={`${count(total.sold)} sale${total.sold === 1 ? '' : 's'}`}
+          hint={`${count(total.sold)} sale${total.sold === 1 ? '' : 's'} · ${money(total.gross)} gross`}
         />
       </div>
 
@@ -184,9 +241,9 @@ export default function Markets() {
         note={`Last 12 months, by leads then views. Traffic is fetched a slice of names per sync: ${count(covered)} of ${count(listings.length)} so far.`}
       >
         {topNames.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
+          <ReportTable>
+            <TableHeader className={HEAD}>
+              <TableRow className={HEAD_ROW}>
                 <TableHead>Domain</TableHead>
                 <TableHead className="text-right">Leads</TableHead>
                 <TableHead className="text-right">Views</TableHead>
@@ -218,7 +275,7 @@ export default function Markets() {
                 );
               })}
             </TableBody>
-          </Table>
+          </ReportTable>
         ) : (
           <Empty>No per-name traffic yet.</Empty>
         )}
@@ -229,9 +286,9 @@ export default function Markets() {
         note="Completed sales in USD. Commission is the market's; net is what you were paid."
       >
         {years.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
+          <ReportTable>
+            <TableHeader className={HEAD}>
+              <TableRow className={HEAD_ROW}>
                 <TableHead>Year</TableHead>
                 <TableHead className="text-right">Sold</TableHead>
                 <TableHead className="text-right">Gross</TableHead>
@@ -323,7 +380,7 @@ export default function Markets() {
                 </TableCell>
               </TableRow>
             </TableBody>
-          </Table>
+          </ReportTable>
         ) : (
           <Empty>No sales recorded yet.</Empty>
         )}
@@ -334,9 +391,9 @@ export default function Markets() {
           title="Most searched"
           note="Searches on GoDaddy over the last 30 days (Discount Domain Club Domain Pro). A name searched a lot but priced high, or with few views, is worth a second look."
         >
-          <Table>
-            <TableHeader>
-              <TableRow>
+          <ReportTable>
+            <TableHeader className={HEAD}>
+              <TableRow className={HEAD_ROW}>
                 <TableHead>Domain</TableHead>
                 <TableHead className="text-right">Searches, 30 days</TableHead>
                 <TableHead className="text-right">Unique</TableHead>
@@ -365,28 +422,10 @@ export default function Markets() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </ReportTable>
         </Section>
       )}
     </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  note,
-}: {
-  label: string;
-  value: string;
-  note?: string;
-}) {
-  return (
-    <Card className="gap-1 rounded-md px-4 py-3">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-2xl font-semibold tabular-nums">{value}</span>
-      {note && <span className="text-xs text-muted-foreground">{note}</span>}
-    </Card>
   );
 }
 
@@ -405,8 +444,22 @@ function Section({
         <h2 className="text-lg font-semibold">{title}</h2>
         {note && <p className="text-sm text-muted-foreground">{note}</p>}
       </div>
-      <Card className="rounded-md px-4 py-3">{children}</Card>
+      {children}
     </section>
+  );
+}
+
+// Column headings like the Domains table's: small caps on a muted band.
+const HEAD = 'bg-muted';
+const HEAD_ROW =
+  'hover:bg-muted [&_th]:h-8 [&_th]:text-[10px] [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_th]:uppercase';
+
+/** A report table: no card around it, just its own rounded border. */
+function ReportTable({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-t-lg rounded-b-[4px] border">
+      <Table>{children}</Table>
+    </div>
   );
 }
 
@@ -551,7 +604,7 @@ function YearSales({
     <div className="px-2 py-1">
       <Table>
         <TableHeader>
-          <TableRow className="hover:bg-transparent">
+          <TableRow className={cn(HEAD_ROW, 'hover:bg-transparent')}>
             <TableHead>Sold</TableHead>
             <TableHead>Domain</TableHead>
             <TableHead>Type</TableHead>

@@ -810,7 +810,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   marketListings: {},
   marketCatalog: [],
   marketSales: [],
-  marketTraffic: { accountDays: [], domains: {} },
+  marketTraffic: { accountDays: [], domains: {}, byMarket: {} },
   loadMarkets: async () => {
     const [accounts, listings, catalog, sales, traffic] = await Promise.all([
       window.api.listMarketAccounts(),

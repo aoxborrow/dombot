@@ -75,7 +75,7 @@ const nameOf = (c: PickerColumn) =>
 /**
  * The Columns button for a DataTable: check a column to show it, drag its
  * handle (or Alt+↑/↓) to move it. Toggles apply at once; a drag applies on
- * drop. Locked columns stay first and shown; `forceVisible` ones (e.g. being
+ * drop. Locked columns stay first and shown, and aren't listed; `forceVisible` ones (e.g. being
  * filtered) stay shown until that ends.
  */
 export function ColumnPicker({
@@ -99,6 +99,7 @@ export function ColumnPicker({
   const defaults = defaultColumnLayout(columns);
   const byKey = new Map(columns.map((c) => [c.key, c]));
   const hidden = new Set(current.hidden);
+  const lockedCount = columns.filter((c) => c.locked).length;
 
   const listRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<string[] | null>(null);
@@ -159,7 +160,8 @@ export function ColumnPicker({
         const r = row.getBoundingClientRect();
         return r.top + r.height / 2 < ev.clientY;
       }).length;
-      next = moveColumnTo(origin, key, above, columns);
+      // Locked columns aren't listed but still lead the order.
+      next = moveColumnTo(origin, key, above + lockedCount, columns);
       setDraft(next);
     };
     const stop = () => {
@@ -234,11 +236,11 @@ export function ColumnPicker({
         >
           {order.map((key) => {
             const col = byKey.get(key);
-            if (!col) return null;
+            // Locked columns can't move or hide, so they aren't listed.
+            if (!col || col.locked) return null;
             const name = nameOf(col);
             const forced = forceVisible.includes(key) && hidden.has(key);
-            const fixed = !!col.locked || forced;
-            const shown = fixed || !hidden.has(key);
+            const shown = forced || !hidden.has(key);
             const tooNarrow = narrow && col.hideOnMobile;
             return (
               <div
@@ -253,19 +255,15 @@ export function ColumnPicker({
                   dragKey === key && 'bg-muted',
                 )}
               >
-                {col.locked ? (
-                  <span className="size-4 shrink-0" />
-                ) : (
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    aria-hidden
-                    onPointerDown={(event) => onPointerDown(event, key)}
-                    className="-mx-px cursor-grab touch-none text-muted-foreground active:cursor-grabbing dark:text-muted-foreground/60"
-                  >
-                    <GripVertical className="size-4" />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-hidden
+                  onPointerDown={(event) => onPointerDown(event, key)}
+                  className="-mx-px cursor-grab touch-none text-muted-foreground active:cursor-grabbing dark:text-muted-foreground/60"
+                >
+                  <GripVertical className="size-4" />
+                </button>
                 <span
                   className={cn(
                     'min-w-0 flex-1 truncate text-sm',
@@ -282,17 +280,11 @@ export function ColumnPicker({
                 </span>
                 <Checkbox
                   checked={shown}
-                  disabled={fixed}
+                  disabled={forced}
                   tabIndex={-1}
                   aria-hidden
-                  title={
-                    col.locked
-                      ? 'Always shown'
-                      : forced
-                        ? forceVisibleReason
-                        : undefined
-                  }
-                  className={fixed ? 'disabled:opacity-100' : undefined}
+                  title={forced ? forceVisibleReason : undefined}
+                  className={forced ? 'disabled:opacity-100' : undefined}
                   onCheckedChange={() => toggle(key)}
                 />
               </div>

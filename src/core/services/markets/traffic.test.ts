@@ -8,6 +8,7 @@ import {
 } from '../../storage/namespace';
 import type { AnyMarketAdapter } from './registry';
 import {
+  marketTraffic,
   searchHistory,
   snapshotSearches,
   syncDomainTraffic,
@@ -58,6 +59,27 @@ beforeEach(async () => {
   await flushWrites().catch(() => {});
   configureStore(new MemoryDocStore());
   await hydrateStores();
+});
+
+describe('marketTraffic', () => {
+  it('adds markets up for the whole page and keeps each one apart', async () => {
+    const day = { 'a.com': { '2026-10-27': 3 } };
+    const { fake: afternic } = adapter(day);
+    const sedo = { ...adapter(day).fake, accountId: 'sedo-acct' };
+    await syncDomainTraffic(afternic, [listing('a.com')], 10, NOW);
+    await syncDomainTraffic(sedo, [listing('a.com')], 10, NOW);
+    const t = marketTraffic(
+      new Map([
+        [A, 'afternic'],
+        ['sedo-acct', 'sedo'],
+      ]),
+      [],
+      '2026-10-28',
+    );
+    expect(t.domains['a.com']).toMatchObject({ views30: 6, views365: 6 });
+    expect(t.byMarket.afternic?.['a.com']).toMatchObject({ views30: 3 });
+    expect(t.byMarket.sedo?.['a.com']).toMatchObject({ views30: 3 });
+  });
 });
 
 describe('syncDomainTraffic', () => {
