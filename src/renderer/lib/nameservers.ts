@@ -1,4 +1,5 @@
 import { getDomain, getSubdomain } from 'tldts';
+import { marketNameserversFor } from '../../shared/market-nameservers';
 
 // Groups a nameserver hostname into the bucket the Nameservers filter uses.
 //
@@ -6,10 +7,10 @@ import { getDomain, getSubdomain } from 'tldts';
 // with tldts so multi-part public suffixes resolve correctly — e.g.
 // `ns-220-a.gandi.net` → `gandi.net`, and `n.a.b.3.host.co.uk` → `host.co.uk`.
 //
-// Exceptions: a few providers run distinct nameserver sets under one base domain
-// that behave differently, so we split those finer. Afternic is the case we
-// care about — ns1/ns2, ns3/ns4, and ns5/ns6 do different things — so its
-// nameservers group by consecutive pair rather than all under `afternic.com`.
+// Markets' own nameservers come first: each set a market publishes
+// (src/shared/market-nameservers.ts) is its own group, named for the market
+// ("Atom", "Sedo"). Afternic's pairs stay split, and any
+// other Afternic nsN pair still groups by consecutive pair.
 
 export interface NsGroup {
   /** Stable id used for filter selection. */
@@ -18,8 +19,8 @@ export interface NsGroup {
   label: string;
 }
 
-/** Base domains that split into finer groups, keyed by the host/subdomain. */
-const SPLIT_BY_PAIR = new Set(['afternic.com']);
+/** Base domains that split by nsN pair, with the name their groups show. */
+const SPLIT_BY_PAIR = new Map([['afternic.com', 'Afternic']]);
 
 /**
  * The group for a single nameserver hostname, or null when it has no parseable
@@ -29,10 +30,14 @@ export function nameserverGroup(host: string): NsGroup | null {
   const h = host.trim().toLowerCase();
   if (!h) return null;
 
+  const market = marketNameserversFor(h);
+  if (market) return { key: market.key, label: market.label };
+
   const base = getDomain(h);
   if (!base) return null;
 
-  if (SPLIT_BY_PAIR.has(base)) {
+  const pairName = SPLIT_BY_PAIR.get(base);
+  if (pairName) {
     // Split by the leading nsN label in the subdomain: ns1/ns2 → pair 1,
     // ns3/ns4 → pair 2, and so on. Falls back to the base domain if the
     // subdomain doesn't match the expected pattern.
@@ -43,7 +48,10 @@ export function nameserverGroup(host: string): NsGroup | null {
       const pair = Math.ceil(n / 2);
       const lo = pair * 2 - 1;
       const hi = pair * 2;
-      return { key: `${base}#${pair}`, label: `${base} (ns${lo}/ns${hi})` };
+      return {
+        key: `${base}#${pair}`,
+        label: `${pairName} (ns${lo}/ns${hi})`,
+      };
     }
   }
 

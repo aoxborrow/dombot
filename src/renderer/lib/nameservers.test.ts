@@ -27,22 +27,49 @@ describe('nameserverGroup', () => {
   it('splits Afternic nameservers into consecutive pairs', () => {
     expect(nameserverGroup('ns1.afternic.com')).toEqual({
       key: 'afternic.com#1',
-      label: 'afternic.com (ns1/ns2)',
+      label: 'Afternic (ns1/ns2)',
     });
     expect(nameserverGroup('ns2.afternic.com')).toEqual({
       key: 'afternic.com#1',
-      label: 'afternic.com (ns1/ns2)',
+      label: 'Afternic (ns1/ns2)',
     });
     expect(nameserverGroup('ns4.afternic.com')).toEqual({
       key: 'afternic.com#2',
-      label: 'afternic.com (ns3/ns4)',
+      label: 'Afternic (ns3/ns4)',
+    });
+  });
+
+  it('names each market’s own nameservers', () => {
+    expect(nameserverGroup('NS5.Afternic.com.')).toEqual({
+      key: 'afternic.com#3',
+      label: 'Afternic (ns5/ns6)',
+    });
+    expect(nameserverGroup('ns1.atom.com')).toEqual({
+      key: 'atom.com',
+      label: 'Atom',
+    });
+    expect(nameserverGroup('xyz3434-ns1.atom.com')).toEqual({
+      key: 'atom.com#assigned',
+      label: 'Atom (assigned pair)',
+    });
+    expect(nameserverGroup('ns2.atomregistrar.com')).toEqual({
+      key: 'atomregistrar.com',
+      label: 'AtomRegistrar',
+    });
+    expect(nameserverGroup('ns1.squadhelp.com')).toEqual({
+      key: 'squadhelp.com',
+      label: 'Atom (Squadhelp)',
+    });
+    expect(nameserverGroup('ns2.sedoparking.com')).toEqual({
+      key: 'sedoparking.com',
+      label: 'Sedo',
     });
   });
 
   it('pairs multi-digit Afternic nsN labels', () => {
     expect(nameserverGroup('ns10.afternic.com')).toEqual({
       key: 'afternic.com#5',
-      label: 'afternic.com (ns9/ns10)',
+      label: 'Afternic (ns9/ns10)',
     });
   });
 
