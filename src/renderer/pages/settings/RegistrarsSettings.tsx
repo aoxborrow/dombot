@@ -1,3 +1,8 @@
+import {
+  connectRegistrarWithActivationWait,
+  DYNADOT_ACTIVATION_NOTICE,
+  DynadotActivationPending,
+} from '../../lib/connect-registrar';
 import { accountCards } from '../../lib/registrar-accounts';
 import {
   accountSuffix,
@@ -9,6 +14,7 @@ import {
   Check,
   ChevronDown,
   CircleX,
+  Clock,
   Copy,
   Ellipsis,
   ExternalLink,
@@ -366,6 +372,8 @@ function AccountCard({
     account.enabled &&
     !syncing &&
     account.sync.lastError != null;
+  const deferred = account.sync.recovery?.state === 'deferred';
+  const retryAt = account.sync.recovery?.retryAt;
 
   useEffect(() => {
     if (!open) return;
@@ -396,6 +404,14 @@ function AccountCard({
   }, [open, id, provider.name, usesProxy, loadAttempt]);
 
   const runSync = async () => {
+    // Inside a rate-limit cooldown the refresh would be skipped; say so
+    // rather than spin and change nothing.
+    if (retryAt && retryAt > Date.now()) {
+      toast.info(`${provider.displayName} asked us to slow down`, {
+        description: `Sync is available again after ${clockTime(retryAt)}.`,
+      });
+      return;
+    }
     setSyncing(true);
     setError(null);
     try {
@@ -684,10 +700,24 @@ function AccountCard({
         {syncFailed && (
           <div
             role="alert"
-            className="mx-5 mt-0.5 mb-[18px] flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
+            className={cn(
+              'mx-5 mt-0.5 mb-[18px] flex items-start gap-2 rounded-md border px-3 py-2 text-sm',
+              deferred
+                ? 'border-amber-500/40 bg-amber-500/10'
+                : 'border-destructive/40 bg-destructive/10',
+            )}
           >
-            <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
-            <span className="min-w-0 break-words">{sync.lastError}</span>
+            {deferred ? (
+              <Clock className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            ) : (
+              <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
+            )}
+            <span className="min-w-0 break-words">
+              {sync.lastError}
+              {retryAt != null && (
+                <> Sync is available again after {clockTime(retryAt)}.</>
+              )}
+            </span>
           </div>
         )}
 
@@ -843,14 +873,24 @@ function DraftAccountCard({
   onCancel: () => void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const connection = useRef<AbortController | null>(null);
   useEffect(() => {
     heading.current?.scrollIntoView({ block: 'nearest' });
     heading.current?.focus({ preventScroll: true });
+    // Unmounting stops any wait. Clearing the ref first tells save() not to
+    // touch this card's state again.
+    return () => {
+      const current = connection.current;
+      connection.current = null;
+      current?.abort();
+    };
   }, []);
   const [values, setValues] = useState<CredentialValues>({});
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(false);
+  const [activationNotice, setActivationNotice] = useState<string | null>(null);
   // Optional. It only lives here until the account is saved.
   const [nickname, setNickname] = useState('');
   // With the Namecheap proxy on, its outgoing IP supplies the required ClientIp,
@@ -869,19 +909,54 @@ function DraftAccountCard({
     if (!ready || saving) return;
     setSaving(true);
     setError(null);
+    setActivationNotice(null);
+    const controller = new AbortController();
+    connection.current = controller;
+    const live = () => connection.current === controller;
     try {
-      const account = await window.api.connectRegistrarAccount(
+      const account = await connectRegistrarWithActivationWait(
         provider.name,
-        values,
-        // Without a nickname the account takes the next number.
-        nickname.trim() || undefined,
-        proxyEnabled,
+        () =>
+          window.api.connectRegistrarAccount(
+            provider.name,
+            values,
+            // Without a nickname the account takes the next number.
+            nickname.trim() || undefined,
+            proxyEnabled,
+          ),
+        controller.signal,
+        (isWaiting) => {
+          if (!live()) return;
+          setWaiting(isWaiting);
+          if (isWaiting) setActivationNotice(DYNADOT_ACTIVATION_NOTICE);
+        },
       );
+      // Report a created account even if the card is gone, so the list and
+      // its first sync still pick it up.
       onAdded(account);
     } catch (err) {
-      setError(errorMessage(err));
-      setSaving(false);
+      if (!live()) return;
+      if (err instanceof DynadotActivationPending)
+        setActivationNotice(err.message);
+      else {
+        setActivationNotice(null);
+        setError(errorMessage(err));
+      }
+    } finally {
+      if (live()) {
+        setWaiting(false);
+        setSaving(false);
+      }
     }
+  };
+
+  // Stops waiting but keeps the form, so the key can be fixed and retried.
+  const stopWaiting = () =>
+    connection.current?.abort(new DynadotActivationPending());
+
+  const clearFeedback = () => {
+    setActivationNotice(null);
+    setError(null);
   };
 
   const idPrefix = `${provider.name}-new`;
@@ -910,6 +985,12 @@ function DraftAccountCard({
         }}
       >
         <RegistrarHelp provider={provider} />
+        {provider.name === 'dynadot' && (
+          <p className="mb-4 text-[13px] leading-relaxed text-muted-foreground">
+            Just created your API key? It may take a few minutes to become
+            active. We’ll retry while you wait.
+          </p>
+        )}
         <FieldGroup className="gap-4">
           <CredentialFields
             accountName={`New ${provider.displayName} account`}
@@ -917,9 +998,10 @@ function DraftAccountCard({
             idPrefix={idPrefix}
             values={values}
             disabled={saving}
-            onChange={(name, value) =>
-              setValues((current) => ({ ...current, [name]: value }))
-            }
+            onChange={(name, value) => {
+              setValues((current) => ({ ...current, [name]: value }));
+              clearFeedback();
+            }}
             hideFields={proxySuppliesIp ? new Set(['clientIp']) : undefined}
           />
           <SettingsField
@@ -944,8 +1026,16 @@ function DraftAccountCard({
           proxy={proxy}
           enabled={proxyEnabled}
           disabled={saving}
-          onChange={setProxyEnabled}
+          onChange={(enabled) => {
+            setProxyEnabled(enabled);
+            clearFeedback();
+          }}
         />
+        {activationNotice && (
+          <p role="status" className="mt-4 text-sm text-muted-foreground">
+            {activationNotice}
+          </p>
+        )}
         {error && (
           <p role="alert" className="mt-4 text-sm text-destructive">
             {error}
@@ -953,15 +1043,21 @@ function DraftAccountCard({
         )}
         <div className="mt-5 flex items-center gap-3">
           <Button type="submit" disabled={!ready || saving}>
-            {saving ? 'Testing connection…' : 'Add account'}
+            {saving
+              ? waiting
+                ? 'Waiting for Dynadot…'
+                : 'Testing connection…'
+              : activationNotice
+                ? 'Retry connection'
+                : 'Add account'}
           </Button>
           <Button
             type="button"
             variant="ghost"
-            disabled={saving}
-            onClick={onCancel}
+            disabled={saving && !waiting}
+            onClick={waiting ? stopWaiting : onCancel}
           >
-            Cancel
+            {waiting ? 'Stop waiting' : 'Cancel'}
           </Button>
         </div>
       </form>
@@ -1228,6 +1324,14 @@ function HelpLink({ link }: { link: HelpLinkData }) {
  *  - configured + never synced → amber "Not synced yet"
  *  - a sync in flight → muted "Syncing…"
  */
+/** A local wall-clock time, e.g. "3:42 PM". */
+function clockTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function SyncStatus({
   meta,
   syncing,
@@ -1259,6 +1363,17 @@ function SyncStatus({
   }
 
   const { lastSyncedAt, lastError } = meta.sync;
+  if (lastError && meta.sync.recovery?.state === 'deferred') {
+    // Rate limited with a retry scheduled: waiting, not broken.
+    return (
+      <span className="flex items-center gap-1.5">
+        <Clock className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <span className="text-[13px] font-medium text-amber-600 dark:text-amber-400">
+          Sync deferred
+        </span>
+      </span>
+    );
+  }
   if (lastError) {
     return (
       <span className="flex items-center gap-1.5">
