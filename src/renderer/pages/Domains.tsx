@@ -869,9 +869,10 @@ export default function Domains() {
     );
     const listed = keys.some((k) => (marketListings[k]?.length ?? 0) > 0);
     const one = keys.length === 1;
+    const where = marketId ? marketLabel : 'any market';
     const notListed = one
-      ? `Not listed on ${marketLabel}`
-      : `None of these are listed on ${marketLabel}`;
+      ? `Not listed on ${where}`
+      : `None of these are listed on ${where}`;
     return {
       list: priced
         ? null

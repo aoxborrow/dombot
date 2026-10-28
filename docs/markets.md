@@ -369,10 +369,11 @@ What each costs:
   name's DNS hosted at a registrar account DomBot is connected to, and every
   existing record kept: registrar DNS APIs mostly replace the whole record
   set, so DomBot reads, adds and writes back (done by hand on domainio.com,
-  2026-10-28: Sedo's TXT ID added beside its A, MX and SPF records). Some
-  registrars only manage records while the name uses their own
-  nameservers: 101domain refuses with `NAMESERVERS_NOT_LOCAL` otherwise, so
-  the nameservers move back first.
+  2026-10-28: Sedo's TXT ID added beside its A, MX and SPF records). A
+  registrar or DNS host only manages records while the name uses its
+  nameservers (101domain says `NAMESERVERS_NOT_LOCAL`), so a name pointed at
+  a market's nameservers has to move back before it can take a TXT or
+  CNAME record.
 
 ### What DomBot will need
 
