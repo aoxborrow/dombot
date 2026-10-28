@@ -5,10 +5,13 @@ the overlap with Afternic (docs/afternic-api.md) worked out so the two can
 share one market model. Docs: <https://api.sedo.com/apidocs/v1/Basic/>. The
 WSDL is at <https://api.sedo.com/api/v1/?wsdl>.
 
-Nothing here has been checked against the live API: there are no Sedo
-credentials in `.env`, and getting them takes a Sedo partner account (see
-"Credentials"). Everything below is from the docs, read 2026-10-27; claims to
-verify first are collected under "Open questions".
+**Status: built and verified live, reads and writes.** The client
+(`src/core/markets/sedo/`), the adapter (`src/core/services/markets/sedo.ts`)
+and the registry entry are in place, so Sedo accounts can be added in
+Settings → Markets, sync, show in the Domains columns and work through the
+MCP tools. Reads, inserts, edits and deletes were checked against a live
+account on 2026-10-28 (see "Observed"). What's left is under "Unverified",
+below.
 
 ## The API at a glance
 
@@ -71,8 +74,9 @@ Conventions:
 These functions have no GET/POST form: the portfolio functions,
 `GetDomainSetup`, `SetDomainSetup`, `GetKeyword`, `SetKeywordForTopMarkets`,
 `GetTemplate`, `SetTemplate`, `ResetTemplate`, `GetRelatedLinks`,
-`SetRelatedLinks`. Everything DomBot needs first (listings, stats, payments,
-`SetKeyword`, `CheckMember`, reference lists) works over plain HTTP.
+`SetRelatedLinks`. Everything DomBot uses (listings, stats, payments,
+`CheckMember`, reference lists) works over plain HTTP, so DomBot needs no
+SOAP at all.
 
 ## What to implement
 
@@ -92,12 +96,6 @@ These functions have no GET/POST form: the portfolio functions,
 
 ### Defer
 
-- **Parking optimization** (`SetKeyword`, `GetKeyword`,
-  `SetKeywordForTopMarkets`, templates, related links, domain setup):
-  parking-page tuning, a feature area of its own. `SetDomainSetup` is the one
-  to pick up first, because its `buyBox` flag controls whether the parked
-  page shows the "buy this domain" box, which matters to selling. Most of the
-  rest is SOAP-only.
 - **Portfolios:** Sedo bundles sold together. Create, add, remove and delete
   exist, but there's no function to list portfolios or their domains, so
   DomBot couldn't show or sync them. Revisit if a user asks.
@@ -108,6 +106,10 @@ These functions have no GET/POST form: the portfolio functions,
 
 ### Leave out
 
+- **Parking configuration** (`SetKeyword`, `GetKeyword`,
+  `SetKeywordForTopMarkets`, templates, related links, `GetDomainSetup`,
+  `SetDomainSetup`): DomBot won't configure parked pages. It shows Sedo's
+  parking views and earnings, and nothing more (decided 2026-10-28).
 - The Service Provider API's account functions (`CreateAccount`,
   `EditAccount`, `ChangePassword`, bank data), and `Countries`/`States`,
   which only those use.
@@ -147,17 +149,17 @@ namespace, as the Afternic plan describes.
 src/core/markets/sedo/
   client.ts       SedoClient: one method per function
   types.ts        listing, stats, payment types (decimal strings, currency codes)
-  wire.ts         XML request encoding and response parsing
-  convert.ts      wire shapes → types
+  wire.ts         form encoding, XML parsing, wire shapes → values
   errors.ts       SedoError (fault code + fault string)
   fixtures.ts     the docs' example responses, for tests
+  index.ts
   *.test.ts
 ```
 
 Where Sedo forces a different design from Afternic:
 
 - **Requests are form-encoded, responses are XML.** Arrays are sent PHP style
-  (`domainentry[0][domain]=…`, `domainentry[0][category][]=1`), as the docs'
+  (`domainentry[0][domain]=…`, `domainentry[0][category][0]=1`), as the docs'
   `http_build_query` examples produce. Responses go through `fast-xml-parser`
   (already a DomBot dependency, and Worker-safe) with values kept as strings
   and coerced explicitly, as registrar-client does for Namecheap.
@@ -172,9 +174,6 @@ Where Sedo forces a different design from Afternic:
   returns no total, so `allListings()` stops at a short page.
 - **Rate limiting** is a guess until tested: start at one request a second
   per account, shared per account like Afternic's limiter.
-- **SOAP, later:** the deferred functions need a hand-built SOAP 1.1
-  envelope. RPC/encoded arrays are verbose but small to write; no SOAP
-  library, which wouldn't run in the Worker anyway.
 
 ## What it means for DomBot
 
@@ -188,9 +187,11 @@ Where Sedo forces a different design from Afternic:
   DomBot price in one of those pushes as-is. Others need converting or are
   refused.
 - **Pending inserts are DomBot's to track.** After `DomainInsert`, a name is
-  "pending on Sedo" until `DomainList` or `DomainStatus` shows it; a name
-  still missing after a few days is flagged ("Sedo may have rejected it;
-  check your email").
+  pending until Sedo puts it up for sale. It shows in `DomainList` within
+  seconds, but not for sale while Sedo verifies ownership (see "Observed").
+  Sync keeps it pending meanwhile and notes on the account card that
+  verification is waiting on sedo.com. A name that never shows up is
+  dropped after a week with a note that Sedo may have refused it.
 - **Fixed price vs. asking price.** Sedo's `price` with `fixedprice: 1` is a
   Buy Now price; with `fixedprice: 0` it's an asking price open to offers,
   and `minprice` is the lowest offer Sedo forwards. DomBot shows which.
@@ -211,8 +212,9 @@ Where Sedo forces a different design from Afternic:
 
 The market tools in the Afternic plan take `market: 'sedo'` with no new
 tools. Where Sedo lacks something, the tool says so instead of returning
-empty data: `market_sales` and `market_sale_*` fail with "Sedo's API has no
-sales", `domain_listing_set` refuses `floor` and lease-to-own fields.
+empty data: `market_sales` for a Sedo account fails with "its API has no
+sales", the sale actions fail the same way, and `domain_listing_set` refuses
+`floor` and lease-to-own fields.
 `market_stats_get` and `domain_stats_get` return Sedo's visitors, clicks and
 earnings. Sedo-only extras: `market_categories_get` and
 `market_payments_get` (parking payouts).
@@ -279,19 +281,156 @@ none.
 
 ## Phases
 
-0. **Credentials:** apply for Sedo partner access; add the four values to
-   `.env`. Nothing live can be verified before this.
-1. **Client, read side:** form-POST transport, XML parsing, faults, retries;
-   `CheckMember`, `DomainList`, `DomainListExtended`, `DomainStatus`,
-   parking statistics and payments, categories and languages.
-2. **Client, write side:** insert, edit (read-merge-write), delete, in
-   batches of 50.
-3. **Sedo adapter** into the shared model ([markets.md](markets.md)), which
-   is built first, with Afternic's adapter, before Afternic's DomBot phase 4.
-4. **DomBot:** Sedo accounts, listing sync, pending-insert tracking, parking
-   reporting, MCP cases.
-5. **Later:** SOAP transport and the deferred parking functions, starting
-   with `SetDomainSetup`'s buy box.
+0. **Credentials:** Sedo partner access, and the four values in `.env`.
+   **Done** (2026-10-28).
+1. **Client, read side** (built, verified live): form-POST transport, XML
+   parsing, faults, retries; `CheckMember`, `DomainList`,
+   `DomainListExtended`, `DomainStatus`, parking statistics and payments,
+   categories and languages.
+2. **Client, write side** (built, verified live): insert, edit
+   (read-merge-write), delete, in batches of 50.
+3. **Sedo adapter** into the shared model ([markets.md](markets.md)) and
+   its registry entry (built, verified live).
+4. **DomBot** (built, verified live): Sedo accounts in Settings → Markets,
+   listing sync with pending-insert tracking, the Domains columns, parking
+   stats as account and per-name traffic, and the MCP cases, including
+   `market_categories_get` and `market_payments_get`.
+5. **Verify:** reads, writes and the verification hold done 2026-10-28;
+   the small items under "Unverified" below are left, then replace the
+   docs-based fixtures with recorded shapes.
+6. **Not planned:** parking configuration, and with it any SOAP transport.
+
+## What the build decided
+
+Choices made without live answers, each easy to change once checked:
+
+- **Every call is a form POST** to `/api/v1/<Function>` with
+  `output_method=xml`. The docs only show GET for the plain-HTTP interface
+  and say "GET / POST"; POST keeps the password out of URLs.
+- **Retries:** faults `E11`, `E17` and `E2000` (statistics unavailable) are
+  retried 3 times at 2, 4 and 8 seconds, for writes too, since a busy fault
+  means nothing happened. Network and 5xx failures are retried for reads
+  only. `E11` says "try again in five minutes", which these retries won't
+  wait out; the next sync does.
+- **Pace:** 60 requests a minute per account, shared like Afternic's
+  limiter (`src/core/markets/rate-limit.ts`, now used by both).
+- **A new listing** gets a Buy Now price when it has a price (as on Afternic
+  and in DomBot's asking price), USD unless told, language `en` unless told,
+  no categories, for sale. A Buy Now price under 199 USD or EUR is refused
+  before sending (fault `E3123`), with a hint to list it as an asking price.
+- **Pending inserts:** a name `DomainInsert` accepted is stored `pending`.
+  Sync keeps it while Sedo's list doesn't have it, for up to 7 days, then
+  drops it and notes on the account card that Sedo may have refused it.
+  This is gated by the `asyncInsert` capability, not by market name.
+- **Edits are taken as live at once:** the saved listing is the merged one,
+  with no read-back. The next sync corrects it if Sedo applies edits later.
+- **Every listed name is `active`;** `forSale` carries for sale or parked.
+- **Parking earnings have no currency** in the shared stats
+  (`currency: null`) until it's known which one Sedo reports.
+- **Per-name traffic** uses `DomainParkingFinalStatistics` period 1 with a
+  `domain`, 31 days at most, through the same rotation as Afternic's.
+- **An empty account** (fault `E15`, "There is no data for your request")
+  reads as no listings, and "no statistics" faults (`E15`, `E2102`, `E2104`)
+  as no rows.
+
+## Observed
+
+Checked live on 2026-10-28 against an account with 43 listings
+(`npm run test:live`, read-only):
+
+- **Form POST works** for every read DomBot uses, with `output_method=xml`.
+  The docs only show GET.
+- **Partner ID and sign key alone** are enough for `DomainStatus`;
+  `DomainCategories` and `DomainLanguages` need no auth at all.
+- **Faults come with HTTP 200** and a `SEDOFAULT` body. A wrong password is
+  `E6` ("Wrong password for this username").
+- **`DomainList` order isn't by name** (`orderby=0` notwithstanding), but
+  `startfrom` is a plain 0-based offset into a stable order, so paging
+  works.
+- **A name filter fails as a whole** with `E2104` ("does not belong to you,
+  or is not in our parking system database") if any one name isn't on the
+  account, even when the others are. The client splits a failing lookup in
+  halves until the unlisted names drop out. Without that, listing a new
+  name (which looks it up first) would fail.
+- **A month with no parking payments** is fault `E2102` ("Statistics for
+  this date do not exist"), read as no payments.
+- **Field formats:** `currency` is `1` (USD) in lists and `"USD"` in
+  `DomainStatus`; `DomainListExtended`'s `inserted` is
+  `YYYY-MM-DD HH:MM:SS`; `domainlanguage` was empty on every listing; every
+  listing had category `990000` (not in the documented category list,
+  presumably "uncategorized"); no listing had a price set, only a minimum
+  price, and none was fixed price.
+- **Editing an existing listing works, and category `990000` means none.**
+  domainpost.com, priced at 12,000 USD from DomBot (2026-10-28), kept its
+  minimum price and went from category `990000` to no category, so Sedo
+  accepts `990000` back on an edit and treats it as uncategorized. It
+  stayed for sale: the ownership hold is only for newly listed names.
+- **A name another Sedo account lists** can't be inserted: `DomainInsert`
+  answers `E3131` ("The domain has already been found in another account.
+  Ownership of this domain will be verified further."), and the name stays
+  out of yours. Seen with domanio.com, which a stale listing elsewhere
+  offers at €1,500. Whether Sedo then contacts the owner, and whether the
+  name later moves to your account, is unknown. `DomainStatus` shows such a
+  name as on Sedo, so the write test checks it first.
+- **Writes** (2026-10-28, on domainio.com, a name on no Sedo account):
+  `DomainInsert` with `domainentry[0][…]` arrays answered `ok`, and the
+  name appeared in `DomainList` within about 15 seconds, but **not for
+  sale** (`forsale: 0`) although it was sent for sale, presumably until
+  Sedo's checks pass. `DomainEdit` changes showed at once and the
+  read-merge-write kept every other field; switching to a fixed price
+  worked. `DomainDelete` took effect at once: the name left the list, and
+  `DomainStatus` showed it on no account. A delete sent before an insert
+  shows up misses it, so the write test waits for the name first.
+- **New names start not for sale, and can't be put up for sale yet.**
+  Every name inserted (a re-added one, domainio.com, and one never on any
+  Sedo account, based.domains) appeared in `DomainList` with `forsale: 0`
+  within 15–50 seconds, and an edit to `forsale: 1` failed with `E3124`
+  ("you cannot change your domain's status from Not for Sale to For Sale,
+  because there are either open bids on your domain or your domain is
+  currently in transfer"), with no bids or transfer. Sedo is evidently still
+  checking the name; the API says nothing more. DomBot adds a hint to that
+  fault.
+- **That check is ownership verification.** Sedo's dashboard lists such
+  names under "Ownership Verification Pending" (domainio.com, and
+  domanio.com from the `E3131` attempt). It's done on sedo.com: for some
+  names through the registry, for others by adding a TXT record Sedo gives.
+  The API neither reports it nor offers a way to complete it, so DomBot
+  keeps a name it listed pending while Sedo shows it not for sale, and says
+  on the account card to finish verification on sedo.com.
+  Sedo accepts verification by its nameservers, a TXT record holding the
+  account's verification ID, or a CNAME from that ID to `verify.sedo.com.`;
+  DomBot's plan for doing this itself is in markets.md, "Ownership
+  verification".
+- **Once verified, Sedo puts the name up for sale itself.** domainio.com was
+  listed at 5,000 USD and Sedo's TXT ID added to its DNS at 05:00 UTC on
+  2026-10-28; by 06:35 UTC it was for sale at that price, with nothing sent
+  from DomBot. So DomBot only has to wait: it keeps the name pending until
+  Sedo shows it for sale.
+  not the order asked; the
+  client matches by name.
+- **Parking stats:** period 1 gives 31 daily rows for the account, and for
+  one name when `domain` is set; period 3 gives 12 monthly rows.
+  `payout_status` didn't say "Estimated" on any row.
+
+## Unverified
+
+Still to check:
+
+1. **Edit details:** what `minprice` does on a fixed-price listing, and
+   whether the 199 Buy Now minimum applies in GBP.
+2. **Parking earnings:** which currency they're in, and the
+   `payout_status` values. Every row on the account checked was zero.
+3. **Rate limits:** what happens past 60 a minute, and whether `E11`/`E17`
+   are what Sedo sends when throttling.
+4. **An empty account:** an empty list or `E15`.
+5. **E3131 follow-up:** whether Sedo's TXT check moves a name another
+   account lists into yours. domanio.com, now on 101domain's nameservers
+   with Sedo's TXT ID, is still in the other account at €1,500 (06:35 UTC,
+   2026-10-28).
+
+Then replace `src/core/markets/sedo/fixtures.ts`, which is the docs'
+examples, with recorded shapes (made-up names, as Afternic's), and remove
+`UNVERIFIED` comments as each item is confirmed.
 
 ## Open questions
 

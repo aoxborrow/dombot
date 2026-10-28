@@ -1,6 +1,7 @@
 import type { RegistrarName } from '@aoxborrow/registrar-client';
 import { toAscii } from '../../../shared/domain-name';
 import type {
+  MarketListing,
   MarketListingChange,
   MarketWriteResult,
 } from '../../../shared/markets';
@@ -15,7 +16,9 @@ import { findRegistrarsForDomain, resolveDomainAccount } from '../registrars';
 import { activeMarketAccounts, marketAccount, marketAdapter } from './accounts';
 import type { AnyMarketAdapter } from './registry';
 import {
+  cachedListing,
   dropMarketListings,
+  holdPending,
   marketListings,
   marketSale,
   putMarketListings,
@@ -27,8 +30,16 @@ import {
 // Domains table shows the result without waiting for a sync.
 //
 // Afternic takes 500 names a call, so a 10,000-name push is 20 calls and runs
-// here directly. A market that writes one name per call (Atom) will need
-// DomBot's bulk runner instead; that comes with it.
+// here directly. A market that writes one name per call (Atom) runs large
+// writes through DomBot's bulk runner (bulk-jobs.ts, "Market jobs"), which
+// calls these one name at a time with `silent` and `skipUnchanged`.
+
+export interface WriteOptions {
+  /** Don't tell open windows; the bulk runner tells them once at the end. */
+  silent?: boolean;
+  /** Skip a name whose synced listing already has every value asked for. */
+  skipUnchanged?: boolean;
+}
 
 function failed(
   name: string,
@@ -74,17 +85,96 @@ async function inBatches<T>(
 export async function writeMarketListings(
   accountId: string,
   changes: readonly MarketListingChange[],
+  options: WriteOptions = {},
 ): Promise<MarketWriteResult[]> {
   const adapter = enabledAdapter(accountId);
-  const results = await inBatches(adapter, changes, (batch) =>
+  const skipped = new Map<string, MarketWriteResult>();
+  const toSend = options.skipUnchanged
+    ? changes.filter((c) => {
+        const cached = cachedListing(accountId, toAscii(c.name));
+        if (!cached || !matches(c, cached)) return true;
+        skipped.set(cached.name, {
+          name: cached.name,
+          ok: true,
+          pending: false,
+          saved: cached,
+          adjusted: [],
+          error: null,
+          unchanged: true,
+        });
+        return false;
+      })
+    : changes;
+  const written = await inBatches(adapter, toSend, (batch) =>
     adapter.writeListings(batch),
   );
+  // An edit to a name still in the market's ownership check (a new price,
+  // say) mustn't mark it live; taking it off sale on purpose may.
+  if (adapter.capabilities.asyncInsert) {
+    const takenOff = new Set(
+      changes.filter((c) => c.forSale === false).map((c) => toAscii(c.name)),
+    );
+    for (const r of written) {
+      if (r.ok && r.saved && !takenOff.has(r.name)) {
+        r.saved = holdPending(cachedListing(accountId, r.name), r.saved);
+        r.pending ||= r.saved.status === 'pending';
+      }
+    }
+  }
   putMarketListings(
     accountId,
-    results.flatMap((r) => (r.ok && r.saved ? [r.saved] : [])),
+    written.flatMap((r) => (r.ok && r.saved ? [r.saved] : [])),
   );
-  broadcastPortfolioChanged();
-  return results;
+  if (!options.silent) broadcastPortfolioChanged();
+  if (!skipped.size) return written;
+  const byName = new Map(written.map((r) => [r.name, r]));
+  return changes.map((c) => {
+    const name = toAscii(c.name);
+    return (
+      skipped.get(name) ??
+      byName.get(name) ??
+      failed(name, 'NO_RESULT', 'The market returned no result for this name.')
+    );
+  });
+}
+
+/**
+ * Whether a synced listing already has every value a change asks for. Only
+ * the shared fields and the market's own settings that a listing carries
+ * are compared; anything else counts as a change.
+ */
+export function matches(
+  change: MarketListingChange,
+  listing: MarketListing,
+): boolean {
+  const same = (asked: unknown, has: unknown) =>
+    asked === undefined || (asked ?? null) === (has ?? null);
+  const amount = (v: string | null | undefined) =>
+    v == null ? v : String(Number(v));
+  if (
+    !same(amount(change.price), amount(listing.price)) ||
+    !same(amount(change.minOffer), amount(listing.minOffer)) ||
+    !same(amount(change.floor), amount(listing.floor)) ||
+    !same(change.buyNow, listing.buyNow) ||
+    !same(change.forSale, listing.forSale) ||
+    !same(change.currency, listing.currency) ||
+    !same(change.displayName, listing.displayName) ||
+    change.leaseToOwn !== undefined
+  ) {
+    return false;
+  }
+  const extra = change.extra;
+  if (!extra) return true;
+  if (extra.market !== listing.extra.market) return false;
+  if (extra.market === 'atom' && listing.extra.market === 'atom') {
+    return (
+      same(extra.tier, listing.tier) &&
+      same(extra.category, listing.extra.category) &&
+      same(extra.description?.trim(), listing.extra.description)
+    );
+  }
+  // Other markets' settings aren't all on the listing: always send.
+  return false;
 }
 
 /**
@@ -97,6 +187,7 @@ export async function writeMarketListings(
 export async function pushAskingPrices(
   accountId: string,
   names: readonly string[],
+  options: WriteOptions = {},
 ): Promise<MarketWriteResult[]> {
   const adapter = enabledAdapter(accountId);
   const prices = getListPrices();
@@ -128,15 +219,27 @@ export async function pushAskingPrices(
       changes.push({
         name,
         price: price.amount,
-        ...(price.minOffer ? { minOffer: price.minOffer } : {}),
+        // Only what the market has: Atom takes neither (its Make an Offer
+        // threshold is an account setting), and would refuse the change.
+        ...(price.minOffer && adapter.capabilities.minOffer
+          ? { minOffer: price.minOffer }
+          : {}),
         floor: adapter.capabilities.floor ? (price.floor ?? null) : undefined,
         currency: price.currency as MarketListingChange['currency'],
       });
     }
   }
+  // Listings stuck before the push get their checks re-run after it.
+  const stuck = stuckListings(
+    accountId,
+    changes.map((c) => c.name),
+  );
   const written = changes.length
-    ? await writeMarketListings(accountId, changes)
+    ? await writeMarketListings(accountId, changes, options)
     : [];
+  if (stuck.size && adapter.capabilities.relist && adapter.relist) {
+    await relistAfterPush(accountId, adapter, written, stuck);
+  }
   const byName = new Map(written.map((r) => [r.name, r]));
   return names.map((raw) => {
     const name = toAscii(raw);
@@ -152,6 +255,7 @@ export async function pushAskingPrices(
 export async function deleteMarketListings(
   accountId: string,
   names: readonly string[],
+  options: Pick<WriteOptions, 'silent'> = {},
 ): Promise<MarketWriteResult[]> {
   const adapter = enabledAdapter(accountId);
   const results = await inBatches(adapter, names, (batch) =>
@@ -161,8 +265,80 @@ export async function deleteMarketListings(
     accountId,
     results.filter((r) => r.ok).map((r) => r.name),
   );
-  broadcastPortfolioChanged();
+  if (!options.silent) broadcastPortfolioChanged();
   return results;
+}
+
+const STUCK: ReadonlySet<string> = new Set(['inactive', 'rejected', 'pending']);
+
+/** Names listed on the account whose listing is stuck, with that status. */
+function stuckListings(
+  accountId: string,
+  names: readonly string[],
+): Map<string, string> {
+  const wanted = new Set(names);
+  return new Map(
+    marketListings()
+      .filter(
+        (l) =>
+          l.accountId === accountId &&
+          wanted.has(l.name) &&
+          STUCK.has(l.status),
+      )
+      .map((l) => [l.name, l.status]),
+  );
+}
+
+/**
+ * After pushing prices, ask the market to re-run its checks on the names
+ * that were stuck: reactivate the inactive ones, resync the rest. Each
+ * result says how that went; a failed relist doesn't undo the prices.
+ */
+async function relistAfterPush(
+  accountId: string,
+  adapter: AnyMarketAdapter,
+  written: MarketWriteResult[],
+  stuck: Map<string, string>,
+): Promise<void> {
+  const relist = adapter.relist!.bind(adapter);
+  const byMode = new Map<RelistMode, string[]>();
+  for (const r of written) {
+    const status = r.ok ? stuck.get(r.name) : undefined;
+    if (!status) continue;
+    const mode: RelistMode = status === 'inactive' ? 'REACTIVATE' : 'RESYNC';
+    byMode.set(mode, [...(byMode.get(mode) ?? []), r.name]);
+  }
+  const outcome = new Map<string, MarketWriteResult['relisted']>();
+  for (const [mode, names] of byMode) {
+    try {
+      for (const r of await inBatches(adapter, names, (b) => relist(b, mode))) {
+        outcome.set(r.name, {
+          ok: r.ok,
+          message: r.ok ? null : (r.error?.message ?? 'The market refused it.'),
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      for (const name of names) outcome.set(name, { ok: false, message });
+    }
+  }
+  for (const r of written) {
+    const o = outcome.get(r.name);
+    if (o) r.relisted = o;
+  }
+  // Statuses move after a relist: read those names back.
+  const relisted = [...outcome].filter(([, o]) => o?.ok).map(([n]) => n);
+  if (relisted.length) {
+    const fresh = await adapter.getListings(relisted).catch(() => []);
+    putMarketListings(accountId, fresh);
+    for (const l of fresh) {
+      const r = written.find((w) => w.name === l.name);
+      if (r) {
+        r.saved = l;
+        r.pending = l.status === 'pending';
+      }
+    }
+  }
 }
 
 /** Ask the market to re-run its listing checks (Afternic's relist). */
@@ -285,4 +461,38 @@ export function listingAccount(name: string, accountId?: string): string {
       ? `${key} isn't listed on a connected market account; pass accountId to choose one.`
       : `${key} is listed in more than one market account; pass accountId.`,
   );
+}
+
+/**
+ * Put a temporary discount on a listing (Atom: whole dollars off until
+ * Monday); null clears it. Stores what the market saved.
+ */
+export async function setMarketDiscount(
+  accountId: string,
+  name: string,
+  amount: string | null,
+): Promise<MarketWriteResult> {
+  const adapter = enabledAdapter(accountId);
+  if (!adapter.capabilities.discount || !adapter.setDiscount) {
+    throw new Error(`Discounts are not supported for ${adapter.market}.`);
+  }
+  const result = await adapter.setDiscount(toAscii(name), amount);
+  if (result.ok && result.saved) putMarketListings(accountId, [result.saved]);
+  broadcastPortfolioChanged();
+  return result;
+}
+
+/** Ask the market to check a name's DNS now (Atom's verify). */
+export async function verifyMarketDns(
+  accountId: string,
+  name: string,
+): Promise<MarketWriteResult> {
+  const adapter = enabledAdapter(accountId);
+  if (!adapter.capabilities.verifyDns || !adapter.verifyDns) {
+    throw new Error(`DNS verification is not supported for ${adapter.market}.`);
+  }
+  const result = await adapter.verifyDns(toAscii(name));
+  if (result.ok && result.saved) putMarketListings(accountId, [result.saved]);
+  broadcastPortfolioChanged();
+  return result;
 }

@@ -17,6 +17,7 @@ import {
   Trash2,
   Undo2,
   X,
+  CircleX,
 } from 'lucide-react';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
@@ -87,7 +88,7 @@ export function BulkBar({
   onOwnership: (action: OwnershipAction) => void;
   /** Set or clear the selection's asking price. */
   onListPrice: () => void;
-  /** List, relist or delist on a market; absent with no market account. */
+  /** List or delist on a market; absent with no market account. */
   onMarket?: (action: MarketAction) => void;
   /** The market's name for the menu, e.g. "Afternic" (or "markets"). */
   marketLabel?: string;
@@ -256,41 +257,29 @@ export function BulkBar({
                   Pricing<span className="-ml-[6px] opacity-50">…</span>
                 </DropdownMenuItem>
                 {onMarket && (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
+                  <>
+                    <DropdownMenuItem
+                      disabled={Boolean(marketReasons?.list)}
+                      title={marketReasons?.list ?? undefined}
+                      onSelect={() => onMarket('list')}
+                    >
                       <MarketLogo
                         market={marketId}
                         label={marketLabel}
                         className="size-4 p-[1.5px] text-muted-foreground"
                       />
-                      {marketLabel}
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuItem
-                        disabled={Boolean(marketReasons?.list)}
-                        title={marketReasons?.list ?? undefined}
-                        onSelect={() => onMarket('list')}
-                      >
-                        List at your prices
-                        <span className="-ml-[6px] opacity-50">…</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled={Boolean(marketReasons?.relist)}
-                        title={marketReasons?.relist ?? undefined}
-                        onSelect={() => onMarket('relist')}
-                      >
-                        Relist<span className="-ml-[6px] opacity-50">…</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        variant="destructive"
-                        disabled={Boolean(marketReasons?.delist)}
-                        title={marketReasons?.delist ?? undefined}
-                        onSelect={() => onMarket('delist')}
-                      >
-                        Delist<span className="-ml-[6px] opacity-50">…</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
+                      List at your prices
+                      <span className="-ml-[6px] opacity-50">…</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={Boolean(marketReasons?.delist)}
+                      title={marketReasons?.delist ?? undefined}
+                      onSelect={() => onMarket('delist')}
+                    >
+                      <CircleX className="text-muted-foreground" />
+                      Delist<span className="-ml-[6px] opacity-50">…</span>
+                    </DropdownMenuItem>
+                  </>
                 )}
                 <DropdownMenuSeparator />
               </>

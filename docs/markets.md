@@ -6,8 +6,12 @@ bulk writes, MCP). Each market's own API, quirks and client are in its plan:
 
 - [afternic-api.md](afternic-api.md): client built
   (`src/core/markets/afternic/`), verified live.
-- [atom-api.md](atom-api.md): plan only; no API key yet.
-- [sedo-api.md](sedo-api.md): plan only; needs Sedo partner access.
+- [atom-api.md](atom-api.md): client and adapter
+  (`src/core/markets/atom/`, `src/core/services/markets/atom.ts`); reads
+  and writes verified live.
+- [sedo-api.md](sedo-api.md): client and adapter built
+  (`src/core/markets/sedo/`, `src/core/services/markets/sedo.ts`), verified
+  live (reads and writes).
 
 Atom's and Sedo's plans each proposed a first cut of shared types. This doc
 replaces both; where they disagreed, the choice and the reason are below.
@@ -311,15 +315,46 @@ saved, so the Domains table shows it before the next sync.
   That runs directly in the request (the desktop app, or the Worker, where
   waiting on the network doesn't count against its CPU time), and returns
   one result per name.
-- **Atom, later:** one name a call, so a large push takes hours. That's when
-  market accounts join DomBot's bulk runner
-  (`src/core/services/bulk-jobs.ts`) as lanes next to registrars: persisted,
-  resumable after a restart, progress per name. `market_listings_set` then
-  returns a bulk job for markets with a small `writeBatch`, and a
-  `market_job_get` tool reads it.
+- **Atom, built:** one name a call, so a large push takes hours. More than
+  10 names on such a market (`writeBatch` 1) run as a **market job** in
+  DomBot's bulk runner (`src/core/services/bulk-jobs.ts`, "Market jobs"):
+  one lane per market account, persisted, a name at a time per account
+  about a second apart (the market's rate, when it publishes one). Names
+  whose synced listing already has the asked values are skipped without a
+  call. A rate-limited name goes back in the queue (up to three times);
+  every other outcome is final, since a write is never retried. It's a job
+  of its own beside the registrar job, so an hours-long push doesn't hold
+  up registrar bulk operations, and unlike a registrar job it resumes after
+  a restart (a name that was mid-request is recorded as unknown, not
+  re-sent). The Domains table's List and Delist dialog follows it with
+  progress and a Stop button; MCP's `market_listings_set` and
+  `market_listings_delete` return `{ job }`, and `market_job_get` reads it.
+  The web host's Worker can't hold the loop, so each progress read runs it
+  for a few seconds.
 - Afternic's CSV jobs (`runJob`) stay available for pushes past what the
   `$each` calls handle comfortably; nothing uses them yet.
+- **Sedo, built:** 50 names a call, the same direct path.
 - Writes that cost money (`capabilities.spends`) need a confirmed total first.
+
+## Domains table and actions
+
+- **A listing column per connected market** (Afternic, Atom, Sedo, …), in the slot
+  saved layouts call `listing`, so a name listed on two markets stays on one
+  line: the price (or "Offers"), a status dot, and the status when it isn't
+  active. A name can only be in one account per market, so each cell holds
+  one listing. A table with every market side by side may follow on the
+  Markets page.
+- **The Listing filter** (price-tag icon) filters by market and status and
+  keeps the filtered markets' columns on screen.
+- **List at your price** pushes DomBot's asking prices to every market account
+  you tick (all of them to start), one account after another, with results
+  grouped by market. A listing that was inactive, rejected or stuck pending
+  also gets the market's checks re-run (`relist`), so there's no separate
+  Relist action in the app; `market_listings_relist` stays for agents.
+- **Delist** ticks accounts the same way, starting from those that list the
+  names.
+- Both sit directly beside Pricing in the row menu and the bulk bar; a
+  Markets submenu returns when these menus are split into submenus.
 
 ## Settings → Markets
 
@@ -327,7 +362,82 @@ As in the Afternic plan, generalized: one card per market account, built from
 the adapter's `configFields` and `test()`, with the same ⋯ menu as registrar
 cards. Market-specific rows come from capabilities: listing defaults where
 `accountSettings`, a rate-limit field where `rateLimit` is null, the
-partner-access note for Sedo, the API-beta note for Atom.
+partner-access note for Sedo, the API-access note for Atom. What an account
+has shows as status dots (`MarketSyncState.status`), such as Afternic's
+Discount Domain Club Domain Pro, which decides whether search counts come
+back; sync keeps it current.
+
+## Ownership verification
+
+**Planned, not built.** Every market checks that you own a name before its
+listing goes live or for sale, and the APIs mostly don't report it or offer a
+way to complete it. Afternic keeps a listing `PENDING` until the name points
+at its nameservers. Sedo lists a new name not for sale, refuses to change
+that (`E3124`), and shows it under "Ownership Verification Pending" on
+sedo.com (seen live, docs/sedo-api.md). Atom checks DNS "at random
+intervals" unless asked to check now.
+
+### The four ways markets verify
+
+Most markets accept two or three of these:
+
+| Method                   | What you set                                            | Example                                                            |
+| ------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------ |
+| Default nameservers      | The name's nameservers, to the market's shared pair     | `ns1/ns2.afternic.com`, `ns1.sedo.com`                             |
+| Per-customer nameservers | The name's nameservers, to a pair assigned to you       | `xxx3434-ns.atom.com`                                              |
+| TXT record               | A TXT record holding a verification ID from the market  | Sedo: one ID per account, shown in its dashboard                   |
+| CNAME record             | A CNAME from the verification ID to the market's target | Sedo: host `<verification ID>`, value `verify.sedo.com.`, TTL 3600 |
+
+What each costs:
+
+- **Nameservers** hand the name's DNS to the market, which then serves its
+  lander or parked page. That ends whatever the name did before: a website,
+  or email (domainio.com, for one, forwards mail through ImprovMX). Some
+  features need it anyway: Afternic's lander and Fast Transfer, Atom
+  Premium.
+- **Shared nameservers don't prove ownership on their own.** Anyone can
+  point a name at a market's shared pair, so for a name another account
+  already lists, only per-customer nameservers, a TXT record or a CNAME
+  settle it. Seen with domanio.com on Sedo (2026-10-28): pointing it at
+  `ns1/ns2.sedoparking.com` left it in the other account, and DomBot moved
+  it back to 101domain's nameservers to add Sedo's TXT ID instead.
+- **TXT and CNAME** leave DNS where it is and add one record. They need the
+  name's DNS hosted at a registrar account DomBot is connected to, and every
+  existing record kept: registrar DNS APIs mostly replace the whole record
+  set, so DomBot reads, adds and writes back (done by hand on domainio.com,
+  2026-10-28: Sedo's TXT ID added beside its A, MX and SPF records). A
+  registrar or DNS host only manages records while the name uses its
+  nameservers (101domain says `NAMESERVERS_NOT_LOCAL`), so a name pointed at
+  a market's nameservers has to move back before it can take a TXT or
+  CNAME record.
+
+### What DomBot will need
+
+- **Settings, per market account** (stored on the `market-accounts` record;
+  they aren't secrets): the verification ID (used by both TXT and CNAME), any
+  custom nameservers assigned to you, and which method you prefer.
+- **Capabilities, per market:** which methods it accepts, its default
+  nameservers and CNAME target, and whether it has a "check now" call (Atom's
+  verify DNS). Settings shows only the fields a market's methods need.
+  Atom's check-now allows one request per account every 12 hours, for any
+  name (seen live, docs/atom-api.md): the action should apply DNS to every
+  selected name first and ask once, not once per name.
+- **A "Verify ownership" action** for selected names on an account, in the
+  Domains table and as an MCP tool (`domain_listing_verify`, generalized from
+  Atom's). For each name, it applies the chosen method through the registrar
+  account that holds it (nameservers via the registrar, TXT or CNAME via a
+  DNS read-merge-write), asks the market to check now when it can, and
+  reports per name: done, DNS not hosted at the registrar, registrar not
+  connected, or the registrar has no DNS API. Changing nameservers asks first
+  and says what the name will stop doing.
+- **Maybe a per-account preference to verify on list,** off by default,
+  since it changes DNS. With it on, listing a name also runs the action.
+- **Status:** a name stays `pending` until the market puts it up for sale
+  (already the case for Sedo, `asyncInsert`), and the account card says how
+  many are waiting.
+
+Open: whether a TXT or CNAME record can be removed once a market has
+verified a name, and how each market reports a failed check.
 
 ## MCP
 
@@ -353,19 +463,19 @@ Sales and stats: `market_sales`, `market_sale_get`, `market_stats_get`,
 Market-only actions, each with a `market` parameter and gated by a
 capability:
 
-| Tool                           | Capability        | Market     |
-| ------------------------------ | ----------------- | ---------- |
-| `market_sale_auth_code_set`    | `saleAuthCode`    | Afternic   |
-| `market_sale_message_send`     | `saleMessages`    | Afternic   |
-| `market_settings_get`/`_set`   | `accountSettings` | Afternic   |
-| `market_listings_relist`       | `relist`          | Afternic   |
-| `domain_listing_discount_set`  | `discount`        | Atom       |
-| `domain_listing_verify`        | `verifyDns`       | Atom       |
-| `domain_listing_boost`         | `spends`          | Atom       |
-| `market_grading_submit`/`_get` | —                 | Atom       |
-| `domain_appraisal_get`         | —                 | Atom       |
-| `market_categories_get`        | —                 | Atom, Sedo |
-| `market_payments_get`          | `parkingEarnings` | Sedo       |
+| Tool                           | Capability                            | Market     |
+| ------------------------------ | ------------------------------------- | ---------- |
+| `market_sale_auth_code_set`    | `saleAuthCode`                        | Afternic   |
+| `market_sale_message_send`     | `saleMessages`                        | Afternic   |
+| `market_settings_get`/`_set`   | `accountSettings`                     | Afternic   |
+| `market_listings_relist`       | `relist`                              | Afternic   |
+| `domain_listing_discount_set`  | `discount`                            | Atom       |
+| `domain_listing_verify`        | (planned, see Ownership verification) | All        |
+| `domain_listing_boost`         | `spends`                              | Atom       |
+| `market_grading_submit`/`_get` | —                                     | Atom       |
+| `domain_appraisal_get`         | —                                     | Atom       |
+| `market_categories_get`        | —                                     | Atom, Sedo |
+| `market_payments_get`          | `parkingEarnings`                     | Sedo       |
 
 Anything that spends money takes `confirmSpend: true`; anything that reaches
 a person (a sale message) says so in its description.
@@ -378,16 +488,24 @@ a person (a sale message) says so in its description.
 2. **Afternic phase 4 on top of them** (done): storage namespaces, sync,
    Settings → Markets, listing columns and the Listing filter, `sold`
    events, read-only MCP tools.
-3. **Afternic phases 5–6:** writes through the bulk runner, reporting.
+3. **Afternic phases 5–6** (done): writes, reporting.
 4. **Atom and Sedo** when there are credentials: client, then an adapter, then
    their capability-gated extras. Atom's API access needs approval and 500+
-   listings; Sedo needs a partner ID and sign key.
+   listings; Sedo needs a partner ID and sign key. Both are done: built from
+   their docs, then verified live once credentials arrived (2026-10-28).
+   Atom also brought market bulk jobs (see "Bulk writes"). Status and
+   what's left: atom-api.md, "Status"; sedo-api.md.
+5. **Ownership verification** for every market: planned above, not built.
 
 ## Open questions
 
 1. The `marketSale` link on `DomainEvent`: confirm it against
    docs/storage-model.md's rules before phase 4 writes the first event.
-2. Do Atom and Sedo report errors with HTTP 200 for every failure? Both plans
-   suspect so; adapters must check bodies either way.
-3. Market rate limits for Atom and Sedo are unpublished; the defaults (60 a
-   minute, one a second) are guesses until 429s or the markets say.
+2. Do Atom and Sedo report errors with HTTP 200 for every failure? Both
+   do, checked live: Atom answers every failure with a lone `message`
+   (atom-api.md, "Observed"), Sedo with a fault document. Adapters check
+   bodies either way.
+3. Market rate limits for Atom and Sedo are unpublished. Atom drew no
+   throttling at about 300 calls a minute, and its client paces at 120; its
+   DNS check is limited to one per account every 12 hours. Sedo's default
+   (60 a minute) is a guess until throttling shows or Sedo says.

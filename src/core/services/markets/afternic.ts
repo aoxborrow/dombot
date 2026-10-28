@@ -14,6 +14,7 @@ import {
   type RelistMode,
   type SaleStatus,
 } from '../../markets/afternic';
+import { SEARCH_DATA_FLAG } from '../../../shared/markets';
 import {
   MarketUnsupportedError,
   type AfternicActions,
@@ -352,13 +353,15 @@ export class AfternicAdapter implements MarketAdapter, AfternicActions {
 
   async test(): Promise<MarketTestResult> {
     const page = await this.client.listListings({ limit: 1 });
-    const notes: string[] = [];
-    if (page.listings.length && !page.listings[0].searches) {
-      notes.push(
-        'No search data on this account (Discount Domain Club Domain Pro only).',
-      );
-    }
-    return { listings: page.total, notes };
+    // Search counts come only to Discount Domain Club Domain Pro members, so
+    // a listing with or without them says which the account is.
+    return {
+      listings: page.total,
+      notes: [],
+      status: page.listings.length
+        ? [{ label: SEARCH_DATA_FLAG, on: page.listings[0].searches != null }]
+        : [],
+    };
   }
 
   async allListings() {

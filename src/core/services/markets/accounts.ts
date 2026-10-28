@@ -130,6 +130,7 @@ export async function connectMarketAccount(
     sales: 0,
     incomplete: false,
     notes: test.notes,
+    status: test.status ?? [],
   });
   return marketAccountViews().find((a) => a.id === id)!;
 }

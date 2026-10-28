@@ -114,6 +114,7 @@ describe('mostSearched', () => {
       ({
         name,
         extra: {
+          market: 'afternic',
           searches:
             days30 === null
               ? null

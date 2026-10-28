@@ -1,10 +1,25 @@
 import type { MarketId, MarketInfo } from '../../../shared/markets';
-import type { AfternicActions, MarketAdapter } from '../../markets/types';
+import type {
+  AfternicActions,
+  AtomActions,
+  MarketAdapter,
+  SedoActions,
+} from '../../markets/types';
 import {
   AFTERNIC_CAPABILITIES,
   AFTERNIC_CONFIG_FIELDS,
   createAfternicAdapter,
 } from './afternic';
+import {
+  ATOM_CAPABILITIES,
+  ATOM_CONFIG_FIELDS,
+  createAtomAdapter,
+} from './atom';
+import {
+  SEDO_CAPABILITIES,
+  SEDO_CONFIG_FIELDS,
+  createSedoAdapter,
+} from './sedo';
 
 // The markets DomBot supports (docs/markets.md): what Settings shows for
 // each, and how to build its adapter from an account's stored credentials.
@@ -13,7 +28,10 @@ import {
 export type Credentials = Record<string, string>;
 
 /** An adapter, plus whichever market-only actions its market has. */
-export type AnyMarketAdapter = MarketAdapter & Partial<AfternicActions>;
+export type AnyMarketAdapter = MarketAdapter &
+  Partial<AfternicActions> &
+  Partial<AtomActions> &
+  Partial<SedoActions>;
 
 interface MarketEntry {
   info: MarketInfo;
@@ -34,6 +52,36 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     },
     create: (accountId, credentials) =>
       createAfternicAdapter(accountId, credentials),
+  },
+  // Checked live, reads and writes (docs/atom-api.md).
+  atom: {
+    info: {
+      id: 'atom',
+      name: 'Atom',
+      website: 'atom.com',
+      keysUrl: 'https://www.atom.com/dashboard/seller/api-access',
+      helpText:
+        'Request API access under Dashboard → API Access on atom.com, then paste the API token and the user ID shown with it.',
+      configFields: ATOM_CONFIG_FIELDS,
+      capabilities: ATOM_CAPABILITIES,
+    },
+    create: (accountId, credentials) =>
+      createAtomAdapter(accountId, credentials),
+  },
+  // Checked live, reads and writes (docs/sedo-api.md).
+  sedo: {
+    info: {
+      id: 'sedo',
+      name: 'Sedo',
+      website: 'sedo.com',
+      keysUrl: 'https://sedo.com/',
+      helpText:
+        'Sedo’s API needs a partner ID and sign key, which Sedo grants on request (ask Sedo support for API access), plus your Sedo username and password. Sedo’s API has no sales, so record Sedo sales by hand or import Sedo’s CSV export.',
+      configFields: SEDO_CONFIG_FIELDS,
+      capabilities: SEDO_CAPABILITIES,
+    },
+    create: (accountId, credentials) =>
+      createSedoAdapter(accountId, credentials),
   },
 };
 

@@ -341,11 +341,13 @@ Storage:
 
 ### Listings
 
-- **Listing columns and filters** on the Domains table: listed on Afternic or
-  not, listing status (`ACTIVE`, `PENDING`, `INACTIVE`, `FAILED_COMPLIANCE`, …),
+- **Listing columns and filters** on the Domains table: an Afternic column
+  (one per connected market, see markets.md), listed on Afternic or not,
+  listing status (`ACTIVE`, `PENDING`, `INACTIVE`, `FAILED_COMPLIANCE`, …),
   Fast Transfer status, lease-to-own on/off, offer count, and for Domain Pro
   members GoDaddy searches (total and unique, 30/90/365 days).
-- **Bulk from the table:** list, reprice, delist and relist a selection,
+- **Bulk from the table:** list, reprice and delist a selection (listing
+  also relists any that were stuck, see below),
   through `$each` calls in chunks of 500 with per-name results shown the way
   DomBot's own bulk operations show them. Whole-portfolio pushes and big
   imports go through Afternic jobs, with progress from `percentComplete`.
@@ -362,7 +364,10 @@ Storage:
   recognizes Afternic nameservers (`src/renderer/lib/nameservers.ts`).
 - **Things to flag:** names on Afternic nameservers but not listed (we found
   dnslayer.com and phoneformat.com), listings for names no longer in any
-  account, `INACTIVE`/`FAILED_COMPLIANCE` listings with a Relist action.
+  account, `INACTIVE`/`FAILED_COMPLIANCE` listings. There's no separate
+  Relist action: listing a name at your price relists it when it was
+  inactive (`REACTIVATE`), rejected or stuck pending (`RESYNC`), since
+  updating a listing alone doesn't re-run Afternic's checks.
 
 ### Sales
 
@@ -423,8 +428,8 @@ job.
    Settings → Markets with Afternic accounts; sync
    listings and sales, listing columns/filters (including searches and
    offers), sales as `sold` events; the read-only MCP tools. Done.
-5. **DomBot, writes:** list at your DomBot prices, relist and delist from
-   the table, auth-code automation from the bell, the MCP write tools.
+5. **DomBot, writes:** list at your DomBot prices (relisting stuck
+   listings along the way) and delist from the table, auth-code automation from the bell, the MCP write tools.
    Done; Afternic writes run directly in 500-name batches (see
    [markets.md](markets.md#bulk-writes)).
 6. **DomBot, reporting:** per-domain views and leads fetched a slice per

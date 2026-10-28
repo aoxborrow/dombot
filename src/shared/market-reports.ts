@@ -1,4 +1,9 @@
-import type { MarketListing, MarketSale, MarketStatsDay } from './markets';
+import {
+  searchesOf,
+  type MarketListing,
+  type MarketSale,
+  type MarketStatsDay,
+} from './markets';
 
 // Market reporting (docs/afternic-api.md, "Reporting"): sales by year, traffic
 // by month, sell-through and search demand, from what market sync stored.
@@ -160,11 +165,11 @@ export function mostSearched(
   limit = 25,
 ): MarketListing[] {
   return listings
-    .filter((l) => l.extra.searches?.total.days30 != null)
+    .filter((l) => searchesOf(l)?.total.days30 != null)
     .sort(
       (a, b) =>
-        (b.extra.searches?.total.days30 ?? 0) -
-          (a.extra.searches?.total.days30 ?? 0) || a.name.localeCompare(b.name),
+        (searchesOf(b)?.total.days30 ?? 0) -
+          (searchesOf(a)?.total.days30 ?? 0) || a.name.localeCompare(b.name),
     )
     .slice(0, limit);
 }

@@ -47,8 +47,11 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 type Values = Record<string, string>;
 
+/** The message alone, without Electron's IPC prefix or the error's class. */
 const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+  (error instanceof Error ? error.message : String(error))
+    .replace(/^Error invoking remote method '[^']+':\s*/, '')
+    .replace(/^\w*Error:\s*/, '');
 const count = (n: number, noun: string) =>
   `${n.toLocaleString()} ${noun}${n === 1 ? '' : 's'}`;
 
@@ -590,6 +593,35 @@ function MarketCard({
         )}
 
         <CollapsibleContent className="border-t px-5 py-4">
+          {account.sync?.status?.length ? (
+            <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              {account.sync.status.map((flag) => (
+                <li
+                  key={flag.label}
+                  className={cn(
+                    'flex items-center gap-2',
+                    !flag.on && 'text-muted-foreground',
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'size-2 shrink-0 rounded-full',
+                      flag.on
+                        ? 'bg-emerald-500'
+                        : 'border border-muted-foreground/60',
+                    )}
+                  />
+                  <span>
+                    {flag.label}
+                    <span className="sr-only">
+                      {flag.on ? ': yes' : ': no'}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {account.sync?.notes.map((note) => (
             <p key={note} className="mb-3 text-sm text-muted-foreground">
               {note}
@@ -600,7 +632,15 @@ function MarketCard({
               e.preventDefault();
               void run('save', () =>
                 window.api.saveMarketCredentials(account.id, values),
-              ).then((ok) => ok && setOriginal(values));
+              ).then((ok) => {
+                if (ok) setOriginal(values);
+                // The key is tested before it's saved, so a refused one
+                // changes nothing: say so.
+                else
+                  setError(
+                    (e) => `${e} Nothing was saved; the account keeps its key.`,
+                  );
+              });
             }}
           >
             <MarketHelp market={market} />
@@ -618,7 +658,13 @@ function MarketCard({
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <Button
                 type="submit"
-                disabled={busy !== null || !changed || !filled(market, values)}
+                // After a refused save, Save stays on even with the saved
+                // values back in the fields, so it can always be retried.
+                disabled={
+                  busy !== null ||
+                  !(changed || error) ||
+                  !filled(market, values)
+                }
               >
                 {busy === 'save' ? 'Saving…' : 'Save'}
               </Button>

@@ -71,9 +71,19 @@ export function recordSaleEvents(
   sales: readonly MarketSale[],
   held: ReadonlySet<string>,
   today: string,
-  now: number = Date.now(),
+  options: {
+    now?: number;
+    /** Every market account that exists; with it, a sale's event kept from
+     *  a removed account (reconnected under a new id) is relinked, not
+     *  written again. */
+    liveAccounts?: ReadonlySet<string>;
+  } = {},
 ): SaleEventsResult {
+  const now = options.now ?? Date.now();
   const result: SaleEventsResult = { written: 0, linked: 0, skipped: 0 };
+  if (options.liveAccounts) {
+    result.linked += relinkOrphans(sales, options.liveAccounts, now);
+  }
   const recorded = new Set(
     listEvents()
       .map((e) => e.marketSale)
@@ -149,6 +159,53 @@ export function recordSaleEvents(
   }
   if (writes.length) putEvents(writes);
   return result;
+}
+
+/** The sale id in a `market-sales` key (`${accountId}:${saleId}`). */
+function saleIdOf(key: string): string {
+  return key.slice(key.indexOf(':') + 1);
+}
+
+/**
+ * Sold events linked to these sales under an account that no longer exists:
+ * the account was removed and reconnected, so its sales came back under a
+ * new id. The first such event for a sale is relinked to it; any more, or
+ * all of them when the sale already has its event, were duplicates and go.
+ * Returns how many were relinked.
+ */
+function relinkOrphans(
+  sales: readonly MarketSale[],
+  live: ReadonlySet<string>,
+  now: number,
+): number {
+  const events = listEvents();
+  const linked = new Set(events.map((e) => e.marketSale).filter(Boolean));
+  const relink: DomainEvent[] = [];
+  const remove: string[] = [];
+  for (const sale of sales) {
+    const key = saleKey(sale);
+    const orphans = events.filter(
+      (e) =>
+        e.type === DomainEventType.Sold &&
+        e.domain === sale.name &&
+        e.marketSale &&
+        e.marketSale !== key &&
+        !live.has(e.marketSale.slice(0, e.marketSale.indexOf(':'))) &&
+        saleIdOf(e.marketSale) === sale.id,
+    );
+    if (!orphans.length) continue;
+    const [first, ...rest] = orphans;
+    if (linked.has(key)) {
+      remove.push(...orphans.map((e) => e.id));
+    } else {
+      relink.push({ ...first, marketSale: key, updatedAt: now });
+      linked.add(key);
+      remove.push(...rest.map((e) => e.id));
+    }
+  }
+  if (remove.length) deleteDomainEvents(remove);
+  if (relink.length) putEvents(relink);
+  return relink.length;
 }
 
 /**

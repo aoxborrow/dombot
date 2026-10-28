@@ -8,7 +8,7 @@ import {
   sellThrough,
   trafficByMonth,
 } from '../../shared/market-reports';
-import { trafficTotals } from '../services/markets/traffic';
+import { storedTraffic, trafficTotals } from '../services/markets/traffic';
 import {
   activeMarketAccounts,
   marketAccount,
@@ -17,20 +17,32 @@ import {
 } from '../services/markets/accounts';
 import { marketInfo } from '../services/markets/registry';
 import {
+  advanceMarketBulk,
+  cancelMarketBulk,
+  startMarketBulk,
+} from '../services/bulk-jobs';
+import {
   deleteMarketListings,
   listingAccount,
   pushAskingPrices,
   relistMarketListings,
   sendSaleMessage,
+  setMarketDiscount,
   setMarketListingDefaults,
   setSaleAuthCode,
+  verifyMarketDns,
   writeMarketListings,
 } from '../services/markets/writes';
-import type {
-  MarketListing,
-  MarketListingChange,
-  MarketSale,
-  MarketWriteResult,
+import {
+  searchesOf,
+  type AfternicExtraChange,
+  type AtomExtraChange,
+  type MarketBulkJob,
+  type MarketListing,
+  type MarketListingChange,
+  type MarketSale,
+  type MarketWriteResult,
+  type SedoExtraChange,
 } from '../../shared/markets';
 import {
   marketAccountStats,
@@ -105,7 +117,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'List market accounts',
       description:
-        'List every connected marketplace account (Afternic, …) with its `accountId`, `market`, `label`, whether it is `configured` and `enabled`, its last `sync` (when, listing and sale counts, any error), and what its market supports (`capabilities`). No secrets. Start here before the other market_* tools.',
+        'List every connected marketplace account (Afternic, Atom, Sedo) with its `accountId`, `market`, `label`, whether it is `configured` and `enabled`, its last `sync` (when, listing and sale counts, any error), and what its market supports (`capabilities`). No secrets. Start here before the other market_* tools.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -151,7 +163,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'Query market listings',
       description:
-        'List and filter your listings on marketplaces, as last synced (run market_sync to refresh). Each row is one name on one market: `status` (active, pending, inactive, rejected, on_hold, sold), `statusRaw` (the market’s word), `forSale`, `price` (with `buyNow`: buyers can pay it outright), `minOffer`, `floor`, `currency`, `leaseToOwn`, and `extra` with the market’s own fields (Afternic: lander, Fast Transfer, registrar, offer count, GoDaddy search counts for Domain Pro members). Prices are decimal strings. Returns { total, rows }; page with `limit`/`offset`.',
+        'List and filter your listings on marketplaces, as last synced (run market_sync to refresh). Each row is one name on one market: `status` (active, pending, inactive, rejected, on_hold, sold), `statusRaw` (the market’s word), `forSale`, `price` (with `buyNow`: buyers can pay it outright), `minOffer`, `floor`, `currency`, `leaseToOwn`, and `extra` with the market’s own fields (Afternic: lander, Fast Transfer, registrar, offer count, GoDaddy search counts for Domain Pro members; Sedo: categories, language, lifetime parking earnings, parking keywords; Atom: category, description, and for Premium names whether Atom lets you list them elsewhere, plus `tier` and a `discount` that lasts until Monday; sold Atom names stay listed with status sold). Prices are decimal strings. Returns { total, rows }; page with `limit`/`offset`.',
       inputSchema: {
         market: marketId,
         accountId,
@@ -213,7 +225,7 @@ export function registerMarketTools(server: McpServer): void {
           case 'listedAt':
             return l.listedAt;
           case 'searches30':
-            return l.extra.searches?.total.days30 ?? null;
+            return searchesOf(l)?.total.days30 ?? null;
           default:
             return l.name;
         }
@@ -280,6 +292,14 @@ export function registerMarketTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
     },
     async (args) => {
+      const asked = args.accountId
+        ? marketAccount(args.accountId).market
+        : args.market;
+      if (asked && !marketInfo(asked).capabilities.sales) {
+        throw new Error(
+          `Sales are not supported for ${asked}: its API has no sales. Record them with domain_sale_set.`,
+        );
+      }
       const ids = args.accountId
         ? new Set([marketAccount(args.accountId).id])
         : null;
@@ -312,7 +332,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'Get market account stats',
       description:
-        'Daily traffic for a market account, as stored by sync (up to a year): `views` and `leads` on Afternic, and whatever else the market reports. With `days`, only the most recent that many. Returns { accountId, days, totals }. Markets without account-level stats say so.',
+        'Daily traffic for a market account, as stored by sync (up to a year): `views` and `leads` on Afternic; parking `views` (visitors), `clicks` and `earnings` on Sedo, which keeps only the last 31 days. With `days`, only the most recent that many. Returns { accountId, days, totals }. Markets without account-level stats say so.',
       inputSchema: {
         accountId: z.string().max(64).describe('From market_list.'),
         days: z.number().int().min(1).max(365).optional(),
@@ -342,7 +362,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'Get a domain’s market stats',
       description:
-        'Daily views and leads for one listed domain, read live from the market that lists it (one API call per account). Pass `accountId` when the name is listed in more than one account. Returns { domain, accounts: [{ accountId, days, totals }] }.',
+        'Daily views and leads for one listed domain, read live from the market that lists it (one API call per account). Markets that only report running totals (Atom) answer from what sync stored instead: the views each day added, worked out from those totals once sync has read them twice, plus the latest `counters` (views, shortlists, offers). Pass `accountId` when the name is listed in more than one account. Returns { domain, accounts: [{ accountId, days, totals, counters? }] }.',
       inputSchema: {
         domain: z.string().min(1).max(253),
         accountId,
@@ -375,6 +395,27 @@ export function registerMarketTools(server: McpServer): void {
       const accounts = [];
       for (const accountId of ids) {
         const adapter = marketAdapter(accountId);
+        if (adapter.capabilities.domainStats === 'snapshot') {
+          const kept = storedTraffic(accountId, name);
+          const since = new Date(Date.now() - ((days ?? 30) - 1) * 86_400_000)
+            .toISOString()
+            .slice(0, 10);
+          const rows = Object.entries(kept?.days ?? {})
+            .filter(([date]) => date >= since)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, [views]]) => ({ date, views, source: 'derived' }));
+          accounts.push({
+            accountId,
+            days: rows,
+            totals: {
+              views: rows.reduce((n, d) => n + d.views, 0),
+              leads: null,
+            },
+            counters: kept?.counters ?? null,
+            fetchedAt: kept ? new Date(kept.fetchedAt).toISOString() : null,
+          });
+          continue;
+        }
         if (!adapter.domainStats) {
           throw new Error(
             `Per-domain stats are not supported for ${adapter.market}.`,
@@ -413,6 +454,65 @@ export function registerMarketTools(server: McpServer): void {
         );
       }
       return json(await adapter.getListingDefaults());
+    },
+  );
+
+  server.registerTool(
+    'market_categories_get',
+    {
+      title: 'Get listing categories',
+      description:
+        'The categories and name languages a market account’s listings can use, read live (Sedo: up to three category ids per name, and an ISO 639-1 language, both set through the `sedo` settings of domain_listing_set; Atom: primary categories, set by name through the `atom` settings, and no languages). Returns { categories: [{ id, name, parentId }], languages: [{ code, name }] }. Markets without categories say so.',
+      inputSchema: {
+        accountId: z.string().max(64).describe('From market_list.'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ accountId: id }) => {
+      const adapter = marketAdapter(id);
+      if (adapter.primaryCategories) {
+        const categories = await adapter.primaryCategories();
+        return json({
+          categories: categories.map((c) => ({ ...c, parentId: null })),
+          languages: [],
+        });
+      }
+      if (!adapter.categories || !adapter.languages) {
+        throw new Error(`Categories are not supported for ${adapter.market}.`);
+      }
+      return json({
+        categories: await adapter.categories(),
+        languages: await adapter.languages(),
+      });
+    },
+  );
+
+  server.registerTool(
+    'market_payments_get',
+    {
+      title: 'Get parking payments',
+      description:
+        'Parking payouts a market account received for one month, read live (Sedo). `month` is any day in it, YYYY-MM-DD. Returns { accountId, payments: [{ month, earnings }] }; earnings are decimal strings. Markets without parking earnings say so.',
+      inputSchema: {
+        accountId: z.string().max(64).describe('From market_list.'),
+        month: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .describe('A day in the month, e.g. 2026-09-01.'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ accountId: id, month }) => {
+      const adapter = marketAdapter(id);
+      if (!adapter.capabilities.parkingEarnings || !adapter.parkingPayments) {
+        throw new Error(
+          `Parking payments are not supported for ${adapter.market}.`,
+        );
+      }
+      return json({
+        accountId: id,
+        payments: await adapter.parkingPayments(month),
+      });
     },
   );
 
@@ -512,6 +612,12 @@ const changeShape = {
     .describe(
       'The listed price (BIN on Afternic); null clears it, leaving offers only.',
     ),
+  buyNow: z
+    .boolean()
+    .optional()
+    .describe(
+      'Whether buyers can pay `price` outright (Sedo: fixed price, at least 199 USD or EUR) or it is an asking price open to offers. Afternic prices are always Buy Now.',
+    ),
   minOffer: money
     .optional()
     .describe('Lowest offer that starts a negotiation.'),
@@ -544,6 +650,41 @@ const changeShape = {
     })
     .optional()
     .describe('Afternic’s own listing settings: what the name’s page shows.'),
+  sedo: z
+    .object({
+      categories: z
+        .array(z.number().int().positive())
+        .max(3)
+        .optional()
+        .describe('Up to three Sedo category ids (market_categories_get).'),
+      language: z
+        .string()
+        .length(2)
+        .optional()
+        .describe('ISO 639-1 language of the name; Sedo defaults to en.'),
+    })
+    .optional()
+    .describe('Sedo’s own listing fields.'),
+  atom: z
+    .object({
+      tier: z
+        .enum(['standard', 'plus'])
+        .optional()
+        .describe(
+          'For a new listing: Standard (7.5% commission) or Plus (15%). DomBot never adds Premium; that is submitted on atom.com.',
+        ),
+      category: z
+        .string()
+        .min(1)
+        .max(200)
+        .optional()
+        .describe('A primary category by name (market_categories_get).'),
+      description: z.string().max(2000).optional(),
+    })
+    .optional()
+    .describe(
+      'Atom’s own listing fields. Atom has one price per name (no minimum offer or floor), at least $100, in whole dollars; `price: null` is Make an Offer. Category names containing “&” can only be set on atom.com.',
+    ),
 };
 
 type ChangeArgs = {
@@ -551,9 +692,12 @@ type ChangeArgs = {
   minOffer?: string | number;
   floor?: string | number | null;
   currency?: string;
+  buyNow?: boolean;
   forSale?: boolean;
   leaseToOwn?: { enabled: boolean; maxPayments?: number };
-  afternic?: Omit<NonNullable<MarketListingChange['extra']>, 'market'>;
+  afternic?: Omit<AfternicExtraChange, 'market'>;
+  sedo?: Omit<SedoExtraChange, 'market'>;
+  atom?: Omit<AtomExtraChange, 'market'>;
 };
 
 /** An amount as a decimal string, whether it came as a number or not. */
@@ -561,6 +705,11 @@ const amount = <T extends string | number | null | undefined>(v: T) =>
   (typeof v === 'number' ? String(v) : v) as Exclude<T, number> | string;
 
 function toChange(name: string, c: ChangeArgs): MarketListingChange {
+  if ([c.afternic, c.sedo, c.atom].filter(Boolean).length > 1) {
+    throw new Error(
+      'Give one market’s settings (`afternic`, `atom` or `sedo`).',
+    );
+  }
   return {
     name,
     ...(c.price !== undefined ? { price: amount(c.price) } : {}),
@@ -571,9 +720,50 @@ function toChange(name: string, c: ChangeArgs): MarketListingChange {
           currency: c.currency.toUpperCase() as MarketListingChange['currency'],
         }
       : {}),
+    ...(c.buyNow !== undefined ? { buyNow: c.buyNow } : {}),
     ...(c.forSale !== undefined ? { forSale: c.forSale } : {}),
     ...(c.leaseToOwn ? { leaseToOwn: c.leaseToOwn } : {}),
     ...(c.afternic ? { extra: { market: 'afternic', ...c.afternic } } : {}),
+    ...(c.sedo ? { extra: { market: 'sedo', ...c.sedo } } : {}),
+    ...(c.atom ? { extra: { market: 'atom', ...c.atom } } : {}),
+  };
+}
+
+/**
+ * More names than this on a market that writes one name per call (Atom) run
+ * as a market bulk job, which the tool returns instead of waiting hours.
+ */
+const DIRECT_NAMES = 10;
+
+/** Whether a write this big to this account should run as a market job. */
+function asJob(accountId: string, count: number): boolean {
+  return (
+    marketAdapter(accountId).capabilities.writeBatch === 1 &&
+    count > DIRECT_NAMES
+  );
+}
+
+/** A market job for an MCP reply: counts, and the failures so far. */
+function jobSummary(job: MarketBulkJob | null) {
+  if (!job) return { job: null };
+  const failures = job.results.filter(
+    (r) => r.status !== 'ok' && r.status !== 'skipped',
+  );
+  return {
+    job: {
+      id: job.id,
+      op: job.op.kind,
+      status: job.status,
+      total: job.total,
+      done: job.results.length,
+      counts: job.counts,
+      startedAt: new Date(job.startedAt).toISOString(),
+      finishedAt: job.finishedAt
+        ? new Date(job.finishedAt).toISOString()
+        : null,
+      failures: failures.slice(0, 200),
+      moreFailures: Math.max(0, failures.length - 200),
+    },
   };
 }
 
@@ -642,7 +832,7 @@ export function registerMarketWriteTools(server: McpServer): void {
     {
       title: 'List or update many domains',
       description:
-        'List or update any number of names on one market account, in the market’s batch size (500 a call on Afternic). Either pass `changes` (each a `name` plus the fields to set, as domain_listing_set), or `domains` with `fromAskingPrice: true` to make the market match the asking prices set in DomBot: names without one, or priced in a currency the market doesn’t take, fail without being sent. Returns { ok, failed, adjusted, results } with one result per name.',
+        'List or update any number of names on one market account, in the market’s batch size (500 a call on Afternic). Atom writes one name a call, so more than 10 names there start a market bulk job instead (about a name a second, names already at the asked values skipped): the reply is { job } and market_job_get follows it. Either pass `changes` (each a `name` plus the fields to set, as domain_listing_set), or `domains` with `fromAskingPrice: true` to make the market match the asking prices set in DomBot: names without one, or priced in a currency the market doesn’t take, fail without being sent. Returns { ok, failed, adjusted, results } with one result per name.',
       inputSchema: {
         accountId: requiredAccount,
         changes: z
@@ -657,11 +847,35 @@ export function registerMarketWriteTools(server: McpServer): void {
       if (fromAskingPrice) {
         if (!domains?.length)
           throw new Error('Pass `domains` with fromAskingPrice.');
+        if (asJob(id, domains.length)) {
+          return json(
+            jobSummary(
+              startMarketBulk(
+                domains.map((name) => ({ accountId: id, name })),
+                { kind: 'pushAskingPrices' },
+              ),
+            ),
+          );
+        }
         return json(summary(await pushAskingPrices(id, domains)));
       }
       if (!changes?.length) {
         throw new Error(
           'Pass `changes`, or `domains` with fromAskingPrice: true.',
+        );
+      }
+      if (asJob(id, changes.length)) {
+        return json(
+          jobSummary(
+            startMarketBulk(
+              changes.map(({ name, ...c }) => ({
+                accountId: id,
+                name,
+                change: toChange(toAscii(name), c as ChangeArgs),
+              })),
+              { kind: 'write' },
+            ),
+          ),
         );
       }
       return json(
@@ -682,12 +896,151 @@ export function registerMarketWriteTools(server: McpServer): void {
     {
       title: 'Delist many domains',
       description:
-        'Take any number of names’ listings down from one market account. The names stay in your registrar accounts. Returns { ok, failed, results }.',
+        'Take any number of names’ listings down from one market account. The names stay in your registrar accounts. Returns { ok, failed, results }; on Atom, more than 10 names start a market bulk job and return { job } (see market_job_get). Atom can’t delist Premium names through its API.',
       inputSchema: { accountId: requiredAccount, domains: names },
       annotations: { destructiveHint: true, idempotentHint: true },
     },
     async ({ accountId: id, domains }) =>
-      json(summary(await deleteMarketListings(id, domains.map(toAscii)))),
+      asJob(id, domains.length)
+        ? json(
+            jobSummary(
+              startMarketBulk(
+                domains.map((name) => ({ accountId: id, name })),
+                { kind: 'delete' },
+              ),
+            ),
+          )
+        : json(summary(await deleteMarketListings(id, domains.map(toAscii)))),
+  );
+
+  server.registerTool(
+    'market_job_get',
+    {
+      title: 'Follow a market bulk job',
+      description:
+        'The market bulk job started by market_listings_set or market_listings_delete (the latest one, running or finished): status, total, done, counts by outcome (ok, skipped: already as asked, failed, unsupported, rate-limited, cancelled) and the failures so far. Call it again until `status` is no longer running. On the self-hosted web app each call also runs the job for a few seconds.',
+      inputSchema: {
+        cancel: z
+          .boolean()
+          .optional()
+          .describe('Stop the running job; names not yet sent are skipped.'),
+      },
+    },
+    async ({ cancel }) => {
+      if (cancel) cancelMarketBulk();
+      return json(jobSummary(await advanceMarketBulk(20_000)));
+    },
+  );
+
+  server.registerTool(
+    'domain_listing_discount_set',
+    {
+      title: 'Discount a listing',
+      description:
+        'Put a temporary discount on one listing, in whole dollars off its price (Atom: at most 30% of the price, lasting until Atom resets discounts on Monday; Atom emails buyers tracking the price). `amount` null or 0 clears it. Returns the listing as saved. Markets without discounts say so.',
+      inputSchema: {
+        domain: z.string().min(1).max(253),
+        accountId,
+        amount: money.nullable().describe('Dollars off; null clears it.'),
+      },
+      annotations: { idempotentHint: true },
+    },
+    async ({ domain, accountId: id, amount: off }) => {
+      const account = listingAccount(domain, id);
+      const result = await setMarketDiscount(
+        account,
+        domain,
+        off && Number(off) > 0 ? off : null,
+      );
+      if (!result.ok) throw new Error(result.error?.message ?? 'Failed.');
+      return json({ accountId: account, ...result });
+    },
+  );
+
+  server.registerTool(
+    'domain_listing_verify',
+    {
+      title: 'Verify a listing’s DNS',
+      description:
+        'Ask the market to check now that a name points at it (Atom: nameservers ns1/ns2.atom.com, required for Premium, or Atom’s TXT record), instead of waiting for its own check. Atom allows one check per account every 12 hours; sooner, it fails saying to try later. Returns the listing as read back afterwards; its status may take a while to change. Markets without this say so.',
+      inputSchema: { domain: z.string().min(1).max(253), accountId },
+      annotations: { idempotentHint: true },
+    },
+    async ({ domain, accountId: id }) => {
+      const account = listingAccount(domain, id);
+      const result = await verifyMarketDns(account, domain);
+      if (!result.ok) throw new Error(result.error?.message ?? 'Failed.');
+      return json({ accountId: account, ...result });
+    },
+  );
+
+  server.registerTool(
+    'market_grading_submit',
+    {
+      title: 'Submit names for grading',
+      description:
+        'Send names to the market’s AI grading (Atom: brand fit and Premium fit), up to 20,000, 100 a call. Results come later: read them with market_grading_get. The names don’t have to be listed. Markets without grading say so.',
+      inputSchema: { accountId: requiredAccount, domains: names },
+    },
+    async ({ accountId: id, domains }) => {
+      const adapter = marketAdapter(id);
+      if (!adapter.submitForGrading) {
+        throw new Error(`Grading is not supported for ${adapter.market}.`);
+      }
+      return json(await adapter.submitForGrading(domains.map(toAscii)));
+    },
+  );
+
+  server.registerTool(
+    'market_grading_get',
+    {
+      title: 'Read grading results',
+      description:
+        'The market’s AI grading results, a page at a time (Atom: brandFit, premiumFit, status, submittedOn per name). With `brandFitOnly`, only names graded as a brand fit. Returns { results, total }. Markets without grading say so.',
+      inputSchema: {
+        accountId: requiredAccount,
+        page: z.number().int().min(1).optional(),
+        brandFitOnly: z.boolean().optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ accountId: id, page, brandFitOnly }) => {
+      const adapter = marketAdapter(id);
+      if (!adapter.gradingResults) {
+        throw new Error(`Grading is not supported for ${adapter.market}.`);
+      }
+      return json(await adapter.gradingResults({ page, brandFitOnly }));
+    },
+  );
+
+  server.registerTool(
+    'domain_appraisal_get',
+    {
+      title: 'Appraise a domain',
+      description:
+        'A market’s appraisal of any name, listed or not (Atom: estimate in whole USD, a domain score, key signals, root words, how many of its other TLDs are taken, trademark conflicts). Atom allows 10 a day per account; past that it fails saying how many were used. `accountId` can be left out when only one account can appraise.',
+      inputSchema: { domain: z.string().min(1).max(253), accountId },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ domain, accountId: id }) => {
+      const ids = id
+        ? [marketAccount(id).id]
+        : activeMarketAccounts()
+            .map((a) => a.id)
+            .filter((a) => marketAdapter(a).appraisal);
+      if (ids.length !== 1) {
+        throw new Error(
+          ids.length
+            ? 'More than one market account can appraise; pass accountId.'
+            : 'No connected market account can appraise names.',
+        );
+      }
+      const adapter = marketAdapter(ids[0]);
+      if (!adapter.appraisal) {
+        throw new Error(`Appraisal is not supported for ${adapter.market}.`);
+      }
+      return json({ accountId: ids[0], ...(await adapter.appraisal(domain)) });
+    },
   );
 
   server.registerTool(

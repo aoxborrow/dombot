@@ -3,9 +3,12 @@ import type { DombotApi, DomainTarget } from '../../shared/ipc';
 import { clearAll, clearRegistrarCaches } from '../services/cache';
 import { applyDomainOp } from '../services/domain-ops';
 import {
+  advanceMarketBulk,
   cancelBulk,
+  cancelMarketBulk,
   getBulkJob,
   startBulk,
+  startMarketBulk,
   stepBulk,
 } from '../services/bulk-jobs';
 import {
@@ -88,7 +91,10 @@ import {
   setSaleAuthCode,
   writeMarketListings,
 } from '../services/markets/writes';
-import type { MarketListingChange } from '../../shared/markets';
+import type {
+  MarketBulkTarget,
+  MarketListingChange,
+} from '../../shared/markets';
 import {
   activeMarketAccounts,
   connectMarketAccount,
@@ -523,6 +529,16 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     z.tuple([s.marketAccountId, s.marketNames]),
     async (id, names) => deleteMarketListings(id, names),
   ),
+  startMarketBulk: method(
+    z.tuple([s.marketBulkTargets, s.marketBulkOp]),
+    async (targets, op) => startMarketBulk(targets as MarketBulkTarget[], op),
+  ),
+  // The web host's Worker can't drive a job between requests, so each poll
+  // runs it a little (a few names on Atom); the desktop drives it itself.
+  advanceMarketBulk: method(none, async () => advanceMarketBulk(10_000)),
+  cancelMarketBulk: method(z.tuple([z.string()]), async (jobId) => {
+    cancelMarketBulk(jobId);
+  }),
   relistMarketListings: method(
     z.tuple([s.marketAccountId, s.marketNames, s.relistMode.optional()]),
     async (id, names, mode) => relistMarketListings(id, names, mode),

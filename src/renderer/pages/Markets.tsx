@@ -9,7 +9,12 @@ import {
   trafficByMonth,
   type TrafficMonth,
 } from '../../shared/market-reports';
-import type { MarketId, MarketListing, MarketSale } from '../../shared/markets';
+import {
+  searchesOf,
+  type MarketId,
+  type MarketListing,
+  type MarketSale,
+} from '../../shared/markets';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
@@ -284,7 +289,14 @@ export default function Markets() {
             </TableBody>
           </ReportTable>
         ) : (
-          <Empty>No per-name traffic yet.</Empty>
+          <ReportEmpty
+            title="No per-name traffic yet"
+            description={
+              covered
+                ? 'None of the names fetched so far has had views or leads in the last 12 months.'
+                : 'DomBot fetches traffic for a slice of names on each sync, so names show up here as it comes in.'
+            }
+          />
         )}
       </Section>
 
@@ -389,7 +401,10 @@ export default function Markets() {
             </TableBody>
           </ReportTable>
         ) : (
-          <Empty>No sales recorded yet.</Empty>
+          <ReportEmpty
+            title="No sales yet"
+            description="Completed sales from markets that report them show up here by year, with commission and net."
+          />
         )}
       </Section>
 
@@ -413,15 +428,15 @@ export default function Markets() {
                 <TableRow key={`${l.accountId}:${l.name}`}>
                   <TableCell className="font-medium">{l.name}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {count(l.extra.searches?.total.days30 ?? 0)}
+                    {count(searchesOf(l)?.total.days30 ?? 0)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {count(l.extra.searches?.unique.days30 ?? 0)}
+                    {count(searchesOf(l)?.unique.days30 ?? 0)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {l.extra.searches?.total.days365 == null
+                    {searchesOf(l)?.total.days365 == null
                       ? '—'
-                      : count(l.extra.searches.total.days365)}
+                      : count(searchesOf(l)?.total.days365 ?? 0)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {l.price ? money(l.price, l.currency) : '—'}
@@ -470,8 +485,26 @@ function ReportTable({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="py-4 text-sm text-muted-foreground">{children}</p>;
+/** A report with nothing to show yet: a title and one line of why. */
+function ReportEmpty({
+  title,
+  description,
+  className,
+}: {
+  title: string;
+  description: string;
+  className?: string;
+}) {
+  return (
+    <EmptyState
+      className={cn('rounded-lg border border-dashed md:p-8', className)}
+    >
+      <EmptyHeader>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{description}</EmptyDescription>
+      </EmptyHeader>
+    </EmptyState>
+  );
 }
 
 const MONTH_NAMES = [
@@ -501,6 +534,7 @@ function MonthBars({ months }: { months: TrafficMonth[] }) {
   const max = Math.max(1, ...months.map((m) => m.views));
   const views = months.reduce((n, m) => n + m.views, 0);
   const leads = months.reduce((n, m) => n + m.leads, 0);
+  const empty = views === 0 && leads === 0;
   const plural = (n: number, word: string) =>
     `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
   return (
@@ -509,17 +543,25 @@ function MonthBars({ months }: { months: TrafficMonth[] }) {
         <h2 className="text-[15px] font-semibold text-foreground/75">
           Views by month
         </h2>
-        {months.length > 0 && (
+        {!empty && (
           <span className="text-xs text-muted-foreground">
             {plural(views, 'view')} · {plural(leads, 'lead')} over{' '}
             {months.length} month{months.length === 1 ? '' : 's'}
           </span>
         )}
       </div>
-      {months.length === 0 ? (
-        <p className="py-4 text-sm text-muted-foreground">
-          No traffic synced yet.
-        </p>
+      {empty ? (
+        // About the chart's own height, so the page doesn't jump once
+        // traffic arrives.
+        <ReportEmpty
+          title="No views yet"
+          description={
+            months.length
+              ? `Your listings had no views or leads in the last ${months.length === 1 ? 'month' : `${months.length} months`}.`
+              : 'Views and leads show up here once a market account syncs its traffic.'
+          }
+          className="min-h-[186px] border-0 md:p-4"
+        />
       ) : (
         <div className="flex items-end gap-1.5 pt-2" aria-hidden>
           {months.map((m) => {

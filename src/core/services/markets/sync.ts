@@ -1,7 +1,9 @@
-import type {
-  MarketListing,
-  MarketSale,
-  MarketStatsDay,
+import {
+  SEARCH_DATA_FLAG,
+  searchesOf,
+  type MarketListing,
+  type MarketSale,
+  type MarketStatsDay,
 } from '../../../shared/markets';
 import { localDay } from '../../../shared/domain-events';
 import { broadcastPortfolioChanged } from '../../events';
@@ -15,6 +17,7 @@ import { getCachedPortfolio } from '../registrars';
 import {
   activeMarketAccounts,
   getMarketSyncState,
+  listMarketAccounts,
   marketAccount,
   marketAdapter,
   onMarketAccountRemoved,
@@ -57,6 +60,10 @@ const SALES_OVERLAP_DAYS = 45;
 /** Stats read on an account's first sync, then on later ones. */
 const FIRST_STATS_DAYS = 365;
 const LATER_STATS_DAYS = 7;
+/** How long a listing the market is still checking stays pending. */
+const PENDING_KEEP_DAYS = 7;
+const UNCONFIRMED_NOTE = 'Not listed after a week';
+const VERIFYING_NOTE = 'Waiting on ownership checks';
 
 const enabledIds = () => new Set(activeMarketAccounts().map((a) => a.id));
 
@@ -64,6 +71,36 @@ const enabledIds = () => new Set(activeMarketAccounts().map((a) => a.id));
 export function marketListings(): MarketListing[] {
   const ids = enabledIds();
   return Object.values(listings.all()).filter((l) => ids.has(l.accountId));
+}
+
+/**
+ * A name DomBot listed for sale that the market lists but not for sale yet
+ * is still being checked (Sedo verifies ownership of every new name, through
+ * the registry or a TXT record, on its site). It stays pending, and keeps
+ * the for-sale choice it was listed with, so the next sync or write still
+ * knows to hold it, until the market puts it up for sale.
+ */
+export function holdPending(
+  cached: MarketListing | undefined,
+  next: MarketListing,
+): MarketListing {
+  if (cached?.status !== 'pending' || !cached.forSale || next.forSale) {
+    return next;
+  }
+  return {
+    ...next,
+    status: 'pending',
+    forSale: true,
+    listedAt: next.listedAt ?? cached.listedAt,
+  };
+}
+
+/** The stored listing for a name on an account, if any. */
+export function cachedListing(
+  accountId: string,
+  name: string,
+): MarketListing | undefined {
+  return listings.get(`${accountId}:${name}`);
 }
 
 /** Store listings a write returned, so the table shows them before a sync. */
@@ -145,7 +182,14 @@ function heldNames(): Set<string> {
 export async function syncMarketAccount(accountId: string): Promise<void> {
   const account = marketAccount(accountId);
   const previous = getMarketSyncState(accountId);
-  const notes = previous?.notes ?? [];
+  // Notes that earlier versions wrote at connect time and that the card now
+  // shows another way (a status flag, the market's help text).
+  const notes = (previous?.notes ?? []).filter(
+    (n) =>
+      !n.startsWith('No search data on this account') &&
+      !n.startsWith('Sedo’s API has no sales'),
+  );
+  let status = previous?.status ?? [];
   try {
     const adapter = marketAdapter(accountId);
     const caps = adapter.capabilities;
@@ -155,10 +199,30 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
     const read = await adapter.allListings();
     const prefix = `${accountId}:`;
     const fresh = new Map(read.listings.map((l) => [prefix + l.name, l]));
+    // A market that checks new listings before adding them (Sedo) leaves
+    // them out of its list meanwhile: keep DomBot's pending row for a while,
+    // then drop it and say so, since the market may have refused it.
+    let unconfirmed = 0;
     if (read.complete) {
-      for (const key of Object.keys(listings.all())) {
-        if (key.startsWith(prefix) && !fresh.has(key))
-          void listings.delete(key);
+      for (const [key, row] of Object.entries(listings.all())) {
+        if (!key.startsWith(prefix) || fresh.has(key)) continue;
+        if (caps.asyncInsert && row.status === 'pending') {
+          const since = Date.parse(row.listedAt ?? '') || 0;
+          if (Date.now() - since < PENDING_KEEP_DAYS * 86_400_000) continue;
+          unconfirmed++;
+        }
+        void listings.delete(key);
+      }
+    }
+    // Names still in the market's ownership check stay pending.
+    let verifying = 0;
+    if (caps.asyncInsert) {
+      for (const [key, row] of fresh) {
+        const held = holdPending(listings.get(key), row);
+        if (held !== row) {
+          fresh.set(key, held);
+          verifying++;
+        }
       }
     }
     void listings.setMany([...fresh]);
@@ -178,10 +242,28 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
         : undefined;
       const read = await adapter.allSales(since);
       void sales.setMany(read.map((s) => [`${accountId}:${s.id}`, s]));
+      // The same sale kept from an account since removed (the account was
+      // reconnected under a new id) is this one now: drop the old record so
+      // it isn't counted twice. Every sale this account has is compared, not
+      // just this read, which after the first sync only goes back a window.
+      const live = new Set(listMarketAccounts().map((a) => a.id));
+      const mine = new Set(
+        accountSales(accountId).map((s) => `${s.market}:${s.name}:${s.id}`),
+      );
+      for (const [key, s] of Object.entries(sales.all())) {
+        if (
+          !live.has(s.accountId) &&
+          mine.has(`${s.market}:${s.name}:${s.id}`)
+        ) {
+          void sales.delete(key);
+        }
+      }
       const all = accountSales(accountId);
       // Undo sold events written before the payout rule existed.
       dropSaleEvents(all.filter((s) => !isShownSale(s)).map(saleKey));
-      recordSaleEvents(all.filter(isShownSale), heldNames(), localDay());
+      recordSaleEvents(all.filter(isShownSale), heldNames(), localDay(), {
+        liveAccounts: live,
+      });
     }
 
     if (caps.accountStats && adapter.accountStats) {
@@ -193,28 +275,53 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
       void stats.set(accountId, kept);
     }
 
+    // Search counts come only to Discount Domain Club Domain Pro members, so
+    // the listings say whether the account is one.
+    if (caps.searchCounts && read.listings.length) {
+      status = [
+        ...status.filter((f) => f.label !== SEARCH_DATA_FLAG),
+        {
+          label: SEARCH_DATA_FLAG,
+          on: read.listings.some((l) => searchesOf(l) != null),
+        },
+      ];
+    }
+
     // Last, and in a slice: per-name traffic is the slow part.
     snapshotSearches(accountId, read.listings);
     let trafficNote: string | null = null;
-    if (caps.domainStats === 'daily') {
+    if (caps.domainStats) {
       const t = await syncDomainTraffic(adapter, read.listings);
       if (t.error) {
         trafficNote = `Per-domain traffic paused after ${t.fetched} names: ${t.error}. The next sync carries on.`;
       }
     }
 
+    const kept = notes.filter(
+      (n) =>
+        !n.startsWith('Per-domain traffic') &&
+        !n.startsWith(VERIFYING_NOTE) &&
+        !(unconfirmed && n.startsWith(UNCONFIRMED_NOTE)),
+    );
+    if (trafficNote) kept.push(trafficNote);
+    if (unconfirmed) {
+      kept.push(
+        `${UNCONFIRMED_NOTE}: ${unconfirmed} ${unconfirmed === 1 ? 'name' : 'names'} DomBot sent never showed up. The market may have refused ${unconfirmed === 1 ? 'it' : 'them'}; check the account's email.`,
+      );
+    }
+    if (verifying) {
+      kept.push(
+        `${VERIFYING_NOTE}: ${verifying} ${verifying === 1 ? 'name' : 'names'} DomBot listed ${verifying === 1 ? "isn't" : "aren't"} for sale yet while the market checks that you own ${verifying === 1 ? 'it' : 'them'}. Finish the verification on the market's site (through the registry, or a TXT record it gives you).`,
+      );
+    }
     setMarketSyncState(accountId, {
       at: Date.now(),
       lastError: null,
       listings: read.listings.length,
       sales: accountSales(accountId).filter(isShownSale).length,
       incomplete: !read.complete,
-      notes: trafficNote
-        ? [
-            ...notes.filter((n) => !n.startsWith('Per-domain traffic')),
-            trafficNote,
-          ]
-        : notes.filter((n) => !n.startsWith('Per-domain traffic')),
+      notes: kept,
+      status,
     });
   } catch (error) {
     setMarketSyncState(accountId, {
@@ -224,6 +331,7 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
       sales: previous?.sales ?? 0,
       incomplete: previous?.incomplete ?? false,
       notes,
+      status,
     });
   }
   broadcastPortfolioChanged();
