@@ -7,7 +7,13 @@ import {
 import type { MarketSale } from '../../../shared/markets';
 import { parseCanonicalAmount } from '../../../shared/money';
 import { isOpenAlert, resolvedIds } from '../../../shared/sync-diff';
-import { eventsFor, listEvents, newEvent, putEvents } from '../domain-events';
+import {
+  deleteDomainEvents,
+  eventsFor,
+  listEvents,
+  newEvent,
+  putEvents,
+} from '../domain-events';
 
 // Market sales as `sold` events (docs/markets.md, "Storage"). A completed
 // sale writes one `sold` event, or links to the one you recorded yourself,
@@ -143,4 +149,27 @@ export function recordSaleEvents(
   }
   if (writes.length) putEvents(writes);
   return result;
+}
+
+/**
+ * Undo the `sold` events sync wrote for these sales (their `market-sales`
+ * keys). A sold event you recorded yourself and sync only linked keeps its
+ * date and price; it just loses the link.
+ */
+export function dropSaleEvents(keys: readonly string[]): void {
+  if (!keys.length) return;
+  const drop = new Set(keys);
+  const unlink: DomainEvent[] = [];
+  const remove: string[] = [];
+  for (const e of listEvents()) {
+    if (!e.marketSale || !drop.has(e.marketSale)) continue;
+    if (e.source === DomainEventSource.Sync) remove.push(e.id);
+    else {
+      const { marketSale: _link, ...rest } = e;
+      void _link;
+      unlink.push({ ...rest, updatedAt: Date.now() });
+    }
+  }
+  if (remove.length) deleteDomainEvents(remove);
+  if (unlink.length) putEvents(unlink);
 }

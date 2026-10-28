@@ -146,7 +146,7 @@ function sale(id: string, name: string, soldOn: string, price: string) {
     net: String(Number(price) - 10.5),
     currency: 'USD',
     installments: null,
-    paidOutOn: null,
+    paidOutOn: soldOn,
     action: null,
   } as MarketSale;
 }

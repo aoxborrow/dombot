@@ -20,7 +20,7 @@ import {
   onMarketAccountRemoved,
   setMarketSyncState,
 } from './accounts';
-import { recordSaleEvents } from './sale-events';
+import { dropSaleEvents, recordSaleEvents, saleKey } from './sale-events';
 import {
   dropAccountTraffic,
   snapshotSearches,
@@ -97,8 +97,23 @@ export function marketSale(
 
 /** Every recorded sale, newest first, whichever account sold it. */
 export function marketSales(): MarketSale[] {
-  return Object.values(sales.all()).sort((a, b) =>
-    (b.soldOn ?? '').localeCompare(a.soldOn ?? ''),
+  return Object.values(sales.all())
+    .filter(isShownSale)
+    .sort((a, b) => (b.soldOn ?? '').localeCompare(a.soldOn ?? ''));
+}
+
+/**
+ * Whether a sale record counts as a sale. A completed Buy Now sale is always
+ * paid out, so one with no payout date isn't the account's sale: Afternic's
+ * sales list includes the account's purchases, and that's how they look
+ * (docs/afternic-api-issues.md, issue 1). Leases, sales still under way, and
+ * cancelled ones have no payout date either and are kept.
+ */
+export function isShownSale(sale: MarketSale): boolean {
+  return !(
+    sale.status === 'completed' &&
+    sale.kind === 'buy_now' &&
+    !sale.paidOutOn
   );
 }
 
@@ -175,7 +190,10 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
         : undefined;
       const read = await adapter.allSales(since);
       void sales.setMany(read.map((s) => [`${accountId}:${s.id}`, s]));
-      recordSaleEvents(accountSales(accountId), heldNames(), localDay());
+      const all = accountSales(accountId);
+      // Undo sold events written before the payout rule existed.
+      dropSaleEvents(all.filter((s) => !isShownSale(s)).map(saleKey));
+      recordSaleEvents(all.filter(isShownSale), heldNames(), localDay());
     }
 
     if (caps.accountStats && adapter.accountStats) {
@@ -212,7 +230,7 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
       at: Date.now(),
       lastError: null,
       listings: read.listings.length,
-      sales: accountSales(accountId).length,
+      sales: accountSales(accountId).filter(isShownSale).length,
       incomplete: !read.complete,
       notes: kept,
     });

@@ -39,6 +39,9 @@ Conventions:
 
 ### Observed: where the API and the docs disagree
 
+What to report to Afternic is collected in
+[afternic-api-issues.md](afternic-api-issues.md).
+
 | Topic                  | Docs                                                    | Actual                                                                                                                          |
 | ---------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | Stats `startDate`      | start of the window ("30 days starting Sep 1")          | the **end** of the window; days count backwards from it. Omit it for the last N days.                                           |
@@ -90,6 +93,14 @@ Other observed behavior worth designing around:
   (`NO_CHANGE`). The values across this account fit a minimum monthly
   payment of roughly $81–83. Compare the saved listing with what was asked
   and say when Afternic kept a different value.
+- **The sales list includes purchases.** Domains the account bought on
+  Afternic come back from `GET /sales` as ordinary completed sales, with no
+  field saying which side the account was on. `GET /sales/{id}` answers 404
+  for exactly those, and they're the only completed Buy Now records without
+  `disbursedAt` (afternic-api-issues.md, issue 1). DomBot leaves out
+  completed Buy Now records with no payout date, which drops the purchases
+  and keeps leases, sales under way and cancelled ones; a sold event an
+  earlier sync wrote for one is removed.
 - Sales history covers every sale back to 2020, not just recent ones, once
   you pass a wide `soldAtStartDate`. The default window is the last month.
 - A sale record includes the transfer `authCode` in plain text.
