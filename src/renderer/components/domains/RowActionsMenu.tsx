@@ -238,44 +238,48 @@ export function RowActionsMenu({
           <Calculator className="text-muted-foreground" />
           Purchase details<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
+        {/* Pricing and the markets, in a section of their own. */}
         {archive === null && (
-          <DropdownMenuItem onSelect={onEditListPrice}>
-            <CashIcon className="text-muted-foreground" />
-            Pricing<span className="-ml-[6px] opacity-50">…</span>
-          </DropdownMenuItem>
-        )}
-        {archive === null && onMarket && (
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <Store className="text-muted-foreground" />
-              {marketLabel}
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem
-                disabled={Boolean(marketReasons?.list)}
-                title={marketReasons?.list ?? undefined}
-                onSelect={() => onMarket('list')}
-              >
-                List at your price
-                <span className="-ml-[6px] opacity-50">…</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={Boolean(marketReasons?.relist)}
-                title={marketReasons?.relist ?? undefined}
-                onSelect={() => onMarket('relist')}
-              >
-                Relist<span className="-ml-[6px] opacity-50">…</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                variant="destructive"
-                disabled={Boolean(marketReasons?.delist)}
-                title={marketReasons?.delist ?? undefined}
-                onSelect={() => onMarket('delist')}
-              >
-                Delist<span className="-ml-[6px] opacity-50">…</span>
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onEditListPrice}>
+              <CashIcon className="text-muted-foreground" />
+              Pricing<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+            {onMarket && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Store className="text-muted-foreground" />
+                  {marketLabel}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem
+                    disabled={Boolean(marketReasons?.list)}
+                    title={marketReasons?.list ?? undefined}
+                    onSelect={() => onMarket('list')}
+                  >
+                    List at your price
+                    <span className="-ml-[6px] opacity-50">…</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={Boolean(marketReasons?.relist)}
+                    title={marketReasons?.relist ?? undefined}
+                    onSelect={() => onMarket('relist')}
+                  >
+                    Relist<span className="-ml-[6px] opacity-50">…</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={Boolean(marketReasons?.delist)}
+                    title={marketReasons?.delist ?? undefined}
+                    onSelect={() => onMarket('delist')}
+                  >
+                    Delist<span className="-ml-[6px] opacity-50">…</span>
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+          </>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
