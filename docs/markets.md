@@ -116,7 +116,7 @@ interface MarketSale {
   id: string;
   name: string;
   /** YYYY-MM-DD, the day it sold: the `sold` event's date. */
-  soldOn: string;
+  soldOn: string | null;
   status: 'in_progress' | 'completed' | 'cancelled' | 'unknown';
   statusRaw: string;
   kind: 'buy_now' | 'offer' | 'lease' | 'unknown';
@@ -362,7 +362,7 @@ a person (a sale message) says so in its description.
 
 ## Order of work
 
-1. **Shared types and the Afternic adapter** (`src/core/markets/types.ts`,
+1. **Shared types and the Afternic adapter** (done) (`src/core/markets/types.ts`,
    `src/core/services/markets/afternic.ts`), with unit tests mapping the
    Afternic fixtures.
 2. **Afternic phase 4 on top of them:** storage namespaces, sync, Settings →
