@@ -195,7 +195,7 @@ export function MarketActionDialog({
                       <MarketLogo
                         market={a.market}
                         label={marketName(a)}
-                        className="size-4 p-[1.5px] text-muted-foreground"
+                        className="size-5 text-muted-foreground"
                       />
                       {whereOf(a)}
                     </label>
@@ -280,7 +280,7 @@ export function MarketActionDialog({
                   <MarketLogo
                     market={a.market}
                     label={marketName(a)}
-                    className="size-4 p-[1.5px] text-muted-foreground"
+                    className="size-5 text-muted-foreground"
                   />
                   {whereOf(a)}
                 </h3>
