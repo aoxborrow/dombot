@@ -51,6 +51,12 @@ set passed to `EncryptedDocStore`.
 | `folders` (`folders` key)                | `folders`               |        | folder id                  | folder definitions                                |
 | `pricing-overrides`                      | `domain-prices`         |        | name                       | your manual renewal price, with its currency      |
 | —                                        | `domain-list-prices`    |        | name                       | your BIN price, minimum offer, and floor          |
+| —                                        | `market-accounts`       |        | account id                 | connected market accounts (docs/markets.md)       |
+| —                                        | `market-credentials`    | sealed | account id                 | market API keys                                   |
+| —                                        | `market-listings`       | cache  | account + name             | each market account's listings as last synced     |
+| —                                        | `market-last-sync`      |        | account id                 | when each market account last synced, and errors  |
+| —                                        | `market-sales`          |        | account + sale id          | market sale records (never auth codes)            |
+| —                                        | `market-stats`          |        | account id                 | daily views and leads per market account          |
 | `settings`, `bulk-jobs`, `mcp`           | _(unchanged)_           |        |                            | app-level                                         |
 | `meta`                                   | _(unchanged)_           | local  |                            | this install only                                 |
 

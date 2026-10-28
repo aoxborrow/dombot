@@ -14,6 +14,10 @@ const broadcastPortfolioChanged = vi.fn();
 vi.mock('../events', () => ({
   broadcastPortfolioChanged: () => broadcastPortfolioChanged(),
 }));
+const syncMarkets = vi.fn<(ifOlderThanMs?: number) => Promise<number>>();
+vi.mock('./markets/sync', () => ({
+  syncMarkets: (ms?: number) => syncMarkets(ms),
+}));
 vi.mock('./settings', () => ({
   getSettings: () => ({ autoSyncIntervalMinutes: 60 }),
 }));
@@ -28,6 +32,7 @@ beforeEach(() => {
   isBulkRunning.mockReturnValue(false);
   getCachedPortfolio.mockReturnValue({ fetchedAt: Date.now() - 30 * 60_000 });
   getPortfolio.mockResolvedValue({});
+  syncMarkets.mockResolvedValue(0);
 });
 
 describe('syncAll', () => {
@@ -43,6 +48,14 @@ describe('syncAll', () => {
     getActiveRegistrars.mockReturnValue(['dynadot']);
     isBulkRunning.mockReturnValue(true);
     expect(await syncAll()).toBe(false);
+    expect(getPortfolio).not.toHaveBeenCalled();
+  });
+
+  it('syncs market accounts too, with or without registrars', async () => {
+    getActiveRegistrars.mockReturnValue([]);
+    syncMarkets.mockResolvedValue(1);
+    expect(await syncAll(60_000)).toBe(true);
+    expect(syncMarkets).toHaveBeenCalledWith(60_000);
     expect(getPortfolio).not.toHaveBeenCalled();
   });
 

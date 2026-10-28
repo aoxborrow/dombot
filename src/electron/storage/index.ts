@@ -1,5 +1,6 @@
 import { app, safeStorage } from 'electron';
 import { CREDENTIALS_NAMESPACE } from '../../core/services/credentials';
+import { MARKET_CREDENTIALS_NAMESPACE } from '../../core/storage/names';
 import { EncryptedDocStore } from '../../core/storage/encrypted';
 import {
   configureStore,
@@ -37,7 +38,11 @@ function buildStore(files: FsDocStore): DocStore {
     files,
     safeStorageCipher,
     // The proxy URL carries a password, so it is sealed like credentials.
-    new Set([CREDENTIALS_NAMESPACE, PROXIES_NAMESPACE]),
+    new Set([
+      CREDENTIALS_NAMESPACE,
+      PROXIES_NAMESPACE,
+      MARKET_CREDENTIALS_NAMESPACE,
+    ]),
   );
 }
 
