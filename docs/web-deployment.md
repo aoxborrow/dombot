@@ -251,13 +251,29 @@ results report is the retry surface.
 - Electron: a `setInterval` honoring `autoSyncIntervalMinutes`.
 - Worker: an **hourly** Cron Trigger (`"crons": ["0 * * * *"]`) →
   `scheduled()` → `syncAll()`, which reads `autoSyncIntervalMinutes` and
-  returns immediately unless the last sync is older than that interval. The
+  skips ordinary refreshes unless the last sync is older than that interval. The
   cron cadence is the _floor_ — it matches the shortest option the Settings
   control offers ("Every hour") — and the setting decides the actual
   frequency, so the web host honors every interval the desktop does. A
   no-op tick costs a few milliseconds. Cron handlers get 15 minutes of wall
   clock; a full-portfolio sync across several registrars fits.
   Per-registrar sync also runs in a request when the user hits Sync.
+
+A Dynadot inventory refresh that exhausts the SDK's retries with a rate-limit
+error keeps its last-good domains and saves a per-account recovery deadline.
+The delay is at least `Retry-After` (60 seconds when absent), with a minimum
+backoff of one, two, then four minutes. The next enabled scheduler tick at or
+after that deadline retries the account, even if another account makes the
+aggregate cache look fresh. There is no additional timer: the configured host
+schedule still determines when that tick occurs, and disabling auto-sync
+continues to disable automatic recovery. After three failed inventory refreshes,
+automatic retries stop; use Sync after the cooldown to start again. Success
+clears recovery. Authentication and other failures do not enter this path.
+
+Scheduled work reuses an account refresh already in progress. Explicit manual
+refreshes retain their existing replacement behavior, and credential changes
+continue to invalidate older results. Registrar-client retry settings, renewal
+quote requests, and registrar writes are unchanged.
 
 **Nameserver lookup**, for registrars that don't report nameservers, uses
 DNS-over-HTTPS (`src/core/dns.ts`:

@@ -17,6 +17,12 @@ import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
 import { timeAgo } from '../../lib/time';
 import { Button } from '@/components/ui/button';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import { Card } from '@/components/ui/card';
 import {
   Collapsible,
@@ -83,7 +89,7 @@ export default function MarketsSettings() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {loaded && (accounts.length > 0 || draft) && (
+        {loaded && (
           <div className="flex justify-end">
             <AddMarketMenu
               catalog={catalog}
@@ -110,9 +116,7 @@ export default function MarketsSettings() {
             <MarketCard key={account.id} market={market} account={account} />
           ) : null;
         })}
-        {loaded && accounts.length === 0 && !draft && (
-          <EmptyMarkets catalog={catalog} onPick={startDraft} />
-        )}
+        {loaded && accounts.length === 0 && !draft && <EmptyMarkets />}
       </div>
     </div>
   );
@@ -153,36 +157,17 @@ function AddMarketMenu({
   );
 }
 
-function EmptyMarkets({
-  catalog,
-  onPick,
-}: {
-  catalog: MarketInfo[];
-  onPick: (market: MarketInfo) => void;
-}) {
+function EmptyMarkets() {
   return (
-    <Card className="gap-4 rounded-md px-5 py-5">
-      <div>
-        <h3 className="font-medium">Connect a marketplace</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          See which names are listed, at what prices, what sold, and how much
-          traffic they get, beside your registrar data.
-        </p>
-      </div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
-        {catalog.map((market) => (
-          <Button
-            key={market.id}
-            variant="outline"
-            className="h-auto justify-start gap-2.5 px-3 py-2.5"
-            onClick={() => onPick(market)}
-          >
-            <Store />
-            {market.name}
-          </Button>
-        ))}
-      </div>
-    </Card>
+    <Empty className="rounded-md border border-dashed">
+      <EmptyHeader>
+        <EmptyTitle>No market accounts yet</EmptyTitle>
+        <EmptyDescription>
+          Add one to see which names are listed, at what prices, what sold, and
+          how much traffic they get.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }
 

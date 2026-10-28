@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { localDay } from '../../shared/domain-events';
 import {
@@ -9,15 +9,29 @@ import {
   trafficByMonth,
   type TrafficMonth,
 } from '../../shared/market-reports';
-import { searchesOf, type MarketListing } from '../../shared/markets';
+import {
+  searchesOf,
+  type MarketListing,
+  type MarketSale,
+} from '../../shared/markets';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
   formatMoney,
 } from '../../shared/money';
 import { useAppStore } from '../store/app';
+import { ChevronRight, Store } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import {
+  Empty as EmptyState,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import {
   Table,
   TableBody,
@@ -63,6 +77,27 @@ export default function Markets() {
   }, [traffic.accountDays]);
   const years = useMemo(() => salesByYear(sales), [sales]);
   const total = useMemo(() => salesTotal(years), [years]);
+  // Each year's sales, newest first, for the rows that open.
+  const salesByYearList = useMemo(() => {
+    const out = new Map<string, MarketSale[]>();
+    for (const sale of sales) {
+      if (!sale.soldOn || sale.currency !== 'USD') continue;
+      const year = sale.soldOn.slice(0, 4);
+      (out.get(year) ?? out.set(year, []).get(year)!).push(sale);
+    }
+    for (const list of out.values()) {
+      list.sort((a, b) => (b.soldOn ?? '').localeCompare(a.soldOn ?? ''));
+    }
+    return out;
+  }, [sales]);
+  const [openYears, setOpenYears] = useState<ReadonlySet<string>>(new Set());
+  const toggleYear = (year: string) =>
+    setOpenYears((current) => {
+      const next = new Set(current);
+      if (next.has(year)) next.delete(year);
+      else next.add(year);
+      return next;
+    });
   const through = useMemo(
     () => sellThrough(sales, listings, localDay()),
     [sales, listings],
@@ -86,21 +121,31 @@ export default function Markets() {
 
   if (accounts !== null && accounts.length === 0) {
     return (
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
         <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
-        <p className="text-sm text-muted-foreground">
-          Connect a marketplace account in{' '}
-          <Link to="/settings?tab=markets" className="underline">
-            Settings → Markets
-          </Link>{' '}
-          to see traffic and sales here.
-        </p>
+        <EmptyState className="rounded-md border border-dashed">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Store />
+            </EmptyMedia>
+            <EmptyTitle>No market accounts yet</EmptyTitle>
+            <EmptyDescription>
+              Connect a marketplace like Afternic to see your listings&apos;
+              traffic, leads and sales here, beside your registrar data.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button asChild>
+              <Link to="/settings?tab=markets">Add a market account</Link>
+            </Button>
+          </EmptyContent>
+        </EmptyState>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 pb-12">
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 pb-12">
       <div>
         <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -132,16 +177,7 @@ export default function Markets() {
         />
       </div>
 
-      <Section
-        title="Views by month"
-        note="Every listing on your connected accounts. Hover a month for its leads."
-      >
-        {months.length ? (
-          <MonthBars months={months} />
-        ) : (
-          <Empty>No traffic synced yet.</Empty>
-        )}
-      </Section>
+      <MonthBars months={months} />
 
       <Section
         title="Names with the most interest"
@@ -163,7 +199,7 @@ export default function Markets() {
                 const listed = priceOf(name);
                 return (
                   <TableRow key={name}>
-                    <TableCell className="font-mono">{name}</TableCell>
+                    <TableCell className="font-medium">{name}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {count(t.leads365)}
                     </TableCell>
@@ -205,38 +241,69 @@ export default function Markets() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {years.map((y) => (
-                <TableRow key={y.year}>
-                  <TableCell>
-                    {y.year}
-                    {(y.inProgress > 0 || y.cancelled > 0) && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {[
-                          y.inProgress && `${y.inProgress} in progress`,
-                          y.cancelled && `${y.cancelled} cancelled`,
-                        ]
-                          .filter(Boolean)
-                          .join(', ')}
-                      </span>
+              {years.map((y) => {
+                const open = openYears.has(y.year);
+                return (
+                  <Fragment key={y.year}>
+                    <TableRow
+                      className="cursor-pointer"
+                      onClick={() => toggleYear(y.year)}
+                    >
+                      <TableCell>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1.5"
+                          aria-expanded={open}
+                          aria-label={`${open ? 'Hide' : 'Show'} ${y.year} sales`}
+                        >
+                          <ChevronRight
+                            className={cn(
+                              'size-4 text-muted-foreground transition-transform',
+                              open && 'rotate-90',
+                            )}
+                          />
+                          {y.year}
+                        </button>
+                        {(y.inProgress > 0 || y.cancelled > 0) && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {[
+                              y.inProgress && `${y.inProgress} in progress`,
+                              y.cancelled && `${y.cancelled} cancelled`,
+                            ]
+                              .filter(Boolean)
+                              .join(', ')}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {y.sold}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {money(y.gross)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {money(y.commission)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {money(y.net)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {y.average ? money(y.average) : '—'}
+                      </TableCell>
+                    </TableRow>
+                    {open && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={6} className="bg-muted/30 p-0">
+                          <YearSales
+                            sales={salesByYearList.get(y.year) ?? []}
+                            money={money}
+                          />
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {y.sold}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {money(y.gross)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {money(y.commission)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {money(y.net)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {y.average ? money(y.average) : '—'}
-                  </TableCell>
-                </TableRow>
-              ))}
+                  </Fragment>
+                );
+              })}
               <TableRow className="font-medium">
                 <TableCell>All years</TableCell>
                 <TableCell className="text-right tabular-nums">
@@ -280,7 +347,7 @@ export default function Markets() {
             <TableBody>
               {searched.map((l: MarketListing) => (
                 <TableRow key={`${l.accountId}:${l.name}`}>
-                  <TableCell className="font-mono">{l.name}</TableCell>
+                  <TableCell className="font-medium">{l.name}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {count(searchesOf(l)?.total.days30 ?? 0)}
                   </TableCell>
@@ -364,63 +431,72 @@ const MONTH_NAMES = [
 const monthLabel = (m: string) => MONTH_NAMES[Number(m.slice(5, 7)) - 1];
 
 /**
- * One series, so no legend: thin bars in the brand color, 4px rounded tops
- * on a recessive baseline, 2px gaps, a tooltip per bar with views and leads,
- * and a visually hidden table with the same numbers.
+ * Views by month, drawn like Renewals by month: one bar per month in a
+ * faint full-height slot, its count always above it, and the year's totals
+ * top right. One series, so no legend; leads are in each bar's hover title
+ * and the summary, since they're far smaller than views. A visually hidden
+ * table carries the same numbers.
  */
 function MonthBars({ months }: { months: TrafficMonth[] }) {
-  const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(1, ...months.map((m) => m.views));
-  const height = 160;
+  const views = months.reduce((n, m) => n + m.views, 0);
+  const leads = months.reduce((n, m) => n + m.leads, 0);
+  const plural = (n: number, word: string) =>
+    `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
   return (
-    <div className="relative">
-      <div
-        className="flex items-end gap-[2px] border-b border-border"
-        style={{ height }}
-        aria-hidden
-      >
-        {months.map((m, i) => (
-          <div
-            key={m.month}
-            className="relative flex h-full flex-1 items-end justify-center"
-            onMouseEnter={() => setHover(i)}
-            onMouseLeave={() => setHover(null)}
-          >
-            <div
-              className={cn(
-                'w-full max-w-10 rounded-t-[4px] bg-brand transition-opacity',
-                hover !== null && hover !== i && 'opacity-50',
-              )}
-              style={{
-                height: `${Math.max(2, (m.views / max) * (height - 24))}px`,
-              }}
-            />
-            {hover === i && (
-              <div className="pointer-events-none absolute bottom-full z-10 mb-1 rounded-md border bg-popover px-2 py-1 text-xs whitespace-nowrap text-popover-foreground shadow-md">
-                <div className="font-medium">
-                  {monthLabel(m.month)} {m.month.slice(0, 4)}
-                </div>
-                <div className="tabular-nums">
-                  {m.views.toLocaleString()} views · {m.leads.toLocaleString()}{' '}
-                  lead{m.leads === 1 ? '' : 's'}
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-      <div
-        className="mt-1 flex gap-[2px] text-[11px] text-muted-foreground"
-        aria-hidden
-      >
-        {months.map((m, i) => (
-          <span key={m.month} className="flex-1 text-center">
-            {i === 0 || m.month.endsWith('-01')
-              ? `${monthLabel(m.month)} ${m.month.slice(2, 4)}`
-              : monthLabel(m.month)}
+    <div className="@container flex flex-col gap-3 rounded-lg border bg-card p-4 pt-[14px]">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 className="text-[15px] font-semibold text-foreground/75">
+          Views by month
+        </h2>
+        {months.length > 0 && (
+          <span className="text-xs text-muted-foreground">
+            {plural(views, 'view')} · {plural(leads, 'lead')} over{' '}
+            {months.length} month{months.length === 1 ? '' : 's'}
           </span>
-        ))}
+        )}
       </div>
+      {months.length === 0 ? (
+        <p className="py-4 text-sm text-muted-foreground">
+          No traffic synced yet.
+        </p>
+      ) : (
+        <div className="flex items-end gap-1.5 pt-2" aria-hidden>
+          {months.map((m) => {
+            const pct = (m.views / max) * 100;
+            const label = `${monthLabel(m.month)} ${m.month.slice(0, 4)}`;
+            return (
+              <div
+                key={m.month}
+                className="flex min-w-0 flex-1 flex-col items-center gap-1.5"
+              >
+                <div className="relative h-[154px] w-full">
+                  <div className="absolute inset-0 rounded-t-[5px] rounded-b-[3px] bg-muted/30" />
+                  <div
+                    className="absolute inset-x-0 bottom-0 rounded-t-[5px] rounded-b-[3px] bg-brand transition-[filter] hover:brightness-110"
+                    style={{ height: `${pct}%` }}
+                    title={`${label}: ${plural(m.views, 'view')} · ${plural(m.leads, 'lead')}`}
+                  />
+                  {m.views > 0 && (
+                    <span
+                      className="absolute left-1/2 hidden -translate-x-1/2 -translate-y-1 text-[11px] whitespace-nowrap text-muted-foreground tabular-nums sm:block"
+                      style={{ bottom: `${pct}%` }}
+                    >
+                      {m.views.toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                <span className="hidden text-xs whitespace-nowrap text-muted-foreground @3xl:block">
+                  {label}
+                </span>
+                <span className="text-[10px] whitespace-nowrap text-muted-foreground sm:text-xs @3xl:hidden">
+                  {monthLabel(m.month)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <table className="sr-only">
         <caption>Views and leads by month</caption>
         <thead>
@@ -440,6 +516,102 @@ function MonthBars({ months }: { months: TrafficMonth[] }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** A year shows at most this many sales inline. */
+const YEAR_SALES_SHOWN = 100;
+
+const SALE_STATUS: Record<MarketSale['status'], string> = {
+  completed: 'Completed',
+  in_progress: 'In progress',
+  cancelled: 'Cancelled',
+  unknown: 'Unknown',
+};
+const SALE_KIND: Record<MarketSale['kind'], string> = {
+  buy_now: 'Buy Now',
+  offer: 'Offer',
+  lease: 'Lease',
+  unknown: '—',
+};
+
+/** One year's sales, newest first, up to YEAR_SALES_SHOWN. */
+function YearSales({
+  sales,
+  money,
+}: {
+  sales: MarketSale[];
+  money: (amount: string, currency?: string) => string;
+}) {
+  const shown = sales.slice(0, YEAR_SALES_SHOWN);
+  const amount = (a: string | null, currency: string) =>
+    a ? money(a, currency) : '—';
+  return (
+    <div className="px-2 py-1">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>Sold</TableHead>
+            <TableHead>Domain</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Price</TableHead>
+            <TableHead className="text-right">Commission</TableHead>
+            <TableHead className="text-right">Net</TableHead>
+            <TableHead className="text-right">Paid out</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {shown.map((s) => (
+            <TableRow key={`${s.accountId}:${s.id}`}>
+              <TableCell className="tabular-nums text-muted-foreground">
+                {s.soldOn}
+              </TableCell>
+              <TableCell className="font-medium">{s.name}</TableCell>
+              <TableCell>
+                {SALE_KIND[s.kind]}
+                {s.installments?.total != null && (
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    {s.installments.paid ?? 0}/{s.installments.total} paid
+                  </span>
+                )}
+              </TableCell>
+              <TableCell
+                className={cn(
+                  s.status !== 'completed' && 'text-muted-foreground',
+                )}
+              >
+                {SALE_STATUS[s.status]}
+              </TableCell>
+              <TableCell
+                className={cn(
+                  'text-right tabular-nums',
+                  s.status === 'cancelled' &&
+                    'text-muted-foreground line-through',
+                )}
+              >
+                {amount(s.price, s.currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">
+                {amount(s.commission, s.currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {s.status === 'cancelled' ? '—' : amount(s.net, s.currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">
+                {s.paidOutOn ?? '—'}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {sales.length > shown.length && (
+        <p className="px-2 pt-1 pb-2 text-xs text-muted-foreground">
+          Showing the latest {shown.length.toLocaleString()} of{' '}
+          {sales.length.toLocaleString()} sales this year.
+        </p>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import {
   getActiveRegistrars,
   getCachedPortfolio,
   getPortfolio,
+  retryDeferredSyncs,
 } from './registrars';
 import { getSettings } from './settings';
 import { broadcastPortfolioChanged } from '../events';
@@ -42,10 +43,12 @@ function intervalMs(): number {
 }
 
 /**
- * One best-effort refresh of every configured registrar, then notify windows.
+ * One best-effort refresh of every configured registrar, then every enabled
+ * market account, then notify windows.
  * Skips when nothing is configured, while a bulk job is patching caches, or
- * (with `ifOlderThanMs`) when the cache is already fresher than that — which
- * is how a fixed-cadence scheduler (the web host's hourly cron) honors a
+ * (with `ifOlderThanMs`) when the cache is already fresher than that, except
+ * for due per-account rate-limit recovery. The freshness threshold is
+ * how a fixed-cadence scheduler (the web host's hourly cron) honors a
  * longer configured interval. Won't stack onto a still-running pass.
  * Returns true when a sync actually ran.
  */
@@ -56,15 +59,25 @@ export async function syncAll(ifOlderThanMs?: number): Promise<boolean> {
   inFlight = true;
   try {
     let ran = false;
-    const fetchedAt = getCachedPortfolio()?.fetchedAt ?? 0;
-    const stale =
-      ifOlderThanMs === undefined || Date.now() - fetchedAt >= ifOlderThanMs;
-    if (getActiveRegistrars().length > 0 && stale) {
+    if (getActiveRegistrars().length > 0) {
       try {
-        await getPortfolio(true);
-        broadcastPortfolioChanged();
-        console.log('[auto-sync] portfolio refreshed');
-        ran = true;
+        const fetchedAt = getCachedPortfolio()?.fetchedAt ?? 0;
+        if (
+          ifOlderThanMs !== undefined &&
+          Date.now() - fetchedAt < ifOlderThanMs
+        ) {
+          // Fresh enough, but an account whose sync was deferred (a rate
+          // limit) may be due again.
+          if (await retryDeferredSyncs()) {
+            broadcastPortfolioChanged();
+            ran = true;
+          }
+        } else {
+          await getPortfolio(true, true);
+          broadcastPortfolioChanged();
+          console.log('[auto-sync] portfolio refreshed');
+          ran = true;
+        }
       } catch (err) {
         // Best-effort — the next tick retries.
         console.error('[auto-sync] failed', err);
