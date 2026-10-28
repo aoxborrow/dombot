@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Trash2,
   Undo2,
+  CircleX,
 } from 'lucide-react';
 import type { Domain, Folder } from '../../../shared/ipc';
 import { toAscii } from '../../../shared/domain-name';
@@ -250,34 +251,30 @@ export function RowActionsMenu({
               Pricing<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             {onMarket && (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
+              <>
+                <DropdownMenuItem
+                  disabled={Boolean(marketReasons?.list)}
+                  title={marketReasons?.list ?? undefined}
+                  onSelect={() => onMarket('list')}
+                >
                   <MarketLogo
                     market={marketId}
                     label={marketLabel}
                     className="size-4 p-[1.5px] text-muted-foreground"
                   />
-                  {marketLabel}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem
-                    disabled={Boolean(marketReasons?.list)}
-                    title={marketReasons?.list ?? undefined}
-                    onSelect={() => onMarket('list')}
-                  >
-                    List at your price
-                    <span className="-ml-[6px] opacity-50">…</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    disabled={Boolean(marketReasons?.delist)}
-                    title={marketReasons?.delist ?? undefined}
-                    onSelect={() => onMarket('delist')}
-                  >
-                    Delist<span className="-ml-[6px] opacity-50">…</span>
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+                  List at your price
+                  <span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={Boolean(marketReasons?.delist)}
+                  title={marketReasons?.delist ?? undefined}
+                  onSelect={() => onMarket('delist')}
+                >
+                  <CircleX />
+                  Delist<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+              </>
             )}
           </>
         )}
