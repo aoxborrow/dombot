@@ -63,9 +63,8 @@ export default function Markets() {
     formatMoney(amount, currency, preferred, numberFormat, true);
   const count = (n: number) => n.toLocaleString();
 
-  // With accounts on more than one market, the page can show one at a time.
-  // Traffic adds up across markets otherwise: lander views and parking
-  // visitors are both visits to the name.
+  // The page can show one market at a time. Traffic adds up across markets
+  // otherwise: lander views and parking visitors are both visits to the name.
   const marketIds = [...new Set((allAccounts ?? []).map((a) => a.market))];
   const [picked, setMarket] = useState<string>('all');
   const market = marketIds.find((id) => id === picked) ?? null;
@@ -173,24 +172,22 @@ export default function Markets() {
           sync.
         </p>
       </div>
-      {marketIds.length > 1 && (
-        <label className="flex items-center gap-3 text-sm">
-          Market
-          <select
-            aria-label="Market"
-            className="rounded-md border bg-background px-3 py-2"
-            value={market ?? 'all'}
-            onChange={(e) => setMarket(e.target.value)}
-          >
-            <option value="all">All markets</option>
-            {marketIds.map((id) => (
-              <option key={id} value={id}>
-                {catalog.find((m) => m.id === id)?.name ?? id}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      <label className="flex items-center gap-3 text-sm">
+        Market
+        <select
+          aria-label="Market"
+          className="rounded-md border bg-background px-3 py-2"
+          value={market ?? 'all'}
+          onChange={(e) => setMarket(e.target.value)}
+        >
+          <option value="all">All markets</option>
+          {marketIds.map((id) => (
+            <option key={id} value={id}>
+              {catalog.find((m) => m.id === id)?.name ?? id}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         <StatCard
