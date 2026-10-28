@@ -108,8 +108,26 @@ export interface SedoExtra {
   keywords: string[];
 }
 
-// Atom's extra joins this union when its adapter exists.
-export type MarketExtra = AfternicExtra | SedoExtra;
+export interface AtomExtra {
+  market: 'atom';
+  /** Atom's listing id, when it sends one. */
+  id: string | null;
+  /** The primary (industry) category. */
+  category: string | null;
+  description: string | null;
+  /** Counters, when Atom's list sends them; sync also snapshots them. */
+  views: number | null;
+  shortlists: number | null;
+  /** Buyers tracking the price (Atom emails them when it changes). */
+  trackers: number | null;
+  /**
+   * Premium only: Atom allows this name on other marketplaces too. Null for
+   * other tiers, or when the syndication list couldn't be read.
+   */
+  syndicationAuthorized: boolean | null;
+}
+
+export type MarketExtra = AfternicExtra | AtomExtra | SedoExtra;
 
 /** A listing's GoDaddy search counts, when its market sends them. */
 export function searchesOf(l: MarketListing): AfternicExtra['searches'] | null {
@@ -141,7 +159,17 @@ export interface SedoExtraChange {
   language?: string;
 }
 
-export type MarketExtraChange = AfternicExtraChange | SedoExtraChange;
+export interface AtomExtraChange {
+  market: 'atom';
+  /** The tier for a new listing; DomBot never adds Premium. */
+  tier?: 'standard' | 'plus';
+  /** A primary category by name (market_categories_get lists them). */
+  category?: string;
+  description?: string;
+}
+
+export type MarketExtraChange =
+  AfternicExtraChange | AtomExtraChange | SedoExtraChange;
 
 /** A change to one listing. Only the fields given are changed. */
 export interface MarketListingChange {

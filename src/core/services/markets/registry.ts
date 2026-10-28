@@ -1,6 +1,7 @@
 import type { MarketId, MarketInfo } from '../../../shared/markets';
 import type {
   AfternicActions,
+  AtomActions,
   MarketAdapter,
   SedoActions,
 } from '../../markets/types';
@@ -9,6 +10,11 @@ import {
   AFTERNIC_CONFIG_FIELDS,
   createAfternicAdapter,
 } from './afternic';
+import {
+  ATOM_CAPABILITIES,
+  ATOM_CONFIG_FIELDS,
+  createAtomAdapter,
+} from './atom';
 import {
   SEDO_CAPABILITIES,
   SEDO_CONFIG_FIELDS,
@@ -24,6 +30,7 @@ export type Credentials = Record<string, string>;
 /** An adapter, plus whichever market-only actions its market has. */
 export type AnyMarketAdapter = MarketAdapter &
   Partial<AfternicActions> &
+  Partial<AtomActions> &
   Partial<SedoActions>;
 
 interface MarketEntry {
@@ -45,6 +52,22 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     },
     create: (accountId, credentials) =>
       createAfternicAdapter(accountId, credentials),
+  },
+  // UNVERIFIED: built from Atom's specs; no authenticated call has been made
+  // yet (docs/atom-api.md).
+  atom: {
+    info: {
+      id: 'atom',
+      name: 'Atom',
+      website: 'atom.com',
+      keysUrl: 'https://www.atom.com/dashboard/seller/api-access',
+      helpText:
+        'Atom’s seller API is a beta you request under Dashboard → API Access on atom.com (Atom asks for 500+ listings). Paste the API token and the user ID shown with it. Atom has one price per name: no minimum offer or floor.',
+      configFields: ATOM_CONFIG_FIELDS,
+      capabilities: ATOM_CAPABILITIES,
+    },
+    create: (accountId, credentials) =>
+      createAtomAdapter(accountId, credentials),
   },
   // UNVERIFIED: built from Sedo's docs; no live call has been made yet
   // (docs/sedo-api.md).

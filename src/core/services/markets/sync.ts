@@ -190,7 +190,7 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
     // Last, and in a slice: per-name traffic is the slow part.
     snapshotSearches(accountId, read.listings);
     let trafficNote: string | null = null;
-    if (caps.domainStats === 'daily') {
+    if (caps.domainStats) {
       const t = await syncDomainTraffic(adapter, read.listings);
       if (t.error) {
         trafficNote = `Per-domain traffic paused after ${t.fetched} names: ${t.error}. The next sync carries on.`;

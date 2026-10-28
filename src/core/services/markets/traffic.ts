@@ -33,6 +33,15 @@ export interface DomainTraffic {
   /** YYYY-MM-DD, the last day the fetch covered. */
   through: string;
   days: Record<string, [views: number, leads: number]>;
+  /**
+   * The running totals last read, for markets whose stats are snapshots
+   * (Atom): the next read's difference becomes that day's views.
+   */
+  counters?: {
+    views: number | null;
+    shortlists: number | null;
+    trackers: number | null;
+  };
 }
 
 export type SearchSnapshot = { total: SearchCounts; unique: SearchCounts };
@@ -94,31 +103,56 @@ export async function syncDomainTraffic(
   budget = trafficBudget(),
   now: number = Date.now(),
 ): Promise<{ fetched: number; error: string | null }> {
-  if (!adapter.domainStats) return { fetched: 0, error: null };
+  const snapshots =
+    adapter.capabilities?.domainStats === 'snapshot' && adapter.domainCounters;
+  if (!adapter.domainStats && !snapshots) return { fetched: 0, error: null };
   const today = localDay(now);
   let fetched = 0;
   for (const name of trafficQueue(adapter.accountId, listings, budget, now)) {
     const k = key(adapter.accountId, name);
     const kept = traffic.get(k);
-    let rows;
+    const days = { ...(kept?.days ?? {}) };
+    let counters = kept?.counters;
     try {
-      rows = await adapter.domainStats(name, kept ? LATER_DAYS : FIRST_DAYS);
+      if (snapshots && adapter.domainCounters) {
+        const c = await adapter.domainCounters(name);
+        // The first read is the baseline. After that, the views since the
+        // last read land on today: reads are about a day apart.
+        const before = kept?.counters?.views;
+        if (before != null && c.views != null && c.views > before) {
+          days[today] = [(days[today]?.[0] ?? 0) + c.views - before, 0];
+        }
+        counters = {
+          views: c.views,
+          shortlists: c.shortlists,
+          trackers: c.trackers,
+        };
+      } else if (adapter.domainStats) {
+        const rows = await adapter.domainStats(
+          name,
+          kept ? LATER_DAYS : FIRST_DAYS,
+        );
+        for (const r of rows) {
+          const views = r.views ?? 0;
+          const leads = r.leads ?? 0;
+          if (views || leads) days[r.date] = [views, leads];
+          else delete days[r.date];
+        }
+      }
     } catch (error) {
       return {
         fetched,
         error: error instanceof Error ? error.message : String(error),
       };
     }
-    const days = { ...(kept?.days ?? {}) };
-    for (const r of rows) {
-      const views = r.views ?? 0;
-      const leads = r.leads ?? 0;
-      if (views || leads) days[r.date] = [views, leads];
-      else delete days[r.date];
-    }
     const oldest = dayBefore(today, KEEP_DAYS);
     for (const d of Object.keys(days)) if (d < oldest) delete days[d];
-    void traffic.set(k, { fetchedAt: now, through: today, days });
+    void traffic.set(k, {
+      fetchedAt: now,
+      through: today,
+      days,
+      ...(counters ? { counters } : {}),
+    });
     fetched++;
   }
   return { fetched, error: null };
