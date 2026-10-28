@@ -73,6 +73,7 @@ export function RowActionsMenu({
   onDelete,
   onMarket,
   marketLabel = 'markets',
+  marketReasons,
 }: {
   domain: Domain;
   folders: Folder[];
@@ -99,6 +100,8 @@ export function RowActionsMenu({
   /** List, relist or delist on a market; absent with no market account. */
   onMarket?: (action: MarketAction) => void;
   marketLabel?: string;
+  /** Why each market action can't apply here; null when it can. */
+  marketReasons?: Record<MarketAction, string | null>;
 }) {
   // A name you labeled that an account still holds can go back to Owned. One
   // gone from every account stays Sold, Dropped, or Archived.
@@ -248,15 +251,25 @@ export function RowActionsMenu({
               {marketLabel}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <DropdownMenuItem onSelect={() => onMarket('list')}>
+              <DropdownMenuItem
+                disabled={Boolean(marketReasons?.list)}
+                title={marketReasons?.list ?? undefined}
+                onSelect={() => onMarket('list')}
+              >
                 List at your price
                 <span className="-ml-[6px] opacity-50">…</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onMarket('relist')}>
+              <DropdownMenuItem
+                disabled={Boolean(marketReasons?.relist)}
+                title={marketReasons?.relist ?? undefined}
+                onSelect={() => onMarket('relist')}
+              >
                 Relist<span className="-ml-[6px] opacity-50">…</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 variant="destructive"
+                disabled={Boolean(marketReasons?.delist)}
+                title={marketReasons?.delist ?? undefined}
                 onSelect={() => onMarket('delist')}
               >
                 Delist<span className="-ml-[6px] opacity-50">…</span>

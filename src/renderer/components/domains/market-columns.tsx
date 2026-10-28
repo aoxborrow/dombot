@@ -16,7 +16,6 @@ import type { PurchaseColumn } from './purchase-columns';
 
 export const MARKET_COLUMN_KEYS = new Set([
   'listing',
-  'listedPrice',
   'fastTransfer',
   'views30',
   'leads30',
@@ -41,17 +40,6 @@ const STATUS_DOT: Record<ListingStatus, string> = {
   on_hold: 'bg-amber-500',
   sold: 'bg-muted-foreground',
   unknown: 'bg-muted-foreground',
-};
-
-/** Sorts live listings first, problems next, then the rest. */
-const STATUS_RANK: Record<ListingStatus, number> = {
-  active: 0,
-  pending: 1,
-  on_hold: 2,
-  inactive: 3,
-  rejected: 4,
-  sold: 5,
-  unknown: 6,
 };
 
 const FAST_TRANSFER_LABEL: Record<string, string> = {
@@ -98,10 +86,13 @@ export function marketColumns({
   markets,
   listPrices,
   traffic,
+  showMarket = false,
   preferredCurrency,
   numberFormat,
 }: {
   listings: Listings;
+  /** Name the market beside each price: more than one market is connected. */
+  showMarket?: boolean;
   /** Per-name traffic totals, by `toAscii` name. */
   traffic: MarketTraffic['domains'];
   markets: MarketInfo[];
@@ -140,73 +131,69 @@ export function marketColumns({
     {
       key: 'listing',
       label: 'Listing',
+      align: 'right',
       hideOnMobile: true,
       render: (d) => {
         const list = of(d);
         if (!list.length) return dash;
-        return (
-          <span className="inline-flex flex-wrap gap-x-3 gap-y-1">
-            {list.map((l) => (
-              <span
-                key={`${l.accountId}:${l.market}`}
-                className={cn(
-                  'inline-flex items-center gap-1.5 whitespace-nowrap',
-                  !l.forSale && 'opacity-60',
-                )}
-                title={describe(l, markets, (a) => money(a, l.currency))}
-              >
-                <span
-                  aria-hidden
-                  className={cn('size-2 rounded-full', STATUS_DOT[l.status])}
-                />
-                {marketName(markets, l.market)}
-                {l.status !== 'active' && (
-                  <span className="text-muted-foreground">
-                    {STATUS_LABEL[l.status].toLowerCase()}
-                  </span>
-                )}
-              </span>
-            ))}
-          </span>
-        );
-      },
-      sortValue: (d) => {
-        const list = of(d);
-        return list.length
-          ? Math.min(...list.map((l) => STATUS_RANK[l.status]))
-          : null;
-      },
-    },
-    {
-      key: 'listedPrice',
-      label: 'Listed price',
-      align: 'right',
-      hideOnMobile: true,
-      render: (d) => {
-        const listed = of(d).find((l) => l.price);
-        if (!listed?.price) return dash;
         // Flag a market price that isn't the asking price you set in DomBot.
         const mine = listPrices[toAscii(d.domainName)];
-        const differs =
-          mine?.amount != null &&
-          mine.currency === listed.currency &&
-          Number(mine.amount) !== Number(listed.price);
         return (
-          <span
-            className={cn(differs && 'text-amber-600 dark:text-amber-400')}
-            title={
-              differs
-                ? `Your BIN price in DomBot is ${money(mine.amount!, mine.currency)}`
-                : undefined
-            }
-          >
-            {money(listed.price, listed.currency)}
+          <span className="inline-flex flex-wrap justify-end gap-x-3 gap-y-1">
+            {list.map((l) => {
+              const differs =
+                mine?.amount != null &&
+                l.price != null &&
+                mine.currency === l.currency &&
+                Number(mine.amount) !== Number(l.price);
+              const title = [
+                describe(l, markets, (a) => money(a, l.currency)),
+                differs &&
+                  `Your BIN price in DomBot is ${money(mine.amount!, mine.currency)}`,
+              ]
+                .filter(Boolean)
+                .join('\n');
+              return (
+                <span
+                  key={`${l.accountId}:${l.market}`}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums',
+                    !l.forSale && 'opacity-60',
+                  )}
+                  title={title}
+                >
+                  <span
+                    aria-hidden
+                    className={cn('size-2 rounded-full', STATUS_DOT[l.status])}
+                  />
+                  {showMarket && (
+                    <span className="text-muted-foreground">
+                      {marketName(markets, l.market)}
+                    </span>
+                  )}
+                  <span
+                    className={cn(
+                      differs && 'text-amber-600 dark:text-amber-400',
+                    )}
+                  >
+                    {l.price ? money(l.price, l.currency) : 'Offers'}
+                  </span>
+                  {l.status !== 'active' && (
+                    <span className="text-muted-foreground">
+                      {STATUS_LABEL[l.status].toLowerCase()}
+                    </span>
+                  )}
+                </span>
+              );
+            })}
           </span>
         );
       },
+      // By price; an offers-only listing sorts below priced ones.
       sortValue: (d) => {
-        const price = of(d).find((l) => l.price)?.price;
-        return price ? Number(price) : null;
+        const list = of(d);
+        if (!list.length) return null;
+        return Math.max(...list.map((l) => (l.price ? Number(l.price) : 0)));
       },
     },
     {

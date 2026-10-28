@@ -554,7 +554,6 @@ const VIEW_COLUMNS: Record<'active' | 'archive', ColumnLayout> = {
       'binPrice',
       'minOffer',
       'listing',
-      'listedPrice',
       'fastTransfer',
       'views30',
       'leads30',
@@ -571,7 +570,6 @@ const VIEW_COLUMNS: Record<'active' | 'archive', ColumnLayout> = {
       'nameservers',
     ],
     hidden: [
-      'listedPrice',
       'fastTransfer',
       'views30',
       'leads30',
@@ -857,6 +855,28 @@ export default function Domains() {
       ? (marketCatalog.find((m) => m.id === ids[0])?.name ?? 'Markets')
       : 'Markets';
   }, [marketAccounts, marketCatalog]);
+  // Why a market action can't apply to these names; null when it can (for
+  // a selection: when it applies to at least one of them).
+  const marketReasonsFor = (domains: Domain[]) => {
+    const keys = domains.map((d) => toAscii(d.domainName));
+    const priced = keys.some(
+      (k) => listPrices[k]?.amount || listPrices[k]?.minOffer,
+    );
+    const listed = keys.some((k) => (marketListings[k]?.length ?? 0) > 0);
+    const one = keys.length === 1;
+    const notListed = one
+      ? `Not listed on ${marketLabel}`
+      : `None of these are listed on ${marketLabel}`;
+    return {
+      list: priced
+        ? null
+        : one
+          ? 'Set an asking price with Pricing first'
+          : 'None of these have an asking price; set one with Pricing first',
+      relist: listed ? null : notListed,
+      delist: listed ? null : notListed,
+    };
+  };
   const [marketAction, setMarketAction] = useState<{
     action: MarketAction;
     domains: Domain[];
@@ -984,6 +1004,7 @@ export default function Domains() {
       markets: marketCatalog,
       listPrices,
       traffic: marketTraffic.domains,
+      showMarket: new Set((marketAccounts ?? []).map((a) => a.market)).size > 1,
       preferredCurrency: settings?.preferredCurrency ?? DEFAULT_CURRENCY,
       numberFormat: settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
     })) {
@@ -999,6 +1020,7 @@ export default function Domains() {
     marketListings,
     marketCatalog,
     marketTraffic,
+    marketAccounts,
   ]);
 
   // Pricing is computed locally in main and arrives with the portfolio; the only
@@ -1923,6 +1945,7 @@ export default function Domains() {
                   : undefined
               }
               marketLabel={marketLabel}
+              marketReasons={marketReasonsFor([d])}
             />
           </div>
         </div>
@@ -2153,6 +2176,7 @@ export default function Domains() {
               : undefined
           }
           marketLabel={marketLabel}
+          marketReasons={marketReasonsFor(selectedDomains)}
         />
       </div>
 

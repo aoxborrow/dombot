@@ -67,6 +67,7 @@ export function BulkBar({
   onListPrice,
   onMarket,
   marketLabel = 'markets',
+  marketReasons,
 }: {
   /** The selected domains (merged rows). */
   domains: Domain[];
@@ -89,6 +90,8 @@ export function BulkBar({
   onMarket?: (action: MarketAction) => void;
   /** The market's name for the menu, e.g. "Afternic" (or "markets"). */
   marketLabel?: string;
+  /** Why each market action can't apply here; null when it can. */
+  marketReasons?: Record<MarketAction, string | null>;
 }) {
   const bulk = useAppStore((s) => s.bulk);
   const running = bulk?.status === 'running';
@@ -254,15 +257,25 @@ export function BulkBar({
                   {marketLabel}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
-                  <DropdownMenuItem onSelect={() => onMarket('list')}>
+                  <DropdownMenuItem
+                    disabled={Boolean(marketReasons?.list)}
+                    title={marketReasons?.list ?? undefined}
+                    onSelect={() => onMarket('list')}
+                  >
                     List at your prices
                     <span className="-ml-[6px] opacity-50">…</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => onMarket('relist')}>
+                  <DropdownMenuItem
+                    disabled={Boolean(marketReasons?.relist)}
+                    title={marketReasons?.relist ?? undefined}
+                    onSelect={() => onMarket('relist')}
+                  >
                     Relist<span className="-ml-[6px] opacity-50">…</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     variant="destructive"
+                    disabled={Boolean(marketReasons?.delist)}
+                    title={marketReasons?.delist ?? undefined}
                     onSelect={() => onMarket('delist')}
                   >
                     Delist<span className="-ml-[6px] opacity-50">…</span>
