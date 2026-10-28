@@ -309,6 +309,61 @@ export interface MarketInfo {
   helpText: string;
   configFields: MarketConfigField[];
   capabilities: MarketCapabilities;
+  /**
+   * The market's own nameservers, declared by each market next to its
+   * client. The first set is the one to point a name at.
+   */
+  nameservers: MarketNameservers[];
+}
+
+/** A set of nameservers a market publishes (or assigns, as a pattern). */
+export interface MarketNameservers {
+  /** The Nameservers filter's key for this set; keep it stable. */
+  key: string;
+  /** How the filter names it ("Atom", "Afternic (ns3/ns4)"). */
+  label: string;
+  /**
+   * Lowercase hostnames. A leading `*.` matches any host under that domain
+   * (`*.ns.afternic.com`), for nameservers a market assigns per customer.
+   */
+  hosts: readonly string[];
+}
+
+function hostMatches(host: string, pattern: string): boolean {
+  return pattern.startsWith('*.')
+    ? host.endsWith(pattern.slice(1)) && host.length > pattern.length - 1
+    : host === pattern;
+}
+
+/**
+ * The market and set a nameserver hostname belongs to, if any: exact
+ * hostnames first, then patterns.
+ */
+export function marketNameserversFor(
+  host: string,
+  markets: readonly Pick<MarketInfo, 'id' | 'nameservers'>[],
+): { market: MarketId; set: MarketNameservers } | null {
+  const h = host.trim().toLowerCase().replace(/\.$/, '');
+  if (!h) return null;
+  for (const exact of [true, false]) {
+    for (const m of markets) {
+      const set = m.nameservers.find((s) =>
+        s.hosts.some((p) => p.startsWith('*.') !== exact && hostMatches(h, p)),
+      );
+      if (set) return { market: m.id, set };
+    }
+  }
+  return null;
+}
+
+/** The nameservers to point a name at for a market: its first set. */
+export function defaultMarketNameservers(
+  info: Pick<MarketInfo, 'nameservers'>,
+): string[] {
+  const set = info.nameservers.find(
+    (s) => !s.hosts.some((h) => h.startsWith('*.')),
+  );
+  return set ? [...set.hosts] : [];
 }
 
 /** A connected market account, as stored in `market-accounts`. */

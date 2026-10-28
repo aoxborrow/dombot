@@ -17,3 +17,4 @@ export {
   SALE_ORDERS,
   SALE_STATUSES,
 } from './wire';
+export { AFTERNIC_NAMESERVERS } from './nameservers';

@@ -418,10 +418,12 @@ What each costs:
   custom nameservers assigned to you, and which method you prefer.
 - **Capabilities, per market:** which methods it accepts, its default
   nameservers and CNAME target, and whether it has a "check now" call (Atom's
-  verify DNS). Each market's nameservers are already listed, with what each
-  set is for, in `src/shared/market-nameservers.ts`
-  (`defaultMarketNameservers` gives the pair to point a name at); the
-  Nameservers filter groups by them. Settings shows only the fields a market's methods need.
+  verify DNS). Each market already declares its nameservers next to its
+  client (`src/core/markets/<market>/nameservers.ts`), published in the
+  catalog as `MarketInfo.nameservers`; the Nameservers filter groups by
+  them, and `defaultMarketNameservers` gives the pair to point a name at. A
+  market that assigns nameservers per customer can list them as a pattern
+  (`*.ns.example.com`), or through the account later. Settings shows only the fields a market's methods need.
   Atom's check-now allows one request per account every 12 hours, for any
   name (seen live, docs/atom-api.md): the action should apply DNS to every
   selected name first and ask once, not once per name.

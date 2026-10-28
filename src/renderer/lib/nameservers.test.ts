@@ -1,6 +1,16 @@
 import { describe, it, expect } from 'vitest';
 
+import { AFTERNIC_NAMESERVERS } from '../../core/markets/afternic/nameservers';
+import { ATOM_NAMESERVERS } from '../../core/markets/atom/nameservers';
+import { SEDO_NAMESERVERS } from '../../core/markets/sedo/nameservers';
 import { nameserverGroup } from './nameservers';
+
+/** The market catalog's nameservers, as the Domains page passes them. */
+const markets = [
+  { id: 'afternic' as const, nameservers: AFTERNIC_NAMESERVERS },
+  { id: 'atom' as const, nameservers: ATOM_NAMESERVERS },
+  { id: 'sedo' as const, nameservers: SEDO_NAMESERVERS },
+];
 
 describe('nameserverGroup', () => {
   it('groups a hostname by its registrable base domain', () => {
@@ -40,23 +50,23 @@ describe('nameserverGroup', () => {
   });
 
   it('names each market’s own nameservers', () => {
-    expect(nameserverGroup('NS5.Afternic.com.')).toEqual({
+    expect(nameserverGroup('NS5.Afternic.com.', markets)).toEqual({
       key: 'afternic.com#3',
       label: 'Afternic (ns5/ns6)',
     });
-    expect(nameserverGroup('ns1.atom.com')).toEqual({
+    expect(nameserverGroup('ns1.atom.com', markets)).toEqual({
       key: 'atom.com',
       label: 'Atom',
     });
-    expect(nameserverGroup('ns2.atomregistrar.com')).toEqual({
+    expect(nameserverGroup('ns2.atomregistrar.com', markets)).toEqual({
       key: 'atomregistrar.com',
       label: 'AtomRegistrar',
     });
-    expect(nameserverGroup('ns1.squadhelp.com')).toEqual({
+    expect(nameserverGroup('ns1.squadhelp.com', markets)).toEqual({
       key: 'squadhelp.com',
       label: 'Atom (Squadhelp)',
     });
-    expect(nameserverGroup('ns2.sedoparking.com')).toEqual({
+    expect(nameserverGroup('ns2.sedoparking.com', markets)).toEqual({
       key: 'sedoparking.com',
       label: 'Sedo',
     });

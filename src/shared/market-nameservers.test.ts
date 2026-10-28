@@ -1,38 +1,47 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MARKET_NAMESERVERS,
   defaultMarketNameservers,
   marketNameserversFor,
-} from './market-nameservers';
+  type MarketInfo,
+} from './markets';
+
+const catalog: Pick<MarketInfo, 'id' | 'nameservers'>[] = [
+  {
+    id: 'afternic',
+    nameservers: [
+      { key: 'a1', label: 'Afternic (ns1/ns2)', hosts: ['ns1.afternic.com'] },
+      // How a market that assigns nameservers per customer would list them.
+      {
+        key: 'a-assigned',
+        label: 'Afternic (yours)',
+        hosts: ['*.ns.afternic.com'],
+      },
+    ],
+  },
+  {
+    id: 'sedo',
+    nameservers: [{ key: 's1', label: 'Sedo', hosts: ['ns1.sedoparking.com'] }],
+  },
+];
 
 describe('market nameservers', () => {
-  it('finds a set by exact hostname', () => {
-    expect(marketNameserversFor(' NS2.Atom.com. ')?.key).toBe('atom.com');
-    expect(marketNameserversFor('abc-ns2.atom.com')).toBeNull();
-    expect(marketNameserversFor('atom.com')).toBeNull();
-    expect(marketNameserversFor('ns1.example.com')).toBeNull();
+  it('finds a hostname’s market and set, exact before patterns', () => {
+    expect(marketNameserversFor(' NS1.Afternic.com. ', catalog)).toEqual({
+      market: 'afternic',
+      set: catalog[0].nameservers[0],
+    });
+    expect(marketNameserversFor('x7.ns.afternic.com', catalog)?.set.key).toBe(
+      'a-assigned',
+    );
+    expect(marketNameserversFor('ns.afternic.com', catalog)).toBeNull();
+    expect(marketNameserversFor('ns1.sedoparking.com', catalog)?.market).toBe(
+      'sedo',
+    );
+    expect(marketNameserversFor('ns1.example.com', catalog)).toBeNull();
   });
 
-  it('gives each market’s nameservers to point a name at', () => {
-    expect(defaultMarketNameservers('afternic')).toEqual([
-      'ns1.afternic.com',
-      'ns2.afternic.com',
-    ]);
-    expect(defaultMarketNameservers('atom')).toEqual([
-      'ns1.atom.com',
-      'ns2.atom.com',
-    ]);
-    expect(defaultMarketNameservers('sedo')).toEqual([
-      'ns1.sedoparking.com',
-      'ns2.sedoparking.com',
-    ]);
-  });
-
-  it('keeps keys unique and hosts lowercase', () => {
-    const keys = MARKET_NAMESERVERS.map((s) => s.key);
-    expect(new Set(keys).size).toBe(keys.length);
-    for (const s of MARKET_NAMESERVERS) {
-      for (const h of s.hosts) expect(h).toBe(h.toLowerCase());
-    }
+  it('gives a market’s first shared set as the one to point a name at', () => {
+    expect(defaultMarketNameservers(catalog[0])).toEqual(['ns1.afternic.com']);
+    expect(defaultMarketNameservers({ nameservers: [] })).toEqual([]);
   });
 });
