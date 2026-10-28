@@ -6,7 +6,9 @@ bulk writes, MCP). Each market's own API, quirks and client are in its plan:
 
 - [afternic-api.md](afternic-api.md): client built
   (`src/core/markets/afternic/`), verified live.
-- [atom-api.md](atom-api.md): plan only; no API key yet.
+- [atom-api.md](atom-api.md): client and adapter
+  (`src/core/markets/atom/`, `src/core/services/markets/atom.ts`); reads
+  and writes verified live.
 - [sedo-api.md](sedo-api.md): client and adapter built
   (`src/core/markets/sedo/`, `src/core/services/markets/sedo.ts`), verified
   live (reads and writes).
@@ -313,12 +315,22 @@ saved, so the Domains table shows it before the next sync.
   That runs directly in the request (the desktop app, or the Worker, where
   waiting on the network doesn't count against its CPU time), and returns
   one result per name.
-- **Atom, later:** one name a call, so a large push takes hours. That's when
-  market accounts join DomBot's bulk runner
-  (`src/core/services/bulk-jobs.ts`) as lanes next to registrars: persisted,
-  resumable after a restart, progress per name. `market_listings_set` then
-  returns a bulk job for markets with a small `writeBatch`, and a
-  `market_job_get` tool reads it.
+- **Atom, built:** one name a call, so a large push takes hours. More than
+  10 names on such a market (`writeBatch` 1) run as a **market job** in
+  DomBot's bulk runner (`src/core/services/bulk-jobs.ts`, "Market jobs"):
+  one lane per market account, persisted, a name at a time per account
+  about a second apart (the market's rate, when it publishes one). Names
+  whose synced listing already has the asked values are skipped without a
+  call. A rate-limited name goes back in the queue (up to three times);
+  every other outcome is final, since a write is never retried. It's a job
+  of its own beside the registrar job, so an hours-long push doesn't hold
+  up registrar bulk operations, and unlike a registrar job it resumes after
+  a restart (a name that was mid-request is recorded as unknown, not
+  re-sent). The Domains table's List and Delist dialog follows it with
+  progress and a Stop button; MCP's `market_listings_set` and
+  `market_listings_delete` return `{ job }`, and `market_job_get` reads it.
+  The web host's Worker can't hold the loop, so each progress read runs it
+  for a few seconds.
 - Afternic's CSV jobs (`runJob`) stay available for pushes past what the
   `$each` calls handle comfortably; nothing uses them yet.
 - **Sedo, built:** 50 names a call, the same direct path.
@@ -326,7 +338,7 @@ saved, so the Domains table shows it before the next sync.
 
 ## Domains table and actions
 
-- **A listing column per connected market** (Afternic, Sedo, …), in the slot
+- **A listing column per connected market** (Afternic, Atom, Sedo, …), in the slot
   saved layouts call `listing`, so a name listed on two markets stays on one
   line: the price (or "Offers"), a status dot, and the status when it isn't
   active. A name can only be in one account per market, so each cell holds
@@ -350,7 +362,7 @@ As in the Afternic plan, generalized: one card per market account, built from
 the adapter's `configFields` and `test()`, with the same ⋯ menu as registrar
 cards. Market-specific rows come from capabilities: listing defaults where
 `accountSettings`, a rate-limit field where `rateLimit` is null, the
-partner-access note for Sedo, the API-beta note for Atom. What an account
+partner-access note for Sedo, the API-access note for Atom. What an account
 has shows as status dots (`MarketSyncState.status`), such as Afternic's
 Discount Domain Club Domain Pro, which decides whether search counts come
 back; sync keeps it current.
@@ -407,6 +419,9 @@ What each costs:
 - **Capabilities, per market:** which methods it accepts, its default
   nameservers and CNAME target, and whether it has a "check now" call (Atom's
   verify DNS). Settings shows only the fields a market's methods need.
+  Atom's check-now allows one request per account every 12 hours, for any
+  name (seen live, docs/atom-api.md): the action should apply DNS to every
+  selected name first and ask once, not once per name.
 - **A "Verify ownership" action** for selected names on an account, in the
   Domains table and as an MCP tool (`domain_listing_verify`, generalized from
   Atom's). For each name, it applies the chosen method through the registrar
@@ -476,15 +491,21 @@ a person (a sale message) says so in its description.
 3. **Afternic phases 5–6** (done): writes, reporting.
 4. **Atom and Sedo** when there are credentials: client, then an adapter, then
    their capability-gated extras. Atom's API access needs approval and 500+
-   listings; Sedo needs a partner ID and sign key. Sedo is done: built from
-   the docs, then verified live once credentials arrived (2026-10-28).
+   listings; Sedo needs a partner ID and sign key. Both are done: built from
+   their docs, then verified live once credentials arrived (2026-10-28).
+   Atom also brought market bulk jobs (see "Bulk writes"). Status and
+   what's left: atom-api.md, "Status"; sedo-api.md.
 5. **Ownership verification** for every market: planned above, not built.
 
 ## Open questions
 
 1. The `marketSale` link on `DomainEvent`: confirm it against
    docs/storage-model.md's rules before phase 4 writes the first event.
-2. Does Atom report errors with HTTP 200 for every failure, as Sedo does
-   (checked live)? Adapters check bodies either way.
-3. Market rate limits for Atom and Sedo are unpublished; the defaults (60 a
-   minute) are guesses until throttling shows or the markets say.
+2. Do Atom and Sedo report errors with HTTP 200 for every failure? Both
+   do, checked live: Atom answers every failure with a lone `message`
+   (atom-api.md, "Observed"), Sedo with a fault document. Adapters check
+   bodies either way.
+3. Market rate limits for Atom and Sedo are unpublished. Atom drew no
+   throttling at about 300 calls a minute, and its client paces at 120; its
+   DNS check is limited to one per account every 12 hours. Sedo's default
+   (60 a minute) is a guess until throttling shows or Sedo says.

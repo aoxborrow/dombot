@@ -17,6 +17,7 @@ import { getCachedPortfolio } from '../registrars';
 import {
   activeMarketAccounts,
   getMarketSyncState,
+  listMarketAccounts,
   marketAccount,
   marketAdapter,
   onMarketAccountRemoved,
@@ -241,10 +242,28 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
         : undefined;
       const read = await adapter.allSales(since);
       void sales.setMany(read.map((s) => [`${accountId}:${s.id}`, s]));
+      // The same sale kept from an account since removed (the account was
+      // reconnected under a new id) is this one now: drop the old record so
+      // it isn't counted twice. Every sale this account has is compared, not
+      // just this read, which after the first sync only goes back a window.
+      const live = new Set(listMarketAccounts().map((a) => a.id));
+      const mine = new Set(
+        accountSales(accountId).map((s) => `${s.market}:${s.name}:${s.id}`),
+      );
+      for (const [key, s] of Object.entries(sales.all())) {
+        if (
+          !live.has(s.accountId) &&
+          mine.has(`${s.market}:${s.name}:${s.id}`)
+        ) {
+          void sales.delete(key);
+        }
+      }
       const all = accountSales(accountId);
       // Undo sold events written before the payout rule existed.
       dropSaleEvents(all.filter((s) => !isShownSale(s)).map(saleKey));
-      recordSaleEvents(all.filter(isShownSale), heldNames(), localDay());
+      recordSaleEvents(all.filter(isShownSale), heldNames(), localDay(), {
+        liveAccounts: live,
+      });
     }
 
     if (caps.accountStats && adapter.accountStats) {
@@ -271,7 +290,7 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
     // Last, and in a slice: per-name traffic is the slow part.
     snapshotSearches(accountId, read.listings);
     let trafficNote: string | null = null;
-    if (caps.domainStats === 'daily') {
+    if (caps.domainStats) {
       const t = await syncDomainTraffic(adapter, read.listings);
       if (t.error) {
         trafficNote = `Per-domain traffic paused after ${t.fetched} names: ${t.error}. The next sync carries on.`;

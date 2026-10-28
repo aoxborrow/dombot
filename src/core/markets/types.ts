@@ -13,6 +13,11 @@ import type {
   AfternicAccountSettings,
   RelistMode,
 } from './afternic/types';
+import type {
+  AtomAppraisal,
+  AtomCategory,
+  AtomGradeResult,
+} from './atom/types';
 import type { SedoCategory, SedoLanguage, SedoPayment } from './sedo/types';
 
 // The core side of the shared market model (docs/markets.md): the adapter
@@ -38,6 +43,19 @@ export interface MarketAdapter {
   allSales?(since?: string): Promise<MarketSale[]>;
   accountStats?(days: number): Promise<MarketStatsDay[]>;
   domainStats?(name: string, days: number): Promise<MarketStatsDay[]>;
+  /**
+   * A name's running totals, for markets whose stats are snapshots
+   * (`domainStats: 'snapshot'`): sync diffs two of them into a day's views.
+   */
+  domainCounters?(name: string): Promise<MarketCounters>;
+}
+
+/** Running totals for one name, as a snapshot market reports them. */
+export interface MarketCounters {
+  name: string;
+  views: number | null;
+  shortlists: number | null;
+  offers: number | null;
 }
 
 /** Afternic's market-only actions, gated by its capabilities. */
@@ -50,6 +68,22 @@ export interface AfternicActions {
   ): Promise<MarketWriteResult[]>;
   getListingDefaults(): Promise<AfternicAccountSettings>;
   setListingDefaults(settings: AccountSettingsInput): Promise<void>;
+}
+
+/** Atom's market-only actions. Each one is one call for one name. */
+export interface AtomActions {
+  /** Whole dollars off until Monday; null or 0 clears it (UNVERIFIED). */
+  setDiscount(name: string, amount: string | null): Promise<MarketWriteResult>;
+  /** Ask Atom to check the name's nameservers or TXT record now. */
+  verifyDns(name: string): Promise<MarketWriteResult>;
+  /** The primary (industry) categories a listing can take. */
+  primaryCategories(): Promise<AtomCategory[]>;
+  submitForGrading(names: readonly string[]): Promise<{ submitted: number }>;
+  gradingResults(options?: {
+    page?: number;
+    brandFitOnly?: boolean;
+  }): Promise<{ results: AtomGradeResult[]; total: number | null }>;
+  appraisal(name: string): Promise<AtomAppraisal>;
 }
 
 /** Sedo's market-only reads: its listing vocabularies and parking payouts. */

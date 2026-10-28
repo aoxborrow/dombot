@@ -18,6 +18,8 @@ const fake = {
   writes: [] as unknown[],
   messages: [] as [string, string][],
   defaults: [] as unknown[],
+  /** Names per write call; 1 makes the fake behave like Atom for bulk. */
+  writeBatch: 500,
 };
 vi.mock('../services/markets/registry', async () => {
   const { AFTERNIC_CONFIG_FIELDS } =
@@ -34,7 +36,7 @@ vi.mock('../services/markets/registry', async () => {
     buildAdapter: (_m: string, accountId: string) => ({
       market: 'afternic',
       accountId,
-      capabilities: AFTERNIC_CAPABILITIES,
+      capabilities: { ...AFTERNIC_CAPABILITIES, writeBatch: fake.writeBatch },
       test: async () => ({ listings: 0, notes: [] }),
       allListings: async () => ({
         listings: fake.listings.map((l) => ({ ...l, accountId })),
@@ -170,6 +172,7 @@ beforeEach(async () => {
   fake.writes = [];
   fake.messages = [];
   fake.defaults = [];
+  fake.writeBatch = 500;
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-28T12:00:00'));
   await connectMarketAccount(
@@ -293,7 +296,7 @@ describe('market write tools', () => {
         afternic: { featured: true },
         sedo: { language: 'de' },
       }),
-    ).rejects.toThrow(/not both/);
+    ).rejects.toThrow(/one market’s settings/);
   });
 
   it('sets one listing, numbers and all, and reports adjustments', async () => {
@@ -346,6 +349,41 @@ describe('market write tools', () => {
     expect(
       (await call('domain_listing_get', { domain: 'alpha.com' })).listings,
     ).toEqual([]);
+  });
+
+  it('runs a big write on a one-name-a-call market as a job', async () => {
+    const { resetBulkMemory } = await import('../services/bulk-jobs');
+    resetBulkMemory();
+    fake.writeBatch = 1;
+    const domains = Array.from({ length: 11 }, (_, i) => `n${i}.com`);
+    const started = await call('market_listings_set', {
+      accountId: ID,
+      changes: domains.map((name) => ({ name, price: '500' })),
+    });
+    expect(started.job).toMatchObject({
+      status: 'running',
+      total: 11,
+      done: 0,
+    });
+    expect(fake.writes).toEqual([]);
+    const stopped = await call('market_job_get', { cancel: true });
+    expect(stopped.job).toMatchObject({ status: 'cancelled', done: 11 });
+    expect(stopped.job.counts.cancelled).toBe(11);
+  });
+
+  it('says Atom-only actions aren’t supported for Afternic', async () => {
+    await expect(
+      call('domain_listing_discount_set', { domain: 'alpha.com', amount: 50 }),
+    ).rejects.toThrow(/not supported for afternic/);
+    await expect(
+      call('domain_listing_verify', { domain: 'alpha.com' }),
+    ).rejects.toThrow(/not supported for afternic/);
+    await expect(call('market_grading_get', { accountId: ID })).rejects.toThrow(
+      /not supported for afternic/,
+    );
+    await expect(
+      call('domain_appraisal_get', { domain: 'alpha.com' }),
+    ).rejects.toThrow(/No connected market account can appraise/);
   });
 
   it('sends a sale message and saves listing defaults', async () => {

@@ -25,6 +25,8 @@ const fake = {
   batch: 500,
   asyncInsert: false,
   savedForSale: true,
+  /** Capabilities to override, to stand in for a market other than Afternic. */
+  caps: {} as Partial<typeof AFTERNIC_CAPABILITIES>,
 };
 const listingOf = (name: string, accountId: string): MarketListing => ({
   market: 'afternic',
@@ -73,6 +75,7 @@ vi.mock('./registry', async () => {
           ...AFTERNIC_CAPABILITIES,
           writeBatch: fake.batch,
           asyncInsert: fake.asyncInsert,
+          ...fake.caps,
         };
       },
       test: async () => ({ listings: 0, notes: [] }),
@@ -157,6 +160,7 @@ beforeEach(async () => {
     batch: 500,
     asyncInsert: false,
     savedForSale: true,
+    caps: {},
   });
   held.clear();
   applyDomainOp.mockReset();
@@ -213,6 +217,22 @@ describe('pushAskingPrices', () => {
         .map((l) => l.name)
         .sort(),
     ).toEqual(['offers.com', 'priced.com']);
+  });
+
+  it('sends only the prices a market has (Atom: neither minimum offer nor floor)', async () => {
+    fake.caps = { minOffer: false, floor: false, relist: false };
+    setListPrices([
+      price('priced.com', '2500', { minOffer: '100', floor: '1000' }),
+      price('offers.com', null, { minOffer: '50' }),
+    ]);
+    await writes.pushAskingPrices(ID, ['priced.com', 'offers.com']);
+    expect(fake.written).toEqual([
+      [
+        { name: 'priced.com', price: '2500', currency: 'USD' },
+        // No BIN in DomBot: Make an Offer.
+        { name: 'offers.com', price: null, currency: 'USD' },
+      ],
+    ]);
   });
 
   it('re-runs the market’s checks on listings that were stuck', async () => {

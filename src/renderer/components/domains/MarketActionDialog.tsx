@@ -4,6 +4,7 @@ import { toAscii } from '../../../shared/domain-name';
 import type { Domain } from '../../../shared/ipc';
 import type {
   MarketAccountView,
+  MarketBulkJob,
   MarketWriteResult,
 } from '../../../shared/markets';
 import { useAppStore } from '../../store/app';
@@ -28,6 +29,27 @@ import { Field, FieldLabel } from '@/components/ui/field';
 // same way, starting from the markets that list the names.
 
 export type MarketAction = 'list' | 'delist';
+
+/**
+ * More names than this on a market that writes one name per call (Atom) run
+ * as a market bulk job, with progress, instead of one long request.
+ */
+const DIRECT_NAMES = 10;
+
+/** A finished job's outcomes, in the shape the results view shows. */
+function jobResults(job: MarketBulkJob): MarketWriteResult[] {
+  return job.results.map((r) => ({
+    name: r.name,
+    ok: r.status === 'ok' || r.status === 'skipped',
+    pending: r.pending,
+    saved: null,
+    adjusted: r.adjusted,
+    error:
+      r.status === 'ok' || r.status === 'skipped'
+        ? null
+        : { code: r.code ?? r.status, message: r.message || r.status },
+  }));
+}
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -58,6 +80,7 @@ export function MarketActionDialog({
   const loadMarkets = useAppStore((s) => s.loadMarkets);
   const enabled = accounts.filter((a) => a.enabled && a.configured);
   const [running, setRunning] = useState(false);
+  const [job, setJob] = useState<MarketBulkJob | null>(null);
   const [perAccount, setPerAccount] = useState<
     | {
         account: MarketAccountView;
@@ -104,10 +127,36 @@ export function MarketActionDialog({
   const targets = [...new Set(chosen.flatMap(targetsFor))];
   const only = enabled.length === 1 ? enabled[0] : undefined;
 
+  /** Whether the write to `a` runs as a market bulk job (Atom-like). */
+  const jobFor = (a: MarketAccountView) =>
+    targetsFor(a).length > DIRECT_NAMES &&
+    catalog.find((m) => m.id === a.market)?.capabilities.writeBatch === 1;
+  const jobAccounts = chosen.filter(jobFor);
+
+  /** Start a market bulk job and follow it to the end. */
+  const runJob = async (
+    id: string,
+    kind: 'pushAskingPrices' | 'delete',
+    names: string[],
+  ): Promise<MarketWriteResult[]> => {
+    let current = await window.api.startMarketBulk(
+      names.map((name) => ({ accountId: id, name })),
+      { kind },
+    );
+    setJob(current);
+    while (current.status === 'running') {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      current = (await window.api.advanceMarketBulk()) ?? current;
+      setJob(current);
+    }
+    return jobResults(current);
+  };
+
   const run = async () => {
     setRunning(true);
     // One account at a time: each has its own rate limit and its own reasons
-    // to refuse a name, so one market failing doesn't stop the rest.
+    // to refuse a name, so one market failing doesn't stop the rest. A market
+    // that writes one name per call (Atom) runs as a market bulk job.
     const out: NonNullable<typeof perAccount> = [];
     for (const a of chosen) {
       const names = targetsFor(a);
@@ -115,8 +164,13 @@ export function MarketActionDialog({
       try {
         out.push({
           account: a,
-          results:
-            action === 'list'
+          results: jobFor(a)
+            ? await runJob(
+                a.id,
+                action === 'list' ? 'pushAskingPrices' : 'delete',
+                names,
+              )
+            : action === 'list'
               ? await window.api.pushMarketPrices(a.id, names)
               : await window.api.deleteMarketListings(a.id, names),
           error: null,
@@ -218,6 +272,23 @@ export function MarketActionDialog({
                 </span>
               )}
             </p>
+            {jobAccounts.length > 0 && !job && (
+              <p className="text-muted-foreground">
+                {jobAccounts.map(whereOf).join(' and ')}{' '}
+                {jobAccounts.length === 1 ? 'takes' : 'take'} one name at a
+                time, so {jobAccounts.length === 1 ? 'it runs' : 'they run'} in
+                the background, about a name a second.
+              </p>
+            )}
+            {job && job.status === 'running' && (
+              <p aria-live="polite">
+                {job.results.length.toLocaleString()} of{' '}
+                {job.total.toLocaleString()} done
+                {job.counts.skipped > 0 &&
+                  ` (${job.counts.skipped.toLocaleString()} already up to date)`}
+                …
+              </p>
+            )}
           </div>
         ) : (
           <div className="flex max-h-[50vh] flex-col gap-5 overflow-y-auto">
@@ -250,9 +321,18 @@ export function MarketActionDialog({
             <Button onClick={onClose}>Done</Button>
           ) : (
             <>
-              <Button variant="ghost" disabled={running} onClick={onClose}>
-                Cancel
-              </Button>
+              {job?.status === 'running' ? (
+                <Button
+                  variant="ghost"
+                  onClick={() => void window.api.cancelMarketBulk(job.id)}
+                >
+                  Stop
+                </Button>
+              ) : (
+                <Button variant="ghost" disabled={running} onClick={onClose}>
+                  Cancel
+                </Button>
+              )}
               <Button
                 variant={action === 'delist' ? 'destructive' : 'default'}
                 disabled={running || targets.length === 0}

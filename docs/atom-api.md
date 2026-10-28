@@ -22,12 +22,72 @@ metadata, dates, or errors. The help center fills some gaps
 and the listing-type and commission articles. Much of the client's wire shape
 will have to come from live responses.
 
-**No Atom key is in `.env`**, so nothing authenticated has been checked.
-"Observed" below covers only unauthenticated calls (2026-10-27); everything
-else about responses is from the specs and help center and is marked
-unverified where it matters. Access is a limited beta: sellers apply from the
+Every seller read and every write DomBot makes has been checked live
+against the account in `.env` (2026-10-28; "Observed" below), the writes on
+one test listing. Access is a limited beta: sellers apply from the
 dashboard and need at least 500 listings to be considered (100 names at
 AtomRegistrar for the registrar API).
+
+## Status
+
+Built, and verified live (2026-10-28): every seller read against the account
+in `.env`, every write DomBot makes on one test listing, and a Premium
+reprice. On the shared model in [markets.md](markets.md); in review as
+PR #201, stacked on Sedo (#200) and Afternic (#197).
+
+- **Client** `src/core/markets/atom/`: every seller operation except boost,
+  plus appraisal. Reads every body for errors (Atom answers failures with
+  HTTP 200), keeps the token out of every error, sends each write once and
+  never retries it, and refuses Premium listings.
+- **Adapter** `src/core/services/markets/atom.ts`, registered in
+  `registry.ts`: listings (tier, discount until Monday, category,
+  description, syndication rights; sold names as `sold`), sales (keyed by
+  name and day, commission estimated from the tier), per-name counters that
+  sync turns into daily views, and Atom-only actions (discount, verify DNS,
+  primary categories, grading, appraisal). Writes read the listing before
+  and after; Make an Offer listings are priced by adding them again; a
+  price Atom says it saved but didn't fails as `NOT_APPLIED`.
+- **Bulk:** an Atom account with more than 10 names runs as a market job in
+  the bulk runner (markets.md, "Bulk writes"), from the Domains table's List
+  and Delist dialog (several markets at once; the others answer directly)
+  and from MCP (`market_job_get`).
+- **MCP:** Atom settings on the listing tools, and Atom's own tools
+  (discount, verify, grading, appraisal); see docs/mcp-tools.md.
+- **App:** Settings → Markets connects Atom accounts; Atom's logo is in
+  `site/src/assets/logos/atom.svg`. Connecting a real account, the Atom
+  columns and the job progress view haven't been clicked through in the
+  app yet (the demo has no Atom account).
+- **Live tests:** `npm run test:live` runs the reads (`ATOM_API_TOKEN`,
+  `ATOM_USER_ID`). The write round trip needs `ATOM_LIVE_WRITES=1` and
+  `ATOM_TEST_DOMAIN` (a Standard or Plus listing, put back afterwards);
+  delist and re-add also need `ATOM_LIVE_RELIST=1`, and setting a
+  description, which can't be cleared, `ATOM_TEST_DESCRIPTION=1`.
+- **Not built, on purpose:** boost and Premium listings (both spend Atom
+  credits), and changing a listing's tier (no API for it).
+- **Planned, app work:** buttons for discount, verify, grading and
+  appraisal (MCP-only so far); recognizing `ns1/ns2.atom.com` as Atom's
+  marketplace nameservers; warnings for a Premium Atom name listed on
+  Afternic without syndication rights, and for a name on both markets
+  pointing at one market's nameservers; ownership verification
+  (markets.md).
+- **Elsewhere:** Atom as a registrar, in registrar-client; then the shared
+  key for an account that's both ("One provider, registrar and market").
+
+### Unverified: what to check first
+
+Every read and every write DomBot makes is checked ("Observed"). Still open,
+for want of the data on this account:
+
+1. **Premium price limits:** a small Premium increase worked; the refusal
+   for a price outside Atom's allowed range (tied to its valuation, and
+   perhaps a cap on each increase) hasn't been seen, so its wording is
+   unknown. It comes back as a failure with Atom's message either way.
+   DomBot never adds or delists Premium.
+2. **Geo listings:** their `listing_type` and status words.
+3. **Payment-plan sales:** how `sale_terms` and installments look.
+4. **Grading rows:** the account has none; their shape is from the spec.
+5. **Page size:** Atom's cap on `limit` (the client asks for 100).
+6. **Sale dates' time zone:** read as UTC.
 
 ## The API at a glance
 
@@ -105,23 +165,63 @@ Conventions:
 
 ### Observed: where the API and the docs disagree
 
-Unauthenticated only; no key to test more.
+Checked live, read-only, against the account in `.env` (2026-10-28): every
+seller read, plus one appraisal (of the 10 a day). No write has been made.
+The test account is small, so paging was checked with `limit=2`, and
+page-size limits couldn't be. Examples below are made up.
 
-| Topic                    | Docs                                                              | Actual                                                                                                                                                                |
-| ------------------------ | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Bad seller token         | 403 with `{ message }`                                            | **HTTP 200**, `Content-Type: text/html`, body `{"message":"Invalid API token or insufficient permissions"}`. Errors must be detected from the body, never the status. |
-| Missing token or user id | —                                                                 | HTTP 200, `{"message":"API Token and UserId are required"}`. `user_id=0` counts as missing.                                                                           |
-| Registrar API errors     | 401 `ErrorResponse`                                               | Matches: 401, `application/json`, `{"success":false,"error":"Unauthorized","message":"…"}`.                                                                           |
-| Premium cost             | `add-domain`: "a coin will be deducted"                           | Coins became AI credits on 2026-07-07 (1 coin = 10 credits). Premium submission costs 1 credit ($0.10); refunded if rejected.                                         |
-| Boost payment            | `source_of_deduction`: `points`, `coins`, `loyalty_benefit`       | Points can't be earned or bought since 2026-07-07, and coins are now AI credits; which value spends credits is unknown.                                               |
-| Category values          | `category_name` enum `["categories"]`                             | A placeholder; real values come from `/primary-categories`.                                                                                                           |
-| Listing types            | `add-domain` enum `premium`, `standard`; description mentions Geo | Help center says the API adds Plus too. The `type` filter on `/domains` has `premium`, `standard`, `geo`.                                                             |
-| Boost type               | enum `standard`, `Super`                                          | Mixed case in the spec; send exactly what it says until tested.                                                                                                       |
-| Response schemas         | every seller op returns `DomainApiResponse`                       | Can't all be true (sales, analytics and categories aren't domain records). Unverified.                                                                                |
+| Topic                | Docs                                                                                          | Actual                                                                                                                                                                                                                                                                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Errors               | 403 with `{ message }`                                                                        | **HTTP 200**, `Content-Type: text/html`, body `{"message":"…"}`, for every failure: bad token ("Invalid API token or insufficient permissions"), missing one ("API Token and UserId are required"; `user_id=0` counts as missing).                                                                                                |
+| Not listed           | —                                                                                             | `/domain-details` and `/domain-analytics` answer `{"message":"Wrong Domain name in the request"}` for a name that isn't one of the account's, and for a malformed one.                                                                                                                                                            |
+| Response shapes      | every seller op returns `DomainApiResponse`                                                   | Lists are a **bare array**; one record a bare object; no `success` or `data` envelope. Only grading (`{ count, data }`) and primary categories (`{ message, categories }`) are wrapped.                                                                                                                                           |
+| Paging               | `page`, `limit`                                                                               | Work as expected; past the end is `[]`. No total or page count anywhere, so a walk ends at a short or empty page. `page=0` is page 1; no `limit` returns everything (on this account).                                                                                                                                            |
+| Listing record       | `domain_name`, `status`, `selling_price`, `primary_category`, `discount_price`, `description` | `id`, `domain_name` (CamelCased: `BrightLoom.com`), `status`, **`full_price`**, `selling_price`, `primary_category` (a name), **`discount`**, `description`, `logo_image`, **`listing_type`** (`Premium`, `Standard`). No dates.                                                                                                  |
+| Price fields         | `selling_price`                                                                               | `full_price` is the price. `selling_price` equals it in the account's list, but the syndication list puts a partner price there (about 10% above `full_price`, with float noise like `4632.999999999999`).                                                                                                                        |
+| Make an Offer        | —                                                                                             | A Standard listing at **price 0** (both price fields), with null category and description.                                                                                                                                                                                                                                        |
+| Statuses             | —                                                                                             | `Approved` (Premium), `Seller Approved` (Standard), and **`Transfer Complete`: sold names stay in the list**.                                                                                                                                                                                                                     |
+| `type` filter        | `premium`, `standard`, `geo`                                                                  | Works for those; an unknown value (`plus`, `bogus`) is ignored and returns everything, not an error.                                                                                                                                                                                                                              |
+| Sales                | `DomainApiResponse`                                                                           | `"Domain Name"` (with a space), `sales_type` (`Premium`), `sale_date` (`"May 02, 2026 17:45:10"`), `sale_amount`, `sale_amount_net` (**0**, even for completed sales), `sale_terms` (`Outright`), `transfer_status` (`AuthCode Sent` or null), `added_on`. **No sale id and no commission.** `domain_type` filters as documented. |
+| Analytics            | "views and shortlists"                                                                        | `{ total_views, total_shortlists, total_offers }`: lifetime totals. No price trackers, no direct or discovery split (the dashboard has those; the API doesn't).                                                                                                                                                                   |
+| Syndication          | —                                                                                             | Listing records, as `/domains` sends them.                                                                                                                                                                                                                                                                                        |
+| Categories           | `/primary-categories` is the list for `assign-primary-category`                               | `/categories` is `[{ id, name }]` (103); `/primary-categories` is `{ message: "Primary categories list", categories: [names] }` (103, a different set).                                                                                                                                                                           |
+| Grading results      | `{ count, data: { … } }`                                                                      | `{ count: 0, data: [] }` here: `data` is a list.                                                                                                                                                                                                                                                                                  |
+| Appraisal            | `key_signals`                                                                                 | **`positive_signals`, `negative_signals`**, plus `date_registered`, `is_listed`, `bin_price`, `appraisal_token`, and `usage: { used_today, daily_limit, cumulative_count, user_level }`. A seller token works.                                                                                                                    |
+| Rate limit           | —                                                                                             | 40 calls in eight seconds (about 300 a minute) all answered; no 429, no rate-limit headers. The client paces itself at 120 a minute.                                                                                                                                                                                              |
+| Registrar API errors | 401 `ErrorResponse`                                                                           | Matches: 401, `application/json`, `{"success":false,"error":"Unauthorized","message":"…"}`.                                                                                                                                                                                                                                       |
+| Premium cost         | `add-domain`: "a coin will be deducted"                                                       | Coins became AI credits on 2026-07-07 (1 coin = 10 credits). Premium submission costs 1 credit ($0.10); refunded if rejected.                                                                                                                                                                                                     |
+| Boost payment        | `source_of_deduction`: `points`, `coins`, `loyalty_benefit`                                   | Points can't be earned or bought since 2026-07-07, and coins are now AI credits.                                                                                                                                                                                                                                                  |
+| Category values      | `category_name` enum `["categories"]`                                                         | A placeholder; real values come from `/primary-categories`.                                                                                                                                                                                                                                                                       |
 
-Things to confirm first once there's a key: the list response and its paging,
-the sale record, the analytics record, statuses, and what a write returns on
-success and failure.
+Writes, checked on one test listing (2026-10-28), through the client and
+again through the adapter. Atom's success answers are a lone `message`; its
+refusals are a lone `message` too, so the wording decides which is which.
+
+| Write                     | Answer                                                      | What it does                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `add-domain`              | "Successfully uploaded", or "Successfully uploaded as Plus" | Lists the name at once (Seller Approved). **On a name already listed or delisted it updates in place**: the price changes, the tier doesn't (a delisted Plus name added back as Standard stays Plus). Price 0 is Make an Offer.                                                                                                                                                                                           |
+| `update-selling-price`    | "Successfully updated selling price"                        | Reprices a priced listing; 0 turns it into Make an Offer; **clears any discount**, even at the same price. **On a Make an Offer listing it changes nothing** despite the answer: price those with `add-domain`. On a Premium listing a small increase (about 3%) applied at once; Atom limits Premium prices to a range tied to its own valuation, and may cap how far one change goes, but no refusal has been seen yet. |
+| `add-discount`            | "Successfully updated Discount price"                       | Dollars off: `discount` is the amount, `selling_price` drops by it. Refuses 0 or empty ("Discount Price should not be empty"), negatives ("…should not be less than or 0"), and more than 30% of the price ("…should not be greater than $195" on $650).                                                                                                                                                                  |
+| `assign-primary-category` | "Assigned primary category"                                 | Takes a name from `/primary-categories`. "Wrong category name in the request" for anything else, **and for every name containing "&"** (`Fitness & Gym`, `Music & Audio`), however it's encoded: those can only be set on atom.com.                                                                                                                                                                                       |
+| `update-description`      | "Successfully updated Domain description"                   | Refuses an empty one ("Domain description is empty"), so a description can't be cleared.                                                                                                                                                                                                                                                                                                                                  |
+| `remove-domain`           | "Successfully removed the domain"                           | Off the list at once; the details still answer, with status **"Delisted"**. Removing again answers the same.                                                                                                                                                                                                                                                                                                              |
+| `verify-dns`              | `{"success":true,"message":"DNS check request accepted"}`   | One check per account every 12 hours: the next, for any name, is `{"success":false,"message":"DNS check Request in progress, please try again after 12 hrs"}`.                                                                                                                                                                                                                                                            |
+
+Also: the `standard` type filter includes Plus listings; and Atom set a
+primary category on a listing by itself between two reads an hour apart
+(auto-categorization), so a synced category can change without a write.
+
+What this changed in the client: one walk of `/domains` (records carry their
+tier), `full_price` for the price, 0 as Make an Offer, "Transfer Complete"
+as sold, "Wrong Domain name" and "Delisted" as not listed, sales keyed by
+name and day with commission estimated from the tier and a net of 0 read as
+unknown, the observed analytics and appraisal fields, and Atom's sale dates
+parsed. For writes: Make an Offer listings are priced by adding them again;
+a discount is cleared by setting the price again and capped at 30% before
+sending; "&" categories are refused before sending; refusal wordings
+("should not…", "…is empty") count as failures; a price Atom says it saved
+but didn't is a `NOT_APPLIED` failure; the 12-hour DNS check limit is
+`TRY_LATER`.
 
 ## What to implement
 
@@ -144,7 +244,7 @@ registrar").
 | Categories, primary categories, assign primary | Atom ranks and merchandises by category; a bulk "assign category" from the table is a real time saver. The category lists are small and can be cached for a day.                                  |
 | Update description                             | Atom shows a description on every lander; DomBot can bulk-set or (later) generate them.                                                                                                           |
 | All sales                                      | Sales history; feeds `sold` events and reporting.                                                                                                                                                 |
-| Domain analytics                               | The only traffic data: views and shortlists, and per the help center direct lander visits, discovery views, repeat views and price trackers. Per name only.                                       |
+| Domain analytics                               | The only traffic data: lifetime views, shortlists and offers per name (observed; the dashboard's price trackers and visit split aren't in the API). Per name only.                                |
 | Verify DNS                                     | After DomBot points a name at `ns1/ns2.atom.com` (or adds the TXT record) through the registrar, this asks Atom to check now instead of at "random intervals". Closes the loop on "List on Atom". |
 | Syndication-authorized domains                 | Which Premium names may also be listed elsewhere. Needed to warn before a Premium name is listed on Afternic (see "Exclusivity").                                                                 |
 | Boost domain                                   | Spends AI credits or a membership Super Boost slot; once a month per name. Implement behind a confirm, single names only, never in bulk without a total.                                          |
@@ -172,7 +272,7 @@ registrar").
 - **Search own domains:** implement in the client, but DomBot's UI doesn't
   need it (local filters on synced data do the same).
 
-### Bulk: there isn't any
+### Bulk: there isn't any (DomBot's bulk runner instead; built)
 
 The biggest difference from Afternic. Afternic has 500-name `$each` calls and
 async CSV jobs; Atom has one name per call for every write, and the dashboard's
@@ -315,7 +415,7 @@ An Atom card in the Markets section, built the same way as Afternic's:
 - **Columns and filters:** listed on Atom, listing type (Standard, Plus,
   Premium, Geo), status (from sync; expect `Approved`, `Seller Approved`,
   pending review, rejected, needs DNS), current discount, primary category,
-  and analytics (views, shortlists, trackers).
+  and analytics (views, shortlists, offers).
 - **Asking price sync.** Only DomBot's BIN price maps (to `selling_price`);
   DomBot's minimum offer and floor (`domain-list-prices`) have nowhere to go
   on Atom. Show that plainly in the editor ("Atom uses the BIN price only").
@@ -354,18 +454,18 @@ An Atom card in the Markets section, built the same way as Afternic's:
 
 ### Leads, offers and messages
 
-Neither API has them. Atom's closest signals are analytics counters:
-shortlists and price trackers (buyers who asked to be told when the price
-changes). Show those next to Afternic's lead counts as "interest", and flag
-names with trackers as candidates for a discount, since Atom emails trackers
-when a discount is added.
+Neither API has messages or offer details. Atom's API gives each name's
+lifetime shortlists and offer count (observed); the price trackers its
+dashboard shows (buyers who asked to hear when the price changes) aren't in
+the API. Show shortlists and offers next to Afternic's lead counts as
+"interest".
 
 ### Reporting
 
 - **Interest over time:** Atom analytics is a per-name snapshot, so sync
   takes a snapshot per name on a slow rotation (10,000 names at 60 a minute is
   about three hours) and stores daily rows; changes between snapshots become
-  the series. Prioritize names the user opens and names with trackers.
+  the series. Prioritize names the user opens and names with shortlists.
 - **Sales report** across markets: gross, commission, net by year and by
   market; sell-through by Atom listing type.
 - **Grading and appraisal** results stored per name, as columns ("Atom:
@@ -516,9 +616,9 @@ Separately, in registrar-client: an `atom` registrar.
 | Merchandising    | lander options, `hidden`                                                      | categories, description, boost (paid)                                                            |
 | Sales            | list/get with status, commission, payout dates, lease installments, auth code | one list call; shape unverified                                                                  |
 | Sale workflow    | submit auth code, message the transaction agent                               | none                                                                                             |
-| Stats            | daily views and leads, account and per name, up to 365 days                   | per-name snapshot counters (views, shortlists, trackers); no account level, no dates             |
+| Stats            | daily views and leads, account and per name, up to 365 days                   | per-name lifetime counters (views, shortlists, offers); no account level, no dates               |
 | Search demand    | GoDaddy searches 30/90/365d (Domain Pro members)                              | none; Atom grading and appraisal instead                                                         |
-| Leads, offers    | lead counts in stats; `offerCount` include                                    | shortlists and price trackers                                                                    |
+| Leads, offers    | lead counts in stats; `offerCount` include                                    | shortlists and an offer count per name                                                           |
 | Bulk             | `$each` up to 500, async CSV jobs                                             | none; one name per call                                                                          |
 | Account settings | get/update listing defaults                                                   | none in API                                                                                      |
 | Rate limit       | 150/min, `Retry-After`                                                        | unpublished; 10/day appraisal                                                                    |

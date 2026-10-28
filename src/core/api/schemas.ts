@@ -282,6 +282,12 @@ export const marketListingChange = z.object({
         featured: z.boolean().optional(),
       }),
       z.object({
+        market: z.literal('atom'),
+        tier: z.enum(['standard', 'plus']).optional(),
+        category: z.string().min(1).max(200).optional(),
+        description: z.string().max(2000).optional(),
+      }),
+      z.object({
         market: z.literal('sedo'),
         categories: z.array(z.number().int().positive()).max(3).optional(),
         language: z.string().length(2).optional(),
@@ -294,6 +300,21 @@ export const marketListingChanges = z
   .min(1)
   .max(20000);
 export const marketNames = z.array(domainName).min(1).max(20000);
+export const marketBulkTargets = z
+  .array(
+    z.object({
+      accountId: marketAccountId,
+      name: domainName,
+      change: marketListingChange.optional(),
+    }),
+  )
+  .min(1)
+  .max(20000);
+export const marketBulkOp = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('write') }),
+  z.object({ kind: z.literal('pushAskingPrices') }),
+  z.object({ kind: z.literal('delete') }),
+]);
 export const relistMode = z.enum(['RESYNC', 'REACTIVATE']);
 export const marketListingDefaults = z
   .object({

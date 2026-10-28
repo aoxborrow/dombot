@@ -1,6 +1,7 @@
 import type { MarketId, MarketInfo } from '../../../shared/markets';
 import type {
   AfternicActions,
+  AtomActions,
   MarketAdapter,
   SedoActions,
 } from '../../markets/types';
@@ -9,6 +10,11 @@ import {
   AFTERNIC_CONFIG_FIELDS,
   createAfternicAdapter,
 } from './afternic';
+import {
+  ATOM_CAPABILITIES,
+  ATOM_CONFIG_FIELDS,
+  createAtomAdapter,
+} from './atom';
 import {
   SEDO_CAPABILITIES,
   SEDO_CONFIG_FIELDS,
@@ -24,6 +30,7 @@ export type Credentials = Record<string, string>;
 /** An adapter, plus whichever market-only actions its market has. */
 export type AnyMarketAdapter = MarketAdapter &
   Partial<AfternicActions> &
+  Partial<AtomActions> &
   Partial<SedoActions>;
 
 interface MarketEntry {
@@ -45,6 +52,21 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     },
     create: (accountId, credentials) =>
       createAfternicAdapter(accountId, credentials),
+  },
+  // Checked live, reads and writes (docs/atom-api.md).
+  atom: {
+    info: {
+      id: 'atom',
+      name: 'Atom',
+      website: 'atom.com',
+      keysUrl: 'https://www.atom.com/dashboard/seller/api-access',
+      helpText:
+        'Request API access under Dashboard → API Access on atom.com, then paste the API token and the user ID shown with it.',
+      configFields: ATOM_CONFIG_FIELDS,
+      capabilities: ATOM_CAPABILITIES,
+    },
+    create: (accountId, credentials) =>
+      createAtomAdapter(accountId, credentials),
   },
   // Checked live, reads and writes (docs/sedo-api.md).
   sedo: {

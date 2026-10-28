@@ -135,6 +135,36 @@ describe('syncDomainTraffic', () => {
   });
 });
 
+describe('syncDomainTraffic with snapshot counters (Atom)', () => {
+  it('takes the first read as a baseline, then a day’s views from the difference', async () => {
+    const totals = [100, 130, 130];
+    let read = 0;
+    const fake = {
+      accountId: A,
+      capabilities: { domainStats: 'snapshot' },
+      domainCounters: async (name: string) => ({
+        name,
+        views: totals[read++],
+        shortlists: 2,
+        offers: 1,
+      }),
+    } as unknown as AnyMarketAdapter;
+    await syncDomainTraffic(fake, [listing('a.com')], 10, NOW);
+    expect(trafficTotals(new Set([A]), 30, '2026-10-28').get('a.com')).toEqual({
+      views: 0,
+      leads: 0,
+      known: true,
+    });
+    await syncDomainTraffic(fake, [listing('a.com')], 10, NOW + 21 * HOUR);
+    await syncDomainTraffic(fake, [listing('a.com')], 10, NOW + 42 * HOUR);
+    expect(trafficTotals(new Set([A]), 30, '2026-10-30').get('a.com')).toEqual({
+      views: 30,
+      leads: 0,
+      known: true,
+    });
+  });
+});
+
 describe('snapshotSearches', () => {
   it('keeps a weekly snapshot for names with search data', () => {
     const names = [listing('a.com', 40), listing('b.com')];
