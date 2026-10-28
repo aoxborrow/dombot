@@ -252,6 +252,13 @@ saying so.
 - **`market_settings_get`** — `accountId`. The account's defaults for new
   listings, live.
 
+- **`market_traffic`** — `accountId?`, `days?` (30 or 365), `sort?`
+  (`leads`, `views`), `minViews?`, `limit`, `offset`. Listed names ranked by
+  stored views and leads, with `coverage`: per-name traffic is fetched a
+  slice of names per sync.
+- **`market_report_get`** — the Markets page's report: sales by year and in
+  total, sell-through over the last 12 months, and views and leads by month.
+
 `portfolio_query` also takes `listedOn` and `notListedOn` (a market id), to
 find names listed on a market or the ones that aren't yet.
 

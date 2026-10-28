@@ -4,6 +4,7 @@ import { MemoryDocStore } from '../../storage/doc-store';
 import { configureStore, hydrateStores } from '../../storage/namespace';
 import { listEvents } from '../domain-events';
 import { connectMarketAccount, marketAccountViews } from './accounts';
+import { trafficTotals } from './traffic';
 import {
   marketAccountStats,
   marketListings,
@@ -45,6 +46,16 @@ describe.skipIf(!apiKey || !apiSecret)('market sync (live, Afternic)', () => {
     );
     expect(marketSales().length).toBe(marketAccountViews()[0].sync?.sales);
     expect(marketAccountStats(id).length).toBeGreaterThan(300);
+  });
+
+  it('fetches per-name traffic for every listing in one desktop slice', () => {
+    const [account] = marketAccountViews();
+    const totals = trafficTotals(new Set([id]), 365);
+    // Under the desktop budget, the first sync covers every listing.
+    expect(totals.size).toBe(account.sync?.listings);
+    expect(account.sync?.notes.some((n) => n.startsWith('Per-domain'))).toBe(
+      false,
+    );
   });
 
   it('writes one sold event per completed sale, and none twice', async () => {

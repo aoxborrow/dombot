@@ -90,6 +90,7 @@ import {
 } from '../services/markets/writes';
 import type { MarketListingChange } from '../../shared/markets';
 import {
+  activeMarketAccounts,
   connectMarketAccount,
   getMarketCredentials,
   marketAdapter,
@@ -100,7 +101,9 @@ import {
   setMarketAccountEnabled,
 } from '../services/markets/accounts';
 import { marketCatalog } from '../services/markets/registry';
+import { marketTraffic } from '../services/markets/traffic';
 import {
+  marketAccountStats,
   marketListings,
   marketSales,
   syncMarketAccount,
@@ -500,6 +503,13 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   ),
   getMarketListings: method(none, async () => marketListings()),
   getMarketSales: method(none, async () => marketSales()),
+  getMarketTraffic: method(none, async () => {
+    const ids = activeMarketAccounts().map((a) => a.id);
+    return marketTraffic(
+      new Set(ids),
+      ids.flatMap((id) => marketAccountStats(id)),
+    );
+  }),
   writeMarketListings: method(
     z.tuple([s.marketAccountId, s.marketListingChanges]),
     async (id, changes) =>

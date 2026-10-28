@@ -170,6 +170,8 @@ beforeEach(async () => {
   fake.writes = [];
   fake.messages = [];
   fake.defaults = [];
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-28T12:00:00'));
   await connectMarketAccount(
     'afternic',
     { apiKey: 'k', apiSecret: 's' },
@@ -177,6 +179,8 @@ beforeEach(async () => {
     ID,
   );
   await syncMarketAccount(ID);
+  // Sync fetched each listing's traffic; tests count their own calls.
+  fake.domainStatsFor = [];
 });
 
 describe('market tools', () => {
@@ -320,5 +324,26 @@ describe('market write tools', () => {
     expect(fake.messages).toEqual([['t1', 'The transfer is under way.']]);
     await call('market_settings_set', { accountId: ID, maxLeasePeriod: 24 });
     expect(fake.defaults).toEqual([{ maxLeasePeriod: 24 }]);
+  });
+});
+
+describe('report tools', () => {
+  it('ranks listings by stored traffic, with coverage', async () => {
+    const result = await call('market_traffic', { days: 30 });
+    expect(result.coverage).toEqual({ withTraffic: 3, listed: 3 });
+    expect(result.rows[0]).toEqual({ domain: 'alpha.com', views: 2, leads: 1 });
+  });
+
+  it('reports sales by year, sell-through and monthly traffic', async () => {
+    const report = await call('market_report_get');
+    expect(report.salesByYear.map((y: { year: string }) => y.year)).toEqual([
+      '2026',
+      '2025',
+    ]);
+    expect(report.salesTotal).toMatchObject({ sold: 2, gross: '1499.25' });
+    expect(report.sellThrough).toEqual({ sold: 1, available: 4, rate: 0.25 });
+    expect(report.trafficByMonth).toEqual([
+      { month: '2026-10', views: 10, leads: 1 },
+    ]);
   });
 });

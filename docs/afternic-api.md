@@ -416,8 +416,11 @@ job.
    the table, auth-code automation from the bell, the MCP write tools.
    Done; Afternic writes run directly in 500-name batches (see
    [markets.md](markets.md#bulk-writes)).
-6. **DomBot, reporting:** views/leads with incremental per-domain stats,
-   search demand, sales dashboards.
+6. **DomBot, reporting:** per-domain views and leads fetched a slice per
+   sync (300 names on desktop, 40 on the web host), weekly search-count
+   snapshots, a Markets page (traffic by month, top names, sales by year,
+   sell-through, most searched), Views/Leads/Searches columns, and the
+   `market_traffic` and `market_report_get` tools. Done.
 
 Phases 1–3 can each be one PR; nothing in DomBot's UI changes until phase 4.
 

@@ -36,6 +36,7 @@ import type {
   MarketInfo,
   MarketListing,
   MarketSale,
+  MarketTraffic,
 } from '../../shared/markets';
 
 /** Listings grouped by name: one name can be listed on several markets. */
@@ -240,6 +241,8 @@ interface AppState {
   marketCatalog: MarketInfo[];
   /** Recorded market sales, newest first. */
   marketSales: MarketSale[];
+  /** Traffic for the Markets page and the views/leads columns. */
+  marketTraffic: MarketTraffic;
   loadMarkets: () => Promise<void>;
   /** Swap in the accounts a market API call returned, and reload listings. */
   setMarketAccounts: (accounts: MarketAccountView[]) => Promise<void>;
@@ -807,20 +810,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   marketListings: {},
   marketCatalog: [],
   marketSales: [],
+  marketTraffic: { accountDays: [], domains: {} },
   loadMarkets: async () => {
-    const [accounts, listings, catalog, sales] = await Promise.all([
+    const [accounts, listings, catalog, sales, traffic] = await Promise.all([
       window.api.listMarketAccounts(),
       window.api.getMarketListings(),
       get().marketCatalog.length
         ? Promise.resolve(get().marketCatalog)
         : window.api.getMarketCatalog(),
       window.api.getMarketSales(),
+      window.api.getMarketTraffic(),
     ]);
     set({
       marketAccounts: accounts,
       marketListings: byDomain(listings),
       marketCatalog: catalog,
       marketSales: sales,
+      marketTraffic: traffic,
     });
   },
   setMarketAccounts: async (accounts) => {

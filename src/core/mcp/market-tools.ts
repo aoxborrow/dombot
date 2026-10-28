@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { localDay } from '../../shared/domain-events';
 import { toAscii } from '../../shared/domain-name';
+import {
+  salesByYear,
+  salesTotal,
+  sellThrough,
+  trafficByMonth,
+} from '../../shared/market-reports';
+import { trafficTotals } from '../services/markets/traffic';
 import {
   activeMarketAccounts,
   marketAccount,
@@ -405,6 +413,86 @@ export function registerMarketTools(server: McpServer): void {
         );
       }
       return json(await adapter.getListingDefaults());
+    },
+  );
+
+  server.registerTool(
+    'market_traffic',
+    {
+      title: 'Rank listings by traffic',
+      description:
+        'Each listed name’s views and leads over the last 30 or 365 days, as stored by market sync, ranked (by leads, then views, by default). Per-name traffic is fetched a slice of names per sync, so `coverage` says how many listings have it so far; domain_stats_get reads one name live. Returns { days, coverage: { withTraffic, listed }, total, rows: [{ domain, views, leads }] }.',
+      inputSchema: {
+        accountId,
+        days: z
+          .union([z.literal(30), z.literal(365)])
+          .optional()
+          .describe('Default 30.'),
+        sort: z.enum(['leads', 'views']).optional(),
+        minViews: z.number().int().min(0).optional(),
+        limit,
+        offset,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => {
+      const ids = accountIds(args.accountId);
+      const days = args.days ?? 30;
+      const totals = trafficTotals(ids, days);
+      const listed = new Set(
+        marketListings()
+          .filter((l) => ids.has(l.accountId))
+          .map((l) => l.name),
+      );
+      const rows = [...totals]
+        .filter(
+          ([name, t]) => listed.has(name) && t.views >= (args.minViews ?? 0),
+        )
+        .map(([domain, t]) => ({ domain, views: t.views, leads: t.leads }))
+        .sort((a, b) =>
+          args.sort === 'views'
+            ? b.views - a.views || b.leads - a.leads
+            : b.leads - a.leads ||
+              b.views - a.views ||
+              a.domain.localeCompare(b.domain),
+        );
+      const start = args.offset ?? 0;
+      return json({
+        days,
+        coverage: { withTraffic: totals.size, listed: listed.size },
+        total: rows.length,
+        rows: rows.slice(start, start + (args.limit ?? 50)),
+      });
+    },
+  );
+
+  server.registerTool(
+    'market_report_get',
+    {
+      title: 'Market report',
+      description:
+        'The Markets page’s report, across enabled market accounts: sales by year (completed sales: count, gross, commission, net, average; in-progress and cancelled counted beside), all-time totals, sell-through over the last 12 months (sales ÷ names listed now plus those sold), and account views and leads by month. USD amounts as decimal strings.',
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      const ids = accountIds();
+      const years = salesByYear(
+        marketSales().filter((s) => ids.has(s.accountId)),
+      );
+      const listings = marketListings().filter((l) => ids.has(l.accountId));
+      return json({
+        salesByYear: years,
+        salesTotal: salesTotal(years),
+        sellThrough: sellThrough(
+          marketSales().filter((s) => ids.has(s.accountId)),
+          listings,
+          localDay(),
+        ),
+        trafficByMonth: trafficByMonth(
+          [...ids].flatMap((id) => marketAccountStats(id)),
+        ),
+      });
     },
   );
 

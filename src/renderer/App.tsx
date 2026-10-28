@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Globe,
   History,
+  Store,
   Menu,
   RefreshCw,
   Settings as SettingsIcon,
@@ -21,6 +22,7 @@ import { useAppStore } from './store/app';
 import Domains from './pages/Domains';
 import Renewals from './pages/Renewals';
 import Activity from './pages/Activity';
+import Markets from './pages/Markets';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
 import DemoBanner from './components/DemoBanner';
@@ -50,6 +52,7 @@ const TAB_OPTIONS: Record<
   '/': { metric: 'domains', pillFrom: 'md' },
   '/renewals': { metric: 'renewals', pillFrom: 'lg' },
   '/activity': { metric: 'activity', pillFrom: 'lg' },
+  '/markets': { pillFrom: 'lg' },
   '/settings': {
     pillFrom: 'lg',
     // The gear is drawn smaller than the other icons, so it's bumped up.
@@ -76,6 +79,7 @@ export default function App() {
   const applyBulkFinished = useAppStore((s) => s.applyBulkFinished);
   const navigate = useNavigate();
   const metrics = useTabMetrics();
+  const navItems = useNavItems();
 
   // Restore the last-cached portfolio, detail, and pricing on launch so the app
   // opens fully populated with no network calls. The user
@@ -165,7 +169,7 @@ export default function App() {
         {/* Desktop: the tab strip. On phones it collapses into the hamburger
             menu on the right (MobileNav). */}
         <TabStrip className="hidden self-end sm:flex">
-          {NAV_ITEMS.map(({ to, label, icon }) => {
+          {navItems.map(({ to, label, icon }) => {
             const { metric, ...options } = TAB_OPTIONS[to] ?? {};
             return (
               <TabLink
@@ -219,6 +223,7 @@ export default function App() {
           <Route path="/" element={<Domains />} />
           <Route path="/renewals" element={<Renewals />} />
           <Route path="/activity" element={<Activity />} />
+          <Route path="/markets" element={<Markets />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
@@ -238,9 +243,16 @@ export default function App() {
 const NAV_ITEMS = [
   { to: '/', label: 'Domains', icon: Globe },
   { to: '/renewals', label: 'Renewals', icon: CalendarClock },
+  { to: '/markets', label: 'Markets', icon: Store },
   { to: '/activity', label: 'Activity', icon: History },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ] as const;
+
+/** The nav, with Markets only once a market account is connected. */
+function useNavItems() {
+  const marketsOn = useAppStore((s) => (s.marketAccounts?.length ?? 0) > 0);
+  return NAV_ITEMS.filter((item) => marketsOn || item.to !== '/markets');
+}
 
 /**
  * Phone-only hamburger: the primary destinations in a dropdown, since the
@@ -259,6 +271,7 @@ function MobileNav() {
     title: syncTitle,
   } = useSyncState();
   const metrics = useTabMetrics();
+  const navItems = useNavItems();
 
   return (
     <DropdownMenu>
@@ -273,7 +286,7 @@ function MobileNav() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        {NAV_ITEMS.map(({ to, label, icon: Icon }) => {
+        {navItems.map(({ to, label, icon: Icon }) => {
           const active = isActive(to);
           const metric = TAB_OPTIONS[to]?.metric;
           return (

@@ -59,7 +59,8 @@ export const BUNDLE_FORMAT = 'dombot-data';
 // v8 adds `imported-domains` (`manual-domains` in builds from main before
 // the rename, which import maps across).
 // v9 adds the market namespaces (docs/markets.md): `market-accounts`,
-// `market-credentials`, `market-last-sync`, `market-sales`, `market-stats`.
+// `market-credentials`, `market-last-sync`, `market-sales`, `market-stats`,
+// `market-domain-stats`, `market-search-snapshots`.
 export const BUNDLE_VERSION = 9;
 
 export interface DataBundle {

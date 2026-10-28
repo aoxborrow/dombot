@@ -272,3 +272,14 @@ export interface MarketAccountView extends MarketAccount {
   configured: boolean;
   sync: MarketSyncState | null;
 }
+
+/** Traffic for reporting: account days and each listed name's totals. */
+export interface MarketTraffic {
+  /** Daily account stats, every enabled account, oldest first. */
+  accountDays: MarketStatsDay[];
+  /** By `toAscii` name; only names whose traffic has been fetched. */
+  domains: Record<
+    string,
+    { views30: number; leads30: number; views365: number; leads365: number }
+  >;
+}

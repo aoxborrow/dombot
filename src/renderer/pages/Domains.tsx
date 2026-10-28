@@ -556,6 +556,9 @@ const VIEW_COLUMNS: Record<'active' | 'archive', ColumnLayout> = {
       'listing',
       'listedPrice',
       'fastTransfer',
+      'views30',
+      'leads30',
+      'searches30',
       'registrar',
       'createdDate',
       'purchaseDate',
@@ -567,7 +570,15 @@ const VIEW_COLUMNS: Record<'active' | 'archive', ColumnLayout> = {
       'locked',
       'nameservers',
     ],
-    hidden: ['listedPrice', 'fastTransfer', 'purchaseDate', 'purchaseAmount'],
+    hidden: [
+      'listedPrice',
+      'fastTransfer',
+      'views30',
+      'leads30',
+      'searches30',
+      'purchaseDate',
+      'purchaseAmount',
+    ],
   },
   archive: {
     order: [
@@ -827,6 +838,7 @@ export default function Domains() {
     marketAccounts,
     marketListings,
     marketCatalog,
+    marketTraffic,
     importedDomains,
     settings,
     domainEvents,
@@ -971,6 +983,7 @@ export default function Domains() {
       listings: marketListings,
       markets: marketCatalog,
       listPrices,
+      traffic: marketTraffic.domains,
       preferredCurrency: settings?.preferredCurrency ?? DEFAULT_CURRENCY,
       numberFormat: settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
     })) {
@@ -985,6 +998,7 @@ export default function Domains() {
     ownership,
     marketListings,
     marketCatalog,
+    marketTraffic,
   ]);
 
   // Pricing is computed locally in main and arrives with the portfolio; the only

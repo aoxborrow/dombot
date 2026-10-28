@@ -261,15 +261,16 @@ MCP tools and UI actions listed below, each gated by a capability.
 
 Following docs/storage-model.md:
 
-| Name                 | Flags  | Keyed by                    | Holds                                               |
-| -------------------- | ------ | --------------------------- | --------------------------------------------------- |
-| `market-accounts`    |        | account id                  | `{ market, label, enabled, registrarAccountId? }`   |
-| `market-credentials` | sealed | account id                  | API keys; must be added to the desktop's sealed set |
-| `market-listings`    | cache  | account                     | each account's listings as last synced              |
-| `market-last-sync`   |        | account id                  | when, how many, last error                          |
-| `market-sales`       |        | `${accountId}:${saleId}`    | sale records (never the auth code)                  |
-| `market-stats`       |        | `${accountId}:${name or *}` | daily `MarketStatsDay` rows                         |
-| `market-snapshots`   |        | `${accountId}:${name}`      | dated rolling counters (searches, Atom analytics)   |
+| Name                      | Flags  | Keyed by                 | Holds                                               |
+| ------------------------- | ------ | ------------------------ | --------------------------------------------------- |
+| `market-accounts`         |        | account id               | `{ market, label, enabled, registrarAccountId? }`   |
+| `market-credentials`      | sealed | account id               | API keys; must be added to the desktop's sealed set |
+| `market-listings`         | cache  | account                  | each account's listings as last synced              |
+| `market-last-sync`        |        | account id               | when, how many, last error                          |
+| `market-sales`            |        | `${accountId}:${saleId}` | sale records (never the auth code)                  |
+| `market-stats`            |        | account id               | daily account `MarketStatsDay` rows, by date        |
+| `market-domain-stats`     |        | `${accountId}:${name}`   | per-name views and leads, days with traffic only    |
+| `market-search-snapshots` |        | `${accountId}:${name}`   | weekly snapshots of rolling search counts           |
 
 - **Credentials** follow the Afternic plan: the desktop host only seals the
   namespaces it lists, so `market-credentials` goes in that set, and data

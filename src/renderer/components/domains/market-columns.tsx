@@ -4,6 +4,7 @@ import type {
   ListingStatus,
   MarketInfo,
   MarketListing,
+  MarketTraffic,
 } from '../../../shared/markets';
 import { formatMoney, type NumberFormatId } from '../../../shared/money';
 import { cn } from '@/lib/utils';
@@ -17,6 +18,9 @@ export const MARKET_COLUMN_KEYS = new Set([
   'listing',
   'listedPrice',
   'fastTransfer',
+  'views30',
+  'leads30',
+  'searches30',
 ]);
 
 const STATUS_LABEL: Record<ListingStatus, string> = {
@@ -93,10 +97,13 @@ export function marketColumns({
   listings,
   markets,
   listPrices,
+  traffic,
   preferredCurrency,
   numberFormat,
 }: {
   listings: Listings;
+  /** Per-name traffic totals, by `toAscii` name. */
+  traffic: MarketTraffic['domains'];
   markets: MarketInfo[];
   listPrices: Record<string, ListPrice>;
   preferredCurrency: string;
@@ -106,6 +113,28 @@ export function marketColumns({
   const money = (amount: string, currency = 'USD') =>
     formatMoney(amount, currency, preferredCurrency, numberFormat, true);
   const dash = <span className="text-muted-foreground">—</span>;
+  // A number column that shows a dash where nothing's known yet.
+  const count = (
+    key: string,
+    label: string,
+    valueOf: (d: Domain) => number | undefined,
+  ): PurchaseColumn => ({
+    key,
+    label,
+    align: 'right',
+    hideOnMobile: true,
+    render: (d) => {
+      const n = valueOf(d);
+      return n === undefined ? (
+        dash
+      ) : (
+        <span className={cn('tabular-nums', !n && 'text-muted-foreground')}>
+          {n.toLocaleString()}
+        </span>
+      );
+    },
+    sortValue: (d) => valueOf(d) ?? null,
+  });
 
   return [
     {
@@ -199,6 +228,23 @@ export function marketColumns({
         of(d).find((l) => l.extra.fastTransferStatus)?.extra
           .fastTransferStatus ?? null,
     },
+    count(
+      'views30',
+      'Views (30d)',
+      (d) => traffic[toAscii(d.domainName)]?.views30,
+    ),
+    count(
+      'leads30',
+      'Leads (30d)',
+      (d) => traffic[toAscii(d.domainName)]?.leads30,
+    ),
+    count(
+      'searches30',
+      'Searches (30d)',
+      (d) =>
+        of(d).find((l) => l.extra.searches)?.extra.searches?.total.days30 ??
+        undefined,
+    ),
   ];
 }
 

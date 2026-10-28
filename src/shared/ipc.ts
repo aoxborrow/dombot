@@ -22,6 +22,7 @@ import type {
   MarketListing,
   MarketListingChange,
   MarketSale,
+  MarketTraffic,
   MarketWriteResult,
 } from './markets';
 
@@ -206,6 +207,7 @@ export const IpcChannels = {
   syncMarketAccount: 'markets:syncAccount',
   getMarketListings: 'markets:listings',
   getMarketSales: 'markets:sales',
+  getMarketTraffic: 'markets:traffic',
   writeMarketListings: 'markets:writeListings',
   pushMarketPrices: 'markets:pushPrices',
   deleteMarketListings: 'markets:deleteListings',
@@ -1200,6 +1202,8 @@ export interface DombotApi {
   getMarketListings: () => Promise<MarketListing[]>;
   /** Every recorded market sale, newest first. */
   getMarketSales: () => Promise<MarketSale[]>;
+  /** Account views and leads by day, and each listed name's totals. */
+  getMarketTraffic: () => Promise<MarketTraffic>;
   /** List or update names on a market account; only the fields given change. */
   writeMarketListings: (
     accountId: string,

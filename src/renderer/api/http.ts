@@ -420,6 +420,7 @@ export function createHttpApi(): DombotApi {
     syncMarketAccount: m('syncMarketAccount'),
     getMarketListings: m('getMarketListings'),
     getMarketSales: m('getMarketSales'),
+    getMarketTraffic: m('getMarketTraffic'),
     writeMarketListings: m('writeMarketListings'),
     pushMarketPrices: m('pushMarketPrices'),
     deleteMarketListings: m('deleteMarketListings'),

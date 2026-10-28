@@ -12,3 +12,5 @@ export const MARKET_LISTINGS_NAMESPACE = 'market-listings';
 export const MARKET_LAST_SYNC_NAMESPACE = 'market-last-sync';
 export const MARKET_SALES_NAMESPACE = 'market-sales';
 export const MARKET_STATS_NAMESPACE = 'market-stats';
+export const MARKET_DOMAIN_STATS_NAMESPACE = 'market-domain-stats';
+export const MARKET_SEARCH_SNAPSHOTS_NAMESPACE = 'market-search-snapshots';

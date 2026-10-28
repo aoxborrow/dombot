@@ -21,6 +21,11 @@ import {
   setMarketSyncState,
 } from './accounts';
 import { recordSaleEvents } from './sale-events';
+import {
+  dropAccountTraffic,
+  snapshotSearches,
+  syncDomainTraffic,
+} from './traffic';
 
 // Market sync (docs/markets.md, "Sync"): each enabled account's listings,
 // sales and account stats, read through its adapter into storage that is
@@ -44,6 +49,7 @@ onMarketAccountRemoved((accountId) => {
     if (key.startsWith(`${accountId}:`)) void listings.delete(key);
   }
   void stats.delete(accountId);
+  dropAccountTraffic(accountId);
 });
 
 /** A sale is re-read for this long after it sold, while its status moves. */
@@ -169,13 +175,28 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
       void stats.set(accountId, kept);
     }
 
+    // Last, and in a slice: per-name traffic is the slow part.
+    snapshotSearches(accountId, read.listings);
+    let trafficNote: string | null = null;
+    if (caps.domainStats === 'daily') {
+      const t = await syncDomainTraffic(adapter, read.listings);
+      if (t.error) {
+        trafficNote = `Per-domain traffic paused after ${t.fetched} names: ${t.error}. The next sync carries on.`;
+      }
+    }
+
     setMarketSyncState(accountId, {
       at: Date.now(),
       lastError: null,
       listings: read.listings.length,
       sales: accountSales(accountId).length,
       incomplete: !read.complete,
-      notes,
+      notes: trafficNote
+        ? [
+            ...notes.filter((n) => !n.startsWith('Per-domain traffic')),
+            trafficNote,
+          ]
+        : notes.filter((n) => !n.startsWith('Per-domain traffic')),
     });
   } catch (error) {
     setMarketSyncState(accountId, {

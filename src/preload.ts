@@ -179,6 +179,7 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.syncMarketAccount, accountId),
   getMarketListings: () => ipcRenderer.invoke(IpcChannels.getMarketListings),
   getMarketSales: () => ipcRenderer.invoke(IpcChannels.getMarketSales),
+  getMarketTraffic: () => ipcRenderer.invoke(IpcChannels.getMarketTraffic),
   writeMarketListings: (...args) =>
     ipcRenderer.invoke(IpcChannels.writeMarketListings, ...args),
   pushMarketPrices: (...args) =>
