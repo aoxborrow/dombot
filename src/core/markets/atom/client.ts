@@ -65,6 +65,8 @@ export const MAX_DESCRIPTION = 2000;
  * leaves room for sync and a bulk push sharing the key.
  */
 export const REQUESTS_PER_MINUTE = 120;
+/** A call slower than this is logged (by endpoint only). */
+const SLOW_CALL_MS = 5_000;
 /** A walk stops here whatever Atom says, in case it ignores `page`. */
 const MAX_PAGES = 1000;
 
@@ -516,6 +518,7 @@ export class AtomClient {
       if (v !== undefined) query.set(k, String(v));
     }
     await this.limiter.take();
+    const started = this.clock.now();
     let response: Response;
     try {
       // The URL holds the token: it goes to fetch and nowhere else.
@@ -528,6 +531,7 @@ export class AtomClient {
       const timedOut =
         error instanceof Error &&
         (error.name === 'TimeoutError' || error.name === 'AbortError');
+      if (timedOut) console.warn(`[atom] ${method} ${path} timed out`);
       throw new AtomError(
         timedOut ? 'TIMEOUT' : 'NETWORK',
         timedOut ? 'Atom did not respond in time.' : 'Could not reach Atom.',
@@ -535,6 +539,12 @@ export class AtomClient {
       );
     }
     const raw = await response.text();
+    // Atom usually answers in well under a second; log the slow ones by
+    // endpoint (never the URL, which holds the token) to see what stalls.
+    const took = this.clock.now() - started;
+    if (took > SLOW_CALL_MS) {
+      console.warn(`[atom] ${method} ${path} took ${Math.round(took / 1000)}s`);
+    }
     let body: unknown = undefined;
     try {
       body = raw.trim() ? JSON.parse(raw) : undefined;

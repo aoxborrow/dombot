@@ -226,6 +226,14 @@ export function searchHistory(
     .map(([date, counts]) => ({ date, counts }));
 }
 
+/** One name's stored traffic on an account, if sync has fetched it. */
+export function storedTraffic(
+  accountId: string,
+  name: string,
+): DomainTraffic | undefined {
+  return traffic.get(key(accountId, name));
+}
+
 /** Drop an account's traffic and snapshots (it was removed). */
 export function dropAccountTraffic(accountId: string): void {
   for (const ns of [traffic, searches] as Namespace<unknown>[]) {

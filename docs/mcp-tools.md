@@ -248,7 +248,9 @@ saying so.
 - **`market_stats_get`** — `accountId`, `days?`. Stored daily views and
   leads, with totals.
 - **`domain_stats_get`** — `domain`, `accountId?`, `days?` (default 30).
-  Live from the market that lists the name.
+  Live from the market that lists the name; for Atom, which reports only
+  running totals, from what sync stored (views per day, worked out between
+  syncs, and the latest views, shortlists and offers).
 - **`market_settings_get`** — `accountId`. The account's defaults for new
   listings, live.
 - **`market_categories_get`** — `accountId`. The categories and name

@@ -356,6 +356,9 @@ function errorOf(error: unknown): { code: string; message: string } {
 
 // The adapter
 
+/** Per account: the Premium names Atom allowed elsewhere at the last sync. */
+const lastSyndicated = new Map<string, ReadonlySet<string>>();
+
 export interface AtomAccountCredentials {
   apiToken?: string;
   userId?: string;
@@ -371,8 +374,16 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
     private readonly now: () => number = Date.now,
   ) {}
 
+  /**
+   * A single listing read (after a write) can't say which Premium names
+   * Atom lets you list elsewhere; the set from the last full read stands in
+   * until the next sync.
+   */
   private toListing(l: AtomListing, syndicated?: ReadonlySet<string> | null) {
-    return listingFromAtom(l, this.accountId, { syndicated, now: this.now() });
+    return listingFromAtom(l, this.accountId, {
+      syndicated: syndicated ?? lastSyndicated.get(this.accountId) ?? null,
+      now: this.now(),
+    });
   }
 
   async test(): Promise<MarketTestResult> {
@@ -393,6 +404,7 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
     if (read.listings.some((l) => l.type === 'premium')) {
       try {
         syndicated = new Set(await this.client.allSyndicationAuthorized());
+        lastSyndicated.set(this.accountId, syndicated);
       } catch {
         syndicated = null;
       }
@@ -688,8 +700,11 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
     }
   }
 
-  primaryCategories(): Promise<AtomCategory[]> {
-    return this.client.listPrimaryCategories();
+  /** The ones Atom's API accepts: never a name with "&" (observed). */
+  async primaryCategories(): Promise<AtomCategory[]> {
+    return (await this.client.listPrimaryCategories()).filter(
+      (c) => !c.name.includes('&'),
+    );
   }
 
   async submitForGrading(

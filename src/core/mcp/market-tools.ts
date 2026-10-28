@@ -8,7 +8,7 @@ import {
   sellThrough,
   trafficByMonth,
 } from '../../shared/market-reports';
-import { trafficTotals } from '../services/markets/traffic';
+import { storedTraffic, trafficTotals } from '../services/markets/traffic';
 import {
   activeMarketAccounts,
   marketAccount,
@@ -362,7 +362,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'Get a domain’s market stats',
       description:
-        'Daily views and leads for one listed domain, read live from the market that lists it (one API call per account). Pass `accountId` when the name is listed in more than one account. Returns { domain, accounts: [{ accountId, days, totals }] }.',
+        'Daily views and leads for one listed domain, read live from the market that lists it (one API call per account). Markets that only report running totals (Atom) answer from what sync stored instead: the views each day added, worked out from those totals once sync has read them twice, plus the latest `counters` (views, shortlists, offers). Pass `accountId` when the name is listed in more than one account. Returns { domain, accounts: [{ accountId, days, totals, counters? }] }.',
       inputSchema: {
         domain: z.string().min(1).max(253),
         accountId,
@@ -395,6 +395,27 @@ export function registerMarketTools(server: McpServer): void {
       const accounts = [];
       for (const accountId of ids) {
         const adapter = marketAdapter(accountId);
+        if (adapter.capabilities.domainStats === 'snapshot') {
+          const kept = storedTraffic(accountId, name);
+          const since = new Date(Date.now() - ((days ?? 30) - 1) * 86_400_000)
+            .toISOString()
+            .slice(0, 10);
+          const rows = Object.entries(kept?.days ?? {})
+            .filter(([date]) => date >= since)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, [views]]) => ({ date, views, source: 'derived' }));
+          accounts.push({
+            accountId,
+            days: rows,
+            totals: {
+              views: rows.reduce((n, d) => n + d.views, 0),
+              leads: null,
+            },
+            counters: kept?.counters ?? null,
+            fetchedAt: kept ? new Date(kept.fetchedAt).toISOString() : null,
+          });
+          continue;
+        }
         if (!adapter.domainStats) {
           throw new Error(
             `Per-domain stats are not supported for ${adapter.market}.`,
