@@ -204,6 +204,9 @@ describe('reading', () => {
     expect(estimatedCommission('plus', 1000)).toBe(150);
     expect(estimatedCommission('premium', 4200)).toBeCloseTo(1260);
     expect(estimatedCommission('premium', 60_000)).toBe(12_000);
+    // Atom's bands: "$4998 and below: 30%", "$4999 to $49,999: 25%".
+    expect(estimatedCommission('premium', 4998)).toBeCloseTo(1499.4);
+    expect(estimatedCommission('premium', 4999)).toBeCloseTo(1249.75);
     expect(estimatedCommission(null, 1000)).toBeNull();
     const sale = saleFromAtom(
       {
@@ -401,6 +404,28 @@ describe('writing', () => {
     const [premium] = await atom.deleteListings(['quillnest.com']);
     expect(premium.error?.code).toBe('PREMIUM');
     expect(listings.get('quillnest.com')?.status).not.toBe('Delisted');
+  });
+
+  it('leaves sold names alone: no reprice, re-add, discount or delist call', async () => {
+    const sold = listing({
+      name: 'quillnest.com',
+      type: 'premium',
+      typeRaw: 'Premium',
+      status: 'Transfer Complete',
+      price: 4200,
+    });
+    const { atom, calls } = fakeAtom([sold]);
+    const [write] = await atom.writeListings([
+      { name: 'quillnest.com', price: '5000' },
+    ]);
+    expect(write.error?.code).toBe('SOLD');
+    expect((await atom.setDiscount('quillnest.com', '100')).error?.code).toBe(
+      'SOLD',
+    );
+    expect((await atom.verifyDns('quillnest.com')).error?.code).toBe('SOLD');
+    const [del] = await atom.deleteListings(['quillnest.com']);
+    expect(del.ok).toBe(true);
+    expect(calls.every((c) => c === '/domain-details')).toBe(true);
   });
 
   it('sets and clears a discount', async () => {

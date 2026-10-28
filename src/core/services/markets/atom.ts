@@ -173,6 +173,8 @@ export function estimatedCommission(
     case 'plus':
       return price * 0.15;
     case 'premium':
+      // Atom's bands: "$4998 and below: 30%", "$4999 to $49,999: 25%",
+      // "$50,000 to $74,999: 20%", "Above $75,000: 15%".
       if (price < 4999) return price * 0.3;
       if (price < 50_000) return price * 0.25;
       if (price < 75_000) return price * 0.2;
@@ -324,6 +326,22 @@ function failed(
   };
 }
 
+/**
+ * Sold names stay in Atom's list as "Transfer Complete" (observed). They
+ * aren't live listings: never reprice, re-add or change them.
+ */
+function isSold(l: AtomListing): boolean {
+  return statusFromAtom(l.status) === 'sold';
+}
+
+function soldResult(name: string): MarketWriteResult {
+  return failed(
+    name,
+    'SOLD',
+    `${name} sold on Atom, so its listing can't be changed there.`,
+  );
+}
+
 function errorOf(error: unknown): { code: string; message: string } {
   if (error instanceof MarketUnsupportedError) {
     return { code: 'UNSUPPORTED', message: error.message };
@@ -429,6 +447,7 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
             : wholeDollars('price', change.price);
 
       const current = await this.client.getListing(name);
+      if (current && isSold(current)) return soldResult(name);
       if (!current) {
         if (price === undefined) {
           return failed(
@@ -532,6 +551,18 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
       try {
         name = assertDomainName(raw);
         const current = await this.client.getListing(name);
+        // A sold name is already off sale; there's nothing to remove.
+        if (current && isSold(current)) {
+          out.push({
+            name,
+            ok: true,
+            pending: false,
+            saved: null,
+            adjusted: [],
+            error: null,
+          });
+          continue;
+        }
         if (current?.type === 'premium') {
           out.push(
             failed(
@@ -590,6 +621,7 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
       const current = await this.client.getListing(key);
       if (!current)
         return failed(key, 'NOT_LISTED', 'Not listed on this Atom account.');
+      if (isSold(current)) return soldResult(key);
       if (current.price === null) {
         unsupported(
           'discount',
@@ -638,6 +670,8 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
     let key = name;
     try {
       key = assertDomainName(name);
+      const current = await this.client.getListing(key);
+      if (current && isSold(current)) return soldResult(key);
       await this.client.verifyDns(key);
       const after = await this.client.getListing(key);
       return {

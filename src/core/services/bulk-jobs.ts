@@ -520,6 +520,7 @@ const UNSUPPORTED_CODES = new Set([
   'NO_PRICE',
   'CURRENCY',
   'PREMIUM',
+  'SOLD',
 ]);
 
 let marketJob: StoredMarketJob | null = null;
