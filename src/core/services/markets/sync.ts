@@ -60,6 +60,7 @@ const LATER_STATS_DAYS = 7;
 /** How long a listing the market is still checking stays pending. */
 const PENDING_KEEP_DAYS = 7;
 const UNCONFIRMED_NOTE = 'Not listed after a week';
+const VERIFYING_NOTE = 'Waiting on ownership checks';
 
 const enabledIds = () => new Set(activeMarketAccounts().map((a) => a.id));
 
@@ -173,6 +174,24 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
         void listings.delete(key);
       }
     }
+    // A name DomBot listed for sale that the market lists but not for sale
+    // yet is still being checked (Sedo verifies ownership of every new name,
+    // through the registry or a TXT record, on its site). Keep it pending
+    // until the market puts it up for sale.
+    let verifying = 0;
+    if (caps.asyncInsert) {
+      for (const [key, row] of fresh) {
+        const cached = listings.get(key);
+        if (cached?.status === 'pending' && cached.forSale && !row.forSale) {
+          fresh.set(key, {
+            ...row,
+            status: 'pending',
+            listedAt: row.listedAt ?? cached.listedAt,
+          });
+          verifying++;
+        }
+      }
+    }
     void listings.setMany([...fresh]);
 
     // Sales: all of history the first time, then a window back from the
@@ -218,12 +237,18 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
     const kept = notes.filter(
       (n) =>
         !n.startsWith('Per-domain traffic') &&
+        !n.startsWith(VERIFYING_NOTE) &&
         !(unconfirmed && n.startsWith(UNCONFIRMED_NOTE)),
     );
     if (trafficNote) kept.push(trafficNote);
     if (unconfirmed) {
       kept.push(
         `${UNCONFIRMED_NOTE}: ${unconfirmed} ${unconfirmed === 1 ? 'name' : 'names'} DomBot sent never showed up. The market may have refused ${unconfirmed === 1 ? 'it' : 'them'}; check the account's email.`,
+      );
+    }
+    if (verifying) {
+      kept.push(
+        `${VERIFYING_NOTE}: ${verifying} ${verifying === 1 ? 'name' : 'names'} DomBot listed ${verifying === 1 ? "isn't" : "aren't"} for sale yet while the market checks that you own ${verifying === 1 ? 'it' : 'them'}. Finish the verification on the market's site (through the registry, or a TXT record it gives you).`,
       );
     }
     setMarketSyncState(accountId, {

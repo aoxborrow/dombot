@@ -402,6 +402,44 @@ describe('listings a market is still checking', () => {
     expect(marketListings().map((l) => l.status)).toEqual(['active']);
   });
 
+  it('keeps a name pending while the market lists it but not for sale', async () => {
+    fake.asyncInsert = true;
+    await connect();
+    putMarketListings(ACCOUNT, [pending('new.com', 1)]);
+    fake.listings = [{ ...listing('new.com'), forSale: false }];
+    await syncMarketAccount(ACCOUNT);
+    expect(marketListings()[0]).toMatchObject({
+      status: 'pending',
+      forSale: false,
+    });
+    expect(marketAccountViews()[0].sync?.notes).toContainEqual(
+      expect.stringMatching(
+        /^Waiting on ownership checks: 1 name DomBot listed/,
+      ),
+    );
+
+    // Once the market puts it up for sale, it's an ordinary listing.
+    fake.listings = [listing('new.com')];
+    await syncMarketAccount(ACCOUNT);
+    expect(marketListings()[0]).toMatchObject({ status: 'active' });
+    expect(
+      marketAccountViews()[0].sync?.notes.some((n) =>
+        n.startsWith('Waiting on ownership checks'),
+      ),
+    ).toBe(false);
+  });
+
+  it('leaves a name the seller took off sale alone', async () => {
+    fake.asyncInsert = true;
+    await connect();
+    putMarketListings(ACCOUNT, [
+      { ...listing('parked.com'), accountId: ACCOUNT, forSale: false },
+    ]);
+    fake.listings = [{ ...listing('parked.com'), forSale: false }];
+    await syncMarketAccount(ACCOUNT);
+    expect(marketListings()[0].status).toBe('active');
+  });
+
   it('drops pending rows on markets that list names straight away', async () => {
     await connect();
     putMarketListings(ACCOUNT, [pending('new.com', 1)]);

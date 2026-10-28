@@ -54,7 +54,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       website: 'sedo.com',
       keysUrl: 'https://sedo.com/',
       helpText:
-        'Sedo’s API needs a partner ID and sign key, which Sedo grants on request (ask Sedo support for API access), plus your Sedo username and password. Sedo’s API has no sales, so record Sedo sales by hand or import Sedo’s CSV export.',
+        'Sedo’s API needs a partner ID and sign key, which Sedo grants on request (ask Sedo support for API access), plus your Sedo username and password. Sedo verifies ownership of each name you list (through the registry or a TXT record, on sedo.com) before it goes up for sale. Sedo’s API has no sales, so record Sedo sales by hand or import Sedo’s CSV export.',
       configFields: SEDO_CONFIG_FIELDS,
       capabilities: SEDO_CAPABILITIES,
     },
