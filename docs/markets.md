@@ -385,6 +385,9 @@ What each costs:
 - **Capabilities, per market:** which methods it accepts, its default
   nameservers and CNAME target, and whether it has a "check now" call (Atom's
   verify DNS). Settings shows only the fields a market's methods need.
+  Atom's check-now allows one request per account every 12 hours, for any
+  name (seen live, docs/atom-api.md): the action should apply DNS to every
+  selected name first and ask once, not once per name.
 - **A "Verify ownership" action** for selected names on an account, in the
   Domains table and as an MCP tool (`domain_listing_verify`, generalized from
   Atom's). For each name, it applies the chosen method through the registrar
