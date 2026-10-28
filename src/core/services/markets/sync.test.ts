@@ -281,6 +281,83 @@ describe('syncMarketAccount', () => {
   });
 });
 
+describe('reconnecting an account', () => {
+  const AGAIN = '00000000-0000-4000-8000-000000000002';
+  const reconnect = () =>
+    connectMarketAccount(
+      'afternic',
+      { apiKey: 'k', apiSecret: 's' },
+      '',
+      AGAIN,
+    );
+
+  it('keeps one sale and one sold event, relinked to the new account', async () => {
+    await connect();
+    fake.sales = [sale('t1', 'gone.com', '2026-10-01')];
+    await syncMarketAccount(ACCOUNT);
+    await removeMarketAccount(ACCOUNT);
+    await reconnect();
+    await syncMarketAccount(AGAIN);
+    expect(marketSales()).toEqual([
+      expect.objectContaining({ accountId: AGAIN, id: 't1' }),
+    ]);
+    expect(sold()).toEqual([
+      expect.objectContaining({
+        domain: 'gone.com',
+        marketSale: `${AGAIN}:t1`,
+      }),
+    ]);
+  });
+
+  it('finds the old sale even when a later sync reads only a window back', async () => {
+    await connect();
+    fake.sales = [
+      sale('old', 'gone.com', '2021-05-04'),
+      sale('new', 'recent.com', '2026-10-01'),
+    ];
+    await syncMarketAccount(ACCOUNT);
+    await removeMarketAccount(ACCOUNT);
+    await reconnect();
+    // An earlier build's first sync wrote both under the new id; a later
+    // one only reads recent sales.
+    await syncMarketAccount(AGAIN);
+    fake.sales = [sale('new', 'recent.com', '2026-10-01')];
+    await syncMarketAccount(AGAIN);
+    expect(
+      marketSales()
+        .map((s) => `${s.accountId === AGAIN ? 'new' : 'old'}:${s.id}`)
+        .sort(),
+    ).toEqual(['new:new', 'new:old']);
+  });
+
+  it('folds sold events already written twice into one', async () => {
+    await connect();
+    fake.sales = [sale('t1', 'gone.com', '2026-10-01')];
+    await syncMarketAccount(ACCOUNT);
+    // As an earlier build left it: a second event for the same sale under
+    // the new account, the old account's event and record still there.
+    await removeMarketAccount(ACCOUNT);
+    await reconnect();
+    putEvents([
+      newEvent({
+        domain: 'gone.com',
+        type: DomainEventType.Sold,
+        source: DomainEventSource.Sync,
+        date: '2026-10-01',
+        amount: '499.00',
+        currency: 'USD',
+        marketSale: `${AGAIN}:t1`,
+      }),
+    ]);
+    expect(sold()).toHaveLength(2);
+    await syncMarketAccount(AGAIN);
+    expect(sold()).toEqual([
+      expect.objectContaining({ marketSale: `${AGAIN}:t1` }),
+    ]);
+    expect(marketSales()).toHaveLength(1);
+  });
+});
+
 describe('sales as sold events', () => {
   it('writes one sold event per completed sale, once', async () => {
     await connect();
