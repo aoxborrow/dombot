@@ -182,7 +182,7 @@ export default function RegistrarsSettings() {
       <div className="flex flex-col gap-3">
         {/* Above the cards: Sync all on the left (it acts on the cards
             below), the page's main action on the right. */}
-        {loaded && cards.length > 0 && (
+        {loaded && (
           <div className="flex flex-wrap items-center gap-2">
             {enabledCount > 1 && <SyncAllButton />}
             <div className="ml-auto">
@@ -218,9 +218,7 @@ export default function RegistrarsSettings() {
             firstSync={syncingIds.has(idOf(account))}
           />
         ))}
-        {loaded && cards.length === 0 && !draft && (
-          <EmptyRegistrars catalog={sortedCatalog} onPick={startDraft} />
-        )}
+        {loaded && cards.length === 0 && !draft && <EmptyRegistrars />}
       </div>
     </div>
   );
@@ -285,37 +283,13 @@ function AddAccountMenu({
   );
 }
 
-/** Nothing connected yet: show what's supported, each one click from a form. */
-function EmptyRegistrars({
-  catalog,
-  onPick,
-}: {
-  catalog: RegistrarDefinition[];
-  onPick: (provider: RegistrarDefinition) => void;
-}) {
+/** Nothing connected yet: Add registrar account above is the way in. */
+function EmptyRegistrars() {
   return (
-    <Card className="gap-4 rounded-md px-5 py-5">
-      <div>
-        <h3 className="font-medium">Connect your first registrar</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Choose where your domains are registered. You can add more accounts,
-          including several at the same registrar, at any time.
-        </p>
-      </div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
-        {catalog.map((provider) => (
-          <Button
-            key={provider.name}
-            variant="outline"
-            className="h-auto justify-start gap-2.5 px-3 py-2.5"
-            onClick={() => onPick(provider)}
-          >
-            <RegistrarLogo name={provider.name} label={provider.displayName} />
-            {provider.displayName}
-          </Button>
-        ))}
-      </div>
-    </Card>
+    <p className="text-sm text-muted-foreground">
+      No registrar accounts yet. Add one to load its domains. You can add more
+      accounts, including several at the same registrar, at any time.
+    </p>
   );
 }
 
