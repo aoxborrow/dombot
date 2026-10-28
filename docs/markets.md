@@ -467,14 +467,18 @@ a person (a sale message) says so in its description.
 3. **Afternic phases 5–6:** writes through the bulk runner, reporting.
 4. **Atom and Sedo** when there are credentials: client, then an adapter, then
    their capability-gated extras. Atom's API access needs approval and 500+
-   listings; Sedo needs a partner ID and sign key. Sedo was built from the
-   docs, then verified live once credentials arrived (2026-10-28).
+   listings; Sedo needs a partner ID and sign key. Both were built from
+   their docs, then verified live once credentials arrived (2026-10-28).
+   Atom also brought market bulk jobs (see "Bulk writes"). Status and
+   what's left: atom-api.md, "Status"; sedo-api.md.
 
 ## Open questions
 
 1. The `marketSale` link on `DomainEvent`: confirm it against
    docs/storage-model.md's rules before phase 4 writes the first event.
-2. Do Atom and Sedo report errors with HTTP 200 for every failure? Both plans
-   suspect so; adapters must check bodies either way.
-3. Market rate limits for Atom and Sedo are unpublished; the defaults (60 a
-   minute, one a second) are guesses until 429s or the markets say.
+2. Do Atom and Sedo report errors with HTTP 200 for every failure? Atom:
+   yes, every failure seen live was HTTP 200 with a lone `message`
+   (atom-api.md, "Observed"). Adapters check bodies either way.
+3. Market rate limits for Atom and Sedo are unpublished. Atom drew no 429 at
+   about 300 calls a minute, and its client paces at 120; its DNS check is
+   limited to one per account every 12 hours.

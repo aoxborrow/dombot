@@ -30,31 +30,48 @@ AtomRegistrar for the registrar API).
 
 ## Status
 
-Built from the specs, then corrected against live reads (2026-10-28), on
-the shared model in [markets.md](markets.md):
+Built, and verified live (2026-10-28): every seller read against the account
+in `.env`, every write DomBot makes on one test listing, and a Premium
+reprice. On the shared model in [markets.md](markets.md); in review as
+PR #201, stacked on Sedo (#200) and Afternic (#197).
 
 - **Client** `src/core/markets/atom/`: every seller operation except boost,
-  plus appraisal. Reads every body for errors (HTTP 200 failures), keeps the
-  token out of every error, sends each write once and never retries it, and
-  refuses Premium listings. Unit tests on made-up fixtures.
+  plus appraisal. Reads every body for errors (Atom answers failures with
+  HTTP 200), keeps the token out of every error, sends each write once and
+  never retries it, and refuses Premium listings.
 - **Adapter** `src/core/services/markets/atom.ts`, registered in
   `registry.ts`: listings (tier, discount until Monday, category,
-  description, syndication rights), sales (commission estimated from the
-  tier when Atom doesn't send it), per-name counters that sync turns into
-  daily views, and Atom-only actions (discount, verify DNS, primary
-  categories, grading, appraisal). Writes read the listing before (add or
-  reprice) and after (what Atom saved).
-- **Bulk:** more than 10 names run as a market job in the bulk runner
-  (markets.md, "Bulk writes"), from the Domains table and MCP.
+  description, syndication rights; sold names as `sold`), sales (keyed by
+  name and day, commission estimated from the tier), per-name counters that
+  sync turns into daily views, and Atom-only actions (discount, verify DNS,
+  primary categories, grading, appraisal). Writes read the listing before
+  and after; Make an Offer listings are priced by adding them again; a
+  price Atom says it saved but didn't fails as `NOT_APPLIED`.
+- **Bulk:** an Atom account with more than 10 names runs as a market job in
+  the bulk runner (markets.md, "Bulk writes"), from the Domains table's List
+  and Delist dialog (several markets at once; the others answer directly)
+  and from MCP (`market_job_get`).
+- **MCP:** Atom settings on the listing tools, and Atom's own tools
+  (discount, verify, grading, appraisal); see docs/mcp-tools.md.
+- **App:** Settings → Markets connects Atom accounts; Atom's logo is in
+  `site/src/assets/logos/atom.svg`. Connecting a real account, the Atom
+  columns and the job progress view haven't been clicked through in the
+  app yet (the demo has no Atom account).
+- **Live tests:** `npm run test:live` runs the reads (`ATOM_API_TOKEN`,
+  `ATOM_USER_ID`). The write round trip needs `ATOM_LIVE_WRITES=1` and
+  `ATOM_TEST_DOMAIN` (a Standard or Plus listing, put back afterwards);
+  delist and re-add also need `ATOM_LIVE_RELIST=1`, and setting a
+  description, which can't be cleared, `ATOM_TEST_DESCRIPTION=1`.
 - **Not built, on purpose:** boost and Premium listings (both spend Atom
   credits), and changing a listing's tier (no API for it).
-- **Live tests:** `npm run test:live` runs the reads (`ATOM_API_TOKEN` and
-  `ATOM_USER_ID`; they pass against the account). The write round trip
-  passes too; writes also need
-  `ATOM_LIVE_WRITES=1` and `ATOM_TEST_DOMAIN`, a Standard listing kept for
-  it, which the tests reprice, discount, recategorize, describe, verify,
-  delist and relist, then put back. They refuse to run on anything but a
-  Standard listing, and never touch another name.
+- **Planned, app work:** buttons for discount, verify, grading and
+  appraisal (MCP-only so far); recognizing `ns1/ns2.atom.com` as Atom's
+  marketplace nameservers; warnings for a Premium Atom name listed on
+  Afternic without syndication rights, and for a name on both markets
+  pointing at one market's nameservers; ownership verification
+  (markets.md).
+- **Elsewhere:** Atom as a registrar, in registrar-client; then the shared
+  key for an account that's both ("One provider, registrar and market").
 
 ### Unverified: what to check first
 
