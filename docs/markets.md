@@ -8,8 +8,8 @@ bulk writes, MCP). Each market's own API, quirks and client are in its plan:
   (`src/core/markets/afternic/`), verified live.
 - [atom-api.md](atom-api.md): plan only; no API key yet.
 - [sedo-api.md](sedo-api.md): client and adapter built
-  (`src/core/markets/sedo/`, `src/core/services/markets/sedo.ts`); reads
-  verified live, writes not yet.
+  (`src/core/markets/sedo/`, `src/core/services/markets/sedo.ts`), verified
+  live (reads and writes).
 
 Atom's and Sedo's plans each proposed a first cut of shared types. This doc
 replaces both; where they disagreed, the choice and the reason are below.
@@ -383,9 +383,8 @@ a person (a sale message) says so in its description.
 3. **Afternic phases 5–6:** writes through the bulk runner, reporting.
 4. **Atom and Sedo** when there are credentials: client, then an adapter, then
    their capability-gated extras. Atom's API access needs approval and 500+
-   listings; Sedo needs a partner ID and sign key. Sedo was built ahead of
-   its credentials from the docs (unverified; docs/sedo-api.md lists what to
-   check first).
+   listings; Sedo needs a partner ID and sign key. Sedo was built from the
+   docs, then verified live once credentials arrived (2026-10-28).
 
 ## Open questions
 

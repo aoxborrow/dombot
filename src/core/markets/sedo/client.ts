@@ -44,10 +44,9 @@ import {
 // `output_method=xml`, never GET, because the account password is a
 // parameter and a query string ends up in logs.
 //
-// Reads were checked against a live account on 2026-10-28 (form POST, XML,
-// faults, paging, name lookup, stats, payments, reference lists). Writes
-// are still UNVERIFIED: built from the docs and their example XML. What's
-// left to check is in docs/sedo-api.md, "Unverified".
+// Checked against a live account on 2026-10-28: form POST, XML, faults,
+// paging, name lookup, stats, payments, reference lists, and insert, edit
+// and delete. What's left to check is in docs/sedo-api.md, "Unverified".
 
 /** Most names per write call (DomainInsert, DomainEdit, DomainDelete). */
 export const WRITE_BATCH = 50;

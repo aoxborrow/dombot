@@ -8,7 +8,7 @@ import type { SedoListing, SedoListingInput } from './types';
 // Off unless SEDO_LIVE_WRITES=1 and SEDO_TEST_DOMAIN are set, so a plain
 // `npm run test:live` stays read-only.
 //
-// Never run yet: written before there were credentials (docs/sedo-api.md).
+// First run 2026-10-28 on domainio.com (docs/sedo-api.md, "Observed").
 
 const env = {
   partnerId: process.env.SEDO_PARTNER_ID,
@@ -47,12 +47,26 @@ describe.skipIf(!enabled)('Sedo (live writes, one test name)', () => {
   });
   const name = TEST_NAME ?? '';
   let before: SedoListing | null = null;
+  let inserted = false;
+
+  /** The listing once Sedo shows it; inserts take seconds (seen: ~15). */
+  async function listedWithin(ms: number): Promise<SedoListing | null> {
+    for (const until = Date.now() + ms; ;) {
+      const [l] = await sedo.getListings([name]);
+      if (l || Date.now() > until) return l ?? null;
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  }
 
   afterAll(async () => {
-    // Put it back: the original listing, or no listing.
+    // Put it back: the original listing, or no listing. An insert still
+    // being checked isn't deletable yet, so wait for it first.
     if (before) await sedo.editListings([asInput(before)]);
-    else await sedo.deleteListings([name]);
-  });
+    else {
+      if (inserted) await listedWithin(120_000);
+      await sedo.deleteListings([name]);
+    }
+  }, 180_000);
 
   it('lists the test name (or finds it listed)', async () => {
     [before = null] = await sedo.getListings([name]);
@@ -76,26 +90,22 @@ describe.skipIf(!enabled)('Sedo (live writes, one test name)', () => {
         language: 'en',
       },
     ]);
-    console.info('Insert result: %o', r);
     expect(r.ok).toBe(true);
-    // UNVERIFIED: how long Sedo's checks take. Report whether it shows yet.
-    console.info(
-      'Listed right after insert: %o',
-      await sedo.getListings([name]),
-    );
-  });
+    inserted = true;
+    const listed = await listedWithin(120_000);
+    // Seen live: in the list within seconds, but not for sale yet.
+    console.info('Listed after insert: %o', listed);
+    expect(listed).not.toBeNull();
+  }, 180_000);
 
   it('changes one field and keeps the rest', async () => {
     const [now] = await sedo.getListings([name]);
-    if (!now) {
-      console.info('Not listed yet (Sedo still checking); skipping the edit.');
-      return;
-    }
+    expect(now).toBeDefined();
     const price = now.price === '5555' ? '5556' : '5555';
     const [r] = await sedo.updateListings([{ name, price }]);
     expect(r.ok).toBe(true);
+    // An edit shows at once (seen live).
     const [after] = await sedo.getListings([name]);
-    // UNVERIFIED: that an edit shows at once.
     expect(after).toMatchObject({
       price,
       minPrice: now.minPrice,

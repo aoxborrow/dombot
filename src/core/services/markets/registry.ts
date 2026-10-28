@@ -46,7 +46,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     create: (accountId, credentials) =>
       createAfternicAdapter(accountId, credentials),
   },
-  // Reads checked live; writes still unverified (docs/sedo-api.md).
+  // Checked live, reads and writes (docs/sedo-api.md).
   sedo: {
     info: {
       id: 'sedo',
