@@ -156,7 +156,7 @@ export default function Markets() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         <StatCard
           icon={Store}
           accentClass="text-blue-500"
