@@ -53,7 +53,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     create: (accountId, credentials) =>
       createAfternicAdapter(accountId, credentials),
   },
-  // Reads checked live; writes unverified (docs/atom-api.md).
+  // Reads checked live; some writes (docs/atom-api.md).
   atom: {
     info: {
       id: 'atom',
@@ -68,7 +68,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     create: (accountId, credentials) =>
       createAtomAdapter(accountId, credentials),
   },
-  // Reads checked live; writes still unverified (docs/sedo-api.md).
+  // Checked live, reads and writes (docs/sedo-api.md).
   sedo: {
     info: {
       id: 'sedo',

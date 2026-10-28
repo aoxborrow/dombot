@@ -29,9 +29,8 @@ import {
 // Sedo in the shared market model (docs/markets.md, docs/sedo-api.md): maps
 // the Sedo client's types to and from the shared ones. No storage here.
 //
-// Listing, stats and connection mapping checked against a live account
-// (2026-10-28). Writes are still UNVERIFIED; docs/sedo-api.md, "Unverified",
-// lists what's left.
+// Reads and writes checked against a live account (2026-10-28);
+// docs/sedo-api.md, "Unverified", lists what's left.
 
 export const SEDO_CAPABILITIES: MarketCapabilities = {
   currencies: SEDO_CURRENCIES,
@@ -417,8 +416,9 @@ export class SedoAdapter implements MarketAdapter, SedoActions {
           name: r.name,
           ok: r.ok,
           pending: r.ok && pending,
-          // UNVERIFIED: that an `ok` edit is live at once; the docs suggest
-          // checking DomainList, so the next sync has the final word.
+          // An `ok` edit is live at once (checked live). A new name shows in
+          // Sedo's list within seconds but not for sale until its checks
+          // pass; the next sync brings that state in.
           saved:
             r.ok && input
               ? asSaved(

@@ -68,6 +68,9 @@ export function faultHint(code: string): string | null {
       return 'Accept Sedo’s user agreement on sedo.com first.';
     case 'E12':
       return 'This Sedo partner account isn’t allowed to use that function.';
+    case 'E3131':
+      // Seen live: inserting a name another Sedo account already lists.
+      return 'Sedo will check that you own it; watch the account’s email.';
     default:
       return null;
   }

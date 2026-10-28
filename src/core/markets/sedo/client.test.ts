@@ -483,3 +483,19 @@ describe('behavior checked live', () => {
     expect(await sedo.parkingPayments('2026-09-01')).toEqual([]);
   });
 });
+
+it('adds a hint to a per-name fault Sedo explains badly', async () => {
+  const { sedo } = client(() =>
+    fx.resultsOf([
+      [
+        'taken.com',
+        [
+          'E3131',
+          'The domain has already been found in another account. Ownership of this domain will be verified further.',
+        ],
+      ],
+    ]),
+  );
+  const [r] = await sedo.deleteListings(['taken.com']);
+  expect(r.message).toMatch(/another account.*watch the account’s email/);
+});

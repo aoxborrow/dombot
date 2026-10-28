@@ -5,13 +5,13 @@ the overlap with Afternic (docs/afternic-api.md) worked out so the two can
 share one market model. Docs: <https://api.sedo.com/apidocs/v1/Basic/>. The
 WSDL is at <https://api.sedo.com/api/v1/?wsdl>.
 
-**Status: built; reads verified, writes not.** The client
+**Status: built and verified live, reads and writes.** The client
 (`src/core/markets/sedo/`), the adapter (`src/core/services/markets/sedo.ts`)
 and the registry entry are in place, so Sedo accounts can be added in
 Settings → Markets, sync, show in the Domains columns and work through the
-MCP tools. Every read was checked against a live account on 2026-10-28 (see
-"Observed"); inserts, edits and deletes haven't been run live yet. What's
-left is under "Unverified", below.
+MCP tools. Reads, inserts, edits and deletes were checked against a live
+account on 2026-10-28 (see "Observed"). What's left is under "Unverified",
+below.
 
 ## The API at a glance
 
@@ -289,7 +289,7 @@ none.
    parsing, faults, retries; `CheckMember`, `DomainList`,
    `DomainListExtended`, `DomainStatus`, parking statistics and payments,
    categories and languages.
-2. **Client, write side** (built, unverified): insert, edit
+2. **Client, write side** (built, verified live): insert, edit
    (read-merge-write), delete, in batches of 50.
 3. **Sedo adapter** into the shared model ([markets.md](markets.md)) and
    its registry entry (built, unverified).
@@ -297,9 +297,9 @@ none.
    listing sync with pending-insert tracking, the Domains columns, parking
    stats as account and per-name traffic, and the MCP cases, including
    `market_categories_get` and `market_payments_get`.
-5. **Verify:** reads done 2026-10-28; writes and the rest of "Unverified"
-   below are left, then replace the docs-based fixtures with recorded
-   shapes.
+5. **Verify:** reads and writes done 2026-10-28; the rest of
+   "Unverified" below is left, then replace the docs-based fixtures with
+   recorded shapes.
 6. **Later:** SOAP transport and the deferred parking functions, starting
    with `SetDomainSetup`'s buy box.
 
@@ -363,19 +363,36 @@ Checked live on 2026-10-28 against an account with 43 listings
   listing had category `990000` (not in the documented category list,
   presumably "uncategorized"); no listing had a price set, only a minimum
   price, and none was fixed price.
+- **A name another Sedo account lists** can't be inserted: `DomainInsert`
+  answers `E3131` ("The domain has already been found in another account.
+  Ownership of this domain will be verified further."), and the name stays
+  out of yours. Seen with domanio.com, which a stale listing elsewhere
+  offers at €1,500. Whether Sedo then contacts the owner, and whether the
+  name later moves to your account, is unknown. `DomainStatus` shows such a
+  name as on Sedo, so the write test checks it first.
+- **Writes** (2026-10-28, on domainio.com, a name on no Sedo account):
+  `DomainInsert` with `domainentry[0][…]` arrays answered `ok`, and the
+  name appeared in `DomainList` within about 15 seconds, but **not for
+  sale** (`forsale: 0`) although it was sent for sale, presumably until
+  Sedo's checks pass. `DomainEdit` changes showed at once and the
+  read-merge-write kept every other field; switching to a fixed price
+  worked. `DomainDelete` took effect at once: the name left the list, and
+  `DomainStatus` showed it on no account. A delete sent before an insert
+  shows up misses it, so the write test waits for the name first.
+- **`DomainStatus` answers in its own order,** not the order asked; the
+  client matches by name.
 - **Parking stats:** period 1 gives 31 daily rows for the account, and for
   one name when `domain` is set; period 3 gives 12 monthly rows.
   `payout_status` didn't say "Estimated" on any row.
 
 ## Unverified
 
-Still to check, in this order:
+Still to check:
 
-1. **Writes** (`SEDO_LIVE_WRITES=1` with `SEDO_TEST_DOMAIN`, a name you own
-   and keep for this): that `domainentry[0][…]` arrays are understood, how
-   long an insert's checks take, whether a pending name shows anywhere
-   before they pass, what a second insert of the same name returns, and
-   that an `ok` edit shows in `DomainList` at once.
+1. **For sale after an insert:** when (or whether) Sedo flips a new name to
+   for sale on its own once its checks pass, or whether DomBot has to edit
+   it to `forsale: 1` afterwards. Until known, a new Sedo listing can show
+   as not for sale in DomBot.
 2. **Edit details:** what `minprice` does on a fixed-price listing; whether
    the 199 Buy Now minimum applies in GBP; whether sending category `990000`
    back on an edit is accepted.
@@ -384,6 +401,8 @@ Still to check, in this order:
 4. **Rate limits:** what happens past 60 a minute, and whether `E11`/`E17`
    are what Sedo sends when throttling.
 5. **An empty account:** an empty list or `E15`.
+6. **E3131 follow-up:** whether Sedo contacts the owner and moves the name
+   when another account lists it.
 
 Then replace `src/core/markets/sedo/fixtures.ts`, which is the docs'
 examples, with recorded shapes (made-up names, as Afternic's), and remove
