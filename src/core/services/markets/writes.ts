@@ -205,7 +205,11 @@ export async function pushAskingPrices(
       changes.push({
         name,
         price: price.amount,
-        ...(price.minOffer ? { minOffer: price.minOffer } : {}),
+        // Only what the market has: Atom takes neither (its Make an Offer
+        // threshold is an account setting), and would refuse the change.
+        ...(price.minOffer && adapter.capabilities.minOffer
+          ? { minOffer: price.minOffer }
+          : {}),
         floor: adapter.capabilities.floor ? (price.floor ?? null) : undefined,
         currency: price.currency as MarketListingChange['currency'],
       });
