@@ -412,9 +412,16 @@ describe('listings a market is still checking', () => {
     putMarketListings(ACCOUNT, [pending('new.com', 1)]);
     fake.listings = [{ ...listing('new.com'), forSale: false }];
     await syncMarketAccount(ACCOUNT);
+    // It keeps the for-sale choice it was listed with, so a later sync
+    // still holds it while the market keeps it off sale.
     expect(marketListings()[0]).toMatchObject({
       status: 'pending',
-      forSale: false,
+      forSale: true,
+    });
+    await syncMarketAccount(ACCOUNT);
+    expect(marketListings()[0]).toMatchObject({
+      status: 'pending',
+      forSale: true,
     });
     expect(marketAccountViews()[0].sync?.notes).toContainEqual(
       expect.stringMatching(

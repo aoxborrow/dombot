@@ -16,8 +16,9 @@ import { findRegistrarsForDomain, resolveDomainAccount } from '../registrars';
 import { activeMarketAccounts, marketAccount, marketAdapter } from './accounts';
 import type { AnyMarketAdapter } from './registry';
 import {
+  cachedListing,
   dropMarketListings,
-  marketListing,
+  holdPending,
   marketListings,
   marketSale,
   putMarketListings,
@@ -90,7 +91,7 @@ export async function writeMarketListings(
   const skipped = new Map<string, MarketWriteResult>();
   const toSend = options.skipUnchanged
     ? changes.filter((c) => {
-        const cached = marketListing(accountId, toAscii(c.name));
+        const cached = cachedListing(accountId, toAscii(c.name));
         if (!cached || !matches(c, cached)) return true;
         skipped.set(cached.name, {
           name: cached.name,
@@ -107,6 +108,19 @@ export async function writeMarketListings(
   const written = await inBatches(adapter, toSend, (batch) =>
     adapter.writeListings(batch),
   );
+  // An edit to a name still in the market's ownership check (a new price,
+  // say) mustn't mark it live; taking it off sale on purpose may.
+  if (adapter.capabilities.asyncInsert) {
+    const takenOff = new Set(
+      changes.filter((c) => c.forSale === false).map((c) => toAscii(c.name)),
+    );
+    for (const r of written) {
+      if (r.ok && r.saved && !takenOff.has(r.name)) {
+        r.saved = holdPending(cachedListing(accountId, r.name), r.saved);
+        r.pending ||= r.saved.status === 'pending';
+      }
+    }
+  }
   putMarketListings(
     accountId,
     written.flatMap((r) => (r.ok && r.saved ? [r.saved] : [])),
