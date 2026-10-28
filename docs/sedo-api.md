@@ -254,107 +254,15 @@ daily traffic.** That's also exactly what DomBot's asking price
 (`ListPrice`: amount, min offer, floor, currency) already models, so the
 shared shape should be built around it.
 
-### A first cut of the shared shapes
+### The shared model
 
-For `src/core/markets/types.ts`, extracted once the Sedo client exists. Each
-market's client keeps its own types; a small adapter per market
-(`src/core/services/markets/<market>.ts`) maps them into these:
-
-```ts
-type MarketId = 'afternic' | 'sedo';
-
-interface MarketListing {
-  market: MarketId;
-  accountId: string;
-  /** ASCII (punycode), lowercase. */
-  name: string;
-  /** DomBot's own words; `statusRaw` keeps the market's. */
-  status:
-    'active' | 'pending' | 'not_for_sale' | 'rejected' | 'on_hold' | 'sold';
-  statusRaw: string;
-  /** Canonical decimal strings, like ListPrice. Null when unset. */
-  buyNow: string | null;
-  minOffer: string | null;
-  floor: string | null;
-  currency: CurrencyCode;
-  /** True: buyers can buy outright at buyNow. False: asking price, offers. */
-  fixedPrice: boolean;
-  leaseToOwn: { enabled: boolean; maxPayments: number | null } | null;
-  listedAt: string | null;
-  updatedAt: string | null;
-  /** Market-specific fields, typed per market. */
-  extra: AfternicExtra | SedoExtra;
-}
-
-interface MarketListingInput {
-  name: string;
-  buyNow?: string | null;
-  minOffer?: string | null;
-  floor?: string | null;
-  currency?: CurrencyCode;
-  fixedPrice?: boolean;
-  forSale?: boolean;
-}
-
-interface MarketListingResult {
-  name: string;
-  ok: boolean;
-  /** Pending: accepted, not live yet (Sedo inserts, Afternic verification). */
-  pending: boolean;
-  error: { code: string; message: string } | null;
-}
-
-interface MarketDailyStats {
-  date: string; // YYYY-MM-DD
-  views: number | null; // Afternic views, Sedo visitors
-  leads: number | null; // Afternic only
-  clicks: number | null; // Sedo only
-  earnings: string | null; // Sedo only, with currency
-  currency: CurrencyCode | null;
-}
-
-interface MarketCapabilities {
-  currencies: CurrencyCode[];
-  floor: boolean;
-  leaseToOwn: boolean;
-  sales: boolean;
-  leads: boolean;
-  parkingEarnings: boolean;
-  asyncInsert: boolean;
-  writeBatch: number; // 500 / 50
-  readPage: number; // 500 / 100
-}
-
-interface MarketAdapter {
-  readonly market: MarketId;
-  readonly capabilities: MarketCapabilities;
-  test(): Promise<void>;
-  allListings(): Promise<{ listings: MarketListing[]; complete: boolean }>;
-  getListings(names: readonly string[]): Promise<MarketListing[]>;
-  upsertListings(
-    inputs: readonly MarketListingInput[],
-  ): Promise<MarketListingResult[]>;
-  deleteListings(names: readonly string[]): Promise<MarketListingResult[]>;
-  accountStats(days: number): Promise<MarketDailyStats[]>;
-  domainStats(name: string, days: number): Promise<MarketDailyStats[]>;
-}
-```
-
-Notes on that cut:
-
-- **Money is decimal strings with a currency,** like DomBot's `ListPrice`,
-  not Afternic's whole-dollar numbers. The Afternic adapter converts; the
-  Afternic client stays as it is.
-- **Capabilities drive the UI and MCP:** no floor field for Sedo, no sales
-  tab for Sedo, earnings columns only where `parkingEarnings` is true. No
-  market-name checks scattered through the app.
-- **Sales stay Afternic-shaped** until a second market has a sales API; the
-  `sold` event is the shared part, not the sale record.
-- **Batching belongs in each adapter,** since the sizes differ tenfold and
-  Afternic adds jobs; callers pass any number of names.
-- Afternic's `fixedPrice` maps from its lander: `BUYNOW` (and a Buy Now
-  price) is true; `PRICE_FORM` is false. Check this reading against how
-  Afternic actually sells a `PRICE_FORM` listing with a Buy Now price set.
+The shared types, capabilities, storage, bulk path and MCP list for all
+markets are in [markets.md](markets.md), which replaces the first cut that
+was here. It keeps this plan's choices of decimal strings with a currency
+and capability-driven UI, turns `fixedPrice` into the shared `buyNow` flag,
+and moves `forsale` out of the status into a `forSale` flag. Sales are now
+shared (Afternic and Atom both have them); Sedo's capabilities say it has
+none.
 
 ## Testing
 
@@ -378,10 +286,8 @@ Notes on that cut:
    parking statistics and payments, categories and languages.
 2. **Client, write side:** insert, edit (read-merge-write), delete, in
    batches of 50.
-3. **Shared market model:** `src/core/markets/types.ts` and the two
-   adapters, then switch the Afternic sync, Settings → Markets and the MCP
-   tools onto it. Best done after Afternic's DomBot phase 4, so it's
-   extracted from working code.
+3. **Sedo adapter** into the shared model ([markets.md](markets.md)), which
+   is built first, with Afternic's adapter, before Afternic's DomBot phase 4.
 4. **DomBot:** Sedo accounts, listing sync, pending-insert tracking, parking
    reporting, MCP cases.
 5. **Later:** SOAP transport and the deferred parking functions, starting

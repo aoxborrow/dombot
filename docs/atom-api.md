@@ -406,7 +406,7 @@ parameter anyway, in case another market grows one):
 - **`domain_listing_verify`**: ask the market to re-check DNS. Atom only.
 - **`domain_listing_boost`**: `kind` (`standard`, `super`), requires
   `confirmSpend: true`; the description says it spends credits.
-- **`market_categories`**: the category lists for `category` values.
+- **`market_categories_get`**: the category lists for `category` values.
 - **`market_grading_submit`**, **`market_grading_get`**: submit names for AI
   grading, read results.
 - **`domain_appraisal_get`**: Atom's appraisal for one name, and appraisals
@@ -533,86 +533,16 @@ discounts, categories and descriptions, boosts, DNS verification on demand,
 syndication rights, AI grading, appraisal, a registrar API from the same
 company.
 
-### A first cut of the shared interface
+### The shared model
 
-For `src/core/markets/types.ts`, once both clients exist. Don't build it yet;
-it's here to check that both APIs fit. The idea is a small common core that
-every market fills, a capability set that says what else it can do, and each
-market's own extras kept on the side rather than squeezed into the core.
-
-```ts
-type MarketId = 'afternic' | 'atom';
-
-interface MarketCapabilities {
-  minOffer: boolean; // afternic
-  floor: boolean; // afternic
-  discount: boolean; // atom
-  batchWrites: number | null; // afternic: 500; atom: null
-  jobs: boolean; // afternic
-  dailyStats: boolean; // afternic
-  accountStats: boolean; // afternic
-  saleAuthCode: boolean; // afternic
-  saleMessages: boolean; // afternic
-  accountSettings: boolean; // afternic
-  verifyDns: boolean; // atom
-  appraisal: boolean; // atom
-  exclusiveTiers: boolean; // atom
-}
-
-interface MarketListing {
-  market: MarketId;
-  name: string; // ASCII
-  status: 'active' | 'pending' | 'inactive' | 'rejected' | 'unknown';
-  rawStatus: string;
-  tier: string | null; // atom: standard/plus/premium/geo; afternic: null
-  buyNow: number | null; // whole USD; null = make offer
-  minOffer: number | null;
-  floor: number | null;
-  discount: number | null;
-  listedAt: string | null;
-  extra: AfternicListingExtra | AtomListingExtra;
-}
-
-interface MarketSale {
-  market: MarketId;
-  id: string;
-  name: string;
-  soldAt: string; // YYYY-MM-DD
-  price: number; // whole USD
-  commission: number | null;
-  commissionEstimated: boolean;
-  net: number | null;
-  installments: { paid: number; total: number } | null;
-}
-
-interface MarketInterest {
-  // per name, per day; whatever the market reports
-  views: number | null;
-  leads: number | null; // afternic
-  shortlists: number | null; // atom
-  trackers: number | null; // atom
-  searches30d: number | null; // afternic, Domain Pro
-}
-
-interface MarketClient {
-  readonly market: MarketId;
-  readonly capabilities: MarketCapabilities;
-  allListings(): Promise<MarketListing[]>;
-  getListing(name: string): Promise<MarketListing | null>;
-  allSales(since?: string): Promise<MarketSale[]>;
-  setListing(name: string, change: ListingChange): Promise<WriteResult>;
-  deleteListing(name: string): Promise<WriteResult>;
-}
-```
-
-Accounts sit outside the client: a `MarketAccount` record has `market`,
-`label`, `enabled`, and either its own credentials or a `registrarAccountId`
-to borrow them from (Atom now, Dynadot and Namecheap later). The client takes
-resolved credentials and never knows which.
-
-Bulk stays out of the interface: the service asks `capabilities.batchWrites`
-and `jobs`, and uses market batches, market jobs, or DomBot bulk jobs
-accordingly. Statuses map to the five common values with the raw one kept.
+The shared types, capabilities, storage, bulk path and MCP list for all
+markets are in [markets.md](markets.md), which replaces the first cut that
+was here. For Atom that means: whole-dollar prices become decimal strings in
+USD, Atom's tiers fill `tier`, the weekly discount fills `discount`, and
+analytics snapshots become `derived` daily stats. Bulk writes go through
+DomBot's bulk runner one name at a time (`writeBatch: 1`), and the account
+record's `registrarAccountId` is where "One provider, registrar and market"
+plugs in.
 
 ## Open questions
 
