@@ -852,7 +852,13 @@ function DraftAccountCard({
   useEffect(() => {
     heading.current?.scrollIntoView({ block: 'nearest' });
     heading.current?.focus({ preventScroll: true });
-    return () => connection.current?.abort();
+    // Unmounting stops any wait. Clearing the ref first tells save() not to
+    // touch this card's state again.
+    return () => {
+      const current = connection.current;
+      connection.current = null;
+      current?.abort();
+    };
   }, []);
   const [values, setValues] = useState<CredentialValues>({});
   const [proxyEnabled, setProxyEnabled] = useState(false);
@@ -881,6 +887,7 @@ function DraftAccountCard({
     setActivationNotice(null);
     const controller = new AbortController();
     connection.current = controller;
+    const live = () => connection.current === controller;
     try {
       const account = await connectRegistrarWithActivationWait(
         provider.name,
@@ -894,14 +901,16 @@ function DraftAccountCard({
           ),
         controller.signal,
         (isWaiting) => {
-          if (controller.signal.aborted) return;
+          if (!live()) return;
           setWaiting(isWaiting);
           if (isWaiting) setActivationNotice(DYNADOT_ACTIVATION_NOTICE);
         },
       );
-      if (!controller.signal.aborted) onAdded(account);
+      // Report a created account even if the card is gone, so the list and
+      // its first sync still pick it up.
+      onAdded(account);
     } catch (err) {
-      if (controller.signal.aborted) return;
+      if (!live()) return;
       if (err instanceof DynadotActivationPending)
         setActivationNotice(err.message);
       else {
@@ -909,17 +918,16 @@ function DraftAccountCard({
         setError(errorMessage(err));
       }
     } finally {
-      if (!controller.signal.aborted) {
+      if (live()) {
         setWaiting(false);
         setSaving(false);
       }
     }
   };
 
-  const cancel = () => {
-    connection.current?.abort();
-    onCancel();
-  };
+  // Stops waiting but keeps the form, so the key can be fixed and retried.
+  const stopWaiting = () =>
+    connection.current?.abort(new DynadotActivationPending());
 
   const clearFeedback = () => {
     setActivationNotice(null);
@@ -1022,9 +1030,9 @@ function DraftAccountCard({
             type="button"
             variant="ghost"
             disabled={saving && !waiting}
-            onClick={cancel}
+            onClick={waiting ? stopWaiting : onCancel}
           >
-            Cancel
+            {waiting ? 'Stop waiting' : 'Cancel'}
           </Button>
         </div>
       </form>

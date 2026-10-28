@@ -95,6 +95,23 @@ describe('new Dynadot key activation', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('stopping the wait rejects with the abort reason', async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const connect = vi.fn().mockRejectedValue(unauthorized);
+    const result = connectRegistrarWithActivationWait(
+      'dynadot',
+      connect,
+      controller.signal,
+      vi.fn(),
+    );
+    const check = expect(result).rejects.toThrow(DynadotActivationPending);
+    await vi.advanceTimersByTimeAsync(0);
+    controller.abort(new DynadotActivationPending());
+    await check;
+    expect(connect).toHaveBeenCalledOnce();
+  });
+
   it('does not retry after the browser resumes beyond the activation deadline', async () => {
     vi.useFakeTimers();
     const connect = vi.fn().mockRejectedValue(unauthorized);

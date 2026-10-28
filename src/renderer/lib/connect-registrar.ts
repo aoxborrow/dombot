@@ -1,7 +1,7 @@
 import type { RegistrarName } from '../../shared/ipc';
 
 export const DYNADOT_ACTIVATION_NOTICE =
-  'Dynadot hasn’t accepted this key yet. New keys can take a few minutes to become active. We’ll try again every 30 seconds for up to 3 minutes. You can cancel while waiting.';
+  'Dynadot hasn’t accepted this key yet. New keys can take a few minutes to become active. We’ll try again every 30 seconds for up to 3 minutes. You can stop waiting at any time.';
 
 export class DynadotActivationPending extends Error {
   constructor() {
