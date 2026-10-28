@@ -272,12 +272,11 @@ export function BulkBar({
                       <span className="-ml-[6px] opacity-50">…</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      variant="destructive"
                       disabled={Boolean(marketReasons?.delist)}
                       title={marketReasons?.delist ?? undefined}
                       onSelect={() => onMarket('delist')}
                     >
-                      <CircleX />
+                      <CircleX className="text-muted-foreground" />
                       Delist<span className="-ml-[6px] opacity-50">…</span>
                     </DropdownMenuItem>
                   </>
