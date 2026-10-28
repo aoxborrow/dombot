@@ -530,6 +530,13 @@ export interface RegistrarConfigField {
  * configured-but-not-connected / connected) and the status-bar pill.
  */
 export interface RegistrarSync {
+  /** Persisted Dynadot inventory rate-limit recovery. Cleared on success;
+   * scheduled retries stop after three failures until the owner retries. */
+  recovery?: {
+    state: 'deferred' | 'failed';
+    attempts: number;
+    retryAt: number;
+  };
   /** Last SUCCESSFUL domain sync (ms epoch), or null if it never succeeded. */
   lastSyncedAt: number | null;
   /** Error from the most recent sync attempt, or null when it succeeded. */

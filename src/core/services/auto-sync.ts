@@ -2,6 +2,7 @@ import {
   getActiveRegistrars,
   getCachedPortfolio,
   getPortfolio,
+  retryDeferredSyncs,
 } from './registrars';
 import { getSettings } from './settings';
 import { broadcastPortfolioChanged } from '../events';
@@ -43,8 +44,9 @@ function intervalMs(): number {
 /**
  * One best-effort refresh of every configured registrar, then notify windows.
  * Skips when nothing is configured, while a bulk job is patching caches, or
- * (with `ifOlderThanMs`) when the cache is already fresher than that — which
- * is how a fixed-cadence scheduler (the web host's hourly cron) honors a
+ * (with `ifOlderThanMs`) when the cache is already fresher than that, except
+ * for due per-account rate-limit recovery. The freshness threshold is
+ * how a fixed-cadence scheduler (the web host's hourly cron) honors a
  * longer configured interval. Won't stack onto a still-running pass.
  * Returns true when a sync actually ran.
  */
@@ -53,13 +55,17 @@ export async function syncAll(ifOlderThanMs?: number): Promise<boolean> {
   if (getActiveRegistrars().length === 0) return false;
   // Don't race a bulk job's per-item cache patches; the next tick retries.
   if (isBulkRunning()) return false;
-  if (ifOlderThanMs !== undefined) {
-    const fetchedAt = getCachedPortfolio()?.fetchedAt ?? 0;
-    if (Date.now() - fetchedAt < ifOlderThanMs) return false;
-  }
   inFlight = true;
   try {
-    await getPortfolio(true);
+    if (ifOlderThanMs !== undefined) {
+      const fetchedAt = getCachedPortfolio()?.fetchedAt ?? 0;
+      if (Date.now() - fetchedAt < ifOlderThanMs) {
+        const recovered = await retryDeferredSyncs();
+        if (recovered) broadcastPortfolioChanged();
+        return recovered;
+      }
+    }
+    await getPortfolio(true, true);
     broadcastPortfolioChanged();
     console.log('[auto-sync] portfolio refreshed');
     return true;

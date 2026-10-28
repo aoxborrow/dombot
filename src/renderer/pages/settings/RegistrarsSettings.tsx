@@ -14,6 +14,7 @@ import {
   Check,
   ChevronDown,
   CircleX,
+  Clock,
   Copy,
   Ellipsis,
   ExternalLink,
@@ -371,6 +372,8 @@ function AccountCard({
     account.enabled &&
     !syncing &&
     account.sync.lastError != null;
+  const deferred = account.sync.recovery?.state === 'deferred';
+  const retryAt = account.sync.recovery?.retryAt;
 
   useEffect(() => {
     if (!open) return;
@@ -401,6 +404,14 @@ function AccountCard({
   }, [open, id, provider.name, usesProxy, loadAttempt]);
 
   const runSync = async () => {
+    // Inside a rate-limit cooldown the refresh would be skipped; say so
+    // rather than spin and change nothing.
+    if (retryAt && retryAt > Date.now()) {
+      toast.info(`${provider.displayName} asked us to slow down`, {
+        description: `Sync is available again after ${clockTime(retryAt)}.`,
+      });
+      return;
+    }
     setSyncing(true);
     setError(null);
     try {
@@ -689,10 +700,24 @@ function AccountCard({
         {syncFailed && (
           <div
             role="alert"
-            className="mx-5 mt-0.5 mb-[18px] flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
+            className={cn(
+              'mx-5 mt-0.5 mb-[18px] flex items-start gap-2 rounded-md border px-3 py-2 text-sm',
+              deferred
+                ? 'border-amber-500/40 bg-amber-500/10'
+                : 'border-destructive/40 bg-destructive/10',
+            )}
           >
-            <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
-            <span className="min-w-0 break-words">{sync.lastError}</span>
+            {deferred ? (
+              <Clock className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            ) : (
+              <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
+            )}
+            <span className="min-w-0 break-words">
+              {sync.lastError}
+              {retryAt != null && (
+                <> Sync is available again after {clockTime(retryAt)}.</>
+              )}
+            </span>
           </div>
         )}
 
@@ -1299,6 +1324,14 @@ function HelpLink({ link }: { link: HelpLinkData }) {
  *  - configured + never synced → amber "Not synced yet"
  *  - a sync in flight → muted "Syncing…"
  */
+/** A local wall-clock time, e.g. "3:42 PM". */
+function clockTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function SyncStatus({
   meta,
   syncing,
@@ -1330,6 +1363,17 @@ function SyncStatus({
   }
 
   const { lastSyncedAt, lastError } = meta.sync;
+  if (lastError && meta.sync.recovery?.state === 'deferred') {
+    // Rate limited with a retry scheduled: waiting, not broken.
+    return (
+      <span className="flex items-center gap-1.5">
+        <Clock className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <span className="text-[13px] font-medium text-amber-600 dark:text-amber-400">
+          Sync deferred
+        </span>
+      </span>
+    );
+  }
   if (lastError) {
     return (
       <span className="flex items-center gap-1.5">
