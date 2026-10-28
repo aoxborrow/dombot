@@ -106,7 +106,9 @@ export function parseBundle(text: string): DataBundle {
   if (!head || head.format !== BUNDLE_FORMAT) {
     throw new BundleError('Not a DomBot data file.');
   }
-  if (![1, 2, 3, 4, 5, 6, 7, 8, BUNDLE_VERSION].includes(head.version as number)) {
+  if (
+    ![1, 2, 3, 4, 5, 6, 7, 8, BUNDLE_VERSION].includes(head.version as number)
+  ) {
     throw new BundleError(
       `This file was made by a newer DomBot (format v${String(head.version)}). Update and try again.`,
     );

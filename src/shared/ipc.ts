@@ -15,6 +15,13 @@ import type {
 } from '@aoxborrow/registrar-client';
 import type { NumberFormatId } from './money';
 import type { DomainEvent } from './domain-events';
+import type {
+  MarketAccountView,
+  MarketId,
+  MarketInfo,
+  MarketListing,
+  MarketSale,
+} from './markets';
 
 export type { DomainEvent, DomainNote } from './domain-events';
 
@@ -186,6 +193,17 @@ export const IpcChannels = {
   updateImportedDomain: 'importedDomains:update',
   getListPrices: 'listPrices:list',
   setListPrices: 'listPrices:set',
+  getMarketCatalog: 'markets:catalog',
+  listMarketAccounts: 'markets:listAccounts',
+  connectMarketAccount: 'markets:connectAccount',
+  renameMarketAccount: 'markets:renameAccount',
+  setMarketAccountEnabled: 'markets:setEnabled',
+  getMarketCredentials: 'markets:getCredentials',
+  saveMarketCredentials: 'markets:saveCredentials',
+  removeMarketAccount: 'markets:removeAccount',
+  syncMarketAccount: 'markets:syncAccount',
+  getMarketListings: 'markets:listings',
+  getMarketSales: 'markets:sales',
   getDomainEvents: 'domainEvents:list',
   setDispositions: 'domainEvents:setDispositions',
   markSold: 'domainEvents:markSold',
@@ -1139,6 +1157,39 @@ export interface DombotApi {
   setListPrices: (
     inputs: ListPriceInput[],
   ) => Promise<Record<string, ListPrice>>;
+
+  // Markets (docs/markets.md). Account changes return every account after.
+  /** The markets DomBot supports, for Settings → Markets. */
+  getMarketCatalog: () => Promise<MarketInfo[]>;
+  listMarketAccounts: () => Promise<MarketAccountView[]>;
+  /** Tests the credentials, saves the account, then syncs it. */
+  connectMarketAccount: (
+    market: MarketId,
+    credentials: Record<string, string>,
+    label?: string,
+  ) => Promise<MarketAccountView[]>;
+  renameMarketAccount: (
+    accountId: string,
+    label: string,
+  ) => Promise<MarketAccountView[]>;
+  /** Turning an account on syncs it. */
+  setMarketAccountEnabled: (
+    accountId: string,
+    enabled: boolean,
+  ) => Promise<MarketAccountView[]>;
+  getMarketCredentials: (accountId: string) => Promise<Record<string, string>>;
+  /** Tests the new credentials, saves them, then syncs. */
+  saveMarketCredentials: (
+    accountId: string,
+    credentials: Record<string, string>,
+  ) => Promise<MarketAccountView[]>;
+  removeMarketAccount: (accountId: string) => Promise<MarketAccountView[]>;
+  /** One account, or every enabled one when `accountId` is left out. */
+  syncMarketAccount: (accountId?: string) => Promise<MarketAccountView[]>;
+  /** Synced listings of enabled market accounts. */
+  getMarketListings: () => Promise<MarketListing[]>;
+  /** Every recorded market sale, newest first. */
+  getMarketSales: () => Promise<MarketSale[]>;
 
   // Domain history (docs/storage-model.md). Each change returns the whole log.
   /** Every domain event, oldest first. */

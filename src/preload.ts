@@ -161,6 +161,24 @@ const api: DombotApi = {
   getListPrices: () => ipcRenderer.invoke(IpcChannels.getListPrices),
   setListPrices: (inputs) =>
     ipcRenderer.invoke(IpcChannels.setListPrices, inputs),
+  getMarketCatalog: () => ipcRenderer.invoke(IpcChannels.getMarketCatalog),
+  listMarketAccounts: () => ipcRenderer.invoke(IpcChannels.listMarketAccounts),
+  connectMarketAccount: (...args) =>
+    ipcRenderer.invoke(IpcChannels.connectMarketAccount, ...args),
+  renameMarketAccount: (...args) =>
+    ipcRenderer.invoke(IpcChannels.renameMarketAccount, ...args),
+  setMarketAccountEnabled: (...args) =>
+    ipcRenderer.invoke(IpcChannels.setMarketAccountEnabled, ...args),
+  getMarketCredentials: (accountId) =>
+    ipcRenderer.invoke(IpcChannels.getMarketCredentials, accountId),
+  saveMarketCredentials: (...args) =>
+    ipcRenderer.invoke(IpcChannels.saveMarketCredentials, ...args),
+  removeMarketAccount: (accountId) =>
+    ipcRenderer.invoke(IpcChannels.removeMarketAccount, accountId),
+  syncMarketAccount: (accountId) =>
+    ipcRenderer.invoke(IpcChannels.syncMarketAccount, accountId),
+  getMarketListings: () => ipcRenderer.invoke(IpcChannels.getMarketListings),
+  getMarketSales: () => ipcRenderer.invoke(IpcChannels.getMarketSales),
   getDomainEvents: () => ipcRenderer.invoke(IpcChannels.getDomainEvents),
   setDispositions: (items, type, date) =>
     ipcRenderer.invoke(IpcChannels.setDispositions, items, type, date),

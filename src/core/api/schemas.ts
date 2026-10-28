@@ -240,3 +240,12 @@ export const ownershipItems = z
 
 /** A `YYYY-MM-DD` day from a dialog; blank or null means today. */
 export const optionalDay = z.string().max(40).nullable().optional();
+
+// Markets
+export const marketId = z.enum(['afternic', 'atom', 'sedo']);
+export const marketCredentials = z.record(
+  z.string().max(100),
+  z.string().max(1000),
+);
+export const marketAccountId = z.string().min(1).max(64);
+export const marketLabel = z.string().max(100);

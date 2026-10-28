@@ -371,8 +371,9 @@ a person (a sale message) says so in its description.
 1. **Shared types and the Afternic adapter** (done) (`src/core/markets/types.ts`,
    `src/core/services/markets/afternic.ts`), with unit tests mapping the
    Afternic fixtures.
-2. **Afternic phase 4 on top of them:** storage namespaces, sync, Settings →
-   Markets, listing columns, `sold` events, read-only MCP tools.
+2. **Afternic phase 4 on top of them** (done): storage namespaces, sync,
+   Settings → Markets, listing columns and the Listing filter, `sold`
+   events, read-only MCP tools.
 3. **Afternic phases 5–6:** writes through the bulk runner, reporting.
 4. **Atom and Sedo** when there are credentials: client, then an adapter, then
    their capability-gated extras. Atom's API access needs approval and 500+

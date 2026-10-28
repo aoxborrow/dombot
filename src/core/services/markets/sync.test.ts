@@ -14,6 +14,7 @@ import {
   flushWrites,
   hydrateStores,
 } from '../../storage/namespace';
+import { clearAll, clearRegistrarCaches } from '../cache';
 import { listEvents, newEvent, putEvents } from '../domain-events';
 import { AFTERNIC_CAPABILITIES } from './afternic';
 
@@ -239,6 +240,18 @@ describe('syncMarketAccount', () => {
       ['2026-10-27', 5],
       ['2026-10-28', 3],
     ]);
+  });
+
+  it('keeps listings when only registrar caches are cleared', async () => {
+    await connect();
+    fake.listings = [listing('a.com')];
+    await syncMarketAccount(ACCOUNT);
+    // What launch does when no registrar is configured.
+    clearRegistrarCaches();
+    expect(marketListings()).toHaveLength(1);
+    // "Clear cache": the next sync refetches them.
+    clearAll();
+    expect(marketListings()).toHaveLength(0);
   });
 
   it('removing an account drops its listings and keeps its sales', async () => {

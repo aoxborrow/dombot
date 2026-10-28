@@ -411,7 +411,7 @@ job.
    adapter ([markets.md](markets.md), "Order of work"), then on top of them:
    Settings → Markets with Afternic accounts; sync
    listings and sales, listing columns/filters (including searches and
-   offers), sales as `sold` events; the read-only MCP tools.
+   offers), sales as `sold` events; the read-only MCP tools. Done.
 5. **DomBot, writes:** list/delist/reprice/relist from the table through
    DomBot's bulk runner (Afternic jobs for large pushes), auth-code
    automation; the MCP write tools.

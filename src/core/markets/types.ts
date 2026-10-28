@@ -1,4 +1,6 @@
-import type { MarketId, MarketWriteResult ,
+import type {
+  MarketId,
+  MarketWriteResult,
   MarketCapabilities,
   MarketListing,
   MarketListingChange,
@@ -6,7 +8,11 @@ import type { MarketId, MarketWriteResult ,
   MarketStatsDay,
   MarketTestResult,
 } from '../../shared/markets';
-import type { RelistMode } from './afternic/types';
+import type {
+  AccountSettingsInput,
+  AfternicAccountSettings,
+  RelistMode,
+} from './afternic/types';
 
 // The core side of the shared market model (docs/markets.md): the adapter
 // each market implements, and its market-only actions. The data types are
@@ -41,6 +47,8 @@ export interface AfternicActions {
     names: readonly string[],
     mode?: RelistMode,
   ): Promise<MarketWriteResult[]>;
+  getListingDefaults(): Promise<AfternicAccountSettings>;
+  setListingDefaults(settings: AccountSettingsInput): Promise<void>;
 }
 
 /** Thrown for a change a market can't make, before anything is sent. */

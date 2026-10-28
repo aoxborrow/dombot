@@ -1,0 +1,224 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { MarketListing, MarketSale } from '../../shared/markets';
+import { MemoryDocStore } from '../storage/doc-store';
+import {
+  configureStore,
+  flushWrites,
+  hydrateStores,
+} from '../storage/namespace';
+import { AFTERNIC_CAPABILITIES } from '../services/markets/afternic';
+
+// A fake market behind the real storage and sync, so the tools read what a
+// real sync would have stored.
+const fake = {
+  listings: [] as MarketListing[],
+  sales: [] as MarketSale[],
+  domainStatsFor: [] as string[],
+};
+vi.mock('../services/markets/registry', async () => {
+  const { AFTERNIC_CONFIG_FIELDS } =
+    await import('../services/markets/afternic');
+  const info = {
+    id: 'afternic',
+    name: 'Afternic',
+    configFields: AFTERNIC_CONFIG_FIELDS,
+    capabilities: AFTERNIC_CAPABILITIES,
+  };
+  return {
+    isMarketId: (v: unknown) => v === 'afternic',
+    marketInfo: () => info,
+    buildAdapter: (_m: string, accountId: string) => ({
+      market: 'afternic',
+      accountId,
+      capabilities: AFTERNIC_CAPABILITIES,
+      test: async () => ({ listings: 0, notes: [] }),
+      allListings: async () => ({
+        listings: fake.listings.map((l) => ({ ...l, accountId })),
+        complete: true,
+      }),
+      allSales: async () => fake.sales.map((s) => ({ ...s, accountId })),
+      accountStats: async () => [
+        { date: '2026-10-27', views: 4, leads: 1, source: 'market' },
+        { date: '2026-10-28', views: 6, leads: 0, source: 'market' },
+      ],
+      domainStats: async (name: string) => {
+        fake.domainStatsFor.push(name);
+        return [{ date: '2026-10-28', views: 2, leads: 1, source: 'market' }];
+      },
+      getListingDefaults: async () => ({ maxLeasePeriod: 60 }),
+    }),
+  };
+});
+vi.mock('../services/registrars', () => ({
+  getCachedPortfolio: () => ({ domains: [] }),
+}));
+
+const { connectMarketAccount } = await import('../services/markets/accounts');
+const { syncMarketAccount } = await import('../services/markets/sync');
+const { registerMarketTools } = await import('./market-tools');
+
+type Handler = (args: unknown) => Promise<{ content: { text: string }[] }>;
+const tools = new Map<string, Handler>();
+registerMarketTools({
+  registerTool: (name: string, _config: unknown, handler: Handler) => {
+    tools.set(name, handler);
+  },
+} as unknown as McpServer);
+
+async function call(name: string, args: unknown = {}) {
+  const res = await tools.get(name)!(args);
+  return JSON.parse(res.content[0].text);
+}
+
+function listing(
+  name: string,
+  price: string | null,
+  status: MarketListing['status'] = 'active',
+): MarketListing {
+  return {
+    market: 'afternic',
+    accountId: '',
+    name,
+    displayName: null,
+    status,
+    statusRaw: status.toUpperCase(),
+    forSale: true,
+    price,
+    buyNow: price != null,
+    minOffer: '100',
+    floor: null,
+    discount: null,
+    currency: 'USD',
+    leaseToOwn: null,
+    tier: null,
+    listedAt: null,
+    updatedAt: null,
+    extra: { searches: null } as MarketListing['extra'],
+  };
+}
+
+function sale(id: string, name: string, soldOn: string, price: string) {
+  return {
+    market: 'afternic',
+    accountId: '',
+    id,
+    name,
+    soldOn,
+    status: 'completed',
+    statusRaw: 'COMPLETED',
+    kind: 'buy_now',
+    price,
+    commission: '10.50',
+    commissionEstimated: false,
+    net: String(Number(price) - 10.5),
+    currency: 'USD',
+    installments: null,
+    paidOutOn: null,
+    action: null,
+  } as MarketSale;
+}
+
+const ID = '00000000-0000-4000-8000-0000000000b1';
+
+beforeEach(async () => {
+  await flushWrites().catch(() => {});
+  configureStore(new MemoryDocStore());
+  await hydrateStores();
+  fake.listings = [
+    listing('alpha.com', '2500'),
+    listing('beta.io', '900', 'pending'),
+    listing('gamma.com', null),
+  ];
+  fake.sales = [
+    sale('t1', 'sold-one.com', '2026-09-01', '499'),
+    sale('t2', 'sold-two.com', '2025-01-01', '1000.25'),
+  ];
+  fake.domainStatsFor = [];
+  await connectMarketAccount(
+    'afternic',
+    { apiKey: 'k', apiSecret: 's' },
+    'Main',
+    ID,
+  );
+  await syncMarketAccount(ID);
+});
+
+describe('market tools', () => {
+  it('lists accounts without secrets', async () => {
+    const result = await call('market_list');
+    expect(result.accounts).toEqual([
+      expect.objectContaining({
+        accountId: ID,
+        market: 'afternic',
+        label: 'Main',
+        configured: true,
+        enabled: true,
+      }),
+    ]);
+    expect(JSON.stringify(result)).not.toMatch(/apiSecret|"s"/);
+  });
+
+  it('filters, sorts and pages listings', async () => {
+    const byPrice = await call('market_listings', {
+      sort: 'price',
+      order: 'desc',
+    });
+    expect(byPrice.rows.map((r: MarketListing) => r.name)).toEqual([
+      'alpha.com',
+      'beta.io',
+      'gamma.com',
+    ]);
+    const pending = await call('market_listings', { status: ['pending'] });
+    expect(pending.total).toBe(1);
+    const com = await call('market_listings', { tld: '.com', limit: 1 });
+    expect(com).toMatchObject({ total: 2, rows: [{ name: 'alpha.com' }] });
+    const cheap = await call('market_listings', { priceMax: 1000 });
+    expect(cheap.rows.map((r: MarketListing) => r.name)).toEqual(['beta.io']);
+  });
+
+  it('gets one name’s listings', async () => {
+    expect(await call('domain_listing_get', { domain: 'Alpha.COM' })).toEqual({
+      domain: 'alpha.com',
+      listings: [expect.objectContaining({ price: '2500' })],
+    });
+    expect(
+      (await call('domain_listing_get', { domain: 'nope.com' })).listings,
+    ).toEqual([]);
+  });
+
+  it('lists sales with totals over every match', async () => {
+    const all = await call('market_sales', { limit: 1 });
+    expect(all.total).toBe(2);
+    expect(all.rows).toHaveLength(1);
+    expect(all.totals).toEqual({
+      price: { USD: '1499.25' },
+      commission: { USD: '21.00' },
+      net: { USD: '1478.25' },
+    });
+    const recent = await call('market_sales', { from: '2026-01-01' });
+    expect(recent.rows.map((s: MarketSale) => s.name)).toEqual([
+      'sold-one.com',
+    ]);
+  });
+
+  it('reads stored account stats and live domain stats', async () => {
+    expect(await call('market_stats_get', { accountId: ID, days: 1 })).toEqual({
+      accountId: ID,
+      days: [expect.objectContaining({ date: '2026-10-28', views: 6 })],
+      totals: { views: 6, leads: 0 },
+    });
+    const domain = await call('domain_stats_get', { domain: 'alpha.com' });
+    expect(fake.domainStatsFor).toEqual(['alpha.com']);
+    expect(domain.accounts[0].totals).toEqual({ views: 2, leads: 1 });
+    await expect(
+      call('domain_stats_get', { domain: 'unlisted.com' }),
+    ).rejects.toThrow(/isn't listed/);
+  });
+
+  it('reads listing defaults', async () => {
+    expect(await call('market_settings_get', { accountId: ID })).toEqual({
+      maxLeasePeriod: 60,
+    });
+  });
+});

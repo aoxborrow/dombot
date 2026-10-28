@@ -223,3 +223,35 @@ and returns `{ domain, authCode }`, or fails with the reason.
 Not every registrar supports every tool; an unsupported call fails with the
 reason. The support matrix is in
 [domain-editing.md](domain-editing.md#what-each-registrar-supports).
+
+## Markets
+
+Marketplace accounts from Settings → Markets ([markets.md](markets.md)).
+Listings, sales and account stats are read from what market sync stored;
+`market_sync` refreshes them. These are read-only; list, reprice and delist
+tools come with the market writes. A tool or filter a market can't support
+fails saying so.
+
+- **`market_list`** — every market account: `accountId`, `market`, `label`,
+  `configured`, `enabled`, its last `sync`, and the market's `capabilities`.
+  No secrets.
+- **`market_sync`** — `accountId?`. Re-reads listings, sales and stats from
+  one account or every enabled one. Completed sales become `sold` events.
+- **`market_listings`** — your listings across accounts: filter by `market`,
+  `accountId`, `status[]`, `forSale`, `nameContains`, `tld`, `priceMin`,
+  `priceMax`; `sort` by `name`, `price`, `status`, `listedAt` or
+  `searches30`; `order`, `limit`, `offset`. Prices are decimal strings.
+- **`domain_listing_get`** — `domain`, `market?`. One name's listings.
+- **`market_sales`** — sales, newest first: filter by `market`,
+  `accountId`, `from`/`to` (sold on), `status`, `kind`, `nameContains`.
+  Returns `totals` (price, commission, net per currency) over every match.
+  Never includes auth codes.
+- **`market_stats_get`** — `accountId`, `days?`. Stored daily views and
+  leads, with totals.
+- **`domain_stats_get`** — `domain`, `accountId?`, `days?` (default 30).
+  Live from the market that lists the name.
+- **`market_settings_get`** — `accountId`. The account's defaults for new
+  listings, live.
+
+`portfolio_query` also takes `listedOn` and `notListedOn` (a market id), to
+find names listed on a market or the ones that aren't yet.

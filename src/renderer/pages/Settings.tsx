@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select';
 import GeneralSettings from './settings/GeneralSettings';
 import RegistrarsSettings from './settings/RegistrarsSettings';
+import MarketsSettings from './settings/MarketsSettings';
 import McpClientsSettings from './settings/McpClientsSettings';
 import DataSettings from './settings/DataSettings';
 import FoldersSettings from './settings/FoldersSettings';
@@ -22,6 +23,7 @@ import AboutSettings from './settings/AboutSettings';
 const SECTIONS = [
   { value: 'general', label: 'General' },
   { value: 'registrars', label: 'Registrars' },
+  { value: 'markets', label: 'Markets' },
   { value: 'proxy', label: 'Proxy' },
   { value: 'data', label: 'Sync' },
   { value: 'folders', label: 'Folders' },
@@ -101,6 +103,9 @@ export default function Settings() {
           </TabsContent>
           <TabsContent value="registrars">
             <RegistrarsSettings />
+          </TabsContent>
+          <TabsContent value="markets">
+            <MarketsSettings />
           </TabsContent>
           <TabsContent value="proxy">
             <ProxySettings />
