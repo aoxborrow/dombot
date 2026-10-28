@@ -17,6 +17,14 @@ import {
 } from '../../shared/money';
 import { useAppStore } from '../store/app';
 import { StatCard } from '../components/StatCard';
+import { MarketLogo } from '../components/RegistrarLogo';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   BadgeDollarSign,
   ChevronRight,
@@ -65,8 +73,11 @@ export default function Markets() {
 
   // The page can show one market at a time. Traffic adds up across markets
   // otherwise: lander views and parking visitors are both visits to the name.
-  const marketIds = [...new Set((allAccounts ?? []).map((a) => a.market))];
-  const [picked, setMarket] = useState<string>('all');
+  const [picked, setPicked] = useState<string>('all');
+  const marketIds = useMemo(
+    () => [...new Set((allAccounts ?? []).map((a) => a.market))],
+    [allAccounts],
+  );
   const market = marketIds.find((id) => id === picked) ?? null;
   const { accounts, listings, sales, traffic } = useMemo(() => {
     const keep = (x: { market: MarketId }) => !market || x.market === market;
@@ -165,29 +176,33 @@ export default function Markets() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 pb-12">
-      <div>
-        <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
-        <p className="-mt-0.5 text-sm text-muted-foreground">
-          Traffic and sales from your marketplace accounts, as of their last
-          sync.
-        </p>
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
+          <p className="-mt-0.5 text-sm text-muted-foreground">
+            Traffic and sales from your marketplace accounts, as of their last
+            sync.
+          </p>
+        </div>
+        <Select value={market ?? 'all'} onValueChange={setPicked}>
+          <SelectTrigger aria-label="Market" className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            <SelectItem value="all">All markets</SelectItem>
+            {marketIds.map((id) => (
+              <SelectItem key={id} value={id}>
+                <MarketLogo
+                  market={id}
+                  label={id}
+                  className="size-4 p-[1.5px] text-muted-foreground"
+                />
+                {catalog.find((m) => m.id === id)?.name ?? id}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-      <label className="flex items-center gap-3 text-sm">
-        Market
-        <select
-          aria-label="Market"
-          className="rounded-md border bg-background px-3 py-2"
-          value={market ?? 'all'}
-          onChange={(e) => setMarket(e.target.value)}
-        >
-          <option value="all">All markets</option>
-          {marketIds.map((id) => (
-            <option key={id} value={id}>
-              {catalog.find((m) => m.id === id)?.name ?? id}
-            </option>
-          ))}
-        </select>
-      </label>
 
       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         <StatCard
