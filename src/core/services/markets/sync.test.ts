@@ -75,8 +75,12 @@ vi.mock('../registrars', () => ({
   }),
 }));
 
-const { connectMarketAccount, marketAccountViews, removeMarketAccount } =
-  await import('./accounts');
+const {
+  connectMarketAccount,
+  marketAccountViews,
+  removeMarketAccount,
+  setMarketSyncState,
+} = await import('./accounts');
 const {
   marketAccountStats,
   marketListings,
@@ -490,5 +494,40 @@ describe('purchases in the sales list', () => {
         .map((s) => s.name)
         .sort(),
     ).toEqual(['lease.com', 'waiting.com']);
+  });
+});
+
+describe('account status on the card', () => {
+  it('flags Discount Domain Club Domain Pro from the listings, and drops the old note', async () => {
+    await connect();
+    setMarketSyncState(ACCOUNT, {
+      ...marketAccountViews()[0].sync!,
+      notes: [
+        'No search data on this account (Discount Domain Club Domain Pro only).',
+        'note',
+      ],
+    });
+    fake.listings = [listing('plain.com')];
+    await syncMarketAccount(ACCOUNT);
+    let sync = marketAccountViews()[0].sync!;
+    expect(sync.status).toEqual([
+      { label: 'Discount Domain Club Domain Pro', on: false },
+    ]);
+    expect(sync.notes).toEqual(['note']);
+
+    fake.listings = [
+      {
+        ...listing('searched.com'),
+        extra: {
+          market: 'afternic',
+          searches: { total: {}, unique: {} },
+        } as unknown as MarketListing['extra'],
+      },
+    ];
+    await syncMarketAccount(ACCOUNT);
+    sync = marketAccountViews()[0].sync!;
+    expect(sync.status).toEqual([
+      { label: 'Discount Domain Club Domain Pro', on: true },
+    ]);
   });
 });

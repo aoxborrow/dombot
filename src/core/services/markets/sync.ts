@@ -1,7 +1,9 @@
-import type {
-  MarketListing,
-  MarketSale,
-  MarketStatsDay,
+import {
+  SEARCH_DATA_FLAG,
+  searchesOf,
+  type MarketListing,
+  type MarketSale,
+  type MarketStatsDay,
 } from '../../../shared/markets';
 import { localDay } from '../../../shared/domain-events';
 import { broadcastPortfolioChanged } from '../../events';
@@ -149,7 +151,14 @@ function heldNames(): Set<string> {
 export async function syncMarketAccount(accountId: string): Promise<void> {
   const account = marketAccount(accountId);
   const previous = getMarketSyncState(accountId);
-  const notes = previous?.notes ?? [];
+  // Notes that earlier versions wrote at connect time and that the card now
+  // shows another way (a status flag, the market's help text).
+  const notes = (previous?.notes ?? []).filter(
+    (n) =>
+      !n.startsWith('No search data on this account') &&
+      !n.startsWith('Sedo’s API has no sales'),
+  );
+  let status = previous?.status ?? [];
   try {
     const adapter = marketAdapter(accountId);
     const caps = adapter.capabilities;
@@ -224,6 +233,18 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
       void stats.set(accountId, kept);
     }
 
+    // Search counts come only to Discount Domain Club Domain Pro members, so
+    // the listings say whether the account is one.
+    if (caps.searchCounts && read.listings.length) {
+      status = [
+        ...status.filter((f) => f.label !== SEARCH_DATA_FLAG),
+        {
+          label: SEARCH_DATA_FLAG,
+          on: read.listings.some((l) => searchesOf(l) != null),
+        },
+      ];
+    }
+
     // Last, and in a slice: per-name traffic is the slow part.
     snapshotSearches(accountId, read.listings);
     let trafficNote: string | null = null;
@@ -258,6 +279,7 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
       sales: accountSales(accountId).filter(isShownSale).length,
       incomplete: !read.complete,
       notes: kept,
+      status,
     });
   } catch (error) {
     setMarketSyncState(accountId, {
@@ -267,6 +289,7 @@ export async function syncMarketAccount(accountId: string): Promise<void> {
       sales: previous?.sales ?? 0,
       incomplete: previous?.incomplete ?? false,
       notes,
+      status,
     });
   }
   broadcastPortfolioChanged();

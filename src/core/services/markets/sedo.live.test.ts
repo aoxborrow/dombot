@@ -24,7 +24,7 @@ describe.skipIf(!configured)('Sedo adapter (live)', () => {
 
   it('tests the connection', async () => {
     const result = await sedo.test();
-    expect(result.notes.length).toBeGreaterThan(0);
+    expect(result.listings).toBeNull();
   });
 
   it('maps every listing into the shared shape', async () => {

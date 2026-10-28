@@ -248,11 +248,22 @@ export interface MarketCapabilities {
 
 export type MarketConfigField = RegistrarConfigField;
 
+/** Something an account has or hasn't, shown on its card as a dot. */
+export interface MarketStatusFlag {
+  label: string;
+  on: boolean;
+}
+
+/** The flag for GoDaddy search counts, which only these members get. */
+export const SEARCH_DATA_FLAG = 'Discount Domain Club Domain Pro';
+
 export interface MarketTestResult {
   /** Listings on the account, when the market says. */
   listings: number | null;
-  /** Things worth showing on the card ("No search data on this account"). */
+  /** Things worth showing on the card. */
   notes: string[];
+  /** What the account has, e.g. Discount Domain Club Domain Pro. */
+  status?: MarketStatusFlag[];
 }
 
 // Accounts (Settings → Markets)
@@ -296,6 +307,8 @@ export interface MarketSyncState {
   incomplete: boolean;
   /** Things worth showing on the card. */
   notes: string[];
+  /** What the account has, from its last test or sync. */
+  status?: MarketStatusFlag[];
 }
 
 /** A market account with what Settings needs to draw its card. */

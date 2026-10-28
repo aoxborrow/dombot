@@ -590,6 +590,35 @@ function MarketCard({
         )}
 
         <CollapsibleContent className="border-t px-5 py-4">
+          {account.sync?.status?.length ? (
+            <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              {account.sync.status.map((flag) => (
+                <li
+                  key={flag.label}
+                  className={cn(
+                    'flex items-center gap-2',
+                    !flag.on && 'text-muted-foreground',
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'size-2 shrink-0 rounded-full',
+                      flag.on
+                        ? 'bg-emerald-500'
+                        : 'border border-muted-foreground/60',
+                    )}
+                  />
+                  <span>
+                    {flag.label}
+                    <span className="sr-only">
+                      {flag.on ? ': yes' : ': no'}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {account.sync?.notes.map((note) => (
             <p key={note} className="mb-3 text-sm text-muted-foreground">
               {note}
