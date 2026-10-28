@@ -277,9 +277,19 @@ export interface MarketAccountView extends MarketAccount {
 export interface MarketTraffic {
   /** Daily account stats, every enabled account, oldest first. */
   accountDays: MarketStatsDay[];
-  /** By `toAscii` name; only names whose traffic has been fetched. */
-  domains: Record<
-    string,
-    { views30: number; leads30: number; views365: number; leads365: number }
-  >;
+  /**
+   * By `toAscii` name, every market added up (lander views and parking
+   * visitors are the same thing: visits to the name); only names whose
+   * traffic has been fetched.
+   */
+  domains: Record<string, DomainTrafficTotals>;
+  /** The same, one market at a time, for a page filtered to a market. */
+  byMarket: Partial<Record<MarketId, Record<string, DomainTrafficTotals>>>;
+}
+
+export interface DomainTrafficTotals {
+  views30: number;
+  leads30: number;
+  views365: number;
+  leads365: number;
 }

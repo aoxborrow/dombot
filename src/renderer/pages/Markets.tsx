@@ -9,7 +9,7 @@ import {
   trafficByMonth,
   type TrafficMonth,
 } from '../../shared/market-reports';
-import type { MarketListing, MarketSale } from '../../shared/markets';
+import type { MarketId, MarketListing, MarketSale } from '../../shared/markets';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
@@ -51,10 +51,11 @@ const MONTHS_SHOWN = 12;
 const TOP_NAMES = 15;
 
 export default function Markets() {
-  const accounts = useAppStore((s) => s.marketAccounts);
-  const listingsByName = useAppStore((s) => s.marketListings);
-  const sales = useAppStore((s) => s.marketSales);
-  const traffic = useAppStore((s) => s.marketTraffic);
+  const allAccounts = useAppStore((s) => s.marketAccounts);
+  const allListings = useAppStore((s) => s.marketListings);
+  const allSales = useAppStore((s) => s.marketSales);
+  const allTraffic = useAppStore((s) => s.marketTraffic);
+  const catalog = useAppStore((s) => s.marketCatalog);
   const settings = useAppStore((s) => s.settings);
   const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
@@ -62,10 +63,26 @@ export default function Markets() {
     formatMoney(amount, currency, preferred, numberFormat, true);
   const count = (n: number) => n.toLocaleString();
 
-  const listings = useMemo(
-    () => Object.values(listingsByName).flat(),
-    [listingsByName],
-  );
+  // With accounts on more than one market, the page can show one at a time.
+  // Traffic adds up across markets otherwise: lander views and parking
+  // visitors are both visits to the name.
+  const marketIds = [...new Set((allAccounts ?? []).map((a) => a.market))];
+  const [picked, setMarket] = useState<string>('all');
+  const market = marketIds.find((id) => id === picked) ?? null;
+  const { accounts, listings, sales, traffic } = useMemo(() => {
+    const keep = (x: { market: MarketId }) => !market || x.market === market;
+    return {
+      accounts: allAccounts?.filter(keep) ?? null,
+      listings: Object.values(allListings).flat().filter(keep),
+      sales: allSales.filter(keep),
+      traffic: {
+        accountDays: allTraffic.accountDays.filter(keep),
+        domains: market
+          ? (allTraffic.byMarket[market] ?? {})
+          : allTraffic.domains,
+      },
+    };
+  }, [allAccounts, allListings, allSales, allTraffic, market]);
   const months = useMemo(
     () => trafficByMonth(traffic.accountDays).slice(-MONTHS_SHOWN),
     [traffic.accountDays],
@@ -118,10 +135,11 @@ export default function Markets() {
         .slice(0, TOP_NAMES),
     [traffic.domains],
   );
-  const priceOf = (name: string) => listingsByName[name]?.find((l) => l.price);
+  const priceOf = (name: string) =>
+    allListings[name]?.find((l) => l.price && (!market || l.market === market));
   const covered = Object.keys(traffic.domains).length;
 
-  if (accounts !== null && accounts.length === 0) {
+  if (allAccounts !== null && allAccounts.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
         <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
@@ -155,6 +173,24 @@ export default function Markets() {
           sync.
         </p>
       </div>
+      {marketIds.length > 1 && (
+        <label className="flex items-center gap-3 text-sm">
+          Market
+          <select
+            aria-label="Market"
+            className="rounded-md border bg-background px-3 py-2"
+            value={market ?? 'all'}
+            onChange={(e) => setMarket(e.target.value)}
+          >
+            <option value="all">All markets</option>
+            {marketIds.map((id) => (
+              <option key={id} value={id}>
+                {catalog.find((m) => m.id === id)?.name ?? id}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         <StatCard
