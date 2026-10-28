@@ -61,7 +61,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       website: 'atom.com',
       keysUrl: 'https://www.atom.com/dashboard/seller/api-access',
       helpText:
-        'Atom’s seller API is a beta you request under Dashboard → API Access on atom.com (Atom asks for 500+ listings). Paste the API token and the user ID shown with it. Atom has one price per name: no minimum offer or floor.',
+        'Request API access under Dashboard → API Access on atom.com, then paste the API token and the user ID shown with it.',
       configFields: ATOM_CONFIG_FIELDS,
       capabilities: ATOM_CAPABILITIES,
     },

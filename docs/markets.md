@@ -362,7 +362,7 @@ As in the Afternic plan, generalized: one card per market account, built from
 the adapter's `configFields` and `test()`, with the same ⋯ menu as registrar
 cards. Market-specific rows come from capabilities: listing defaults where
 `accountSettings`, a rate-limit field where `rateLimit` is null, the
-partner-access note for Sedo, the API-beta note for Atom. What an account
+partner-access note for Sedo, the API-access note for Atom. What an account
 has shows as status dots (`MarketSyncState.status`), such as Afternic's
 Discount Domain Club Domain Pro, which decides whether search counts come
 back; sync keeps it current.
