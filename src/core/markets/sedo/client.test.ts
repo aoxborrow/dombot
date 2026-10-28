@@ -446,3 +446,40 @@ describe('writes', () => {
     ]);
   });
 });
+
+describe('behavior checked live', () => {
+  const NOT_YOURS = fx.faultOf(
+    'E2104',
+    'The domain name either does not belong to you, or is not in our parking system database',
+  );
+
+  it('splits a name lookup until unlisted names drop out', async () => {
+    const listed = new Set(['a.com', 'c.com', 'd.com']);
+    const { sedo, calls } = client((c) => {
+      const names = filtered(c.form);
+      // Sedo fails the whole call if any name isn't on the account.
+      return names.every((n) => listed.has(n))
+        ? fx.listOf(names.map((domain) => ({ domain })))
+        : NOT_YOURS;
+    });
+    const got = await sedo.getListings(['a.com', 'b.com', 'c.com', 'd.com']);
+    expect(got.map((l) => l.name).sort()).toEqual(['a.com', 'c.com', 'd.com']);
+    expect(calls.map((c) => filtered(c.form).join(','))).toEqual([
+      'a.com,b.com,c.com,d.com',
+      'a.com,b.com',
+      'a.com',
+      'b.com',
+      'c.com,d.com',
+    ]);
+  });
+
+  it('reads a month without payments as none', async () => {
+    const { sedo } = client(() =>
+      fx.faultOf(
+        'E2102',
+        'Statistics for this date do not exist in our database',
+      ),
+    );
+    expect(await sedo.parkingPayments('2026-09-01')).toEqual([]);
+  });
+});

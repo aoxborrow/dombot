@@ -69,12 +69,11 @@ describe.skipIf(!configured)('Sedo (live, read-only)', () => {
     );
   });
 
-  it('pages the same as one read', async () => {
-    const first = await sedo.listListings({ results: 2 });
-    const second = await sedo.listListings({ startFrom: 2, results: 2 });
-    if (first.length === 2 && second.length) {
-      expect(first[1].name < second[0].name).toBe(true);
-    }
+  it('pages by offset, in the same order as one read', async () => {
+    // Sedo's order isn't by name (checked live); pages must still line up.
+    const all = await sedo.allListings(false);
+    const page = await sedo.listListings({ startFrom: 2, results: 2 });
+    expect(page.map((l) => l.name)).toEqual(all.slice(2, 4).map((l) => l.name));
   });
 
   it('gets listings by name, and leaves unknown names out', async () => {

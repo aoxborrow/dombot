@@ -1,7 +1,7 @@
 // Sedo reports a failed call as a <SEDOFAULT> document with a fault code
 // (E1…E11101) and a fault string (docs: "Faultcodes & Faultstrings").
-// UNVERIFIED: whether that comes with HTTP 200 or an error status; the
-// client checks the body either way.
+// Faults come with HTTP 200 (checked live, 2026-10-28), so the client checks
+// the body, not the status.
 
 /** Faults that mean "try again later", per the docs' wording. */
 const BUSY = new Set([

@@ -29,9 +29,9 @@ import {
 // Sedo in the shared market model (docs/markets.md, docs/sedo-api.md): maps
 // the Sedo client's types to and from the shared ones. No storage here.
 //
-// UNVERIFIED: written from Sedo's docs with no credentials to test against.
-// Every mapping below follows the documented fields; docs/sedo-api.md,
-// "Unverified", lists what to check first once there are credentials.
+// Listing, stats and connection mapping checked against a live account
+// (2026-10-28). Writes are still UNVERIFIED; docs/sedo-api.md, "Unverified",
+// lists what's left.
 
 export const SEDO_CAPABILITIES: MarketCapabilities = {
   currencies: SEDO_CURRENCIES,
@@ -218,7 +218,9 @@ export function mergeSedoChange(
       (change.currency as SedoCurrency | undefined) ??
       current?.currency ??
       'USD',
-    language: sedo?.language ?? current?.language ?? DEFAULT_LANGUAGE,
+    // An edit keeps the name's language, which is often unset (all 43 of
+    // the first account checked live); only a new listing needs one.
+    language: sedo?.language ?? (current ? current.language : DEFAULT_LANGUAGE),
   };
   if (input.minPrice && price && Number(input.minPrice) > Number(price)) {
     unsupported('minOffer', 'Sedo’s minimum offer can’t be above the price.');

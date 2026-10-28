@@ -5,14 +5,13 @@ the overlap with Afternic (docs/afternic-api.md) worked out so the two can
 share one market model. Docs: <https://api.sedo.com/apidocs/v1/Basic/>. The
 WSDL is at <https://api.sedo.com/api/v1/?wsdl>.
 
-**Status: built, unverified.** The client (`src/core/markets/sedo/`), the
-adapter (`src/core/services/markets/sedo.ts`) and the registry entry are in
-place, so Sedo accounts can be added in Settings → Markets, sync, show in the
-Domains columns and work through the MCP tools. None of it has made a live
-call: there are no Sedo credentials yet, and getting them takes Sedo partner
-access (see "Credentials"). Everything is built from the docs and their
-example responses, read 2026-10-27, and marked `UNVERIFIED` in the code where
-it guesses. What to check first is under "Unverified", below.
+**Status: built; reads verified, writes not.** The client
+(`src/core/markets/sedo/`), the adapter (`src/core/services/markets/sedo.ts`)
+and the registry entry are in place, so Sedo accounts can be added in
+Settings → Markets, sync, show in the Domains columns and work through the
+MCP tools. Every read was checked against a live account on 2026-10-28 (see
+"Observed"); inserts, edits and deletes haven't been run live yet. What's
+left is under "Unverified", below.
 
 ## The API at a glance
 
@@ -284,9 +283,9 @@ none.
 
 ## Phases
 
-0. **Credentials:** apply for Sedo partner access; add the four values to
-   `.env`. Nothing live can be verified before this. **Waiting.**
-1. **Client, read side** (built, unverified): form-POST transport, XML
+0. **Credentials:** Sedo partner access, and the four values in `.env`.
+   **Done** (2026-10-28).
+1. **Client, read side** (built, verified live): form-POST transport, XML
    parsing, faults, retries; `CheckMember`, `DomainList`,
    `DomainListExtended`, `DomainStatus`, parking statistics and payments,
    categories and languages.
@@ -298,8 +297,9 @@ none.
    listing sync with pending-insert tracking, the Domains columns, parking
    stats as account and per-name traffic, and the MCP cases, including
    `market_categories_get` and `market_payments_get`.
-5. **Verify** with credentials: work through "Unverified" below, then
-   replace the docs-based fixtures with recorded shapes.
+5. **Verify:** reads done 2026-10-28; writes and the rest of "Unverified"
+   below are left, then replace the docs-based fixtures with recorded
+   shapes.
 6. **Later:** SOAP transport and the deferred parking functions, starting
    with `SetDomainSetup`'s buy box.
 
@@ -336,41 +336,54 @@ Choices made without live answers, each easy to change once checked:
   reads as no listings, and "no statistics" faults (`E15`, `E2102`, `E2104`)
   as no rows.
 
-## Unverified: what to check first
+## Observed
 
-In this order once the four credentials are in `.env` (`npm run test:live`
-runs `src/core/markets/sedo/client.live.test.ts`, which prints what it
-finds; `SEDO_LIVE_WRITES=1` with `SEDO_TEST_DOMAIN` adds the write round
-trip):
+Checked live on 2026-10-28 against an account with 43 listings
+(`npm run test:live`, read-only):
 
-1. **Auth and transport:** `CheckMember` answers `1` to a form POST at
-   `/api/v1/CheckMember`. If POST is refused, fall back to GET for reads
-   only and rethink writes.
-2. **Faults:** the HTTP status that comes with a `SEDOFAULT`, and that a
-   wrong password gives `E6`.
-3. **Array encoding:** `domainentry[0][domain]=…` and
-   `domainentry[0][category][0]=…` are understood (PHP's
-   `http_build_query` form, which the docs' examples use).
-4. **`DomainList` paging:** the page cap over POST (100 assumed), the order
-   (`orderby=0`, by name), and what an empty account returns (empty list or
-   `E15`).
-5. **Field formats:** `currency` as `0`/`1`/`2` in lists and `"EUR"` in
-   `DomainStatus` (as the docs' examples show); prices as plain decimals; the
-   `inserted` date (string or UNIX timestamp, and its time zone, read as
-   UTC).
-6. **Inserts:** how long Sedo's checks take, whether a pending name appears
-   anywhere before they pass, and what a second insert of the same name
-   returns.
-7. **Edits:** that an `ok` edit shows in `DomainList` at once; what
-   `minprice` does on a fixed-price listing; whether the 199 minimum applies
-   in GBP.
-8. **Parking stats:** that period 1 with a `domain` gives that name's daily
-   rows; which currency earnings are in; the `payout_status` values; whether
-   payments come back as `payments` or `earnings`.
-9. **Rate limits:** what happens past 60 a minute, and whether `E11`/`E17`
+- **Form POST works** for every read DomBot uses, with `output_method=xml`.
+  The docs only show GET.
+- **Partner ID and sign key alone** are enough for `DomainStatus`;
+  `DomainCategories` and `DomainLanguages` need no auth at all.
+- **Faults come with HTTP 200** and a `SEDOFAULT` body. A wrong password is
+  `E6` ("Wrong password for this username").
+- **`DomainList` order isn't by name** (`orderby=0` notwithstanding), but
+  `startfrom` is a plain 0-based offset into a stable order, so paging
+  works.
+- **A name filter fails as a whole** with `E2104` ("does not belong to you,
+  or is not in our parking system database") if any one name isn't on the
+  account, even when the others are. The client splits a failing lookup in
+  halves until the unlisted names drop out. Without that, listing a new
+  name (which looks it up first) would fail.
+- **A month with no parking payments** is fault `E2102` ("Statistics for
+  this date do not exist"), read as no payments.
+- **Field formats:** `currency` is `1` (USD) in lists and `"USD"` in
+  `DomainStatus`; `DomainListExtended`'s `inserted` is
+  `YYYY-MM-DD HH:MM:SS`; `domainlanguage` was empty on every listing; every
+  listing had category `990000` (not in the documented category list,
+  presumably "uncategorized"); no listing had a price set, only a minimum
+  price, and none was fixed price.
+- **Parking stats:** period 1 gives 31 daily rows for the account, and for
+  one name when `domain` is set; period 3 gives 12 monthly rows.
+  `payout_status` didn't say "Estimated" on any row.
+
+## Unverified
+
+Still to check, in this order:
+
+1. **Writes** (`SEDO_LIVE_WRITES=1` with `SEDO_TEST_DOMAIN`, a name you own
+   and keep for this): that `domainentry[0][…]` arrays are understood, how
+   long an insert's checks take, whether a pending name shows anywhere
+   before they pass, what a second insert of the same name returns, and
+   that an `ok` edit shows in `DomainList` at once.
+2. **Edit details:** what `minprice` does on a fixed-price listing; whether
+   the 199 Buy Now minimum applies in GBP; whether sending category `990000`
+   back on an edit is accepted.
+3. **Parking earnings:** which currency they're in, and the
+   `payout_status` values. Every row on the account checked was zero.
+4. **Rate limits:** what happens past 60 a minute, and whether `E11`/`E17`
    are what Sedo sends when throttling.
-10. **Public and reference calls:** `DomainStatus` with only the partner
-    pair, and `DomainCategories`/`DomainLanguages` with no auth at all.
+5. **An empty account:** an empty list or `E15`.
 
 Then replace `src/core/markets/sedo/fixtures.ts`, which is the docs'
 examples, with recorded shapes (made-up names, as Afternic's), and remove
