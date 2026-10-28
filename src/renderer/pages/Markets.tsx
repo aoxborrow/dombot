@@ -33,12 +33,9 @@ import {
 import {
   BadgeDollarSign,
   ChevronRight,
-  ChartColumn,
   CircleDollarSign,
   Eye,
-  Receipt,
   Store,
-  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -293,7 +290,6 @@ export default function Markets() {
           </ReportTable>
         ) : (
           <ReportEmpty
-            icon={Eye}
             title="No per-name traffic yet"
             description={
               covered
@@ -406,7 +402,6 @@ export default function Markets() {
           </ReportTable>
         ) : (
           <ReportEmpty
-            icon={Receipt}
             title="No sales yet"
             description="Completed sales from markets that report them show up here by year, with commission and net."
           />
@@ -490,14 +485,12 @@ function ReportTable({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** A report with nothing to show yet: icon, title and one line of why. */
+/** A report with nothing to show yet: a title and one line of why. */
 function ReportEmpty({
-  icon: Icon,
   title,
   description,
   className,
 }: {
-  icon: LucideIcon;
   title: string;
   description: string;
   className?: string;
@@ -507,9 +500,6 @@ function ReportEmpty({
       className={cn('rounded-lg border border-dashed md:p-8', className)}
     >
       <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <Icon />
-        </EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>
       </EmptyHeader>
@@ -564,7 +554,6 @@ function MonthBars({ months }: { months: TrafficMonth[] }) {
         // About the chart's own height, so the page doesn't jump once
         // traffic arrives.
         <ReportEmpty
-          icon={ChartColumn}
           title="No views yet"
           description={
             months.length
