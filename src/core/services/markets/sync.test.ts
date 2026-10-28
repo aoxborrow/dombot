@@ -121,7 +121,8 @@ function sale(
     net: '349.3',
     currency: 'USD',
     installments: null,
-    paidOutOn: null,
+    // Completed sales are paid out; one without a payout is a purchase.
+    paidOutOn: status === 'completed' ? soldOn : null,
     action: null,
   };
 }
@@ -351,5 +352,50 @@ describe('sales as sold events', () => {
     fake.sales = [sale('t1', 'left.com', '2026-10-08')];
     await syncMarketAccount(ACCOUNT);
     expect(sold()[0].resolves).toBe(removed.id);
+  });
+});
+
+describe('purchases in the sales list', () => {
+  it('leaves out completed sales with no payout, and undoes their sold events', async () => {
+    await connect();
+    const bought = {
+      ...sale('p1', 'bought.com', '2022-04-28'),
+      paidOutOn: null,
+    };
+    // A sync from before the rule recorded it as sold.
+    putEvents([
+      newEvent({
+        domain: 'bought.com',
+        type: DomainEventType.Sold,
+        source: DomainEventSource.Sync,
+        date: '2022-04-28',
+        amount: '4995.00',
+        currency: 'USD',
+        marketSale: `${ACCOUNT}:p1`,
+      }),
+    ]);
+    fake.sales = [bought, sale('t1', 'sold.com', '2021-05-04')];
+    await syncMarketAccount(ACCOUNT);
+    expect(marketSales().map((s) => s.name)).toEqual(['sold.com']);
+    expect(sold().map((e) => e.domain)).toEqual(['sold.com']);
+    expect(marketAccountViews()[0].sync?.sales).toBe(1);
+  });
+
+  it('keeps leases and sales still under way, which have no payout yet', async () => {
+    await connect();
+    fake.sales = [
+      {
+        ...sale('l1', 'lease.com', '2024-11-19'),
+        kind: 'lease',
+        paidOutOn: null,
+      },
+      sale('w1', 'waiting.com', '2026-10-20', 'in_progress'),
+    ];
+    await syncMarketAccount(ACCOUNT);
+    expect(
+      marketSales()
+        .map((s) => s.name)
+        .sort(),
+    ).toEqual(['lease.com', 'waiting.com']);
   });
 });

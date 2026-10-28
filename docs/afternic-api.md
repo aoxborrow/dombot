@@ -97,8 +97,10 @@ Other observed behavior worth designing around:
   Afternic come back from `GET /sales` as ordinary completed sales, with no
   field saying which side the account was on. `GET /sales/{id}` answers 404
   for exactly those, and they're the only completed Buy Now records without
-  `disbursedAt` (afternic-api-issues.md, issue 1). DomBot doesn't tell them
-  apart yet, so its sales totals include them.
+  `disbursedAt` (afternic-api-issues.md, issue 1). DomBot leaves out
+  completed Buy Now records with no payout date, which drops the purchases
+  and keeps leases, sales under way and cancelled ones; a sold event an
+  earlier sync wrote for one is removed.
 - Sales history covers every sale back to 2020, not just recent ones, once
   you pass a wide `soldAtStartDate`. The default window is the last month.
 - A sale record includes the transfer `authCode` in plain text.
