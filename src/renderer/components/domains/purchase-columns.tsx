@@ -9,6 +9,8 @@ type Labels = Record<string, string>;
 export interface PurchaseColumn {
   key: string;
   label: string;
+  /** The name in the Columns picker, when the header says less. */
+  title?: string;
   align?: 'left' | 'right';
   hideOnMobile?: boolean;
   render: (d: Domain, labels: Labels) => ReactNode;

@@ -83,7 +83,8 @@ import {
   type MarketAction,
 } from '../components/domains/MarketActionDialog';
 import {
-  MARKET_COLUMN_KEYS,
+  isMarketColumnKey,
+  listingColumnKey,
   listingFilterOptions,
   listingKeys,
   marketColumns,
@@ -850,6 +851,11 @@ export default function Domains() {
   const marketsOn = (marketAccounts?.length ?? 0) > 0;
   // The row and bulk menus name the market when there's only one kind.
   const marketIds = [...new Set((marketAccounts ?? []).map((a) => a.market))];
+  // A listing column per connected market, in the catalog's order.
+  const listingMarkets = useMemo(() => {
+    const connected = new Set((marketAccounts ?? []).map((a) => a.market));
+    return marketCatalog.map((m) => m.id).filter((id) => connected.has(id));
+  }, [marketCatalog, marketAccounts]);
   const marketId = marketIds.length === 1 ? marketIds[0] : null;
   const marketLabel =
     (marketId && marketCatalog.find((m) => m.id === marketId)?.name) ||
@@ -1003,7 +1009,7 @@ export default function Domains() {
       markets: marketCatalog,
       listPrices,
       traffic: marketTraffic.domains,
-      showMarket: new Set((marketAccounts ?? []).map((a) => a.market)).size > 1,
+      listingMarkets,
       preferredCurrency: settings?.preferredCurrency ?? DEFAULT_CURRENCY,
       numberFormat: settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
     })) {
@@ -1019,7 +1025,7 @@ export default function Domains() {
     marketListings,
     marketCatalog,
     marketTraffic,
-    marketAccounts,
+    listingMarkets,
   ]);
 
   // Pricing is computed locally in main and arrives with the portfolio; the only
@@ -1573,10 +1579,15 @@ export default function Domains() {
   const columnView = archiveView ? 'archive' : 'active';
   const layoutColumnsForView = useMemo(
     () =>
-      LAYOUT_COLUMNS[columnView].filter(
-        (c) => marketsOn || !MARKET_COLUMN_KEYS.has(c.key),
-      ),
-    [columnView, marketsOn],
+      LAYOUT_COLUMNS[columnView]
+        // The `listing` slot becomes one column per connected market.
+        .flatMap((c) =>
+          c.key === 'listing'
+            ? listingMarkets.map((m) => ({ ...c, key: listingColumnKey(m) }))
+            : [c],
+        )
+        .filter((c) => marketsOn || !isMarketColumnKey(c.key)),
+    [columnView, marketsOn, listingMarkets],
   );
   const { layout: columnLayout, setLayout: setColumnLayout } = useColumnLayout(
     `domains.${columnView}`,
@@ -1593,8 +1604,20 @@ export default function Domains() {
         ] as const
       )
         .filter(([range]) => isDateRangeSet(range))
-        .map(([, key]) => key),
-    [created, expires, purchased, sold],
+        .map(([, key]): string => key)
+        // A Listing filter keeps its markets' columns on screen too.
+        .concat(
+          [
+            ...new Set(
+              listing
+                .filter((k) => k !== 'none')
+                .map((k) => listingColumnKey(k.split(':')[0])),
+            ),
+          ].filter((key) =>
+            listingMarkets.some((m) => listingColumnKey(m) === key),
+          ),
+        ),
+    [created, expires, purchased, sold, listing, listingMarkets],
   );
   const shownColumnKeys = applyColumnLayout(
     layoutColumnsForView,
