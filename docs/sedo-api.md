@@ -400,9 +400,12 @@ Checked live on 2026-10-28 against an account with 43 listings
   Sedo accepts verification by its nameservers, a TXT record holding the
   account's verification ID, or a CNAME from that ID to `verify.sedo.com.`;
   DomBot's plan for doing this itself is in markets.md, "Ownership
-  verification". On 2026-10-28 domainio.com was listed at 5,000 USD and
-  Sedo's TXT ID added to its DNS by hand, to see what Sedo does once it
-  verifies.
+  verification".
+- **Once verified, Sedo puts the name up for sale itself.** domainio.com was
+  listed at 5,000 USD and Sedo's TXT ID added to its DNS at 05:00 UTC on
+  2026-10-28; by 06:35 UTC it was for sale at that price, with nothing sent
+  from DomBot. So DomBot only has to wait: it keeps the name pending until
+  Sedo shows it for sale.
   not the order asked; the
   client matches by name.
 - **Parking stats:** period 1 gives 31 daily rows for the account, and for
@@ -413,18 +416,17 @@ Checked live on 2026-10-28 against an account with 43 listings
 
 Still to check:
 
-1. **After verification:** whether Sedo then puts the name up for sale
-   itself, or DomBot has to edit it to `forsale: 1`. Needs a name taken
-   through verification (registry or TXT record) and watched.
-2. **Edit details:** what `minprice` does on a fixed-price listing, and
+1. **Edit details:** what `minprice` does on a fixed-price listing, and
    whether the 199 Buy Now minimum applies in GBP.
-3. **Parking earnings:** which currency they're in, and the
+2. **Parking earnings:** which currency they're in, and the
    `payout_status` values. Every row on the account checked was zero.
-4. **Rate limits:** what happens past 60 a minute, and whether `E11`/`E17`
+3. **Rate limits:** what happens past 60 a minute, and whether `E11`/`E17`
    are what Sedo sends when throttling.
-5. **An empty account:** an empty list or `E15`.
-6. **E3131 follow-up:** whether Sedo contacts the owner and moves the name
-   when another account lists it.
+4. **An empty account:** an empty list or `E15`.
+5. **E3131 follow-up:** whether Sedo's TXT check moves a name another
+   account lists into yours. domanio.com, now on 101domain's nameservers
+   with Sedo's TXT ID, is still in the other account at €1,500 (06:35 UTC,
+   2026-10-28).
 
 Then replace `src/core/markets/sedo/fixtures.ts`, which is the docs'
 examples, with recorded shapes (made-up names, as Afternic's), and remove
