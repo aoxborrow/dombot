@@ -6,11 +6,9 @@ import {
 } from './market-nameservers';
 
 describe('market nameservers', () => {
-  it('finds a set by hostname, exact before assigned', () => {
-    expect(marketNameserversFor('ns2.atom.com')?.key).toBe('atom.com');
-    expect(marketNameserversFor('abc-ns2.atom.com')?.key).toBe(
-      'atom.com#assigned',
-    );
+  it('finds a set by exact hostname', () => {
+    expect(marketNameserversFor(' NS2.Atom.com. ')?.key).toBe('atom.com');
+    expect(marketNameserversFor('abc-ns2.atom.com')).toBeNull();
     expect(marketNameserversFor('atom.com')).toBeNull();
     expect(marketNameserversFor('ns1.example.com')).toBeNull();
   });

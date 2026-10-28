@@ -384,7 +384,7 @@ Most markets accept two or three of these:
 | Method                   | What you set                                            | Example                                                            |
 | ------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------ |
 | Default nameservers      | The name's nameservers, to the market's shared pair     | `ns1/ns2.afternic.com`, `ns1/ns2.sedoparking.com`                  |
-| Per-customer nameservers | The name's nameservers, to a pair assigned to you       | `xxx3434-ns.atom.com`                                              |
+| Per-customer nameservers | The name's nameservers, to a pair assigned to you       | none of Afternic, Atom or Sedo seen doing this                     |
 | TXT record               | A TXT record holding a verification ID from the market  | Sedo: one ID per account, shown in its dashboard                   |
 | CNAME record             | A CNAME from the verification ID to the market's target | Sedo: host `<verification ID>`, value `verify.sedo.com.`, TTL 3600 |
 

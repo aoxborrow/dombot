@@ -64,8 +64,8 @@ PR #201, stacked on Sedo (#200) and Afternic (#197).
   description, which can't be cleared, `ATOM_TEST_DESCRIPTION=1`.
 - **Not built, on purpose:** boost and Premium listings (both spend Atom
   credits), and changing a listing's tier (no API for it).
-- **Nameservers:** Atom's marketplace pair, assigned pairs,
-  AtomRegistrar's default pair and old Squadhelp pair are listed in
+- **Nameservers:** Atom's marketplace pair, AtomRegistrar's default pair
+  and its old Squadhelp pair are listed in
   `src/shared/market-nameservers.ts`, and the Nameservers filter names them.
 - **Planned:** verify DNS in the app, as the last step of ownership
   verification for every market (markets.md). Not planned: buttons for
@@ -431,8 +431,8 @@ An Atom card in the Markets section, built the same way as Afternic's:
   `ns1/ns2.atom.com` (required for Premium, recommended otherwise) through the
   registrar, and call `verifyDns`.
 - **Nameservers:** done: `src/shared/market-nameservers.ts` lists
-  `ns1/ns2.atom.com` (marketplace), Atom's assigned pairs,
-  `ns1/ns2.atomregistrar.com` (AtomRegistrar's default) and
+  `ns1/ns2.atom.com` (marketplace), `ns1/ns2.atomregistrar.com`
+  (AtomRegistrar's default) and
   `ns1/ns2.squadhelp.com` (the old name), and the Nameservers filter names
   them.
 - **Exclusivity.** Premium listings are exclusive to Atom except for names in

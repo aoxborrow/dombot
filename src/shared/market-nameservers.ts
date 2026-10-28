@@ -12,14 +12,11 @@ export interface MarketNameservers {
   key: string;
   /** How the filter names it. */
   label: string;
-  /**
-   * Lowercase hostnames. A leading `*.` stands for any one or more labels,
-   * for nameservers a market assigns per customer; checked after exact ones.
-   */
+  /** Lowercase hostnames. */
   hosts: readonly string[];
 }
 
-/** A market's first shared set is the one to point a name at. */
+/** A market's first set is the one to point a name at. */
 export const MARKET_NAMESERVERS: readonly MarketNameservers[] = [
   // Afternic's pairs all serve its for-sale page; which page shows is set
   // per listing, not by the pair. ns1/ns2 have a delegation quirk that some
@@ -42,20 +39,14 @@ export const MARKET_NAMESERVERS: readonly MarketNameservers[] = [
     label: 'Afternic (ns5/ns6)',
     hosts: ['ns5.afternic.com', 'ns6.afternic.com'],
   },
-  // Atom: its marketplace pair (Premium listings must stay on it), the
-  // pairs it assigns per customer, its registrar's default pair (for names
-  // registered at AtomRegistrar), and its pair from when it was Squadhelp.
+  // Atom: its marketplace pair (Premium listings must stay on it), its
+  // registrar's default pair (for names registered at AtomRegistrar), and
+  // its pair from when it was Squadhelp.
   {
     market: 'atom',
     key: 'atom.com',
     label: 'Atom',
     hosts: ['ns1.atom.com', 'ns2.atom.com'],
-  },
-  {
-    market: 'atom',
-    key: 'atom.com#assigned',
-    label: 'Atom (assigned pair)',
-    hosts: ['*.atom.com'],
   },
   {
     market: 'atom',
@@ -77,32 +68,15 @@ export const MARKET_NAMESERVERS: readonly MarketNameservers[] = [
   },
 ];
 
-function matches(host: string, pattern: string): boolean {
-  return pattern.startsWith('*.')
-    ? host.endsWith(pattern.slice(1)) && host.length > pattern.length - 1
-    : host === pattern;
-}
-
 /** The market nameserver set a hostname belongs to, if any. */
 export function marketNameserversFor(host: string): MarketNameservers | null {
   const h = host.trim().toLowerCase().replace(/\.$/, '');
   if (!h) return null;
-  const exact = MARKET_NAMESERVERS.find((s) =>
-    s.hosts.some((p) => !p.startsWith('*.') && matches(h, p)),
-  );
-  return (
-    exact ??
-    MARKET_NAMESERVERS.find((s) =>
-      s.hosts.some((p) => p.startsWith('*.') && matches(h, p)),
-    ) ??
-    null
-  );
+  return MARKET_NAMESERVERS.find((s) => s.hosts.includes(h)) ?? null;
 }
 
-/** The nameservers to point a name at for `market`: its first shared set. */
+/** The nameservers to point a name at for `market`: its first set. */
 export function defaultMarketNameservers(market: MarketId): string[] {
-  const set = MARKET_NAMESERVERS.find(
-    (s) => s.market === market && !s.hosts.some((h) => h.startsWith('*.')),
-  );
+  const set = MARKET_NAMESERVERS.find((s) => s.market === market);
   return set ? [...set.hosts] : [];
 }

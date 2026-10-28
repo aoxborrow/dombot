@@ -48,10 +48,6 @@ describe('nameserverGroup', () => {
       key: 'atom.com',
       label: 'Atom',
     });
-    expect(nameserverGroup('xyz3434-ns1.atom.com')).toEqual({
-      key: 'atom.com#assigned',
-      label: 'Atom (assigned pair)',
-    });
     expect(nameserverGroup('ns2.atomregistrar.com')).toEqual({
       key: 'atomregistrar.com',
       label: 'AtomRegistrar',
