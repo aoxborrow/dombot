@@ -7,7 +7,9 @@ import type {
   MarketWriteResult,
 } from '../../../shared/markets';
 import { useAppStore } from '../../store/app';
+import { MarketLogo } from '../RegistrarLogo';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -25,9 +27,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-// List, reprice, relist or delist names on a market account, from a row or
+// List, reprice, relist or delist names on market accounts, from a row or
 // the bulk bar (docs/markets.md). Listing pushes the asking prices you set in
-// DomBot (BIN price, minimum offer, floor), so DomBot stays where you price.
+// DomBot (BIN price, minimum offer, floor), so DomBot stays where you price,
+// to every market account you tick at once. Relist and delist take one.
 
 export type MarketAction = 'list' | 'relist' | 'delist';
 
@@ -64,15 +67,31 @@ export function MarketActionDialog({
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<MarketWriteResult[] | null>(null);
+  // Listing: every ticked account, each answering for itself.
+  const [ticked, setTicked] = useState<Set<string>>(
+    () => new Set(enabled.map((a) => a.id)),
+  );
+  const [perAccount, setPerAccount] = useState<
+    | {
+        account: MarketAccountView;
+        results: MarketWriteResult[] | null;
+        error: string | null;
+      }[]
+    | null
+  >(null);
+  const multi = action === 'list';
+  const chosen = enabled.filter((a) => ticked.has(a.id));
 
   const account = enabled.find((a) => a.id === accountId);
   const marketName = (a?: MarketAccountView) =>
     catalog.find((m) => m.id === a?.market)?.name ?? a?.market ?? 'the market';
-  const where = account
-    ? enabled.filter((a) => a.market === account.market).length > 1
-      ? `${marketName(account)} (${account.label})`
-      : marketName(account)
-    : 'the market';
+  const whereOf = (a?: MarketAccountView) =>
+    a
+      ? enabled.filter((b) => b.market === a.market).length > 1
+        ? `${marketName(a)} (${a.label})`
+        : marketName(a)
+      : 'the market';
+  const where = whereOf(account);
 
   const keys = useMemo(
     () => [...new Set(domains.map((d) => toAscii(d.domainName)))],
@@ -90,13 +109,31 @@ export function MarketActionDialog({
   const run = async () => {
     setRunning(true);
     setError(null);
+    if (multi) {
+      // One account at a time: each has its own rate limit and its own
+      // reasons to refuse a name, so one market failing doesn't stop the rest.
+      const out: NonNullable<typeof perAccount> = [];
+      for (const a of chosen) {
+        try {
+          out.push({
+            account: a,
+            results: await window.api.pushMarketPrices(a.id, targets),
+            error: null,
+          });
+        } catch (err) {
+          out.push({ account: a, results: null, error: errorMessage(err) });
+        }
+      }
+      setPerAccount(out);
+      await loadMarkets().catch(() => {});
+      setRunning(false);
+      return;
+    }
     try {
       const out =
-        action === 'list'
-          ? await window.api.pushMarketPrices(accountId, targets)
-          : action === 'relist'
-            ? await window.api.relistMarketListings(accountId, targets, mode)
-            : await window.api.deleteMarketListings(accountId, targets);
+        action === 'relist'
+          ? await window.api.relistMarketListings(accountId, targets, mode)
+          : await window.api.deleteMarketListings(accountId, targets);
       setResults(out);
       await loadMarkets();
     } catch (err) {
@@ -106,9 +143,12 @@ export function MarketActionDialog({
     }
   };
 
+  const done = multi ? perAccount !== null : results !== null;
   const title =
     action === 'list'
-      ? `List on ${where} at your prices`
+      ? enabled.length > 1
+        ? 'List at your prices'
+        : `List on ${where} at your prices`
       : action === 'relist'
         ? `Relist on ${where}`
         : `Delist from ${where}`;
@@ -118,7 +158,7 @@ export function MarketActionDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          {!results && (
+          {!done && (
             <DialogDescription>
               {action === 'list' &&
                 'Lists each name, or updates its listing, with the BIN price, minimum offer and floor you set in DomBot. Listings you already have keep their other settings.'}
@@ -130,9 +170,40 @@ export function MarketActionDialog({
           )}
         </DialogHeader>
 
-        {!results ? (
+        {!done ? (
           <div className="flex flex-col gap-4 text-sm">
-            {enabled.length > 1 && (
+            {multi && enabled.length > 1 && (
+              <Field>
+                <FieldLabel>Markets</FieldLabel>
+                <div className="flex flex-col gap-2">
+                  {enabled.map((a) => (
+                    <label
+                      key={a.id}
+                      className="flex cursor-pointer items-center gap-2.5"
+                    >
+                      <Checkbox
+                        checked={ticked.has(a.id)}
+                        onCheckedChange={(on) =>
+                          setTicked((current) => {
+                            const next = new Set(current);
+                            if (on === true) next.add(a.id);
+                            else next.delete(a.id);
+                            return next;
+                          })
+                        }
+                      />
+                      <MarketLogo
+                        market={a.market}
+                        label={marketName(a)}
+                        className="size-4 p-[1.5px] text-muted-foreground"
+                      />
+                      {whereOf(a)}
+                    </label>
+                  ))}
+                </div>
+              </Field>
+            )}
+            {!multi && enabled.length > 1 && (
               <Field>
                 <FieldLabel>Market account</FieldLabel>
                 <Select value={accountId} onValueChange={setAccountId}>
@@ -201,12 +272,34 @@ export function MarketActionDialog({
               </p>
             )}
           </div>
+        ) : multi ? (
+          <div className="flex max-h-[50vh] flex-col gap-5 overflow-y-auto">
+            {perAccount!.map(({ account: a, results: rs, error: err }) => (
+              <section key={a.id} className="flex flex-col gap-2">
+                <h3 className="flex items-center gap-2 text-sm font-medium">
+                  <MarketLogo
+                    market={a.market}
+                    label={marketName(a)}
+                    className="size-4 p-[1.5px] text-muted-foreground"
+                  />
+                  {whereOf(a)}
+                </h3>
+                {err ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {err}
+                  </p>
+                ) : (
+                  <Results results={rs!} action={action} where={whereOf(a)} />
+                )}
+              </section>
+            ))}
+          </div>
         ) : (
-          <Results results={results} action={action} where={where} />
+          <Results results={results!} action={action} where={where} />
         )}
 
         <DialogFooter>
-          {results ? (
+          {done ? (
             <Button onClick={onClose}>Done</Button>
           ) : (
             <>
@@ -215,13 +308,19 @@ export function MarketActionDialog({
               </Button>
               <Button
                 variant={action === 'delist' ? 'destructive' : 'default'}
-                disabled={running || !account || targets.length === 0}
+                disabled={
+                  running ||
+                  targets.length === 0 ||
+                  (multi ? chosen.length === 0 : !account)
+                }
                 onClick={() => void run()}
               >
                 {running
                   ? 'Working…'
                   : action === 'list'
-                    ? `List ${names(targets.length)}`
+                    ? chosen.length > 1
+                      ? `List ${names(targets.length)} on ${chosen.length} markets`
+                      : `List ${names(targets.length)}`
                     : action === 'relist'
                       ? `Relist ${names(targets.length)}`
                       : `Delist ${names(targets.length)}`}
