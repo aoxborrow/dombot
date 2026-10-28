@@ -228,9 +228,8 @@ reason. The support matrix is in
 
 Marketplace accounts from Settings → Markets ([markets.md](markets.md)).
 Listings, sales and account stats are read from what market sync stored;
-`market_sync` refreshes them. These are read-only; list, reprice and delist
-tools come with the market writes. A tool or filter a market can't support
-fails saying so.
+`market_sync` refreshes them. A tool or filter a market can't support fails
+saying so.
 
 - **`market_list`** — every market account: `accountId`, `market`, `label`,
   `configured`, `enabled`, its last `sync`, and the market's `capabilities`.
@@ -255,3 +254,30 @@ fails saying so.
 
 `portfolio_query` also takes `listedOn` and `notListedOn` (a market id), to
 find names listed on a market or the ones that aren't yet.
+
+Writes. Each returns one result per name with `ok`, `pending` (accepted, not
+live yet), the listing as `saved`, `adjusted` (fields the market saved
+differently, like Afternic's lease-to-own cap) and `error`. Prices are
+decimal strings or numbers.
+
+- **`domain_listing_set`** — `domain`, `accountId?`, and the fields to set:
+  `price` (null: offers only), `minOffer`, `floor` (null clears), `currency`,
+  `forSale`, `leaseToOwn`, `afternic` (lander settings). Lists the name if it
+  isn't listed. `fromAskingPrice: true` takes the prices from DomBot's
+  asking price instead. `accountId` can be left out when the name is listed
+  in one account or there's only one.
+- **`domain_listing_delete`** — `domain`, `accountId?`. Delists; the name
+  stays in your registrar account.
+- **`market_listings_set`** — `accountId`, and `changes[]` (each a `name` and
+  fields, as above) or `domains[]` with `fromAskingPrice: true`. Any number
+  of names, in the market's batch size.
+- **`market_listings_delete`** — `accountId`, `domains[]`.
+- **`market_listings_relist`** — `accountId`, `domains[]`, `mode?`
+  (`RESYNC` re-checks, `REACTIVATE` brings back an inactive listing).
+- **`market_sale_auth_code_set`** — `accountId`, `saleId`, `authCode?`.
+  Without a code, DomBot gets it from the registrar account that holds the
+  name. Never returned or stored.
+- **`market_sale_message_send`** — `accountId`, `saleId`, `message`. Reaches
+  a person at the market.
+- **`market_settings_set`** — `accountId`, and the listing defaults to
+  change.

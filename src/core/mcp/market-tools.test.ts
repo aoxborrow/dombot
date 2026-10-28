@@ -15,6 +15,9 @@ const fake = {
   listings: [] as MarketListing[],
   sales: [] as MarketSale[],
   domainStatsFor: [] as string[],
+  writes: [] as unknown[],
+  messages: [] as [string, string][],
+  defaults: [] as unknown[],
 };
 vi.mock('../services/markets/registry', async () => {
   const { AFTERNIC_CONFIG_FIELDS } =
@@ -47,6 +50,35 @@ vi.mock('../services/markets/registry', async () => {
         return [{ date: '2026-10-28', views: 2, leads: 1, source: 'market' }];
       },
       getListingDefaults: async () => ({ maxLeasePeriod: 60 }),
+      setListingDefaults: async (settings: unknown) => {
+        fake.defaults.push(settings);
+      },
+      writeListings: async (changes: { name: string; price?: string }[]) => {
+        fake.writes.push(changes);
+        return changes.map((c) => ({
+          name: c.name,
+          ok: true,
+          pending: true,
+          saved: null,
+          adjusted:
+            c.name === 'capped.com'
+              ? [{ field: 'leaseToOwn.maxPayments', asked: 36, saved: 12 }]
+              : [],
+          error: null,
+        }));
+      },
+      deleteListings: async (names: string[]) =>
+        names.map((name) => ({
+          name,
+          ok: true,
+          pending: false,
+          saved: null,
+          adjusted: [],
+          error: null,
+        })),
+      sendSaleMessage: async (saleId: string, message: string) => {
+        fake.messages.push([saleId, message]);
+      },
     }),
   };
 });
@@ -135,6 +167,9 @@ beforeEach(async () => {
     sale('t2', 'sold-two.com', '2025-01-01', '1000.25'),
   ];
   fake.domainStatsFor = [];
+  fake.writes = [];
+  fake.messages = [];
+  fake.defaults = [];
   await connectMarketAccount(
     'afternic',
     { apiKey: 'k', apiSecret: 's' },
@@ -220,5 +255,70 @@ describe('market tools', () => {
     expect(await call('market_settings_get', { accountId: ID })).toEqual({
       maxLeasePeriod: 60,
     });
+  });
+});
+
+describe('market write tools', () => {
+  it('sets one listing, numbers and all, and reports adjustments', async () => {
+    const result = await call('domain_listing_set', {
+      domain: 'Capped.com',
+      price: 2500,
+      floor: null,
+      leaseToOwn: { enabled: true, maxPayments: 36 },
+      afternic: { intakeStyle: 'BUYNOW' },
+    });
+    expect(fake.writes).toEqual([
+      [
+        {
+          name: 'capped.com',
+          price: '2500',
+          floor: null,
+          leaseToOwn: { enabled: true, maxPayments: 36 },
+          extra: { market: 'afternic', intakeStyle: 'BUYNOW' },
+        },
+      ],
+    ]);
+    expect(result).toMatchObject({
+      accountId: ID,
+      ok: true,
+      pending: true,
+      adjusted: [{ field: 'leaseToOwn.maxPayments', saved: 12 }],
+    });
+  });
+
+  it('writes many from explicit changes and says what to pass otherwise', async () => {
+    const result = await call('market_listings_set', {
+      accountId: ID,
+      changes: [
+        { name: 'a.com', price: '10' },
+        { name: 'b.com', minOffer: 25 },
+      ],
+    });
+    expect(result).toMatchObject({ ok: 2, failed: 0 });
+    await expect(
+      call('market_listings_set', { accountId: ID }),
+    ).rejects.toThrow(/Pass `changes`/);
+  });
+
+  it('delists many', async () => {
+    const result = await call('market_listings_delete', {
+      accountId: ID,
+      domains: ['alpha.com'],
+    });
+    expect(result).toMatchObject({ ok: 1, failed: 0 });
+    expect(
+      (await call('domain_listing_get', { domain: 'alpha.com' })).listings,
+    ).toEqual([]);
+  });
+
+  it('sends a sale message and saves listing defaults', async () => {
+    await call('market_sale_message_send', {
+      accountId: ID,
+      saleId: 't1',
+      message: 'The transfer is under way.',
+    });
+    expect(fake.messages).toEqual([['t1', 'The transfer is under way.']]);
+    await call('market_settings_set', { accountId: ID, maxLeasePeriod: 24 });
+    expect(fake.defaults).toEqual([{ maxLeasePeriod: 24 }]);
   });
 });

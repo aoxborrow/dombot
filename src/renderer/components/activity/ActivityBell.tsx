@@ -16,6 +16,9 @@ import { useAppStore } from '../../store/app';
 import { useAvailableUpdate, useUpdates } from '../../lib/updates';
 import { EventTypeBadge } from './EventTypeBadge';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import type { MarketSale } from '../../../shared/markets';
 import { cn } from '@/lib/utils';
 import {
   Popover,
@@ -40,7 +43,39 @@ export function ActivityBell() {
   const registrars = useAppStore((s) => s.registrars);
   const [open, setOpen] = useState(false);
 
-  const problems = useMemo(() => syncProblems(registrars), [registrars]);
+  const marketAccounts = useAppStore((s) => s.marketAccounts);
+  const marketCatalog = useAppStore((s) => s.marketCatalog);
+  const marketSales = useAppStore((s) => s.marketSales);
+  // Market accounts whose sync failed sit with the registrar ones.
+  const marketIds = useMemo(
+    () => new Set((marketAccounts ?? []).map((a) => a.id)),
+    [marketAccounts],
+  );
+  const problems = useMemo(
+    () => [
+      ...syncProblems(registrars),
+      ...(marketAccounts ?? [])
+        .filter((a) => a.enabled && a.configured && a.sync?.lastError)
+        .map((a) => ({
+          accountId: a.id,
+          account: marketAccountTitle(
+            marketCatalog.find((m) => m.id === a.market)?.name ?? a.market,
+            a.label,
+          ),
+          message: a.sync!.lastError!,
+          at: a.sync!.at,
+        })),
+    ],
+    [registrars, marketAccounts, marketCatalog],
+  );
+  // Market sales waiting on you: an auth code, a transfer, payee details.
+  const salesToAct = useMemo(
+    () =>
+      marketSales.filter(
+        (s) => s.status === 'in_progress' && s.action !== null,
+      ),
+    [marketSales],
+  );
   const list = useMemo(
     () => notifications(events, problems),
     [events, problems],
@@ -51,11 +86,13 @@ export function ActivityBell() {
   const update =
     available && available.latest.version !== dismissed ? available : null;
   const badge = notificationBadge(list);
-  const count = (badge?.count ?? 0) + (update ? 1 : 0);
+  const count = (badge?.count ?? 0) + salesToAct.length + (update ? 1 : 0);
   // The worst severity's color, or green when the update is all there is.
   const countColor = badge
     ? SEVERITY_COUNT[badge.severity]
-    : 'bg-brand text-white';
+    : salesToAct.length
+      ? SEVERITY_COUNT.high
+      : 'bg-brand text-white';
   const reviews = list.filter((n) => n.severity !== 'error').length;
   const close = () => setOpen(false);
 
@@ -153,7 +190,23 @@ export function ActivityBell() {
             </button>
           </div>
         )}
-        {list.length === 0 && update ? null : list.length === 0 ? (
+        {salesToAct.length > 0 && (
+          <ul className="border-b py-1">
+            {salesToAct.map((sale) => (
+              <li key={`${sale.accountId}:${sale.id}`}>
+                <SaleRow
+                  sale={sale}
+                  market={
+                    marketCatalog.find((m) => m.id === sale.market)?.name ??
+                    sale.market
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+        {list.length === 0 &&
+        (update || salesToAct.length > 0) ? null : list.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">
             Nothing needs your attention.
           </p>
@@ -163,7 +216,17 @@ export function ActivityBell() {
               <li key={n.id}>
                 <NotificationRow
                   n={n}
-                  account={accountName(registrars, n.accountId)}
+                  account={
+                    n.accountId && marketIds.has(n.accountId)
+                      ? (problems.find((p) => p.accountId === n.accountId)
+                          ?.account ?? null)
+                      : accountName(registrars, n.accountId)
+                  }
+                  settingsTab={
+                    n.accountId && marketIds.has(n.accountId)
+                      ? 'markets'
+                      : 'registrars'
+                  }
                   onNavigate={close}
                 />
               </li>
@@ -195,10 +258,13 @@ export function ActivityBell() {
 function NotificationRow({
   n,
   account,
+  settingsTab = 'registrars',
   onNavigate,
 }: {
   n: Notification;
   account: string | null;
+  /** Where a sync error's card is: Registrars or Markets. */
+  settingsTab?: 'registrars' | 'markets';
   onNavigate: () => void;
 }) {
   const dot = (
@@ -211,7 +277,7 @@ function NotificationRow({
     // Opens Settings → Registrars, where the account's card has the error.
     return (
       <Link
-        to="/settings?tab=registrars"
+        to={`/settings?tab=${settingsTab}`}
         onClick={onNavigate}
         className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
         title={n.message}
@@ -255,4 +321,109 @@ function NotificationRow({
       )}
     </Link>
   );
+}
+
+const SALE_ACTION: Record<NonNullable<MarketSale['action']>, string> = {
+  auth_code: 'needs the auth code',
+  transfer: 'waiting on the transfer',
+  payee_details: 'needs your payee details',
+};
+
+/**
+ * A market sale waiting on you. One that needs the auth code can send it from
+ * here: DomBot asks the registrar that holds the name for it and passes it
+ * on, without showing or storing it.
+ */
+function SaleRow({ sale, market }: { sale: MarketSale; market: string }) {
+  const loadMarkets = useAppStore((s) => s.loadMarkets);
+  const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  // Shown once DomBot couldn't get the code itself: type it instead.
+  const [typing, setTyping] = useState(false);
+  const [code, setCode] = useState('');
+  const name = toUnicode(sale.name);
+  const what = `on ${market} ${sale.action ? SALE_ACTION[sale.action] : ''}`;
+  const send = async (authCode?: string) => {
+    setState('sending');
+    setError(null);
+    try {
+      await window.api.setMarketSaleAuthCode(sale.accountId, sale.id, authCode);
+      setState('sent');
+      setTyping(false);
+      void loadMarkets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setState('idle');
+      setTyping(true);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-1.5 px-3 py-1.5 text-sm">
+      <div className="flex items-center gap-2">
+        <span
+          className={cn('size-2 shrink-0 rounded-full', SEVERITY_DOT.high)}
+          aria-hidden
+        />
+        <Badge variant="outline">Sale</Badge>
+        <span className="min-w-0 flex-1 truncate" title={`${name} ${what}`}>
+          <span className="font-mono">{name}</span>{' '}
+          <span className="text-muted-foreground">{what}</span>
+        </span>
+        {sale.action === 'auth_code' && !typing && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 shrink-0"
+            disabled={state !== 'idle'}
+            onClick={() => void send()}
+            title="Get the code from the registrar that holds the name and send it to the market"
+          >
+            {state === 'sending'
+              ? 'Sending…'
+              : state === 'sent'
+                ? 'Sent'
+                : 'Send auth code'}
+          </Button>
+        )}
+      </div>
+      {error && (
+        <p role="alert" className="pl-4 text-xs text-destructive">
+          {error}
+        </p>
+      )}
+      {typing && (
+        <form
+          className="flex gap-2 pl-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (code.trim()) void send(code);
+          }}
+        >
+          <Input
+            className="h-7"
+            value={code}
+            placeholder="Auth code"
+            aria-label={`Auth code for ${name}`}
+            autoComplete="off"
+            spellCheck={false}
+            disabled={state === 'sending'}
+            onChange={(e) => setCode(e.target.value)}
+          />
+          <Button
+            type="submit"
+            size="sm"
+            className="h-7"
+            disabled={state === 'sending' || !code.trim()}
+          >
+            {state === 'sending' ? 'Sending…' : 'Send'}
+          </Button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+/** "Afternic", or "Afternic · Business" when the account has its own name. */
+function marketAccountTitle(market: string, label: string): string {
+  return label && label !== market ? `${market} · ${label}` : market;
 }

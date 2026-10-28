@@ -14,6 +14,7 @@ import {
   Receipt,
   RefreshCw,
   Server,
+  Store,
   Trash2,
   Undo2,
   X,
@@ -36,6 +37,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { StickyNoteIcon } from '../icons/StickyNoteIcon';
 import { CashIcon } from '../icons/CashIcon';
+import type { MarketAction } from './MarketActionDialog';
 
 /** Ownership actions on the selection, each opening its dialog. */
 export type OwnershipAction =
@@ -63,6 +65,8 @@ export function BulkBar({
   archiveView,
   onOwnership,
   onListPrice,
+  onMarket,
+  marketLabel = 'markets',
 }: {
   /** The selected domains (merged rows). */
   domains: Domain[];
@@ -81,6 +85,10 @@ export function BulkBar({
   onOwnership: (action: OwnershipAction) => void;
   /** Set or clear the selection's asking price. */
   onListPrice: () => void;
+  /** List, relist or delist on a market; absent with no market account. */
+  onMarket?: (action: MarketAction) => void;
+  /** The market's name for the menu, e.g. "Afternic" (or "markets"). */
+  marketLabel?: string;
 }) {
   const bulk = useAppStore((s) => s.bulk);
   const running = bulk?.status === 'running';
@@ -238,6 +246,29 @@ export function BulkBar({
                 <CashIcon className="text-muted-foreground" />
                 Pricing<span className="-ml-[6px] opacity-50">…</span>
               </DropdownMenuItem>
+            )}
+            {!archiveView && onMarket && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Store className="text-muted-foreground" />
+                  {marketLabel}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onSelect={() => onMarket('list')}>
+                    List at your prices
+                    <span className="-ml-[6px] opacity-50">…</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onMarket('relist')}>
+                    Relist<span className="-ml-[6px] opacity-50">…</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => onMarket('delist')}
+                  >
+                    Delist<span className="-ml-[6px] opacity-50">…</span>
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
             )}
             <DropdownMenuItem onSelect={onExport}>
               <FileSpreadsheet className="text-muted-foreground" />

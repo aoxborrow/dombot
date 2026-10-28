@@ -80,8 +80,19 @@ import {
 import * as s from './schemas';
 import { createAccount, renameAccount } from '../services/accounts';
 import {
+  deleteMarketListings,
+  pushAskingPrices,
+  relistMarketListings,
+  sendSaleMessage,
+  setMarketListingDefaults,
+  setSaleAuthCode,
+  writeMarketListings,
+} from '../services/markets/writes';
+import type { MarketListingChange } from '../../shared/markets';
+import {
   connectMarketAccount,
   getMarketCredentials,
+  marketAdapter,
   marketAccountViews,
   removeMarketAccount,
   renameMarketAccount,
@@ -489,6 +500,52 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   ),
   getMarketListings: method(none, async () => marketListings()),
   getMarketSales: method(none, async () => marketSales()),
+  writeMarketListings: method(
+    z.tuple([s.marketAccountId, s.marketListingChanges]),
+    async (id, changes) =>
+      writeMarketListings(id, changes as MarketListingChange[]),
+  ),
+  pushMarketPrices: method(
+    z.tuple([s.marketAccountId, s.marketNames]),
+    async (id, names) => pushAskingPrices(id, names),
+  ),
+  deleteMarketListings: method(
+    z.tuple([s.marketAccountId, s.marketNames]),
+    async (id, names) => deleteMarketListings(id, names),
+  ),
+  relistMarketListings: method(
+    z.tuple([s.marketAccountId, s.marketNames, s.relistMode.optional()]),
+    async (id, names, mode) => relistMarketListings(id, names, mode),
+  ),
+  setMarketSaleAuthCode: method(
+    z.tuple([
+      s.marketAccountId,
+      z.string().min(1).max(100),
+      z.string().max(200).optional(),
+    ]),
+    async (id, saleId, authCode) => setSaleAuthCode(id, saleId, authCode),
+  ),
+  sendMarketSaleMessage: method(
+    z.tuple([
+      s.marketAccountId,
+      z.string().min(1).max(100),
+      z.string().min(1).max(1000),
+    ]),
+    async (id, saleId, message) => sendSaleMessage(id, saleId, message),
+  ),
+  getMarketListingDefaults: method(z.tuple([s.marketAccountId]), async (id) => {
+    const adapter = marketAdapter(id);
+    if (!adapter.getListingDefaults) {
+      throw new Error(
+        `Listing defaults are not supported for ${adapter.market}.`,
+      );
+    }
+    return { ...(await adapter.getListingDefaults()) };
+  }),
+  setMarketListingDefaults: method(
+    z.tuple([s.marketAccountId, s.marketListingDefaults]),
+    async (id, settings) => setMarketListingDefaults(id, settings),
+  ),
 
   setListPrices: method(z.tuple([s.listPriceInputs]), async (inputs) => {
     setListPrices(inputs);

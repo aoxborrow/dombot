@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { toAscii } from '../../shared/domain-name';
-import type { MarketListing, MarketSale } from '../../shared/markets';
 import {
   activeMarketAccounts,
   marketAccount,
@@ -9,6 +8,22 @@ import {
   marketAdapter,
 } from '../services/markets/accounts';
 import { marketInfo } from '../services/markets/registry';
+import {
+  deleteMarketListings,
+  listingAccount,
+  pushAskingPrices,
+  relistMarketListings,
+  sendSaleMessage,
+  setMarketListingDefaults,
+  setSaleAuthCode,
+  writeMarketListings,
+} from '../services/markets/writes';
+import type {
+  MarketListing,
+  MarketListingChange,
+  MarketSale,
+  MarketWriteResult,
+} from '../../shared/markets';
 import {
   marketAccountStats,
   marketListings,
@@ -390,6 +405,289 @@ export function registerMarketTools(server: McpServer): void {
         );
       }
       return json(await adapter.getListingDefaults());
+    },
+  );
+
+  registerMarketWriteTools(server);
+}
+
+// ── Writes ───────────────────────────────────────────────────────────────────
+
+const money = z
+  .union([z.string().regex(/^\d+(\.\d+)?$/), z.number().min(0)])
+  .transform((v) => String(v));
+
+const changeShape = {
+  price: money
+    .nullable()
+    .optional()
+    .describe(
+      'The listed price (BIN on Afternic); null clears it, leaving offers only.',
+    ),
+  minOffer: money
+    .optional()
+    .describe('Lowest offer that starts a negotiation.'),
+  floor: money
+    .nullable()
+    .optional()
+    .describe('Lowest price the market may accept for you; null clears it.'),
+  currency: z.string().length(3).optional().describe('Default USD.'),
+  forSale: z
+    .boolean()
+    .optional()
+    .describe('false hides the listing from buyers.'),
+  leaseToOwn: z
+    .object({
+      enabled: z.boolean(),
+      maxPayments: z.number().int().min(2).max(60).optional(),
+    })
+    .optional()
+    .describe(
+      'Afternic caps payments by price without saying so; results report it.',
+    ),
+  afternic: z
+    .object({
+      landingPage: z.enum(['PARKING_TYPE', 'SALES_TYPE']).optional(),
+      intakeStyle: z.enum(['BUYNOW', 'PRICE_FORM', 'CUSTOM_LANDER']).optional(),
+      showLanderBuynowOption: z.boolean().optional(),
+      showLanderMakeOfferOption: z.boolean().optional(),
+      showLanderLeaseToOwnOption: z.boolean().optional(),
+      featured: z.boolean().optional(),
+    })
+    .optional()
+    .describe('Afternic’s own listing settings: what the name’s page shows.'),
+};
+
+type ChangeArgs = {
+  price?: string | number | null;
+  minOffer?: string | number;
+  floor?: string | number | null;
+  currency?: string;
+  forSale?: boolean;
+  leaseToOwn?: { enabled: boolean; maxPayments?: number };
+  afternic?: Omit<NonNullable<MarketListingChange['extra']>, 'market'>;
+};
+
+/** An amount as a decimal string, whether it came as a number or not. */
+const amount = <T extends string | number | null | undefined>(v: T) =>
+  (typeof v === 'number' ? String(v) : v) as Exclude<T, number> | string;
+
+function toChange(name: string, c: ChangeArgs): MarketListingChange {
+  return {
+    name,
+    ...(c.price !== undefined ? { price: amount(c.price) } : {}),
+    ...(c.minOffer !== undefined ? { minOffer: amount(c.minOffer) } : {}),
+    ...(c.floor !== undefined ? { floor: amount(c.floor) } : {}),
+    ...(c.currency !== undefined
+      ? {
+          currency: c.currency.toUpperCase() as MarketListingChange['currency'],
+        }
+      : {}),
+    ...(c.forSale !== undefined ? { forSale: c.forSale } : {}),
+    ...(c.leaseToOwn ? { leaseToOwn: c.leaseToOwn } : {}),
+    ...(c.afternic ? { extra: { market: 'afternic', ...c.afternic } } : {}),
+  };
+}
+
+/** Counts plus every result, so a caller sees what failed and why. */
+function summary(results: MarketWriteResult[]) {
+  return {
+    ok: results.filter((r) => r.ok).length,
+    failed: results.filter((r) => !r.ok).length,
+    adjusted: results.filter((r) => r.adjusted.length).length,
+    results,
+  };
+}
+
+const names = z
+  .array(z.string().min(1).max(253))
+  .min(1)
+  .max(20000)
+  .describe('Domain names.');
+const requiredAccount = z.string().max(64).describe('From market_list.');
+
+export function registerMarketWriteTools(server: McpServer): void {
+  server.registerTool(
+    'domain_listing_set',
+    {
+      title: 'List or update a domain on a market',
+      description:
+        'List one domain on a market account, or change its listing. Only the fields given change; a name that isn’t listed yet is listed. `accountId` can be left out when the name is listed in one account, or there is only one market account. With `fromAskingPrice: true`, the price, minimum offer and floor come from the asking price set in DomBot (domain_asking_price_set) instead. Returns the result with the listing as saved, and `adjusted`: fields the market saved differently from what was asked (Afternic silently caps lease-to-own payments by price). A new Afternic listing stays pending until Afternic can verify ownership (Afternic nameservers).',
+      inputSchema: {
+        domain: z.string().min(1).max(253),
+        accountId,
+        fromAskingPrice: z.boolean().optional(),
+        ...changeShape,
+      },
+    },
+    async ({ domain, accountId: id, fromAskingPrice, ...change }) => {
+      const account = listingAccount(domain, id);
+      const [result] = fromAskingPrice
+        ? await pushAskingPrices(account, [domain])
+        : await writeMarketListings(account, [
+            toChange(toAscii(domain), change as ChangeArgs),
+          ]);
+      if (!result.ok) throw new Error(result.error?.message ?? 'Failed.');
+      return json({ accountId: account, ...result });
+    },
+  );
+
+  server.registerTool(
+    'domain_listing_delete',
+    {
+      title: 'Delist a domain from a market',
+      description:
+        'Take one domain’s listing down from a market account. The name stays in your registrar account. A name that wasn’t listed counts as delisted.',
+      inputSchema: { domain: z.string().min(1).max(253), accountId },
+      annotations: { destructiveHint: true, idempotentHint: true },
+    },
+    async ({ domain, accountId: id }) => {
+      const account = listingAccount(domain, id);
+      const [result] = await deleteMarketListings(account, [toAscii(domain)]);
+      if (!result.ok) throw new Error(result.error?.message ?? 'Failed.');
+      return json({ accountId: account, ...result });
+    },
+  );
+
+  server.registerTool(
+    'market_listings_set',
+    {
+      title: 'List or update many domains',
+      description:
+        'List or update any number of names on one market account, in the market’s batch size (500 a call on Afternic). Either pass `changes` (each a `name` plus the fields to set, as domain_listing_set), or `domains` with `fromAskingPrice: true` to make the market match the asking prices set in DomBot: names without one, or priced in a currency the market doesn’t take, fail without being sent. Returns { ok, failed, adjusted, results } with one result per name.',
+      inputSchema: {
+        accountId: requiredAccount,
+        changes: z
+          .array(z.object({ name: z.string().min(1).max(253), ...changeShape }))
+          .max(20000)
+          .optional(),
+        domains: names.optional(),
+        fromAskingPrice: z.boolean().optional(),
+      },
+    },
+    async ({ accountId: id, changes, domains, fromAskingPrice }) => {
+      if (fromAskingPrice) {
+        if (!domains?.length)
+          throw new Error('Pass `domains` with fromAskingPrice.');
+        return json(summary(await pushAskingPrices(id, domains)));
+      }
+      if (!changes?.length) {
+        throw new Error(
+          'Pass `changes`, or `domains` with fromAskingPrice: true.',
+        );
+      }
+      return json(
+        summary(
+          await writeMarketListings(
+            id,
+            changes.map(({ name, ...c }) =>
+              toChange(toAscii(name), c as ChangeArgs),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  server.registerTool(
+    'market_listings_delete',
+    {
+      title: 'Delist many domains',
+      description:
+        'Take any number of names’ listings down from one market account. The names stay in your registrar accounts. Returns { ok, failed, results }.',
+      inputSchema: { accountId: requiredAccount, domains: names },
+      annotations: { destructiveHint: true, idempotentHint: true },
+    },
+    async ({ accountId: id, domains }) =>
+      json(summary(await deleteMarketListings(id, domains.map(toAscii)))),
+  );
+
+  server.registerTool(
+    'market_listings_relist',
+    {
+      title: 'Relist domains',
+      description:
+        'Ask the market to run its listing checks again for listings that are inactive, rejected or stuck pending. `mode`: RESYNC re-checks a listing; REACTIVATE brings back an inactive one. Returns { ok, failed, results }; statuses are read back afterwards.',
+      inputSchema: {
+        accountId: requiredAccount,
+        domains: names,
+        mode: z.enum(['RESYNC', 'REACTIVATE']).optional(),
+      },
+      annotations: { idempotentHint: true },
+    },
+    async ({ accountId: id, domains, mode }) =>
+      json(summary(await relistMarketListings(id, domains.map(toAscii), mode))),
+  );
+
+  server.registerTool(
+    'market_sale_auth_code_set',
+    {
+      title: 'Send a sale its auth code',
+      description:
+        'Give a market sale the transfer auth code it is waiting for (market_sales rows with `action: "auth_code"`), or correct one sent before. Leave `authCode` out and DomBot gets it from the registrar account that holds the name, as domain_auth_code_get, and sends that. The code is never returned or stored.',
+      inputSchema: {
+        accountId: requiredAccount,
+        saleId: z
+          .string()
+          .min(1)
+          .max(100)
+          .describe('The sale’s `id` from market_sales.'),
+        authCode: z.string().max(200).optional(),
+      },
+      annotations: { idempotentHint: true },
+    },
+    async ({ accountId: id, saleId, authCode }) => {
+      const result = await setSaleAuthCode(id, saleId, authCode);
+      return json({
+        saleId,
+        domain: result.name,
+        sent: true,
+        fetchedFromRegistrar: result.fetched,
+      });
+    },
+  );
+
+  server.registerTool(
+    'market_sale_message_send',
+    {
+      title: 'Message about a sale',
+      description:
+        'Send a message to the people handling a sale at the market (Afternic’s transaction assurance agents), up to 1,000 characters. It reaches a person: send it only when the user has asked for it, with the words they approved.',
+      inputSchema: {
+        accountId: requiredAccount,
+        saleId: z.string().min(1).max(100),
+        message: z.string().min(1).max(1000),
+      },
+    },
+    async ({ accountId: id, saleId, message }) => {
+      await sendSaleMessage(id, saleId, message);
+      return json({ saleId, sent: true });
+    },
+  );
+
+  server.registerTool(
+    'market_settings_set',
+    {
+      title: 'Set listing defaults',
+      description:
+        'Change a market account’s defaults for listings created from now on (Afternic: lander type and style, which lander options show, lease-to-own and its maximum payments). Only the fields given change; existing listings keep theirs.',
+      inputSchema: {
+        accountId: requiredAccount,
+        landingPage: z.enum(['PARKING_TYPE', 'SALES_TYPE']).optional(),
+        intakeStyle: z
+          .enum(['BUYNOW', 'PRICE_FORM', 'CUSTOM_LANDER'])
+          .optional(),
+        leasingEnabled: z.boolean().optional(),
+        maxLeasePeriod: z.number().int().min(2).max(60).optional(),
+        showLanderBuynowOption: z.boolean().optional(),
+        showLanderMakeOfferOption: z.boolean().optional(),
+        showLanderLeaseToOwnOption: z.boolean().optional(),
+      },
+      annotations: { idempotentHint: true },
+    },
+    async ({ accountId: id, ...settings }) => {
+      await setMarketListingDefaults(id, settings);
+      return json({ accountId: id, saved: settings });
     },
   );
 }

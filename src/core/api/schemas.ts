@@ -249,3 +249,52 @@ export const marketCredentials = z.record(
 );
 export const marketAccountId = z.string().min(1).max(64);
 export const marketLabel = z.string().max(100);
+const amount = z
+  .string()
+  .regex(/^\d+(\.\d+)?$/)
+  .max(20);
+export const marketListingChange = z.object({
+  name: domainName,
+  displayName: z.string().max(253).optional(),
+  price: amount.nullable().optional(),
+  buyNow: z.boolean().optional(),
+  minOffer: amount.nullable().optional(),
+  floor: amount.nullable().optional(),
+  currency: z.string().length(3).optional(),
+  forSale: z.boolean().optional(),
+  leaseToOwn: z
+    .object({
+      enabled: z.boolean(),
+      maxPayments: z.number().int().min(2).max(60).optional(),
+    })
+    .optional(),
+  extra: z
+    .object({
+      market: z.literal('afternic'),
+      landingPage: z.enum(['PARKING_TYPE', 'SALES_TYPE']).optional(),
+      intakeStyle: z.enum(['BUYNOW', 'PRICE_FORM', 'CUSTOM_LANDER']).optional(),
+      showLanderBuynowOption: z.boolean().optional(),
+      showLanderMakeOfferOption: z.boolean().optional(),
+      showLanderLeaseToOwnOption: z.boolean().optional(),
+      featured: z.boolean().optional(),
+    })
+    .optional(),
+});
+export const marketListingChanges = z
+  .array(marketListingChange)
+  .min(1)
+  .max(20000);
+export const marketNames = z.array(domainName).min(1).max(20000);
+export const relistMode = z.enum(['RESYNC', 'REACTIVATE']);
+export const marketListingDefaults = z
+  .object({
+    landingPage: z.enum(['PARKING_TYPE', 'SALES_TYPE']).optional(),
+    intakeStyle: z.enum(['BUYNOW', 'PRICE_FORM', 'CUSTOM_LANDER']).optional(),
+    leasingEnabled: z.boolean().optional(),
+    maxLeasePeriod: z.number().int().min(2).max(60).optional(),
+    showLanderBuynowOption: z.boolean().optional(),
+    showLanderMakeOfferOption: z.boolean().optional(),
+    showLanderLeaseToOwnOption: z.boolean().optional(),
+    selfBrokerEnabled: z.boolean().optional(),
+  })
+  .strict();

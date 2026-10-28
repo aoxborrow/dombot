@@ -35,6 +35,7 @@ import type {
   MarketAccountView,
   MarketInfo,
   MarketListing,
+  MarketSale,
 } from '../../shared/markets';
 
 /** Listings grouped by name: one name can be listed on several markets. */
@@ -237,6 +238,8 @@ interface AppState {
   marketListings: Record<string, MarketListing[]>;
   /** The markets DomBot supports. */
   marketCatalog: MarketInfo[];
+  /** Recorded market sales, newest first. */
+  marketSales: MarketSale[];
   loadMarkets: () => Promise<void>;
   /** Swap in the accounts a market API call returned, and reload listings. */
   setMarketAccounts: (accounts: MarketAccountView[]) => Promise<void>;
@@ -803,23 +806,30 @@ export const useAppStore = create<AppState>((set, get) => ({
   marketAccounts: null,
   marketListings: {},
   marketCatalog: [],
+  marketSales: [],
   loadMarkets: async () => {
-    const [accounts, listings, catalog] = await Promise.all([
+    const [accounts, listings, catalog, sales] = await Promise.all([
       window.api.listMarketAccounts(),
       window.api.getMarketListings(),
       get().marketCatalog.length
         ? Promise.resolve(get().marketCatalog)
         : window.api.getMarketCatalog(),
+      window.api.getMarketSales(),
     ]);
     set({
       marketAccounts: accounts,
       marketListings: byDomain(listings),
       marketCatalog: catalog,
+      marketSales: sales,
     });
   },
   setMarketAccounts: async (accounts) => {
     set({ marketAccounts: accounts });
-    set({ marketListings: byDomain(await window.api.getMarketListings()) });
+    const [listings, sales] = await Promise.all([
+      window.api.getMarketListings(),
+      window.api.getMarketSales(),
+    ]);
+    set({ marketListings: byDomain(listings), marketSales: sales });
   },
   listPrices: {},
   loadListPrices: async () => {

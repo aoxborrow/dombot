@@ -13,6 +13,7 @@ import {
   Receipt,
   PencilLine,
   RefreshCw,
+  Store,
   Trash2,
   Undo2,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { StickyNoteIcon } from '../icons/StickyNoteIcon';
 import { CashIcon } from '../icons/CashIcon';
+import type { MarketAction } from './MarketActionDialog';
 
 /**
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell):
@@ -69,6 +71,8 @@ export function RowActionsMenu({
   onMarkArchived,
   onRestoreOwned,
   onDelete,
+  onMarket,
+  marketLabel = 'markets',
 }: {
   domain: Domain;
   folders: Folder[];
@@ -92,6 +96,9 @@ export function RowActionsMenu({
   onMarkArchived: () => void;
   onRestoreOwned: () => void;
   onDelete: () => void;
+  /** List, relist or delist on a market; absent with no market account. */
+  onMarket?: (action: MarketAction) => void;
+  marketLabel?: string;
 }) {
   // A name you labeled that an account still holds can go back to Owned. One
   // gone from every account stays Sold, Dropped, or Archived.
@@ -233,6 +240,29 @@ export function RowActionsMenu({
             <CashIcon className="text-muted-foreground" />
             Pricing<span className="-ml-[6px] opacity-50">…</span>
           </DropdownMenuItem>
+        )}
+        {archive === null && onMarket && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Store className="text-muted-foreground" />
+              {marketLabel}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem onSelect={() => onMarket('list')}>
+                List at your price
+                <span className="-ml-[6px] opacity-50">…</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onMarket('relist')}>
+                Relist<span className="-ml-[6px] opacity-50">…</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => onMarket('delist')}
+              >
+                Delist<span className="-ml-[6px] opacity-50">…</span>
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem

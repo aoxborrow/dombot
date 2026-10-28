@@ -20,7 +20,9 @@ import type {
   MarketId,
   MarketInfo,
   MarketListing,
+  MarketListingChange,
   MarketSale,
+  MarketWriteResult,
 } from './markets';
 
 export type { DomainEvent, DomainNote } from './domain-events';
@@ -204,6 +206,14 @@ export const IpcChannels = {
   syncMarketAccount: 'markets:syncAccount',
   getMarketListings: 'markets:listings',
   getMarketSales: 'markets:sales',
+  writeMarketListings: 'markets:writeListings',
+  pushMarketPrices: 'markets:pushPrices',
+  deleteMarketListings: 'markets:deleteListings',
+  relistMarketListings: 'markets:relist',
+  setMarketSaleAuthCode: 'markets:saleAuthCode',
+  sendMarketSaleMessage: 'markets:saleMessage',
+  getMarketListingDefaults: 'markets:getDefaults',
+  setMarketListingDefaults: 'markets:setDefaults',
   getDomainEvents: 'domainEvents:list',
   setDispositions: 'domainEvents:setDispositions',
   markSold: 'domainEvents:markSold',
@@ -1190,6 +1200,43 @@ export interface DombotApi {
   getMarketListings: () => Promise<MarketListing[]>;
   /** Every recorded market sale, newest first. */
   getMarketSales: () => Promise<MarketSale[]>;
+  /** List or update names on a market account; only the fields given change. */
+  writeMarketListings: (
+    accountId: string,
+    changes: MarketListingChange[],
+  ) => Promise<MarketWriteResult[]>;
+  /** Make the market's prices match DomBot's asking prices for these names. */
+  pushMarketPrices: (
+    accountId: string,
+    names: string[],
+  ) => Promise<MarketWriteResult[]>;
+  deleteMarketListings: (
+    accountId: string,
+    names: string[],
+  ) => Promise<MarketWriteResult[]>;
+  relistMarketListings: (
+    accountId: string,
+    names: string[],
+    mode?: 'RESYNC' | 'REACTIVATE',
+  ) => Promise<MarketWriteResult[]>;
+  /** Send a sale its auth code; without one, DomBot gets it from the registrar. */
+  setMarketSaleAuthCode: (
+    accountId: string,
+    saleId: string,
+    authCode?: string,
+  ) => Promise<{ name: string; fetched: boolean }>;
+  sendMarketSaleMessage: (
+    accountId: string,
+    saleId: string,
+    message: string,
+  ) => Promise<void>;
+  getMarketListingDefaults: (
+    accountId: string,
+  ) => Promise<Record<string, unknown>>;
+  setMarketListingDefaults: (
+    accountId: string,
+    settings: Record<string, unknown>,
+  ) => Promise<void>;
 
   // Domain history (docs/storage-model.md). Each change returns the whole log.
   /** Every domain event, oldest first. */

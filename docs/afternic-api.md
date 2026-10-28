@@ -412,9 +412,10 @@ job.
    Settings → Markets with Afternic accounts; sync
    listings and sales, listing columns/filters (including searches and
    offers), sales as `sold` events; the read-only MCP tools. Done.
-5. **DomBot, writes:** list/delist/reprice/relist from the table through
-   DomBot's bulk runner (Afternic jobs for large pushes), auth-code
-   automation; the MCP write tools.
+5. **DomBot, writes:** list at your DomBot prices, relist and delist from
+   the table, auth-code automation from the bell, the MCP write tools.
+   Done; Afternic writes run directly in 500-name batches (see
+   [markets.md](markets.md#bulk-writes)).
 6. **DomBot, reporting:** views/leads with incremental per-domain stats,
    search demand, sales dashboards.
 

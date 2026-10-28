@@ -302,21 +302,23 @@ Following docs/storage-model.md:
 
 ## Bulk writes
 
-One path for every market: **DomBot's bulk runner**
-(`src/core/services/bulk-jobs.ts`), already persisted, resumable after a
-restart, and reporting progress per name. It gains market accounts as lanes
-next to registrars:
+`src/core/services/markets/writes.ts` runs every market write in the
+market's batch size (`capabilities.writeBatch`) and stores what the market
+saved, so the Domains table shows it before the next sync.
 
-- The runner hands an adapter slices of `capabilities.writeBatch` changes
-  (500 Afternic, 50 Sedo, 1 Atom) at the market's rate limit.
-- Afternic's adapter may run a large push as one Afternic CSV job instead of
-  slices; to the runner that's one long step.
+- **Afternic, built:** 500 names a call, so a 10,000-name push is 20 calls.
+  That runs directly in the request (the desktop app, or the Worker, where
+  waiting on the network doesn't count against its CPU time), and returns
+  one result per name.
+- **Atom, later:** one name a call, so a large push takes hours. That's when
+  market accounts join DomBot's bulk runner
+  (`src/core/services/bulk-jobs.ts`) as lanes next to registrars: persisted,
+  resumable after a restart, progress per name. `market_listings_set` then
+  returns a bulk job for markets with a small `writeBatch`, and a
+  `market_job_get` tool reads it.
+- Afternic's CSV jobs (`runJob`) stay available for pushes past what the
+  `$each` calls handle comfortably; nothing uses them yet.
 - Writes that cost money (`capabilities.spends`) need a confirmed total first.
-- No-op changes (already matching the last synced listing) are skipped before
-  they're queued.
-
-So `market_listings_set` and the table's bulk actions always return a DomBot
-bulk job, whichever market it is.
 
 ## Settings → Markets
 
@@ -339,8 +341,9 @@ Listings:
 - `market_listings`: query synced listings across accounts (status, forSale,
   price ranges, tier, discount, offers, searches, …).
 - `domain_listing_get`, `domain_listing_set`, `domain_listing_delete`.
-- `market_listings_set`, `market_listings_delete`: any number of names;
-  returns a DomBot bulk job. `market_job_get` reads it.
+- `market_listings_set` (explicit changes, or `fromAskingPrice` to push
+  DomBot's prices), `market_listings_delete`: any number of names, one
+  result per name.
 - `portfolio_query` gains `listedOn` / `notListedOn`.
 
 Sales and stats: `market_sales`, `market_sale_get`, `market_stats_get`,

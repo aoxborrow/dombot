@@ -60,6 +60,32 @@ export function marketListings(): MarketListing[] {
   return Object.values(listings.all()).filter((l) => ids.has(l.accountId));
 }
 
+/** Store listings a write returned, so the table shows them before a sync. */
+export function putMarketListings(
+  accountId: string,
+  saved: readonly MarketListing[],
+): void {
+  if (saved.length) {
+    void listings.setMany(saved.map((l) => [`${accountId}:${l.name}`, l]));
+  }
+}
+
+/** Drop listings a market confirmed it delisted. */
+export function dropMarketListings(
+  accountId: string,
+  names: readonly string[],
+): void {
+  for (const name of names) void listings.delete(`${accountId}:${name}`);
+}
+
+/** One stored sale by account and id. */
+export function marketSale(
+  accountId: string,
+  saleId: string,
+): MarketSale | undefined {
+  return sales.get(`${accountId}:${saleId}`);
+}
+
 /** Every recorded sale, newest first, whichever account sold it. */
 export function marketSales(): MarketSale[] {
   return Object.values(sales.all()).sort((a, b) =>

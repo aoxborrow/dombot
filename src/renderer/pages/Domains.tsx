@@ -79,6 +79,10 @@ import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { purchaseColumns } from '../components/domains/purchase-columns';
 import {
+  MarketActionDialog,
+  type MarketAction,
+} from '../components/domains/MarketActionDialog';
+import {
   MARKET_COLUMN_KEYS,
   listingFilterOptions,
   listingKeys,
@@ -834,6 +838,17 @@ export default function Domains() {
   // Market columns and the Listing filter only appear once a market account
   // is connected.
   const marketsOn = (marketAccounts?.length ?? 0) > 0;
+  // The row and bulk menus name the market when there's only one kind.
+  const marketLabel = useMemo(() => {
+    const ids = [...new Set((marketAccounts ?? []).map((a) => a.market))];
+    return ids.length === 1
+      ? (marketCatalog.find((m) => m.id === ids[0])?.name ?? 'Markets')
+      : 'Markets';
+  }, [marketAccounts, marketCatalog]);
+  const [marketAction, setMarketAction] = useState<{
+    action: MarketAction;
+    domains: Domain[];
+  } | null>(null);
 
   // Ownership per name, and each name's open "removed from registrar" alert (a
   // label chosen from the row closes it).
@@ -1888,6 +1903,12 @@ export default function Domains() {
               onMarkArchived={() => openOwnership('archived', [d])}
               onRestoreOwned={() => moveBackToOwned(d)}
               onDelete={() => openOwnership('delete', [d])}
+              onMarket={
+                marketsOn
+                  ? (action) => setMarketAction({ action, domains: [d] })
+                  : undefined
+              }
+              marketLabel={marketLabel}
             />
           </div>
         </div>
@@ -2111,6 +2132,13 @@ export default function Domains() {
           archiveView={archiveView}
           onOwnership={(action) => openOwnership(action, selectedDomains)}
           onListPrice={() => setListPriceFor(selectedDomains)}
+          onMarket={
+            marketsOn
+              ? (action) =>
+                  setMarketAction({ action, domains: selectedDomains })
+              : undefined
+          }
+          marketLabel={marketLabel}
         />
       </div>
 
@@ -2207,6 +2235,13 @@ export default function Domains() {
         <ListPriceDialog
           domains={listPriceFor}
           onClose={() => setListPriceFor(null)}
+        />
+      )}
+      {marketAction && (
+        <MarketActionDialog
+          action={marketAction.action}
+          domains={marketAction.domains}
+          onClose={() => setMarketAction(null)}
         />
       )}
       {bulkNotesFor && (
