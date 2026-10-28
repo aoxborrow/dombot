@@ -359,11 +359,20 @@ What each costs:
   or email (domainio.com, for one, forwards mail through ImprovMX). Some
   features need it anyway: Afternic's lander and Fast Transfer, Atom
   Premium.
+- **Shared nameservers don't prove ownership on their own.** Anyone can
+  point a name at a market's shared pair, so for a name another account
+  already lists, only per-customer nameservers, a TXT record or a CNAME
+  settle it. Seen with domanio.com on Sedo (2026-10-28): pointing it at
+  `ns1/ns2.sedoparking.com` left it in the other account, and DomBot moved
+  it back to 101domain's nameservers to add Sedo's TXT ID instead.
 - **TXT and CNAME** leave DNS where it is and add one record. They need the
   name's DNS hosted at a registrar account DomBot is connected to, and every
   existing record kept: registrar DNS APIs mostly replace the whole record
   set, so DomBot reads, adds and writes back (done by hand on domainio.com,
-  2026-10-28: Sedo's TXT ID added beside its A, MX and SPF records).
+  2026-10-28: Sedo's TXT ID added beside its A, MX and SPF records). Some
+  registrars only manage records while the name uses their own
+  nameservers: 101domain refuses with `NAMESERVERS_NOT_LOCAL` otherwise, so
+  the nameservers move back first.
 
 ### What DomBot will need
 
