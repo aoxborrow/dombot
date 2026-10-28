@@ -151,6 +151,24 @@ describe('failureOf', () => {
     expect(
       failureOf({ message: 'Price is outside the range for your tier' })?.code,
     ).toBe('REJECTED');
+    // Refusals seen live.
+    for (const message of [
+      'Discount Price should not be empty',
+      'Discount price should not be greater than $195',
+      'Domain description is empty',
+      'Wrong category name in the request',
+    ]) {
+      expect(failureOf({ message })?.code).toBe('REJECTED');
+    }
+    // Successes seen live.
+    for (const message of [
+      'Successfully uploaded as Plus',
+      'Successfully removed the domain',
+      'Successfully updated Discount price',
+      'Assigned primary category',
+    ]) {
+      expect(failureOf({ message })).toBeNull();
+    }
     // A record with a status field is data, not a failure.
     expect(
       failureOf(fx.listingRecord('a.com', { status: 'Pending' })),
@@ -202,6 +220,13 @@ describe('listings', () => {
     expect(items).toEqual(['quillnest.io']);
     const { atom: details } = client(() => ({ body: fx.syndicated }));
     expect((await details.getListing('quillnest.io'))?.price).toBe(4200);
+  });
+
+  it('reads a delisted name’s details as not listed', async () => {
+    const { atom } = client(() => ({
+      body: fx.listingRecord('BrightLoom.com', { status: 'Delisted' }),
+    }));
+    expect(await atom.getListing('brightloom.com')).toBeNull();
   });
 
   it('reads Atom’s "Wrong Domain name" as not listed', async () => {
@@ -295,6 +320,14 @@ describe('writes', () => {
       ['GET', '/verify-dns', { domain_name: 'brightloom.com' }],
       ['GET', '/remove-domain', { domain_name: 'brightloom.com' }],
     ]);
+  });
+
+  it('refuses a 0 discount, which Atom refuses too', async () => {
+    const { atom, calls } = client(() => ({ body: fx.ok }));
+    await expect(atom.setDiscount('brightloom.com', 0)).rejects.toThrow(
+      /set the price again/,
+    );
+    expect(calls).toHaveLength(0);
   });
 
   it('refuses Premium listings and non-whole prices before sending', async () => {

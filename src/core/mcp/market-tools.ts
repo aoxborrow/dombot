@@ -662,7 +662,7 @@ const changeShape = {
     })
     .optional()
     .describe(
-      'Atom’s own listing fields. Atom has one price per name (no minimum offer or floor), at least $100, in whole dollars.',
+      'Atom’s own listing fields. Atom has one price per name (no minimum offer or floor), at least $100, in whole dollars; `price: null` is Make an Offer. Category names containing “&” can only be set on atom.com.',
     ),
 };
 
@@ -916,7 +916,7 @@ export function registerMarketWriteTools(server: McpServer): void {
     {
       title: 'Discount a listing',
       description:
-        'Put a temporary discount on one listing, in whole dollars off its price (Atom: it lasts until Atom resets discounts on Monday, and Atom emails buyers tracking the price). `amount` null or 0 clears it. Returns the listing as saved. Markets without discounts say so.',
+        'Put a temporary discount on one listing, in whole dollars off its price (Atom: at most 30% of the price, lasting until Atom resets discounts on Monday; Atom emails buyers tracking the price). `amount` null or 0 clears it. Returns the listing as saved. Markets without discounts say so.',
       inputSchema: {
         domain: z.string().min(1).max(253),
         accountId,

@@ -8,8 +8,7 @@ bulk writes, MCP). Each market's own API, quirks and client are in its plan:
   (`src/core/markets/afternic/`), verified live.
 - [atom-api.md](atom-api.md): client and adapter
   (`src/core/markets/atom/`, `src/core/services/markets/atom.ts`); reads
-  verified live, some writes (Atom's price update can answer success and
-  change nothing).
+  and writes verified live.
 - [sedo-api.md](sedo-api.md): client and adapter built
   (`src/core/markets/sedo/`, `src/core/services/markets/sedo.ts`), verified
   live (reads and writes).

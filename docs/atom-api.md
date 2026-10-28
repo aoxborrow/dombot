@@ -22,9 +22,9 @@ metadata, dates, or errors. The help center fills some gaps
 and the listing-type and commission articles. Much of the client's wire shape
 will have to come from live responses.
 
-Every seller read has been checked live against the account in `.env`
-(2026-10-28; "Observed" below), and the price, category and DNS-verify
-writes on one Make an Offer listing. Access is a limited beta: sellers apply from the
+Every seller read and every write DomBot makes has been checked live
+against the account in `.env` (2026-10-28; "Observed" below), the writes on
+one test listing. Access is a limited beta: sellers apply from the
 dashboard and need at least 500 listings to be considered (100 names at
 AtomRegistrar for the registrar API).
 
@@ -49,8 +49,8 @@ the shared model in [markets.md](markets.md):
 - **Not built, on purpose:** boost and Premium listings (both spend Atom
   credits), and changing a listing's tier (no API for it).
 - **Live tests:** `npm run test:live` runs the reads (`ATOM_API_TOKEN` and
-  `ATOM_USER_ID`; they pass against the account). The write test passes on
-  a Make an Offer listing; writes also need
+  `ATOM_USER_ID`; they pass against the account). The write round trip
+  passes too; writes also need
   `ATOM_LIVE_WRITES=1` and `ATOM_TEST_DOMAIN`, a Standard listing kept for
   it, which the tests reprice, discount, recategorize, describe, verify,
   delist and relist, then put back. They refuse to run on anything but a
@@ -58,22 +58,16 @@ the shared model in [markets.md](markets.md):
 
 ### Unverified: what to check first
 
-Every read is checked, and some writes ("Observed"). Still open:
+Every read and every write DomBot makes is checked ("Observed"). Still open,
+for want of the data on this account:
 
-1. **Repricing a priced listing:** on a Make an Offer listing Atom answers
-   success and changes nothing. A priced Standard listing would show whether
-   repricing works at all through the API (`ATOM_TEST_DOMAIN` set to one).
-2. **Discounts:** need a priced listing. Whether `discount` is dollars or a
-   percent, whether `selling_price` drops by it, and whether `0` clears it
-   (`ATOM_TEST_DISCOUNT=1`).
-3. **Add, remove, description:** not run. Delisting and re-adding is behind
-   `ATOM_LIVE_RELIST=1`, since Atom may want the name verified again; a
-   description the test name doesn't have can't be cleared again.
-4. **Plus and Geo listings:** their `listing_type` and status words.
-5. **Payment-plan sales:** how `sale_terms` and installments look.
-6. **Grading rows:** the account has none; their shape is from the spec.
-7. **Page size:** Atom's cap on `limit` (the client asks for 100).
-8. **Sale dates' time zone:** read as UTC.
+1. **Premium writes:** repricing a Premium listing (Atom limits it to the
+   membership tier's range). DomBot never adds or delists Premium.
+2. **Geo listings:** their `listing_type` and status words.
+3. **Payment-plan sales:** how `sale_terms` and installments look.
+4. **Grading rows:** the account has none; their shape is from the spec.
+5. **Page size:** Atom's cap on `limit` (the client asks for 100).
+6. **Sale dates' time zone:** read as UTC.
 
 ## The API at a glance
 
@@ -179,25 +173,35 @@ page-size limits couldn't be. Examples below are made up.
 | Boost payment        | `source_of_deduction`: `points`, `coins`, `loyalty_benefit`                                   | Points can't be earned or bought since 2026-07-07, and coins are now AI credits.                                                                                                                                                                                                                                                  |
 | Category values      | `category_name` enum `["categories"]`                                                         | A placeholder; real values come from `/primary-categories`.                                                                                                                                                                                                                                                                       |
 
-Writes, checked on one Standard listing at Make an Offer (2026-10-28), each
-put back afterwards:
+Writes, checked on one test listing (2026-10-28), through the client and
+again through the adapter. Atom's success answers are a lone `message`; its
+refusals are a lone `message` too, so the wording decides which is which.
 
-| Write                     | Answer                                                                                       | What happened                                                                                                                                                                                                                                                                            |
-| ------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `update-selling-price`    | `{"message":"Successfully updated selling price"}`                                           | **Nothing**: the listing stayed at 0 (Make an Offer) in the details and the list for over three minutes. Atom's success answer isn't proof; the adapter reads the listing back and fails a price that didn't change (`NOT_APPLIED`). Whether priced listings reprice is still unchecked. |
-| `assign-primary-category` | (same category as before)                                                                    | Accepted; the category read back unchanged.                                                                                                                                                                                                                                              |
-| `verify-dns`              | `{"success":true,"message":"DNS check request accepted"}`                                    | Status unchanged right after.                                                                                                                                                                                                                                                            |
-| `verify-dns`, again       | `{"success":false,"message":"DNS check Request in progress, please try again after 12 hrs"}` | For a different name too: **one DNS check per account per 12 hours**. The client calls it `TRY_LATER`, which bulk jobs don't retry.                                                                                                                                                      |
+| Write                     | Answer                                                      | What it does                                                                                                                                                                                                                                             |
+| ------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `add-domain`              | "Successfully uploaded", or "Successfully uploaded as Plus" | Lists the name at once (Seller Approved). **On a name already listed or delisted it updates in place**: the price changes, the tier doesn't (a delisted Plus name added back as Standard stays Plus). Price 0 is Make an Offer.                          |
+| `update-selling-price`    | "Successfully updated selling price"                        | Reprices a priced listing; 0 turns it into Make an Offer; **clears any discount**, even at the same price. **On a Make an Offer listing it changes nothing** despite the answer: price those with `add-domain`.                                          |
+| `add-discount`            | "Successfully updated Discount price"                       | Dollars off: `discount` is the amount, `selling_price` drops by it. Refuses 0 or empty ("Discount Price should not be empty"), negatives ("…should not be less than or 0"), and more than 30% of the price ("…should not be greater than $195" on $650). |
+| `assign-primary-category` | "Assigned primary category"                                 | Takes a name from `/primary-categories`. "Wrong category name in the request" for anything else, **and for every name containing "&"** (`Fitness & Gym`, `Music & Audio`), however it's encoded: those can only be set on atom.com.                      |
+| `update-description`      | "Successfully updated Domain description"                   | Refuses an empty one ("Domain description is empty"), so a description can't be cleared.                                                                                                                                                                 |
+| `remove-domain`           | "Successfully removed the domain"                           | Off the list at once; the details still answer, with status **"Delisted"**. Removing again answers the same.                                                                                                                                             |
+| `verify-dns`              | `{"success":true,"message":"DNS check request accepted"}`   | One check per account every 12 hours: the next, for any name, is `{"success":false,"message":"DNS check Request in progress, please try again after 12 hrs"}`.                                                                                           |
 
-Atom also set a primary category on that listing by itself between two reads
-an hour apart (its auto-categorization), so a synced category can change
-without a write.
+Also: the `standard` type filter includes Plus listings; and Atom set a
+primary category on a listing by itself between two reads an hour apart
+(auto-categorization), so a synced category can change without a write.
 
 What this changed in the client: one walk of `/domains` (records carry their
 tier), `full_price` for the price, 0 as Make an Offer, "Transfer Complete"
-as sold, "Wrong Domain name" as not listed, sales keyed by name and day with
-commission estimated from the tier and a net of 0 read as unknown, the
-observed analytics and appraisal fields, and Atom's sale dates parsed.
+as sold, "Wrong Domain name" and "Delisted" as not listed, sales keyed by
+name and day with commission estimated from the tier and a net of 0 read as
+unknown, the observed analytics and appraisal fields, and Atom's sale dates
+parsed. For writes: Make an Offer listings are priced by adding them again;
+a discount is cleared by setting the price again and capped at 30% before
+sending; "&" categories are refused before sending; refusal wordings
+("should not…", "…is empty") count as failures; a price Atom says it saved
+but didn't is a `NOT_APPLIED` failure; the 12-hour DNS check limit is
+`TRY_LATER`.
 
 ## What to implement
 

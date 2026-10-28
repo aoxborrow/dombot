@@ -279,8 +279,8 @@ decimal strings or numbers.
   (lander settings), `sedo` (`categories`, `language`), `atom` (`tier` for
   a new listing, Standard or Plus; `category`; `description`). Lists the
   name if it isn't listed. On Sedo a new listing comes back `pending` until
-  Sedo's checks pass. Atom takes one whole-dollar price of $100 or more and
-  rejects `minOffer` and `floor`. `fromAskingPrice: true` takes the prices from DomBot's
+  Sedo's checks pass. Atom takes one whole-dollar price of $100 or more
+  (or null, Make an Offer) and rejects `minOffer` and `floor`. `fromAskingPrice: true` takes the prices from DomBot's
   asking price instead. `accountId` can be left out when the name is listed
   in one account or there's only one.
 - **`domain_listing_delete`** — `domain`, `accountId?`. Delists; the name
@@ -308,8 +308,8 @@ decimal strings or numbers.
 Atom only (each fails saying so on markets without it):
 
 - **`domain_listing_discount_set`** — `domain`, `accountId?`, `amount`
-  (whole dollars off; null clears). Lasts until Atom resets discounts on
-  Monday.
+  (whole dollars off, at most 30% of the price; null clears). Lasts until
+  Atom resets discounts on Monday.
 - **`domain_listing_verify`** — `domain`, `accountId?`. Asks Atom to check
   the name's nameservers or TXT record now; once per account every 12
   hours.

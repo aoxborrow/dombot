@@ -53,7 +53,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     create: (accountId, credentials) =>
       createAfternicAdapter(accountId, credentials),
   },
-  // Reads checked live; some writes (docs/atom-api.md).
+  // Checked live, reads and writes (docs/atom-api.md).
   atom: {
     info: {
       id: 'atom',

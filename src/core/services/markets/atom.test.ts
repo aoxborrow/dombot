@@ -55,54 +55,73 @@ function fakeAtom(
     if (ignored.has(path)) {
       return reply({ message: 'Successfully updated selling price' });
     }
+    // The fake follows what Atom did live (docs/atom-api.md, "Observed").
     const l = listings.get(name);
+    const price = (v: string | null) => Number(v) || null;
     switch (path) {
       case '/domain-details':
         return reply(
           l
-            ? {
-                data: fx.listingRecord(l.displayName ?? l.name, {
-                  listing_type: l.typeRaw,
-                  status: l.status,
-                  full_price: l.price ?? 0,
-                  selling_price: l.price ?? 0,
-                  discount: l.discount ?? 0,
-                  primary_category: l.primaryCategory,
-                  description: l.description,
-                }),
-              }
-            : { message: 'Domain not found' },
+            ? fx.listingRecord(l.displayName ?? l.name, {
+                listing_type: l.typeRaw,
+                status: l.status,
+                full_price: l.price ?? 0,
+                selling_price: (l.price ?? 0) - (l.discount ?? 0),
+                discount: l.discount ?? 0,
+                primary_category: l.primaryCategory,
+                description: l.description,
+              })
+            : fx.notListed,
         );
-      case '/add-domain':
+      case '/add-domain': {
+        // Adds, or updates in place: the price changes, the tier doesn't.
+        const tier = q.get('domain_type') === 'plus' ? 'plus' : 'standard';
+        if (l) {
+          l.price = price(q.get('price'));
+          l.status = 'Seller Approved';
+          return reply({ message: 'Successfully uploaded' });
+        }
         listings.set(
           name,
           listing({
             name,
             displayName: null,
-            type: q.get('domain_type') as AtomListing['type'],
-            typeRaw: q.get('domain_type') === 'plus' ? 'Plus' : 'Standard',
+            type: tier,
+            typeRaw: tier === 'plus' ? 'Plus' : 'Standard',
             status: 'Seller Approved',
-            price: Number(q.get('price')),
+            price: price(q.get('price')),
             primaryCategory: null,
             description: null,
           }),
         );
-        return reply({ message: 'Domain added successfully' });
+        return reply({
+          message: `Successfully uploaded${tier === 'plus' ? ' as Plus' : ''}`,
+        });
+      }
       case '/update-selling-price':
-        l!.price = Number(q.get('selling_price'));
-        return reply(fx.ok);
+        // Ignored on a Make an Offer listing; clears any discount.
+        if (l!.price !== null) l!.price = price(q.get('selling_price'));
+        l!.discount = null;
+        return reply({ message: 'Successfully updated selling price' });
       case '/assign-primary-category':
         l!.primaryCategory = q.get('category_name');
-        return reply(fx.ok);
+        return reply({ message: 'Assigned primary category' });
       case '/update-description':
+        if (!q.get('domain_description')) {
+          return reply({ message: 'Domain description is empty' });
+        }
         l!.description = q.get('domain_description');
-        return reply(fx.ok);
+        return reply({ message: 'Successfully updated Domain description' });
       case '/add-discount':
-        l!.discount = Number(q.get('discount')) || null;
-        return reply(fx.ok);
+        if (!Number(q.get('discount'))) {
+          return reply({ message: 'Discount Price should not be empty' });
+        }
+        l!.discount = Number(q.get('discount'));
+        return reply({ message: 'Successfully updated Discount price' });
       case '/remove-domain':
-        listings.delete(name);
-        return reply({ message: 'Domain removed successfully' });
+        // Still has details afterwards, as "Delisted".
+        if (l) l.status = 'Delisted';
+        return reply({ message: 'Successfully removed the domain' });
       default:
         return reply({ message: `unexpected ${path}` });
     }
@@ -222,7 +241,6 @@ describe('checkAtomChange', () => {
       { name: 'a.com', currency: 'EUR' as const },
       { name: 'a.com', forSale: false },
       { name: 'a.com', buyNow: false },
-      { name: 'a.com', price: null },
       { name: 'a.com', price: '99' },
       { name: 'a.com', price: '150.50' },
       {
@@ -231,6 +249,10 @@ describe('checkAtomChange', () => {
         extra: { market: 'atom' as const, tier: 'premium' as never },
       },
       { name: 'a.com', extra: { market: 'sedo' as const, language: 'en' } },
+      {
+        name: 'a.com',
+        extra: { market: 'atom' as const, category: 'Fitness & Gym' },
+      },
     ];
     for (const change of bad) expect(() => checkAtomChange(change)).toThrow();
     expect(() =>
@@ -285,9 +307,33 @@ describe('writing', () => {
     ]);
   });
 
+  it('prices a Make an Offer listing by adding it again', async () => {
+    const { atom, calls } = fakeAtom([
+      listing({ price: null, typeRaw: 'Plus', type: 'plus' }),
+    ]);
+    const [r] = await atom.writeListings([
+      { name: 'brightloom.com', price: '500' },
+    ]);
+    expect(r).toMatchObject({ ok: true, error: null });
+    expect(r.saved).toMatchObject({ price: '500', tier: 'plus' });
+    expect(calls).toEqual([
+      '/domain-details',
+      '/add-domain',
+      '/domain-details',
+    ]);
+  });
+
+  it('turns a priced listing into Make an Offer with a price of 0', async () => {
+    const { atom } = fakeAtom([listing()]);
+    const [r] = await atom.writeListings([
+      { name: 'brightloom.com', price: null },
+    ]);
+    expect(r.saved).toMatchObject({ price: null, buyNow: false });
+  });
+
   it('fails a price Atom says it saved but didn’t', async () => {
     const { atom } = fakeAtom(
-      [listing({ price: null })],
+      [listing()],
       {},
       new Set(['/update-selling-price']),
     );
@@ -296,7 +342,7 @@ describe('writing', () => {
     ]);
     expect(r.ok).toBe(false);
     expect(r.error?.code).toBe('NOT_APPLIED');
-    expect(r.error?.message).toMatch(/still shows Make an Offer/);
+    expect(r.error?.message).toMatch(/still shows \$2500/);
   });
 
   it('says which steps were saved when a later one fails', async () => {
@@ -344,11 +390,17 @@ describe('writing', () => {
       listing({ name: 'quillnest.com', type: 'premium', typeRaw: 'Premium' }),
     ]);
     expect((await atom.deleteListings(['brightloom.com']))[0].ok).toBe(true);
-    expect(listings.has('brightloom.com')).toBe(false);
+    expect(listings.get('brightloom.com')?.status).toBe('Delisted');
+    // Delisted reads as not listed, so listing it again adds it back.
+    expect(await atom.getListings(['brightloom.com'])).toEqual([]);
+    const [again] = await atom.writeListings([
+      { name: 'brightloom.com', price: '900' },
+    ]);
+    expect(again.saved).toMatchObject({ price: '900', status: 'active' });
     expect((await atom.deleteListings(['nothere.com']))[0].ok).toBe(true);
     const [premium] = await atom.deleteListings(['quillnest.com']);
     expect(premium.error?.code).toBe('PREMIUM');
-    expect(listings.has('quillnest.com')).toBe(true);
+    expect(listings.get('quillnest.com')?.status).not.toBe('Delisted');
   });
 
   it('sets and clears a discount', async () => {
@@ -357,8 +409,9 @@ describe('writing', () => {
     expect(set.saved?.discount).toEqual({ amount: '200', until: '2026-11-02' });
     const cleared = await atom.setDiscount('brightloom.com', null);
     expect(cleared.saved?.discount).toBeNull();
-    const tooMuch = await atom.setDiscount('brightloom.com', '2500');
+    const tooMuch = await atom.setDiscount('brightloom.com', '800');
     expect(tooMuch.error?.code).toBe('UNSUPPORTED');
+    expect(tooMuch.error?.message).toMatch(/30%.*\$750/);
   });
 });
 

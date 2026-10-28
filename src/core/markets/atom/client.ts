@@ -50,9 +50,7 @@ import {
 // Not built, on purpose: boost (spends AI credits) and Premium listings
 // (spend a credit and go to review). Submit those on atom.com.
 //
-// Reads checked live (2026-10-28, docs/atom-api.md, "Observed"). Writes
-// are UNVERIFIED: built from Atom's spec and help center, not yet run (the
-// write live test needs a Standard listing to use).
+// Reads and writes checked live (2026-10-28, docs/atom-api.md, "Observed").
 
 /** Listings and sales per page. Paging works (observed); Atom's maximum is
  *  unknown (an account of four names can't show it). */
@@ -189,7 +187,10 @@ export class AtomClient {
     const domain = assertDomainName(name);
     try {
       const body = await this.call('/domain-details', { domain_name: domain });
-      return readListing(recordOf(body));
+      const listing = readListing(recordOf(body));
+      // A delisted name still has details, with status "Delisted"
+      // (observed), and is gone from the list: it isn't listed.
+      return listing && /delisted/i.test(listing.status) ? null : listing;
     } catch (error) {
       if (isNotFound(error)) return null;
       throw error;
@@ -216,10 +217,13 @@ export class AtomClient {
   }
 
   /**
-   * List a name as Standard or Plus. Standard goes live at once. Premium is
-   * refused here: it spends an AI credit and goes to review, so it's done on
-   * atom.com. UNVERIFIED: the spec's enum has only premium and standard; the
-   * help center says the API adds Plus too.
+   * List a name as Standard or Plus; price 0 is Make an Offer. It goes live
+   * at once ("Successfully uploaded", or "… as Plus"). On a name already
+   * listed, or delisted, it updates the listing in place: the price changes
+   * but the tier doesn't (a delisted Plus name comes back Plus). It's also
+   * the only way to price a Make an Offer listing, since `updatePrice`
+   * answers success there and changes nothing (all observed). Premium is
+   * refused here: it spends an AI credit and goes to review.
    */
   async createListing(
     name: string,
@@ -245,7 +249,12 @@ export class AtomClient {
     });
   }
 
-  /** Premium prices must stay inside the account's membership-tier range. */
+  /**
+   * Reprice a priced listing; 0 turns it into Make an Offer. Clears any
+   * discount, even at the same price. On a Make an Offer listing it answers
+   * success and does nothing: use `createListing` (all observed). Premium
+   * prices must stay inside the account's membership-tier range.
+   */
   async updatePrice(name: string, price: number): Promise<AtomWriteAck> {
     return this.write('/update-selling-price', {
       domain_name: assertDomainName(name),
@@ -254,14 +263,20 @@ export class AtomClient {
   }
 
   /**
-   * A discount, in whole dollars off the price, until Atom resets discounts
-   * on Monday. UNVERIFIED: that the amount is dollars, not a percent, and
-   * that 0 clears it.
+   * A discount in whole dollars off the price (`selling_price` drops by it),
+   * until Atom resets discounts on Monday. At most 30% of the price. Atom
+   * refuses 0: to clear one, set the price again (`updatePrice`). All
+   * observed.
    */
   async setDiscount(name: string, amount: number): Promise<AtomWriteAck> {
+    if (dollars(amount, 'The discount') === 0) {
+      throw new Error(
+        'Atom refuses a 0 discount; set the price again to clear it.',
+      );
+    }
     return this.write('/add-discount', {
       domain_name: assertDomainName(name),
-      discount: dollars(amount, 'The discount'),
+      discount: amount,
     });
   }
 

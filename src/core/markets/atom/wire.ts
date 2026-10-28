@@ -144,8 +144,11 @@ const ENVELOPE_KEYS = new Set([
 ]);
 
 /** Wording that marks a lone message as a failure rather than a success. */
+// Observed refusals include "Discount Price should not be empty", "…should
+// not be greater than $195", "Domain description is empty" and "Wrong
+// category name in the request".
 const FAILURE_WORDS =
-  /invalid|required|cannot|can't|can not|unable|not allowed|not authori|fail|error|already|must|exceed|limit|not found|does not|doesn't|no such|denied|insufficient|wrong|not (be )?(listed|valid|eligible)|only supports|outside|below|above/i;
+  /should|empty|greater than|less than|invalid|required|cannot|can't|can not|unable|not allowed|not authori|fail|error|already|must|exceed|limit|not found|does not|doesn't|no such|denied|insufficient|wrong|not (be )?(listed|valid|eligible)|only supports|outside|below|above/i;
 
 export interface AtomFailure {
   code: AtomErrorCode;

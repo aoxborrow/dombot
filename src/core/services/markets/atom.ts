@@ -33,8 +33,7 @@ import {
 // because Atom's success answers are at most a message, so the read-back is
 // what says what Atom saved.
 //
-// Reads checked live (2026-10-28); writes UNVERIFIED until the write live
-// test runs (docs/atom-api.md, "Observed" and "Unverified").
+// Reads and writes checked live (2026-10-28, docs/atom-api.md, "Observed").
 
 export const ATOM_CAPABILITIES: MarketCapabilities = {
   currencies: ['USD'],
@@ -73,6 +72,8 @@ export const ATOM_CONFIG_FIELDS: MarketConfigField[] = [
 
 /** Atom's minimum for a retail listing. */
 export const MIN_PRICE = 100;
+/** Atom's cap on a discount, as a share of the price (observed: $195 of $650). */
+const MAX_DISCOUNT = 0.3;
 
 // Reading
 
@@ -95,6 +96,7 @@ export function statusFromAtom(raw: string): ListingStatus {
   ) {
     return 'inactive';
   }
+  if (/delisted|removed/.test(s)) return 'inactive';
   if (/hold|lock/.test(s)) return 'on_hold';
   if (/approved|active|live|listed|verified|published/.test(s)) return 'active';
   return 'unknown';
@@ -276,14 +278,6 @@ export function checkAtomChange(change: MarketListingChange): void {
   if (change.displayName !== undefined) {
     unsupported('displayName', 'Atom’s API has no display name.');
   }
-  if (change.price === null) {
-    // UNVERIFIED: Atom's Sheets sync reads 0 as Make an Offer; whether the
-    // API does is unknown, so it isn't offered.
-    unsupported(
-      'price',
-      'Atom needs a price; Make an Offer isn’t available through its API.',
-    );
-  }
   if (change.price != null) {
     const price = wholeDollars('price', change.price);
     if (price < MIN_PRICE) {
@@ -294,6 +288,16 @@ export function checkAtomChange(change: MarketListingChange): void {
     unsupported(
       'extra',
       `Settings for ${change.extra.market} don't apply to Atom.`,
+    );
+  }
+  const category =
+    change.extra?.market === 'atom' ? change.extra.category : undefined;
+  if (category?.includes('&')) {
+    // Observed: "Wrong category name in the request" for every name with
+    // an ampersand, however it's encoded, though Atom lists them.
+    unsupported(
+      'category',
+      `Atom’s API refuses category names with “&” (${category}); set it on atom.com.`,
     );
   }
   const tier = change.extra?.market === 'atom' ? change.extra.tier : undefined;
@@ -416,8 +420,13 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
       name = assertDomainName(change.name);
       checkAtomChange(change);
       const atom = change.extra?.market === 'atom' ? change.extra : undefined;
+      // null is Make an Offer, which Atom stores as a price of 0.
       const price =
-        change.price != null ? wholeDollars('price', change.price) : undefined;
+        change.price === undefined
+          ? undefined
+          : change.price === null
+            ? null
+            : wholeDollars('price', change.price);
 
       const current = await this.client.getListing(name);
       if (!current) {
@@ -429,7 +438,7 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
           );
         }
         await this.client.createListing(name, {
-          price,
+          price: price ?? 0,
           type: atom?.tier ?? 'standard',
         });
         done.push('listed');
@@ -438,7 +447,22 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
           unsupported('tier', 'Atom’s API can’t change a listing’s tier.');
         }
         if (price !== undefined && price !== current.price) {
-          await this.client.updatePrice(name, price);
+          if (current.price === null && price !== null) {
+            // Atom's price update ignores a Make an Offer listing; adding
+            // the name again updates it in place (observed).
+            if (current.type === 'premium') {
+              unsupported(
+                'price',
+                'Atom’s API can’t price a Make an Offer Premium listing; set it on atom.com.',
+              );
+            }
+            await this.client.createListing(name, {
+              price,
+              type: current.type === 'plus' ? 'plus' : 'standard',
+            });
+          } else {
+            await this.client.updatePrice(name, price ?? 0);
+          }
           done.push('price');
         }
       }
@@ -460,10 +484,12 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
       const after = done.length ? await this.client.getListing(name) : current;
       const saved = after ? this.toListing(after) : null;
       const adjusted: MarketWriteResult['adjusted'] = [];
-      if (saved && change.price != null && saved.price !== amountOf(price!)) {
-        // Atom answers "Successfully updated selling price" and keeps the
-        // old price, at least for a Make an Offer listing (observed): an
-        // unchanged price is a failure, not an adjustment.
+      const asked = price === undefined ? undefined : amountOf(price);
+      if (saved && asked !== undefined && saved.price !== asked) {
+        // Atom can answer "Successfully updated selling price" and keep the
+        // old price (observed on a Make an Offer listing, before DomBot
+        // priced those by adding them again): an unchanged price is a
+        // failure, not an adjustment.
         if (done.includes('price') && after?.price === current?.price) {
           const shown =
             current?.price == null ? 'Make an Offer' : `$${current.price}`;
@@ -477,11 +503,7 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
             }`,
           );
         }
-        adjusted.push({
-          field: 'price',
-          asked: change.price,
-          saved: saved.price,
-        });
+        adjusted.push({ field: 'price', asked, saved: saved.price });
       }
       return {
         name,
@@ -568,10 +590,24 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
       const current = await this.client.getListing(key);
       if (!current)
         return failed(key, 'NOT_LISTED', 'Not listed on this Atom account.');
-      if (current.price !== null && dollars >= current.price) {
-        unsupported('discount', 'The discount must be less than the price.');
+      if (current.price === null) {
+        unsupported(
+          'discount',
+          'A Make an Offer listing has no price to discount.',
+        );
       }
-      await this.client.setDiscount(key, dollars);
+      if (dollars > current.price * MAX_DISCOUNT) {
+        unsupported(
+          'discount',
+          `Atom allows a discount of up to 30% of the price ($${Math.floor(current.price * MAX_DISCOUNT)} here).`,
+        );
+      }
+      if (dollars) {
+        await this.client.setDiscount(key, dollars);
+      } else if (current.discount !== null) {
+        // Atom refuses a 0 discount; setting the price again clears it.
+        await this.client.updatePrice(key, current.price);
+      }
       const after = await this.client.getListing(key);
       const saved = after ? this.toListing(after) : null;
       const asked = dollars ? String(dollars) : null;
