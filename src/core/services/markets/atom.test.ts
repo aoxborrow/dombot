@@ -36,6 +36,9 @@ function listing(overrides: Partial<AtomListing> = {}): AtomListing {
 function fakeAtom(
   initial: AtomListing[] = [],
   fail: Record<string, string> = {},
+  /** Paths that answer success but change nothing, as Atom's price update
+   *  does for a Make an Offer listing (observed). */
+  ignored: ReadonlySet<string> = new Set(),
 ) {
   const listings = new Map(initial.map((l) => [l.name, { ...l }]));
   const calls: string[] = [];
@@ -49,6 +52,9 @@ function fakeAtom(
     const reply = (body: unknown) =>
       new Response(JSON.stringify(body), { status: 200 });
     if (fail[path]) return reply({ message: fail[path] });
+    if (ignored.has(path)) {
+      return reply({ message: 'Successfully updated selling price' });
+    }
     const l = listings.get(name);
     switch (path) {
       case '/domain-details':
@@ -277,6 +283,20 @@ describe('writing', () => {
       '/update-selling-price',
       '/domain-details',
     ]);
+  });
+
+  it('fails a price Atom says it saved but didn’t', async () => {
+    const { atom } = fakeAtom(
+      [listing({ price: null })],
+      {},
+      new Set(['/update-selling-price']),
+    );
+    const [r] = await atom.writeListings([
+      { name: 'brightloom.com', price: '500' },
+    ]);
+    expect(r.ok).toBe(false);
+    expect(r.error?.code).toBe('NOT_APPLIED');
+    expect(r.error?.message).toMatch(/still shows Make an Offer/);
   });
 
   it('says which steps were saved when a later one fails', async () => {

@@ -941,7 +941,7 @@ export function registerMarketWriteTools(server: McpServer): void {
     {
       title: 'Verify a listing’s DNS',
       description:
-        'Ask the market to check now that a name points at it (Atom: nameservers ns1/ns2.atom.com, required for Premium, or Atom’s TXT record), instead of waiting for its own check. Returns the listing as read back afterwards; its status may take a while to change. Markets without this say so.',
+        'Ask the market to check now that a name points at it (Atom: nameservers ns1/ns2.atom.com, required for Premium, or Atom’s TXT record), instead of waiting for its own check. Atom allows one check per account every 12 hours; sooner, it fails saying to try later. Returns the listing as read back afterwards; its status may take a while to change. Markets without this say so.',
       inputSchema: { domain: z.string().min(1).max(253), accountId },
       annotations: { idempotentHint: true },
     },

@@ -460,7 +460,23 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
       const after = done.length ? await this.client.getListing(name) : current;
       const saved = after ? this.toListing(after) : null;
       const adjusted: MarketWriteResult['adjusted'] = [];
-      if (saved && change.price != null && saved.price !== change.price) {
+      if (saved && change.price != null && saved.price !== amountOf(price!)) {
+        // Atom answers "Successfully updated selling price" and keeps the
+        // old price, at least for a Make an Offer listing (observed): an
+        // unchanged price is a failure, not an adjustment.
+        if (done.includes('price') && after?.price === current?.price) {
+          const shown =
+            current?.price == null ? 'Make an Offer' : `$${current.price}`;
+          return failed(
+            name,
+            'NOT_APPLIED',
+            `Atom said it saved the price, but the listing still shows ${shown}. Change it on atom.com.${
+              done.length > 1
+                ? ` (Saved: ${done.filter((d) => d !== 'price').join(', ')}.)`
+                : ''
+            }`,
+          );
+        }
         adjusted.push({
           field: 'price',
           asked: change.price,

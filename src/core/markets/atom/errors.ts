@@ -13,6 +13,12 @@ export type AtomErrorCode =
   | 'NOT_FOUND'
   /** Atom refused the request; the message says why. */
   | 'REJECTED'
+  /**
+   * Not now: "DNS check Request in progress, please try again after 12
+   * hrs" (observed: one DNS check per account per 12 hours). Not worth
+   * retrying soon.
+   */
+  | 'TRY_LATER'
   | 'NETWORK'
   | 'TIMEOUT'
   | 'BAD_RESPONSE'
@@ -63,6 +69,7 @@ export function codeFor(message: string): AtomErrorCode {
   if (/token|user ?id|permission|unauthori[sz]ed|access/.test(m)) return 'AUTH';
   if (/daily (rate )?limit/.test(m)) return 'DAILY_LIMIT';
   if (/rate limit|too many/.test(m)) return 'RATE_LIMITED';
+  if (/try again after|in progress/.test(m)) return 'TRY_LATER';
   // Atom says "Wrong Domain name in the request" for a name that isn't one
   // of the account's listings (observed).
   if (

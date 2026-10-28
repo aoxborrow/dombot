@@ -311,6 +311,27 @@ describe('writes', () => {
     expect(calls).toHaveLength(0);
   });
 
+  it('reads Atom’s 12-hour DNS check limit as try-later', async () => {
+    const { atom } = client(() => ({
+      body: {
+        success: false,
+        message: 'DNS check Request in progress, please try again after 12 hrs',
+      },
+    }));
+    const error = await caught(atom.verifyDns('brightloom.com'));
+    expect(error.code).toBe('TRY_LATER');
+    expect(error.retryable).toBe(false);
+  });
+
+  it('reads verify-dns’s success answer as success', async () => {
+    const { atom } = client(() => ({
+      body: { success: true, message: 'DNS check request accepted' },
+    }));
+    expect(await atom.verifyDns('brightloom.com')).toEqual({
+      message: 'DNS check request accepted',
+    });
+  });
+
   it('turns a write refusal into an AtomError', async () => {
     const { atom } = client(() => ({
       body: { message: 'This method only supports Standard listings' },

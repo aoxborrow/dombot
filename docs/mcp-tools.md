@@ -311,7 +311,8 @@ Atom only (each fails saying so on markets without it):
   (whole dollars off; null clears). Lasts until Atom resets discounts on
   Monday.
 - **`domain_listing_verify`** — `domain`, `accountId?`. Asks Atom to check
-  the name's nameservers or TXT record now.
+  the name's nameservers or TXT record now; once per account every 12
+  hours.
 - **`market_grading_submit`** — `accountId`, `domains[]`. Atom's AI grading
   (brand fit, Premium fit); **`market_grading_get`** — `accountId`,
   `page?`, `brandFitOnly?` reads the results.

@@ -23,7 +23,8 @@ and the listing-type and commission articles. Much of the client's wire shape
 will have to come from live responses.
 
 Every seller read has been checked live against the account in `.env`
-(2026-10-28; "Observed" below). Writes haven't been run yet. Access is a limited beta: sellers apply from the
+(2026-10-28; "Observed" below), and the price, category and DNS-verify
+writes on one Make an Offer listing. Access is a limited beta: sellers apply from the
 dashboard and need at least 500 listings to be considered (100 names at
 AtomRegistrar for the registrar API).
 
@@ -48,7 +49,8 @@ the shared model in [markets.md](markets.md):
 - **Not built, on purpose:** boost and Premium listings (both spend Atom
   credits), and changing a listing's tier (no API for it).
 - **Live tests:** `npm run test:live` runs the reads (`ATOM_API_TOKEN` and
-  `ATOM_USER_ID`; they pass against the account); writes also need
+  `ATOM_USER_ID`; they pass against the account). The write test passes on
+  a Make an Offer listing; writes also need
   `ATOM_LIVE_WRITES=1` and `ATOM_TEST_DOMAIN`, a Standard listing kept for
   it, which the tests reprice, discount, recategorize, describe, verify,
   delist and relist, then put back. They refuse to run on anything but a
@@ -56,23 +58,22 @@ the shared model in [markets.md](markets.md):
 
 ### Unverified: what to check first
 
-Every read is now checked ("Observed"). Still open:
+Every read is checked, and some writes ("Observed"). Still open:
 
-1. **Writes**, none made yet: what add, reprice, discount, category,
-   description and verify answer on success and failure. The client treats
-   a lone message as success unless it reads as a failure; the write live
-   test (`ATOM_LIVE_WRITES=1`, `ATOM_TEST_DOMAIN` set to a Standard listing)
-   shows any wording it misjudges.
-2. **Discounts:** no discounted listing seen. Whether `discount` is dollars
-   or a percent, whether `selling_price` drops by it, and whether
-   `add-discount` with `0` clears it.
-3. **Plus and Geo listings:** their `listing_type` and status words. The
-   account has neither.
-4. **Payment-plan sales:** how `sale_terms` and installments look.
-5. **Grading rows:** the account has none; their shape is from the spec.
-6. **Page size:** Atom's cap on `limit` (the client asks for 100); a four-name
-   account can't show it.
-7. **Sale dates' time zone:** read as UTC.
+1. **Repricing a priced listing:** on a Make an Offer listing Atom answers
+   success and changes nothing. A priced Standard listing would show whether
+   repricing works at all through the API (`ATOM_TEST_DOMAIN` set to one).
+2. **Discounts:** need a priced listing. Whether `discount` is dollars or a
+   percent, whether `selling_price` drops by it, and whether `0` clears it
+   (`ATOM_TEST_DISCOUNT=1`).
+3. **Add, remove, description:** not run. Delisting and re-adding is behind
+   `ATOM_LIVE_RELIST=1`, since Atom may want the name verified again; a
+   description the test name doesn't have can't be cleared again.
+4. **Plus and Geo listings:** their `listing_type` and status words.
+5. **Payment-plan sales:** how `sale_terms` and installments look.
+6. **Grading rows:** the account has none; their shape is from the spec.
+7. **Page size:** Atom's cap on `limit` (the client asks for 100).
+8. **Sale dates' time zone:** read as UTC.
 
 ## The API at a glance
 
@@ -177,6 +178,20 @@ page-size limits couldn't be. Examples below are made up.
 | Premium cost         | `add-domain`: "a coin will be deducted"                                                       | Coins became AI credits on 2026-07-07 (1 coin = 10 credits). Premium submission costs 1 credit ($0.10); refunded if rejected.                                                                                                                                                                                                     |
 | Boost payment        | `source_of_deduction`: `points`, `coins`, `loyalty_benefit`                                   | Points can't be earned or bought since 2026-07-07, and coins are now AI credits.                                                                                                                                                                                                                                                  |
 | Category values      | `category_name` enum `["categories"]`                                                         | A placeholder; real values come from `/primary-categories`.                                                                                                                                                                                                                                                                       |
+
+Writes, checked on one Standard listing at Make an Offer (2026-10-28), each
+put back afterwards:
+
+| Write                     | Answer                                                                                       | What happened                                                                                                                                                                                                                                                                            |
+| ------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `update-selling-price`    | `{"message":"Successfully updated selling price"}`                                           | **Nothing**: the listing stayed at 0 (Make an Offer) in the details and the list for over three minutes. Atom's success answer isn't proof; the adapter reads the listing back and fails a price that didn't change (`NOT_APPLIED`). Whether priced listings reprice is still unchecked. |
+| `assign-primary-category` | (same category as before)                                                                    | Accepted; the category read back unchanged.                                                                                                                                                                                                                                              |
+| `verify-dns`              | `{"success":true,"message":"DNS check request accepted"}`                                    | Status unchanged right after.                                                                                                                                                                                                                                                            |
+| `verify-dns`, again       | `{"success":false,"message":"DNS check Request in progress, please try again after 12 hrs"}` | For a different name too: **one DNS check per account per 12 hours**. The client calls it `TRY_LATER`, which bulk jobs don't retry.                                                                                                                                                      |
+
+Atom also set a primary category on that listing by itself between two reads
+an hour apart (its auto-categorization), so a synced category can change
+without a write.
 
 What this changed in the client: one walk of `/domains` (records carry their
 tier), `full_price` for the price, 0 as Make an Offer, "Transfer Complete"
