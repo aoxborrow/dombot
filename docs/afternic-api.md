@@ -341,8 +341,9 @@ Storage:
 
 ### Listings
 
-- **Listing columns and filters** on the Domains table: listed on Afternic or
-  not, listing status (`ACTIVE`, `PENDING`, `INACTIVE`, `FAILED_COMPLIANCE`, …),
+- **Listing columns and filters** on the Domains table: an Afternic column
+  (one per connected market, see markets.md), listed on Afternic or not,
+  listing status (`ACTIVE`, `PENDING`, `INACTIVE`, `FAILED_COMPLIANCE`, …),
   Fast Transfer status, lease-to-own on/off, offer count, and for Domain Pro
   members GoDaddy searches (total and unique, 30/90/365 days).
 - **Bulk from the table:** list, reprice and delist a selection (listing
