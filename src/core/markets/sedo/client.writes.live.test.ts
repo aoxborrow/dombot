@@ -57,6 +57,14 @@ describe.skipIf(!enabled)('Sedo (live writes, one test name)', () => {
   it('lists the test name (or finds it listed)', async () => {
     [before = null] = await sedo.getListings([name]);
     if (before) return;
+    // A name another Sedo account lists can't be inserted (E3131, seen
+    // live); pick one that's on no Sedo account.
+    const [status] = await sedo.domainStatus([name]);
+    if (status?.onSedo) {
+      throw new Error(
+        `${name} is on Sedo in another account; choose a SEDO_TEST_DOMAIN that isn't.`,
+      );
+    }
     const [r] = await sedo.insertListings([
       {
         name,

@@ -139,7 +139,9 @@ function toWriteResult(r: {
     name: r.domain,
     ok,
     code: ok ? null : r.status || 'UNKNOWN',
-    message: ok ? null : r.message || r.status,
+    message: ok
+      ? null
+      : [r.message || r.status, faultHint(r.status)].filter(Boolean).join(' '),
   };
 }
 

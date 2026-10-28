@@ -363,6 +363,15 @@ Checked live on 2026-10-28 against an account with 43 listings
   listing had category `990000` (not in the documented category list,
   presumably "uncategorized"); no listing had a price set, only a minimum
   price, and none was fixed price.
+- **A name another Sedo account lists** can't be inserted: `DomainInsert`
+  answers `E3131` ("The domain has already been found in another account.
+  Ownership of this domain will be verified further."), and the name stays
+  out of yours. Seen with domanio.com, which a stale listing elsewhere
+  offers at €1,500. Whether Sedo then contacts the owner, and whether the
+  name later moves to your account, is unknown. `DomainStatus` shows such a
+  name as on Sedo, so the write test checks it first.
+- **`DomainStatus` answers in its own order,** not the order asked; the
+  client matches by name.
 - **Parking stats:** period 1 gives 31 daily rows for the account, and for
   one name when `domain` is set; period 3 gives 12 monthly rows.
   `payout_status` didn't say "Estimated" on any row.
