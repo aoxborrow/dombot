@@ -878,7 +878,6 @@ export default function Domains() {
         : one
           ? 'Set an asking price with Pricing first'
           : 'None of these have an asking price; set one with Pricing first',
-      relist: listed ? null : notListed,
       delist: listed ? null : notListed,
     };
   };

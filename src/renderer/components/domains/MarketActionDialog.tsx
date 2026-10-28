@@ -27,12 +27,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-// List, reprice, relist or delist names on market accounts, from a row or
+// List, reprice or delist names on market accounts, from a row or
 // the bulk bar (docs/markets.md). Listing pushes the asking prices you set in
 // DomBot (BIN price, minimum offer, floor), so DomBot stays where you price,
-// to every market account you tick at once. Relist and delist take one.
+// to every market account you tick at once; a listing that was stuck also
+// gets the market's checks re-run (Afternic's relist). Delist takes one.
 
-export type MarketAction = 'list' | 'relist' | 'delist';
+export type MarketAction = 'list' | 'delist';
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -63,7 +64,6 @@ export function MarketActionDialog({
   const loadMarkets = useAppStore((s) => s.loadMarkets);
   const enabled = accounts.filter((a) => a.enabled && a.configured);
   const [accountId, setAccountId] = useState(enabled[0]?.id ?? '');
-  const [mode, setMode] = useState<'RESYNC' | 'REACTIVATE'>('RESYNC');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<MarketWriteResult[] | null>(null);
@@ -103,8 +103,7 @@ export function MarketActionDialog({
   const priced = keys.filter(
     (k) => listPrices[k]?.amount || listPrices[k]?.minOffer,
   );
-  const targets =
-    action === 'list' ? priced : action === 'relist' ? listedHere : listedHere;
+  const targets = action === 'list' ? priced : listedHere;
 
   const run = async () => {
     setRunning(true);
@@ -130,10 +129,7 @@ export function MarketActionDialog({
       return;
     }
     try {
-      const out =
-        action === 'relist'
-          ? await window.api.relistMarketListings(accountId, targets, mode)
-          : await window.api.deleteMarketListings(accountId, targets);
+      const out = await window.api.deleteMarketListings(accountId, targets);
       setResults(out);
       await loadMarkets();
     } catch (err) {
@@ -149,9 +145,7 @@ export function MarketActionDialog({
       ? enabled.length > 1
         ? 'List at your prices'
         : `List on ${where} at your prices`
-      : action === 'relist'
-        ? `Relist on ${where}`
-        : `Delist from ${where}`;
+      : `Delist from ${where}`;
 
   return (
     <Dialog open onOpenChange={(open) => !open && !running && onClose()}>
@@ -161,9 +155,7 @@ export function MarketActionDialog({
           {!done && (
             <DialogDescription>
               {action === 'list' &&
-                'Lists each name, or updates its listing, with the BIN price, minimum offer and floor you set in DomBot. Listings you already have keep their other settings.'}
-              {action === 'relist' &&
-                'Asks the market to run its listing checks again, for listings that are inactive, rejected or stuck pending.'}
+                'Lists each name, or updates its listing, with the BIN price, minimum offer and floor you set in DomBot. Listings you already have keep their other settings, and any that are inactive, rejected or stuck pending get the market’s checks re-run.'}
               {action === 'delist' &&
                 'Takes the listings down. The names stay in your registrar accounts, and you can list them again later.'}
             </DialogDescription>
@@ -220,35 +212,10 @@ export function MarketActionDialog({
                 </Select>
               </Field>
             )}
-            {action === 'relist' && (
-              <Field>
-                <FieldLabel>How</FieldLabel>
-                <Select
-                  value={mode}
-                  onValueChange={(v) => setMode(v as typeof mode)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="RESYNC">
-                      Re-check the listing (resync)
-                    </SelectItem>
-                    <SelectItem value="REACTIVATE">
-                      Bring back an inactive listing (reactivate)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-            )}
             <p>
               {targets.length
                 ? `${names(targets.length)} will be ${
-                    action === 'list'
-                      ? 'listed or updated'
-                      : action === 'relist'
-                        ? 'relisted'
-                        : 'delisted'
+                    action === 'list' ? 'listed or updated' : 'delisted'
                   }.`
                 : 'Nothing to do for this selection.'}
               {action === 'list' && keys.length > priced.length && (
@@ -321,9 +288,7 @@ export function MarketActionDialog({
                     ? chosen.length > 1
                       ? `List ${names(targets.length)} on ${chosen.length} markets`
                       : `List ${names(targets.length)}`
-                    : action === 'relist'
-                      ? `Relist ${names(targets.length)}`
-                      : `Delist ${names(targets.length)}`}
+                    : `Delist ${names(targets.length)}`}
               </Button>
             </>
           )}
@@ -346,6 +311,8 @@ function Results({
   const failed = results.filter((r) => !r.ok);
   const adjusted = ok.filter((r) => r.adjusted.length);
   const pending = ok.filter((r) => r.pending);
+  const relisted = ok.filter((r) => r.relisted?.ok);
+  const relistFailed = ok.filter((r) => r.relisted && !r.relisted.ok);
   return (
     <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto text-sm">
       <p className="flex items-center gap-2">
@@ -353,6 +320,26 @@ function Results({
         {names(ok.length)}{' '}
         {action === 'list' ? 'listed or updated' : `${action}ed`} on {where}.
       </p>
+      {relisted.length > 0 && (
+        <p className="text-muted-foreground">
+          {names(relisted.length)} had a stuck listing, so {where} is re-running
+          its checks: {relisted.map((r) => r.name).join(', ')}.
+        </p>
+      )}
+      {relistFailed.length > 0 && (
+        <div>
+          <p className="font-medium">
+            Prices saved, but {where} couldn&apos;t re-run its checks:
+          </p>
+          <ul className="mt-1 list-disc pl-5">
+            {relistFailed.map((r) => (
+              <li key={r.name}>
+                {r.name}: {r.relisted?.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {pending.length > 0 && (
         <p className="text-muted-foreground">
           {names(pending.length)} pending. {where} lists a name once it can

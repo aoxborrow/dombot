@@ -18,6 +18,8 @@ const fake = {
   written: [] as MarketListingChange[][],
   deleted: [] as string[][],
   relisted: [] as string[][],
+  relistModes: [] as (string | undefined)[],
+  relistFails: new Set<string>(),
   authCodes: [] as [string, string][],
   sales: [] as MarketSale[],
   batch: 500,
@@ -79,9 +81,18 @@ vi.mock('./registry', async () => {
         fake.deleted.push(names);
         return names.map((n) => ok(n));
       },
-      relist: async (names: string[]) => {
+      relist: async (names: string[], mode?: string) => {
         fake.relisted.push(names);
-        return names.map((n) => ok(n));
+        fake.relistModes.push(mode);
+        return names.map((n) =>
+          fake.relistFails.has(n)
+            ? {
+                ...ok(n),
+                ok: false,
+                error: { code: 'HTTP_422', message: 'on hold' },
+              }
+            : ok(n),
+        );
       },
       getListings: async (names: string[]) =>
         names.map((n) => ({ ...listingOf(n, accountId), status: 'active' })),
@@ -104,7 +115,8 @@ vi.mock('../domain-ops', () => ({
 }));
 
 const { connectMarketAccount } = await import('./accounts');
-const { marketListings, syncMarketAccount } = await import('./sync');
+const { marketListings, putMarketListings, syncMarketAccount } =
+  await import('./sync');
 const { setListPrices } = await import('../list-prices');
 const writes = await import('./writes');
 
@@ -126,6 +138,8 @@ beforeEach(async () => {
     written: [],
     deleted: [],
     relisted: [],
+    relistModes: [],
+    relistFails: new Set(),
     authCodes: [],
     sales: [],
     batch: 500,
@@ -185,6 +199,44 @@ describe('pushAskingPrices', () => {
         .map((l) => l.name)
         .sort(),
     ).toEqual(['offers.com', 'priced.com']);
+  });
+
+  it('re-runs the market’s checks on listings that were stuck', async () => {
+    putMarketListings(ID, [
+      { ...listingOf('inactive.com', ID), status: 'inactive' },
+      { ...listingOf('rejected.com', ID), status: 'rejected' },
+      { ...listingOf('stuck.com', ID), status: 'pending' },
+      { ...listingOf('fine.com', ID), status: 'active' },
+      { ...listingOf('held.com', ID), status: 'rejected' },
+    ]);
+    fake.relistFails.add('held.com');
+    const names = [
+      'inactive.com',
+      'rejected.com',
+      'stuck.com',
+      'fine.com',
+      'held.com',
+      'new.com',
+    ];
+    setListPrices(names.map((n) => price(n, '500')));
+    const results = await writes.pushAskingPrices(ID, names);
+
+    // Inactive ones are reactivated, the other stuck ones resynced; listings
+    // that were fine, and names listed for the first time, are left alone.
+    expect(fake.relisted).toEqual([
+      ['inactive.com'],
+      ['rejected.com', 'stuck.com', 'held.com'],
+    ]);
+    expect(fake.relistModes).toEqual(['REACTIVATE', 'RESYNC']);
+    const by = Object.fromEntries(results.map((r) => [r.name, r]));
+    expect(by['inactive.com'].relisted).toEqual({ ok: true, message: null });
+    expect(by['inactive.com'].saved?.status).toBe('active');
+    expect(by['held.com']).toMatchObject({
+      ok: true,
+      relisted: { ok: false, message: 'on hold' },
+    });
+    expect(by['fine.com'].relisted).toBeUndefined();
+    expect(by['new.com'].relisted).toBeUndefined();
   });
 
   it('writes in the market’s batch size', async () => {

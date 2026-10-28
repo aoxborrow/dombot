@@ -87,7 +87,7 @@ export function BulkBar({
   onOwnership: (action: OwnershipAction) => void;
   /** Set or clear the selection's asking price. */
   onListPrice: () => void;
-  /** List, relist or delist on a market; absent with no market account. */
+  /** List or delist on a market; absent with no market account. */
   onMarket?: (action: MarketAction) => void;
   /** The market's name for the menu, e.g. "Afternic" (or "markets"). */
   marketLabel?: string;
@@ -273,13 +273,6 @@ export function BulkBar({
                       >
                         List at your prices
                         <span className="-ml-[6px] opacity-50">…</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled={Boolean(marketReasons?.relist)}
-                        title={marketReasons?.relist ?? undefined}
-                        onSelect={() => onMarket('relist')}
-                      >
-                        Relist<span className="-ml-[6px] opacity-50">…</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         variant="destructive"

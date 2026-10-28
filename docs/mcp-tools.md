@@ -288,6 +288,8 @@ decimal strings or numbers.
 - **`market_listings_delete`** — `accountId`, `domains[]`.
 - **`market_listings_relist`** — `accountId`, `domains[]`, `mode?`
   (`RESYNC` re-checks, `REACTIVATE` brings back an inactive listing).
+  `fromAskingPrice` writes already do this for listings that were inactive,
+  rejected or stuck pending, and say so per name as `relisted`.
 - **`market_sale_auth_code_set`** — `accountId`, `saleId`, `authCode?`.
   Without a code, DomBot gets it from the registrar account that holds the
   name. Never returned or stored.

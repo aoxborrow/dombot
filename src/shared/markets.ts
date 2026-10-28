@@ -167,6 +167,11 @@ export interface MarketWriteResult {
   /** Fields the market saved differently from what was asked. */
   adjusted: { field: string; asked: unknown; saved: unknown }[];
   error: { code: string; message: string } | null;
+  /**
+   * The listing was stuck (inactive, rejected or pending), so listing it
+   * also asked the market to re-run its checks: `ok` or why it couldn't.
+   */
+  relisted?: { ok: boolean; message: string | null };
 }
 
 export interface MarketSale {
