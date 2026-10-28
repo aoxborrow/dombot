@@ -150,7 +150,7 @@ export default function Markets() {
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 pb-12">
       <div>
         <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="-mt-0.5 text-sm text-muted-foreground">
           Traffic and sales from your marketplace accounts, as of their last
           sync.
         </p>
@@ -416,7 +416,7 @@ const HEAD_ROW =
 /** A report table: no card around it, just its own rounded border. */
 function ReportTable({ children }: { children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-lg border">
+    <div className="overflow-hidden rounded-t-lg rounded-b-[4px] border">
       <Table>{children}</Table>
     </div>
   );
