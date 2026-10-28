@@ -23,6 +23,7 @@ interface Call {
   url: URL;
   headers: Record<string, string>;
   body: unknown;
+  raw: unknown;
 }
 
 type Reply = {
@@ -35,11 +36,16 @@ type Reply = {
 function fakeFetch(respond: (call: Call) => Reply | Promise<Reply>) {
   const calls: Call[] = [];
   const impl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = (init?.headers ?? {}) as Record<string, string>;
     const call: Call = {
       method: init?.method ?? 'GET',
       url: new URL(String(input)),
-      headers: init?.headers as Record<string, string>,
-      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      headers,
+      body:
+        init?.body && headers['content-type'] === 'application/json'
+          ? JSON.parse(String(init.body))
+          : undefined,
+      raw: init?.body,
     };
     calls.push(call);
     const reply = await respond(call);
@@ -483,5 +489,142 @@ describe('settings and sale writes', () => {
       afternic.sendSaleMessage('t-1', 'x'.repeat(1001)),
     ).rejects.toThrow(/1000 characters/);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('bulk jobs', () => {
+  const RESULTS_HEAD = 'operation,domain,result,errorMessage\n';
+
+  /** A fake Afternic that runs a job over `polls` checks. */
+  function jobServer(
+    results: string,
+    options: { polls?: number; finalState?: string; tooMany?: boolean } = {},
+  ) {
+    let checks = 0;
+    return {
+      respond: (call: Call): Reply => {
+        const path = call.url.pathname;
+        if (call.method === 'POST' && path.endsWith('/jobs')) {
+          return options.tooMany
+            ? {
+                status: 400,
+                body: { code: 'TOO_MANY_JOBS', message: 'Unable to create' },
+              }
+            : { status: 201, body: { jobId: 'job-1' } };
+        }
+        if (call.method === 'GET' && path.endsWith('/jobs')) {
+          return {
+            body: {
+              jobs: [
+                { jobId: 'old', type: 'BULK_JOB', jobState: 'COMPLETED' },
+                { jobId: 'waiting', type: 'BULK_JOB', jobState: 'CREATED' },
+              ],
+            },
+          };
+        }
+        if (path.endsWith('/upload')) return { status: 202 };
+        if (path.endsWith('/results')) return { body: results };
+        const done = ++checks > (options.polls ?? 1);
+        return {
+          body: {
+            jobId: 'job-1',
+            type: 'BULK_JOB',
+            jobState: done ? (options.finalState ?? 'COMPLETED') : 'RUNNING',
+            percentComplete: done ? 100 : 50,
+          },
+        };
+      },
+    };
+  }
+
+  it('creates, uploads, waits and maps the results to each name', async () => {
+    const server = jobServer(
+      RESULTS_HEAD +
+        '\uFEFFUPDATE_OR_ADD,example.com,UPDATE_PROCESSED,\n' +
+        'UPDATE_OR_ADD,example.net,FAILED,failed to parse buynowprice\n',
+      { polls: 2 },
+    );
+    let body = '';
+    const { afternic, calls, sleeps } = client((call) => {
+      if (call.url.pathname.endsWith('/upload')) body = String(call.raw);
+      return server.respond(call);
+    });
+    const progress: number[] = [];
+    const run = await afternic.runJob(
+      [
+        { name: 'Example.com', buyNow: 2500 },
+        { name: 'example.net', buyNow: 10 },
+        { name: 'example.org', hidden: true },
+      ],
+      {
+        description: 'reprice',
+        onProgress: (job) => progress.push(job.percentComplete ?? 0),
+      },
+    );
+    expect(run.job.state).toBe('COMPLETED');
+    expect(run.results.map((r) => [r.name, r.ok, r.error?.code])).toEqual([
+      ['example.com', true, undefined],
+      ['example.net', false, 'FAILED'],
+      ['example.org', false, 'NO_RESULT'],
+    ]);
+    expect(calls[0].url.searchParams.get('type')).toBe('BULK_JOB');
+    expect(calls[0].body).toEqual({ description: 'reprice' });
+    const upload = calls.find((c) => c.url.pathname.endsWith('/upload'));
+    expect(upload?.headers['content-type']).toBe('text/csv');
+    expect(body.split('\r\n')[1]).toBe('example.com,2500,,,,,,,,,');
+    expect(sleeps).toEqual([2000, 2000]);
+    expect(progress).toEqual([50, 50, 100]);
+  });
+
+  it('reports every name failed when the job fails', async () => {
+    const server = jobServer('', { finalState: 'FAILED' });
+    const { afternic } = client(server.respond);
+    const run = await afternic.runJob([{ name: 'example.com', buyNow: 1 }]);
+    expect(run.results[0]).toMatchObject({
+      ok: false,
+      error: { code: 'JOB_FAILED' },
+    });
+  });
+
+  it('reuses a waiting job at the limit of three', async () => {
+    const server = jobServer(
+      RESULTS_HEAD + 'UPDATE_OR_ADD,example.com,NO_CHANGE,\n',
+      { tooMany: true },
+    );
+    const { afternic, calls } = client(server.respond);
+    const run = await afternic.runJob([{ name: 'example.com', buyNow: 1 }]);
+    expect(run.results[0].ok).toBe(true);
+    const upload = calls.find((c) => c.url.pathname.endsWith('/upload'));
+    expect(upload?.url.pathname).toMatch(/\/jobs\/waiting\/upload$/);
+  });
+
+  it('never retries an upload', async () => {
+    const { afternic, calls } = client(() => ({ status: 503, body: '' }));
+    await expect(afternic.uploadJob('job-1', 'Domain\r\n')).rejects.toThrow();
+    expect(calls).toHaveLength(1);
+  });
+
+  it('stops waiting at the timeout and says the job is still going', async () => {
+    const server = jobServer('', { polls: 1_000 });
+    const { afternic } = client(server.respond);
+    const error = await afternic
+      .runJob([{ name: 'example.com', buyNow: 1 }], {
+        pollMs: 60_000,
+        timeoutMs: 120_000,
+      })
+      .catch((e) => e);
+    expect(error).toBeInstanceOf(AfternicError);
+    expect(error.code).toBe('JOB_TIMEOUT');
+    expect(error.message).toMatch(/job-1/);
+  });
+
+  it('closes and cancels jobs', async () => {
+    const { afternic, calls } = client(() => ({ status: 204 }));
+    await afternic.closeJob('job-1');
+    await afternic.cancelJob('job-2');
+    expect(calls.map((c) => c.body)).toEqual([
+      { jobState: 'CLOSED' },
+      { jobState: 'CANCELED' },
+    ]);
   });
 });

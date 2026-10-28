@@ -233,6 +233,27 @@ export type WireOperationsMap = Record<
   { code: number; domain?: WireDomain; error?: WireError }
 >;
 
+export interface WireJob {
+  jobId: string;
+  type?: 'BULK_JOB' | 'RECONCILE_JOB';
+  jobState?:
+    | 'CREATED'
+    | 'DATA_UPLOADED'
+    | 'CLOSED'
+    | 'RUNNING'
+    | 'FAILED'
+    | 'COMPLETED'
+    | 'CANCELED';
+  description?: string;
+  percentComplete?: number;
+  totalRequests?: number;
+  totalSuccess?: number;
+  totalFailures?: number;
+  failedReason?: string;
+  createdAt?: string;
+  completedAt?: string;
+}
+
 export interface WireError {
   code?: string;
   message?: string;

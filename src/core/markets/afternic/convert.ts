@@ -2,6 +2,7 @@ import { registrarFromAfternic } from './registrars';
 import type {
   AccountSettingsInput,
   AfternicAccountSettings,
+  AfternicJob,
   AfternicListing,
   AfternicSale,
   DailyStats,
@@ -16,6 +17,7 @@ import {
   type WireAccountSettings,
   type WireDomain,
   type WireDomainFields,
+  type WireJob,
   type WireOperationsMap,
   type WireSale,
   type WireSearchCounts,
@@ -132,6 +134,22 @@ export function toSettings(wire: WireAccountSettings): AfternicAccountSettings {
 /** Whole dollars → microunits for a query filter. */
 export function priceFilter(dollars: number | undefined): string | undefined {
   return dollars == null ? undefined : String(dollarsToMicro(dollars));
+}
+
+export function toJob(wire: WireJob): AfternicJob {
+  return {
+    jobId: wire.jobId,
+    type: wire.type ?? 'BULK_JOB',
+    state: wire.jobState ?? 'CREATED',
+    description: wire.description ?? null,
+    percentComplete: wire.percentComplete ?? null,
+    totalRequests: wire.totalRequests ?? null,
+    totalSuccess: wire.totalSuccess ?? null,
+    totalFailures: wire.totalFailures ?? null,
+    failedReason: wire.failedReason ?? null,
+    createdAt: wire.createdAt ?? '',
+    completedAt: wire.completedAt ?? null,
+  };
 }
 
 // Writes

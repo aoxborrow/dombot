@@ -65,6 +65,23 @@ Other observed behavior worth designing around:
   and no error body (`{"name": {"code": 404}}` for delete), inside a 200.
 - `RESYNC` on an `ACTIVE` listing succeeds and changes nothing visible.
 - Creating a listing that exists returns 409, as documented.
+- A one-row bulk job finished in about a second, from upload to `COMPLETED`.
+- A job's results file is `operation,domain,result,errorMessage`, with a
+  byte-order mark before the first data row (not before the header). Results
+  seen: `UPDATE_PROCESSED`, `NO_CHANGE`, and `FAILED` with a message
+  (`failed to parse buynowprice: abc`,
+  `domain : failed validation on 'domainNameFormat' condition`). The job
+  details count `totalRequests`, `totalSuccess` and `totalFailures`.
+- A name twice in one job file gets one result, and the other rows in that
+  file went missing from the results too; the client writes each name once.
+- The job file's `Domain` cell sets the lander's display name:
+  `DOMANIO.com` renamed the display. The client writes the plain name unless
+  a `displayName` was asked for.
+- **Max lease period is capped by price, silently.** On a $2,500 listing, 24
+  saved and 31 or 36 were ignored with no error, through both PATCH and a job
+  (`NO_CHANGE`). The values across this account fit a minimum monthly
+  payment of roughly $81–83. Compare the saved listing with what was asked
+  and say when Afternic kept a different value.
 - Sales history covers every sale back to 2020, not just recent ones, once
   you pass a wide `soldAtStartDate`. The default window is the last month.
 - A sale record includes the transfer `authCode` in plain text.
@@ -130,11 +147,19 @@ Things to know about jobs:
 - At most 3 jobs can sit in `CREATED` at once; reuse an open one rather than
   failing.
 - Results are streamed CSV and can return 504; retry the download.
-- `RECONCILE_JOB` is undocumented. If it means "make my Afternic listings
-  match this file" (delisting what's missing), it's the cleanest full sync for
-  big portfolios, and also the most dangerous call in the API. Test it on a
-  throwaway account or with a file that matches the current listings exactly
-  before exposing it.
+- The columns, in order: `Domain`, `Buy Now Price`, `Floor Price`,
+  `Min Offer`, `Lease to Own`, `Max Lease Period`, `Sale Lander`,
+  `Show Buy Now Option`, `Show Lease to Own Option`, `Show Make Offer Option`,
+  `Hidden` (Afternic's
+  [bulk upload template](https://www.afternic.com/forms/bulk_upload_sample_v3.xlsx)).
+  A blank cell leaves that setting alone. There's no column for `featured`.
+- `RECONCILE_JOB` is almost certainly the template's "Replace" option, which
+  the template describes as "remove all listings in your portfolio and
+  replace them with the domains in your CSV file". It's the most dangerous
+  call in the API: the client never runs one for a caller (`runJob` only
+  makes `BULK_JOB`s), and DomBot shouldn't offer it without showing exactly
+  which listings would go. Not tested live: on this account a mistake would
+  delist real names.
 - DomBot already has a `bulk-jobs` service (`src/core/services/bulk-jobs.ts`)
   for its own bulk operations. Name Afternic's "Afternic jobs" in code and UI
   so the two aren't confused.
@@ -424,7 +449,8 @@ Settings:
    settings update, sale update and message. Live round-trip tests on
    domanio.com.
 3. **Client, jobs:** jobs CSV both ways, create/upload/poll/results/close,
-   `runJob`. Live one-row job on domanio.com; one careful `RECONCILE_JOB` test.
+   `runJob`. Live one-row jobs on domanio.com. (`RECONCILE_JOB` is left
+   untested; see Open questions.)
 4. **DomBot, read-only:** Settings → Markets with Afternic accounts; sync
    listings and sales, listing columns/filters (including searches and
    offers), sales as `sold` events; the read-only MCP tools.
@@ -439,8 +465,9 @@ Phases 1–3 can each be one PR; nothing in DomBot's UI changes until phase 4.
 
 1. Asking price ownership: should DomBot or Afternic be the source of truth
    when they differ, or does the user choose per sync?
-2. What does `RECONCILE_JOB` do? A test with a file that matches the current
-   listings exactly would show its result format without risk.
+2. Confirm `RECONCILE_JOB` is "Replace", and whether blank cells in a
+   replace file reset settings to defaults, before DomBot offers it. Safest
+   on a separate Afternic account with two or three throwaway listings.
 3. A real `searches` response from a Domain Pro member, to confirm the shape
    before building columns on it.
 4. Where `offerCount` comes from: is it open offers, or all offers ever? Needs

@@ -5,6 +5,7 @@ export {
   type AfternicClientOptions,
 } from './client';
 export { AfternicError } from './errors';
+export { JOB_COLUMNS, parseJobResults, toJobCsv } from './jobs-csv';
 export { registrarFromAfternic } from './registrars';
 export { RateLimiter, REQUESTS_PER_MINUTE } from './rate-limit';
 export * from './types';

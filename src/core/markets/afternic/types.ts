@@ -227,3 +227,59 @@ export interface ListingResult {
 export type AccountSettingsInput = Partial<{
   [K in keyof AfternicAccountSettings]: NonNullable<AfternicAccountSettings[K]>;
 }>;
+
+// Bulk jobs
+
+export type JobType = 'BULK_JOB' | 'RECONCILE_JOB';
+export type JobState =
+  | 'CREATED'
+  | 'DATA_UPLOADED'
+  | 'CLOSED'
+  | 'RUNNING'
+  | 'FAILED'
+  | 'COMPLETED'
+  | 'CANCELED';
+
+export interface AfternicJob {
+  jobId: string;
+  type: JobType;
+  state: JobState;
+  description: string | null;
+  /** 0–100, once it's running. */
+  percentComplete: number | null;
+  totalRequests: number | null;
+  totalSuccess: number | null;
+  totalFailures: number | null;
+  /** Afternic's reason when `state` is `FAILED`. */
+  failedReason: string | null;
+  /** ISO 8601. */
+  createdAt: string;
+  completedAt: string | null;
+}
+
+/** One row of a job's results file. */
+export interface JobRowResult {
+  name: string;
+  /** `UPDATE_OR_ADD` for a bulk job. */
+  operation: string;
+  /** `UPDATE_PROCESSED`, `NO_CHANGE`, `FAILED`, … */
+  result: string;
+  ok: boolean;
+  error: string | null;
+}
+
+export interface RunJobOptions {
+  /** Shown in Afternic's job list. Up to 255 characters. */
+  description?: string;
+  /** How often to check on it. Defaults to 2 seconds. */
+  pollMs?: number;
+  /** Give up waiting (the job keeps running). Defaults to 30 minutes. */
+  timeoutMs?: number;
+  onProgress?: (job: AfternicJob) => void;
+}
+
+export interface JobRun {
+  job: AfternicJob;
+  /** One per listing given, in order; a name missing from the file is failed. */
+  results: ListingResult[];
+}

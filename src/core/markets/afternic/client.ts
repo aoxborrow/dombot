@@ -5,12 +5,14 @@ import {
   toListing,
   toResults,
   toSale,
+  toJob,
   toSettings,
   toStats,
   toWireFields,
   toWireSettings,
 } from './convert';
 import { AfternicError, errorFromResponse } from './errors';
+import { parseJobResults, toJobCsv } from './jobs-csv';
 import {
   limiterFor,
   realClock,
@@ -20,10 +22,14 @@ import {
 import type {
   AccountSettingsInput,
   AfternicAccountSettings,
+  AfternicJob,
   AfternicListing,
   AfternicSale,
   AllListingsResult,
   DailyStats,
+  JobRowResult,
+  JobRun,
+  JobType,
   ListingFields,
   ListingInput,
   ListingResult,
@@ -31,6 +37,7 @@ import type {
   ListListingsOptions,
   ListSalesOptions,
   RelistMode,
+  RunJobOptions,
   SalesPage,
   StatsOptions,
 } from './types';
@@ -41,6 +48,7 @@ import {
   type WireDomain,
   type WireDomainsList,
   type WireDomainsPage,
+  type WireJob,
   type WireOperationsMap,
   type WireSale,
   type WireSalesPage,
@@ -87,6 +95,10 @@ export interface AfternicClientOptions {
 interface RequestOptions {
   query?: Record<string, string | number | boolean | undefined>;
   body?: unknown;
+  /** A CSV body, sent as text/csv instead of JSON. */
+  csv?: string;
+  /** Return the response as text instead of parsing JSON (job results). */
+  text?: boolean;
   /** Safe to send again; false for writes. Defaults to GET only. */
   retry?: boolean;
 }
@@ -473,6 +485,180 @@ export class AfternicClient {
     );
   }
 
+  // Bulk jobs
+
+  async listJobs(): Promise<AfternicJob[]> {
+    const wire = await this.request<{ jobs?: WireJob[] }>('GET', '/jobs');
+    return (wire?.jobs ?? []).map(toJob);
+  }
+
+  async getJob(jobId: string): Promise<AfternicJob> {
+    const wire = await this.request<WireJob>(
+      'GET',
+      `/jobs/${encodeURIComponent(jobId)}`,
+    );
+    if (!wire) throw new Error(`Afternic sent no details for job ${jobId}.`);
+    return toJob(wire);
+  }
+
+  /**
+   * An empty job to upload a file to. At most 3 can wait in `CREATED`; past
+   * that Afternic answers `TOO_MANY_JOBS`. `RECONCILE_JOB` is the template's
+   * "Replace": it delists every name the file leaves out.
+   */
+  async createJob(type: JobType, description?: string): Promise<string> {
+    const wire = await this.request<{ jobId: string }>('POST', '/jobs', {
+      query: { type },
+      body: description ? { description: description.slice(0, 255) } : {},
+    });
+    if (!wire?.jobId) throw new Error('Afternic sent no job id.');
+    return wire.jobId;
+  }
+
+  /**
+   * Send a job its file, which starts it. Not retried: a second upload of
+   * the same file could run it twice.
+   */
+  async uploadJob(jobId: string, csv: string): Promise<void> {
+    await this.request('POST', `/jobs/${encodeURIComponent(jobId)}/upload`, {
+      csv,
+    });
+  }
+
+  /** A finished job's per-row results. */
+  async getJobResults(jobId: string): Promise<JobRowResult[]> {
+    const text = await this.request<string>(
+      'GET',
+      `/jobs/${encodeURIComponent(jobId)}/results`,
+      { text: true },
+    );
+    return parseJobResults(text ?? '');
+  }
+
+  /** Close a job that's done with, or cancel one that hasn't run. */
+  async closeJob(jobId: string): Promise<void> {
+    await this.setJobState(jobId, 'CLOSED');
+  }
+
+  async cancelJob(jobId: string): Promise<void> {
+    await this.setJobState(jobId, 'CANCELED');
+  }
+
+  private async setJobState(
+    jobId: string,
+    jobState: 'CLOSED' | 'CANCELED',
+  ): Promise<void> {
+    await this.request('PATCH', `/jobs/${encodeURIComponent(jobId)}`, {
+      body: { jobState },
+      retry: true,
+    });
+  }
+
+  /**
+   * Create or update listings with one bulk job: create it (or reuse one
+   * waiting in `CREATED`), upload the file, wait for it, and read the
+   * results. Same per-name results as `upsertListings`, so callers can use
+   * either. Only `BULK_JOB`: a reconcile delists what the file leaves out,
+   * so it's never run on a caller's behalf.
+   */
+  async runJob(
+    inputs: readonly ListingInput[],
+    options: RunJobOptions = {},
+  ): Promise<JobRun> {
+    const byName = new Map<string, ListingInput>();
+    for (const input of inputs) {
+      const name = assertDomainName(input.name);
+      byName.set(name, { ...input, name });
+    }
+    if (!byName.size) throw new Error('A bulk job needs at least one listing.');
+    const csv = toJobCsv([...byName.values()]);
+
+    const jobId = await this.openJob('BULK_JOB', options.description);
+    await this.uploadJob(jobId, csv);
+
+    const pollMs = options.pollMs ?? 2000;
+    const deadline = this.clock.now() + (options.timeoutMs ?? 30 * 60_000);
+    let job = await this.getJob(jobId);
+    while (!['COMPLETED', 'FAILED', 'CANCELED', 'CLOSED'].includes(job.state)) {
+      options.onProgress?.(job);
+      if (this.clock.now() >= deadline) {
+        throw new AfternicError({
+          status: 0,
+          code: 'JOB_TIMEOUT',
+          message: `Job ${jobId} is still ${job.state.toLowerCase()}; check on it later.`,
+          requestId: '',
+        });
+      }
+      await this.clock.sleep(pollMs);
+      job = await this.getJob(jobId);
+    }
+    options.onProgress?.(job);
+    if (job.state !== 'COMPLETED') {
+      const reason = job.failedReason ?? job.state.toLowerCase();
+      const error = { code: `JOB_${job.state}`, message: reason };
+      return {
+        job,
+        results: [...byName.keys()].map((name) => ({
+          name,
+          ok: false,
+          status: 0,
+          listing: null,
+          error,
+        })),
+      };
+    }
+
+    const rows = new Map(
+      (await this.getJobResults(jobId)).map((row) => [row.name, row]),
+    );
+    return {
+      job,
+      results: [...byName.keys()].map((name) => {
+        const row = rows.get(name);
+        if (!row) {
+          return {
+            name,
+            ok: false,
+            status: 0,
+            listing: null,
+            error: {
+              code: 'NO_RESULT',
+              message: 'The job finished without a result for this name.',
+            },
+          };
+        }
+        return {
+          name,
+          ok: row.ok,
+          status: row.ok ? 200 : 422,
+          listing: null,
+          error: row.ok
+            ? null
+            : {
+                code: row.result || 'FAILED',
+                message: row.error ?? row.result,
+              },
+        };
+      }),
+    };
+  }
+
+  /** A new job, or one already waiting in `CREATED` when at the limit. */
+  private async openJob(type: JobType, description?: string): Promise<string> {
+    try {
+      return await this.createJob(type, description);
+    } catch (error) {
+      if (!(error instanceof AfternicError) || error.code !== 'TOO_MANY_JOBS') {
+        throw error;
+      }
+      const waiting = (await this.listJobs()).find(
+        (j) => j.type === type && j.state === 'CREATED',
+      );
+      if (!waiting) throw error;
+      return waiting.jobId;
+    }
+  }
+
   // Helpers
 
   private keys(names: readonly string[]): string[] {
@@ -535,7 +721,7 @@ export class AfternicClient {
     const retry = options.retry ?? method === 'GET';
     for (let attempt = 0; ; attempt++) {
       try {
-        return await this.send<T>(method, url, options.body);
+        return await this.send<T>(method, url, options);
       } catch (error) {
         if (
           !retry ||
@@ -558,22 +744,29 @@ export class AfternicClient {
   private async send<T>(
     method: string,
     url: URL,
-    body: unknown,
+    options: RequestOptions,
   ): Promise<T | null> {
     await this.limiter.take();
     const requestId = crypto.randomUUID();
+    const { body, csv } = options;
+    const contentType =
+      csv !== undefined
+        ? 'text/csv'
+        : body !== undefined
+          ? 'application/json'
+          : undefined;
     let response: Response;
     try {
       response = await this.fetchImpl(url.toString(), {
         method,
         headers: {
           authorization: this.auth,
-          accept: 'application/json',
+          accept: options.text ? '*/*' : 'application/json',
           'x-request-id': requestId,
           ...this.userAgent,
-          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...(contentType ? { 'content-type': contentType } : {}),
         },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: csv ?? (body === undefined ? undefined : JSON.stringify(body)),
         signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch (error) {
@@ -598,6 +791,7 @@ export class AfternicClient {
         response.headers.get('retry-after'),
       );
     }
+    if (options.text) return text as T;
     if (!text) return null;
     try {
       return JSON.parse(text) as T;

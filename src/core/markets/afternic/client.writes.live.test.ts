@@ -136,6 +136,27 @@ describe.skipIf(!apiKey || !apiSecret || !writes)(
       expect(await afternic.getAccountSettings()).toEqual(before);
     });
 
+    it('changes a price with a bulk job and changes it back', async () => {
+      const floor = (original.floor ?? 100) + 1;
+      const changed = await afternic.runJob([{ name: TEST_NAME, floor }], {
+        description: 'DomBot live test: floor +1',
+      });
+      expect(changed.job.state).toBe('COMPLETED');
+      expect(changed.results[0]).toMatchObject({ name: TEST_NAME, ok: true });
+      expect((await afternic.getListing(TEST_NAME))?.floor).toBe(floor);
+
+      const restored = await afternic.runJob(
+        [{ name: TEST_NAME, floor: original.floor }],
+        { description: 'DomBot live test: floor restored' },
+      );
+      expect(restored.results[0].ok).toBe(true);
+      expect(priced(await afternic.getListing(TEST_NAME))).toEqual(
+        priced(original),
+      );
+      const jobs = await afternic.listJobs();
+      expect(jobs.some((j) => j.jobId === restored.job.jobId)).toBe(true);
+    });
+
     // Delisting sends the listing back to PENDING for a few minutes after
     // it's re-created, so this one also needs AFTERNIC_LIVE_DELIST=1.
     it.skipIf(process.env.AFTERNIC_LIVE_DELIST !== '1')(
