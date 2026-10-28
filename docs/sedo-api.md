@@ -360,6 +360,11 @@ Checked live on 2026-10-28 against an account with 43 listings
   listing had category `990000` (not in the documented category list,
   presumably "uncategorized"); no listing had a price set, only a minimum
   price, and none was fixed price.
+- **Editing an existing listing works, and category `990000` means none.**
+  domainpost.com, priced at 12,000 USD from DomBot (2026-10-28), kept its
+  minimum price and went from category `990000` to no category, so Sedo
+  accepts `990000` back on an edit and treats it as uncategorized. It
+  stayed for sale: the ownership hold is only for newly listed names.
 - **A name another Sedo account lists** can't be inserted: `DomainInsert`
   answers `E3131` ("The domain has already been found in another account.
   Ownership of this domain will be verified further."), and the name stays
@@ -411,9 +416,8 @@ Still to check:
 1. **After verification:** whether Sedo then puts the name up for sale
    itself, or DomBot has to edit it to `forsale: 1`. Needs a name taken
    through verification (registry or TXT record) and watched.
-2. **Edit details:** what `minprice` does on a fixed-price listing; whether
-   the 199 Buy Now minimum applies in GBP; whether sending category `990000`
-   back on an edit is accepted.
+2. **Edit details:** what `minprice` does on a fixed-price listing, and
+   whether the 199 Buy Now minimum applies in GBP.
 3. **Parking earnings:** which currency they're in, and the
    `payout_status` values. Every row on the account checked was zero.
 4. **Rate limits:** what happens past 60 a minute, and whether `E11`/`E17`

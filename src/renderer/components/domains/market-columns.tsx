@@ -24,6 +24,18 @@ export const MARKET_COLUMN_KEYS = new Set([
   'searches30',
 ]);
 
+/**
+ * Listings get a column per connected market, `listing:afternic` and so on,
+ * in the slot the layouts call `listing`. (A Markets-page table with every
+ * market side by side may follow; a table cell holds one line.)
+ */
+export const listingColumnKey = (market: string) => `listing:${market}`;
+
+/** A column that only exists once a market account is connected. */
+export function isMarketColumnKey(key: string): boolean {
+  return MARKET_COLUMN_KEYS.has(key) || key.startsWith('listing:');
+}
+
 const STATUS_LABEL: Record<ListingStatus, string> = {
   active: 'Active',
   pending: 'Pending',
@@ -93,15 +105,15 @@ function describe(
 export function marketColumns({
   listings,
   markets,
+  listingMarkets,
   listPrices,
   traffic,
-  showMarket = false,
   preferredCurrency,
   numberFormat,
 }: {
   listings: Listings;
-  /** Name the market beside each price: more than one market is connected. */
-  showMarket?: boolean;
+  /** The markets that get a listing column: those with an account. */
+  listingMarkets: readonly string[];
   /** Per-name traffic totals, by `toAscii` name. */
   traffic: MarketTraffic['domains'];
   markets: MarketInfo[];
@@ -136,75 +148,68 @@ export function marketColumns({
     sortValue: (d) => valueOf(d) ?? null,
   });
 
-  return [
-    {
-      key: 'listing',
-      label: 'Listing',
+  // One market's column: its price (or "Offers"), a status dot, and the
+  // status when it isn't active. A name can only be in one account per
+  // market, so there's at most one listing here.
+  const listingColumn = (market: string): PurchaseColumn => {
+    const on = (d: Domain) => of(d).find((l) => l.market === market);
+    return {
+      key: listingColumnKey(market),
+      label: marketName(markets, market),
       align: 'right',
       hideOnMobile: true,
       render: (d) => {
-        const list = of(d);
-        if (!list.length) return dash;
+        const l = on(d);
+        if (!l) return dash;
         // Flag a market price that isn't the asking price you set in DomBot.
         const mine = listPrices[toAscii(d.domainName)];
+        const differs =
+          mine?.amount != null &&
+          l.price != null &&
+          mine.currency === l.currency &&
+          Number(mine.amount) !== Number(l.price);
+        const title = [
+          describe(l, markets, (a) => money(a, l.currency)),
+          differs &&
+            `Your BIN price in DomBot is ${money(mine.amount!, mine.currency)}`,
+        ]
+          .filter(Boolean)
+          .join('\n');
         return (
-          <span className="inline-flex flex-wrap justify-end gap-x-3 gap-y-1">
-            {list.map((l) => {
-              const differs =
-                mine?.amount != null &&
-                l.price != null &&
-                mine.currency === l.currency &&
-                Number(mine.amount) !== Number(l.price);
-              const title = [
-                describe(l, markets, (a) => money(a, l.currency)),
-                differs &&
-                  `Your BIN price in DomBot is ${money(mine.amount!, mine.currency)}`,
-              ]
-                .filter(Boolean)
-                .join('\n');
-              return (
-                <span
-                  key={`${l.accountId}:${l.market}`}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums',
-                    !l.forSale && 'opacity-60',
-                  )}
-                  title={title}
-                >
-                  <span
-                    aria-hidden
-                    className={cn('size-2 rounded-full', STATUS_DOT[l.status])}
-                  />
-                  {showMarket && (
-                    <span className="text-muted-foreground">
-                      {marketName(markets, l.market)}
-                    </span>
-                  )}
-                  <span
-                    className={cn(
-                      differs && 'text-amber-600 dark:text-amber-400',
-                    )}
-                  >
-                    {l.price ? money(l.price, l.currency) : 'Offers'}
-                  </span>
-                  {l.status !== 'active' && (
-                    <span className="text-muted-foreground">
-                      {STATUS_LABEL[l.status].toLowerCase()}
-                    </span>
-                  )}
-                </span>
-              );
-            })}
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums',
+              !l.forSale && 'opacity-60',
+            )}
+            title={title}
+          >
+            <span
+              aria-hidden
+              className={cn('size-2 rounded-full', STATUS_DOT[l.status])}
+            />
+            <span
+              className={cn(differs && 'text-amber-600 dark:text-amber-400')}
+            >
+              {l.price ? money(l.price, l.currency) : 'Offers'}
+            </span>
+            {l.status !== 'active' && (
+              <span className="text-muted-foreground">
+                {STATUS_LABEL[l.status].toLowerCase()}
+              </span>
+            )}
           </span>
         );
       },
       // By price; an offers-only listing sorts below priced ones.
       sortValue: (d) => {
-        const list = of(d);
-        if (!list.length) return null;
-        return Math.max(...list.map((l) => (l.price ? Number(l.price) : 0)));
+        const l = on(d);
+        return l ? (l.price ? Number(l.price) : 0) : null;
       },
-    },
+    };
+  };
+
+  return [
+    ...listingMarkets.map(listingColumn),
     {
       key: 'fastTransfer',
       label: 'Fast Transfer',
