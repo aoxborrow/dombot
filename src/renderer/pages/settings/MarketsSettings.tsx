@@ -151,7 +151,7 @@ function AddMarketMenu({
             <MarketLogo
               market={market.id}
               label={market.name}
-              className="size-4"
+              className="size-4 p-[1.5px]"
             />
             {market.name}
           </DropdownMenuItem>

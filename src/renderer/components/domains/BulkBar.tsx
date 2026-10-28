@@ -261,7 +261,7 @@ export function BulkBar({
                       <MarketLogo
                         market={marketId}
                         label={marketLabel}
-                        className="size-4 text-muted-foreground"
+                        className="size-4 p-[1.5px] text-muted-foreground"
                       />
                       {marketLabel}
                     </DropdownMenuSubTrigger>
