@@ -404,12 +404,17 @@ export function MarketListingDialog({
             )}
             {caps?.leaseToOwn && (
               <div className="flex flex-col gap-1.5">
-                <div className="flex flex-col gap-3">
-                  <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium">
-                    <Switch checked={lease} onCheckedChange={setLease} />
-                    Lease To Own installments
-                  </label>
-                  <Field label="Maximum Lease Period">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Lease To Own" help="Monthly installments.">
+                    <label className="flex h-9 cursor-pointer items-center gap-2.5 text-sm">
+                      <Switch checked={lease} onCheckedChange={setLease} />
+                      {lease ? 'Enabled' : 'Disabled'}
+                    </label>
+                  </Field>
+                  <Field
+                    label="Maximum Lease Period"
+                    help="Longer is a lower commission."
+                  >
                     <Select
                       value={String(months)}
                       disabled={!lease}
@@ -419,7 +424,16 @@ export function MarketListingDialog({
                         aria-label="Maximum Lease Period"
                         className="w-full"
                       >
-                        <SelectValue />
+                        {/* The options also show each payment; the
+                            field has room for the period and discount. */}
+                        <SelectValue>
+                          {months} months
+                          {leaseCommissionDiscount(months) > 0 && (
+                            <span className="text-muted-foreground">
+                              · {leaseCommissionDiscount(months)}% off
+                            </span>
+                          )}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent align="end">
                         {leaseMonthOptions(months).map((m) => {
@@ -459,8 +473,8 @@ export function MarketListingDialog({
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Installments need a Buy Now price between $495 and $5,000,000.
-                  Longer leases get a commission discount. If the price is too
-                  low for the period, {marketName} sets it as close as it can.
+                  If the price is too low for the period, {marketName} sets it
+                  as close as it can.
                 </p>
               </div>
             )}
