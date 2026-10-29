@@ -372,7 +372,6 @@ function extraFor(
       fastTransferStatus: h % 3 === 0 ? 'ACTIVE' : null,
       registrar: null,
       registrarRaw: null,
-      offerCount: null,
       searches: searches
         ? {
             total: {
