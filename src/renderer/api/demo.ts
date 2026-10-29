@@ -27,7 +27,7 @@ import { marketAdapter } from '../../core/services/markets/accounts';
 import { syncDomainTraffic } from '../../core/services/markets/traffic';
 import { localDay } from '../../shared/domain-events';
 import { setDispositions } from '../../core/services/domain-history';
-import { setPurchase, setSale } from '../../core/services/purchases';
+import { setNotes, setPurchase, setSale } from '../../core/services/purchases';
 import { setManualPrice } from '../../core/services/pricing';
 import { addImportedDomains } from '../../core/services/imported-domains';
 import { MemoryDocStore } from '../../core/storage/doc-store';
@@ -195,6 +195,34 @@ function recordSampleRenewalPrice(): void {
   if (owned[1]) setManualPrice(owned[1], { amount: '45', currency: 'EUR' });
 }
 
+/** Notes a portfolio owner keeps, put on a spread of names. */
+const SAMPLE_NOTES = [
+  'Buyer emailed 2026-08 asking for a price; offered $4k, no reply yet.',
+  'Bought at NameJet. Strong .com, hold for end user.',
+  'Renew even if unsold: it forwards to the old shop.',
+  'Brandable shortlist. Try Atom Premium next round?',
+  'Inbound offer via Afternic at $1,200 declined. Floor $2,500.',
+  'Old side project. Keep until the redirect traffic dies down.',
+  'Trademark check done (clear in US/EU).',
+  'Was parked at Sedo; moved listing to Afternic for Fast Transfer.',
+  'Price high on purpose; comps at $8–12k.',
+  'Expiring soon: decide on renewal by next month.',
+] as const;
+
+/**
+ * Notes on ten names, a few of them on the first page of Domains (sorted by
+ * name), so the notes icon shows without scrolling.
+ */
+function recordSampleNotes(): void {
+  const owned = getMergedPortfolio()
+    .domains.map((d) => d.domainName)
+    .sort((a, b) => a.localeCompare(b));
+  [1, 6, 13, 27, 44, 70, 103, 140, 182, 220].forEach((at, i) => {
+    const domainName = owned[at];
+    if (domainName) setNotes(domainName, SAMPLE_NOTES[i]);
+  });
+}
+
 /**
  * Two names you added by hand: one at Gandi (a registrar DomBot supports,
  * and the demo also syncs a Gandi account, so both show), one at a
@@ -255,6 +283,7 @@ export async function createDemoApi(
     );
   }
   recordSampleRenewalPrice();
+  recordSampleNotes();
   recordSampleImportedDomains();
   if (options.sampleChanges) {
     stageSampleChanges(demo.world);
