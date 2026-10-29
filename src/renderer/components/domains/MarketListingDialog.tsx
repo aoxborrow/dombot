@@ -180,17 +180,30 @@ export function MarketListingDialog({
       setError(errorMessage(err));
       return;
     }
-    if (Object.keys(change).length === 1) {
+    // A stuck listing gets the market's checks re-run, as List at your
+    // price does (Afternic's relist), even when no field changed.
+    const recheck = !!(listing && caps?.relist && STUCK.has(listing.status));
+    const changed = Object.keys(change).length > 1;
+    if (!changed && !recheck) {
       onClose();
       return;
     }
     setBusy(true);
     try {
-      const [r] = await window.api.writeMarketListings(account.id, [change]);
-      // A stuck listing gets the market's checks re-run, as List at your
-      // price does (Afternic's relist).
-      if (r?.ok && listing && caps?.relist && STUCK.has(listing.status)) {
-        const mode = listing.status === 'inactive' ? 'REACTIVATE' : 'RESYNC';
+      const [r]: (MarketWriteResult | undefined)[] = changed
+        ? await window.api.writeMarketListings(account.id, [change])
+        : [
+            {
+              name: key,
+              ok: true,
+              pending: false,
+              saved: null,
+              adjusted: [],
+              error: null,
+            },
+          ];
+      if (r?.ok && recheck) {
+        const mode = listing!.status === 'inactive' ? 'REACTIVATE' : 'RESYNC';
         try {
           const [again] = await window.api.relistMarketListings(
             account.id,
