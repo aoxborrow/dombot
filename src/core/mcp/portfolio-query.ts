@@ -18,6 +18,12 @@ import type {
 import { toAscii } from '../../shared/domain-name';
 import { reportsPrivacy } from '../../shared/domain-ops';
 import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
+import {
+  hasAskingRange,
+  matchesAsking,
+  type AskingFilter,
+  type AskingKind,
+} from '../../shared/list-prices';
 import type { ArchiveLabel, Ownership } from '../../shared/ownership';
 
 export const DEFAULT_LIMIT = 50;
@@ -54,6 +60,17 @@ export interface QueryArgs {
   listedOn?: string;
   /** Only names not listed on this market. */
   notListedOn?: string;
+  /** Only names whose asking price has any of these (as the Domains Pricing
+   *  filter). */
+  askingPrice?: AskingKind[];
+  /** BIN price and minimum offer bounds, whole amounts. A bound needs the
+   *  name to have that amount. */
+  binMin?: number;
+  binMax?: number;
+  minOfferMin?: number;
+  minOfferMax?: number;
+  /** The bounds only match prices in this currency. */
+  priceCurrency?: string;
   autoRenew?: boolean;
   locked?: boolean;
   privacy?: boolean;
@@ -284,6 +301,13 @@ export function queryPortfolio(
     args.expiresBefore != null ? Date.parse(args.expiresBefore) : undefined;
   const after =
     args.expiresAfter != null ? Date.parse(args.expiresAfter) : undefined;
+  const asking: AskingFilter = {
+    kinds: args.askingPrice,
+    bin: { min: args.binMin ?? null, max: args.binMax ?? null },
+    minOffer: { min: args.minOfferMin ?? null, max: args.minOfferMax ?? null },
+    currency: args.priceCurrency?.toUpperCase(),
+  };
+  const askingSet = !!args.askingPrice?.length || hasAskingRange(asking);
   const withinCutoff =
     args.expiringWithinDays != null
       ? Date.now() + args.expiringWithinDays * 86_400_000
@@ -330,6 +354,11 @@ export function queryPortfolio(
       if (args.notListedOn != null && markets?.has(args.notListedOn))
         return false;
     }
+    if (
+      askingSet &&
+      !matchesAsking(extras.listPrices?.[toAscii(d.domainName)], asking)
+    )
+      return false;
     // A name no account reports has no settings to match, except an imported
     // name's auto-renew when you've said what it is.
     const reported = !d.departed && d.source !== 'imported';

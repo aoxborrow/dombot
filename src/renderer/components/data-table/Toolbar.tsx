@@ -103,23 +103,38 @@ const COMPACT_MONEY = cn(
  */
 export function RangeInputs({
   label,
+  title,
   min,
   max,
   onChange,
   currency,
+  disabled,
 }: {
   label: string;
+  /** A heading above the inputs, when the menu holds more than this range. */
+  title?: string;
   /** The bounds as typed digits; "" is unbounded. */
   min: string;
   max: string;
   onChange: (min: string, max: string) => void;
   /** For the inputs' symbol. */
   currency: string;
+  disabled?: boolean;
 }) {
   // Min takes focus as the chip's menu opens (FilterChip hands it on).
   return (
     // Typing goes to the inputs, not the menu's typeahead.
     <div className="flex flex-col gap-1.5 p-1.5" onKeyDown={stopMenuKeys}>
+      {title && (
+        <span
+          className={cn(
+            'px-0.5 text-xs font-medium text-muted-foreground',
+            disabled && 'opacity-50',
+          )}
+        >
+          {title}
+        </span>
+      )}
       <div className="flex items-center gap-1.5">
         <MoneyInput
           whole
@@ -127,6 +142,7 @@ export function RangeInputs({
           className={COMPACT_MONEY}
           placeholder="Min"
           aria-label={`Minimum ${label}`}
+          disabled={disabled}
           value={min}
           onChange={(e) => onChange(e.target.value, max)}
         />
@@ -137,6 +153,7 @@ export function RangeInputs({
           className={COMPACT_MONEY}
           placeholder="Max"
           aria-label={`Maximum ${label}`}
+          disabled={disabled}
           value={max}
           onChange={(e) => onChange(min, e.target.value)}
         />

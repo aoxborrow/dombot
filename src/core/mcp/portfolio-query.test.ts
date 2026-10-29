@@ -599,3 +599,53 @@ describe('listedOn / notListedOn', () => {
     expect(query({ listedOn: 'sedo' })).toEqual([]);
   });
 });
+
+describe('askingPrice and price ranges', () => {
+  const domains = ['bin.com', 'offer.com', 'euro.com', 'none.com'].map(
+    (domainName) => domain({ domainName }),
+  );
+  const extras: RowExtras = {
+    listPrices: {
+      'bin.com': { amount: '5000', currency: 'USD', updatedAt: 0 },
+      'offer.com': {
+        amount: null,
+        minOffer: '500',
+        currency: 'USD',
+        updatedAt: 0,
+      },
+      'euro.com': {
+        amount: '3000',
+        minOffer: '1000',
+        currency: 'EUR',
+        updatedAt: 0,
+      },
+    },
+  };
+  const query = (args: QueryArgs) =>
+    queryPortfolio(domains, [], {}, META, args, new Map(), extras).rows.map(
+      (r) => r.domainName,
+    );
+
+  it('keeps names whose asking price has any of the kinds', () => {
+    expect(query({ askingPrice: ['forSale'] })).toEqual([
+      'bin.com',
+      'offer.com',
+      'euro.com',
+    ]);
+    expect(query({ askingPrice: ['minOffer'] })).toEqual([
+      'offer.com',
+      'euro.com',
+    ]);
+    expect(query({ askingPrice: ['bin', 'none'] })).toEqual([
+      'bin.com',
+      'euro.com',
+      'none.com',
+    ]);
+  });
+
+  it('ranges need the amount, and priceCurrency limits them', () => {
+    expect(query({ binMax: 10000 })).toEqual(['bin.com', 'euro.com']);
+    expect(query({ binMax: 10000, priceCurrency: 'usd' })).toEqual(['bin.com']);
+    expect(query({ minOfferMin: 600 })).toEqual(['euro.com']);
+  });
+});

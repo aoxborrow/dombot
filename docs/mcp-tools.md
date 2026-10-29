@@ -267,7 +267,11 @@ saying so.
   total, sell-through over the last 12 months, and views and leads by month.
 
 `portfolio_query` also takes `listedOn` and `notListedOn` (a market id), to
-find names listed on a market or the ones that aren't yet.
+find names listed on a market or the ones that aren't yet. For DomBot's own
+asking prices it takes the Domains Pricing filter: `askingPrice` (any of
+`forSale`, `bin`, `minOffer`, `none`), `binMin`/`binMax`,
+`minOfferMin`/`minOfferMax`, and `priceCurrency` to keep those ranges to one
+currency.
 
 Writes. Each returns one result per name with `ok`, `pending` (accepted, not
 live yet), the listing as `saved`, `adjusted` (fields the market saved

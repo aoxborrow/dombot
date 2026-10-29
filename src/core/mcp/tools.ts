@@ -405,6 +405,51 @@ const queryShape = {
     .describe(
       'Only names not listed on this market: the ones you could list there.',
     ),
+  askingPrice: z
+    .array(z.enum(['forSale', 'bin', 'minOffer', 'none']))
+    .optional()
+    .describe(
+      'Only names whose asking price (set in DomBot) has any of these: `forSale` (a BIN price or a minimum offer), `bin` (a BIN price), `minOffer` (a minimum offer), `none` (neither, so not for sale; a floor alone counts as none).',
+    ),
+  binMin: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe(
+      'Only names with a BIN price of at least this whole amount (no price → excluded).',
+    ),
+  binMax: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe(
+      'Only names with a BIN price of at most this whole amount (no price → excluded).',
+    ),
+  minOfferMin: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe(
+      'Only names with a minimum offer of at least this whole amount (no minimum offer → excluded).',
+    ),
+  minOfferMax: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe(
+      'Only names with a minimum offer of at most this whole amount (no minimum offer → excluded).',
+    ),
+  priceCurrency: z
+    .string()
+    .length(3)
+    .optional()
+    .describe(
+      'With binMin/binMax/minOfferMin/minOfferMax: only match asking prices in this currency code, e.g. "USD". Amounts are never converted; without it, each name’s amount is compared in its own currency.',
+    ),
   autoRenew: z.boolean().optional().describe('Filter by auto-renew on/off.'),
   locked: z.boolean().optional().describe('Filter by transfer lock on/off.'),
   privacy: z.boolean().optional().describe('Filter by WHOIS privacy on/off.'),
@@ -711,7 +756,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Query portfolio',
       description:
-        'List, search, and filter your whole portfolio — every configured registrar plus the names you imported — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (sold, dropped, archived, or gone from your accounts) or both. Filter by registrar, source (synced or imported), TLD, folder, name, nameserver, auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort (including by estimated renewal price) and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel`, `hidden` (in the Hidden folder: still yours, still renews), `source` (`imported`: no connected account reports it), and `inAccount` (false for an imported name or an Archive name no account reports — the registrar-backed domain_* tools can’t act on those). Rows also carry what DomBot keeps per name: `paid` (date, amount, currency, registered or purchased), `sold`, `notes`, `askingPrice` (BIN price, minimum offer, floor), and `renewalPrice` (DomBot’s yearly estimate and its source, as domain_renewal_price). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, staleAccounts, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete; `staleAccounts` lists accounts whose own last sync is old even if another synced since (`stale` is true then too — registrar_sync just those, or portfolio_sync). Rows carry only the fields you need — call domain_get for a single domain’s full record.',
+        'List, search, and filter your whole portfolio — every configured registrar plus the names you imported — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (sold, dropped, archived, or gone from your accounts) or both. Filter by registrar, source (synced or imported), TLD, folder, name, nameserver, market listing, asking price (for sale or not, BIN price and minimum offer, with ranges), auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort (including by estimated renewal price) and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel`, `hidden` (in the Hidden folder: still yours, still renews), `source` (`imported`: no connected account reports it), and `inAccount` (false for an imported name or an Archive name no account reports — the registrar-backed domain_* tools can’t act on those). Rows also carry what DomBot keeps per name: `paid` (date, amount, currency, registered or purchased), `sold`, `notes`, `askingPrice` (BIN price, minimum offer, floor), and `renewalPrice` (DomBot’s yearly estimate and its source, as domain_renewal_price). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, staleAccounts, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete; `staleAccounts` lists accounts whose own last sync is old even if another synced since (`stale` is true then too — registrar_sync just those, or portfolio_sync). Rows carry only the fields you need — call domain_get for a single domain’s full record.',
       inputSchema: queryShape,
       annotations: { readOnlyHint: true },
     },

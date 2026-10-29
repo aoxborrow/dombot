@@ -98,3 +98,88 @@ export function sameListPrice(
     a.currency === b.currency
   );
 }
+
+// The Pricing filter (Domains and portfolio_query): which part of an asking
+// price a name has, and ranges on its BIN price and minimum offer. "For sale"
+// isn't stored; it's a BIN price or a minimum offer. A floor alone isn't
+// shown to buyers, so it doesn't count.
+
+/** What a name's asking price holds. `none`: no BIN price or minimum offer. */
+export type AskingKind = 'forSale' | 'bin' | 'minOffer' | 'none';
+
+export const ASKING_KINDS: readonly AskingKind[] = [
+  'forSale',
+  'bin',
+  'minOffer',
+  'none',
+];
+
+/** Whole-amount bounds; null is unbounded. */
+export interface AmountRange {
+  min: number | null;
+  max: number | null;
+}
+
+export interface AskingFilter {
+  /** Any of these. Empty or missing doesn't filter. */
+  kinds?: readonly AskingKind[];
+  bin?: AmountRange;
+  minOffer?: AmountRange;
+  /** Ranges only match prices in this currency (amounts aren't converted). */
+  currency?: string;
+}
+
+const set = (v: string | null | undefined): v is string =>
+  v != null && Number(v) > 0;
+
+/** True when the asking price has this kind. */
+export function hasAskingKind(
+  price: ListPrice | undefined,
+  kind: AskingKind,
+): boolean {
+  const bin = set(price?.amount);
+  const offer = set(price?.minOffer);
+  switch (kind) {
+    case 'forSale':
+      return bin || offer;
+    case 'bin':
+      return bin;
+    case 'minOffer':
+      return offer;
+    case 'none':
+      return !bin && !offer;
+  }
+}
+
+const bounded = (r: AmountRange | undefined): r is AmountRange =>
+  r != null && (r.min != null || r.max != null);
+
+/** True when the filter sets a range. */
+export function hasAskingRange(filter: AskingFilter): boolean {
+  return bounded(filter.bin) || bounded(filter.minOffer);
+}
+
+/**
+ * True when a name's asking price passes the filter. A range needs that
+ * amount: a name without a BIN price is outside any BIN range.
+ */
+export function matchesAsking(
+  price: ListPrice | undefined,
+  filter: AskingFilter,
+): boolean {
+  if (
+    filter.kinds?.length &&
+    !filter.kinds.some((k) => hasAskingKind(price, k))
+  )
+    return false;
+  const within = (value: string | null | undefined, r: AmountRange) => {
+    if (!set(value)) return false;
+    if (filter.currency && price?.currency !== filter.currency) return false;
+    const n = Number(value);
+    return (r.min == null || n >= r.min) && (r.max == null || n <= r.max);
+  };
+  if (bounded(filter.bin) && !within(price?.amount, filter.bin)) return false;
+  if (bounded(filter.minOffer) && !within(price?.minOffer, filter.minOffer))
+    return false;
+  return true;
+}

@@ -284,8 +284,9 @@ interface ListPrice {
 - **At least one amount is set.** Clearing all three deletes the record.
 - **A minimum offer or floor** can't be above the BIN price. A zero reads as
   blank.
-- **"Allow offers" and "for sale" aren't stored.** A name with a BIN price is
-  for sale, and a minimum offer (or no BIN price) means offers are welcome.
+- **"Allow offers" and "for sale" aren't stored.** A name with a BIN price or
+  a minimum offer is for sale (the Pricing filter's For sale), and a minimum
+  offer (or no BIN price) means offers are welcome.
 - **Bundle checks.** `cleanListPrice` re-checks entries read from a bundle,
   the way `cleanEvent` does for events.
 
@@ -362,8 +363,16 @@ renewal prices import as USD amounts.
 - **API:** `getListPrices` and `setListPrices`, through the method table.
 - **Domains table (Owned):** a BIN price column; clicking the cell opens the
   Pricing editor, as the Paid cell opens Purchase details. The row menu and
-  the bulk bar open the same editor for one name or the selection. The
-  Pricing filter narrows by price range.
+  the bulk bar open the same editor for one name or the selection.
+- **Pricing filter (Owned):** For sale (a BIN price or a minimum offer), Has
+  BIN price, Has min offer, and Not for sale (neither; a floor alone counts
+  as neither), with counts; picking several matches any of them. Below them,
+  BIN price and Min offer ranges narrow further. A range needs that amount,
+  so a name with only a minimum offer is outside every BIN range, and
+  ranges only match prices in your preferred currency (nothing is
+  converted). `portfolio_query` takes the same filter: `askingPrice`,
+  `binMin`/`binMax`, `minOfferMin`/`minOfferMax`, and `priceCurrency`.
+  Matching is `matchesAsking` in `src/shared/list-prices.ts`.
 - **Editor:** BIN price, minimum offer, and floor price (marked "never shown
   to buyers"), in one currency, your preferred currency by default. Amounts
   are typed in your number format. All three blank clears the price.
