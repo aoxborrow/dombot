@@ -619,49 +619,20 @@ function MarketCard({
 
         <CollapsibleContent className="flex flex-col gap-6 border-t px-5 py-4">
           {/* What the market itself holds, read through its API (and, for
-              settings, saved back there), kept apart from what DomBot
-              stores. */}
+              settings, saved back there), in a box of its own apart from
+              what DomBot keeps. */}
           {(account.sync?.status?.length ||
             (lease && lease.enabled !== null)) && (
-            <CardSection
-              title={`Your ${market.name} account`}
-              hint={`Read from ${market.name}. Settings you change here are saved to your ${market.name} account.`}
-            >
-              {account.sync?.status?.map((flag) => (
-                <SettingRow key={flag.label} label={flag.label}>
-                  <span
-                    className={cn(
-                      'flex items-center gap-2',
-                      !flag.on && 'text-muted-foreground',
-                    )}
-                  >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'size-2 shrink-0 rounded-full',
-                        flag.on
-                          ? 'bg-emerald-500'
-                          : 'border border-muted-foreground/60',
-                      )}
-                    />
-                    {flag.on ? 'Yes' : 'No'}
-                  </span>
-                </SettingRow>
-              ))}
-              {lease && lease.enabled !== null && (
-                <LeaseDefaultsForm
-                  key={account.id}
-                  accountId={account.id}
-                  marketName={market.name}
-                  initial={lease}
-                />
-              )}
-            </CardSection>
+            <MarketAccountSettings
+              // Remounts once the settings arrive, after the flags.
+              key={`${account.id}:${lease ? 'loaded' : 'loading'}`}
+              accountId={account.id}
+              marketName={market.name}
+              flags={account.sync?.status ?? []}
+              lease={lease && lease.enabled !== null ? lease : null}
+            />
           )}
-          <CardSection
-            title="In DomBot"
-            hint={`How DomBot connects to ${market.name}. Keys are encrypted and stay with DomBot.`}
-          >
+          <div className="flex flex-col gap-3">
             {account.sync?.notes.map((note) => (
               <p key={note} className="text-sm text-muted-foreground">
                 {note}
@@ -716,7 +687,7 @@ function MarketCard({
                 </p>
               )}
             </form>
-          </CardSection>
+          </div>
         </CollapsibleContent>
       </Collapsible>
 
@@ -775,29 +746,6 @@ function MarketCard({
   );
 }
 
-/** A titled part of a market card: what the market holds, or what DomBot does. */
-function CardSection({
-  title,
-  hint,
-  children,
-}: {
-  title: string;
-  hint: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-3">
-      <div>
-        <h3 className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-          {title}
-        </h3>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      </div>
-      {children}
-    </section>
-  );
-}
-
 /** One setting: its name on the left, its value or control on the right. */
 function SettingRow({
   label,
@@ -807,7 +755,7 @@ function SettingRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b pb-3 text-sm last:border-b-0 last:pb-0">
+    <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 text-sm">
       <span>{label}</span>
       <div className="flex items-center gap-2">{children}</div>
     </div>
@@ -815,26 +763,31 @@ function SettingRow({
 }
 
 /**
- * The account's lease-to-own defaults on the market (Afternic's account
- * settings), saved there. They apply to listings created on the market
- * itself; DomBot sends lease-to-own with every listing it creates.
+ * What the market account itself holds, read through its API: what the
+ * account has (read-only, e.g. Discount Domain Club Domain Pro), and its
+ * settings (Afternic's lease-to-own defaults), saved back to the market
+ * together with one Save. Lease-to-own applies to listings created on the
+ * market itself; DomBot sends lease-to-own with every listing it creates.
  */
-function LeaseDefaultsForm({
+function MarketAccountSettings({
   accountId,
   marketName,
-  initial,
+  flags,
+  lease,
 }: {
   accountId: string;
   marketName: string;
-  initial: LeaseDefaults;
+  flags: { label: string; on: boolean }[];
+  lease: LeaseDefaults | null;
 }) {
-  const [saved, setSaved] = useState(initial);
-  const [enabled, setEnabled] = useState(initial.enabled ?? false);
-  const [months, setMonths] = useState(initial.months ?? DEFAULT_LEASE_MONTHS);
+  const [saved, setSaved] = useState(lease);
+  const [enabled, setEnabled] = useState(lease?.enabled ?? false);
+  const [months, setMonths] = useState(lease?.months ?? DEFAULT_LEASE_MONTHS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dirty =
-    enabled !== saved.enabled || (enabled && months !== saved.months);
+    !!saved &&
+    (enabled !== saved.enabled || (enabled && months !== saved.months));
 
   const save = async () => {
     setBusy(true);
@@ -846,8 +799,8 @@ function LeaseDefaultsForm({
           ? { leasingEnabled: true, maxLeasePeriod: months }
           : { leasingEnabled: false },
       );
-      setSaved({ enabled, months: enabled ? months : saved.months });
-      toast.success(`Saved lease-to-own defaults on ${marketName}.`);
+      setSaved({ enabled, months: enabled ? months : (saved?.months ?? null) });
+      toast.success(`Saved your ${marketName} account settings.`);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -856,46 +809,81 @@ function LeaseDefaultsForm({
   };
 
   return (
-    <>
-      <SettingRow label="Lease-to-own for new listings">
-        <Checkbox
-          aria-label="Lease-to-own for new listings"
-          checked={enabled}
-          onCheckedChange={(on) => setEnabled(on === true)}
-        />
-        <Select
-          value={String(months)}
-          disabled={!enabled}
-          onValueChange={(v) => setMonths(Number(v))}
-        >
-          <SelectTrigger
-            aria-label="Most monthly payments by default"
-            className="h-8 w-40"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            {leaseMonthOptions(months).map((m) => (
-              <SelectItem key={m} value={String(m)}>
-                Up to {m} months
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!dirty || busy}
-          onClick={() => void save()}
-        >
-          {busy ? 'Saving…' : 'Save'}
-        </Button>
-      </SettingRow>
-      {error && (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
+    <div className="rounded-md border">
+      <div className="border-b bg-muted/40 px-3 py-2">
+        <h3 className="text-sm font-medium">{marketName} account settings</h3>
+        <p className="text-xs text-muted-foreground">
+          Read from your {marketName} account
+          {lease ? `; saving changes them on ${marketName}` : ''}.
         </p>
+      </div>
+      <div className="divide-y">
+        {flags.map((flag) => (
+          <SettingRow key={flag.label} label={flag.label}>
+            <span
+              className={cn(
+                'flex items-center gap-2',
+                !flag.on && 'text-muted-foreground',
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'size-2 shrink-0 rounded-full',
+                  flag.on
+                    ? 'bg-emerald-500'
+                    : 'border border-muted-foreground/60',
+                )}
+              />
+              {flag.on ? 'Yes' : 'No'}
+            </span>
+          </SettingRow>
+        ))}
+        {lease && (
+          <SettingRow label="Lease-to-own for new listings">
+            <Checkbox
+              aria-label="Lease-to-own for new listings"
+              checked={enabled}
+              onCheckedChange={(on) => setEnabled(on === true)}
+            />
+            <Select
+              value={String(months)}
+              disabled={!enabled}
+              onValueChange={(v) => setMonths(Number(v))}
+            >
+              <SelectTrigger
+                aria-label="Most monthly payments by default"
+                className="h-8 w-40"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {leaseMonthOptions(months).map((m) => (
+                  <SelectItem key={m} value={String(m)}>
+                    Up to {m} months
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+        )}
+      </div>
+      {lease && (
+        <div className="flex items-center justify-end gap-3 border-t px-3 py-2">
+          {error && (
+            <p role="alert" className="mr-auto text-xs text-destructive">
+              {error}
+            </p>
+          )}
+          <Button
+            size="sm"
+            disabled={!dirty || busy}
+            onClick={() => void save()}
+          >
+            {busy ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
       )}
-    </>
+    </div>
   );
 }

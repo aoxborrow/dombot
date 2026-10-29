@@ -434,19 +434,49 @@ export const DEMO_MARKET_ACCOUNTS = [
 ] as const;
 
 /** Names sold before the demo begins: on no account, so they're in Archive. */
-const SOLD = [
-  ['brightharbor.com', 'afternic', 2400, 40],
-  ['quillstone.com', 'afternic', 5800, 95],
-  ['northlark.io', 'afternic', 1250, 150],
-  ['emberline.co', 'afternic', 3900, 210],
-  ['silvermint.com', 'afternic', 8500, 300],
-  ['cobaltfern.com', 'atom', 4200, 120],
+const SOLD_FIRST = [
+  'amber',
+  'cedar',
+  'lumen',
+  'harbor',
+  'quill',
+  'north',
+  'ember',
+  'silver',
+  'cobalt',
+  'sable',
+  'juniper',
+  'marble',
+  'saffron',
+  'tidal',
+  'wren',
+  'granite',
 ] as const;
+const SOLD_SECOND = [
+  'lane',
+  'field',
+  'stone',
+  'works',
+  'lark',
+  'mint',
+  'line',
+  'fern',
+  'crest',
+  'gate',
+  'labs',
+  'path',
+] as const;
+const SOLD_PRICES = [
+  4500, 6800, 9500, 12000, 14500, 18000, 24000, 32500, 48000, 85000,
+] as const;
+/** About one sale every two months, over three years. */
+const SOLD_COUNT = 18;
+const SOLD_YEARS = 3;
 
 /**
  * Fills the world from the portfolio's names: about one in eight on
  * Afternic, one in twelve on Sedo (some on both), one in thirty on Atom, at
- * prices that look like a portfolio's, with sales over the last year and one
+ * prices that look like a portfolio's, with sales over three years and one
  * waiting on an auth code.
  */
 export function seedDemoMarkets(
@@ -540,17 +570,29 @@ export function seedDemoMarkets(
     if (i % 30 === 7) listed('demo-atom', 'atom', name, at);
   });
 
-  for (const [name, market, amount, daysAgo] of SOLD) {
+  const held = new Set(names);
+  const soldNames = new Set<string>();
+  for (let i = 0; i < SOLD_COUNT; i++) {
+    let name: string;
+    do {
+      name = `${pick(r, SOLD_FIRST)}${pick(r, SOLD_SECOND)}.${pick(r, ['com', 'com', 'com', 'io', 'co'])}`;
+    } while (held.has(name) || soldNames.has(name));
+    soldNames.add(name);
+    const market: MarketId = i % 6 === 5 ? 'atom' : 'afternic';
+    const amount = pick(r, SOLD_PRICES);
+    // Spread over the years, a little uneven.
+    const daysAgo = Math.round(
+      ((i + 0.5 + (r() - 0.5) * 0.8) / SOLD_COUNT) * 365 * SOLD_YEARS,
+    );
     const accountId = `demo-${market}`;
     const rate = market === 'atom' ? 0.15 : 0.2;
-    const soldOn = isoDay(now - daysAgo * DAY);
     const sales = world.sales.get(accountId) ?? [];
     sales.push({
       market,
       accountId,
       id: `demo-${name}`,
       name,
-      soldOn,
+      soldOn: isoDay(now - daysAgo * DAY),
       status: 'completed',
       statusRaw: 'COMPLETED',
       kind: 'buy_now',
@@ -560,7 +602,7 @@ export function seedDemoMarkets(
       net: String(amount * (1 - rate)),
       currency: 'USD',
       installments: null,
-      paidOutOn: isoDay(now - (daysAgo - 12) * DAY),
+      paidOutOn: isoDay(now - Math.max(0, daysAgo - 12) * DAY),
       action: null,
     });
     world.sales.set(accountId, sales);

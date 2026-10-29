@@ -36,9 +36,9 @@ describe('demo markets', () => {
     expect(by('atom').length).toBeGreaterThan(0);
   });
 
-  it('has sales over the year and one waiting on an auth code', () => {
+  it('has sales over three years and one waiting on an auth code', () => {
     const sales = marketSales();
-    expect(sales.filter((s) => s.status === 'completed').length).toBe(6);
+    expect(sales.filter((s) => s.status === 'completed').length).toBe(18);
     expect(sales.filter((s) => s.action === 'auth_code')).toHaveLength(1);
   });
 
