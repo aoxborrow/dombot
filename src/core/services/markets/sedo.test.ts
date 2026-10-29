@@ -76,7 +76,8 @@ describe('listingFromSedo', () => {
       status: 'active',
       statusRaw: 'for sale',
       forSale: true,
-      price: '900',
+      // An asking price (not fixed) reads as offers only.
+      price: null,
       buyNow: false,
       minOffer: '100',
       floor: null,
@@ -97,9 +98,10 @@ describe('listingFromSedo', () => {
   });
 
   it('is Buy Now only with a fixed price and a price', () => {
-    expect(listingFromSedo(listed({ fixedPrice: true }), 'a').buyNow).toBe(
-      true,
-    );
+    expect(listingFromSedo(listed({ fixedPrice: true }), 'a')).toMatchObject({
+      price: '900',
+      buyNow: true,
+    });
     expect(
       listingFromSedo(listed({ fixedPrice: true, price: null }), 'a').buyNow,
     ).toBe(false);
@@ -141,10 +143,17 @@ describe('changes', () => {
       forSale: true,
       price: '1200',
       minPrice: '100',
-      fixedPrice: false,
+      // A price DomBot sends is always Buy Now.
+      fixedPrice: true,
       currency: 'EUR',
       language: 'de',
     });
+  });
+
+  it('keeps Sedo’s asking price when the price is left alone', () => {
+    expect(
+      mergeSedoChange({ name: 'example.com', minOffer: '200' }, listed()),
+    ).toMatchObject({ price: '900', fixedPrice: false, minPrice: '200' });
   });
 
   it('keeps an unset language on edit instead of forcing one', () => {
@@ -174,12 +183,12 @@ describe('changes', () => {
 
   it('refuses a Buy Now price under 199, and a minimum above the price', () => {
     expect(() =>
-      mergeSedoChange({ name: 'a.com', price: '150', buyNow: true }, null),
+      mergeSedoChange({ name: 'a.com', price: '150' }, null),
     ).toThrow(/at least 199/);
     expect(
-      mergeSedoChange({ name: 'a.com', price: '150', buyNow: false }, null)
+      mergeSedoChange({ name: 'a.com', price: '150', currency: 'GBP' }, null)
         .fixedPrice,
-    ).toBe(false);
+    ).toBe(true);
     expect(() =>
       mergeSedoChange({ name: 'a.com', price: '500', minOffer: '600' }, null),
     ).toThrow(/above the price/);

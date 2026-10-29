@@ -173,7 +173,6 @@ describe('changeToAfternic', () => {
       return 'accepted';
     };
     expect(reject({ currency: 'EUR' })).toBe('currency');
-    expect(reject({ price: '2500', buyNow: false })).toBe('buyNow');
     expect(reject({ minOffer: null })).toBe('minOffer');
     expect(reject({ currency: 'USD', price: '1' })).toBe('accepted');
     expect(() =>

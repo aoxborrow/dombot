@@ -51,8 +51,6 @@ const NO_CAPS = {
   currencies: ['USD'],
   minOffer: false,
   floor: false,
-  askingPrice: false,
-  hide: false,
   leaseToOwn: false,
 } as const;
 
@@ -131,9 +129,8 @@ export function MarketListingDialog({
   const [price, setPrice] = useState(whole(start.price));
   const [minOffer, setMinOffer] = useState(whole(start.minOffer));
   const [floor, setFloor] = useState(whole(start.floor));
-  const [buyNow, setBuyNow] = useState(listing?.buyNow ?? true);
-  const [forSale, setForSale] = useState(listing?.forSale ?? true);
-  const [lease, setLease] = useState(listing?.leaseToOwn?.enabled ?? false);
+  // A new listing starts with leasing on, as Afternic's own default does.
+  const [lease, setLease] = useState(listing?.leaseToOwn?.enabled ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelist, setConfirmDelist] = useState(false);
@@ -164,8 +161,6 @@ export function MarketListingDialog({
       minOffer: caps?.minOffer ? parse(minOffer, 'Minimum offer') : null,
       floor: caps?.floor ? parse(floor, 'Floor price') : null,
       currency,
-      buyNow,
-      forSale,
       leaseToOwn: lease,
     });
   }
@@ -250,9 +245,8 @@ export function MarketListingDialog({
   }
 
   const offersOnly = market === 'atom' ? 'Make an Offer' : 'Offers only';
-  // A name the market is still verifying isn't shown to buyers yet, and
-  // can't be until the market says (Sedo refuses it), so there's no toggle.
-  const canHide = !!caps?.hide && listing?.status !== 'pending';
+  // Hidden from buyers on the market: saving shows it (listingChange).
+  const hidden = !!listing && !listing.forSale && listing.status !== 'pending';
 
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
@@ -289,6 +283,11 @@ export function MarketListingDialog({
             {listing && (
               <ListingStatus listing={listing} recheck={!!caps?.relist} />
             )}
+            {hidden && (
+              <p className="text-muted-foreground">
+                Hidden from buyers on {where}. Saving shows it.
+              </p>
+            )}
             <div
               className={
                 currencies.length > 1
@@ -299,11 +298,7 @@ export function MarketListingDialog({
               <Field
                 id="market-price"
                 label="Price"
-                help={
-                  caps?.askingPrice && !buyNow
-                    ? 'The asking price buyers see; they make offers.'
-                    : `${LIST_PRICE_HELP.amount} Leave it empty for ${market === 'atom' ? offersOnly : offersOnly.toLowerCase()}.`
-                }
+                help={`${LIST_PRICE_HELP.amount} Leave it empty for ${market === 'atom' ? offersOnly : offersOnly.toLowerCase()}.`}
               >
                 <MoneyInput
                   whole
@@ -387,29 +382,17 @@ export function MarketListingDialog({
                 )}
               </div>
             )}
-            {(caps?.askingPrice || canHide || caps?.leaseToOwn) && (
-              <div className="flex flex-col gap-2.5">
-                {caps.askingPrice && (
-                  <Toggle
-                    checked={buyNow}
-                    onChange={setBuyNow}
-                    label="Buy it now at this price"
-                  />
-                )}
-                {canHide && (
-                  <Toggle
-                    checked={forSale}
-                    onChange={setForSale}
-                    label="Shown to buyers"
-                  />
-                )}
-                {caps.leaseToOwn && (
-                  <Toggle
-                    checked={lease}
-                    onChange={setLease}
-                    label="Lease-to-own"
-                  />
-                )}
+            {caps?.leaseToOwn && (
+              <div className="flex flex-col gap-1">
+                <Toggle
+                  checked={lease}
+                  onChange={setLease}
+                  label="Lease-to-own"
+                />
+                <p className="pl-[26px] text-xs text-muted-foreground">
+                  Buyers can pay the price in monthly installments. The market
+                  sets the payments from the price.
+                </p>
               </div>
             )}
             {confirmDelist && (

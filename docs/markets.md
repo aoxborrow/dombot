@@ -88,7 +88,6 @@ type ListingStatus =
 interface MarketListingChange {
   name: string;
   price?: Amount | null;
-  buyNow?: boolean;
   minOffer?: Amount | null;
   floor?: Amount | null;
   currency?: CurrencyCode;
@@ -169,8 +168,11 @@ keeps dated snapshots of them so trends show over time.
   Atom's adapters convert.
 - **`price` + `buyNow`** rather than Atom's `buyNow` price or Sedo's
   `fixedPrice`: one listed price, and a flag for whether a buyer can pay it
-  outright, with no negotiation. Atom: always. Sedo: `fixedprice`. Afternic:
-  whenever a Buy Now price is set. The lander doesn't change that; it only
+  outright, with no negotiation. Atom: always. Afternic: whenever a Buy Now
+  price is set. Sedo: `fixedprice`; DomBot doesn't use Sedo's "Seller's asking
+  price" (a price with `fixedprice: 0`, neither Buy Now nor a minimum offer),
+  so it reads as offers only, and every price DomBot sends is Buy Now. A
+  change has no `buyNow`. The lander doesn't change that; it only
   changes what the name's own page shows, and buyers also reach the name
   through GoDaddy and partner registrars, which show the Buy Now price and
   minimum offer.
@@ -202,8 +204,6 @@ interface MarketCapabilities {
   currencies: CurrencyCode[]; // afternic, atom: USD; sedo: EUR, USD, GBP
   minOffer: boolean; // afternic, sedo
   floor: boolean; // afternic
-  askingPrice: boolean; // sedo: a price that isn't Buy Now
-  hide: boolean; // afternic, sedo: listed but not shown to buyers
   discount: boolean; // atom
   leaseToOwn: boolean; // afternic
   tiers: string[] | null; // atom
@@ -346,12 +346,13 @@ saved, so the Domains table shows it before the next sync.
   Markets page.
 - **A click on a listing cell edits that listing** on that market (or lists
   the name there, starting from its DomBot asking price). The editor shows
-  only the fields the market has, read from its capabilities: Afternic's
-  minimum offer, floor, lease-to-own and hidden; Sedo's currency, minimum
-  offer, Buy Now or asking price and hidden; Atom's single price. Save sends
-  only the fields you changed straight to the market (`writeMarketListings`),
-  re-runs a stuck listing's checks where the market can, and Delist takes it
-  down. Pricing stays DomBot's own asking price; this edits what the market
+  only the fields the market has, read from its capabilities: a Buy Now
+  price (empty for offers only), then Afternic's minimum offer, floor and
+  lease-to-own; Sedo's currency and minimum offer; Atom's price alone. Save
+  sends only the fields you changed straight to the market
+  (`writeMarketListings`), makes a hidden listing visible (there's no "not
+  for sale" mode in the app), re-runs a stuck listing's checks where the
+  market can, and Delist takes it down. Pricing stays DomBot's own asking price; this edits what the market
   has.
 - **The Listing filter** (price-tag icon) filters by market and status and
   keeps the filtered markets' columns on screen.

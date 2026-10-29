@@ -243,7 +243,6 @@ describe('checkAtomChange', () => {
       { name: 'a.com', floor: '500' },
       { name: 'a.com', currency: 'EUR' as const },
       { name: 'a.com', forSale: false },
-      { name: 'a.com', buyNow: false },
       { name: 'a.com', price: '99' },
       { name: 'a.com', price: '150.50' },
       {

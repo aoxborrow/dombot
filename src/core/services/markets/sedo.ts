@@ -36,8 +36,6 @@ export const SEDO_CAPABILITIES: MarketCapabilities = {
   currencies: SEDO_CURRENCIES,
   minOffer: true,
   floor: false,
-  askingPrice: true,
-  hide: true,
   discount: false,
   leaseToOwn: false,
   tiers: null,
@@ -102,7 +100,11 @@ export function listingFromSedo(
     status: 'active',
     statusRaw: l.forSale ? 'for sale' : 'not for sale',
     forSale: l.forSale,
-    price: l.price,
+    // Every price DomBot shows is Buy Now, as in aftermarket's Sedo driver:
+    // a "Seller's asking price" (not fixed) is neither Buy Now nor a minimum
+    // offer, so it reads as offers only. An edit that leaves the price alone
+    // keeps it on Sedo (mergeSedoChange).
+    price: l.fixedPrice ? l.price : null,
     buyNow: l.fixedPrice && l.price != null,
     minOffer: l.minPrice,
     floor: null,
@@ -211,10 +213,12 @@ export function mergeSedoChange(
       change.minOffer !== undefined
         ? change.minOffer
         : (current?.minPrice ?? null),
-    // A new name's price is a Buy Now price unless told otherwise, as on
-    // Afternic and in DomBot's own asking price.
+    // A price DomBot sends is always Buy Now; one it doesn't touch keeps
+    // whatever Sedo has, an asking price included.
     fixedPrice:
-      price == null ? false : (change.buyNow ?? current?.fixedPrice ?? true),
+      price == null
+        ? false
+        : change.price !== undefined || (current?.fixedPrice ?? true),
     currency:
       (change.currency as SedoCurrency | undefined) ??
       current?.currency ??
@@ -233,8 +237,8 @@ export function mergeSedoChange(
     Number(price) < MIN_FIXED_PRICE
   ) {
     unsupported(
-      'buyNow',
-      `Sedo needs a Buy Now price of at least ${MIN_FIXED_PRICE} ${input.currency}; list it as an asking price instead (buyNow: false).`,
+      'price',
+      `Sedo needs a Buy Now price of at least ${MIN_FIXED_PRICE} ${input.currency}; leave the price empty for offers only, with a minimum offer.`,
     );
   }
   return input;

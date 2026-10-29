@@ -84,8 +84,7 @@ function describe(
   const parts = [`${marketName(markets, l.market)}: ${STATUS_LABEL[l.status]}`];
   if (l.tier) parts.push(`${l.tier[0].toUpperCase()}${l.tier.slice(1)}`);
   if (!l.forSale) parts.push('hidden');
-  if (l.price)
-    parts.push(`${money(l.price)} ${l.buyNow ? 'Buy Now' : 'asking'}`);
+  if (l.price) parts.push(`${money(l.price)} Buy Now`);
   if (l.minOffer) parts.push(`${money(l.minOffer)} min offer`);
   if (l.floor) parts.push(`${money(l.floor)} floor`);
   if (l.discount) {

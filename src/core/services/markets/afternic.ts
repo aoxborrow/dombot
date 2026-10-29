@@ -39,8 +39,6 @@ export const AFTERNIC_CAPABILITIES: MarketCapabilities = {
   currencies: ['USD'],
   minOffer: true,
   floor: true,
-  askingPrice: false,
-  hide: true,
   discount: false,
   leaseToOwn: true,
   tiers: null,
@@ -241,12 +239,6 @@ export function changeToAfternic(change: MarketListingChange): ListingInput {
     unsupported(
       'currency',
       `Afternic prices are in USD only, not ${change.currency}.`,
-    );
-  }
-  if (change.buyNow === false && change.price != null) {
-    unsupported(
-      'buyNow',
-      'An Afternic price is always a Buy Now price; leave it empty to take offers only.',
     );
   }
   if (change.extra && change.extra.market !== 'afternic') {

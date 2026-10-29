@@ -32,8 +32,6 @@ const form = (over: Partial<ListingForm> = {}): ListingForm => ({
   minOffer: '500',
   floor: null,
   currency: 'USD',
-  buyNow: true,
-  forSale: true,
   leaseToOwn: false,
   ...over,
 });
@@ -51,9 +49,13 @@ describe('listingChange', () => {
         'example.com',
         listing(),
         AFTERNIC_CAPABILITIES,
-        form({ price: '4000.00', forSale: false }),
+        form({ price: '4000.00', leaseToOwn: true }),
       ),
-    ).toEqual({ name: 'example.com', price: '4000.00', forSale: false });
+    ).toEqual({
+      name: 'example.com',
+      price: '4000.00',
+      leaseToOwn: { enabled: true },
+    });
   });
 
   it('treats equal amounts written differently as unchanged', () => {
@@ -78,49 +80,63 @@ describe('listingChange', () => {
     ).toEqual({ name: 'example.com', price: null });
   });
 
+  it('makes a hidden listing visible, but not one still being verified', () => {
+    expect(
+      listingChange(
+        'example.com',
+        listing({ forSale: false }),
+        AFTERNIC_CAPABILITIES,
+        form(),
+      ),
+    ).toEqual({ name: 'example.com', forSale: true });
+    expect(
+      listingChange(
+        'example.com',
+        listing({ market: 'sedo', forSale: false, status: 'pending' }),
+        SEDO_CAPABILITIES,
+        form(),
+      ),
+    ).toEqual({ name: 'example.com' });
+  });
+
   it('never sends what the market lacks (Atom: one price, USD)', () => {
     expect(
       listingChange(
         'example.com',
         null,
         ATOM_CAPABILITIES,
-        form({
-          minOffer: '500',
-          floor: '900',
-          forSale: false,
-          leaseToOwn: true,
-        }),
+        form({ minOffer: '500', floor: '900', leaseToOwn: true }),
       ),
     ).toEqual({ name: 'example.com', price: '5000' });
   });
 
-  it('sends everything set for a new listing', () => {
+  it('sends everything set for a new listing, leasing either way', () => {
     expect(
       listingChange(
         'example.com',
         null,
         AFTERNIC_CAPABILITIES,
-        form({ floor: '3000', leaseToOwn: true }),
+        form({ floor: '3000' }),
       ),
     ).toEqual({
       name: 'example.com',
       price: '5000',
       minOffer: '500',
       floor: '3000',
-      leaseToOwn: { enabled: true },
+      leaseToOwn: { enabled: false },
     });
   });
 
-  it('sends Sedo’s currency and Buy Now choice', () => {
-    const sedo = listing({ market: 'sedo', currency: 'EUR', floor: null });
+  it('sends Sedo’s currency with the price', () => {
+    const sedo = listing({ market: 'sedo', currency: 'EUR' });
     expect(
       listingChange(
         'example.com',
         sedo,
         SEDO_CAPABILITIES,
-        form({ currency: 'EUR', buyNow: false }),
+        form({ currency: 'EUR' }),
       ),
-    ).toEqual({ name: 'example.com', buyNow: false });
+    ).toEqual({ name: 'example.com' });
     expect(
       listingChange(
         'example.com',
@@ -128,11 +144,6 @@ describe('listingChange', () => {
         SEDO_CAPABILITIES,
         form({ currency: 'USD' }),
       ),
-    ).toEqual({
-      name: 'example.com',
-      price: '5000',
-      currency: 'USD',
-      buyNow: true,
-    });
+    ).toEqual({ name: 'example.com', price: '5000', currency: 'USD' });
   });
 });

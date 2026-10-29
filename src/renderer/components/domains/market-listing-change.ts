@@ -10,8 +10,6 @@ export interface ListingForm {
   minOffer: string | null;
   floor: string | null;
   currency: string;
-  buyNow: boolean;
-  forSale: boolean;
   leaseToOwn: boolean;
 }
 
@@ -23,24 +21,27 @@ export const samePrice = (a: string | null, b: string | null) =>
  * The change the listing editor sends: for a listed name only the fields that
  * differ from the listing, so the market's other settings stay as they are;
  * for a new listing everything set. Fields the market doesn't have are never
- * sent (its adapter would refuse them). A change with only `name` means
- * nothing changed.
+ * sent (its adapter would refuse them). A hidden listing is made visible: the
+ * editor has no "not for sale" mode. A change with only `name` means nothing
+ * changed.
  */
 export function listingChange(
   name: string,
   listing: MarketListing | null,
   caps: Pick<
     MarketCapabilities,
-    'currencies' | 'minOffer' | 'floor' | 'askingPrice' | 'hide' | 'leaseToOwn'
+    'currencies' | 'minOffer' | 'floor' | 'leaseToOwn'
   >,
   form: ListingForm,
 ): MarketListingChange {
   const change: MarketListingChange = { name };
-  const priceChanged =
+  if (
     !listing ||
     !samePrice(form.price, listing.price) ||
-    form.currency !== listing.currency;
-  if (priceChanged) change.price = form.price;
+    form.currency !== listing.currency
+  ) {
+    change.price = form.price;
+  }
   if (
     caps.currencies.length > 1 &&
     (!listing || form.currency !== listing.currency)
@@ -59,25 +60,15 @@ export function listingChange(
   ) {
     change.floor = form.floor;
   }
-  // Buy Now or an asking price only means something with a price.
-  if (
-    caps.askingPrice &&
-    form.price &&
-    (priceChanged || form.buyNow !== listing?.buyNow)
-  ) {
-    change.buyNow = form.buyNow;
+  // Not while the market is still verifying the name: it decides when that
+  // goes up for sale (Sedo refuses it before then).
+  if (listing && !listing.forSale && listing.status !== 'pending') {
+    change.forSale = true;
   }
-  if (
-    caps.hide &&
-    (listing ? form.forSale !== listing.forSale : !form.forSale)
-  ) {
-    change.forSale = form.forSale;
-  }
+  // A new listing says either way: Afternic turns leasing on by default.
   if (
     caps.leaseToOwn &&
-    (listing
-      ? form.leaseToOwn !== (listing.leaseToOwn?.enabled ?? false)
-      : form.leaseToOwn)
+    (!listing || form.leaseToOwn !== (listing.leaseToOwn?.enabled ?? false))
   ) {
     change.leaseToOwn = { enabled: form.leaseToOwn };
   }

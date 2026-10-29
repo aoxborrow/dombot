@@ -155,7 +155,6 @@ export function matches(
     !same(amount(change.price), amount(listing.price)) ||
     !same(amount(change.minOffer), amount(listing.minOffer)) ||
     !same(amount(change.floor), amount(listing.floor)) ||
-    !same(change.buyNow, listing.buyNow) ||
     !same(change.forSale, listing.forSale) ||
     !same(change.currency, listing.currency) ||
     !same(change.displayName, listing.displayName) ||

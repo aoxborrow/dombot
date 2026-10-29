@@ -275,18 +275,16 @@ describe('market tools', () => {
 });
 
 describe('market write tools', () => {
-  it('passes buyNow and Sedo settings through, and refuses both markets’ settings', async () => {
+  it('passes Sedo settings through, and refuses both markets’ settings', async () => {
     await call('domain_listing_set', {
       domain: 'alpha.com',
       price: '500',
-      buyNow: false,
       sedo: { categories: [104], language: 'de' },
     });
     expect(fake.writes.at(-1)).toEqual([
       {
         name: 'alpha.com',
         price: '500',
-        buyNow: false,
         extra: { market: 'sedo', categories: [104], language: 'de' },
       },
     ]);

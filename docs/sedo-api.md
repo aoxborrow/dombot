@@ -193,8 +193,11 @@ Where Sedo forces a different design from Afternic:
   verification is waiting on sedo.com. A name that never shows up is
   dropped after a week with a note that Sedo may have refused it.
 - **Fixed price vs. asking price.** Sedo's `price` with `fixedprice: 1` is a
-  Buy Now price; with `fixedprice: 0` it's an asking price open to offers,
-  and `minprice` is the lowest offer Sedo forwards. DomBot shows which.
+  Buy Now price; with `fixedprice: 0` it's a "Seller's asking price" open to
+  offers, and `minprice` is the lowest offer Sedo forwards. DomBot doesn't
+  use the asking price, as aftermarket's Sedo driver didn't: such a listing
+  reads as offers only, every price DomBot sends is Buy Now (`fixedprice:
+1`), and an edit that leaves the price alone keeps what Sedo has.
 - **Categories and language** are Sedo-only fields; DomBot asks for them when
   listing on Sedo, defaulting language from the name.
 
@@ -317,7 +320,8 @@ Choices made without live answers, each easy to change once checked:
 - **A new listing** gets a Buy Now price when it has a price (as on Afternic
   and in DomBot's asking price), USD unless told, language `en` unless told,
   no categories, for sale. A Buy Now price under 199 USD or EUR is refused
-  before sending (fault `E3123`), with a hint to list it as an asking price.
+  before sending (fault `E3123`), with a hint to leave the price empty for
+  offers only, with a minimum offer.
 - **Pending inserts:** a name `DomainInsert` accepted is stored `pending`.
   Sync keeps it while Sedo's list doesn't have it, for up to 7 days, then
   drops it and notes on the account card that Sedo may have refused it.
