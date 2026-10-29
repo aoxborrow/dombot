@@ -395,12 +395,19 @@ intervals" unless asked to check now.
 
 Most markets accept two or three of these:
 
-| Method                   | What you set                                            | Example                                                            |
-| ------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------ |
-| Default nameservers      | The name's nameservers, to the market's shared pair     | `ns1/ns2.afternic.com`, `ns1/ns2.sedoparking.com`                  |
-| Per-customer nameservers | The name's nameservers, to a pair assigned to you       | none of Afternic, Atom or Sedo seen doing this                     |
-| TXT record               | A TXT record holding a verification ID from the market  | Sedo: one ID per account, shown in its dashboard                   |
-| CNAME record             | A CNAME from the verification ID to the market's target | Sedo: host `<verification ID>`, value `verify.sedo.com.`, TTL 3600 |
+| Method                  | What you set                                            | Example                                                            |
+| ----------------------- | ------------------------------------------------------- | ------------------------------------------------------------------ |
+| Default nameservers     | The name's nameservers, to the market's shared pair     | `ns1/ns2.afternic.com`, `ns1/ns2.sedoparking.com`                  |
+| Per-customer nameserver | One of the name's nameservers, assigned to you          | Afternic: an extra NS `verification-<ID>.ns101.verify.hn`          |
+| TXT record              | A TXT record holding a verification ID from the market  | Afternic: `afternic-verification-<ID>`; Sedo: the bare ID          |
+| CNAME record            | A CNAME from the verification ID to the market's target | Sedo: host `<verification ID>`, value `verify.sedo.com.`, TTL 3600 |
+
+Afternic and Sedo each give one verification ID per account, shown only in
+their dashboards: neither API returns it (Afternic's account settings are
+lander, intake style, lease-to-own, lander options and self-broker, checked
+against its OpenAPI spec), so the user copies it into DomBot. Afternic's
+nameserver is added as a third (NS3) beside the name's own pair, so the name
+keeps its DNS host.
 
 What each costs:
 
