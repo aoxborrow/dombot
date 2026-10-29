@@ -28,7 +28,7 @@ import {
   type PurchaseColumn,
 } from './purchase-columns';
 
-// Domains table columns and the Listing filter for names on marketplaces
+// Domains table columns for names on marketplaces
 // (docs/markets.md). Built from the shared market shapes, so a new market
 // shows up here with no changes.
 
@@ -337,37 +337,4 @@ export function marketColumns({
       (d) => of(d).map(searchesOf).find(Boolean)?.total.days30 ?? undefined,
     ),
   ];
-}
-
-/** A name's keys for the Listing filter: `market:status`, or `none`. */
-export function listingKeys(list: MarketListing[] | undefined): string[] {
-  return list?.length ? list.map((l) => `${l.market}:${l.status}`) : ['none'];
-}
-
-/** The Listing filter's options, with how many of `rows` each matches. */
-export function listingFilterOptions(
-  rows: Domain[],
-  listings: Listings,
-  markets: MarketInfo[],
-): { value: string; label: string; count: number }[] {
-  const counts = new Map<string, number>();
-  for (const d of rows) {
-    for (const key of new Set(listingKeys(listings[toAscii(d.domainName)]))) {
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-  const label = (key: string) => {
-    if (key === 'none') return 'Not listed';
-    const [market, status] = key.split(':');
-    return `${marketName(markets, market)}: ${STATUS_LABEL[status as ListingStatus] ?? status}`;
-  };
-  return [...counts]
-    .map(([value, count]) => ({ value, label: label(value), count }))
-    .sort((a, b) =>
-      a.value === 'none'
-        ? 1
-        : b.value === 'none'
-          ? -1
-          : a.label.localeCompare(b.label),
-    );
 }

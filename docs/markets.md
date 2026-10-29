@@ -362,8 +362,14 @@ saved, so the Domains table shows it before the next sync.
   for sale" mode in the app), re-runs a stuck listing's checks where the
   market can, and Delist takes it down. Pricing stays DomBot's own asking price; this edits what the market
   has.
-- **The Listing filter** (price-tag icon) filters by market and status and
-  keeps the filtered markets' columns on screen.
+- **The Markets filter** (the Markets tab's icon, after Pricing in Add
+  filter): the markets in play (all to start), then a listing's status
+  (Active, Pending or on hold, Inactive or hidden, Rejected, or Not listed),
+  its price against your DomBot price (above, below, at), and a range on its
+  price. Each condition applies to one listing at a time; a name matches
+  when any market in play has a listing meeting all of them, or has none
+  while Not listed is picked (`src/shared/market-filter.ts`). The markets in
+  play keep their columns on screen while it's set.
 - **List at your price** pushes DomBot's asking prices to every market account
   you tick (all of them to start), one account after another, with results
   grouped by market. A listing that was inactive, rejected or stuck pending
@@ -528,7 +534,7 @@ a person (a sale message) says so in its description.
    `src/core/services/markets/afternic.ts`), with unit tests mapping the
    Afternic fixtures.
 2. **Afternic phase 4 on top of them** (done): storage namespaces, sync,
-   Settings → Markets, listing columns and the Listing filter, `sold`
+   Settings → Markets, listing columns and the listing filter, `sold`
    events, read-only MCP tools.
 3. **Afternic phases 5–6** (done): writes, reporting.
 4. **Atom and Sedo** (done): client, adapter, then their capability-gated
