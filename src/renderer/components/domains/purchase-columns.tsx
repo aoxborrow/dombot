@@ -35,7 +35,7 @@ export const EDITABLE_VALUE =
  * hover, like the row's ⋯ button.
  */
 export const EDITABLE_EMPTY =
-  'inline-flex h-8 w-7 -my-2 items-center justify-center rounded-md align-middle text-muted-foreground group-hover:bg-accent group-hover:text-foreground compact:h-7 compact:w-6 dark:group-hover:bg-accent/50';
+  'inline-flex h-8 w-7 -my-2 -mr-1 items-center justify-center rounded-md align-middle text-muted-foreground group-hover:bg-accent group-hover:text-foreground compact:h-7 compact:w-6 dark:group-hover:bg-accent/50';
 
 /** Fills the cell, including its padding, so one click anywhere opens the editor. */
 export function PurchaseCell({
