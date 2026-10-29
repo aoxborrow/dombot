@@ -378,8 +378,8 @@ partner-access note for Sedo, the API-access note for Atom. What an account
 has shows as status dots (`MarketSyncState.status`), such as Afternic's
 Discount Domain Club Domain Pro, which decides whether search counts come
 back; sync keeps it current. An opened Afternic card also reads the account's
-lease-to-own defaults (on or off, most monthly payments) from Afternic and
-shows them.
+lease-to-own defaults (on or off, most monthly payments) from Afternic, and
+saves changes to them there (`setMarketListingDefaults`, a partial update).
 
 ## Ownership verification
 

@@ -16,7 +16,20 @@ import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
 import { MarketLogo } from '../../components/RegistrarLogo';
 import { timeAgo } from '../../lib/time';
-import { useLeaseDefaults } from '../../lib/lease-to-own';
+import {
+  DEFAULT_LEASE_MONTHS,
+  leaseMonthOptions,
+  useLeaseDefaults,
+  type LeaseDefaults,
+} from '../../lib/lease-to-own';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import {
   Empty,
@@ -635,16 +648,12 @@ function MarketCard({
             </ul>
           ) : null}
           {lease && lease.enabled !== null && (
-            <p className="mb-3 text-sm text-muted-foreground">
-              Lease-to-own by default:{' '}
-              <span className="text-foreground">
-                {lease.enabled
-                  ? `on, up to ${lease.months ?? '?'} monthly payments`
-                  : 'off'}
-              </span>
-              . New listings from DomBot use this unless you choose otherwise;
-              change the default in your {market.name} account settings.
-            </p>
+            <LeaseDefaultsForm
+              key={account.id}
+              accountId={account.id}
+              marketName={market.name}
+              initial={lease}
+            />
           )}
           {account.sync?.notes.map((note) => (
             <p key={note} className="mb-3 text-sm text-muted-foreground">
@@ -754,5 +763,98 @@ function MarketCard({
         </ConfirmDialog>
       )}
     </Card>
+  );
+}
+
+/**
+ * The account's lease-to-own defaults on the market (Afternic's account
+ * settings), saved there. They apply to listings created on the market
+ * itself; DomBot sends lease-to-own with every listing it creates.
+ */
+function LeaseDefaultsForm({
+  accountId,
+  marketName,
+  initial,
+}: {
+  accountId: string;
+  marketName: string;
+  initial: LeaseDefaults;
+}) {
+  const [saved, setSaved] = useState(initial);
+  const [enabled, setEnabled] = useState(initial.enabled ?? false);
+  const [months, setMonths] = useState(initial.months ?? DEFAULT_LEASE_MONTHS);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dirty =
+    enabled !== saved.enabled || (enabled && months !== saved.months);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await window.api.setMarketListingDefaults(
+        accountId,
+        enabled
+          ? { leasingEnabled: true, maxLeasePeriod: months }
+          : { leasingEnabled: false },
+      );
+      setSaved({ enabled, months: enabled ? months : saved.months });
+      toast.success(`Saved lease-to-own defaults on ${marketName}.`);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mb-4 flex flex-col gap-2 rounded-md border px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex cursor-pointer items-center gap-2.5 text-sm">
+          <Checkbox
+            checked={enabled}
+            onCheckedChange={(on) => setEnabled(on === true)}
+          />
+          Lease-to-own by default
+        </label>
+        <Select
+          value={String(months)}
+          disabled={!enabled}
+          onValueChange={(v) => setMonths(Number(v))}
+        >
+          <SelectTrigger
+            aria-label="Most monthly payments by default"
+            className="w-44"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {leaseMonthOptions(months).map((m) => (
+              <SelectItem key={m} value={String(m)}>
+                Up to {m} months
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          size="sm"
+          variant="outline"
+          className="ml-auto"
+          disabled={!dirty || busy}
+          onClick={() => void save()}
+        >
+          {busy ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        For listings you create on {marketName}. DomBot sets lease-to-own on
+        each listing it creates, starting from these.
+      </p>
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
