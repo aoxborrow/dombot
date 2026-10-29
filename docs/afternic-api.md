@@ -55,7 +55,7 @@ What to report to Afternic is collected in
 | `includes=searches`    | searches 30/90/365d                                     | not returned here: needs a Discount Domain Club Domain Pro membership, which this account doesn't have (many DomBot users will) |
 | Per-domain leads       | list sorts by `LEADS_DESC`, examples show `intakeLeads` | never returned; the only per-domain leads are from `/stats/{domain}`                                                            |
 | `registrar` include    | an enum (`GODADDY`, …)                                  | free text: `"Dynadot Inc"` and `"Dynadot, LLC"`, `UNKNOWN`, sometimes missing                                                   |
-| New listing defaults   | —                                                       | `leasingEnabled: true, maxLeasePeriod: 30` even though account settings say 60                                                  |
+| New listing defaults   | —                                                       | the account's settings, but `maxLeasePeriod` is cut to the price cap: 30 at $2,500, the account's 60 at $25,000                 |
 
 Other observed behavior worth designing around:
 
@@ -63,8 +63,9 @@ Other observed behavior worth designing around:
   pointing the nameservers at `ns1/ns2.afternic.com`.
 - Changes made in the Afternic web UI show up in the API immediately (floor
   price on domanio.com).
-- Deleting a listing and creating it again keeps its original `createdAt` but
-  sends it back to `PENDING`; it was `ACTIVE` again within a minute or two.
+- Deleting a listing and creating it again keeps its original `createdAt`. It
+  went back to `PENDING` once (2026-10-28) and was `ACTIVE` again within a
+  minute or two; on 2026-10-29 it came back `ACTIVE` straight away.
 - A bulk call answers a name it couldn't act on with that name's own status
   and no error body (`{"name": {"code": 404}}` for delete), inside a 200.
 - `RESYNC` on an `ACTIVE` listing succeeds and changes nothing visible.
@@ -84,14 +85,17 @@ Other observed behavior worth designing around:
   (`failed to parse buynowprice: abc`,
   `domain : failed validation on 'domainNameFormat' condition`). The job
   details count `totalRequests`, `totalSuccess` and `totalFailures`.
-- A name twice in one job file gets one result, and the other rows in that
-  file went missing from the results too; the client writes each name once.
+- A name twice in one job file: on 2026-10-28 it got one result and the
+  file's other rows went missing from the results; on 2026-10-29 every row
+  got a result, but the name's rows were merged into one update that failed
+  on the other row's error. The client writes each name once.
 - The job file's `Domain` cell sets the lander's display name:
   `DOMANIO.com` renamed the display. The client writes the plain name unless
   a `displayName` was asked for.
 - **Max lease period is capped by price, silently.** On a $2,500 listing, 24
   saved and 31 or 36 were ignored with no error, through both PATCH and a job
-  (`NO_CHANGE`). The values across this account fit a minimum monthly
+  (`NO_CHANGE`); since 2026-10-29 anything over the cap is cut to 30 instead,
+  still with no error. The values across this account fit a minimum monthly
   payment of roughly $81–83. Compare the saved listing with what was asked
   and say when Afternic kept a different value.
 - **The sales list includes purchases.** Domains the account bought on
@@ -104,7 +108,9 @@ Other observed behavior worth designing around:
   earlier sync wrote for one is removed.
 - Sales history covers every sale back to 2020, not just recent ones, once
   you pass a wide `soldAtStartDate`. The default window is the last month.
-- A sale record includes the transfer `authCode` in plain text.
+- `GET /sales/{id}` includes the transfer `authCode` in plain text. The list
+  did too until 2026-10-29, and now leaves out both `authCode` and `saleTotal`
+  (afternic-api-issues.md, issue 18).
 - Leased sales carry `installmentAmount`, `totalInstallments`,
   `totalInstallmentsPaid`, and the previous/next installment dates, but no
   `saleTotal` or `disbursedAt`.
