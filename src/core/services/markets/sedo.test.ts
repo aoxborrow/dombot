@@ -150,10 +150,19 @@ describe('changes', () => {
     });
   });
 
-  it('keeps Sedo’s asking price when the price is left alone', () => {
+  it('clears Sedo’s asking price on any update', () => {
     expect(
       mergeSedoChange({ name: 'example.com', minOffer: '200' }, listed()),
-    ).toMatchObject({ price: '900', fixedPrice: false, minPrice: '200' });
+    ).toMatchObject({ price: null, fixedPrice: false, minPrice: '200' });
+  });
+
+  it('keeps a Buy Now price the change leaves alone', () => {
+    expect(
+      mergeSedoChange(
+        { name: 'example.com', minOffer: '200' },
+        listed({ fixedPrice: true }),
+      ),
+    ).toMatchObject({ price: '900', fixedPrice: true, minPrice: '200' });
   });
 
   it('keeps an unset language on edit instead of forcing one', () => {

@@ -196,8 +196,8 @@ Where Sedo forces a different design from Afternic:
   Buy Now price; with `fixedprice: 0` it's a "Seller's asking price" open to
   offers, and `minprice` is the lowest offer Sedo forwards. DomBot doesn't
   use the asking price, as aftermarket's Sedo driver didn't: such a listing
-  reads as offers only, every price DomBot sends is Buy Now (`fixedprice:
-1`), and an edit that leaves the price alone keeps what Sedo has.
+  reads as offers only, DomBot sends a Buy Now price (fixed), a minimum
+  offer, or both, and any update clears an asking price.
 - **Categories and language** are Sedo-only fields; DomBot asks for them when
   listing on Sedo, defaulting language from the name.
 

@@ -171,8 +171,8 @@ keeps dated snapshots of them so trends show over time.
   outright, with no negotiation. Atom: always. Afternic: whenever a Buy Now
   price is set. Sedo: `fixedprice`; DomBot doesn't use Sedo's "Seller's asking
   price" (a price with `fixedprice: 0`, neither Buy Now nor a minimum offer),
-  so it reads as offers only, and every price DomBot sends is Buy Now. A
-  change has no `buyNow`. The lander doesn't change that; it only
+  so it reads as offers only, every price DomBot sends is Buy Now, and an
+  update clears an asking price. A change has no `buyNow`. The lander doesn't change that; it only
   changes what the name's own page shows, and buyers also reach the name
   through GoDaddy and partner registrars, which show the Buy Now price and
   minimum offer.

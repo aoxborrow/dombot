@@ -102,8 +102,8 @@ export function listingFromSedo(
     forSale: l.forSale,
     // Every price DomBot shows is Buy Now, as in aftermarket's Sedo driver:
     // a "Seller's asking price" (not fixed) is neither Buy Now nor a minimum
-    // offer, so it reads as offers only. An edit that leaves the price alone
-    // keeps it on Sedo (mergeSedoChange).
+    // offer, so it reads as offers only, and an update clears it
+    // (mergeSedoChange).
     price: l.fixedPrice ? l.price : null,
     buyNow: l.fixedPrice && l.price != null,
     minOffer: l.minPrice,
@@ -202,8 +202,15 @@ export function mergeSedoChange(
   current: SedoListing | null,
 ): SedoListingInput {
   const sedo = change.extra?.market === 'sedo' ? change.extra : undefined;
+  // DomBot sends a Buy Now price, a minimum offer, or both. An update
+  // clears a "Seller's asking price" (a price that isn't fixed) rather than
+  // keeping it.
   const price =
-    change.price !== undefined ? change.price : (current?.price ?? null);
+    change.price !== undefined
+      ? change.price
+      : current?.fixedPrice
+        ? current.price
+        : null;
   const input: SedoListingInput = {
     name: change.name,
     categories: sedo?.categories ?? current?.categories ?? [],
@@ -213,12 +220,7 @@ export function mergeSedoChange(
       change.minOffer !== undefined
         ? change.minOffer
         : (current?.minPrice ?? null),
-    // A price DomBot sends is always Buy Now; one it doesn't touch keeps
-    // whatever Sedo has, an asking price included.
-    fixedPrice:
-      price == null
-        ? false
-        : change.price !== undefined || (current?.fixedPrice ?? true),
+    fixedPrice: price != null,
     currency:
       (change.currency as SedoCurrency | undefined) ??
       current?.currency ??
