@@ -265,6 +265,11 @@ export function MarketListingDialog({
   }
 
   const offersOnly = market === 'atom' ? 'Make an Offer' : 'Offers only';
+  // Each lease payment at the typed price, for the period chosen.
+  const leasePayment = monthlyPayment(
+    /^\d+$/.test(price) ? Number(price) : null,
+    months,
+  );
   // Hidden from buyers on the market: saving shows it (listingChange).
   const hidden = !!listing && !listing.forSale && listing.status !== 'pending';
 
@@ -404,7 +409,7 @@ export function MarketListingDialog({
             )}
             {caps?.leaseToOwn && (
               <div className="flex flex-col gap-1.5">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3">
                   <Field label="Lease To Own" help="Monthly installments.">
                     <label className="flex h-9 cursor-pointer items-center gap-2.5 text-sm">
                       <Switch checked={lease} onCheckedChange={setLease} />
@@ -424,13 +429,20 @@ export function MarketListingDialog({
                         aria-label="Maximum Lease Period"
                         className="w-full"
                       >
-                        {/* The options also show each payment; the
-                            field has room for the period and discount. */}
                         <SelectValue>
                           {months} months
-                          {leaseCommissionDiscount(months) > 0 && (
+                          {(leasePayment !== null ||
+                            leaseCommissionDiscount(months) > 0) && (
                             <span className="text-muted-foreground">
-                              · {leaseCommissionDiscount(months)}% off
+                              {[
+                                leasePayment !== null &&
+                                  `${formatMoney(String(leasePayment), currency, preferred, formatId, true)}/mo`,
+                                leaseCommissionDiscount(months) > 0 &&
+                                  `${leaseCommissionDiscount(months)}% off`,
+                              ]
+                                .filter(Boolean)
+                                .map((part) => `· ${part}`)
+                                .join(' ')}
                             </span>
                           )}
                         </SelectValue>
@@ -515,7 +527,7 @@ export function MarketListingDialog({
             <>
               {listing && (
                 <Button
-                  variant="outline"
+                  variant="destructive"
                   className="sm:mr-auto"
                   disabled={busy}
                   onClick={() => setConfirmDelist(true)}
