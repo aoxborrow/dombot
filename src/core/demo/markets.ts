@@ -505,12 +505,17 @@ export function seedDemoMarkets(
           : roll < 0.14
             ? String(Math.round((Number(ask.amount) * 1.2) / 5) * 5)
             : ask.amount;
+    // Mostly live; a few waiting, switched off, refused, or hidden.
+    const roll2 = r();
     const status =
-      r() < 0.06
+      roll2 < 0.06
         ? 'pending'
-        : market === 'afternic' && r() < 0.04
+        : market === 'afternic' && roll2 < 0.1
           ? 'inactive'
-          : 'active';
+          : market === 'afternic' && roll2 < 0.12
+            ? 'rejected'
+            : 'active';
+    const hidden = market === 'afternic' && status === 'active' && r() < 0.04;
     const base = newListing(market, accountId, name, isoDay(at));
     const listing: MarketListing = {
       ...base,
@@ -524,8 +529,10 @@ export function seedDemoMarkets(
             ? market === 'sedo'
               ? 'not for sale'
               : 'PENDING'
-            : 'INACTIVE',
-      forSale: status !== 'pending' || market !== 'sedo',
+            : status === 'rejected'
+              ? 'FAILED_COMPLIANCE'
+              : 'INACTIVE',
+      forSale: !hidden && (status !== 'pending' || market !== 'sedo'),
       price,
       buyNow: price != null,
       // Atom has one price; Afternic always has a minimum offer.

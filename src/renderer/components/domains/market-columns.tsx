@@ -9,6 +9,18 @@ import {
   type MarketTraffic,
 } from '../../../shared/markets';
 import { formatMoney, type NumberFormatId } from '../../../shared/money';
+import {
+  ArrowDown,
+  ArrowUp,
+  CircleCheck,
+  CircleDollarSign,
+  CircleHelp,
+  CircleMinus,
+  Clock,
+  EyeOff,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PurchaseCell, type PurchaseColumn } from './purchase-columns';
 
@@ -46,16 +58,6 @@ const STATUS_LABEL: Record<ListingStatus, string> = {
   unknown: 'Unknown',
 };
 
-const STATUS_DOT: Record<ListingStatus, string> = {
-  active: 'bg-brand',
-  pending: 'bg-amber-500',
-  inactive: 'bg-muted-foreground',
-  rejected: 'bg-destructive',
-  on_hold: 'bg-amber-500',
-  sold: 'bg-muted-foreground',
-  unknown: 'bg-muted-foreground',
-};
-
 const FAST_TRANSFER_LABEL: Record<string, string> = {
   ACTIVE: 'Active',
   AWAITING_OPT_IN: 'Awaiting opt-in',
@@ -76,6 +78,69 @@ function marketName(markets: MarketInfo[], id: string): string {
 }
 
 /** What a hover over a listing says: status, prices and the market's extras. */
+/**
+ * The icon at the left of a listing cell: one per cell, the most pressing
+ * state wins (rejected, waiting, not selling, a price apart from DomBot's,
+ * then all good). The tooltip has the rest.
+ */
+function cellState(
+  l: MarketListing,
+  /** Market price minus your DomBot BIN price; 0 when equal or unknown. */
+  diff: number,
+): { icon: LucideIcon; className: string; label: string; faded: boolean } {
+  const quiet = 'text-muted-foreground';
+  if (l.status === 'rejected')
+    return {
+      icon: TriangleAlert,
+      className: 'text-destructive',
+      label: 'Rejected',
+      faded: false,
+    };
+  if (l.status === 'pending' || l.status === 'on_hold')
+    return {
+      icon: Clock,
+      className: 'text-amber-600 dark:text-amber-400',
+      label: STATUS_LABEL[l.status],
+      faded: false,
+    };
+  if (l.status === 'inactive')
+    return {
+      icon: CircleMinus,
+      className: quiet,
+      label: 'Inactive',
+      faded: true,
+    };
+  if (l.status === 'sold')
+    return {
+      icon: CircleDollarSign,
+      className: quiet,
+      label: 'Sold',
+      faded: true,
+    };
+  if (l.status === 'unknown')
+    return {
+      icon: CircleHelp,
+      className: quiet,
+      label: 'Unknown',
+      faded: true,
+    };
+  if (!l.forSale)
+    return { icon: EyeOff, className: quiet, label: 'Hidden', faded: true };
+  if (diff)
+    return {
+      icon: diff > 0 ? ArrowUp : ArrowDown,
+      className: 'text-amber-600 dark:text-amber-400',
+      label: diff > 0 ? 'Above your price' : 'Below your price',
+      faded: false,
+    };
+  return {
+    icon: CircleCheck,
+    className: 'text-brand/70',
+    label: 'Active',
+    faded: false,
+  };
+}
+
 function describe(
   l: MarketListing,
   markets: MarketInfo[],
@@ -159,40 +224,39 @@ export function marketColumns({
     const listingCell = (d: Domain) => {
       const l = on(d);
       if (!l) return dash;
-      // Flag a market price that isn't the asking price you set in DomBot.
+      // Compare with the asking price you set in DomBot.
       const mine = listPrices[toAscii(d.domainName)];
-      const differs =
-        mine?.amount != null &&
-        l.price != null &&
-        mine.currency === l.currency &&
-        Number(mine.amount) !== Number(l.price);
+      const diff =
+        mine?.amount != null && l.price != null && mine.currency === l.currency
+          ? Number(l.price) - Number(mine.amount)
+          : 0;
+      const state = cellState(l, diff);
       const title = [
         describe(l, markets, (a) => money(a, l.currency)),
-        differs &&
-          `Your BIN price in DomBot is ${money(mine.amount!, mine.currency)}`,
+        diff &&
+          `${money(String(Math.abs(diff)), l.currency)} ${diff > 0 ? 'above' : 'below'} your DomBot BIN price of ${money(mine!.amount!, mine!.currency)}`,
       ]
         .filter(Boolean)
         .join('\n');
+      const Icon = state.icon;
       return (
         <span
-          className={cn(
-            'inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums',
-            !l.forSale && 'opacity-60',
-          )}
+          className="flex w-full items-center justify-between gap-2 whitespace-nowrap"
           title={title}
         >
-          <span
-            aria-hidden
-            className={cn('size-2 rounded-full', STATUS_DOT[l.status])}
+          <Icon
+            aria-label={state.label}
+            className={cn('size-4 shrink-0', state.className)}
+            strokeWidth={1.75}
           />
-          <span className={cn(differs && 'text-amber-600 dark:text-amber-400')}>
+          <span
+            className={cn(
+              'text-[13px] text-muted-foreground tabular-nums',
+              state.faded && 'opacity-50',
+            )}
+          >
             {l.price ? money(l.price, l.currency) : 'Offers'}
           </span>
-          {l.status !== 'active' && (
-            <span className="text-muted-foreground">
-              {STATUS_LABEL[l.status].toLowerCase()}
-            </span>
-          )}
         </span>
       );
     };

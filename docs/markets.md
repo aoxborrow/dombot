@@ -340,8 +340,12 @@ saved, so the Domains table shows it before the next sync.
 
 - **A listing column per connected market** (Afternic, Atom, Sedo, …), in the slot
   saved layouts call `listing`, so a name listed on two markets stays on one
-  line: the price (or "Offers"), a status dot, and the status when it isn't
-  active. A name can only be in one account per market, so each cell holds
+  line: the market's price (or "Offers") right-aligned in grey, and one
+  status icon at the left: a soft check when live at your DomBot price, an
+  amber arrow when the market's price is above or below it, an amber clock
+  while pending or on hold, a red warning when rejected, and a grey icon with
+  the price faded when inactive, hidden, sold or unknown. The tooltip has
+  the detail. A name can only be in one account per market, so each cell holds
   one listing. A table with every market side by side may follow on the
   Markets page.
 - **A click on a listing cell edits that listing** on that market (or lists
