@@ -41,6 +41,8 @@ export const ATOM_CAPABILITIES: MarketCapabilities = {
   // and the floor exists only in Atom's Google Sheets sync.
   minOffer: false,
   floor: false,
+  askingPrice: false,
+  hide: false,
   discount: true,
   // Atom offers payment plans, but not through the API.
   leaseToOwn: false,

@@ -92,6 +92,7 @@ import {
 import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { ListPriceDialog } from '../components/domains/ListPriceDialog';
+import { MarketListingDialog } from '../components/domains/MarketListingDialog';
 import { ImportedDomainDialog } from '../components/domains/ImportedDomainDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import {
@@ -916,6 +917,11 @@ export default function Domains() {
   const [importing, setImporting] = useState(false);
   // Asking price for one name (its cell or row menu) or the selection.
   const [listPriceFor, setListPriceFor] = useState<Domain[] | null>(null);
+  // One name's listing on one market (its cell in that market's column).
+  const [listingFor, setListingFor] = useState<{
+    domain: Domain;
+    market: string;
+  } | null>(null);
   // Edit details for an imported name.
   const [detailsFor, setDetailsFor] = useState<Domain | null>(null);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
@@ -1010,6 +1016,7 @@ export default function Domains() {
       listPrices,
       traffic: marketTraffic.domains,
       listingMarkets,
+      onEditListing: (domain, market) => setListingFor({ domain, market }),
       preferredCurrency: settings?.preferredCurrency ?? DEFAULT_CURRENCY,
       numberFormat: settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
     })) {
@@ -2297,6 +2304,13 @@ export default function Domains() {
         <ListPriceDialog
           domains={listPriceFor}
           onClose={() => setListPriceFor(null)}
+        />
+      )}
+      {listingFor && (
+        <MarketListingDialog
+          domain={listingFor.domain}
+          market={listingFor.market}
+          onClose={() => setListingFor(null)}
         />
       )}
       {marketAction && (

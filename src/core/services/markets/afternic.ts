@@ -39,6 +39,8 @@ export const AFTERNIC_CAPABILITIES: MarketCapabilities = {
   currencies: ['USD'],
   minOffer: true,
   floor: true,
+  askingPrice: false,
+  hide: true,
   discount: false,
   leaseToOwn: true,
   tiers: null,

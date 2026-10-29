@@ -23,7 +23,7 @@ function recordOf(
 }
 
 /** Fills the cell, including its padding, so one click anywhere opens the editor. */
-function PurchaseCell({
+export function PurchaseCell({
   domain,
   onEdit,
   align = 'left',

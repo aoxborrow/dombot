@@ -10,7 +10,7 @@ import {
 } from '../../../shared/markets';
 import { formatMoney, type NumberFormatId } from '../../../shared/money';
 import { cn } from '@/lib/utils';
-import type { PurchaseColumn } from './purchase-columns';
+import { PurchaseCell, type PurchaseColumn } from './purchase-columns';
 
 // Domains table columns and the Listing filter for names on marketplaces
 // (docs/markets.md). Built from the shared market shapes, so a new market
@@ -110,6 +110,7 @@ export function marketColumns({
   traffic,
   preferredCurrency,
   numberFormat,
+  onEditListing,
 }: {
   listings: Listings;
   /** The markets that get a listing column: those with an account. */
@@ -120,6 +121,8 @@ export function marketColumns({
   listPrices: Record<string, ListPrice>;
   preferredCurrency: string;
   numberFormat: NumberFormatId;
+  /** Opens one market's listing of a name, to edit or list it there. */
+  onEditListing?: (domain: Domain, market: string) => void;
 }): PurchaseColumn[] {
   const of = (d: Domain) => listings[toAscii(d.domainName)] ?? [];
   const money = (amount: string, currency = 'USD') =>
@@ -150,54 +153,68 @@ export function marketColumns({
 
   // One market's column: its price (or "Offers"), a status dot, and the
   // status when it isn't active. A name can only be in one account per
-  // market, so there's at most one listing here.
+  // market, so there's at most one listing here. A click opens that
+  // listing's editor, or lists the name there.
   const listingColumn = (market: string): PurchaseColumn => {
     const on = (d: Domain) => of(d).find((l) => l.market === market);
+    const listingCell = (d: Domain) => {
+      const l = on(d);
+      if (!l) return dash;
+      // Flag a market price that isn't the asking price you set in DomBot.
+      const mine = listPrices[toAscii(d.domainName)];
+      const differs =
+        mine?.amount != null &&
+        l.price != null &&
+        mine.currency === l.currency &&
+        Number(mine.amount) !== Number(l.price);
+      const title = [
+        describe(l, markets, (a) => money(a, l.currency)),
+        differs &&
+          `Your BIN price in DomBot is ${money(mine.amount!, mine.currency)}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+      return (
+        <span
+          className={cn(
+            'inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums',
+            !l.forSale && 'opacity-60',
+          )}
+          title={title}
+        >
+          <span
+            aria-hidden
+            className={cn('size-2 rounded-full', STATUS_DOT[l.status])}
+          />
+          <span className={cn(differs && 'text-amber-600 dark:text-amber-400')}>
+            {l.price ? money(l.price, l.currency) : 'Offers'}
+          </span>
+          {l.status !== 'active' && (
+            <span className="text-muted-foreground">
+              {STATUS_LABEL[l.status].toLowerCase()}
+            </span>
+          )}
+        </span>
+      );
+    };
     return {
       key: listingColumnKey(market),
       label: marketName(markets, market),
       align: 'right',
       hideOnMobile: true,
       render: (d) => {
-        const l = on(d);
-        if (!l) return dash;
-        // Flag a market price that isn't the asking price you set in DomBot.
-        const mine = listPrices[toAscii(d.domainName)];
-        const differs =
-          mine?.amount != null &&
-          l.price != null &&
-          mine.currency === l.currency &&
-          Number(mine.amount) !== Number(l.price);
-        const title = [
-          describe(l, markets, (a) => money(a, l.currency)),
-          differs &&
-            `Your BIN price in DomBot is ${money(mine.amount!, mine.currency)}`,
-        ]
-          .filter(Boolean)
-          .join('\n');
+        const cell = listingCell(d);
+        if (!onEditListing) return cell;
         return (
-          <span
-            className={cn(
-              'inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums',
-              !l.forSale && 'opacity-60',
-            )}
-            title={title}
+          <PurchaseCell
+            domain={d}
+            onEdit={(domain) => onEditListing(domain, market)}
+            align="right"
+            empty={!on(d)}
+            editLabel={`${marketName(markets, market)} listing`}
           >
-            <span
-              aria-hidden
-              className={cn('size-2 rounded-full', STATUS_DOT[l.status])}
-            />
-            <span
-              className={cn(differs && 'text-amber-600 dark:text-amber-400')}
-            >
-              {l.price ? money(l.price, l.currency) : 'Offers'}
-            </span>
-            {l.status !== 'active' && (
-              <span className="text-muted-foreground">
-                {STATUS_LABEL[l.status].toLowerCase()}
-              </span>
-            )}
-          </span>
+            {cell}
+          </PurchaseCell>
         );
       },
       // By price; an offers-only listing sorts below priced ones.

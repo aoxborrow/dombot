@@ -202,6 +202,8 @@ interface MarketCapabilities {
   currencies: CurrencyCode[]; // afternic, atom: USD; sedo: EUR, USD, GBP
   minOffer: boolean; // afternic, sedo
   floor: boolean; // afternic
+  askingPrice: boolean; // sedo: a price that isn't Buy Now
+  hide: boolean; // afternic, sedo: listed but not shown to buyers
   discount: boolean; // atom
   leaseToOwn: boolean; // afternic
   tiers: string[] | null; // atom
@@ -342,6 +344,15 @@ saved, so the Domains table shows it before the next sync.
   active. A name can only be in one account per market, so each cell holds
   one listing. A table with every market side by side may follow on the
   Markets page.
+- **A click on a listing cell edits that listing** on that market (or lists
+  the name there, starting from its DomBot asking price). The editor shows
+  only the fields the market has, read from its capabilities: Afternic's
+  minimum offer, floor, lease-to-own and hidden; Sedo's currency, minimum
+  offer, Buy Now or asking price and hidden; Atom's single price. Save sends
+  only the fields you changed straight to the market (`writeMarketListings`),
+  re-runs a stuck listing's checks where the market can, and Delist takes it
+  down. Pricing stays DomBot's own asking price; this edits what the market
+  has.
 - **The Listing filter** (price-tag icon) filters by market and status and
   keeps the filtered markets' columns on screen.
 - **List at your price** pushes DomBot's asking prices to every market account

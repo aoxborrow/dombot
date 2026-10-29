@@ -36,6 +36,8 @@ export const SEDO_CAPABILITIES: MarketCapabilities = {
   currencies: SEDO_CURRENCIES,
   minOffer: true,
   floor: false,
+  askingPrice: true,
+  hide: true,
   discount: false,
   leaseToOwn: false,
   tiers: null,

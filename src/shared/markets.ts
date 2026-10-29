@@ -250,6 +250,10 @@ export interface MarketCapabilities {
   currencies: readonly CurrencyCode[];
   minOffer: boolean;
   floor: boolean;
+  /** A price can be an asking price, not Buy Now (Sedo's non-fixed price). */
+  askingPrice: boolean;
+  /** A listing can stay listed but hidden from buyers. */
+  hide: boolean;
   discount: boolean;
   leaseToOwn: boolean;
   tiers: readonly string[] | null;
