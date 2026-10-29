@@ -10,8 +10,8 @@ import {
 } from '../../../shared/markets';
 import { formatMoney, type NumberFormatId } from '../../../shared/money';
 import {
-  ArrowDown,
-  ArrowUp,
+  CircleArrowDown,
+  CircleArrowUp,
   CircleCheck,
   CircleDollarSign,
   CircleHelp,
@@ -99,7 +99,7 @@ function cellState(
   if (l.status === 'pending' || l.status === 'on_hold')
     return {
       icon: Clock,
-      className: 'text-amber-600 dark:text-amber-400',
+      className: 'text-muted-foreground',
       label: STATUS_LABEL[l.status],
       faded: false,
     };
@@ -128,8 +128,12 @@ function cellState(
     return { icon: EyeOff, className: quiet, label: 'Hidden', faded: true };
   if (diff)
     return {
-      icon: diff > 0 ? ArrowUp : ArrowDown,
-      className: 'text-amber-600 dark:text-amber-400',
+      // Above your price: blue. Below it (selling for less): amber.
+      icon: diff > 0 ? CircleArrowUp : CircleArrowDown,
+      className:
+        diff > 0
+          ? 'text-sky-600 dark:text-sky-400'
+          : 'text-amber-600 dark:text-amber-400',
       label: diff > 0 ? 'Above your price' : 'Below your price',
       faded: false,
     };
