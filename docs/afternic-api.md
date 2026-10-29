@@ -96,8 +96,15 @@ Other observed behavior worth designing around:
   saved and 31 or 36 were ignored with no error, through both PATCH and a job
   (`NO_CHANGE`); since 2026-10-29 anything over the cap is cut to 30 instead,
   still with no error. The values across this account fit a minimum monthly
-  payment of roughly $81–83. Compare the saved listing with what was asked
-  and say when Afternic kept a different value.
+  payment of roughly $81–83. It's Afternic's rule: the dashboard's Lease to
+  Own settings say a domain priced too low for the default maximum lease
+  period is set "as close as possible". Compare the saved listing with what
+  was asked and say when Afternic kept a different value.
+- **Lease to Own, per the Afternic dashboard** (not in the API docs): it needs
+  a Buy Now price between $495 and $5,000,000; the account's settings apply
+  to new listings only; and the default maximum lease period sets a
+  commission discount: 2–12 months 0%, 13–24 months 5%, 25–36 months 10%,
+  37–60 months 15%.
 - **The sales list includes purchases.** Domains the account bought on
   Afternic come back from `GET /sales` as ordinary completed sales, with no
   field saying which side the account was on. `GET /sales/{id}` answers 404
@@ -110,7 +117,7 @@ Other observed behavior worth designing around:
   you pass a wide `soldAtStartDate`. The default window is the last month.
 - `GET /sales/{id}` includes the transfer `authCode` in plain text. The list
   did too until 2026-10-29, and now leaves out both `authCode` and `saleTotal`
-  (afternic-api-issues.md, issue 18).
+  (afternic-api-issues.md, issue 9).
 - Leased sales carry `installmentAmount`, `totalInstallments`,
   `totalInstallmentsPaid`, and the previous/next installment dates, but no
   `saleTotal` or `disbursedAt`.
