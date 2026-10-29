@@ -94,7 +94,6 @@ export interface AfternicExtra {
   /** The registrar Afternic sees, as a registrar-client name. */
   registrar: string | null;
   registrarRaw: string | null;
-  offerCount: number | null;
   /** Discount Domain Club Domain Pro accounts only. */
   searches: { total: SearchCounts; unique: SearchCounts } | null;
 }

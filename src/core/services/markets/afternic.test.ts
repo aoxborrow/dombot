@@ -73,7 +73,6 @@ describe('listingFromAfternic', () => {
     const listing = listingFromAfternic(toListing(fx.domainWithSearches), 'a');
     expect(listing.extra).toMatchObject({
       market: 'afternic',
-      offerCount: 3,
       searches: { total: { days30: 120 } },
     });
   });

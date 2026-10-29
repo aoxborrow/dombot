@@ -76,7 +76,7 @@ function domainCell(input: ListingInput, name: string): string {
 /**
  * Listings as a bulk job file. Checks every row the way the JSON calls do,
  * and rejects settings the template can't carry. Names must already be
- * canonical and unique: a name twice in one file loses a result.
+ * canonical and unique: Afternic merges a name's rows into one update.
  */
 export function toJobCsv(inputs: readonly ListingInput[]): string {
   const rows: string[][] = [[...JOB_COLUMNS]];
