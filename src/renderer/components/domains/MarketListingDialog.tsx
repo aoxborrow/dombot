@@ -32,6 +32,7 @@ import { MoneyInput } from './MoneyInput';
 import { FIELD_LABEL } from './MarketActionDialog';
 import {
   DEFAULT_LEASE_MONTHS,
+  leaseCommissionDiscount,
   leaseMonthOptions,
   monthlyPayment,
   useLeaseDefaults,
@@ -403,12 +404,12 @@ export function MarketListingDialog({
             )}
             {caps?.leaseToOwn && (
               <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between gap-3">
-                  <Toggle
-                    checked={lease}
-                    onChange={setLease}
-                    label="Lease-to-own"
-                  />
+                <Toggle
+                  checked={lease}
+                  onChange={setLease}
+                  label="Lease-to-own"
+                />
+                <div className="pl-[26px]">
                   <Select
                     value={String(months)}
                     disabled={!lease}
@@ -416,7 +417,7 @@ export function MarketListingDialog({
                   >
                     <SelectTrigger
                       aria-label="Most monthly payments"
-                      className="w-60"
+                      className="w-full"
                     >
                       <SelectValue />
                     </SelectTrigger>
@@ -443,16 +444,22 @@ export function MarketListingDialog({
                                 /mo
                               </span>
                             )}
+                            {leaseCommissionDiscount(m) > 0 && (
+                              <span className="text-muted-foreground">
+                                {' '}
+                                · {leaseCommissionDiscount(m)}% discount
+                              </span>
+                            )}
                           </SelectItem>
                         );
                       })}
                     </SelectContent>
                   </Select>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Buyers can spread the price over monthly payments.{' '}
-                  {marketName} may allow fewer months than you choose, so each
-                  payment stays above about $80.
+                <p className="pl-[26px] text-xs text-muted-foreground">
+                  Buyers can spread the price over monthly payments. Longer
+                  leases get a commission discount. {marketName} may allow fewer
+                  months than you choose, so each payment stays above about $80.
                 </p>
               </div>
             )}
@@ -616,7 +623,7 @@ function Toggle({
   label: string;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2.5">
+    <label className="flex shrink-0 cursor-pointer items-center gap-2.5 whitespace-nowrap">
       <Checkbox
         checked={checked}
         onCheckedChange={(on) => onChange(on === true)}

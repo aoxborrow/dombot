@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   LEASE_MONTHS,
+  leaseCommissionDiscount,
   leaseDefaultsOf,
   leaseMonthOptions,
   monthlyPayment,
@@ -17,6 +18,12 @@ describe('lease-to-own', () => {
     expect(leaseMonthOptions(10)).toEqual([
       3, 6, 9, 10, 12, 18, 24, 30, 36, 42, 48, 54, 60,
     ]);
+  });
+
+  it('gives Afternic’s commission discount for longer leases', () => {
+    expect(
+      [3, 12, 13, 24, 30, 36, 42, 60].map(leaseCommissionDiscount),
+    ).toEqual([0, 0, 5, 5, 10, 10, 15, 15]);
   });
 
   it('rounds each payment up, and needs a price', () => {

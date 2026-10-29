@@ -19,6 +19,14 @@ export function leaseMonthOptions(current: number | null): number[] {
     : [...LEASE_MONTHS, current].sort((a, b) => a - b);
 }
 
+/**
+ * Afternic's commission discount on a lease, by its most payments: none to
+ * 12 months, 5% to 24, 10% to 36, 15% beyond (Afternic's settings page).
+ */
+export function leaseCommissionDiscount(months: number): number {
+  return months > 36 ? 15 : months > 24 ? 10 : months > 12 ? 5 : 0;
+}
+
 /** Each payment over `months`, in whole units; null without a price. */
 export function monthlyPayment(
   price: number | null,

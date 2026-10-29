@@ -18,6 +18,7 @@ import { MarketLogo } from '../../components/RegistrarLogo';
 import { timeAgo } from '../../lib/time';
 import {
   DEFAULT_LEASE_MONTHS,
+  leaseCommissionDiscount,
   leaseMonthOptions,
   useLeaseDefaults,
   type LeaseDefaults,
@@ -851,32 +852,42 @@ function MarketAccountSettings({
           </SettingRow>
         ))}
         {lease && (
-          <SettingRow label="Lease-to-own for new listings">
-            <Checkbox
-              aria-label="Lease-to-own for new listings"
-              checked={enabled}
-              onCheckedChange={(on) => setEnabled(on === true)}
-            />
-            <Select
-              value={String(months)}
-              disabled={!enabled}
-              onValueChange={(v) => setMonths(Number(v))}
-            >
-              <SelectTrigger
-                aria-label="Most monthly payments by default"
-                className="h-8 w-40"
+          <>
+            <SettingRow label="Lease-to-own for new listings">
+              <Checkbox
+                aria-label="Lease-to-own for new listings"
+                checked={enabled}
+                onCheckedChange={(on) => setEnabled(on === true)}
+              />
+            </SettingRow>
+            <SettingRow label="Most monthly payments">
+              <Select
+                value={String(months)}
+                disabled={!enabled}
+                onValueChange={(v) => setMonths(Number(v))}
               >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {leaseMonthOptions(months).map((m) => (
-                  <SelectItem key={m} value={String(m)}>
-                    Up to {m} months
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingRow>
+                <SelectTrigger
+                  aria-label="Most monthly payments by default"
+                  className="h-8 w-68"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {leaseMonthOptions(months).map((m) => (
+                    <SelectItem key={m} value={String(m)}>
+                      Up to {m} months
+                      {leaseCommissionDiscount(m) > 0 && (
+                        <span className="text-muted-foreground">
+                          {' '}
+                          · {leaseCommissionDiscount(m)}% discount
+                        </span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingRow>
+          </>
         )}
       </div>
       {error && (
