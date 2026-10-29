@@ -343,10 +343,10 @@ saved, so the Domains table shows it before the next sync.
   line: the market's price (or "Offers") right-aligned in grey, and one
   status icon at the left: a soft check when live at your DomBot price, an
   amber circled arrow up or down when the market's price is above or below
-  it, an eye-slash with the price faded for visibility you control (inactive
-  or hidden), a grey clock for what the market will change (pending, on
-  hold), a red warning when rejected, and a grey icon with the price faded
-  when sold or unknown. The tooltip has
+  it, an eye-slash for visibility you control (inactive or hidden), a grey
+  clock for what the market will change (pending, on hold), a red warning
+  when rejected, and a grey icon when sold or unknown. A price that isn't
+  live is faded. The tooltip has
   the detail. A name can only be in one account per market, so each cell holds
   one listing. A table with every market side by side may follow on the
   Markets page.

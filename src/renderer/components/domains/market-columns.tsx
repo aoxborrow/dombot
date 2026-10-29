@@ -82,7 +82,8 @@ function marketName(markets: MarketInfo[], id: string): string {
  * state wins (rejected, waiting, not selling, a price apart from DomBot's,
  * then all good). An eye-slash is visibility you control (inactive or
  * hidden), a clock is the market's to change (pending, on hold), a red
- * warning is refused. The tooltip has the rest.
+ * warning is refused. Every price that isn't live is faded. The tooltip
+ * has the rest.
  */
 function cellState(
   l: MarketListing,
@@ -95,14 +96,14 @@ function cellState(
       icon: TriangleAlert,
       className: 'text-destructive',
       label: 'Rejected',
-      faded: false,
+      faded: true,
     };
   if (l.status === 'pending' || l.status === 'on_hold')
     return {
       icon: Clock,
       className: 'text-muted-foreground',
       label: STATUS_LABEL[l.status],
-      faded: false,
+      faded: true,
     };
   if (l.status === 'inactive')
     return {
