@@ -1445,17 +1445,6 @@ export default function Domains() {
       },
       setTld,
     ),
-    listFilter(
-      {
-        key: 'dns',
-        label: 'Nameservers',
-        icon: Server,
-        options: nsGroups,
-        selected: ns,
-        plural: 'providers',
-      },
-      setNs,
-    ),
     // Listing: only once a market account is connected.
     ...(marketsOn
       ? [
@@ -1557,6 +1546,18 @@ export default function Domains() {
           ),
         ]
       : []),
+    // Last in the Add filter menu: the least used.
+    listFilter(
+      {
+        key: 'dns',
+        label: 'Nameservers',
+        icon: Server,
+        options: nsGroups,
+        selected: ns,
+        plural: 'providers',
+      },
+      setNs,
+    ),
   ];
 
   // Each tab remembers its own columns on this device. A date filter keeps
@@ -2146,7 +2147,8 @@ export default function Domains() {
             }}
             searchPlaceholder="Search domains…"
             fields={filterFields}
-            presets={['registrar', 'tld', 'folder']}
+            presets={['registrar', 'tld', 'folder', 'price']}
+            presetsIfRoom={['price']}
           >
             {exportNote && (
               <span
