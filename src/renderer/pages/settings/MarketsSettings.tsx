@@ -810,14 +810,25 @@ function MarketAccountSettings({
 
   return (
     <div className="rounded-md border">
-      <div className="border-b bg-muted/40 px-3 py-2">
-        <h3 className="text-sm font-medium">{marketName} account settings</h3>
-        <p className="text-xs text-muted-foreground">
-          Read from your {marketName} account
-          {lease ? `; saving changes them on ${marketName}` : ''}.
-        </p>
+      <div className="flex items-start justify-between gap-3 rounded-t-md bg-muted/40 px-3 py-2">
+        <div>
+          <h3 className="text-sm font-medium">{marketName} account settings</h3>
+          <p className="text-xs text-muted-foreground">
+            Read from your {marketName} account
+            {lease ? `; saving changes them on ${marketName}` : ''}.
+          </p>
+        </div>
+        {lease && (
+          <Button
+            size="sm"
+            disabled={!dirty || busy}
+            onClick={() => void save()}
+          >
+            {busy ? 'Saving…' : 'Save'}
+          </Button>
+        )}
       </div>
-      <div className="divide-y">
+      <div className="py-1">
         {flags.map((flag) => (
           <SettingRow key={flag.label} label={flag.label}>
             <span
@@ -868,21 +879,10 @@ function MarketAccountSettings({
           </SettingRow>
         )}
       </div>
-      {lease && (
-        <div className="flex items-center justify-end gap-3 border-t px-3 py-2">
-          {error && (
-            <p role="alert" className="mr-auto text-xs text-destructive">
-              {error}
-            </p>
-          )}
-          <Button
-            size="sm"
-            disabled={!dirty || busy}
-            onClick={() => void save()}
-          >
-            {busy ? 'Saving…' : 'Save'}
-          </Button>
-        </div>
+      {error && (
+        <p role="alert" className="px-3 pb-2 text-xs text-destructive">
+          {error}
+        </p>
       )}
     </div>
   );
