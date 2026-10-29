@@ -34,6 +34,7 @@ import {
 import { ownershipByDomain, type Ownership } from '../../shared/ownership';
 import { resolvedIds } from '../../shared/sync-diff';
 import { RegistrarLogo } from '../components/RegistrarLogo';
+import { DomainLink } from '../components/domains/DomainLink';
 import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
@@ -477,9 +478,7 @@ export default function Activity() {
       // with the name's sticky note (when it has one) just before it.
       cell: (row) => (
         <div className="flex items-center justify-between gap-2">
-          <span className="font-mono compact:text-[13px]">
-            {toUnicode(row.event.domain)}
-          </span>
+          <DomainLink name={toUnicode(row.event.domain)} />
           <div className="flex items-center">
             <NotesButton
               domainName={toUnicode(row.event.domain)}

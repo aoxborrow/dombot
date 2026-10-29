@@ -10,7 +10,6 @@ import {
   CalendarClock,
   ChevronDown,
   CircleCheck,
-  ExternalLink,
   Globe,
   Plug,
   Server,
@@ -45,6 +44,7 @@ import {
   ImportedRegistrarIcon,
   RegistrarLogo,
 } from '../components/RegistrarLogo';
+import { DomainLink } from '../components/domains/DomainLink';
 import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
@@ -644,26 +644,7 @@ const COLUMNS: Column[] = [
     label: 'Domain',
     render: (d) => (
       <span className="inline-flex items-center gap-2">
-        {/* Opens the site in a new tab/window (Electron hands target=_blank to
-            the OS browser). noreferrer keeps the Referer header off the request.
-            The external-link glyph only shows on hover but always takes its
-            space, so nothing shifts when it appears. */}
-        <a
-          href={`https://${d.domainName}/`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={`Open https://${d.domainName} in a new window`}
-          // The cell lights green on hover; the name underlines instead.
-          className="group/domain inline-flex items-center font-mono underline-offset-[3px] hover:underline compact:text-[13px]"
-        >
-          {/* One step up from the reduced mobile body size — the domain is
-              the row's primary field. Desktop inherits the table's text-sm. */}
-          {d.domainName}
-          <ExternalLink
-            className="ml-1.5 size-3.5 shrink-0 opacity-0 transition-opacity group-hover/domain:opacity-70"
-            aria-hidden
-          />
-        </a>
+        <DomainLink name={d.domainName} />
         <LifecycleBadge status={d.status} />
         {d.source === 'imported' && (
           <Badge

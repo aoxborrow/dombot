@@ -24,11 +24,12 @@ function recordOf(
 }
 
 /**
- * A value you can click to edit: a dotted grey underline, a step lighter on
- * hover but still dimmer than the value (the market columns' are muted).
+ * A value you can click to edit: a dotted grey underline. On hover every
+ * value brightens to the same look, muted and faded market prices included:
+ * full text color, and an underline much lighter but still under the text.
  */
 export const EDITABLE_VALUE =
-  'underline decoration-dotted underline-offset-[3px] decoration-neutral-300 group-hover:decoration-neutral-400 dark:decoration-neutral-600 dark:group-hover:decoration-neutral-500';
+  'underline decoration-dotted underline-offset-[3px] decoration-neutral-300 group-hover:text-foreground group-hover:decoration-neutral-500 group-hover:opacity-100 dark:decoration-neutral-600 dark:group-hover:decoration-neutral-400';
 
 /**
  * An empty value you can click to fill: a dim dash that turns into a pencil
@@ -37,7 +38,7 @@ export const EDITABLE_VALUE =
  */
 export function EditableEmpty() {
   return (
-    <span className="inline-flex h-8 w-7 -my-2 -mr-1 items-center justify-center align-middle text-muted-foreground/50 group-hover:text-muted-foreground compact:h-7 compact:w-6">
+    <span className="inline-flex h-8 w-7 -my-2 -mr-1 items-center justify-center align-middle text-muted-foreground/50 group-hover:text-foreground/80 compact:h-7 compact:w-6">
       <span className="group-hover:hidden">—</span>
       <Pencil
         className="hidden size-3.5 group-hover:block compact:size-3"
