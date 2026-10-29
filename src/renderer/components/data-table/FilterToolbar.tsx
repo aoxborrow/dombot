@@ -82,6 +82,7 @@ export function FilterToolbar({
   searchPlaceholder,
   fields,
   presets,
+  presetsIfRoom,
   children,
   className,
 }: {
@@ -93,6 +94,8 @@ export function FilterToolbar({
   searchPlaceholder: string;
   fields: FilterField[];
   presets?: string[];
+  /** Of `presets`, the ones shown only while there's room; see FilterBar. */
+  presetsIfRoom?: string[];
   children?: ReactNode;
   className?: string;
 }) {
@@ -110,7 +113,13 @@ export function FilterToolbar({
         placeholder={searchPlaceholder}
         className="flex-[0_1_198px]"
       />
-      <FilterBar id={id} fields={fields} presets={presets} variant="flat" />
+      <FilterBar
+        id={id}
+        fields={fields}
+        presets={presets}
+        presetsIfRoom={presetsIfRoom}
+        variant="flat"
+      />
       {children}
     </div>
   );

@@ -65,7 +65,6 @@ import {
   targetOf,
   useOpUnsupportedReason,
 } from '../lib/domain-ops';
-import { CashIcon } from '../components/icons/CashIcon';
 import { FolderIcon } from '../components/icons/FolderIcon';
 import { FolderOffIcon } from '../components/icons/FolderOffIcon';
 import { FolderMenuItems } from '../components/domains/FolderMenuItems';
@@ -133,12 +132,16 @@ import {
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { paginate, sortRows } from '../components/data-table/table-state';
 import { dateRangeField } from '../components/data-table/DateRangeFilter';
-import {
-  RangeInputs,
-  rangeSummary,
-  type FilterOption,
-} from '../components/data-table/Toolbar';
+import { type FilterOption } from '../components/data-table/Toolbar';
 import { type FilterField } from '../components/data-table/FilterBar';
+import {
+  NO_PRICING_FILTER,
+  isPricingFilterSet,
+  pricingField,
+  toAskingFilter,
+  type PricingFilterValue,
+} from '../components/domains/PricingFilter';
+import { matchesAsking } from '../../shared/list-prices';
 import {
   FilterToolbar,
   listField,
@@ -210,8 +213,6 @@ function importedRegistrarName(d: Domain, labels: RegistrarLabels): string {
 function nameCount(rows: Domain[]): number {
   return new Set(rows.map((d) => toAscii(d.domainName))).size;
 }
-
-// Asking filter values: names with an asking price, and names without one.
 
 function tldOf(domainName: string): string {
   const dot = domainName.indexOf('.');
@@ -1144,12 +1145,10 @@ export default function Domains() {
   const [ns, setNs] = useState<string[]>([]);
   const [listing, setListing] = useState<string[]>([]);
   const [folder, setFolder] = useState<string[]>([]);
-  // Owned only: names with or without an asking price.
-  // BIN price range ("" is unbounded). A name without a price counts as $0,
-  // so a max of 0 finds the unpriced ones.
-  const [priceMin, setPriceMin] = useState('');
-  const [priceMax, setPriceMax] = useState('');
-  const pricingFilter = priceMin !== '' || priceMax !== '';
+  // Owned only: what each name's asking price holds, and BIN price and
+  // minimum offer ranges.
+  const [pricingFilter, setPricingFilter] =
+    useState<PricingFilterValue>(NO_PRICING_FILTER);
   // Date filters (see lib/date-range). Expiration and Purchased apply on
   // both tabs, Created on Active only, Sold on Archive only.
   const [created, setCreated] = useState<DateRange>(NO_DATE_RANGE);
@@ -1453,17 +1452,6 @@ export default function Domains() {
       },
       setTld,
     ),
-    listFilter(
-      {
-        key: 'dns',
-        label: 'Nameservers',
-        icon: Server,
-        options: nsGroups,
-        selected: ns,
-        plural: 'providers',
-      },
-      setNs,
-    ),
     // Listing: only once a market account is connected.
     ...(marketsOn
       ? [
@@ -1503,12 +1491,17 @@ export default function Domains() {
     ...(archiveView
       ? []
       : [
-          {
-            kind: 'custom' as const,
-            key: 'price',
-            label: 'Pricing',
-            icon: CashIcon,
-            summary: rangeSummary(priceMin, priceMax, (n) =>
+          pricingField({
+            value: pricingFilter,
+            onChange: (next) => {
+              setPricingFilter(next);
+              setPage(0);
+            },
+            prices: shown
+              .filter((d) => !archiveLabelOf(d))
+              .map((d) => listPrices[toAscii(d.domainName)]),
+            currency,
+            format: (n) =>
               formatMoney(
                 String(n),
                 currency,
@@ -1516,27 +1509,17 @@ export default function Domains() {
                 settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
                 true,
               ),
-            ),
-            onClear: () => {
-              setPriceMin('');
-              setPriceMax('');
-              setPage(0);
-            },
-            content: (
-              <RangeInputs
-                label="BIN price"
-                min={priceMin}
-                max={priceMax}
-                onChange={(min, max) => {
-                  setPriceMin(min);
-                  setPriceMax(max);
-                  setPage(0);
-                }}
-                currency={currency}
-              />
-            ),
-          },
+          }),
         ]),
+    dateFilter(
+      'expirationDate',
+      'Expiration',
+      expires,
+      setExpires,
+      FUTURE_DATE_PRESETS,
+      (d) => utcDay(d.expirationDate),
+      CalendarClock,
+    ),
     // Created is an Active column, so its filter is Active only.
     ...(archiveView
       ? []
@@ -1550,15 +1533,6 @@ export default function Domains() {
             (d) => utcDay(d.createdDate),
           ),
         ]),
-    dateFilter(
-      'expirationDate',
-      'Expiration',
-      expires,
-      setExpires,
-      FUTURE_DATE_PRESETS,
-      (d) => utcDay(d.expirationDate),
-      CalendarClock,
-    ),
     dateFilter(
       'purchaseDate',
       'Purchased',
@@ -1579,6 +1553,18 @@ export default function Domains() {
           ),
         ]
       : []),
+    // Last in the Add filter menu: the least used.
+    listFilter(
+      {
+        key: 'dns',
+        label: 'Nameservers',
+        icon: Server,
+        options: nsGroups,
+        selected: ns,
+        plural: 'providers',
+      },
+      setNs,
+    ),
   ];
 
   // Each tab remembers its own columns on this device. A date filter keeps
@@ -1648,8 +1634,7 @@ export default function Domains() {
 
   function setListView(next: 'owned' | 'archive') {
     setFolder([]);
-    setPriceMin('');
-    setPriceMax('');
+    setPricingFilter(NO_PRICING_FILTER);
     // Created is Active only and Sold is Archive only; neither waits,
     // hidden, to come back.
     setCreated(NO_DATE_RANGE);
@@ -1660,6 +1645,14 @@ export default function Domains() {
     else nextParams.delete('view');
     setParams(nextParams, { replace: true });
   }
+
+  const askingFilter = useMemo(
+    () =>
+      isPricingFilterSet(pricingFilter)
+        ? toAskingFilter(pricingFilter, currency)
+        : null,
+    [pricingFilter, currency],
+  );
 
   // Filter → sort. Pagination is applied after, on the sorted result.
   const filtered = useMemo(() => {
@@ -1689,11 +1682,12 @@ export default function Domains() {
         const keys = listingKeys(marketListings[toAscii(d.domainName)]);
         if (!listing.some((k) => keys.includes(k))) return false;
       }
-      if (pricingFilter && !archiveView) {
-        const price = Number(listPrices[toAscii(d.domainName)]?.amount ?? 0);
-        if (priceMin !== '' && price < Number(priceMin)) return false;
-        if (priceMax !== '' && price > Number(priceMax)) return false;
-      }
+      if (
+        askingFilter &&
+        !archiveView &&
+        !matchesAsking(listPrices[toAscii(d.domainName)], askingFilter)
+      )
+        return false;
       // Date bounds are inclusive calendar days. A blank date on the row
       // stays out. Sold is an Archive column, so that bound waits there.
       const record = purchases[toAscii(d.domainName)];
@@ -1764,9 +1758,7 @@ export default function Domains() {
     folder,
     folders,
     folderAssignments,
-    pricingFilter,
-    priceMin,
-    priceMax,
+    askingFilter,
     listPrices,
     purchases,
     created,
@@ -2162,7 +2154,8 @@ export default function Domains() {
             }}
             searchPlaceholder="Search domains…"
             fields={filterFields}
-            presets={['registrar', 'tld', 'folder']}
+            presets={['registrar', 'tld', 'folder', 'price']}
+            presetsIfRoom={['price']}
           >
             {exportNote && (
               <span

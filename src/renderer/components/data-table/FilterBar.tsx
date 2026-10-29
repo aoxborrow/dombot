@@ -235,6 +235,7 @@ function FilterChip({
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <span
+        data-filter-chip={field.key}
         className={cn(
           'relative inline-flex h-9 items-stretch overflow-hidden rounded-md border text-sm',
           // An empty chip's dashes darken (brighten in dark mode) while its
@@ -528,6 +529,15 @@ function AddFilter({
 // on the next one.
 const removedPresets = new Map<string, Set<string>>();
 
+/** The box a bar's chips wrap in: the nearest ancestor that lays out (a
+ *  toolbar can be `display: contents`). */
+function rowOf(el: Element | null): HTMLElement | null {
+  let row = el?.parentElement ?? null;
+  while (row && getComputedStyle(row).display === 'contents')
+    row = row.parentElement;
+  return row;
+}
+
 /**
  * The filter chips, then the add button. The presets start the row; every
  * filter added from the menu (a removed preset too) goes on the end.
@@ -544,6 +554,7 @@ export function FilterBar({
   id,
   fields,
   presets = [],
+  presetsIfRoom = [],
   variant = 'segmented',
 }: {
   /** Names this bar for the session's memory of removed presets. */
@@ -551,6 +562,9 @@ export function FilterBar({
   fields: FilterField[];
   /** Keys of the fields always shown, in order, even when unset. */
   presets?: string[];
+  /** Of `presets`, the ones shown while unset only when they fit on the
+   *  line after the chip before them, with room for the square add button. */
+  presetsIfRoom?: string[];
   /** The chips' look; see FilterChipVariant. */
   variant?: FilterChipVariant;
 }) {
@@ -566,11 +580,65 @@ export function FilterBar({
   );
   // The chip whose dropdown is open.
   const [openKey, setOpenKey] = useState<string | null>(null);
+  // presetsIfRoom that don't fit right now, and each one's width from when
+  // it last showed. Picking one from the menu shows it regardless.
+  const [cramped, setCramped] = useState<Set<string>>(() => new Set());
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const widths = useRef(new Map<string, number>());
+  const anchor = useRef<HTMLSpanElement>(null);
   const byKey = new Map(fields.map((f) => [f.key, f]));
-  const chips = [
+  const placed = [
     ...order.map((k) => byKey.get(k)),
     ...fields.filter((f) => !order.includes(f.key) && summaryOf(f) !== null),
   ].filter((f): f is FilterField => !!f);
+  const optional = (f: FilterField) =>
+    presetsIfRoom.includes(f.key) &&
+    !picked.has(f.key) &&
+    summaryOf(f) === null &&
+    openKey !== f.key;
+  const chips = placed.filter((f) => !(optional(f) && cramped.has(f.key)));
+
+  useLayoutEffect(() => {
+    const row = rowOf(anchor.current);
+    if (!row || presetsIfRoom.length === 0) return;
+    const update = () => {
+      const style = getComputedStyle(row);
+      const gap = parseFloat(style.columnGap) || 0;
+      const end =
+        row.getBoundingClientRect().right - parseFloat(style.paddingRight);
+      // Hidden (a collapsed toolbar): nothing to measure.
+      if (row.offsetWidth === 0) return;
+      const chipEl = (key: string) =>
+        row.querySelector<HTMLElement>(`[data-filter-chip="${key}"]`);
+      const next = new Set<string>();
+      for (const [i, f] of placed.entries()) {
+        if (!presetsIfRoom.includes(f.key)) continue;
+        const el = chipEl(f.key);
+        if (el?.offsetWidth) widths.current.set(f.key, el.offsetWidth);
+        const width = widths.current.get(f.key);
+        // The chip before it that's showing.
+        const prev = placed
+          .slice(0, i)
+          .reverse()
+          .map((p) => (next.has(p.key) ? null : chipEl(p.key)))
+          .find((p) => p);
+        if (!width || !prev) continue;
+        const start = prev.getBoundingClientRect().right + gap;
+        // The square add button is as wide as a chip is tall.
+        if (start + width + gap + prev.offsetHeight > end + 0.5)
+          next.add(f.key);
+      }
+      setCramped((was) =>
+        was.size === next.size && [...next].every((k) => was.has(k))
+          ? was
+          : next,
+      );
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(row);
+    return () => observer.disconnect();
+  });
 
   function setRemovedPresets(next: Set<string>) {
     removedPresets.set(id, next);
@@ -580,6 +648,7 @@ export function FilterBar({
   function pick(key: string) {
     // A new chip goes at the end; one already showing stays put.
     if (!order.includes(key)) setOrder((o) => [...o, key]);
+    if (presetsIfRoom.includes(key)) setPicked((p) => new Set(p).add(key));
     if (removed.has(key)) {
       const next = new Set(removed);
       next.delete(key);
@@ -593,6 +662,11 @@ export function FilterBar({
     clearField(field);
     setOpenKey(null);
     setOrder((o) => o.filter((k) => k !== field.key));
+    setPicked((p) => {
+      const next = new Set(p);
+      next.delete(field.key);
+      return next;
+    });
     if (presets.includes(field.key))
       setRemovedPresets(new Set(removed).add(field.key));
   }
@@ -620,6 +694,9 @@ export function FilterBar({
           if (field) remove(field);
         }}
       />
+      {/* Finds the row the chips wrap in, for presetsIfRoom. After the add
+          button, which measures from the element before it. */}
+      <span ref={anchor} hidden />
     </>
   );
 }
