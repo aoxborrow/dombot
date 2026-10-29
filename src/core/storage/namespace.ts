@@ -191,9 +191,13 @@ export async function hydrateStores(): Promise<void> {
 
 // ── whole-store export / import (backup, migration, secret rotation) ────────
 
-/** Empties every namespace flagged `cache` ("Clear cache"). */
-export function clearCacheNamespaces(): void {
-  for (const ns of registry) if (ns.options.cache) void ns.clear();
+/** Empties every namespace flagged `cache` ("Clear cache"), or only those
+ *  `which` picks by name. */
+export function clearCacheNamespaces(
+  which: (name: string) => boolean = () => true,
+): void {
+  for (const ns of registry)
+    if (ns.options.cache && which(ns.name)) void ns.clear();
 }
 
 /** Every registered namespace's entries, except those flagged `local`.

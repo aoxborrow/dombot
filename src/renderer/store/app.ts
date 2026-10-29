@@ -31,6 +31,20 @@ import type {
   RenewalPriceInput,
   RenewalPricing,
 } from '../../shared/ipc';
+import type {
+  MarketAccountView,
+  MarketInfo,
+  MarketListing,
+  MarketSale,
+  MarketTraffic,
+} from '../../shared/markets';
+
+/** Listings grouped by name: one name can be listed on several markets. */
+function byDomain(listings: MarketListing[]): Record<string, MarketListing[]> {
+  const out: Record<string, MarketListing[]> = {};
+  for (const l of listings) (out[toAscii(l.name)] ??= []).push(l);
+  return out;
+}
 
 /** Hard ceiling on any sync — if the main-process fetch hangs (a registrar API
  * that never responds), reject so the "Syncing…" state can't stick forever. */
@@ -218,6 +232,20 @@ interface AppState {
     domainName: string,
     fields: ImportedDomainFields,
   ) => Promise<void>;
+
+  /** Connected market accounts (Settings → Markets); null until loaded. */
+  marketAccounts: MarketAccountView[] | null;
+  /** Synced listings of enabled market accounts, by normalized domain name. */
+  marketListings: Record<string, MarketListing[]>;
+  /** The markets DomBot supports. */
+  marketCatalog: MarketInfo[];
+  /** Recorded market sales, newest first. */
+  marketSales: MarketSale[];
+  /** Traffic for the Markets page and the views/leads columns. */
+  marketTraffic: MarketTraffic;
+  loadMarkets: () => Promise<void>;
+  /** Swap in the accounts a market API call returned, and reload listings. */
+  setMarketAccounts: (accounts: MarketAccountView[]) => Promise<void>;
 
   /** Asking prices keyed by normalized domain name. */
   listPrices: Record<string, ListPrice>;
@@ -419,6 +447,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().loadListPrices(),
       get().loadPricing(),
       get().loadRegistrars(),
+      get().loadMarkets(),
     ]).then(() => undefined);
     // Before the first load there's nothing in view to overlay; the launch
     // hydrate path covers a fresh start.
@@ -776,6 +805,37 @@ export const useAppStore = create<AppState>((set, get) => ({
       ),
     });
     void get().loadPricing();
+  },
+  marketAccounts: null,
+  marketListings: {},
+  marketCatalog: [],
+  marketSales: [],
+  marketTraffic: { accountDays: [], domains: {}, byMarket: {} },
+  loadMarkets: async () => {
+    const [accounts, listings, catalog, sales, traffic] = await Promise.all([
+      window.api.listMarketAccounts(),
+      window.api.getMarketListings(),
+      get().marketCatalog.length
+        ? Promise.resolve(get().marketCatalog)
+        : window.api.getMarketCatalog(),
+      window.api.getMarketSales(),
+      window.api.getMarketTraffic(),
+    ]);
+    set({
+      marketAccounts: accounts,
+      marketListings: byDomain(listings),
+      marketCatalog: catalog,
+      marketSales: sales,
+      marketTraffic: traffic,
+    });
+  },
+  setMarketAccounts: async (accounts) => {
+    set({ marketAccounts: accounts });
+    const [listings, sales] = await Promise.all([
+      window.api.getMarketListings(),
+      window.api.getMarketSales(),
+    ]);
+    set({ marketListings: byDomain(listings), marketSales: sales });
   },
   listPrices: {},
   loadListPrices: async () => {

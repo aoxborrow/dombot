@@ -1,20 +1,34 @@
 import type { DocStore } from './doc-store';
 import { redactRegistrarMessage } from '../services/registrar-errors';
 import { PROXIES_NAMESPACE, proxySecrets } from '../../shared/proxy';
-import { CREDENTIALS_NAMESPACE } from './names';
+import {
+  CREDENTIALS_NAMESPACE,
+  MARKET_CREDENTIALS_NAMESPACE,
+  MARKET_LAST_SYNC_NAMESPACE,
+} from './names';
 
-const DIAGNOSTIC_NAMESPACES = ['registrar-domains', 'bulk-jobs'];
+const DIAGNOSTIC_NAMESPACES = [
+  'registrar-domains',
+  'bulk-jobs',
+  MARKET_LAST_SYNC_NAMESPACE,
+];
+const CREDENTIAL_NAMESPACES = [
+  CREDENTIALS_NAMESPACE,
+  MARKET_CREDENTIALS_NAMESPACE,
+];
 
 /** Also remove leaked diagnostics from older backups, not just new requests. */
 export function sanitizeBundleDiagnostics(
   data: Record<string, Record<string, unknown>>,
 ): void {
   const credentials: Record<string, string> = {};
-  for (const bag of Object.values(data[CREDENTIALS_NAMESPACE] ?? {})) {
-    if (!bag || typeof bag !== 'object') continue;
-    for (const value of Object.values(bag)) {
-      if (typeof value === 'string' && value)
-        credentials[String(Object.keys(credentials).length)] = value;
+  for (const ns of CREDENTIAL_NAMESPACES) {
+    for (const bag of Object.values(data[ns] ?? {})) {
+      if (!bag || typeof bag !== 'object') continue;
+      for (const value of Object.values(bag)) {
+        if (typeof value === 'string' && value)
+          credentials[String(Object.keys(credentials).length)] = value;
+      }
     }
   }
   // Only a proxy's URL and the credentials inside it: its id and label are
@@ -48,9 +62,9 @@ export async function sanitizeStoredDiagnostics(
   store: DocStore,
 ): Promise<void> {
   const data: Record<string, Record<string, unknown>> = {
-    [CREDENTIALS_NAMESPACE]: await store.list(CREDENTIALS_NAMESPACE),
     [PROXIES_NAMESPACE]: await store.list(PROXIES_NAMESPACE),
   };
+  for (const name of CREDENTIAL_NAMESPACES) data[name] = await store.list(name);
   for (const name of DIAGNOSTIC_NAMESPACES) data[name] = await store.list(name);
   const before = structuredClone(data);
   sanitizeBundleDiagnostics(data);

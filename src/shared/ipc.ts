@@ -15,6 +15,19 @@ import type {
 } from '@aoxborrow/registrar-client';
 import type { NumberFormatId } from './money';
 import type { DomainEvent } from './domain-events';
+import type {
+  MarketAccountView,
+  MarketBulkJob,
+  MarketBulkOp,
+  MarketBulkTarget,
+  MarketId,
+  MarketInfo,
+  MarketListing,
+  MarketListingChange,
+  MarketSale,
+  MarketTraffic,
+  MarketWriteResult,
+} from './markets';
 
 export type { DomainEvent, DomainNote } from './domain-events';
 
@@ -186,6 +199,29 @@ export const IpcChannels = {
   updateImportedDomain: 'importedDomains:update',
   getListPrices: 'listPrices:list',
   setListPrices: 'listPrices:set',
+  getMarketCatalog: 'markets:catalog',
+  listMarketAccounts: 'markets:listAccounts',
+  connectMarketAccount: 'markets:connectAccount',
+  renameMarketAccount: 'markets:renameAccount',
+  setMarketAccountEnabled: 'markets:setEnabled',
+  getMarketCredentials: 'markets:getCredentials',
+  saveMarketCredentials: 'markets:saveCredentials',
+  removeMarketAccount: 'markets:removeAccount',
+  syncMarketAccount: 'markets:syncAccount',
+  getMarketListings: 'markets:listings',
+  getMarketSales: 'markets:sales',
+  getMarketTraffic: 'markets:traffic',
+  writeMarketListings: 'markets:writeListings',
+  pushMarketPrices: 'markets:pushPrices',
+  deleteMarketListings: 'markets:deleteListings',
+  relistMarketListings: 'markets:relist',
+  startMarketBulk: 'markets:bulkStart',
+  advanceMarketBulk: 'markets:bulkAdvance',
+  cancelMarketBulk: 'markets:bulkCancel',
+  setMarketSaleAuthCode: 'markets:saleAuthCode',
+  sendMarketSaleMessage: 'markets:saleMessage',
+  getMarketListingDefaults: 'markets:getDefaults',
+  setMarketListingDefaults: 'markets:setDefaults',
   getDomainEvents: 'domainEvents:list',
   setDispositions: 'domainEvents:setDispositions',
   markSold: 'domainEvents:markSold',
@@ -1146,6 +1182,92 @@ export interface DombotApi {
   setListPrices: (
     inputs: ListPriceInput[],
   ) => Promise<Record<string, ListPrice>>;
+
+  // Markets (docs/markets.md). Account changes return every account after.
+  /** The markets DomBot supports, for Settings → Markets. */
+  getMarketCatalog: () => Promise<MarketInfo[]>;
+  listMarketAccounts: () => Promise<MarketAccountView[]>;
+  /** Tests the credentials, saves the account, then syncs it. */
+  connectMarketAccount: (
+    market: MarketId,
+    credentials: Record<string, string>,
+    label?: string,
+  ) => Promise<MarketAccountView[]>;
+  renameMarketAccount: (
+    accountId: string,
+    label: string,
+  ) => Promise<MarketAccountView[]>;
+  /** Turning an account on syncs it. */
+  setMarketAccountEnabled: (
+    accountId: string,
+    enabled: boolean,
+  ) => Promise<MarketAccountView[]>;
+  getMarketCredentials: (accountId: string) => Promise<Record<string, string>>;
+  /** Tests the new credentials, saves them, then syncs. */
+  saveMarketCredentials: (
+    accountId: string,
+    credentials: Record<string, string>,
+  ) => Promise<MarketAccountView[]>;
+  removeMarketAccount: (accountId: string) => Promise<MarketAccountView[]>;
+  /** One account, or every enabled one when `accountId` is left out. */
+  syncMarketAccount: (accountId?: string) => Promise<MarketAccountView[]>;
+  /** Synced listings of enabled market accounts. */
+  getMarketListings: () => Promise<MarketListing[]>;
+  /** Every recorded market sale, newest first. */
+  getMarketSales: () => Promise<MarketSale[]>;
+  /** Account views and leads by day, and each listed name's totals. */
+  getMarketTraffic: () => Promise<MarketTraffic>;
+  /** List or update names on a market account; only the fields given change. */
+  writeMarketListings: (
+    accountId: string,
+    changes: MarketListingChange[],
+  ) => Promise<MarketWriteResult[]>;
+  /** Make the market's prices match DomBot's asking prices for these names. */
+  pushMarketPrices: (
+    accountId: string,
+    names: string[],
+  ) => Promise<MarketWriteResult[]>;
+  deleteMarketListings: (
+    accountId: string,
+    names: string[],
+  ) => Promise<MarketWriteResult[]>;
+  relistMarketListings: (
+    accountId: string,
+    names: string[],
+    mode?: 'RESYNC' | 'REACTIVATE',
+  ) => Promise<MarketWriteResult[]>;
+  /**
+   * Start a market bulk job, for writes too large to wait on (markets that
+   * write one name per call). One at a time; runs beside registrar jobs.
+   */
+  startMarketBulk: (
+    targets: MarketBulkTarget[],
+    op: MarketBulkOp,
+  ) => Promise<MarketBulkJob>;
+  /**
+   * The market job's progress. On a host that doesn't drive jobs itself
+   * (web), each call also runs it for a few seconds; poll it.
+   */
+  advanceMarketBulk: () => Promise<MarketBulkJob | null>;
+  cancelMarketBulk: (jobId: string) => Promise<void>;
+  /** Send a sale its auth code; without one, DomBot gets it from the registrar. */
+  setMarketSaleAuthCode: (
+    accountId: string,
+    saleId: string,
+    authCode?: string,
+  ) => Promise<{ name: string; fetched: boolean }>;
+  sendMarketSaleMessage: (
+    accountId: string,
+    saleId: string,
+    message: string,
+  ) => Promise<void>;
+  getMarketListingDefaults: (
+    accountId: string,
+  ) => Promise<Record<string, unknown>>;
+  setMarketListingDefaults: (
+    accountId: string,
+    settings: Record<string, unknown>,
+  ) => Promise<void>;
 
   // Domain history (docs/storage-model.md). Each change returns the whole log.
   /** Every domain event, oldest first. */

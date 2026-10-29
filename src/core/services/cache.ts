@@ -1,4 +1,5 @@
 import { STALE_AFTER_MS as SHARED_STALE_AFTER_MS } from '../../shared/ipc';
+import { MARKET_LISTINGS_NAMESPACE } from '../storage/names';
 import { Namespace, clearCacheNamespaces } from '../storage/namespace';
 
 // Generic, timestamped cache for domain data (portfolio, per-domain detail).
@@ -100,4 +101,10 @@ export function clearNamespace(ns: CacheNamespace): void {
  *  owned by other services (`registrar-tld-rates`). */
 export function clearAll(): void {
   clearCacheNamespaces();
+}
+
+/** The caches fetched under registrar credentials: all but the market
+ *  listings, which a market account fetched and still needs. */
+export function clearRegistrarCaches(): void {
+  clearCacheNamespaces((name) => name !== MARKET_LISTINGS_NAMESPACE);
 }

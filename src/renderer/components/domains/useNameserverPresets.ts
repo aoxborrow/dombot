@@ -15,6 +15,7 @@ export function useNameserverPresets(): NameserverPreset[] {
   const portfolio = useAppStore((s) => s.portfolio);
   const enriched = useAppStore((s) => s.enriched);
   const settings = useAppStore((s) => s.settings);
+  const marketCatalog = useAppStore((s) => s.marketCatalog);
   const loadSettings = useAppStore((s) => s.loadSettings);
   useEffect(() => {
     if (settings === null) void loadSettings();
@@ -25,7 +26,9 @@ export function useNameserverPresets(): NameserverPreset[] {
       nameserverPresets(
         portfolio.map((d) => enriched[domainKey(d)] ?? d),
         settings?.recentNameservers ?? [],
+        8,
+        marketCatalog,
       ),
-    [portfolio, enriched, settings],
+    [portfolio, enriched, settings, marketCatalog],
   );
 }

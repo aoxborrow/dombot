@@ -88,6 +88,12 @@ export interface DomainEvent {
   dismissed?: boolean;
   /** The import that wrote it, if one did (docs/domain-import-export.md). */
   importId?: string;
+  /**
+   * The market sale it records, as its `market-sales` key (docs/markets.md):
+   * set on a `sold` event a market sync wrote or linked, so a later sync
+   * never records the same sale twice.
+   */
+  marketSale?: string;
 }
 
 /** A note on a name, or on one of its events. Stored in `domain-notes`. */

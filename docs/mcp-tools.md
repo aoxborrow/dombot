@@ -223,3 +223,105 @@ and returns `{ domain, authCode }`, or fails with the reason.
 Not every registrar supports every tool; an unsupported call fails with the
 reason. The support matrix is in
 [domain-editing.md](domain-editing.md#what-each-registrar-supports).
+
+## Markets
+
+Marketplace accounts from Settings → Markets ([markets.md](markets.md)).
+Listings, sales and account stats are read from what market sync stored;
+`market_sync` refreshes them. A tool or filter a market can't support fails
+saying so.
+
+- **`market_list`** — every market account: `accountId`, `market`, `label`,
+  `configured`, `enabled`, its last `sync`, and the market's `capabilities`.
+  No secrets.
+- **`market_sync`** — `accountId?`. Re-reads listings, sales and stats from
+  one account or every enabled one. Completed sales become `sold` events.
+- **`market_listings`** — your listings across accounts: filter by `market`,
+  `accountId`, `status[]`, `forSale`, `nameContains`, `tld`, `priceMin`,
+  `priceMax`; `sort` by `name`, `price`, `status`, `listedAt` or
+  `searches30`; `order`, `limit`, `offset`. Prices are decimal strings.
+- **`domain_listing_get`** — `domain`, `market?`. One name's listings.
+- **`market_sales`** — sales, newest first: filter by `market`,
+  `accountId`, `from`/`to` (sold on), `status`, `kind`, `nameContains`.
+  Returns `totals` (price, commission, net per currency) over every match.
+  Never includes auth codes.
+- **`market_stats_get`** — `accountId`, `days?`. Stored daily views and
+  leads, with totals.
+- **`domain_stats_get`** — `domain`, `accountId?`, `days?` (default 30).
+  Live from the market that lists the name; for Atom, which reports only
+  running totals, from what sync stored (views per day, worked out between
+  syncs, and the latest views, shortlists and offers).
+- **`market_settings_get`** — `accountId`. The account's defaults for new
+  listings, live.
+- **`market_categories_get`** — `accountId`. The categories and name
+  languages the market's listings take (Sedo; Atom's primary categories,
+  no languages), live.
+- **`market_payments_get`** — `accountId`, `month` (any day in it). Parking
+  payouts for that month (Sedo), live.
+
+- **`market_traffic`** — `accountId?`, `days?` (30 or 365), `sort?`
+  (`leads`, `views`), `minViews?`, `limit`, `offset`. Listed names ranked by
+  stored views and leads, with `coverage`: per-name traffic is fetched a
+  slice of names per sync.
+- **`market_report_get`** — the Markets page's report: sales by year and in
+  total, sell-through over the last 12 months, and views and leads by month.
+
+`portfolio_query` also takes `listedOn` and `notListedOn` (a market id), to
+find names listed on a market or the ones that aren't yet.
+
+Writes. Each returns one result per name with `ok`, `pending` (accepted, not
+live yet), the listing as `saved`, `adjusted` (fields the market saved
+differently, like Afternic's lease-to-own cap) and `error`. Prices are
+decimal strings or numbers.
+
+- **`domain_listing_set`** — `domain`, `accountId?`, and the fields to set:
+  `price` (null: offers only), `buyNow` (whether `price` can be paid outright
+  or is an asking price; Sedo only, Afternic prices always are), `minOffer`,
+  `floor` (null clears), `currency`, `forSale`, `leaseToOwn`, `afternic`
+  (lander settings), `sedo` (`categories`, `language`), `atom` (`tier` for
+  a new listing, Standard or Plus; `category`; `description`). Lists the
+  name if it isn't listed. On Sedo a new listing comes back `pending` until
+  Sedo's checks pass. Atom takes one whole-dollar price of $100 or more
+  (or null, Make an Offer) and rejects `minOffer` and `floor`. `fromAskingPrice: true` takes the prices from DomBot's
+  asking price instead. `accountId` can be left out when the name is listed
+  in one account or there's only one.
+- **`domain_listing_delete`** — `domain`, `accountId?`. Delists; the name
+  stays in your registrar account.
+- **`market_listings_set`** — `accountId`, and `changes[]` (each a `name` and
+  fields, as above) or `domains[]` with `fromAskingPrice: true`. Any number
+  of names, in the market's batch size. On a market that writes one name a
+  call (Atom), more than 10 names start a market bulk job instead, returned
+  as `{ job }`.
+- **`market_listings_delete`** — `accountId`, `domains[]`. Same job rule.
+- **`market_job_get`** — `cancel?`. The latest market bulk job: status,
+  done of total, counts by outcome (`skipped`: already as asked), and the
+  failures so far. Poll until it isn't running; on the web app each call
+  also runs it a few seconds.
+- **`market_listings_relist`** — `accountId`, `domains[]`, `mode?`
+  (`RESYNC` re-checks, `REACTIVATE` brings back an inactive listing).
+  `fromAskingPrice` writes already do this for listings that were inactive,
+  rejected or stuck pending, and say so per name as `relisted`.
+- **`market_sale_auth_code_set`** — `accountId`, `saleId`, `authCode?`.
+  Without a code, DomBot gets it from the registrar account that holds the
+  name. Never returned or stored.
+- **`market_sale_message_send`** — `accountId`, `saleId`, `message`. Reaches
+  a person at the market.
+- **`market_settings_set`** — `accountId`, and the listing defaults to
+  change.
+
+Atom only (each fails saying so on markets without it):
+
+- **`domain_listing_discount_set`** — `domain`, `accountId?`, `amount`
+  (whole dollars off, at most 30% of the price; null clears). Lasts until
+  Atom resets discounts on Monday.
+- **`domain_listing_verify`** — `domain`, `accountId?`. Asks Atom to check
+  the name's nameservers or TXT record now; once per account every 12
+  hours.
+- **`market_grading_submit`** — `accountId`, `domains[]`. Atom's AI grading
+  (brand fit, Premium fit); **`market_grading_get`** — `accountId`,
+  `page?`, `brandFitOnly?` reads the results.
+- **`domain_appraisal_get`** — `domain`, `accountId?`. Atom's appraisal of
+  any name; 10 a day.
+
+There is no boost tool and no way to add a Premium Atom listing: both spend
+Atom credits, so they're done on atom.com.

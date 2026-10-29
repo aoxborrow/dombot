@@ -50,6 +50,10 @@ export interface QueryArgs {
   folder?: string;
   nameContains?: string;
   nameserverContains?: string;
+  /** Only names listed on this market (any status), per the last market sync. */
+  listedOn?: string;
+  /** Only names not listed on this market. */
+  notListedOn?: string;
   autoRenew?: boolean;
   locked?: boolean;
   privacy?: boolean;
@@ -102,6 +106,8 @@ export interface RowExtras {
   purchases?: Record<string, DomainPurchase>;
   listPrices?: Record<string, ListPrice>;
   pricing?: Record<string, RenewalPricing>;
+  /** Each listed name's markets, keyed by `toAscii(name)`. */
+  listedMarkets?: Map<string, Set<string>>;
 }
 
 /** Only the fields an agent needs for a row — drops `syncedAt`/`deleted`, adds
@@ -318,6 +324,12 @@ export function queryPortfolio(
       !d.nameservers.some((ns) => ns.toLowerCase().includes(nsNeedle))
     )
       return false;
+    if (args.listedOn != null || args.notListedOn != null) {
+      const markets = extras.listedMarkets?.get(toAscii(d.domainName));
+      if (args.listedOn != null && !markets?.has(args.listedOn)) return false;
+      if (args.notListedOn != null && markets?.has(args.notListedOn))
+        return false;
+    }
     // A name no account reports has no settings to match, except an imported
     // name's auto-renew when you've said what it is.
     const reported = !d.departed && d.source !== 'imported';

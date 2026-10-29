@@ -1,0 +1,719 @@
+import { Fragment, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { localDay } from '../../shared/domain-events';
+import {
+  mostSearched,
+  salesByYear,
+  salesTotal,
+  sellThrough,
+  trafficByMonth,
+  type TrafficMonth,
+} from '../../shared/market-reports';
+import {
+  searchesOf,
+  type MarketId,
+  type MarketListing,
+  type MarketSale,
+} from '../../shared/markets';
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_NUMBER_FORMAT,
+  formatMoney,
+} from '../../shared/money';
+import { useAppStore } from '../store/app';
+import { StatCard } from '../components/StatCard';
+import { MarketLogo } from '../components/RegistrarLogo';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  BadgeDollarSign,
+  ChevronRight,
+  CircleDollarSign,
+  Eye,
+  Store,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import {
+  Empty as EmptyState,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+
+// Reporting across market accounts (docs/afternic-api.md, "Reporting"):
+// traffic by month, the names that get it, sales by year, sell-through, and
+// search demand. Everything comes from what market sync stored.
+
+const MONTHS_SHOWN = 12;
+const TOP_NAMES = 15;
+
+export default function Markets() {
+  const allAccounts = useAppStore((s) => s.marketAccounts);
+  const allListings = useAppStore((s) => s.marketListings);
+  const allSales = useAppStore((s) => s.marketSales);
+  const allTraffic = useAppStore((s) => s.marketTraffic);
+  const catalog = useAppStore((s) => s.marketCatalog);
+  const settings = useAppStore((s) => s.settings);
+  const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
+  const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
+  const money = (amount: string, currency = 'USD') =>
+    formatMoney(amount, currency, preferred, numberFormat, true);
+  const count = (n: number) => n.toLocaleString();
+
+  // The page can show one market at a time. Traffic adds up across markets
+  // otherwise: lander views and parking visitors are both visits to the name.
+  const [picked, setPicked] = useState<string>('all');
+  const marketIds = useMemo(
+    () => [...new Set((allAccounts ?? []).map((a) => a.market))],
+    [allAccounts],
+  );
+  const market = marketIds.find((id) => id === picked) ?? null;
+  const { accounts, listings, sales, traffic } = useMemo(() => {
+    const keep = (x: { market: MarketId }) => !market || x.market === market;
+    return {
+      accounts: allAccounts?.filter(keep) ?? null,
+      listings: Object.values(allListings).flat().filter(keep),
+      sales: allSales.filter(keep),
+      traffic: {
+        accountDays: allTraffic.accountDays.filter(keep),
+        domains: market
+          ? (allTraffic.byMarket[market] ?? {})
+          : allTraffic.domains,
+      },
+    };
+  }, [allAccounts, allListings, allSales, allTraffic, market]);
+  const months = useMemo(
+    () => trafficByMonth(traffic.accountDays).slice(-MONTHS_SHOWN),
+    [traffic.accountDays],
+  );
+  const last30 = useMemo(() => {
+    const days = traffic.accountDays.slice(-30);
+    return {
+      views: days.reduce((n, d) => n + (d.views ?? 0), 0),
+      leads: days.reduce((n, d) => n + (d.leads ?? 0), 0),
+    };
+  }, [traffic.accountDays]);
+  const years = useMemo(() => salesByYear(sales), [sales]);
+  const total = useMemo(() => salesTotal(years), [years]);
+  // Each year's sales, newest first, for the rows that open.
+  const salesByYearList = useMemo(() => {
+    const out = new Map<string, MarketSale[]>();
+    for (const sale of sales) {
+      if (!sale.soldOn || sale.currency !== 'USD') continue;
+      const year = sale.soldOn.slice(0, 4);
+      (out.get(year) ?? out.set(year, []).get(year)!).push(sale);
+    }
+    for (const list of out.values()) {
+      list.sort((a, b) => (b.soldOn ?? '').localeCompare(a.soldOn ?? ''));
+    }
+    return out;
+  }, [sales]);
+  const [openYears, setOpenYears] = useState<ReadonlySet<string>>(new Set());
+  const toggleYear = (year: string) =>
+    setOpenYears((current) => {
+      const next = new Set(current);
+      if (next.has(year)) next.delete(year);
+      else next.add(year);
+      return next;
+    });
+  const through = useMemo(
+    () => sellThrough(sales, listings, localDay()),
+    [sales, listings],
+  );
+  const searched = useMemo(() => mostSearched(listings), [listings]);
+  const topNames = useMemo(
+    () =>
+      Object.entries(traffic.domains)
+        .filter(([, t]) => t.views365 || t.leads365)
+        .sort(
+          ([a, x], [b, y]) =>
+            y.leads365 - x.leads365 ||
+            y.views365 - x.views365 ||
+            a.localeCompare(b),
+        )
+        .slice(0, TOP_NAMES),
+    [traffic.domains],
+  );
+  const priceOf = (name: string) =>
+    allListings[name]?.find((l) => l.price && (!market || l.market === market));
+  const covered = Object.keys(traffic.domains).length;
+
+  if (allAccounts !== null && allAccounts.length === 0) {
+    return (
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
+        <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
+        <EmptyState className="rounded-md border border-dashed">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Store />
+            </EmptyMedia>
+            <EmptyTitle>No market accounts yet</EmptyTitle>
+            <EmptyDescription>
+              Connect a marketplace like Afternic to see your listings&apos;
+              traffic, leads and sales here, beside your registrar data.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button asChild>
+              <Link to="/settings?tab=markets">Add a market account</Link>
+            </Button>
+          </EmptyContent>
+        </EmptyState>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 pb-12">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold sm:text-[32px]">Markets</h1>
+          <p className="-mt-0.5 text-sm text-muted-foreground">
+            Traffic and sales from your marketplace accounts, as of their last
+            sync.
+          </p>
+        </div>
+        <Select value={market ?? 'all'} onValueChange={setPicked}>
+          <SelectTrigger aria-label="Market" className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            <SelectItem value="all">All markets</SelectItem>
+            {marketIds.map((id) => (
+              <SelectItem key={id} value={id}>
+                <MarketLogo
+                  market={id}
+                  label={id}
+                  className="size-4 p-[1.5px] text-muted-foreground"
+                />
+                {catalog.find((m) => m.id === id)?.name ?? id}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+        <StatCard
+          icon={Store}
+          accentClass="text-blue-500"
+          label="Listed"
+          value={count(listings.length)}
+          hint={`On ${accounts?.length ?? 0} market account${
+            accounts?.length === 1 ? '' : 's'
+          }`}
+        />
+        <StatCard
+          icon={Eye}
+          accentClass="text-amber-500"
+          label="Views, last 30 days"
+          value={count(last30.views)}
+          hint={`${count(last30.leads)} lead${last30.leads === 1 ? '' : 's'}`}
+        />
+        <StatCard
+          icon={BadgeDollarSign}
+          accentClass="text-violet-500"
+          label="Sold, last 12 months"
+          value={count(through.sold)}
+          hint={
+            through.rate === null
+              ? 'Nothing listed'
+              : `${(through.rate * 100).toFixed(1)}% sell-through`
+          }
+        />
+        <StatCard
+          icon={CircleDollarSign}
+          accentClass="text-brand-500"
+          label="Net, all time"
+          value={money(total.net)}
+          hint={`${count(total.sold)} sale${total.sold === 1 ? '' : 's'} · ${money(total.gross)} gross`}
+        />
+      </div>
+
+      <MonthBars months={months} />
+
+      <Section
+        title="Names with the most interest"
+        note={`Last 12 months, by leads then views. Traffic is fetched a slice of names per sync: ${count(covered)} of ${count(listings.length)} so far.`}
+      >
+        {topNames.length ? (
+          <ReportTable>
+            <TableHeader className={HEAD}>
+              <TableRow className={HEAD_ROW}>
+                <TableHead>Domain</TableHead>
+                <TableHead className="text-right">Leads</TableHead>
+                <TableHead className="text-right">Views</TableHead>
+                <TableHead className="text-right">Views, 30 days</TableHead>
+                <TableHead className="text-right">Listed price</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {topNames.map(([name, t]) => {
+                const listed = priceOf(name);
+                return (
+                  <TableRow key={name}>
+                    <TableCell className="font-medium">{name}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {count(t.leads365)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {count(t.views365)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {count(t.views30)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {listed?.price
+                        ? money(listed.price, listed.currency)
+                        : '—'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </ReportTable>
+        ) : (
+          <ReportEmpty
+            title="No per-name traffic yet"
+            description={
+              covered
+                ? 'None of the names fetched so far has had views or leads in the last 12 months.'
+                : 'DomBot fetches traffic for a slice of names on each sync, so names show up here as it comes in.'
+            }
+          />
+        )}
+      </Section>
+
+      <Section
+        title="Sales by year"
+        note="Completed sales in USD. Commission is the market's; net is what you were paid."
+      >
+        {years.length ? (
+          <ReportTable>
+            <TableHeader className={HEAD}>
+              <TableRow className={HEAD_ROW}>
+                <TableHead>Year</TableHead>
+                <TableHead className="text-right">Sold</TableHead>
+                <TableHead className="text-right">Gross</TableHead>
+                <TableHead className="text-right">Commission</TableHead>
+                <TableHead className="text-right">Net</TableHead>
+                <TableHead className="text-right">Average</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {years.map((y) => {
+                const open = openYears.has(y.year);
+                return (
+                  <Fragment key={y.year}>
+                    <TableRow
+                      className="cursor-pointer"
+                      onClick={() => toggleYear(y.year)}
+                    >
+                      <TableCell>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1.5"
+                          aria-expanded={open}
+                          aria-label={`${open ? 'Hide' : 'Show'} ${y.year} sales`}
+                        >
+                          <ChevronRight
+                            className={cn(
+                              'size-4 text-muted-foreground transition-transform',
+                              open && 'rotate-90',
+                            )}
+                          />
+                          {y.year}
+                        </button>
+                        {(y.inProgress > 0 || y.cancelled > 0) && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {[
+                              y.inProgress && `${y.inProgress} in progress`,
+                              y.cancelled && `${y.cancelled} cancelled`,
+                            ]
+                              .filter(Boolean)
+                              .join(', ')}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {y.sold}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {money(y.gross)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {money(y.commission)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {money(y.net)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {y.average ? money(y.average) : '—'}
+                      </TableCell>
+                    </TableRow>
+                    {open && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={6} className="bg-muted/30 p-0">
+                          <YearSales
+                            sales={salesByYearList.get(y.year) ?? []}
+                            money={money}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })}
+              <TableRow className="font-medium">
+                <TableCell>All years</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {total.sold}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {money(total.gross)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {money(total.commission)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {money(total.net)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {total.average ? money(total.average) : '—'}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </ReportTable>
+        ) : (
+          <ReportEmpty
+            title="No sales yet"
+            description="Completed sales from markets that report them show up here by year, with commission and net."
+          />
+        )}
+      </Section>
+
+      {searched.length > 0 && (
+        <Section
+          title="Most searched"
+          note="Searches on GoDaddy over the last 30 days (Discount Domain Club Domain Pro). A name searched a lot but priced high, or with few views, is worth a second look."
+        >
+          <ReportTable>
+            <TableHeader className={HEAD}>
+              <TableRow className={HEAD_ROW}>
+                <TableHead>Domain</TableHead>
+                <TableHead className="text-right">Searches, 30 days</TableHead>
+                <TableHead className="text-right">Unique</TableHead>
+                <TableHead className="text-right">365 days</TableHead>
+                <TableHead className="text-right">Listed price</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {searched.map((l: MarketListing) => (
+                <TableRow key={`${l.accountId}:${l.name}`}>
+                  <TableCell className="font-medium">{l.name}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {count(searchesOf(l)?.total.days30 ?? 0)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {count(searchesOf(l)?.unique.days30 ?? 0)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {searchesOf(l)?.total.days365 == null
+                      ? '—'
+                      : count(searchesOf(l)?.total.days365 ?? 0)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {l.price ? money(l.price, l.currency) : '—'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </ReportTable>
+        </Section>
+      )}
+    </div>
+  );
+}
+
+function Section({
+  title,
+  note,
+  children,
+}: {
+  title: string;
+  note?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-2">
+      <div>
+        <h2 className="text-lg font-semibold">{title}</h2>
+        {note && <p className="text-sm text-muted-foreground">{note}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// Column headings like the Domains table's: small caps on a muted band.
+const HEAD = 'bg-muted';
+const HEAD_ROW =
+  'hover:bg-muted [&_th]:h-8 [&_th]:text-[10px] [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_th]:uppercase';
+
+/** A report table: no card around it, just its own rounded border. */
+function ReportTable({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-t-lg rounded-b-[4px] border">
+      <Table>{children}</Table>
+    </div>
+  );
+}
+
+/** A report with nothing to show yet: a title and one line of why. */
+function ReportEmpty({
+  title,
+  description,
+  className,
+}: {
+  title: string;
+  description: string;
+  className?: string;
+}) {
+  return (
+    <EmptyState
+      className={cn('rounded-lg border border-dashed md:p-8', className)}
+    >
+      <EmptyHeader>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{description}</EmptyDescription>
+      </EmptyHeader>
+    </EmptyState>
+  );
+}
+
+const MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+const monthLabel = (m: string) => MONTH_NAMES[Number(m.slice(5, 7)) - 1];
+
+/**
+ * Views by month, drawn like Renewals by month: one bar per month in a
+ * faint full-height slot, its count always above it, and the year's totals
+ * top right. One series, so no legend; leads are in each bar's hover title
+ * and the summary, since they're far smaller than views. A visually hidden
+ * table carries the same numbers.
+ */
+function MonthBars({ months }: { months: TrafficMonth[] }) {
+  const max = Math.max(1, ...months.map((m) => m.views));
+  const views = months.reduce((n, m) => n + m.views, 0);
+  const leads = months.reduce((n, m) => n + m.leads, 0);
+  const empty = views === 0 && leads === 0;
+  const plural = (n: number, word: string) =>
+    `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+  return (
+    <div className="@container flex flex-col gap-3 rounded-lg border bg-card p-4 pt-[14px]">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 className="text-[15px] font-semibold text-foreground/75">
+          Views by month
+        </h2>
+        {!empty && (
+          <span className="text-xs text-muted-foreground">
+            {plural(views, 'view')} · {plural(leads, 'lead')} over{' '}
+            {months.length} month{months.length === 1 ? '' : 's'}
+          </span>
+        )}
+      </div>
+      {empty ? (
+        // About the chart's own height, so the page doesn't jump once
+        // traffic arrives.
+        <ReportEmpty
+          title="No views yet"
+          description={
+            months.length
+              ? `Your listings had no views or leads in the last ${months.length === 1 ? 'month' : `${months.length} months`}.`
+              : 'Views and leads show up here once a market account syncs its traffic.'
+          }
+          className="min-h-[186px] border-0 md:p-4"
+        />
+      ) : (
+        <div className="flex items-end gap-1.5 pt-2" aria-hidden>
+          {months.map((m) => {
+            const pct = (m.views / max) * 100;
+            const label = `${monthLabel(m.month)} ${m.month.slice(0, 4)}`;
+            return (
+              <div
+                key={m.month}
+                className="flex min-w-0 flex-1 flex-col items-center gap-1.5"
+              >
+                <div className="relative h-[154px] w-full">
+                  <div className="absolute inset-0 rounded-t-[5px] rounded-b-[3px] bg-muted/30" />
+                  <div
+                    className="absolute inset-x-0 bottom-0 rounded-t-[5px] rounded-b-[3px] bg-brand transition-[filter] hover:brightness-110"
+                    style={{ height: `${pct}%` }}
+                    title={`${label}: ${plural(m.views, 'view')} · ${plural(m.leads, 'lead')}`}
+                  />
+                  {m.views > 0 && (
+                    <span
+                      className="absolute left-1/2 hidden -translate-x-1/2 -translate-y-1 text-[11px] whitespace-nowrap text-muted-foreground tabular-nums sm:block"
+                      style={{ bottom: `${pct}%` }}
+                    >
+                      {m.views.toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                <span className="hidden text-xs whitespace-nowrap text-muted-foreground @3xl:block">
+                  {label}
+                </span>
+                <span className="text-[10px] whitespace-nowrap text-muted-foreground sm:text-xs @3xl:hidden">
+                  {monthLabel(m.month)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <table className="sr-only">
+        <caption>Views and leads by month</caption>
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Views</th>
+            <th>Leads</th>
+          </tr>
+        </thead>
+        <tbody>
+          {months.map((m) => (
+            <tr key={m.month}>
+              <td>{m.month}</td>
+              <td>{m.views}</td>
+              <td>{m.leads}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** A year shows at most this many sales inline. */
+const YEAR_SALES_SHOWN = 100;
+
+const SALE_STATUS: Record<MarketSale['status'], string> = {
+  completed: 'Completed',
+  in_progress: 'In progress',
+  cancelled: 'Cancelled',
+  unknown: 'Unknown',
+};
+const SALE_KIND: Record<MarketSale['kind'], string> = {
+  buy_now: 'Buy Now',
+  offer: 'Offer',
+  lease: 'Lease',
+  unknown: '—',
+};
+
+/** One year's sales, newest first, up to YEAR_SALES_SHOWN. */
+function YearSales({
+  sales,
+  money,
+}: {
+  sales: MarketSale[];
+  money: (amount: string, currency?: string) => string;
+}) {
+  const shown = sales.slice(0, YEAR_SALES_SHOWN);
+  const amount = (a: string | null, currency: string) =>
+    a ? money(a, currency) : '—';
+  return (
+    <div className="px-2 py-1">
+      <Table>
+        <TableHeader>
+          <TableRow className={cn(HEAD_ROW, 'hover:bg-transparent')}>
+            <TableHead>Sold</TableHead>
+            <TableHead>Domain</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Price</TableHead>
+            <TableHead className="text-right">Commission</TableHead>
+            <TableHead className="text-right">Net</TableHead>
+            <TableHead className="text-right">Paid out</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {shown.map((s) => (
+            <TableRow key={`${s.accountId}:${s.id}`}>
+              <TableCell className="tabular-nums text-muted-foreground">
+                {s.soldOn}
+              </TableCell>
+              <TableCell className="font-medium">{s.name}</TableCell>
+              <TableCell>
+                {SALE_KIND[s.kind]}
+                {s.installments?.total != null && (
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    {s.installments.paid ?? 0}/{s.installments.total} paid
+                  </span>
+                )}
+              </TableCell>
+              <TableCell
+                className={cn(
+                  s.status !== 'completed' && 'text-muted-foreground',
+                )}
+              >
+                {SALE_STATUS[s.status]}
+              </TableCell>
+              <TableCell
+                className={cn(
+                  'text-right tabular-nums',
+                  s.status === 'cancelled' &&
+                    'text-muted-foreground line-through',
+                )}
+              >
+                {amount(s.price, s.currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">
+                {amount(s.commission, s.currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {s.status === 'cancelled' ? '—' : amount(s.net, s.currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">
+                {s.paidOutOn ?? '—'}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {sales.length > shown.length && (
+        <p className="px-2 pt-1 pb-2 text-xs text-muted-foreground">
+          Showing the latest {shown.length.toLocaleString()} of{' '}
+          {sales.length.toLocaleString()} sales this year.
+        </p>
+      )}
+    </div>
+  );
+}

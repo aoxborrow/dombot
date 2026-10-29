@@ -7,6 +7,7 @@ import {
 import { getSettings } from './settings';
 import { broadcastPortfolioChanged } from '../events';
 import { isBulkRunning } from './bulk-jobs';
+import { syncMarkets } from './markets/sync';
 
 // Periodic background portfolio sync. The UI never auto-refreshes on staleness
 // (the user hits Sync), but an MCP-only user may never open the window, so the
@@ -42,7 +43,8 @@ function intervalMs(): number {
 }
 
 /**
- * One best-effort refresh of every configured registrar, then notify windows.
+ * One best-effort refresh of every configured registrar, then every enabled
+ * market account, then notify windows.
  * Skips when nothing is configured, while a bulk job is patching caches, or
  * (with `ifOlderThanMs`) when the cache is already fresher than that, except
  * for due per-account rate-limit recovery. The freshness threshold is
@@ -52,27 +54,42 @@ function intervalMs(): number {
  */
 export async function syncAll(ifOlderThanMs?: number): Promise<boolean> {
   if (inFlight) return false;
-  if (getActiveRegistrars().length === 0) return false;
   // Don't race a bulk job's per-item cache patches; the next tick retries.
   if (isBulkRunning()) return false;
   inFlight = true;
   try {
-    if (ifOlderThanMs !== undefined) {
-      const fetchedAt = getCachedPortfolio()?.fetchedAt ?? 0;
-      if (Date.now() - fetchedAt < ifOlderThanMs) {
-        const recovered = await retryDeferredSyncs();
-        if (recovered) broadcastPortfolioChanged();
-        return recovered;
+    let ran = false;
+    if (getActiveRegistrars().length > 0) {
+      try {
+        const fetchedAt = getCachedPortfolio()?.fetchedAt ?? 0;
+        if (
+          ifOlderThanMs !== undefined &&
+          Date.now() - fetchedAt < ifOlderThanMs
+        ) {
+          // Fresh enough, but an account whose sync was deferred (a rate
+          // limit) may be due again.
+          if (await retryDeferredSyncs()) {
+            broadcastPortfolioChanged();
+            ran = true;
+          }
+        } else {
+          await getPortfolio(true, true);
+          broadcastPortfolioChanged();
+          console.log('[auto-sync] portfolio refreshed');
+          ran = true;
+        }
+      } catch (err) {
+        // Best-effort — the next tick retries.
+        console.error('[auto-sync] failed', err);
       }
     }
-    await getPortfolio(true, true);
-    broadcastPortfolioChanged();
-    console.log('[auto-sync] portfolio refreshed');
-    return true;
-  } catch (err) {
-    // Best-effort — the next tick retries.
-    console.error('[auto-sync] failed', err);
-    return false;
+    // Markets after registrars, so a sale's "still held?" check sees the
+    // fresh portfolio. Each account records its own failure.
+    if ((await syncMarkets(ifOlderThanMs)) > 0) {
+      console.log('[auto-sync] markets refreshed');
+      ran = true;
+    }
+    return ran;
   } finally {
     inFlight = false;
   }

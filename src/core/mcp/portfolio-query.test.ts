@@ -579,3 +579,23 @@ describe('staleAccounts', () => {
     ).toEqual([]);
   });
 });
+
+describe('listedOn / notListedOn', () => {
+  const domains = [
+    domain({ domainName: 'listed.com' }),
+    domain({ domainName: 'other.com' }),
+  ];
+  const extras = {
+    listedMarkets: new Map([['listed.com', new Set(['afternic'])]]),
+  };
+  const query = (args: QueryArgs) =>
+    queryPortfolio(domains, [], {}, META, args, new Map(), extras).rows.map(
+      (r) => r.domainName,
+    );
+
+  it('keeps names listed, or not listed, on a market', () => {
+    expect(query({ listedOn: 'afternic' })).toEqual(['listed.com']);
+    expect(query({ notListedOn: 'afternic' })).toEqual(['other.com']);
+    expect(query({ listedOn: 'sedo' })).toEqual([]);
+  });
+});

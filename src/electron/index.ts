@@ -191,8 +191,9 @@ function runApp(): void {
     // can touch one. Also runs the one-time legacy-credentials migration.
     await initStorage();
     configureProxyTransport(desktopProxyFetch);
-    // Bulk jobs: the desktop drives them in-process, and a job left running
-    // by a crash/quit is closed out (never silently resumed — renew is money).
+    // Bulk jobs: the desktop drives them in-process, and a registrar job left
+    // running by a crash/quit is closed out (never silently resumed — renew
+    // is money); a market job carries on with the names it hadn't sent.
     setBulkAutoDrive(true);
     abandonInterruptedBulk();
     forwardCoreEventsToWindows();

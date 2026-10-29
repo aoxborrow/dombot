@@ -1,11 +1,14 @@
 import { z } from 'zod';
 import type { DombotApi, DomainTarget } from '../../shared/ipc';
-import { clearAll } from '../services/cache';
+import { clearAll, clearRegistrarCaches } from '../services/cache';
 import { applyDomainOp } from '../services/domain-ops';
 import {
+  advanceMarketBulk,
   cancelBulk,
+  cancelMarketBulk,
   getBulkJob,
   startBulk,
+  startMarketBulk,
   stepBulk,
 } from '../services/bulk-jobs';
 import {
@@ -79,6 +82,40 @@ import {
 } from '../mcp/oauth';
 import * as s from './schemas';
 import { createAccount, renameAccount } from '../services/accounts';
+import {
+  deleteMarketListings,
+  pushAskingPrices,
+  relistMarketListings,
+  sendSaleMessage,
+  setMarketListingDefaults,
+  setSaleAuthCode,
+  writeMarketListings,
+} from '../services/markets/writes';
+import type {
+  MarketBulkTarget,
+  MarketListingChange,
+} from '../../shared/markets';
+import {
+  activeMarketAccounts,
+  connectMarketAccount,
+  getMarketCredentials,
+  marketAdapter,
+  marketAccountViews,
+  removeMarketAccount,
+  renameMarketAccount,
+  saveMarketCredentials,
+  setMarketAccountEnabled,
+} from '../services/markets/accounts';
+import { marketCatalog } from '../services/markets/registry';
+import { marketTraffic } from '../services/markets/traffic';
+import {
+  marketAccountStats,
+  marketListings,
+  marketSales,
+  syncMarketAccount,
+  syncMarkets,
+} from '../services/markets/sync';
+import { broadcastPortfolioChanged } from '../events';
 
 // The API method table: one entry per request/response method of `DombotApi`,
 // each with a zod schema for its arguments and the handler. Hosts generate
@@ -202,7 +239,7 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     // domain counts over a UI that otherwise (correctly) reports no
     // registrars. Drop it and hydrate nothing.
     if (getConfiguredRegistrars().length === 0) {
-      clearAll();
+      clearRegistrarCaches();
       // Imported names aren't registrar data: their pricing stays.
       return { portfolio: null, detail: {}, pricing: getPortfolioPricing() };
     }
@@ -419,6 +456,123 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
 
   // ── Asking prices ─────────────────────────────────────────────────────────
   getListPrices: method(none, async () => getListPrices()),
+  // ── Markets (docs/markets.md) ──────────────────────────────────────────────
+  getMarketCatalog: method(none, async () => marketCatalog()),
+  listMarketAccounts: method(none, async () => marketAccountViews()),
+  connectMarketAccount: method(
+    z.tuple([s.marketId, s.marketCredentials, s.marketLabel.optional()]),
+    async (market, credentials, label) => {
+      const account = await connectMarketAccount(market, credentials, label);
+      await syncMarketAccount(account.id);
+      return marketAccountViews();
+    },
+  ),
+  renameMarketAccount: method(
+    z.tuple([s.marketAccountId, s.marketLabel]),
+    async (id, label) => {
+      await renameMarketAccount(id, label);
+      return marketAccountViews();
+    },
+  ),
+  setMarketAccountEnabled: method(
+    z.tuple([s.marketAccountId, z.boolean()]),
+    async (id, enabled) => {
+      await setMarketAccountEnabled(id, enabled);
+      if (enabled) await syncMarketAccount(id);
+      else broadcastPortfolioChanged();
+      return marketAccountViews();
+    },
+  ),
+  getMarketCredentials: method(z.tuple([s.marketAccountId]), async (id) =>
+    getMarketCredentials(id),
+  ),
+  saveMarketCredentials: method(
+    z.tuple([s.marketAccountId, s.marketCredentials]),
+    async (id, credentials) => {
+      await saveMarketCredentials(id, credentials);
+      await syncMarketAccount(id);
+      return marketAccountViews();
+    },
+  ),
+  removeMarketAccount: method(z.tuple([s.marketAccountId]), async (id) => {
+    await removeMarketAccount(id);
+    broadcastPortfolioChanged();
+    return marketAccountViews();
+  }),
+  syncMarketAccount: method(
+    z.tuple([s.marketAccountId.optional()]),
+    async (id) => {
+      if (id) await syncMarketAccount(id);
+      else await syncMarkets();
+      return marketAccountViews();
+    },
+  ),
+  getMarketListings: method(none, async () => marketListings()),
+  getMarketSales: method(none, async () => marketSales()),
+  getMarketTraffic: method(none, async () => {
+    const accounts = activeMarketAccounts();
+    return marketTraffic(
+      new Map(accounts.map((a) => [a.id, a.market])),
+      accounts.flatMap((a) => marketAccountStats(a.id)),
+    );
+  }),
+  writeMarketListings: method(
+    z.tuple([s.marketAccountId, s.marketListingChanges]),
+    async (id, changes) =>
+      writeMarketListings(id, changes as MarketListingChange[]),
+  ),
+  pushMarketPrices: method(
+    z.tuple([s.marketAccountId, s.marketNames]),
+    async (id, names) => pushAskingPrices(id, names),
+  ),
+  deleteMarketListings: method(
+    z.tuple([s.marketAccountId, s.marketNames]),
+    async (id, names) => deleteMarketListings(id, names),
+  ),
+  startMarketBulk: method(
+    z.tuple([s.marketBulkTargets, s.marketBulkOp]),
+    async (targets, op) => startMarketBulk(targets as MarketBulkTarget[], op),
+  ),
+  // The web host's Worker can't drive a job between requests, so each poll
+  // runs it a little (a few names on Atom); the desktop drives it itself.
+  advanceMarketBulk: method(none, async () => advanceMarketBulk(10_000)),
+  cancelMarketBulk: method(z.tuple([z.string()]), async (jobId) => {
+    cancelMarketBulk(jobId);
+  }),
+  relistMarketListings: method(
+    z.tuple([s.marketAccountId, s.marketNames, s.relistMode.optional()]),
+    async (id, names, mode) => relistMarketListings(id, names, mode),
+  ),
+  setMarketSaleAuthCode: method(
+    z.tuple([
+      s.marketAccountId,
+      z.string().min(1).max(100),
+      z.string().max(200).optional(),
+    ]),
+    async (id, saleId, authCode) => setSaleAuthCode(id, saleId, authCode),
+  ),
+  sendMarketSaleMessage: method(
+    z.tuple([
+      s.marketAccountId,
+      z.string().min(1).max(100),
+      z.string().min(1).max(1000),
+    ]),
+    async (id, saleId, message) => sendSaleMessage(id, saleId, message),
+  ),
+  getMarketListingDefaults: method(z.tuple([s.marketAccountId]), async (id) => {
+    const adapter = marketAdapter(id);
+    if (!adapter.getListingDefaults) {
+      throw new Error(
+        `Listing defaults are not supported for ${adapter.market}.`,
+      );
+    }
+    return { ...(await adapter.getListingDefaults()) };
+  }),
+  setMarketListingDefaults: method(
+    z.tuple([s.marketAccountId, s.marketListingDefaults]),
+    async (id, settings) => setMarketListingDefaults(id, settings),
+  ),
+
   setListPrices: method(z.tuple([s.listPriceInputs]), async (inputs) => {
     setListPrices(inputs);
     return getListPrices();

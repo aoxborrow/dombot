@@ -15,11 +15,13 @@ import {
   RefreshCw,
   Trash2,
   Undo2,
+  CircleX,
 } from 'lucide-react';
 import type { Domain, Folder } from '../../../shared/ipc';
 import { toAscii } from '../../../shared/domain-name';
 import type { ArchiveLabel } from '../../../shared/ownership';
 import { useAppStore } from '../../store/app';
+import { MarketLogo } from '../RegistrarLogo';
 import { useOpUnsupportedReason } from '../../lib/domain-ops';
 import { FolderIcon } from '../icons/FolderIcon';
 import { FolderMenuItems } from './FolderMenuItems';
@@ -36,6 +38,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { StickyNoteIcon } from '../icons/StickyNoteIcon';
 import { CashIcon } from '../icons/CashIcon';
+import type { MarketAction } from './MarketActionDialog';
 
 /**
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell):
@@ -69,6 +72,10 @@ export function RowActionsMenu({
   onMarkArchived,
   onRestoreOwned,
   onDelete,
+  onMarket,
+  marketLabel = 'markets',
+  marketId = null,
+  marketReasons,
 }: {
   domain: Domain;
   folders: Folder[];
@@ -92,6 +99,13 @@ export function RowActionsMenu({
   onMarkArchived: () => void;
   onRestoreOwned: () => void;
   onDelete: () => void;
+  /** List or delist on a market; absent with no market account. */
+  onMarket?: (action: MarketAction) => void;
+  marketLabel?: string;
+  /** The one market behind the menu, for its logo; null for several. */
+  marketId?: string | null;
+  /** Why each market action can't apply here; null when it can. */
+  marketReasons?: Record<MarketAction, string | null>;
 }) {
   // A name you labeled that an account still holds can go back to Owned. One
   // gone from every account stays Sold, Dropped, or Archived.
@@ -228,11 +242,40 @@ export function RowActionsMenu({
           <Calculator className="text-muted-foreground" />
           Purchase details<span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
+        {/* Pricing and the markets, in a section of their own. */}
         {archive === null && (
-          <DropdownMenuItem onSelect={onEditListPrice}>
-            <CashIcon className="text-muted-foreground" />
-            Pricing<span className="-ml-[6px] opacity-50">…</span>
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onEditListPrice}>
+              <CashIcon className="text-muted-foreground" />
+              Pricing<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+            {onMarket && (
+              <>
+                <DropdownMenuItem
+                  disabled={Boolean(marketReasons?.list)}
+                  title={marketReasons?.list ?? undefined}
+                  onSelect={() => onMarket('list')}
+                >
+                  <MarketLogo
+                    market={marketId}
+                    label={marketLabel}
+                    className="size-4 p-[1.5px] text-muted-foreground"
+                  />
+                  List at your price
+                  <span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={Boolean(marketReasons?.delist)}
+                  title={marketReasons?.delist ?? undefined}
+                  onSelect={() => onMarket('delist')}
+                >
+                  <CircleX className="text-muted-foreground" />
+                  Delist<span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+              </>
+            )}
+          </>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem

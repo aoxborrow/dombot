@@ -50,7 +50,7 @@ describe('buildBundle', () => {
     );
     expect(b.namespaces.meta).toBeUndefined();
     expect(b.namespaces.auth).toBeUndefined();
-    expect(b.version).toBe(8);
+    expect(b.version).toBe(9);
     expect(b.namespaces['registrar-credentials'].godaddy).toEqual({
       apiToken: 'k',
     });
@@ -206,13 +206,13 @@ describe('export → import', () => {
       expect(await store.list(old)).toEqual({});
   });
 
-  it('imports a v4 file (no history yet) and refuses one newer than v8', async () => {
+  it('imports a v4 file (no history yet) and refuses one newer than v9', async () => {
     await seed();
     const v4 = { ...buildBundle(APP), version: 4 };
     await importBundle(JSON.stringify(v4));
     expect(getFolders().folders.map((f) => f.name)).toEqual(['Keepers']);
-    expect(buildBundle(APP).version).toBe(8);
-    expect(() => parseBundle(JSON.stringify({ ...v4, version: 9 }))).toThrow(
+    expect(buildBundle(APP).version).toBe(9);
+    expect(() => parseBundle(JSON.stringify({ ...v4, version: 10 }))).toThrow(
       /newer DomBot/,
     );
   });

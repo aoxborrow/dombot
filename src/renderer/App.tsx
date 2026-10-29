@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Globe,
   History,
+  Store,
   Menu,
   RefreshCw,
   Settings as SettingsIcon,
@@ -21,6 +22,7 @@ import { useAppStore } from './store/app';
 import Domains from './pages/Domains';
 import Renewals from './pages/Renewals';
 import Activity from './pages/Activity';
+import Markets from './pages/Markets';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
 import DemoBanner from './components/DemoBanner';
@@ -50,6 +52,7 @@ const TAB_OPTIONS: Record<
   '/': { metric: 'domains', pillFrom: 'md' },
   '/renewals': { metric: 'renewals', pillFrom: 'lg' },
   '/activity': { metric: 'activity', pillFrom: 'lg' },
+  '/markets': { pillFrom: 'lg' },
   '/settings': {
     pillFrom: 'lg',
     // The gear is drawn smaller than the other icons, so it's bumped up.
@@ -68,6 +71,7 @@ export default function App() {
   const loadSettings = useAppStore((s) => s.loadSettings);
   const loadPurchases = useAppStore((s) => s.loadPurchases);
   const loadListPrices = useAppStore((s) => s.loadListPrices);
+  const loadMarkets = useAppStore((s) => s.loadMarkets);
   const loadDomainEvents = useAppStore((s) => s.loadDomainEvents);
   const loadRegistrars = useAppStore((s) => s.loadRegistrars);
   const attachBulk = useAppStore((s) => s.attachBulk);
@@ -90,6 +94,7 @@ export default function App() {
     void loadSettings();
     void loadPurchases();
     void loadListPrices();
+    void loadMarkets();
     void loadDomainEvents();
     // The bell lists sync errors from any page.
     void loadRegistrars();
@@ -98,6 +103,7 @@ export default function App() {
     loadSettings,
     loadPurchases,
     loadListPrices,
+    loadMarkets,
     loadDomainEvents,
     loadRegistrars,
   ]);
@@ -216,6 +222,7 @@ export default function App() {
           <Route path="/" element={<Domains />} />
           <Route path="/renewals" element={<Renewals />} />
           <Route path="/activity" element={<Activity />} />
+          <Route path="/markets" element={<Markets />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
@@ -235,6 +242,7 @@ export default function App() {
 const NAV_ITEMS = [
   { to: '/', label: 'Domains', icon: Globe },
   { to: '/renewals', label: 'Renewals', icon: CalendarClock },
+  { to: '/markets', label: 'Markets', icon: Store },
   { to: '/activity', label: 'Activity', icon: History },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ] as const;

@@ -75,6 +75,8 @@ import {
   type QueryArgs,
   type QueryResult,
 } from './portfolio-query';
+import { registerMarketTools } from './market-tools';
+import { marketListings } from '../services/markets/sync';
 
 // Serialize a service result as a pretty-printed JSON text block — the simplest
 // MCP tool payload. (Dates become ISO strings via JSON.stringify.)
@@ -391,6 +393,18 @@ const queryShape = {
     .describe(
       'Only domains with a nameserver containing this substring (case-insensitive). Needs the domain enriched with detail; un-enriched domains without list nameservers are excluded.',
     ),
+  listedOn: z
+    .enum(['afternic', 'atom', 'sedo'])
+    .optional()
+    .describe(
+      'Only names listed on this market (any listing status), as of the last market_sync.',
+    ),
+  notListedOn: z
+    .enum(['afternic', 'atom', 'sedo'])
+    .optional()
+    .describe(
+      'Only names not listed on this market: the ones you could list there.',
+    ),
   autoRenew: z.boolean().optional().describe('Filter by auto-renew on/off.'),
   locked: z.boolean().optional().describe('Filter by transfer lock on/off.'),
   privacy: z.boolean().optional().describe('Filter by WHOIS privacy on/off.'),
@@ -462,8 +476,21 @@ function runQuery(args: QueryArgs): QueryResult {
       purchases: getPurchases(),
       listPrices: getListPrices(),
       pricing: getPortfolioPricing(),
+      listedMarkets:
+        args.listedOn || args.notListedOn ? listedMarkets() : undefined,
     },
   );
+}
+
+/** Each listed name's markets, from the last market sync. */
+function listedMarkets(): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const l of marketListings()) {
+    const set = out.get(l.name) ?? new Set<string>();
+    set.add(l.market);
+    out.set(l.name, set);
+  }
+  return out;
 }
 
 /** Compact per-registrar sync status for the sync tools: what synced, how many
@@ -1854,4 +1881,7 @@ export function registerTools(server: McpServer): void {
       return json(await getRenewalPriceLive(r, domain, account.id));
     },
   );
+
+  // ── Markets (docs/markets.md) ──────────────────────────────────────────────
+  registerMarketTools(server);
 }

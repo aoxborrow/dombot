@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 // Unit-test config for pure-logic modules. Tests import { describe, it, expect }
 // from 'vitest' explicitly (globals stay off) so ESLint and tsc need no extra
@@ -12,6 +12,8 @@ export default defineConfig({
   },
   test: {
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.test.mjs'],
+    // Live API tests need credentials: `npm run test:live` (vitest.live.config.ts).
+    exclude: [...configDefaults.exclude, 'src/**/*.live.test.ts'],
     environment: 'node',
   },
 });

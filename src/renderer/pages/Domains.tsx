@@ -14,6 +14,7 @@ import {
   Globe,
   Plug,
   Server,
+  Tag,
   ShieldBan,
   ShieldCheck,
   Upload,
@@ -77,6 +78,17 @@ import {
 import { FlagToggle } from '../components/domains/FlagToggle';
 import { RowActionsMenu } from '../components/domains/RowActionsMenu';
 import { purchaseColumns } from '../components/domains/purchase-columns';
+import {
+  MarketActionDialog,
+  type MarketAction,
+} from '../components/domains/MarketActionDialog';
+import {
+  isMarketColumnKey,
+  listingColumnKey,
+  listingFilterOptions,
+  listingKeys,
+  marketColumns,
+} from '../components/domains/market-columns';
 import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { ListPriceDialog } from '../components/domains/ListPriceDialog';
@@ -542,6 +554,11 @@ const VIEW_COLUMNS: Record<'active' | 'archive', ColumnLayout> = {
       FOLDER,
       'binPrice',
       'minOffer',
+      'listing',
+      'fastTransfer',
+      'views30',
+      'leads30',
+      'searches30',
       'registrar',
       'createdDate',
       'purchaseDate',
@@ -553,7 +570,14 @@ const VIEW_COLUMNS: Record<'active' | 'archive', ColumnLayout> = {
       'locked',
       'nameservers',
     ],
-    hidden: ['purchaseDate', 'purchaseAmount'],
+    hidden: [
+      'fastTransfer',
+      'views30',
+      'leads30',
+      'searches30',
+      'purchaseDate',
+      'purchaseAmount',
+    ],
   },
   archive: {
     order: [
@@ -568,6 +592,7 @@ const VIEW_COLUMNS: Record<'active' | 'archive', ColumnLayout> = {
       'expirationDate',
       'binPrice',
       'minOffer',
+      'listing',
       RENEWAL,
       'autoRenew',
       'privacy',
@@ -578,6 +603,7 @@ const VIEW_COLUMNS: Record<'active' | 'archive', ColumnLayout> = {
       'createdDate',
       'binPrice',
       'minOffer',
+      'listing',
       RENEWAL,
       'autoRenew',
       'privacy',
@@ -808,6 +834,10 @@ export default function Domains() {
     bulk,
     purchases,
     listPrices,
+    marketAccounts,
+    marketListings,
+    marketCatalog,
+    marketTraffic,
     importedDomains,
     settings,
     domainEvents,
@@ -815,6 +845,47 @@ export default function Domains() {
     loadRegistrationLookups,
     restoreOwned,
   } = useAppStore();
+
+  // Market columns and the Listing filter only appear once a market account
+  // is connected.
+  const marketsOn = (marketAccounts?.length ?? 0) > 0;
+  // The row and bulk menus name the market when there's only one kind.
+  const marketIds = [...new Set((marketAccounts ?? []).map((a) => a.market))];
+  // A listing column per connected market, in the catalog's order.
+  const listingMarkets = useMemo(() => {
+    const connected = new Set((marketAccounts ?? []).map((a) => a.market));
+    return marketCatalog.map((m) => m.id).filter((id) => connected.has(id));
+  }, [marketCatalog, marketAccounts]);
+  const marketId = marketIds.length === 1 ? marketIds[0] : null;
+  const marketLabel =
+    (marketId && marketCatalog.find((m) => m.id === marketId)?.name) ||
+    'Markets';
+  // Why a market action can't apply to these names; null when it can (for
+  // a selection: when it applies to at least one of them).
+  const marketReasonsFor = (domains: Domain[]) => {
+    const keys = domains.map((d) => toAscii(d.domainName));
+    const priced = keys.some(
+      (k) => listPrices[k]?.amount || listPrices[k]?.minOffer,
+    );
+    const listed = keys.some((k) => (marketListings[k]?.length ?? 0) > 0);
+    const one = keys.length === 1;
+    const where = marketId ? marketLabel : 'any market';
+    const notListed = one
+      ? `Not listed on ${where}`
+      : `None of these are listed on ${where}`;
+    return {
+      list: priced
+        ? null
+        : one
+          ? 'Set an asking price with Pricing first'
+          : 'None of these have an asking price; set one with Pricing first',
+      delist: listed ? null : notListed,
+    };
+  };
+  const [marketAction, setMarketAction] = useState<{
+    action: MarketAction;
+    domains: Domain[];
+  } | null>(null);
 
   // Ownership per name, and each name's open "removed from registrar" alert (a
   // label chosen from the row closes it).
@@ -933,8 +1004,29 @@ export default function Domains() {
     })) {
       byKey.set(extra.key, extra);
     }
+    for (const extra of marketColumns({
+      listings: marketListings,
+      markets: marketCatalog,
+      listPrices,
+      traffic: marketTraffic.domains,
+      listingMarkets,
+      preferredCurrency: settings?.preferredCurrency ?? DEFAULT_CURRENCY,
+      numberFormat: settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+    })) {
+      byKey.set(extra.key, extra);
+    }
     return byKey;
-  }, [multipleAccounts, purchases, listPrices, settings, ownership]);
+  }, [
+    multipleAccounts,
+    purchases,
+    listPrices,
+    settings,
+    ownership,
+    marketListings,
+    marketCatalog,
+    marketTraffic,
+    listingMarkets,
+  ]);
 
   // Pricing is computed locally in main and arrives with the portfolio; the only
   // gap is the brief moment after a live Sync resets it before it's re-read.
@@ -1043,6 +1135,7 @@ export default function Domains() {
     return account ? [account] : [];
   });
   const [ns, setNs] = useState<string[]>([]);
+  const [listing, setListing] = useState<string[]>([]);
   const [folder, setFolder] = useState<string[]>([]);
   // Owned only: names with or without an asking price.
   // BIN price range ("" is unbounded). A name without a price counts as $0,
@@ -1201,7 +1294,7 @@ export default function Domains() {
     for (const d of merged) {
       const keys = new Set<string>();
       for (const host of d.nameservers) {
-        const group = nameserverGroup(host);
+        const group = nameserverGroup(host, marketCatalog);
         if (!group) continue;
         // Count each domain once per group even with multiple hosts in it.
         if (!keys.has(group.key)) {
@@ -1219,7 +1312,7 @@ export default function Domains() {
       count: v.count,
     })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
     return { nsGroups: groups, nsKeysByDomain: keysByDomain };
-  }, [merged]);
+  }, [merged, marketCatalog]);
 
   // Owned: the Folder filter offers the user's folders, None, and Hidden.
   // Archive: the same control filters by status (Sold, Dropped, …).
@@ -1364,6 +1457,26 @@ export default function Domains() {
       },
       setNs,
     ),
+    // Listing: only once a market account is connected.
+    ...(marketsOn
+      ? [
+          listFilter(
+            {
+              key: 'listing',
+              label: 'Listing',
+              icon: Tag,
+              options: listingFilterOptions(
+                shown,
+                marketListings,
+                marketCatalog,
+              ),
+              selected: listing,
+              plural: 'statuses',
+            },
+            setListing,
+          ),
+        ]
+      : []),
     // Owned: folders and Hidden. Archive: status.
     ...(!archiveView || archiveCount > 0
       ? [
@@ -1464,7 +1577,18 @@ export default function Domains() {
   // Each tab remembers its own columns on this device. A date filter keeps
   // its column on screen, where the layout puts it, while it narrows.
   const columnView = archiveView ? 'archive' : 'active';
-  const layoutColumnsForView = LAYOUT_COLUMNS[columnView];
+  const layoutColumnsForView = useMemo(
+    () =>
+      LAYOUT_COLUMNS[columnView]
+        // The `listing` slot becomes one column per connected market.
+        .flatMap((c) =>
+          c.key === 'listing'
+            ? listingMarkets.map((m) => ({ ...c, key: listingColumnKey(m) }))
+            : [c],
+        )
+        .filter((c) => marketsOn || !isMarketColumnKey(c.key)),
+    [columnView, marketsOn, listingMarkets],
+  );
   const { layout: columnLayout, setLayout: setColumnLayout } = useColumnLayout(
     `domains.${columnView}`,
     layoutColumnsForView,
@@ -1480,8 +1604,20 @@ export default function Domains() {
         ] as const
       )
         .filter(([range]) => isDateRangeSet(range))
-        .map(([, key]) => key),
-    [created, expires, purchased, sold],
+        .map(([, key]): string => key)
+        // A Listing filter keeps its markets' columns on screen too.
+        .concat(
+          [
+            ...new Set(
+              listing
+                .filter((k) => k !== 'none')
+                .map((k) => listingColumnKey(k.split(':')[0])),
+            ),
+          ].filter((key) =>
+            listingMarkets.some((m) => listingColumnKey(m) === key),
+          ),
+        ),
+    [created, expires, purchased, sold, listing, listingMarkets],
   );
   const shownColumnKeys = applyColumnLayout(
     layoutColumnsForView,
@@ -1541,6 +1677,10 @@ export default function Domains() {
       if (ns.length > 0) {
         const keys = nsKeysByDomain.get(domainKey(d));
         if (!keys || !ns.some((k) => keys.has(k))) return false;
+      }
+      if (listing.length > 0) {
+        const keys = listingKeys(marketListings[toAscii(d.domainName)]);
+        if (!listing.some((k) => keys.includes(k))) return false;
       }
       if (pricingFilter && !archiveView) {
         const price = Number(listPrices[toAscii(d.domainName)]?.amount ?? 0);
@@ -1612,6 +1752,8 @@ export default function Domains() {
     registrar,
     ns,
     nsKeysByDomain,
+    listing,
+    marketListings,
     folder,
     folders,
     folderAssignments,
@@ -1819,6 +1961,14 @@ export default function Domains() {
               onMarkArchived={() => openOwnership('archived', [d])}
               onRestoreOwned={() => moveBackToOwned(d)}
               onDelete={() => openOwnership('delete', [d])}
+              onMarket={
+                marketsOn
+                  ? (action) => setMarketAction({ action, domains: [d] })
+                  : undefined
+              }
+              marketLabel={marketLabel}
+              marketId={marketId}
+              marketReasons={marketReasonsFor([d])}
             />
           </div>
         </div>
@@ -2042,6 +2192,15 @@ export default function Domains() {
           archiveView={archiveView}
           onOwnership={(action) => openOwnership(action, selectedDomains)}
           onListPrice={() => setListPriceFor(selectedDomains)}
+          onMarket={
+            marketsOn
+              ? (action) =>
+                  setMarketAction({ action, domains: selectedDomains })
+              : undefined
+          }
+          marketLabel={marketLabel}
+          marketId={marketId}
+          marketReasons={marketReasonsFor(selectedDomains)}
         />
       </div>
 
@@ -2138,6 +2297,13 @@ export default function Domains() {
         <ListPriceDialog
           domains={listPriceFor}
           onClose={() => setListPriceFor(null)}
+        />
+      )}
+      {marketAction && (
+        <MarketActionDialog
+          action={marketAction.action}
+          domains={marketAction.domains}
+          onClose={() => setMarketAction(null)}
         />
       )}
       {bulkNotesFor && (

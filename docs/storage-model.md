@@ -33,26 +33,34 @@ new Namespace('domain-events'); // default: kept, exported
 namespace needs no entry in a hand-kept list. Encryption stays an explicit
 set passed to `EncryptedDocStore`.
 
-| Older name                               | Name                    | Flags  | Keyed by                   | Holds                                             |
-| ---------------------------------------- | ----------------------- | ------ | -------------------------- | ------------------------------------------------- |
-| `cache-portfolio`                        | `registrar-domains`     | cache  | account                    | each account's name list, as reported             |
-| `cache-detail`                           | `registrar-details`     | cache  | account + name             | per-domain detail from the registrar              |
-| `tld-rates`                              | `registrar-tld-rates`   | cache  | account or registrar + TLD | fetched renewal rates                             |
-| `registration-lookups`                   | `rdap-lookups`          | cache  | name                       | public RDAP registration data                     |
-| `registrar-accounts`                     | _(unchanged)_           |        | account id                 | connected accounts                                |
-| `credentials`                            | `registrar-credentials` | sealed | account id                 | API keys                                          |
-| `proxies`                                | `registrar-proxies`     | sealed | proxy id                   | proxy profiles                                    |
-| `registrar-state`                        | `registrars`            |        | fixed keys                 | which registrars are switched on                  |
-| —                                        | `registrar-last-sync`   |        | account id                 | names (and expiries) each account's last sync saw |
-| —                                        | `imported-domains`      |        | name                       | names you add that no connected registrar reports |
-| —                                        | `domain-notes`          |        | note id                    | notes on a domain, or on one of its events        |
-| `domain-purchases` + `portfolio-changes` | `domain-events`         |        | event id                   | purchases, sales, arrivals, moves, drops          |
-| `folders` (`assignments` key)            | `domain-folders`        |        | name                       | name → folder id                                  |
-| `folders` (`folders` key)                | `folders`               |        | folder id                  | folder definitions                                |
-| `pricing-overrides`                      | `domain-prices`         |        | name                       | your manual renewal price, with its currency      |
-| —                                        | `domain-list-prices`    |        | name                       | your BIN price, minimum offer, and floor          |
-| `settings`, `bulk-jobs`, `mcp`           | _(unchanged)_           |        |                            | app-level                                         |
-| `meta`                                   | _(unchanged)_           | local  |                            | this install only                                 |
+| Older name                               | Name                      | Flags  | Keyed by                   | Holds                                             |
+| ---------------------------------------- | ------------------------- | ------ | -------------------------- | ------------------------------------------------- |
+| `cache-portfolio`                        | `registrar-domains`       | cache  | account                    | each account's name list, as reported             |
+| `cache-detail`                           | `registrar-details`       | cache  | account + name             | per-domain detail from the registrar              |
+| `tld-rates`                              | `registrar-tld-rates`     | cache  | account or registrar + TLD | fetched renewal rates                             |
+| `registration-lookups`                   | `rdap-lookups`            | cache  | name                       | public RDAP registration data                     |
+| `registrar-accounts`                     | _(unchanged)_             |        | account id                 | connected accounts                                |
+| `credentials`                            | `registrar-credentials`   | sealed | account id                 | API keys                                          |
+| `proxies`                                | `registrar-proxies`       | sealed | proxy id                   | proxy profiles                                    |
+| `registrar-state`                        | `registrars`              |        | fixed keys                 | which registrars are switched on                  |
+| —                                        | `registrar-last-sync`     |        | account id                 | names (and expiries) each account's last sync saw |
+| —                                        | `imported-domains`        |        | name                       | names you add that no connected registrar reports |
+| —                                        | `domain-notes`            |        | note id                    | notes on a domain, or on one of its events        |
+| `domain-purchases` + `portfolio-changes` | `domain-events`           |        | event id                   | purchases, sales, arrivals, moves, drops          |
+| `folders` (`assignments` key)            | `domain-folders`          |        | name                       | name → folder id                                  |
+| `folders` (`folders` key)                | `folders`                 |        | folder id                  | folder definitions                                |
+| `pricing-overrides`                      | `domain-prices`           |        | name                       | your manual renewal price, with its currency      |
+| —                                        | `domain-list-prices`      |        | name                       | your BIN price, minimum offer, and floor          |
+| —                                        | `market-accounts`         |        | account id                 | connected market accounts (docs/markets.md)       |
+| —                                        | `market-credentials`      | sealed | account id                 | market API keys                                   |
+| —                                        | `market-listings`         | cache  | account + name             | each market account's listings as last synced     |
+| —                                        | `market-last-sync`        |        | account id                 | when each market account last synced, and errors  |
+| —                                        | `market-sales`            |        | account + sale id          | market sale records (never auth codes)            |
+| —                                        | `market-stats`            |        | account id                 | daily views and leads per market account          |
+| —                                        | `market-domain-stats`     |        | account + name             | per-name views and leads, days with traffic only  |
+| —                                        | `market-search-snapshots` |        | account + name             | weekly snapshots of GoDaddy search counts         |
+| `settings`, `bulk-jobs`, `mcp`           | _(unchanged)_             |        |                            | app-level                                         |
+| `meta`                                   | _(unchanged)_             | local  |                            | this install only                                 |
 
 Clear cache wipes every `cache` namespace, `registrar-tld-rates` and
 `rdap-lookups` included; the next sync refetches them.
@@ -125,6 +133,7 @@ interface DomainEvent {
   currency?: CurrencyCode | null; // ISO 4217, from CURRENCIES
   years?: number | null; // registered, purchased, renewed: term length
   resolves?: string; // a user event closing a sync-detected one
+  marketSale?: string; // sold: the market-sales key it came from (docs/markets.md)
   dismissed?: boolean; // sync alert acknowledged with no action
 }
 ```

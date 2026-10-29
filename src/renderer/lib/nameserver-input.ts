@@ -1,6 +1,7 @@
 // Pure helpers behind the nameservers editor: parsing/validating the pasted
 // text, and deriving the preset list from the portfolio. No React, no IPC.
 
+import type { MarketInfo } from '../../shared/markets';
 import { nameserverGroup } from './nameservers';
 
 /** Registries cap the delegation at 13 nameservers. */
@@ -81,9 +82,12 @@ export interface NameserverPreset {
 }
 
 /** Label for a set: its first host's provider group, or the host itself. */
-function providerLabel(nameservers: string[]): string {
+function providerLabel(
+  nameservers: string[],
+  markets: readonly Pick<MarketInfo, 'id' | 'nameservers'>[],
+): string {
   const first = nameservers[0] ?? '';
-  return nameserverGroup(first)?.label ?? first;
+  return nameserverGroup(first, markets)?.label ?? first;
 }
 
 /**
@@ -95,6 +99,8 @@ export function nameserverPresets(
   domains: readonly { nameservers: string[] }[],
   recent: readonly string[][],
   max = 8,
+  /** The market catalog, so a market's own nameservers carry its name. */
+  markets: readonly Pick<MarketInfo, 'id' | 'nameservers'>[] = [],
 ): NameserverPreset[] {
   const out: NameserverPreset[] = [];
   const used = new Set<string>();
@@ -106,7 +112,7 @@ export function nameserverPresets(
     used.add(key);
     out.push({
       key: `recent:${key}`,
-      label: `Recent · ${providerLabel(normalized)}`,
+      label: `Recent · ${providerLabel(normalized, markets)}`,
       nameservers: normalized,
     });
   }
@@ -127,7 +133,7 @@ export function nameserverPresets(
   for (const [key, { nameservers, count }] of common) {
     out.push({
       key: `portfolio:${key}`,
-      label: `${providerLabel(nameservers)} · ${count} domain${count === 1 ? '' : 's'}`,
+      label: `${providerLabel(nameservers, markets)} · ${count} domain${count === 1 ? '' : 's'}`,
       nameservers,
     });
   }

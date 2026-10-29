@@ -2,15 +2,11 @@ import { accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { useMemo, useState } from 'react';
-import {
-  CalendarClock,
-  CircleDollarSign,
-  Globe,
-  type LucideIcon,
-} from 'lucide-react';
+import { CalendarClock, CircleDollarSign, Globe } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { importedRows } from '../../shared/imported-domains';
 import { useAppStore } from '../store/app';
+import { StatCard } from '../components/StatCard';
 import {
   dueWithin,
   groupBy,
@@ -24,7 +20,6 @@ import {
   type Group,
   type MonthBucket,
 } from '../lib/renewals';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -245,7 +240,7 @@ export default function Renewals() {
 
   if (!hasPortfolio) {
     return (
-      <div className="mx-auto max-w-[1400px]">
+      <div className="mx-auto w-full max-w-[1400px]">
         <PageHeader loading={pricingLoading} summary={summary} />
         {accountFilter}
         <Empty className="mt-6 rounded-lg border border-dashed">
@@ -264,7 +259,7 @@ export default function Renewals() {
   const monthly = summary.yearly / 12;
 
   return (
-    <div className="mx-auto flex max-w-[1400px] flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
       <PageHeader loading={pricingLoading} summary={summary} />
       {accountFilter}
 
@@ -368,45 +363,6 @@ function PageHeader({
               ? `Forward-looking renewal costs · ${summary.priced}/${summary.total} priced`
               : 'Annual renewal costs across your whole portfolio.'}
         </p>
-      </div>
-    </div>
-  );
-}
-
-// ── Stat card ────────────────────────────────────────────────────────────────
-
-function StatCard({
-  icon: Icon,
-  accentClass,
-  label,
-  value,
-  hint,
-}: {
-  icon: LucideIcon;
-  /** Tailwind text-color for the background watermark (rendered at a low group
-   * opacity), e.g. "text-brand-500". */
-  accentClass: string;
-  label: string;
-  value: string;
-  hint: string;
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-lg border bg-card px-4 pt-[9px] pb-[11px]">
-      <Icon
-        className={cn(
-          // Fade the whole shape as a group (opacity-[0.15]) rather than using a
-          // translucent stroke color — a semi-transparent stroke composites to
-          // bright spots wherever the icon's paths overlap.
-          'pointer-events-none absolute -right-4 -bottom-6 size-[123px] opacity-[0.15]',
-          accentClass,
-        )}
-        strokeWidth={1.5}
-        aria-hidden
-      />
-      <div className="relative">
-        <div className="text-[15px] text-foreground/75">{label}</div>
-        <div className="mt-2 text-2xl font-bold tabular-nums">{value}</div>
-        <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
       </div>
     </div>
   );

@@ -196,6 +196,8 @@ export function cleanEvent(id: string, value: unknown): DomainEvent | null {
   if (v.dismissed !== undefined && typeof v.dismissed !== 'boolean')
     return null;
   if (v.importId !== undefined && typeof v.importId !== 'string') return null;
+  if (v.marketSale !== undefined && typeof v.marketSale !== 'string')
+    return null;
   let date: string | null;
   try {
     date = v.date === null ? null : parsePurchaseDate(String(v.date), 'Date');
