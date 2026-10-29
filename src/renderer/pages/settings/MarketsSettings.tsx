@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
 import { MarketLogo } from '../../components/RegistrarLogo';
 import { timeAgo } from '../../lib/time';
+import { useLeaseDefaults } from '../../lib/lease-to-own';
 import { Button } from '@/components/ui/button';
 import {
   Empty,
@@ -405,6 +406,17 @@ function MarketCard({
   const [removing, setRemoving] = useState(false);
   const dialogFromMenu = useRef<'rename' | 'remove' | null>(null);
   const menuOpen = useRef(false);
+  // The account's own lease-to-own defaults, read from the market when the
+  // card opens (Afternic's account settings).
+  const lease = useLeaseDefaults(
+    open &&
+      market.capabilities.accountSettings &&
+      market.capabilities.leaseToOwn &&
+      account.enabled &&
+      account.configured
+      ? account.id
+      : null,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -622,6 +634,18 @@ function MarketCard({
               ))}
             </ul>
           ) : null}
+          {lease && lease.enabled !== null && (
+            <p className="mb-3 text-sm text-muted-foreground">
+              Lease-to-own by default:{' '}
+              <span className="text-foreground">
+                {lease.enabled
+                  ? `on, up to ${lease.months ?? '?'} monthly payments`
+                  : 'off'}
+              </span>
+              . New listings from DomBot use this unless you choose otherwise;
+              change the default in your {market.name} account settings.
+            </p>
+          )}
           {account.sync?.notes.map((note) => (
             <p key={note} className="mb-3 text-sm text-muted-foreground">
               {note}

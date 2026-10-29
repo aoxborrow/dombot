@@ -29,6 +29,13 @@ import {
 import { ActionHeader } from '../actions/ActionDialog';
 import { LIST_PRICE_HELP } from './ListPriceDialog';
 import { MoneyInput } from './MoneyInput';
+import { FIELD_LABEL } from './MarketActionDialog';
+import {
+  DEFAULT_LEASE_MONTHS,
+  leaseMonthOptions,
+  monthlyPayment,
+  useLeaseDefaults,
+} from '../../lib/lease-to-own';
 import { listingChange } from './market-listing-change';
 
 // One name's listing on one market, edited where it is: the fields are the
@@ -129,8 +136,19 @@ export function MarketListingDialog({
   const [price, setPrice] = useState(whole(start.price));
   const [minOffer, setMinOffer] = useState(whole(start.minOffer));
   const [floor, setFloor] = useState(whole(start.floor));
-  // A new listing starts with leasing on, as Afternic's own default does.
-  const [lease, setLease] = useState(listing?.leaseToOwn?.enabled ?? true);
+  // Lease-to-own: the listing's own, or for a new listing the account's
+  // defaults (Afternic's settings), which Afternic itself doesn't apply.
+  const leaseDefaults = useLeaseDefaults(
+    caps?.leaseToOwn && caps.accountSettings && account ? account.id : null,
+  );
+  const [leaseChoice, setLease] = useState<boolean | null>(
+    listing?.leaseToOwn ? listing.leaseToOwn.enabled : null,
+  );
+  const [monthsChoice, setMonths] = useState<number | null>(
+    listing?.leaseToOwn?.maxPayments ?? null,
+  );
+  const lease = leaseChoice ?? leaseDefaults?.enabled ?? true;
+  const months = monthsChoice ?? leaseDefaults?.months ?? DEFAULT_LEASE_MONTHS;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelist, setConfirmDelist] = useState(false);
@@ -162,6 +180,7 @@ export function MarketListingDialog({
       floor: caps?.floor ? parse(floor, 'Floor price') : null,
       currency,
       leaseToOwn: lease,
+      leaseMonths: months,
     });
   }
 
@@ -383,15 +402,57 @@ export function MarketListingDialog({
               </div>
             )}
             {caps?.leaseToOwn && (
-              <div className="flex flex-col gap-1">
-                <Toggle
-                  checked={lease}
-                  onChange={setLease}
-                  label="Lease-to-own"
-                />
-                <p className="pl-[26px] text-xs text-muted-foreground">
-                  Buyers can pay the price in monthly installments. The market
-                  sets the payments from the price.
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <Toggle
+                    checked={lease}
+                    onChange={setLease}
+                    label="Lease-to-own"
+                  />
+                  <Select
+                    value={String(months)}
+                    disabled={!lease}
+                    onValueChange={(v) => setMonths(Number(v))}
+                  >
+                    <SelectTrigger
+                      aria-label="Most monthly payments"
+                      className="w-60"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      {leaseMonthOptions(months).map((m) => {
+                        const pay = monthlyPayment(
+                          /^\d+$/.test(price) ? Number(price) : null,
+                          m,
+                        );
+                        return (
+                          <SelectItem key={m} value={String(m)}>
+                            Up to {m} months
+                            {pay !== null && (
+                              <span className="text-muted-foreground">
+                                {' '}
+                                ·{' '}
+                                {formatMoney(
+                                  String(pay),
+                                  currency,
+                                  preferred,
+                                  formatId,
+                                  true,
+                                )}
+                                /mo
+                              </span>
+                            )}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Buyers can spread the price over monthly payments.{' '}
+                  {marketName} may allow fewer months than you choose, so each
+                  payment stays above about $80.
                 </p>
               </div>
             )}
@@ -513,7 +574,7 @@ function Outcome({
             {r.adjusted
               .map(
                 (a) =>
-                  `${a.field} as ${String(a.saved ?? 'none')} (asked ${String(a.asked ?? 'none')})`,
+                  `${FIELD_LABEL[a.field] ?? a.field} as ${String(a.saved ?? 'none')} (asked ${String(a.asked ?? 'none')})`,
               )
               .join(', ')}
             .

@@ -348,7 +348,9 @@ saved, so the Domains table shows it before the next sync.
   the name there, starting from its DomBot asking price). The editor shows
   only the fields the market has, read from its capabilities: a Buy Now
   price (empty for offers only), then Afternic's minimum offer, floor and
-  lease-to-own; Sedo's currency and minimum offer; Atom's price alone. Save
+  lease-to-own (on or off, and the most monthly payments: 3, 6, 9, 12, then
+  every 6 to 60, each showing its payment; a new listing starts from the
+  account's own defaults, which Afternic doesn't apply to API listings); Sedo's currency and minimum offer; Atom's price alone. Save
   sends only the fields you changed straight to the market
   (`writeMarketListings`), makes a hidden listing visible (there's no "not
   for sale" mode in the app), re-runs a stuck listing's checks where the
@@ -375,7 +377,9 @@ cards. Market-specific rows come from capabilities: listing defaults where
 partner-access note for Sedo, the API-access note for Atom. What an account
 has shows as status dots (`MarketSyncState.status`), such as Afternic's
 Discount Domain Club Domain Pro, which decides whether search counts come
-back; sync keeps it current.
+back; sync keeps it current. An opened Afternic card also reads the account's
+lease-to-own defaults (on or off, most monthly payments) from Afternic and
+shows them.
 
 ## Ownership verification
 

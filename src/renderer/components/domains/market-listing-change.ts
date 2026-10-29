@@ -11,6 +11,8 @@ export interface ListingForm {
   floor: string | null;
   currency: string;
   leaseToOwn: boolean;
+  /** The most monthly payments, when lease-to-own is on. */
+  leaseMonths: number;
 }
 
 /** Two amounts are the same price (decimal strings, null for none). */
@@ -65,12 +67,18 @@ export function listingChange(
   if (listing && !listing.forSale && listing.status !== 'pending') {
     change.forSale = true;
   }
-  // A new listing says either way: Afternic turns leasing on by default.
-  if (
-    caps.leaseToOwn &&
-    (!listing || form.leaseToOwn !== (listing.leaseToOwn?.enabled ?? false))
-  ) {
-    change.leaseToOwn = { enabled: form.leaseToOwn };
+  // A new listing says either way, months included: Afternic turns leasing
+  // on by default, with its own idea of the months.
+  if (caps.leaseToOwn) {
+    const was = listing?.leaseToOwn;
+    const toggled = !listing || form.leaseToOwn !== (was?.enabled ?? false);
+    const months =
+      form.leaseToOwn && (!listing || form.leaseMonths !== was?.maxPayments);
+    if (toggled || months) {
+      change.leaseToOwn = form.leaseToOwn
+        ? { enabled: true, maxPayments: form.leaseMonths }
+        : { enabled: false };
+    }
   }
   return change;
 }

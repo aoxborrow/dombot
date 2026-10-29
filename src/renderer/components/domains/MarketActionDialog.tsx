@@ -55,7 +55,8 @@ const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 const names = (n: number) => `${n.toLocaleString()} name${n === 1 ? '' : 's'}`;
 
-const FIELD_LABEL: Record<string, string> = {
+/** How a market's adjusted fields are named to people. */
+export const FIELD_LABEL: Record<string, string> = {
   price: 'BIN price',
   minOffer: 'minimum offer',
   floor: 'floor',

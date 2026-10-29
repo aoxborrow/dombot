@@ -33,6 +33,7 @@ const form = (over: Partial<ListingForm> = {}): ListingForm => ({
   floor: null,
   currency: 'USD',
   leaseToOwn: false,
+  leaseMonths: 24,
   ...over,
 });
 
@@ -54,8 +55,39 @@ describe('listingChange', () => {
     ).toEqual({
       name: 'example.com',
       price: '4000.00',
-      leaseToOwn: { enabled: true },
+      leaseToOwn: { enabled: true, maxPayments: 24 },
     });
+  });
+
+  it('sends lease months only while leasing is on', () => {
+    const leased = listing({ leaseToOwn: { enabled: true, maxPayments: 24 } });
+    expect(
+      listingChange(
+        'example.com',
+        leased,
+        AFTERNIC_CAPABILITIES,
+        form({ leaseToOwn: true, leaseMonths: 36 }),
+      ),
+    ).toEqual({
+      name: 'example.com',
+      leaseToOwn: { enabled: true, maxPayments: 36 },
+    });
+    expect(
+      listingChange(
+        'example.com',
+        leased,
+        AFTERNIC_CAPABILITIES,
+        form({ leaseToOwn: true }),
+      ),
+    ).toEqual({ name: 'example.com' });
+    expect(
+      listingChange(
+        'example.com',
+        leased,
+        AFTERNIC_CAPABILITIES,
+        form({ leaseToOwn: false, leaseMonths: 36 }),
+      ),
+    ).toEqual({ name: 'example.com', leaseToOwn: { enabled: false } });
   });
 
   it('treats equal amounts written differently as unchanged', () => {
