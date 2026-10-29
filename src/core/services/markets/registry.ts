@@ -106,6 +106,20 @@ export function marketInfo(market: MarketId): MarketInfo {
   return entry.info;
 }
 
+/** Builds adapters in place of the real ones (the demo's in-memory markets). */
+export type MarketFactory = (
+  market: MarketId,
+  accountId: string,
+  credentials: Credentials,
+) => AnyMarketAdapter;
+
+let factory: MarketFactory | null = null;
+
+/** Swap in a market factory, or null to put the real adapters back. */
+export function configureMarketFactory(next: MarketFactory | null): void {
+  factory = next;
+}
+
 /** The adapter for one account; throws when a required field is missing. */
 export function buildAdapter(
   market: MarketId,
@@ -119,5 +133,7 @@ export function buildAdapter(
       throw new Error(`${field.label} is required.`);
     }
   }
-  return entry.create(accountId, credentials);
+  return factory
+    ? factory(market, accountId, credentials)
+    : entry.create(accountId, credentials);
 }

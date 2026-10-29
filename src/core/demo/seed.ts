@@ -780,7 +780,7 @@ const REGISTRANT: Contact = {
 // ── generator ────────────────────────────────────────────────────────────────
 
 /** mulberry32: small, fast, good enough for a demo. */
-function rng(seed: number): () => number {
+export function rng(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -791,7 +791,7 @@ function rng(seed: number): () => number {
   };
 }
 
-function pick<T>(r: () => number, list: readonly T[]): T {
+export function pick<T>(r: () => number, list: readonly T[]): T {
   return list[Math.floor(r() * list.length)];
 }
 

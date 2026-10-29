@@ -370,16 +370,24 @@ saved, so the Domains table shows it before the next sync.
 
 ## Settings → Markets
 
-As in the Afternic plan, generalized: one card per market account, built from
-the adapter's `configFields` and `test()`, with the same ⋯ menu as registrar
-cards. Market-specific rows come from capabilities: listing defaults where
-`accountSettings`, a rate-limit field where `rateLimit` is null, the
-partner-access note for Sedo, the API-access note for Atom. What an account
-has shows as status dots (`MarketSyncState.status`), such as Afternic's
-Discount Domain Club Domain Pro, which decides whether search counts come
-back; sync keeps it current. An opened Afternic card also reads the account's
-lease-to-own defaults (on or off, most monthly payments) from Afternic, and
-saves changes to them there (`setMarketListingDefaults`, a partial update).
+As in the Afternic plan, generalized: one card per market account, built
+from the adapter's `configFields` and `test()`, with the same ⋯ menu as
+registrar cards. An opened card has two parts, so it's clear what lives where:
+
+- **Your <market> account:** what the market holds, read through its API.
+  What the account has shows read-only (`MarketSyncState.status`, such as
+  Afternic's Discount Domain Club Domain Pro, which decides whether search
+  counts come back; sync keeps it current). Account settings, where the
+  market has them (`accountSettings`), are editable and saved back to the
+  market: Afternic's lease-to-own defaults (on or off, most monthly payments)
+  so far, written as a partial update (`setMarketListingDefaults`).
+- **In DomBot:** how DomBot connects: the credentials (encrypted, never sent
+  anywhere but the market), DomBot's sync notes, and market-specific help
+  such as Sedo's partner-access note and Atom's API-access note.
+
+The demo connects one account on each market over an in-memory world
+(`src/core/demo/markets.ts`), with listings, a year of traffic, sales, and a
+sale waiting on an auth code.
 
 ## Ownership verification
 

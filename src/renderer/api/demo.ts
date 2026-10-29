@@ -22,6 +22,7 @@ import {
   getPortfolio,
 } from '../../core/services/registrars';
 import { listEvents } from '../../core/services/domain-events';
+import { syncMarkets } from '../../core/services/markets/sync';
 import { localDay } from '../../shared/domain-events';
 import { setDispositions } from '../../core/services/domain-history';
 import { setPurchase, setSale } from '../../core/services/purchases';
@@ -253,6 +254,8 @@ export async function createDemoApi(
   // looks like the real thing.
   const demo = await installDemo({ latencyMs: 0, size: options.size });
   await getPortfolio(true);
+  // After the portfolio, so market sales know which names you still hold.
+  await syncMarkets();
   recordSampleListPrices();
   recordSampleImportedDomains();
   if (options.sampleChanges) {

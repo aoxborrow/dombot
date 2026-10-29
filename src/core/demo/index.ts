@@ -8,6 +8,17 @@ import {
   resetRegistrarClients,
 } from '../services/registrars';
 import { flushWrites } from '../storage/namespace';
+import {
+  connectMarketAccount,
+  marketAccountViews,
+} from '../services/markets/accounts';
+import { configureMarketFactory } from '../services/markets/registry';
+import {
+  DEMO_MARKET_ACCOUNTS,
+  DemoMarketWorld,
+  demoMarketFactory,
+  seedDemoMarkets,
+} from './markets';
 import { DemoRegistrar, DemoWorld } from './registrar';
 import {
   DEFAULT_DEMO_SEED,
@@ -48,6 +59,8 @@ export interface InstallDemoOptions {
 export interface DemoInstallation {
   seed: DemoSeed;
   world: DemoWorld;
+  /** The demo's Afternic, Sedo and Atom accounts. */
+  markets: DemoMarketWorld;
   /** Changes the fake registrar's per-call latency from now on. */
   setLatency(ms: number): void;
 }
@@ -110,10 +123,25 @@ export async function installDemo(
       });
   }
 
+  // Markets: an Afternic, a Sedo and an Atom account listing some of the
+  // portfolio, connected the way a user would (the host syncs them).
+  const markets = new DemoMarketWorld(options.now?.getTime());
+  seedDemoMarkets(
+    markets,
+    seed.records.map((r) => r.domainName),
+  );
+  configureMarketFactory(demoMarketFactory(markets));
+  const connected = new Set(marketAccountViews().map((a) => a.id));
+  for (const a of DEMO_MARKET_ACCOUNTS) {
+    if (!connected.has(a.id))
+      await connectMarketAccount(a.market, { ...a.credentials }, a.label, a.id);
+  }
+
   await flushWrites();
   return {
     seed,
     world,
+    markets,
     setLatency: (ms) => {
       latencyMs = ms;
     },
@@ -123,5 +151,6 @@ export async function installDemo(
 /** Puts the real provider factory back (tests; leaving demo mode). */
 export function uninstallDemo(): void {
   configureRegistrarFactory(null);
+  configureMarketFactory(null);
   resetRegistrarClients();
 }
