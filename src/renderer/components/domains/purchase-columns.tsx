@@ -24,17 +24,18 @@ function recordOf(
 
 /**
  * A value you can click to edit, marked the way the filter bar marks its
- * values: a dotted underline in the label green (FilterBar), grey on hover.
+ * values: a dotted underline in the label green (FilterBar), light grey on
+ * hover.
  */
 export const EDITABLE_VALUE =
-  'underline decoration-dotted underline-offset-[3px] decoration-[color-mix(in_srgb,#42604d_55%,transparent)] group-hover:decoration-muted-foreground dark:decoration-[color-mix(in_srgb,#bacfc1_38%,transparent)]';
+  'underline decoration-dotted underline-offset-[3px] decoration-[color-mix(in_srgb,#42604d_55%,transparent)] group-hover:decoration-neutral-300 dark:decoration-[color-mix(in_srgb,#bacfc1_38%,transparent)] dark:group-hover:decoration-neutral-300';
 
 /**
  * An empty value you can click to fill: the dash gets a grey background on
  * hover, like the row's ⋯ button.
  */
 export const EDITABLE_EMPTY =
-  'inline-block rounded-md px-1.5 py-0.5 -mx-1.5 -my-0.5 text-muted-foreground group-hover:bg-accent group-hover:text-foreground dark:group-hover:bg-accent/50';
+  'inline-flex h-8 w-7 -my-2 -mr-2 items-center justify-center rounded-md align-middle text-muted-foreground group-hover:bg-accent group-hover:text-foreground compact:h-7 compact:w-6 dark:group-hover:bg-accent/50';
 
 /** Fills the cell, including its padding, so one click anywhere opens the editor. */
 export function PurchaseCell({
