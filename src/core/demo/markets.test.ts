@@ -8,7 +8,10 @@ import {
   marketSales,
   syncMarkets,
 } from '../services/markets/sync';
-import { writeMarketListings } from '../services/markets/writes';
+import {
+  setSaleAuthCode,
+  writeMarketListings,
+} from '../services/markets/writes';
 import { installDemo, uninstallDemo, type DemoInstallation } from './index';
 
 // The demo's markets through the real market services: accounts connect,
@@ -73,6 +76,13 @@ describe('demo markets', () => {
     const sales = marketSales();
     expect(sales.filter((s) => s.status === 'completed').length).toBe(18);
     expect(sales.filter((s) => s.action === 'auth_code')).toHaveLength(1);
+  });
+
+  it('sends the waiting sale its auth code from the registrar', async () => {
+    const waiting = marketSales().find((s) => s.action === 'auth_code')!;
+    await expect(
+      setSaleAuthCode(waiting.accountId, waiting.id),
+    ).resolves.toEqual({ name: waiting.name, fetched: true });
   });
 
   it('holds a new Sedo name pending and caps Afternic lease months', async () => {

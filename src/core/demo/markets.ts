@@ -481,6 +481,8 @@ export function seedDemoMarkets(
   world: DemoMarketWorld,
   names: readonly string[],
   asking: Readonly<Record<string, DemoAskingPrice>> = {},
+  /** Names whose registrar can hand over an auth code. */
+  givesAuthCode: (name: string) => boolean = () => true,
   seed = 7,
 ): void {
   const r = rng(seed);
@@ -618,9 +620,10 @@ export function seedDemoMarkets(
     world.sales.set(accountId, sales);
   }
 
-  // A buyer paid for a name you hold: the bell asks for its auth code.
+  // A buyer paid for a name you hold: the bell asks for its auth code. On a
+  // name whose registrar can produce one, so Send auth code goes through.
   const waiting = [...world.account('demo-afternic').values()].find(
-    (l) => l.price && l.status === 'active',
+    (l) => l.price && l.status === 'active' && givesAuthCode(l.name),
   );
   if (waiting) {
     world.sales.get('demo-afternic')!.push({
