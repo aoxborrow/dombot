@@ -1504,6 +1504,15 @@ export default function Domains() {
               ),
           }),
         ]),
+    dateFilter(
+      'expirationDate',
+      'Expiration',
+      expires,
+      setExpires,
+      FUTURE_DATE_PRESETS,
+      (d) => utcDay(d.expirationDate),
+      CalendarClock,
+    ),
     // Created is an Active column, so its filter is Active only.
     ...(archiveView
       ? []
@@ -1517,15 +1526,6 @@ export default function Domains() {
             (d) => utcDay(d.createdDate),
           ),
         ]),
-    dateFilter(
-      'expirationDate',
-      'Expiration',
-      expires,
-      setExpires,
-      FUTURE_DATE_PRESETS,
-      (d) => utcDay(d.expirationDate),
-      CalendarClock,
-    ),
     dateFilter(
       'purchaseDate',
       'Purchased',
