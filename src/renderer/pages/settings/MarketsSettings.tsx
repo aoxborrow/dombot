@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ChevronDown,
   CircleX,
@@ -617,97 +617,106 @@ function MarketCard({
           </div>
         )}
 
-        <CollapsibleContent className="border-t px-5 py-4">
-          {account.sync?.status?.length ? (
-            <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-              {account.sync.status.map((flag) => (
-                <li
-                  key={flag.label}
-                  className={cn(
-                    'flex items-center gap-2',
-                    !flag.on && 'text-muted-foreground',
-                  )}
-                >
+        <CollapsibleContent className="flex flex-col gap-6 border-t px-5 py-4">
+          {/* What the market itself holds, read through its API (and, for
+              settings, saved back there), kept apart from what DomBot
+              stores. */}
+          {(account.sync?.status?.length ||
+            (lease && lease.enabled !== null)) && (
+            <CardSection
+              title={`Your ${market.name} account`}
+              hint={`Read from ${market.name}. Settings you change here are saved to your ${market.name} account.`}
+            >
+              {account.sync?.status?.map((flag) => (
+                <SettingRow key={flag.label} label={flag.label}>
                   <span
-                    aria-hidden
                     className={cn(
-                      'size-2 shrink-0 rounded-full',
-                      flag.on
-                        ? 'bg-emerald-500'
-                        : 'border border-muted-foreground/60',
+                      'flex items-center gap-2',
+                      !flag.on && 'text-muted-foreground',
                     )}
-                  />
-                  <span>
-                    {flag.label}
-                    <span className="sr-only">
-                      {flag.on ? ': yes' : ': no'}
-                    </span>
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'size-2 shrink-0 rounded-full',
+                        flag.on
+                          ? 'bg-emerald-500'
+                          : 'border border-muted-foreground/60',
+                      )}
+                    />
+                    {flag.on ? 'Yes' : 'No'}
                   </span>
-                </li>
+                </SettingRow>
               ))}
-            </ul>
-          ) : null}
-          {lease && lease.enabled !== null && (
-            <LeaseDefaultsForm
-              key={account.id}
-              accountId={account.id}
-              marketName={market.name}
-              initial={lease}
-            />
+              {lease && lease.enabled !== null && (
+                <LeaseDefaultsForm
+                  key={account.id}
+                  accountId={account.id}
+                  marketName={market.name}
+                  initial={lease}
+                />
+              )}
+            </CardSection>
           )}
-          {account.sync?.notes.map((note) => (
-            <p key={note} className="mb-3 text-sm text-muted-foreground">
-              {note}
-            </p>
-          ))}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void run('save', () =>
-                window.api.saveMarketCredentials(account.id, values),
-              ).then((ok) => {
-                if (ok) setOriginal(values);
-                // The key is tested before it's saved, so a refused one
-                // changes nothing: say so.
-                else
-                  setError(
-                    (e) => `${e} Nothing was saved; the account keeps its key.`,
-                  );
-              });
-            }}
+          <CardSection
+            title="In DomBot"
+            hint={`How DomBot connects to ${market.name}. Keys are encrypted and stay with DomBot.`}
           >
-            <MarketHelp market={market} />
-            <FieldGroup className="gap-4">
-              <CredentialFields
-                market={market}
-                idPrefix={account.id}
-                values={values}
-                disabled={busy !== null}
-                onChange={(name, value) =>
-                  setValues((current) => ({ ...current, [name]: value }))
-                }
-              />
-            </FieldGroup>
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <Button
-                type="submit"
-                // After a refused save, Save stays on even with the saved
-                // values back in the fields, so it can always be retried.
-                disabled={
-                  busy !== null ||
-                  !(changed || error) ||
-                  !filled(market, values)
-                }
-              >
-                {busy === 'save' ? 'Saving…' : 'Save'}
-              </Button>
-            </div>
-            {error && (
-              <p role="alert" className="mt-3 text-sm text-destructive">
-                {error}
+            {account.sync?.notes.map((note) => (
+              <p key={note} className="text-sm text-muted-foreground">
+                {note}
               </p>
-            )}
-          </form>
+            ))}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void run('save', () =>
+                  window.api.saveMarketCredentials(account.id, values),
+                ).then((ok) => {
+                  if (ok) setOriginal(values);
+                  // The key is tested before it's saved, so a refused one
+                  // changes nothing: say so.
+                  else
+                    setError(
+                      (e) =>
+                        `${e} Nothing was saved; the account keeps its key.`,
+                    );
+                });
+              }}
+            >
+              <MarketHelp market={market} />
+              <FieldGroup className="gap-4">
+                <CredentialFields
+                  market={market}
+                  idPrefix={account.id}
+                  values={values}
+                  disabled={busy !== null}
+                  onChange={(name, value) =>
+                    setValues((current) => ({ ...current, [name]: value }))
+                  }
+                />
+              </FieldGroup>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <Button
+                  type="submit"
+                  // After a refused save, Save stays on even with the saved
+                  // values back in the fields, so it can always be retried.
+                  disabled={
+                    busy !== null ||
+                    !(changed || error) ||
+                    !filled(market, values)
+                  }
+                >
+                  {busy === 'save' ? 'Saving…' : 'Save'}
+                </Button>
+              </div>
+              {error && (
+                <p role="alert" className="mt-3 text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+            </form>
+          </CardSection>
         </CollapsibleContent>
       </Collapsible>
 
@@ -766,6 +775,45 @@ function MarketCard({
   );
 }
 
+/** A titled part of a market card: what the market holds, or what DomBot does. */
+function CardSection({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-3">
+      <div>
+        <h3 className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+          {title}
+        </h3>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** One setting: its name on the left, its value or control on the right. */
+function SettingRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b pb-3 text-sm last:border-b-0 last:pb-0">
+      <span>{label}</span>
+      <div className="flex items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
 /**
  * The account's lease-to-own defaults on the market (Afternic's account
  * settings), saved there. They apply to listings created on the market
@@ -808,15 +856,13 @@ function LeaseDefaultsForm({
   };
 
   return (
-    <div className="mb-4 flex flex-col gap-2 rounded-md border px-3 py-2.5">
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="flex cursor-pointer items-center gap-2.5 text-sm">
-          <Checkbox
-            checked={enabled}
-            onCheckedChange={(on) => setEnabled(on === true)}
-          />
-          Lease-to-own by default
-        </label>
+    <>
+      <SettingRow label="Lease-to-own for new listings">
+        <Checkbox
+          aria-label="Lease-to-own for new listings"
+          checked={enabled}
+          onCheckedChange={(on) => setEnabled(on === true)}
+        />
         <Select
           value={String(months)}
           disabled={!enabled}
@@ -824,11 +870,11 @@ function LeaseDefaultsForm({
         >
           <SelectTrigger
             aria-label="Most monthly payments by default"
-            className="w-44"
+            className="h-8 w-40"
           >
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent align="end">
             {leaseMonthOptions(months).map((m) => (
               <SelectItem key={m} value={String(m)}>
                 Up to {m} months
@@ -839,22 +885,17 @@ function LeaseDefaultsForm({
         <Button
           size="sm"
           variant="outline"
-          className="ml-auto"
           disabled={!dirty || busy}
           onClick={() => void save()}
         >
           {busy ? 'Saving…' : 'Save'}
         </Button>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        For listings you create on {marketName}. DomBot sets lease-to-own on
-        each listing it creates, starting from these.
-      </p>
+      </SettingRow>
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}
         </p>
       )}
-    </div>
+    </>
   );
 }
