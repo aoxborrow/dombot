@@ -1,4 +1,4 @@
-import type { RegistrarName } from '@aoxborrow/registrar-client';
+import { registrars, type RegistrarName } from '@aoxborrow/registrar-client';
 import { createAccount } from '../services/accounts';
 import { setStoredCredentials } from '../services/credentials';
 import { assignFolder, createFolder, getFolders } from '../services/folders';
@@ -134,10 +134,16 @@ export async function installDemo(
       currency: 'USD',
     })),
   );
+  const authCodeNames = new Set(
+    seed.records
+      .filter((r) => registrars[r.registrar].features.includes('getAuthCode'))
+      .map((r) => r.domainName),
+  );
   seedDemoMarkets(
     markets,
     seed.records.map((r) => r.domainName),
     seed.askingPrices,
+    (name) => authCodeNames.has(name),
   );
   configureMarketFactory(demoMarketFactory(markets));
   const connected = new Set(marketAccountViews().map((a) => a.id));
