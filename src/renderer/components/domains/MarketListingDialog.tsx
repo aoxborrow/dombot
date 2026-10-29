@@ -18,6 +18,7 @@ import { useAppStore } from '../../store/app';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -404,25 +405,10 @@ export function MarketListingDialog({
             {caps?.leaseToOwn && (
               <div className="flex flex-col gap-1.5">
                 <div className="flex flex-col gap-3">
-                  <Field label="Lease To Own">
-                    <Select
-                      value={lease ? 'on' : 'off'}
-                      onValueChange={(v) => setLease(v === 'on')}
-                    >
-                      <SelectTrigger
-                        aria-label="Lease To Own"
-                        className="w-full"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="off">
-                          Disable installments
-                        </SelectItem>
-                        <SelectItem value="on">Enable installments</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
+                  <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium">
+                    <Switch checked={lease} onCheckedChange={setLease} />
+                    Lease To Own installments
+                  </label>
                   <Field label="Maximum Lease Period">
                     <Select
                       value={String(months)}

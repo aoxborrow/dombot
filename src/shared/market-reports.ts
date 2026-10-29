@@ -164,9 +164,8 @@ export interface NameInterest {
   name: string;
   leads365: number;
   views365: number;
-  views30: number;
-  /** GoDaddy searches, last 30 days; null without search data. */
-  searches30: number | null;
+  /** GoDaddy searches, last 365 days; null without search data. */
+  searches365: number | null;
 }
 
 /**
@@ -175,15 +174,13 @@ export interface NameInterest {
  * even before any visits.
  */
 export function namesOfInterest(
-  traffic: Readonly<
-    Record<string, { leads365: number; views365: number; views30: number }>
-  >,
+  traffic: Readonly<Record<string, { leads365: number; views365: number }>>,
   listings: readonly MarketListing[],
   limit = 15,
 ): NameInterest[] {
   const searches = new Map<string, number>();
   for (const l of listings) {
-    const n = searchesOf(l)?.total.days30;
+    const n = searchesOf(l)?.total.days365;
     if (n != null) searches.set(l.name, Math.max(n, searches.get(l.name) ?? 0));
   }
   const names = new Set([
@@ -197,14 +194,13 @@ export function namesOfInterest(
       name,
       leads365: traffic[name]?.leads365 ?? 0,
       views365: traffic[name]?.views365 ?? 0,
-      views30: traffic[name]?.views30 ?? 0,
-      searches30: searches.get(name) ?? null,
+      searches365: searches.get(name) ?? null,
     }))
     .sort(
       (a, b) =>
         b.leads365 - a.leads365 ||
         b.views365 - a.views365 ||
-        (b.searches30 ?? 0) - (a.searches30 ?? 0) ||
+        (b.searches365 ?? 0) - (a.searches365 ?? 0) ||
         a.name.localeCompare(b.name),
     )
     .slice(0, limit);

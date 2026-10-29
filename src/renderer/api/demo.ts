@@ -22,7 +22,9 @@ import {
   getPortfolio,
 } from '../../core/services/registrars';
 import { listEvents } from '../../core/services/domain-events';
-import { syncMarkets } from '../../core/services/markets/sync';
+import { marketListings, syncMarkets } from '../../core/services/markets/sync';
+import { marketAdapter } from '../../core/services/markets/accounts';
+import { syncDomainTraffic } from '../../core/services/markets/traffic';
 import { localDay } from '../../shared/domain-events';
 import { setDispositions } from '../../core/services/domain-history';
 import { setPurchase, setSale } from '../../core/services/purchases';
@@ -256,6 +258,15 @@ export async function createDemoApi(
   await getPortfolio(true);
   // After the portfolio, so market sales know which names you still hold.
   await syncMarkets();
+  // A real sync fetches per-name traffic a slice at a time; the demo has it
+  // all from the start.
+  for (const accountId of new Set(marketListings().map((l) => l.accountId))) {
+    await syncDomainTraffic(
+      marketAdapter(accountId),
+      marketListings().filter((l) => l.accountId === accountId),
+      Infinity,
+    );
+  }
   recordSampleListPrices();
   recordSampleImportedDomains();
   if (options.sampleChanges) {

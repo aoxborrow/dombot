@@ -142,8 +142,6 @@ export default function Markets() {
   );
   // Search counts come only to Discount Domain Club Domain Pro accounts.
   const hasSearches = listings.some((l) => searchesOf(l) != null);
-  const priceOf = (name: string) =>
-    allListings[name]?.find((l) => l.price && (!market || l.market === market));
   const covered = Object.keys(traffic.domains).length;
 
   if (allAccounts !== null && allAccounts.length === 0) {
@@ -242,7 +240,7 @@ export default function Markets() {
 
       <Section
         title="Names with the most interest"
-        note={`Last 12 months, by leads, then views${hasSearches ? ', then searches' : ''}. Traffic is fetched a slice of names per sync: ${count(covered)} of ${count(listings.length)} so far.`}
+        note={`Last 12 months, by leads, then views${hasSearches ? ', then searches' : ''}.`}
       >
         {topNames.length ? (
           <ReportTable>
@@ -251,25 +249,22 @@ export default function Markets() {
                 <TableHead>Domain</TableHead>
                 <TableHead className="text-right">Leads</TableHead>
                 <TableHead className="text-right">Views</TableHead>
-                <TableHead className="text-right">Views, 30 days</TableHead>
                 {hasSearches && (
                   <TableHead className="text-right">
                     <span
                       className="inline-flex cursor-help items-center gap-1"
-                      title="Searches for the name on GoDaddy over the last 30 days. Afternic sends these only to Discount Domain Club Domain Pro members."
+                      title="Searches for the name on GoDaddy over the last 12 months. Afternic sends these only to Discount Domain Club Domain Pro members."
                     >
-                      Searches, 30 days
+                      Searches
                       <CircleHelp className="size-3" aria-hidden />
                     </span>
                   </TableHead>
                 )}
-                <TableHead className="text-right">Listed price</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {topNames.map((t) => {
                 const name = t.name;
-                const listed = priceOf(name);
                 return (
                   <TableRow key={name}>
                     <TableCell className="font-medium">{name}</TableCell>
@@ -279,19 +274,11 @@ export default function Markets() {
                     <TableCell className="text-right tabular-nums">
                       {count(t.views365)}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {count(t.views30)}
-                    </TableCell>
                     {hasSearches && (
                       <TableCell className="text-right tabular-nums">
-                        {t.searches30 == null ? '—' : count(t.searches30)}
+                        {t.searches365 == null ? '—' : count(t.searches365)}
                       </TableCell>
                     )}
-                    <TableCell className="text-right tabular-nums">
-                      {listed?.price
-                        ? money(listed.price, listed.currency)
-                        : '—'}
-                    </TableCell>
                   </TableRow>
                 );
               })}
