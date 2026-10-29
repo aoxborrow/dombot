@@ -379,8 +379,10 @@ registrar cards. An opened card has two parts, so it's clear what lives where:
   Afternic's Discount Domain Club Domain Pro, which decides whether search
   counts come back; sync keeps it current). Account settings, where the
   market has them (`accountSettings`), are editable and saved back to the
-  market: Afternic's lease-to-own defaults (on or off, most monthly payments)
-  so far, written as a partial update (`setMarketListingDefaults`).
+  market: Afternic's lander (Buy Now, price request or custom) and
+  Lease To Own defaults (enable or disable installments, Maximum Lease
+  Period with Afternic's commission discount for each length), saved together with one Save as a partial
+  update (`setMarketListingDefaults`).
 - **In DomBot:** how DomBot connects: the credentials (encrypted, never sent
   anywhere but the market), DomBot's sync notes, and market-specific help
   such as Sedo's partner-access note and Atom's API-access note.

@@ -35,17 +35,31 @@ export function monthlyPayment(
   return price && price > 0 ? Math.ceil(price / months) : null;
 }
 
+/** Afternic's lander for a listing (its `intakeStyle`), as people say it. */
+export const LANDER_STYLES = {
+  BUYNOW: 'Buy Now',
+  PRICE_FORM: 'Price request',
+  CUSTOM_LANDER: 'Custom',
+} as const;
+export type LanderStyle = keyof typeof LANDER_STYLES;
+
+const isLanderStyle = (v: unknown): v is LanderStyle =>
+  typeof v === 'string' && Object.hasOwn(LANDER_STYLES, v);
+
+/** A market account's defaults for new listings (Afternic's settings). */
 export interface LeaseDefaults {
   enabled: boolean | null;
   months: number | null;
+  lander: LanderStyle | null;
 }
 
-/** Lease-to-own from a market's listing defaults (Afternic's settings). */
+/** The defaults from a market's listing settings (Afternic's). */
 export function leaseDefaultsOf(raw: Record<string, unknown>): LeaseDefaults {
   return {
     enabled:
       typeof raw.leasingEnabled === 'boolean' ? raw.leasingEnabled : null,
     months: typeof raw.maxLeasePeriod === 'number' ? raw.maxLeasePeriod : null,
+    lander: isLanderStyle(raw.intakeStyle) ? raw.intakeStyle : null,
   };
 }
 

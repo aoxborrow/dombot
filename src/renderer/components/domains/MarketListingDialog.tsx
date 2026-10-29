@@ -16,7 +16,6 @@ import {
 } from '../../../shared/money';
 import { useAppStore } from '../../store/app';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import {
@@ -404,62 +403,78 @@ export function MarketListingDialog({
             )}
             {caps?.leaseToOwn && (
               <div className="flex flex-col gap-1.5">
-                <Toggle
-                  checked={lease}
-                  onChange={setLease}
-                  label="Lease-to-own"
-                />
-                <div className="pl-[26px]">
-                  <Select
-                    value={String(months)}
-                    disabled={!lease}
-                    onValueChange={(v) => setMonths(Number(v))}
-                  >
-                    <SelectTrigger
-                      aria-label="Most monthly payments"
-                      className="w-full"
+                <div className="flex flex-col gap-3">
+                  <Field label="Lease To Own">
+                    <Select
+                      value={lease ? 'on' : 'off'}
+                      onValueChange={(v) => setLease(v === 'on')}
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="end">
-                      {leaseMonthOptions(months).map((m) => {
-                        const pay = monthlyPayment(
-                          /^\d+$/.test(price) ? Number(price) : null,
-                          m,
-                        );
-                        return (
-                          <SelectItem key={m} value={String(m)}>
-                            Up to {m} months
-                            {pay !== null && (
-                              <span className="text-muted-foreground">
-                                {' '}
-                                ·{' '}
-                                {formatMoney(
-                                  String(pay),
-                                  currency,
-                                  preferred,
-                                  formatId,
-                                  true,
-                                )}
-                                /mo
-                              </span>
-                            )}
-                            {leaseCommissionDiscount(m) > 0 && (
-                              <span className="text-muted-foreground">
-                                {' '}
-                                · {leaseCommissionDiscount(m)}% discount
-                              </span>
-                            )}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                      <SelectTrigger
+                        aria-label="Lease To Own"
+                        className="w-full"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="off">
+                          Disable installments
+                        </SelectItem>
+                        <SelectItem value="on">Enable installments</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Maximum Lease Period">
+                    <Select
+                      value={String(months)}
+                      disabled={!lease}
+                      onValueChange={(v) => setMonths(Number(v))}
+                    >
+                      <SelectTrigger
+                        aria-label="Maximum Lease Period"
+                        className="w-full"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="end">
+                        {leaseMonthOptions(months).map((m) => {
+                          const pay = monthlyPayment(
+                            /^\d+$/.test(price) ? Number(price) : null,
+                            m,
+                          );
+                          return (
+                            <SelectItem key={m} value={String(m)}>
+                              {m} months
+                              {pay !== null && (
+                                <span className="text-muted-foreground">
+                                  {' '}
+                                  ·{' '}
+                                  {formatMoney(
+                                    String(pay),
+                                    currency,
+                                    preferred,
+                                    formatId,
+                                    true,
+                                  )}
+                                  /mo
+                                </span>
+                              )}
+                              {leaseCommissionDiscount(m) > 0 && (
+                                <span className="text-muted-foreground">
+                                  {' '}
+                                  · {leaseCommissionDiscount(m)}% discount
+                                </span>
+                              )}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </Field>
                 </div>
-                <p className="pl-[26px] text-xs text-muted-foreground">
-                  Buyers can spread the price over monthly payments. Longer
-                  leases get a commission discount. {marketName} may allow fewer
-                  months than you choose, so each payment stays above about $80.
+                <p className="text-xs text-muted-foreground">
+                  Installments need a Buy Now price between $495 and $5,000,000.
+                  Longer leases get a commission discount. If the price is too
+                  low for the period, {marketName} sets it as close as it can.
                 </p>
               </div>
             )}
@@ -610,25 +625,5 @@ function Field({
       {help && <p className="-mt-0.5 text-xs text-muted-foreground">{help}</p>}
       {children}
     </div>
-  );
-}
-
-function Toggle({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (on: boolean) => void;
-  label: string;
-}) {
-  return (
-    <label className="flex shrink-0 cursor-pointer items-center gap-2.5 whitespace-nowrap">
-      <Checkbox
-        checked={checked}
-        onCheckedChange={(on) => onChange(on === true)}
-      />
-      {label}
-    </label>
   );
 }

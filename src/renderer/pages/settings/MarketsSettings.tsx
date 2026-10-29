@@ -21,9 +21,10 @@ import {
   leaseCommissionDiscount,
   leaseMonthOptions,
   useLeaseDefaults,
+  LANDER_STYLES,
+  type LanderStyle,
   type LeaseDefaults,
 } from '../../lib/lease-to-own';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -784,23 +785,36 @@ function MarketAccountSettings({
   const [saved, setSaved] = useState(lease);
   const [enabled, setEnabled] = useState(lease?.enabled ?? false);
   const [months, setMonths] = useState(lease?.months ?? DEFAULT_LEASE_MONTHS);
+  const [lander, setLander] = useState<LanderStyle | null>(
+    lease?.lander ?? null,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dirty =
+  const landerChanged = !!saved && lander !== null && lander !== saved.lander;
+  const leaseChanged =
     !!saved &&
     (enabled !== saved.enabled || (enabled && months !== saved.months));
+  const dirty = landerChanged || leaseChanged;
 
   const save = async () => {
     setBusy(true);
     setError(null);
     try {
-      await window.api.setMarketListingDefaults(
-        accountId,
-        enabled
-          ? { leasingEnabled: true, maxLeasePeriod: months }
-          : { leasingEnabled: false },
-      );
-      setSaved({ enabled, months: enabled ? months : (saved?.months ?? null) });
+      // Only what changed: the rest of the account's settings stay as
+      // they are (a partial update).
+      await window.api.setMarketListingDefaults(accountId, {
+        ...(landerChanged ? { intakeStyle: lander } : {}),
+        ...(leaseChanged
+          ? enabled
+            ? { leasingEnabled: true, maxLeasePeriod: months }
+            : { leasingEnabled: false }
+          : {}),
+      });
+      setSaved({
+        enabled,
+        months: enabled ? months : (saved?.months ?? null),
+        lander,
+      });
       toast.success(`Saved your ${marketName} account settings.`);
     } catch (err) {
       setError(errorMessage(err));
@@ -853,21 +867,52 @@ function MarketAccountSettings({
         ))}
         {lease && (
           <>
-            <SettingRow label="Lease-to-own for new listings">
-              <Checkbox
-                aria-label="Lease-to-own for new listings"
-                checked={enabled}
-                onCheckedChange={(on) => setEnabled(on === true)}
-              />
+            {lander !== null && (
+              <SettingRow label="Lander for new listings">
+                <Select
+                  value={lander}
+                  onValueChange={(v) => setLander(v as LanderStyle)}
+                >
+                  <SelectTrigger
+                    aria-label="Lander for new listings"
+                    className="h-8 w-68"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    {(
+                      Object.entries(LANDER_STYLES) as [LanderStyle, string][]
+                    ).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </SettingRow>
+            )}
+            <SettingRow label="Lease To Own">
+              <Select
+                value={enabled ? 'on' : 'off'}
+                onValueChange={(v) => setEnabled(v === 'on')}
+              >
+                <SelectTrigger aria-label="Lease To Own" className="h-8 w-68">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="off">Disable installments</SelectItem>
+                  <SelectItem value="on">Enable installments</SelectItem>
+                </SelectContent>
+              </Select>
             </SettingRow>
-            <SettingRow label="Most monthly payments">
+            <SettingRow label="Maximum Lease Period">
               <Select
                 value={String(months)}
                 disabled={!enabled}
                 onValueChange={(v) => setMonths(Number(v))}
               >
                 <SelectTrigger
-                  aria-label="Most monthly payments by default"
+                  aria-label="Maximum Lease Period"
                   className="h-8 w-68"
                 >
                   <SelectValue />
@@ -875,7 +920,7 @@ function MarketAccountSettings({
                 <SelectContent align="end">
                   {leaseMonthOptions(months).map((m) => (
                     <SelectItem key={m} value={String(m)}>
-                      Up to {m} months
+                      {m} months
                       {leaseCommissionDiscount(m) > 0 && (
                         <span className="text-muted-foreground">
                           {' '}
@@ -890,6 +935,13 @@ function MarketAccountSettings({
           </>
         )}
       </div>
+      {lease && (
+        <p className="px-3 pb-2.5 text-xs text-muted-foreground">
+          These apply to listings created from now on. Installments need a Buy
+          Now price between $495 and $5,000,000; if a price is too low for the
+          maximum lease period, {marketName} sets it as close as it can.
+        </p>
+      )}
       {error && (
         <p role="alert" className="px-3 pb-2 text-xs text-destructive">
           {error}

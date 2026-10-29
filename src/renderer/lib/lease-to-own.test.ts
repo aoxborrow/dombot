@@ -34,11 +34,14 @@ describe('lease-to-own', () => {
 
   it('reads Afternic’s settings, ignoring what isn’t there', () => {
     expect(
-      leaseDefaultsOf({ leasingEnabled: true, maxLeasePeriod: 60 }),
-    ).toEqual({ enabled: true, months: 60 });
-    expect(leaseDefaultsOf({ leasingEnabled: null })).toEqual({
-      enabled: null,
-      months: null,
-    });
+      leaseDefaultsOf({
+        leasingEnabled: true,
+        maxLeasePeriod: 60,
+        intakeStyle: 'PRICE_FORM',
+      }),
+    ).toEqual({ enabled: true, months: 60, lander: 'PRICE_FORM' });
+    expect(
+      leaseDefaultsOf({ leasingEnabled: null, intakeStyle: 'NOPE' }),
+    ).toEqual({ enabled: null, months: null, lander: null });
   });
 });
