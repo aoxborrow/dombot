@@ -51,7 +51,7 @@ What to report to Afternic is collected in
 | Settings path          | —                                                       | `/accountSettings`, camelCase; `/accountsettings` is a 404                                                                      |
 | `PATCH ?resource=true` | returns the updated domain                              | returns 204 anyway; re-read to confirm                                                                                          |
 | `tld` on a domain      | in the example response                                 | not returned                                                                                                                    |
-| `includes=offerCount`  | per-domain offer count                                  | not returned here; most likely omitted for names with no offers, which is all of this account's. Treat a missing count as 0.    |
+| `includes=offerCount`  | per-domain offer count                                  | a no-op since 2026-10-28 (changelog): the field is gone and the value is due to leave `includes`. DomBot doesn't ask for it.    |
 | `includes=searches`    | searches 30/90/365d                                     | not returned here: needs a Discount Domain Club Domain Pro membership, which this account doesn't have (many DomBot users will) |
 | Per-domain leads       | list sorts by `LEADS_DESC`, examples show `intakeLeads` | never returned; the only per-domain leads are from `/stats/{domain}`                                                            |
 | `registrar` include    | an enum (`GODADDY`, …)                                  | free text: `"Dynadot Inc"` and `"Dynadot, LLC"`, `UNKNOWN`, sometimes missing                                                   |
@@ -122,7 +122,7 @@ All of it except Replace domain (PUT): 23 of the 24 operations, plus every
 
 | Operation                                                   | Why DomBot wants it                                                                                                                                                                                                |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| List domains (all filters, all `includes`)                  | The listing snapshot: which names are listed, at what prices, status, lander, leasing, Fast Transfer, registrar, offer count, and (for Domain Pro members) search counts. Basis of sync.                           |
+| List domains (all filters, all `includes`)                  | The listing snapshot: which names are listed, at what prices, status, lander, leasing, Fast Transfer, registrar, and (for Domain Pro members) search counts. Basis of sync.                                        |
 | Get domain, get many by name                                | Refresh one name or a selection after an edit, without re-pulling everything.                                                                                                                                      |
 | Create domain                                               | "List on Afternic" from DomBot.                                                                                                                                                                                    |
 | Update domain (PATCH)                                       | Price and lander edits. Maps onto DomBot's asking price.                                                                                                                                                           |
@@ -250,10 +250,10 @@ Afternic adapter that maps into them are in [markets.md](markets.md).
   never retry other 4xx. A 10,000-name portfolio with per-domain stats is
   10,000 calls, over an hour of budget, so per-domain stats must be fetched
   incrementally and cached (see Reporting).
-- **Optional data stays optional:** `searches`, `offerCount`, `registrar` and
+- **Optional data stays optional:** `searches`, `registrar` and
   `fastTransferStatus` are null when Afternic doesn't send them, never a
-  made-up 0, so the UI can hide search columns for an account where no
-  listing has search data.
+  made-up 0, so the UI can hide search columns for an account where no listing
+  has search data.
 - **Errors:** one `AfternicError` with `status`, `code`, `message`,
   `fields[]`, and the `requestId` we sent, so failures can quote it to support.
 - **Normalize what's messy:** map the free-text `registrar` to a stable key
@@ -287,10 +287,9 @@ Afternic adapter that maps into them are in [markets.md](markets.md).
 - **Scale:** synthetic portfolios of thousands of listings to test paging,
   chunking and the rate limiter without the live API.
 - **Can't be tested on this account:** search data (no Domain Pro membership;
-  use the spec's example response and ask a member for a real one),
-  `offerCount` (no offers), and `updateSale`/`sendSaleMessage` (need a live
-  sale in the right state). Cover them with fixtures and verify when the data
-  turns up.
+  use the spec's example response and ask a member for a real one), and
+  `updateSale`/`sendSaleMessage` (need a live sale in the right state). Cover
+  them with fixtures and verify when the data turns up.
 
 ## What it means for DomBot
 
@@ -345,8 +344,8 @@ Storage:
 - **Listing columns and filters** on the Domains table: an Afternic column
   (one per connected market, see markets.md), listed on Afternic or not,
   listing status (`ACTIVE`, `PENDING`, `INACTIVE`, `FAILED_COMPLIANCE`, …),
-  Fast Transfer status, lease-to-own on/off, offer count, and for Domain Pro
-  members GoDaddy searches (total and unique, 30/90/365 days).
+  Fast Transfer status, lease-to-own on/off, and for Domain Pro members
+  GoDaddy searches (total and unique, 30/90/365 days).
 - **Bulk from the table:** list, reprice and delist a selection (listing
   also relists any that were stuck, see below),
   through `$each` calls in chunks of 500 with per-name results shown the way
@@ -448,5 +447,3 @@ job.
    on a separate Afternic account with two or three throwaway listings.
 3. A real `searches` response from a Domain Pro member, to confirm the shape
    before building columns on it.
-4. Where `offerCount` comes from: is it open offers, or all offers ever? Needs
-   a name with offers to check.

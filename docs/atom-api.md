@@ -624,7 +624,7 @@ Separately, in registrar-client: an `atom` registrar.
 | Sale workflow    | submit auth code, message the transaction agent                               | none                                                                                             |
 | Stats            | daily views and leads, account and per name, up to 365 days                   | per-name lifetime counters (views, shortlists, offers); no account level, no dates               |
 | Search demand    | GoDaddy searches 30/90/365d (Domain Pro members)                              | none; Atom grading and appraisal instead                                                         |
-| Leads, offers    | lead counts in stats; `offerCount` include                                    | shortlists and an offer count per name                                                           |
+| Leads, offers    | lead counts in stats; no offer counts                                         | shortlists and an offer count per name                                                           |
 | Bulk             | `$each` up to 500, async CSV jobs                                             | none; one name per call                                                                          |
 | Account settings | get/update listing defaults                                                   | none in API                                                                                      |
 | Rate limit       | 150/min, `Retry-After`                                                        | unpublished; 10/day appraisal                                                                    |

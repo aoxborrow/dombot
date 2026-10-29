@@ -38,7 +38,6 @@ export type IntakeStyle = 'BUYNOW' | 'PRICE_FORM' | 'CUSTOM_LANDER';
 export const DOMAIN_INCLUDES = [
   'fastTransferStatus',
   'featured',
-  'offerCount',
   'registrar',
   'searches',
 ] as const;
@@ -105,7 +104,6 @@ export interface WireDomain {
   // Only with `includes`; any of these may still be missing.
   registrar?: string;
   fastTransferStatus?: FastTransferStatus;
-  offerCount?: number;
   searches?: { total?: WireSearchCounts; unique?: WireSearchCounts };
 }
 

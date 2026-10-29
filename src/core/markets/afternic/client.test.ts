@@ -117,7 +117,7 @@ describe('listings', () => {
     expect(result.listings[0].buyNow).toBe(2499);
     const q = calls[0].url.searchParams;
     expect(q.get('includes')).toBe(
-      'fastTransferStatus,featured,offerCount,registrar,searches',
+      'fastTransferStatus,featured,registrar,searches',
     );
     expect(q.get('buynowMin')).toBe('500000000');
     expect(q.get('listStatus')).toBe('ACTIVE,PENDING');

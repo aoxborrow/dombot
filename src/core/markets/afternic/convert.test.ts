@@ -55,7 +55,6 @@ describe('toListing', () => {
       registrarRaw: 'GODADDY',
       registrar: 'godaddy',
       fastTransferStatus: 'ACTIVE',
-      offerCount: null,
       searches: null,
     });
   });
@@ -69,9 +68,8 @@ describe('toListing', () => {
     expect(listing.fastTransferStatus).toBeNull();
   });
 
-  it('reads search counts and offer counts when sent', () => {
+  it('reads search counts when sent', () => {
     const listing = toListing(fx.domainWithSearches);
-    expect(listing.offerCount).toBe(3);
     expect(listing.registrar).toBe('dynadot');
     expect(listing.searches).toEqual({
       total: { days30: 120, days90: 300, days365: 1100 },

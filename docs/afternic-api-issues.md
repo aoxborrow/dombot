@@ -12,6 +12,10 @@ ids, domain names and amounts from the account are left out of this public
 file and can be shared privately.
 
 Status: **open** until Afternic answers; update each entry as it's resolved.
+On 2026-10-29 the [changelog](https://api.afternic.com/docs/portfolio-api/changelog/)
+(entries 2026-10-25 to 2026-10-28) covered #7 and #13, marked below. The
+current docs still read as described for #5, #6, #8, #9 and #12. The bugs
+aren't in the changelog and haven't been retested.
 
 ## Bugs
 
@@ -109,6 +113,10 @@ most 100". Request id: `ba197620-5e28-4ac9-bfdf-b2f5f967b6e2`.
 The Common Workflows guide says `days` can be 1 through 366; the reference
 says at most 365. 365 is what the API takes.
 
+**Partly fixed.** The changelog (2026-10-25) corrects the documented maximum
+to 365, but the Common Workflows guide still said "1 through 366" on
+2026-10-29.
+
 ### 8. `PATCH ?resource=true` returns no resource
 
 The reference says `resource=true` makes `PATCH /domains/{domain}` return
@@ -118,7 +126,9 @@ to read the domain back.
 ### 9. `tld` isn't returned on domains
 
 The example response in the guides includes `"tld": "com"`; no domain
-response (list, get, get many) has included it.
+response (list, get, get many) has included it. The reference examples for
+`GET /domains` and `PATCH /domains/{domain}` pair `"name": "example.com"`
+with `"tld": "co.uk"`.
 
 ### 10. Per-domain leads aren't on domains
 
@@ -155,6 +165,12 @@ blank cells in a reconcile file reset settings to defaults.
 `includes=offerCount` returns nothing on any domain of the test account.
 Probably omitted for names with no offers (this account has none), but the
 docs don't say, and whether it counts open offers or all offers ever.
+
+**Resolved by removal.** The changelog (2026-10-28) says `includes=offerCount`
+is now a no-op on `GET /domains`, `GET /domains/{domain}` and
+`POST /bulkDomains/getByNames`: the field is gone from responses, and the
+value is due to be removed from `includes`. DomBot no longer asks for it.
+The `GET /domains` reference example still shows `"offerCount": 10`.
 
 ### 14. Leases have no `saleTotal` or payout date
 
