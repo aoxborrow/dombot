@@ -240,12 +240,6 @@ export function changeToAfternic(change: MarketListingChange): ListingInput {
       `Afternic prices are in USD only, not ${change.currency}.`,
     );
   }
-  if (change.buyNow === false && change.price != null) {
-    unsupported(
-      'buyNow',
-      'An Afternic price is always a Buy Now price; leave it empty to take offers only.',
-    );
-  }
   if (change.extra && change.extra.market !== 'afternic') {
     unsupported(
       'extra',

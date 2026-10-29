@@ -257,7 +257,6 @@ export const marketListingChange = z.object({
   name: domainName,
   displayName: z.string().max(253).optional(),
   price: amount.nullable().optional(),
-  buyNow: z.boolean().optional(),
   minOffer: amount.nullable().optional(),
   floor: amount.nullable().optional(),
   currency: z.string().length(3).optional(),

@@ -563,7 +563,9 @@ export function FilterBar({
   /** Keys of the fields always shown, in order, even when unset. */
   presets?: string[];
   /** Of `presets`, the ones shown while unset only when they fit on the
-   *  line after the chip before them, with room for the square add button. */
+   *  line after the chip before them, with room for the square add button.
+   *  Decided once each, as the bar first lays out: resizing the window
+   *  later doesn't add or drop them. */
   presetsIfRoom?: string[];
   /** The chips' look; see FilterChipVariant. */
   variant?: FilterChipVariant;
@@ -583,6 +585,8 @@ export function FilterBar({
   // presetsIfRoom that don't fit right now, and each one's width from when
   // it last showed. Picking one from the menu shows it regardless.
   const [cramped, setCramped] = useState<Set<string>>(() => new Set());
+  // Each optional preset's verdict once made (true: no room), kept.
+  const decided = useRef(new Map<string, boolean>());
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const widths = useRef(new Map<string, number>());
   const anchor = useRef<HTMLSpanElement>(null);
@@ -613,6 +617,11 @@ export function FilterBar({
       const next = new Set<string>();
       for (const [i, f] of placed.entries()) {
         if (!presetsIfRoom.includes(f.key)) continue;
+        const verdict = decided.current.get(f.key);
+        if (verdict !== undefined) {
+          if (verdict) next.add(f.key);
+          continue;
+        }
         const el = chipEl(f.key);
         if (el?.offsetWidth) widths.current.set(f.key, el.offsetWidth);
         const width = widths.current.get(f.key);
@@ -625,8 +634,9 @@ export function FilterBar({
         if (!width || !prev) continue;
         const start = prev.getBoundingClientRect().right + gap;
         // The square add button is as wide as a chip is tall.
-        if (start + width + gap + prev.offsetHeight > end + 0.5)
-          next.add(f.key);
+        const noRoom = start + width + gap + prev.offsetHeight > end + 0.5;
+        decided.current.set(f.key, noRoom);
+        if (noRoom) next.add(f.key);
       }
       setCramped((was) =>
         was.size === next.size && [...next].every((k) => was.has(k))

@@ -55,7 +55,10 @@ export interface MarketListing {
   forSale: boolean;
   /** The listed price; null when there isn't one (offers only). */
   price: Amount | null;
-  /** Buyers can buy outright at `price`; false: an asking price. */
+  /**
+   * Buyers can buy outright at `price`. DomBot treats every listed price as
+   * Buy Now; a Sedo "asking price" (not fixed) reads as offers only.
+   */
   buyNow: boolean;
   minOffer: Amount | null;
   /** Lowest price auto-accepted; never shown to buyers. */
@@ -170,7 +173,6 @@ export interface MarketListingChange {
   name: string;
   displayName?: string;
   price?: Amount | null;
-  buyNow?: boolean;
   minOffer?: Amount | null;
   floor?: Amount | null;
   currency?: CurrencyCode;

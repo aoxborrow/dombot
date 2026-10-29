@@ -279,8 +279,7 @@ differently, like Afternic's lease-to-own cap) and `error`. Prices are
 decimal strings or numbers.
 
 - **`domain_listing_set`** — `domain`, `accountId?`, and the fields to set:
-  `price` (null: offers only), `buyNow` (whether `price` can be paid outright
-  or is an asking price; Sedo only, Afternic prices always are), `minOffer`,
+  `price` (the Buy Now price; null: offers only), `minOffer`,
   `floor` (null clears), `currency`, `forSale`, `leaseToOwn`, `afternic`
   (lander settings), `sedo` (`categories`, `language`), `atom` (`tier` for
   a new listing, Standard or Plus; `category`; `description`). Lists the

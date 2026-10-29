@@ -88,7 +88,6 @@ type ListingStatus =
 interface MarketListingChange {
   name: string;
   price?: Amount | null;
-  buyNow?: boolean;
   minOffer?: Amount | null;
   floor?: Amount | null;
   currency?: CurrencyCode;
@@ -169,8 +168,11 @@ keeps dated snapshots of them so trends show over time.
   Atom's adapters convert.
 - **`price` + `buyNow`** rather than Atom's `buyNow` price or Sedo's
   `fixedPrice`: one listed price, and a flag for whether a buyer can pay it
-  outright, with no negotiation. Atom: always. Sedo: `fixedprice`. Afternic:
-  whenever a Buy Now price is set. The lander doesn't change that; it only
+  outright, with no negotiation. Atom: always. Afternic: whenever a Buy Now
+  price is set. Sedo: `fixedprice`; DomBot doesn't use Sedo's "Seller's asking
+  price" (a price with `fixedprice: 0`, neither Buy Now nor a minimum offer),
+  so it reads as offers only, every price DomBot sends is Buy Now, and an
+  update clears an asking price. A change has no `buyNow`. The lander doesn't change that; it only
   changes what the name's own page shows, and buyers also reach the name
   through GoDaddy and partner registrars, which show the Buy Now price and
   minimum offer.
@@ -338,12 +340,36 @@ saved, so the Domains table shows it before the next sync.
 
 - **A listing column per connected market** (Afternic, Atom, Sedo, …), in the slot
   saved layouts call `listing`, so a name listed on two markets stays on one
-  line: the price (or "Offers"), a status dot, and the status when it isn't
-  active. A name can only be in one account per market, so each cell holds
+  line: the market's price (or "Offers") right-aligned in grey, and one
+  status icon at the left: a soft check when live at your DomBot price, an
+  amber circled arrow up or down when the market's price is above or below
+  it, an eye-slash for visibility you control (inactive or hidden), a grey
+  clock for what the market will change (pending, on hold), a red warning
+  when rejected, and a grey icon when sold or unknown. A price that isn't
+  live is faded. The tooltip has
+  the detail. A name can only be in one account per market, so each cell holds
   one listing. A table with every market side by side may follow on the
   Markets page.
-- **The Listing filter** (price-tag icon) filters by market and status and
-  keeps the filtered markets' columns on screen.
+- **A click on a listing cell edits that listing** on that market (or lists
+  the name there, starting from its DomBot asking price). The editor shows
+  only the fields the market has, read from its capabilities: a Buy Now
+  price (empty for offers only), then Afternic's minimum offer, floor and
+  lease-to-own (on or off, and the most monthly payments: 3, 6, 9, 12, then
+  every 6 to 60, each showing its payment; a new listing starts from the
+  account's own defaults, which Afternic doesn't apply to API listings); Sedo's currency and minimum offer; Atom's price alone. Save
+  sends only the fields you changed straight to the market
+  (`writeMarketListings`), makes a hidden listing visible (there's no "not
+  for sale" mode in the app), re-runs a stuck listing's checks where the
+  market can, and Delist takes it down. Pricing stays DomBot's own asking price; this edits what the market
+  has.
+- **The Markets filter** (the Markets tab's icon, after Pricing in Add
+  filter): the markets in play (all to start), then a listing's status
+  (Active, Pending or on hold, Inactive or hidden, Rejected, or Not listed),
+  its price against your DomBot price (above, below, at), and a range on its
+  price. Each condition applies to one listing at a time; a name matches
+  when any market in play has a listing meeting all of them, or has none
+  while Not listed is picked (`src/shared/market-filter.ts`). The markets in
+  play keep their columns on screen while it's set.
 - **List at your price** pushes DomBot's asking prices to every market account
   you tick (all of them to start), one account after another, with results
   grouped by market. A listing that was inactive, rejected or stuck pending
@@ -356,14 +382,26 @@ saved, so the Domains table shows it before the next sync.
 
 ## Settings → Markets
 
-As in the Afternic plan, generalized: one card per market account, built from
-the adapter's `configFields` and `test()`, with the same ⋯ menu as registrar
-cards. Market-specific rows come from capabilities: listing defaults where
-`accountSettings`, a rate-limit field where `rateLimit` is null, the
-partner-access note for Sedo, the API-access note for Atom. What an account
-has shows as status dots (`MarketSyncState.status`), such as Afternic's
-Discount Domain Club Domain Pro, which decides whether search counts come
-back; sync keeps it current.
+As in the Afternic plan, generalized: one card per market account, built
+from the adapter's `configFields` and `test()`, with the same ⋯ menu as
+registrar cards. An opened card has two parts, so it's clear what lives where:
+
+- **Your <market> account:** what the market holds, read through its API.
+  What the account has shows read-only (`MarketSyncState.status`, such as
+  Afternic's Discount Domain Club Domain Pro, which decides whether search
+  counts come back; sync keeps it current). Account settings, where the
+  market has them (`accountSettings`), are editable and saved back to the
+  market: Afternic's lander (Buy Now, price request or custom) and
+  Lease To Own defaults (enable or disable installments, Maximum Lease
+  Period with Afternic's commission discount for each length), saved together with one Save as a partial
+  update (`setMarketListingDefaults`).
+- **In DomBot:** how DomBot connects: the credentials (encrypted, never sent
+  anywhere but the market), DomBot's sync notes, and market-specific help
+  such as Sedo's partner-access note and Atom's API-access note.
+
+The demo connects one account on each market over an in-memory world
+(`src/core/demo/markets.ts`), with listings, a year of traffic, sales, and a
+sale waiting on an auth code.
 
 ## Ownership verification
 
@@ -379,12 +417,19 @@ intervals" unless asked to check now.
 
 Most markets accept two or three of these:
 
-| Method                   | What you set                                            | Example                                                            |
-| ------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------ |
-| Default nameservers      | The name's nameservers, to the market's shared pair     | `ns1/ns2.afternic.com`, `ns1/ns2.sedoparking.com`                  |
-| Per-customer nameservers | The name's nameservers, to a pair assigned to you       | none of Afternic, Atom or Sedo seen doing this                     |
-| TXT record               | A TXT record holding a verification ID from the market  | Sedo: one ID per account, shown in its dashboard                   |
-| CNAME record             | A CNAME from the verification ID to the market's target | Sedo: host `<verification ID>`, value `verify.sedo.com.`, TTL 3600 |
+| Method                  | What you set                                            | Example                                                            |
+| ----------------------- | ------------------------------------------------------- | ------------------------------------------------------------------ |
+| Default nameservers     | The name's nameservers, to the market's shared pair     | `ns1/ns2.afternic.com`, `ns1/ns2.sedoparking.com`                  |
+| Per-customer nameserver | One of the name's nameservers, assigned to you          | Afternic: an extra NS `verification-<ID>.ns101.verify.hn`          |
+| TXT record              | A TXT record holding a verification ID from the market  | Afternic: `afternic-verification-<ID>`; Sedo: the bare ID          |
+| CNAME record            | A CNAME from the verification ID to the market's target | Sedo: host `<verification ID>`, value `verify.sedo.com.`, TTL 3600 |
+
+Afternic and Sedo each give one verification ID per account, shown only in
+their dashboards: neither API returns it (Afternic's account settings are
+lander, intake style, lease-to-own, lander options and self-broker, checked
+against its OpenAPI spec), so the user copies it into DomBot. Afternic's
+nameserver is added as a third (NS3) beside the name's own pair, so the name
+keeps its DNS host.
 
 What each costs:
 
@@ -489,7 +534,7 @@ a person (a sale message) says so in its description.
    `src/core/services/markets/afternic.ts`), with unit tests mapping the
    Afternic fixtures.
 2. **Afternic phase 4 on top of them** (done): storage namespaces, sync,
-   Settings → Markets, listing columns and the Listing filter, `sold`
+   Settings → Markets, listing columns and the listing filter, `sold`
    events, read-only MCP tools.
 3. **Afternic phases 5–6** (done): writes, reporting.
 4. **Atom and Sedo** (done): client, adapter, then their capability-gated

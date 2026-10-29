@@ -610,13 +610,7 @@ const changeShape = {
     .nullable()
     .optional()
     .describe(
-      'The listed price (BIN on Afternic); null clears it, leaving offers only.',
-    ),
-  buyNow: z
-    .boolean()
-    .optional()
-    .describe(
-      'Whether buyers can pay `price` outright (Sedo: fixed price, at least 199 USD or EUR) or it is an asking price open to offers. Afternic prices are always Buy Now.',
+      'The Buy Now price; null clears it, leaving offers only (Sedo: at least 199 USD or EUR, or none).',
     ),
   minOffer: money
     .optional()
@@ -692,7 +686,6 @@ type ChangeArgs = {
   minOffer?: string | number;
   floor?: string | number | null;
   currency?: string;
-  buyNow?: boolean;
   forSale?: boolean;
   leaseToOwn?: { enabled: boolean; maxPayments?: number };
   afternic?: Omit<AfternicExtraChange, 'market'>;
@@ -720,7 +713,6 @@ function toChange(name: string, c: ChangeArgs): MarketListingChange {
           currency: c.currency.toUpperCase() as MarketListingChange['currency'],
         }
       : {}),
-    ...(c.buyNow !== undefined ? { buyNow: c.buyNow } : {}),
     ...(c.forSale !== undefined ? { forSale: c.forSale } : {}),
     ...(c.leaseToOwn ? { leaseToOwn: c.leaseToOwn } : {}),
     ...(c.afternic ? { extra: { market: 'afternic', ...c.afternic } } : {}),

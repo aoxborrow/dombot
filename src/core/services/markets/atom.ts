@@ -274,9 +274,6 @@ export function checkAtomChange(change: MarketListingChange): void {
       'Atom has no hidden listings; delist the name instead.',
     );
   }
-  if (change.buyNow === false) {
-    unsupported('buyNow', 'Atom’s price is always a Buy Now price.');
-  }
   if (change.displayName !== undefined) {
     unsupported('displayName', 'Atom’s API has no display name.');
   }

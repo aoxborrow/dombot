@@ -14,7 +14,6 @@ import {
   Globe,
   Plug,
   Server,
-  Tag,
   ShieldBan,
   ShieldCheck,
   Upload,
@@ -84,13 +83,22 @@ import {
 import {
   isMarketColumnKey,
   listingColumnKey,
-  listingFilterOptions,
-  listingKeys,
   marketColumns,
 } from '../components/domains/market-columns';
+import {
+  NO_MARKETS_FILTER,
+  marketsField,
+  toMarketFilter,
+  type MarketsFilterValue,
+} from '../components/domains/MarketsFilter';
+import {
+  isMarketFilterSet,
+  matchesMarketFilter,
+} from '../../shared/market-filter';
 import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { ListPriceDialog } from '../components/domains/ListPriceDialog';
+import { MarketListingDialog } from '../components/domains/MarketListingDialog';
 import { ImportedDomainDialog } from '../components/domains/ImportedDomainDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import {
@@ -847,7 +855,7 @@ export default function Domains() {
     restoreOwned,
   } = useAppStore();
 
-  // Market columns and the Listing filter only appear once a market account
+  // Market columns and the Markets filter only appear once a market account
   // is connected.
   const marketsOn = (marketAccounts?.length ?? 0) > 0;
   // The row and bulk menus name the market when there's only one kind.
@@ -917,6 +925,11 @@ export default function Domains() {
   const [importing, setImporting] = useState(false);
   // Asking price for one name (its cell or row menu) or the selection.
   const [listPriceFor, setListPriceFor] = useState<Domain[] | null>(null);
+  // One name's listing on one market (its cell in that market's column).
+  const [listingFor, setListingFor] = useState<{
+    domain: Domain;
+    market: string;
+  } | null>(null);
   // Edit details for an imported name.
   const [detailsFor, setDetailsFor] = useState<Domain | null>(null);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
@@ -1011,6 +1024,7 @@ export default function Domains() {
       listPrices,
       traffic: marketTraffic.domains,
       listingMarkets,
+      onEditListing: (domain, market) => setListingFor({ domain, market }),
       preferredCurrency: settings?.preferredCurrency ?? DEFAULT_CURRENCY,
       numberFormat: settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
     })) {
@@ -1136,7 +1150,8 @@ export default function Domains() {
     return account ? [account] : [];
   });
   const [ns, setNs] = useState<string[]>([]);
-  const [listing, setListing] = useState<string[]>([]);
+  const [marketsFilter, setMarketsFilter] =
+    useState<MarketsFilterValue>(NO_MARKETS_FILTER);
   const [folder, setFolder] = useState<string[]>([]);
   // Owned only: what each name's asking price holds, and BIN price and
   // minimum offer ranges.
@@ -1445,26 +1460,6 @@ export default function Domains() {
       },
       setTld,
     ),
-    // Listing: only once a market account is connected.
-    ...(marketsOn
-      ? [
-          listFilter(
-            {
-              key: 'listing',
-              label: 'Listing',
-              icon: Tag,
-              options: listingFilterOptions(
-                shown,
-                marketListings,
-                marketCatalog,
-              ),
-              selected: listing,
-              plural: 'statuses',
-            },
-            setListing,
-          ),
-        ]
-      : []),
     // Owned: folders and Hidden. Archive: status.
     ...(!archiveView || archiveCount > 0
       ? [
@@ -1504,6 +1499,38 @@ export default function Domains() {
               ),
           }),
         ]),
+    // Markets: only once a market account is connected; after Pricing.
+    ...(marketsOn
+      ? [
+          marketsField({
+            value: marketsFilter,
+            onChange: (next) => {
+              setMarketsFilter(next);
+              setPage(0);
+            },
+            markets: listingMarkets.map((id) => ({
+              id,
+              name: marketCatalog.find((m) => m.id === id)?.name ?? id,
+            })),
+            // The view's own names: Owned leaves Archive out, and back.
+            rows: shown
+              .filter((d) => !archiveLabelOf(d) === !archiveView)
+              .map((d) => ({
+                listings: marketListings[toAscii(d.domainName)],
+                mine: listPrices[toAscii(d.domainName)],
+              })),
+            currency,
+            format: (n) =>
+              formatMoney(
+                String(n),
+                currency,
+                currency,
+                settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+                true,
+              ),
+          }),
+        ]
+      : []),
     dateFilter(
       'expirationDate',
       'Expiration',
@@ -1579,6 +1606,10 @@ export default function Domains() {
     `domains.${columnView}`,
     layoutColumnsForView,
   );
+  const marketFilter = useMemo(() => {
+    const f = toMarketFilter(marketsFilter, currency);
+    return marketsOn && isMarketFilterSet(f) ? f : null;
+  }, [marketsFilter, currency, marketsOn]);
   const filteredDateColumns = useMemo(
     () =>
       (
@@ -1591,19 +1622,27 @@ export default function Domains() {
       )
         .filter(([range]) => isDateRangeSet(range))
         .map(([, key]): string => key)
-        // A Listing filter keeps its markets' columns on screen too.
+        // A Markets filter keeps its markets' columns on screen too.
         .concat(
-          [
-            ...new Set(
-              listing
-                .filter((k) => k !== 'none')
-                .map((k) => listingColumnKey(k.split(':')[0])),
-            ),
-          ].filter((key) =>
-            listingMarkets.some((m) => listingColumnKey(m) === key),
-          ),
+          marketFilter
+            ? listingMarkets
+                .filter(
+                  (m) =>
+                    !marketsFilter.markets.length ||
+                    marketsFilter.markets.includes(m),
+                )
+                .map(listingColumnKey)
+            : [],
         ),
-    [created, expires, purchased, sold, listing, listingMarkets],
+    [
+      created,
+      expires,
+      purchased,
+      sold,
+      marketFilter,
+      marketsFilter.markets,
+      listingMarkets,
+    ],
   );
   const shownColumnKeys = applyColumnLayout(
     layoutColumnsForView,
@@ -1671,10 +1710,16 @@ export default function Domains() {
         const keys = nsKeysByDomain.get(domainKey(d));
         if (!keys || !ns.some((k) => keys.has(k))) return false;
       }
-      if (listing.length > 0) {
-        const keys = listingKeys(marketListings[toAscii(d.domainName)]);
-        if (!listing.some((k) => keys.includes(k))) return false;
-      }
+      if (
+        marketFilter &&
+        !matchesMarketFilter(
+          marketListings[toAscii(d.domainName)],
+          listPrices[toAscii(d.domainName)],
+          marketFilter,
+          listingMarkets,
+        )
+      )
+        return false;
       if (
         askingFilter &&
         !archiveView &&
@@ -1746,7 +1791,8 @@ export default function Domains() {
     registrar,
     ns,
     nsKeysByDomain,
-    listing,
+    marketFilter,
+    listingMarkets,
     marketListings,
     folder,
     folders,
@@ -2147,8 +2193,16 @@ export default function Domains() {
             }}
             searchPlaceholder="Search domains…"
             fields={filterFields}
-            presets={['registrar', 'tld', 'folder', 'price']}
-            presetsIfRoom={['price']}
+            presets={[
+              'registrar',
+              'tld',
+              'folder',
+              'price',
+              'markets',
+              'expirationDate',
+            ]}
+            // Shown from the start when they fit as the page loads.
+            presetsIfRoom={['price', 'markets', 'expirationDate']}
           >
             {exportNote && (
               <span
@@ -2290,6 +2344,13 @@ export default function Domains() {
         <ListPriceDialog
           domains={listPriceFor}
           onClose={() => setListPriceFor(null)}
+        />
+      )}
+      {listingFor && (
+        <MarketListingDialog
+          domain={listingFor.domain}
+          market={listingFor.market}
+          onClose={() => setListingFor(null)}
         />
       )}
       {marketAction && (

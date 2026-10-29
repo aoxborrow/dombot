@@ -159,17 +159,49 @@ export function sellThrough(
   };
 }
 
-/** Listings with search data, most searched (last 30 days) first. */
-export function mostSearched(
+/** One name's interest: its traffic, and its searches where they come. */
+export interface NameInterest {
+  name: string;
+  leads365: number;
+  views365: number;
+  /** GoDaddy searches, last 365 days; null without search data. */
+  searches365: number | null;
+}
+
+/**
+ * The names with the most interest: by leads, then views, then searches
+ * (Discount Domain Club Domain Pro only), so a name buyers search for shows
+ * even before any visits.
+ */
+export function namesOfInterest(
+  traffic: Readonly<Record<string, { leads365: number; views365: number }>>,
   listings: readonly MarketListing[],
-  limit = 25,
-): MarketListing[] {
-  return listings
-    .filter((l) => searchesOf(l)?.total.days30 != null)
+  limit = 15,
+): NameInterest[] {
+  const searches = new Map<string, number>();
+  for (const l of listings) {
+    const n = searchesOf(l)?.total.days365;
+    if (n != null) searches.set(l.name, Math.max(n, searches.get(l.name) ?? 0));
+  }
+  const names = new Set([
+    ...Object.entries(traffic)
+      .filter(([, t]) => t.views365 || t.leads365)
+      .map(([name]) => name),
+    ...[...searches].filter(([, n]) => n > 0).map(([name]) => name),
+  ]);
+  return [...names]
+    .map((name) => ({
+      name,
+      leads365: traffic[name]?.leads365 ?? 0,
+      views365: traffic[name]?.views365 ?? 0,
+      searches365: searches.get(name) ?? null,
+    }))
     .sort(
       (a, b) =>
-        (searchesOf(b)?.total.days30 ?? 0) -
-          (searchesOf(a)?.total.days30 ?? 0) || a.name.localeCompare(b.name),
+        b.leads365 - a.leads365 ||
+        b.views365 - a.views365 ||
+        (b.searches365 ?? 0) - (a.searches365 ?? 0) ||
+        a.name.localeCompare(b.name),
     )
     .slice(0, limit);
 }

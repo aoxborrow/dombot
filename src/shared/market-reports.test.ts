@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  mostSearched,
+  namesOfInterest,
   salesByYear,
   salesTotal,
   sellThrough,
@@ -108,23 +108,31 @@ describe('sellThrough', () => {
   });
 });
 
-describe('mostSearched', () => {
-  it('ranks listings with search data by the last 30 days', () => {
-    const l = (name: string, days30: number | null) =>
+describe('namesOfInterest', () => {
+  it('ranks by leads, then views, then searches, names with searches only included', () => {
+    const l = (name: string, days365: number | null) =>
       ({
         name,
         extra: {
           market: 'afternic',
           searches:
-            days30 === null
+            days365 === null
               ? null
-              : { total: { days30 }, unique: { days30: 1 } },
+              : { total: { days365 }, unique: { days365: 1 } },
         },
       }) as unknown as MarketListing;
-    expect(
-      mostSearched([l('a.com', 5), l('b.com', null), l('c.com', 50)]).map(
-        (x) => x.name,
-      ),
-    ).toEqual(['c.com', 'a.com']);
+    const t = (leads365: number, views365: number) => ({
+      leads365,
+      views365,
+    });
+    const rows = namesOfInterest(
+      { 'a.com': t(2, 10), 'b.com': t(0, 50), 'quiet.com': t(0, 0) },
+      [l('a.com', 5), l('c.com', 40), l('d.com', null), l('e.com', 0)],
+    );
+    expect(rows.map((r) => [r.name, r.searches365])).toEqual([
+      ['a.com', 5],
+      ['b.com', null],
+      ['c.com', 40],
+    ]);
   });
 });

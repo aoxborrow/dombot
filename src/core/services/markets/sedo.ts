@@ -100,7 +100,11 @@ export function listingFromSedo(
     status: 'active',
     statusRaw: l.forSale ? 'for sale' : 'not for sale',
     forSale: l.forSale,
-    price: l.price,
+    // Every price DomBot shows is Buy Now, as in aftermarket's Sedo driver:
+    // a "Seller's asking price" (not fixed) is neither Buy Now nor a minimum
+    // offer, so it reads as offers only, and an update clears it
+    // (mergeSedoChange).
+    price: l.fixedPrice ? l.price : null,
     buyNow: l.fixedPrice && l.price != null,
     minOffer: l.minPrice,
     floor: null,
@@ -198,8 +202,15 @@ export function mergeSedoChange(
   current: SedoListing | null,
 ): SedoListingInput {
   const sedo = change.extra?.market === 'sedo' ? change.extra : undefined;
+  // DomBot sends a Buy Now price, a minimum offer, or both. An update
+  // clears a "Seller's asking price" (a price that isn't fixed) rather than
+  // keeping it.
   const price =
-    change.price !== undefined ? change.price : (current?.price ?? null);
+    change.price !== undefined
+      ? change.price
+      : current?.fixedPrice
+        ? current.price
+        : null;
   const input: SedoListingInput = {
     name: change.name,
     categories: sedo?.categories ?? current?.categories ?? [],
@@ -209,10 +220,7 @@ export function mergeSedoChange(
       change.minOffer !== undefined
         ? change.minOffer
         : (current?.minPrice ?? null),
-    // A new name's price is a Buy Now price unless told otherwise, as on
-    // Afternic and in DomBot's own asking price.
-    fixedPrice:
-      price == null ? false : (change.buyNow ?? current?.fixedPrice ?? true),
+    fixedPrice: price != null,
     currency:
       (change.currency as SedoCurrency | undefined) ??
       current?.currency ??
@@ -231,8 +239,8 @@ export function mergeSedoChange(
     Number(price) < MIN_FIXED_PRICE
   ) {
     unsupported(
-      'buyNow',
-      `Sedo needs a Buy Now price of at least ${MIN_FIXED_PRICE} ${input.currency}; list it as an asking price instead (buyNow: false).`,
+      'price',
+      `Sedo needs a Buy Now price of at least ${MIN_FIXED_PRICE} ${input.currency}; leave the price empty for offers only, with a minimum offer.`,
     );
   }
   return input;

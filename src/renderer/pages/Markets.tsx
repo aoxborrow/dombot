@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { localDay } from '../../shared/domain-events';
 import {
-  mostSearched,
+  namesOfInterest,
   salesByYear,
   salesTotal,
   sellThrough,
@@ -12,7 +12,6 @@ import {
 import {
   searchesOf,
   type MarketId,
-  type MarketListing,
   type MarketSale,
 } from '../../shared/markets';
 import {
@@ -34,6 +33,7 @@ import {
   BadgeDollarSign,
   ChevronRight,
   CircleDollarSign,
+  CircleHelp,
   Eye,
   Store,
 } from 'lucide-react';
@@ -136,22 +136,12 @@ export default function Markets() {
     () => sellThrough(sales, listings, localDay()),
     [sales, listings],
   );
-  const searched = useMemo(() => mostSearched(listings), [listings]);
   const topNames = useMemo(
-    () =>
-      Object.entries(traffic.domains)
-        .filter(([, t]) => t.views365 || t.leads365)
-        .sort(
-          ([a, x], [b, y]) =>
-            y.leads365 - x.leads365 ||
-            y.views365 - x.views365 ||
-            a.localeCompare(b),
-        )
-        .slice(0, TOP_NAMES),
-    [traffic.domains],
+    () => namesOfInterest(traffic.domains, listings, TOP_NAMES),
+    [traffic.domains, listings],
   );
-  const priceOf = (name: string) =>
-    allListings[name]?.find((l) => l.price && (!market || l.market === market));
+  // Search counts come only to Discount Domain Club Domain Pro accounts.
+  const hasSearches = listings.some((l) => searchesOf(l) != null);
   const covered = Object.keys(traffic.domains).length;
 
   if (allAccounts !== null && allAccounts.length === 0) {
@@ -250,7 +240,7 @@ export default function Markets() {
 
       <Section
         title="Names with the most interest"
-        note={`Last 12 months, by leads then views. Traffic is fetched a slice of names per sync: ${count(covered)} of ${count(listings.length)} so far.`}
+        note={`Last 12 months, by leads, then views${hasSearches ? ', then searches' : ''}.`}
       >
         {topNames.length ? (
           <ReportTable>
@@ -259,13 +249,22 @@ export default function Markets() {
                 <TableHead>Domain</TableHead>
                 <TableHead className="text-right">Leads</TableHead>
                 <TableHead className="text-right">Views</TableHead>
-                <TableHead className="text-right">Views, 30 days</TableHead>
-                <TableHead className="text-right">Listed price</TableHead>
+                {hasSearches && (
+                  <TableHead className="text-right">
+                    <span
+                      className="inline-flex cursor-help items-center gap-1"
+                      title="Searches for the name on GoDaddy over the last 12 months. Afternic sends these only to Discount Domain Club Domain Pro members."
+                    >
+                      Searches
+                      <CircleHelp className="size-3" aria-hidden />
+                    </span>
+                  </TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {topNames.map(([name, t]) => {
-                const listed = priceOf(name);
+              {topNames.map((t) => {
+                const name = t.name;
                 return (
                   <TableRow key={name}>
                     <TableCell className="font-medium">{name}</TableCell>
@@ -275,14 +274,11 @@ export default function Markets() {
                     <TableCell className="text-right tabular-nums">
                       {count(t.views365)}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {count(t.views30)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {listed?.price
-                        ? money(listed.price, listed.currency)
-                        : '—'}
-                    </TableCell>
+                    {hasSearches && (
+                      <TableCell className="text-right tabular-nums">
+                        {t.searches365 == null ? '—' : count(t.searches365)}
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}
@@ -407,46 +403,6 @@ export default function Markets() {
           />
         )}
       </Section>
-
-      {searched.length > 0 && (
-        <Section
-          title="Most searched"
-          note="Searches on GoDaddy over the last 30 days (Discount Domain Club Domain Pro). A name searched a lot but priced high, or with few views, is worth a second look."
-        >
-          <ReportTable>
-            <TableHeader className={HEAD}>
-              <TableRow className={HEAD_ROW}>
-                <TableHead>Domain</TableHead>
-                <TableHead className="text-right">Searches, 30 days</TableHead>
-                <TableHead className="text-right">Unique</TableHead>
-                <TableHead className="text-right">365 days</TableHead>
-                <TableHead className="text-right">Listed price</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {searched.map((l: MarketListing) => (
-                <TableRow key={`${l.accountId}:${l.name}`}>
-                  <TableCell className="font-medium">{l.name}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {count(searchesOf(l)?.total.days30 ?? 0)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {count(searchesOf(l)?.unique.days30 ?? 0)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {searchesOf(l)?.total.days365 == null
-                      ? '—'
-                      : count(searchesOf(l)?.total.days365 ?? 0)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {l.price ? money(l.price, l.currency) : '—'}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </ReportTable>
-        </Section>
-      )}
     </div>
   );
 }
