@@ -9,31 +9,64 @@ import {
   syncMarkets,
 } from '../services/markets/sync';
 import { writeMarketListings } from '../services/markets/writes';
-import { installDemo, uninstallDemo } from './index';
+import { installDemo, uninstallDemo, type DemoInstallation } from './index';
 
 // The demo's markets through the real market services: accounts connect,
 // sync fills listings and sales, and writes behave like each market.
 
+let demo: DemoInstallation;
 beforeEach(async () => {
   configureStore(new MemoryDocStore());
   await hydrateStores();
-  await installDemo({ size: 240 });
+  demo = await installDemo({ size: 240 });
   await getPortfolio(true);
   await syncMarkets();
 });
 afterEach(() => uninstallDemo());
 
 describe('demo markets', () => {
-  it('connects Afternic, Sedo and Atom, each listing some names', () => {
+  it('lists the names priced in DomBot: half on all three, most on Afternic', () => {
     expect(
       marketAccountViews()
         .map((a) => a.market)
         .sort(),
     ).toEqual(['afternic', 'atom', 'sedo']);
-    const by = (m: string) => marketListings().filter((l) => l.market === m);
-    expect(by('afternic').length).toBeGreaterThan(by('sedo').length);
-    expect(by('sedo').length).toBeGreaterThan(by('atom').length);
-    expect(by('atom').length).toBeGreaterThan(0);
+    const priced = Object.keys(demo.seed.askingPrices);
+    expect(priced.length).toBe(Math.round((240 * 2) / 3));
+    const on = (m: string) =>
+      new Set(
+        marketListings()
+          .filter((l) => l.market === m)
+          .map((l) => l.name),
+      );
+    const afternic = on('afternic');
+    const sedo = on('sedo');
+    const atom = on('atom');
+    // Only priced names are listed.
+    for (const n of [...afternic, ...sedo, ...atom])
+      expect(priced).toContain(n);
+    expect(afternic.size).toBe(Math.round(priced.length * 0.9));
+    expect(sedo.size).toBe(Math.round(priced.length * 0.5));
+    expect([...sedo]).toEqual([...atom].filter((n) => sedo.has(n)));
+    expect(atom.size).toBe(sedo.size);
+    // Some market prices differ from DomBot's.
+    const differs = marketListings().filter(
+      (l) => l.price && l.price !== demo.seed.askingPrices[l.name].amount,
+    );
+    expect(differs.length).toBeGreaterThan(0);
+  });
+
+  it('keeps Personal and Projects unpriced; For Sale holds the priced', () => {
+    const folder = (name: string) =>
+      demo.seed.folders.find((f) => f.name === name)!.domains;
+    const priced = new Set(Object.keys(demo.seed.askingPrices));
+    for (const n of [...folder('Personal'), ...folder('Projects')])
+      expect(priced.has(n)).toBe(false);
+    expect(folder('Projects').length).toBeLessThanOrEqual(20);
+    for (const n of folder('For Sale')) expect(priced.has(n)).toBe(true);
+    const elsewhere = new Set([...folder('Dropping'), ...folder('Transfer')]);
+    for (const n of priced)
+      expect(folder('For Sale').includes(n) || elsewhere.has(n)).toBe(true);
   });
 
   it('has sales over three years and one waiting on an auth code', () => {

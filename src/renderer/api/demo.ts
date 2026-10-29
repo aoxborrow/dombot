@@ -28,7 +28,6 @@ import { syncDomainTraffic } from '../../core/services/markets/traffic';
 import { localDay } from '../../shared/domain-events';
 import { setDispositions } from '../../core/services/domain-history';
 import { setPurchase, setSale } from '../../core/services/purchases';
-import { setListPrices } from '../../core/services/list-prices';
 import { setManualPrice } from '../../core/services/pricing';
 import { addImportedDomains } from '../../core/services/imported-domains';
 import { MemoryDocStore } from '../../core/storage/doc-store';
@@ -188,23 +187,11 @@ function recordSampleHistory(): void {
 }
 
 /**
- * Asking prices on a few names, so the Asking column has something in it,
- * and one renewal price in another currency.
+ * One renewal price in another currency: Renewals lists it beside the dollar
+ * totals. (Asking prices come with the seed: core/demo.)
  */
-function recordSampleListPrices(): void {
+function recordSampleRenewalPrice(): void {
   const owned = getMergedPortfolio().domains.map((d) => d.domainName);
-  const samples = [
-    { amount: '4800', minOffer: '1500', floor: '2500', currency: 'USD' },
-    { amount: '12500', minOffer: '5000', floor: null, currency: 'USD' },
-    { amount: '950', minOffer: null, floor: null, currency: 'EUR' },
-    { amount: null, minOffer: '250', floor: null, currency: 'USD' },
-  ];
-  setListPrices(
-    samples
-      .map((s, i) => ({ domainName: owned[i * 2], ...s }))
-      .filter((s) => s.domainName),
-  );
-  // A renewal price in euros: Renewals lists it beside the dollar totals.
   if (owned[1]) setManualPrice(owned[1], { amount: '45', currency: 'EUR' });
 }
 
@@ -267,7 +254,7 @@ export async function createDemoApi(
       Infinity,
     );
   }
-  recordSampleListPrices();
+  recordSampleRenewalPrice();
   recordSampleImportedDomains();
   if (options.sampleChanges) {
     stageSampleChanges(demo.world);

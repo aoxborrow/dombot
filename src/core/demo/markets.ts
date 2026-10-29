@@ -18,7 +18,7 @@ import { AFTERNIC_CAPABILITIES } from '../services/markets/afternic';
 import { ATOM_CAPABILITIES } from '../services/markets/atom';
 import type { AnyMarketAdapter } from '../services/markets/registry';
 import { SEDO_CAPABILITIES } from '../services/markets/sedo';
-import { pick, rng } from './seed';
+import { pick, rng, type DemoAskingPrice } from './seed';
 
 // The demo's marketplaces: an Afternic, a Sedo and an Atom account over one
 // in-memory world, so the Markets page, the listing columns, the listing
@@ -473,28 +473,17 @@ const SOLD_COUNT = 18;
 const SOLD_YEARS = 3;
 
 /**
- * Fills the world from the portfolio's names: about one in eight on
- * Afternic, one in twelve on Sedo (some on both), one in thirty on Atom, at
- * prices that look like a portfolio's, with sales over three years and one
- * waiting on an auth code.
+ * Fills the world from the names you've priced in DomBot: half listed on
+ * all three markets, most of the rest on Afternic alone, mostly at your
+ * price; with sales over three years and one waiting on an auth code.
  */
 export function seedDemoMarkets(
   world: DemoMarketWorld,
   names: readonly string[],
+  asking: Readonly<Record<string, DemoAskingPrice>> = {},
   seed = 7,
 ): void {
   const r = rng(seed);
-  const prices = [
-    '1495',
-    '2500',
-    '3200',
-    '4800',
-    '6500',
-    '8800',
-    '12500',
-    '19500',
-    '35000',
-  ];
   const now = world.now;
   for (const a of DEMO_MARKET_ACCOUNTS) world.market.set(a.id, a.market);
   const listed = (
@@ -502,10 +491,20 @@ export function seedDemoMarkets(
     market: MarketId,
     name: string,
     at: number,
+    ask: DemoAskingPrice,
   ) => {
     const h = hash(name);
-    const price = r() < 0.12 ? null : pick(r, prices);
-    const currency = market === 'sedo' && r() < 0.3 ? 'EUR' : 'USD';
+    // Mostly at your DomBot price; now and then the market has another
+    // (raised there, or not pushed yet), which the table flags.
+    const roll = r();
+    const price =
+      ask.amount === null
+        ? null
+        : roll < 0.07
+          ? String(Math.round((Number(ask.amount) * 0.85) / 5) * 5)
+          : roll < 0.14
+            ? String(Math.round((Number(ask.amount) * 1.2) / 5) * 5)
+            : ask.amount;
     const status =
       r() < 0.06
         ? 'pending'
@@ -529,17 +528,13 @@ export function seedDemoMarkets(
       forSale: status !== 'pending' || market !== 'sedo',
       price,
       buyNow: price != null,
+      // Atom has one price; Afternic always has a minimum offer.
       minOffer:
         market === 'atom'
           ? null
-          : price
-            ? String(Math.round(Number(price) * 0.3))
-            : '250',
-      floor:
-        market === 'afternic' && price && r() < 0.4
-          ? String(Math.round(Number(price) * 0.6))
-          : null,
-      currency,
+          : (ask.minOffer ?? (market === 'afternic' ? '100' : null)),
+      floor: market === 'afternic' ? ask.floor : null,
+      currency: 'USD',
       leaseToOwn:
         market === 'afternic'
           ? {
@@ -562,11 +557,20 @@ export function seedDemoMarkets(
     world.account(accountId).set(name, listing);
   };
 
-  names.forEach((name, i) => {
+  // Of the names with an asking price: half on all three markets, four in
+  // ten on Afternic alone, the rest not listed yet.
+  const forSale = Object.keys(asking).sort(
+    (a, b) => hash(`${a}${seed}`) - hash(`${b}${seed}`),
+  );
+  forSale.forEach((name, i) => {
     const at = now - (30 + (hash(name) % 700)) * DAY;
-    if (i % 8 === 3) listed('demo-afternic', 'afternic', name, at);
-    if (i % 12 === 5 || i % 48 === 11) listed('demo-sedo', 'sedo', name, at);
-    if (i % 30 === 7) listed('demo-atom', 'atom', name, at);
+    const share = i / forSale.length;
+    if (share >= 0.9) return;
+    listed('demo-afternic', 'afternic', name, at, asking[name]);
+    if (share < 0.5) {
+      listed('demo-sedo', 'sedo', name, at, asking[name]);
+      listed('demo-atom', 'atom', name, at, asking[name]);
+    }
   });
 
   const held = new Set(names);

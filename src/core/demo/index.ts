@@ -8,6 +8,7 @@ import {
   resetRegistrarClients,
 } from '../services/registrars';
 import { flushWrites } from '../storage/namespace';
+import { setListPrices } from '../services/list-prices';
 import {
   connectMarketAccount,
   marketAccountViews,
@@ -126,9 +127,17 @@ export async function installDemo(
   // Markets: an Afternic, a Sedo and an Atom account listing some of the
   // portfolio, connected the way a user would (the host syncs them).
   const markets = new DemoMarketWorld(options.now?.getTime());
+  setListPrices(
+    Object.entries(seed.askingPrices).map(([domainName, p]) => ({
+      domainName,
+      ...p,
+      currency: 'USD',
+    })),
+  );
   seedDemoMarkets(
     markets,
     seed.records.map((r) => r.domainName),
+    seed.askingPrices,
   );
   configureMarketFactory(demoMarketFactory(markets));
   const connected = new Set(marketAccountViews().map((a) => a.id));

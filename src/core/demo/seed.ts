@@ -40,16 +40,26 @@ export interface DemoFolder {
   domains: string[];
 }
 
+/** The asking price you set in DomBot for a name (Pricing). */
+export interface DemoAskingPrice {
+  /** Whole USD; null for offers only. */
+  amount: string | null;
+  minOffer: string | null;
+  floor: string | null;
+}
+
 export interface DemoSeed {
   accounts: DemoAccount[];
   records: DemoDomainRecord[];
   folders: DemoFolder[];
+  /** About two thirds of the names, all in For Sale (or Dropping/Transfer). */
+  askingPrices: Record<string, DemoAskingPrice>;
   /** `${accountId}:${domainName}` → USD, for the "manual price" source. */
   manualPrices: Record<string, number>;
 }
 
 export const DEFAULT_DEMO_SEED = 20260907;
-export const DEFAULT_DEMO_SIZE = 524;
+export const DEFAULT_DEMO_SIZE = 250;
 /** How many domains may share a name with another (on a different TLD). */
 const MAX_LABEL_REPEATS = 2;
 
@@ -779,6 +789,11 @@ const REGISTRANT: Contact = {
 
 // ── generator ────────────────────────────────────────────────────────────────
 
+/** Asking prices, whole USD: mostly mid-range, a few high. */
+const ASKING_PRICES = [
+  1495, 1995, 2500, 2995, 3500, 4800, 5995, 7500, 8800, 12500, 19500, 35000,
+] as const;
+
 /** mulberry32: small, fast, good enough for a demo. */
 export function rng(seed: number): () => number {
   let a = seed >>> 0;
@@ -1014,40 +1029,77 @@ export function generateDemoSeed(
     }
   }
 
-  // Folders: a few themes, each holding a slice of the portfolio.
+  // Folders and asking prices. Personal and Projects are never for sale.
+  // About two thirds of the portfolio has an asking price in DomBot: those
+  // are For Sale, except a few on their way out (Dropping, Transfer), which
+  // mix priced and unpriced names.
   const names = records.map((x) => x.domainName);
   const byTld = (tlds: string[]) =>
     names.filter((n) => tlds.includes(n.slice(n.indexOf('.') + 1)));
+  const personal = names.filter((_, i) => i % 13 === 0).slice(0, 12);
+  const projects = byTld(['dev', 'app', 'sh', 'tech'])
+    .filter((n) => !personal.includes(n))
+    .slice(0, 20);
+  const keep = new Set([...personal, ...projects]);
+  const rest = names.filter((n) => !keep.has(n));
+  const dropping = rest.filter((_, i) => i % 17 === 6).slice(0, 8);
+  const transfer = rest.filter((_, i) => i % 19 === 2).slice(0, 6);
+  const pricedCount = Math.round((names.length * 2) / 3);
+  const priced = new Set(
+    // Every name not kept back, in a seeded order, the first two thirds.
+    [...rest]
+      .sort((a, b) => hash(`${a}${seed}`) - hash(`${b}${seed}`))
+      .slice(0, pricedCount),
+  );
+  const askingPrices: Record<string, DemoAskingPrice> = {};
+  for (const name of names) {
+    if (!priced.has(name)) continue;
+    const amount = pick(r, ASKING_PRICES);
+    // A few take offers only: no Buy Now price, just a minimum offer.
+    const offersOnly = r() < 0.08;
+    askingPrices[name] = {
+      amount: offersOnly ? null : String(amount),
+      minOffer:
+        offersOnly || r() < 0.7
+          ? String(Math.max(100, Math.round((amount * 0.3) / 50) * 50))
+          : null,
+      floor:
+        !offersOnly && r() < 0.35
+          ? String(Math.round((amount * 0.6) / 50) * 50)
+          : null,
+    };
+  }
+  const inOther = new Set([...dropping, ...transfer]);
   const folders: DemoFolder[] = [
     {
       name: 'For Sale',
       color: 'green',
       description: 'Listed, or should be',
-      domains: names.filter((_, i) => i % 8 === 3).slice(0, 60),
+      domains: names.filter((n) => priced.has(n) && !inOther.has(n)),
     },
     {
       name: 'Personal',
       color: 'blue',
       description: 'Not for sale at any price',
-      domains: names.filter((_, i) => i % 9 === 0).slice(0, 24),
+      domains: personal,
     },
     {
       name: 'Projects',
       color: 'violet',
       description: 'Things that shipped, or nearly did',
-      domains: byTld(['dev', 'app', 'sh', 'tech']),
+      domains: projects,
     },
     {
       name: 'Dropping',
       color: 'orange',
       description: 'Letting these expire',
-      domains: names.filter((_, i) => i % 17 === 6).slice(0, 8),
+      domains: dropping,
     },
     {
       name: 'Transfer',
       color: 'red',
       description: 'Moving to a cheaper registrar',
-      domains: names.filter((_, i) => i % 19 === 2).slice(0, 6),
+      domains: transfer,
     },
   ];
   // A domain lives in one folder at most; earlier folders win.
@@ -1067,5 +1119,5 @@ export function generateDemoSeed(
       Math.round((base ?? 12) * (0.8 + r() * 0.5) * 100) / 100;
   }
 
-  return { accounts, records, folders, manualPrices };
+  return { accounts, records, folders, askingPrices, manualPrices };
 }
