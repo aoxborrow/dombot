@@ -2193,8 +2193,16 @@ export default function Domains() {
             }}
             searchPlaceholder="Search domains…"
             fields={filterFields}
-            presets={['registrar', 'tld', 'folder', 'price']}
-            presetsIfRoom={['price']}
+            presets={[
+              'registrar',
+              'tld',
+              'folder',
+              'price',
+              'markets',
+              'expirationDate',
+            ]}
+            // Shown from the start when they fit as the page loads.
+            presetsIfRoom={['price', 'markets', 'expirationDate']}
           >
             {exportNote && (
               <span
