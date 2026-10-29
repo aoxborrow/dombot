@@ -16,19 +16,19 @@ const floorOnly = price({ floor: '300' });
 
 describe('hasAskingKind', () => {
   const kinds = (p: ListPrice | undefined) =>
-    (['forSale', 'bin', 'minOffer', 'none'] as AskingKind[]).filter((k) =>
-      hasAskingKind(p, k),
+    (['forSale', 'bin', 'minOffer', 'floor', 'none'] as AskingKind[]).filter(
+      (k) => hasAskingKind(p, k),
     );
 
-  it('counts a BIN price or a minimum offer as for sale', () => {
+  it('counts a BIN price, minimum offer or floor as for sale', () => {
     expect(kinds(bin)).toEqual(['forSale', 'bin']);
     expect(kinds(offer)).toEqual(['forSale', 'minOffer']);
     expect(kinds(both)).toEqual(['forSale', 'bin', 'minOffer']);
+    expect(kinds(floorOnly)).toEqual(['forSale', 'floor']);
   });
 
-  it('counts no price, or a floor alone, as not for sale', () => {
+  it('counts no price as not for sale', () => {
     expect(kinds(undefined)).toEqual(['none']);
-    expect(kinds(floorOnly)).toEqual(['none']);
   });
 });
 
@@ -40,13 +40,15 @@ describe('matchesAsking', () => {
   it('matches any of the kinds picked', () => {
     expect(match({})).toEqual(all);
     expect(match({ kinds: ['bin', 'minOffer'] })).toEqual([bin, offer, both]);
-    expect(match({ kinds: ['none'] })).toEqual([undefined, floorOnly]);
+    expect(match({ kinds: ['none'] })).toEqual([undefined]);
+    expect(match({ kinds: ['floor', 'none'] })).toEqual([undefined, floorOnly]);
   });
 
   it('needs the amount a range is on', () => {
     // An offers-only name isn't a $0 BIN price.
     expect(match({ bin: { min: null, max: 10000 } })).toEqual([bin, both]);
     expect(match({ minOffer: { min: 600, max: null } })).toEqual([both]);
+    expect(match({ floor: { min: null, max: 1000 } })).toEqual([floorOnly]);
   });
 
   it('needs both amounts when both ranges are set', () => {

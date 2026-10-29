@@ -16,8 +16,8 @@ import {
 } from '../../../shared/list-prices';
 
 // The Domains Pricing filter: which part of an asking price a name has (any
-// of them), then ranges on the BIN price and minimum offer, which narrow it
-// further. See matchesAsking in shared/list-prices.
+// of them), then ranges on the BIN price, minimum offer and floor, which
+// narrow it further. See matchesAsking in shared/list-prices.
 
 /** The filter as typed: range bounds are digits, "" is unbounded. */
 export interface PricingFilterValue {
@@ -26,6 +26,8 @@ export interface PricingFilterValue {
   binMax: string;
   offerMin: string;
   offerMax: string;
+  floorMin: string;
+  floorMax: string;
 }
 
 export const NO_PRICING_FILTER: PricingFilterValue = {
@@ -34,18 +36,21 @@ export const NO_PRICING_FILTER: PricingFilterValue = {
   binMax: '',
   offerMin: '',
   offerMax: '',
+  floorMin: '',
+  floorMax: '',
 };
 
 const KIND_LABEL: Record<AskingKind, string> = {
   forSale: 'For sale',
   bin: 'Has BIN price',
   minOffer: 'Has min offer',
+  floor: 'Has floor price',
   none: 'Not for sale',
 };
 
 const KIND_HINT: Partial<Record<AskingKind, string>> = {
-  forSale: 'BIN price or min offer',
-  none: 'Neither',
+  forSale: 'Any price',
+  none: 'No price',
 };
 
 const range = (min: string, max: string): AmountRange => ({
@@ -62,6 +67,7 @@ export function toAskingFilter(
     kinds: value.kinds,
     bin: range(value.binMin, value.binMax),
     minOffer: range(value.offerMin, value.offerMax),
+    floor: range(value.floorMin, value.floorMax),
     currency,
   };
 }
@@ -69,9 +75,14 @@ export function toAskingFilter(
 export function isPricingFilterSet(value: PricingFilterValue): boolean {
   return (
     value.kinds.length > 0 ||
-    [value.binMin, value.binMax, value.offerMin, value.offerMax].some(
-      (v) => v !== '',
-    )
+    [
+      value.binMin,
+      value.binMax,
+      value.offerMin,
+      value.offerMax,
+      value.floorMin,
+      value.floorMax,
+    ].some((v) => v !== '')
   );
 }
 
@@ -88,6 +99,8 @@ function pricingSummary(
   if (bin) parts.push(`BIN ${bin}`);
   const offer = rangeSummary(value.offerMin, value.offerMax, format);
   if (offer) parts.push(`Min offer ${offer}`);
+  const floor = rangeSummary(value.floorMin, value.floorMax, format);
+  if (floor) parts.push(`Floor ${floor}`);
   return parts.length ? parts.join(' · ') : null;
 }
 
@@ -199,6 +212,17 @@ function PricingMenu({
         disabled={rangesOff}
         onChange={(offerMin, offerMax) =>
           onChange({ ...value, offerMin, offerMax })
+        }
+        currency={currency}
+      />
+      <RangeInputs
+        label="floor price"
+        title="Floor price"
+        min={value.floorMin}
+        max={value.floorMax}
+        disabled={rangesOff}
+        onChange={(floorMin, floorMax) =>
+          onChange({ ...value, floorMin, floorMax })
         }
         currency={currency}
       />

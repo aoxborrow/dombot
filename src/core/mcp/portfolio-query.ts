@@ -63,12 +63,14 @@ export interface QueryArgs {
   /** Only names whose asking price has any of these (as the Domains Pricing
    *  filter). */
   askingPrice?: AskingKind[];
-  /** BIN price and minimum offer bounds, whole amounts. A bound needs the
+  /** BIN price, minimum offer and floor bounds, whole amounts. A bound needs the
    *  name to have that amount. */
   binMin?: number;
   binMax?: number;
   minOfferMin?: number;
   minOfferMax?: number;
+  floorMin?: number;
+  floorMax?: number;
   /** The bounds only match prices in this currency. */
   priceCurrency?: string;
   autoRenew?: boolean;
@@ -305,6 +307,7 @@ export function queryPortfolio(
     kinds: args.askingPrice,
     bin: { min: args.binMin ?? null, max: args.binMax ?? null },
     minOffer: { min: args.minOfferMin ?? null, max: args.minOfferMax ?? null },
+    floor: { min: args.floorMin ?? null, max: args.floorMax ?? null },
     currency: args.priceCurrency?.toUpperCase(),
   };
   const askingSet = !!args.askingPrice?.length || hasAskingRange(asking);

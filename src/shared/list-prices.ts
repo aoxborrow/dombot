@@ -100,17 +100,17 @@ export function sameListPrice(
 }
 
 // The Pricing filter (Domains and portfolio_query): which part of an asking
-// price a name has, and ranges on its BIN price and minimum offer. "For sale"
-// isn't stored; it's a BIN price or a minimum offer. A floor alone isn't
-// shown to buyers, so it doesn't count.
+// price a name has, and ranges on its BIN price, minimum offer and floor.
+// "For sale" isn't stored; it's any of the three.
 
-/** What a name's asking price holds. `none`: no BIN price or minimum offer. */
-export type AskingKind = 'forSale' | 'bin' | 'minOffer' | 'none';
+/** What a name's asking price holds. `none`: no amount at all. */
+export type AskingKind = 'forSale' | 'bin' | 'minOffer' | 'floor' | 'none';
 
 export const ASKING_KINDS: readonly AskingKind[] = [
   'forSale',
   'bin',
   'minOffer',
+  'floor',
   'none',
 ];
 
@@ -125,6 +125,7 @@ export interface AskingFilter {
   kinds?: readonly AskingKind[];
   bin?: AmountRange;
   minOffer?: AmountRange;
+  floor?: AmountRange;
   /** Ranges only match prices in this currency (amounts aren't converted). */
   currency?: string;
 }
@@ -139,15 +140,18 @@ export function hasAskingKind(
 ): boolean {
   const bin = set(price?.amount);
   const offer = set(price?.minOffer);
+  const floor = set(price?.floor);
   switch (kind) {
     case 'forSale':
-      return bin || offer;
+      return bin || offer || floor;
     case 'bin':
       return bin;
     case 'minOffer':
       return offer;
+    case 'floor':
+      return floor;
     case 'none':
-      return !bin && !offer;
+      return !bin && !offer && !floor;
   }
 }
 
@@ -156,7 +160,9 @@ const bounded = (r: AmountRange | undefined): r is AmountRange =>
 
 /** True when the filter sets a range. */
 export function hasAskingRange(filter: AskingFilter): boolean {
-  return bounded(filter.bin) || bounded(filter.minOffer);
+  return (
+    bounded(filter.bin) || bounded(filter.minOffer) || bounded(filter.floor)
+  );
 }
 
 /**
@@ -180,6 +186,8 @@ export function matchesAsking(
   };
   if (bounded(filter.bin) && !within(price?.amount, filter.bin)) return false;
   if (bounded(filter.minOffer) && !within(price?.minOffer, filter.minOffer))
+    return false;
+  if (bounded(filter.floor) && !within(price?.floor, filter.floor))
     return false;
   return true;
 }

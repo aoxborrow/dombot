@@ -601,15 +601,25 @@ describe('listedOn / notListedOn', () => {
 });
 
 describe('askingPrice and price ranges', () => {
-  const domains = ['bin.com', 'offer.com', 'euro.com', 'none.com'].map(
-    (domainName) => domain({ domainName }),
-  );
+  const domains = [
+    'bin.com',
+    'offer.com',
+    'euro.com',
+    'floor.com',
+    'none.com',
+  ].map((domainName) => domain({ domainName }));
   const extras: RowExtras = {
     listPrices: {
       'bin.com': { amount: '5000', currency: 'USD', updatedAt: 0 },
       'offer.com': {
         amount: null,
         minOffer: '500',
+        currency: 'USD',
+        updatedAt: 0,
+      },
+      'floor.com': {
+        amount: null,
+        floor: '200',
         currency: 'USD',
         updatedAt: 0,
       },
@@ -631,6 +641,7 @@ describe('askingPrice and price ranges', () => {
       'bin.com',
       'offer.com',
       'euro.com',
+      'floor.com',
     ]);
     expect(query({ askingPrice: ['minOffer'] })).toEqual([
       'offer.com',
@@ -647,5 +658,6 @@ describe('askingPrice and price ranges', () => {
     expect(query({ binMax: 10000 })).toEqual(['bin.com', 'euro.com']);
     expect(query({ binMax: 10000, priceCurrency: 'usd' })).toEqual(['bin.com']);
     expect(query({ minOfferMin: 600 })).toEqual(['euro.com']);
+    expect(query({ floorMax: 500 })).toEqual(['floor.com']);
   });
 });
