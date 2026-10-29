@@ -63,8 +63,9 @@ export function NameserversCell({ domain }: { domain: Domain }) {
             // -my-1 cancels the button's own py-1 so it never sets the row
             // height; -ml-1.5 (compact) likewise pulls the content back over
             // px-1.5 so it lines up with the column header, which has no button.
-            'group -my-1 inline-flex max-w-[280px] cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent compact:-ml-1.5',
+            'group -my-1 inline-flex max-w-[280px] cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors disabled:cursor-default compact:-ml-1.5',
           )}
+          data-cell-action
         >
           {pending ? (
             <Loader2 className="size-4 animate-spin text-muted-foreground" />

@@ -270,7 +270,8 @@ export function DataTable<T>({
                   )}
                 >
                   {selection && (
-                    <TableCell className="w-9 border-r-0! pl-3">
+                    // Compact rows: no 2px nudge down, or the box sits low.
+                    <TableCell className="w-9 border-r-0! pl-3 compact:[&>[role=checkbox]]:translate-y-0">
                       <Checkbox
                         checked={isSelected}
                         onMouseDown={(e) => {

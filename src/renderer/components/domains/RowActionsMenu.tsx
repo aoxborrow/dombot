@@ -146,8 +146,10 @@ export function RowActionsMenu({
           size="icon-sm"
           disabled={pending}
           aria-label={`Actions for ${domain.domainName}`}
-          title="Actions"
-          className="-my-2 w-7 text-muted-foreground hover:text-foreground compact:h-7 compact:w-6"
+          // Covers the Domain cell outside the name: the cell lights, not
+          // the button (index.css).
+          data-cell-action
+          className="-my-2 w-7 text-muted-foreground hover:bg-transparent hover:text-foreground compact:h-7 compact:w-6 dark:hover:bg-transparent"
         >
           <Ellipsis />
         </Button>

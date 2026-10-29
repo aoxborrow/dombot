@@ -471,18 +471,6 @@ export default function Activity() {
 
   const columns: DataColumn<ActivityRow>[] = [
     {
-      key: 'date',
-      label: 'Date',
-      cell: ({ event: e }) => (
-        <span
-          className="font-mono text-muted-foreground tabular-nums"
-          title={new Date(e.createdAt).toLocaleString()}
-        >
-          {e.date ?? '—'}
-        </span>
-      ),
-    },
-    {
       key: 'domain',
       label: 'Domain',
       // The row's "⋯" menu, pinned to the cell's right edge like Domains',
@@ -512,6 +500,18 @@ export default function Activity() {
             />
           </div>
         </div>
+      ),
+    },
+    {
+      key: 'date',
+      label: 'Date',
+      cell: ({ event: e }) => (
+        <span
+          className="font-mono text-muted-foreground tabular-nums"
+          title={new Date(e.createdAt).toLocaleString()}
+        >
+          {e.date ?? '—'}
+        </span>
       ),
     },
     {
@@ -1003,8 +1003,9 @@ function RowMenu({
           variant="ghost"
           size="icon-sm"
           aria-label={`Actions for ${name}`}
-          title="Actions"
-          className="-my-2 w-7 text-muted-foreground hover:text-foreground compact:h-7 compact:w-6"
+          // Covers the Domain cell: the cell lights, not the button (index.css).
+          data-cell-action
+          className="-my-2 w-7 text-muted-foreground hover:bg-transparent hover:text-foreground compact:h-7 compact:w-6 dark:hover:bg-transparent"
         >
           <Ellipsis />
         </Button>

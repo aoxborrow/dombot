@@ -343,6 +343,7 @@ function FolderCell({
         <button
           type="button"
           title="Assign folder"
+          data-cell-action
           // Vertical padding matches the table cells' so this full-cell button
           // never sets the row height.
           className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground compact:px-2 compact:py-[9px] compact:text-xs"
@@ -521,13 +522,15 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
       onCheckedChange={onToggle}
       disabled={pending || reason !== null}
       aria-label="auto-renew"
+      data-cell-action
       title={
         reason ??
         `Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`
       }
       // Unsupported ones look the same as the rest (no fade) — the not-allowed
-      // cursor and tooltip carry that.
-      className="data-[state=unchecked]:bg-flag-off disabled:opacity-100 dark:data-[state=unchecked]:bg-flag-off"
+      // cursor and tooltip carry that. The top margin centers it in a normal
+      // row (a transform would keep its click overlay to the switch).
+      className="mt-0.5 data-[state=unchecked]:bg-flag-off disabled:opacity-100 compact:mt-0 dark:data-[state=unchecked]:bg-flag-off"
     />
   );
 }
@@ -650,14 +653,14 @@ const COLUMNS: Column[] = [
           target="_blank"
           rel="noopener noreferrer"
           title={`Open https://${d.domainName} in a new window`}
-          className="group/domain inline-flex items-center font-mono hover:text-brand-600 compact:text-[13px] dark:hover:text-brand"
+          // The cell lights green on hover; the name underlines instead.
+          className="group/domain inline-flex items-center font-mono underline-offset-[3px] hover:underline compact:text-[13px]"
         >
           {/* One step up from the reduced mobile body size — the domain is
               the row's primary field. Desktop inherits the table's text-sm. */}
           {d.domainName}
           <ExternalLink
-            // Always green (not currentColor) so it never flashes grey mid-fade.
-            className="ml-1.5 size-3 shrink-0 text-brand-600 opacity-0 transition-opacity group-hover/domain:opacity-100 dark:text-brand dark:group-hover/domain:opacity-50"
+            className="ml-1.5 size-3.5 shrink-0 opacity-0 transition-opacity group-hover/domain:opacity-70"
             aria-hidden
           />
         </a>

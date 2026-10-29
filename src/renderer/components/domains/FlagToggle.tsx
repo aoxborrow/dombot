@@ -120,9 +120,10 @@ export function FlagToggle({
       aria-label={label}
       aria-pressed={value}
       onClick={needsConfirm ? undefined : apply}
+      data-cell-action
       className={cn(
-        // Same footprint and hover as the row's "⋯" ghost icon button.
-        'mx-auto -my-2 flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-accent disabled:hover:bg-transparent compact:size-7',
+        // Same footprint as the row's "⋯" ghost icon button.
+        'mx-auto -my-2 flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors compact:size-7',
         value ? 'text-brand' : 'text-flag-off',
         pending ? 'animate-pulse' : 'disabled:cursor-not-allowed',
       )}
