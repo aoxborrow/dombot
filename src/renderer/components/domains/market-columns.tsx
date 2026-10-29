@@ -15,7 +15,6 @@ import {
   CircleCheck,
   CircleDollarSign,
   CircleHelp,
-  CircleMinus,
   Clock,
   EyeOff,
   TriangleAlert,
@@ -81,7 +80,9 @@ function marketName(markets: MarketInfo[], id: string): string {
 /**
  * The icon at the left of a listing cell: one per cell, the most pressing
  * state wins (rejected, waiting, not selling, a price apart from DomBot's,
- * then all good). The tooltip has the rest.
+ * then all good). An eye-slash is visibility you control (inactive or
+ * hidden), a clock is the market's to change (pending, on hold), a red
+ * warning is refused. The tooltip has the rest.
  */
 function cellState(
   l: MarketListing,
@@ -105,7 +106,7 @@ function cellState(
     };
   if (l.status === 'inactive')
     return {
-      icon: CircleMinus,
+      icon: EyeOff,
       className: quiet,
       label: 'Inactive',
       faded: true,
@@ -128,12 +129,8 @@ function cellState(
     return { icon: EyeOff, className: quiet, label: 'Hidden', faded: true };
   if (diff)
     return {
-      // Above your price: blue. Below it (selling for less): amber.
       icon: diff > 0 ? CircleArrowUp : CircleArrowDown,
-      className:
-        diff > 0
-          ? 'text-sky-600 dark:text-sky-400'
-          : 'text-amber-600 dark:text-amber-400',
+      className: 'text-amber-600 dark:text-amber-400',
       label: diff > 0 ? 'Above your price' : 'Below your price',
       faded: false,
     };
