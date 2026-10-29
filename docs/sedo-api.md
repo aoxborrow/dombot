@@ -223,30 +223,30 @@ earnings. Sedo-only extras: `market_categories_get` and
 
 ### Concepts side by side
 
-| Concept                      | Afternic                                                | Sedo                                                              |
-| ---------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------- |
-| Auth                         | API key + secret in a header                            | partner ID + sign key + username + password in every request body |
-| Transport                    | REST, JSON                                              | SOAP, or form POST with XML back                                  |
-| Listing key                  | ACE name                                                | ACE name                                                          |
-| Buy Now price                | `buynowPrice` (USD microunits)                          | `price` with `fixedprice: 1`                                      |
-| Asking price, offers welcome | Request Price lander (`PRICE_FORM`), no shown price     | `price` with `fixedprice: 0`                                      |
-| Minimum offer                | `minbidPrice`, at least $20                             | `minprice`                                                        |
-| Floor (auto-accept)          | `floorPrice`                                            | none                                                              |
-| Currency                     | USD only                                                | EUR, USD or GBP per listing                                       |
-| Listing status               | 7 states (`ACTIVE`, `PENDING`, `FAILED_COMPLIANCE`, …)  | for sale or not; pending is "not in the list yet"                 |
-| Hidden / not for sale        | `hidden`                                                | `forsale: 0` (stays parked)                                       |
-| Lease-to-own                 | yes                                                     | no                                                                |
-| Lander / parked page         | lander type and options per listing, account defaults   | parking template, buy box, keywords per name                      |
-| Extra listing data           | Fast Transfer, registrar, offer count, GoDaddy searches | categories (up to 3), language, parking keywords                  |
-| Traffic stats                | daily views and leads, 365 days, per name or account    | daily visitors, clicks, earnings for 31 days, then monthly        |
-| Money stats                  | none                                                    | parking earnings and payouts                                      |
-| Sales                        | full history with commission, payouts, leases           | none                                                              |
-| Offers / leads               | lead counts only                                        | none                                                              |
-| Bulk writes                  | 500 per call, plus CSV jobs                             | 50 per call                                                       |
-| Bulk reads                   | 500 per page, with totals                               | 100 per page, no totals                                           |
-| Per-name batch results       | `{ code, error }` keyed by name                         | `{ domain, status, message }` list                                |
-| Account defaults             | lander and lease settings                               | none (`SetDomainSetup` can apply to all)                          |
-| Rate limit                   | 150/min, 429 with Retry-After                           | undocumented; `E11`/`E17`                                         |
+| Concept                      | Afternic                                               | Sedo                                                              |
+| ---------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------- |
+| Auth                         | API key + secret in a header                           | partner ID + sign key + username + password in every request body |
+| Transport                    | REST, JSON                                             | SOAP, or form POST with XML back                                  |
+| Listing key                  | ACE name                                               | ACE name                                                          |
+| Buy Now price                | `buynowPrice` (USD microunits)                         | `price` with `fixedprice: 1`                                      |
+| Asking price, offers welcome | Request Price lander (`PRICE_FORM`), no shown price    | `price` with `fixedprice: 0`                                      |
+| Minimum offer                | `minbidPrice`, at least $20                            | `minprice`                                                        |
+| Floor (auto-accept)          | `floorPrice`                                           | none                                                              |
+| Currency                     | USD only                                               | EUR, USD or GBP per listing                                       |
+| Listing status               | 7 states (`ACTIVE`, `PENDING`, `FAILED_COMPLIANCE`, …) | for sale or not; pending is "not in the list yet"                 |
+| Hidden / not for sale        | `hidden`                                               | `forsale: 0` (stays parked)                                       |
+| Lease-to-own                 | yes                                                    | no                                                                |
+| Lander / parked page         | lander type and options per listing, account defaults  | parking template, buy box, keywords per name                      |
+| Extra listing data           | Fast Transfer, registrar, GoDaddy searches             | categories (up to 3), language, parking keywords                  |
+| Traffic stats                | daily views and leads, 365 days, per name or account   | daily visitors, clicks, earnings for 31 days, then monthly        |
+| Money stats                  | none                                                   | parking earnings and payouts                                      |
+| Sales                        | full history with commission, payouts, leases          | none                                                              |
+| Offers / leads               | lead counts only                                       | none                                                              |
+| Bulk writes                  | 500 per call, plus CSV jobs                            | 50 per call                                                       |
+| Bulk reads                   | 500 per page, with totals                              | 100 per page, no totals                                           |
+| Per-name batch results       | `{ code, error }` keyed by name                        | `{ domain, status, message }` list                                |
+| Account defaults             | lander and lease settings                              | none (`SetDomainSetup` can apply to all)                          |
+| Rate limit                   | 150/min, 429 with Retry-After                          | undocumented; `E11`/`E17`                                         |
 
 ### What overlaps
 

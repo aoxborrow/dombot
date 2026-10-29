@@ -69,7 +69,6 @@ export function toListing(wire: WireDomain): AfternicListing {
     registrarRaw: wire.registrar ?? null,
     registrar: registrarFromAfternic(wire.registrar),
     fastTransferStatus: wire.fastTransferStatus ?? null,
-    offerCount: wire.offerCount ?? null,
     searches: wire.searches
       ? {
           total: searchCounts(wire.searches.total),

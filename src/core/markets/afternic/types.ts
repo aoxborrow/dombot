@@ -69,8 +69,6 @@ export interface AfternicListing {
   /** That registrar as a registrar-client name, when we recognize it. */
   registrar: RegistrarName | null;
   fastTransferStatus: FastTransferStatus | null;
-  /** Null when not sent, which is the usual answer for a name with none. */
-  offerCount: number | null;
   /** Null when the account doesn't get search data. */
   searches: { total: SearchCounts; unique: SearchCounts } | null;
 }

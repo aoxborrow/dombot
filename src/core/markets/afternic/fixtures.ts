@@ -57,7 +57,6 @@ export const domainWithSearches: WireDomain = {
   name: 'example.org',
   displayName: 'example.org',
   registrar: 'Dynadot, LLC',
-  offerCount: 3,
   searches: {
     total: { '30d': 120, '90d': 300, '365d': 1100 },
     unique: { '30d': 40, '90d': 95, '365d': 410 },

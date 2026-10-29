@@ -121,7 +121,6 @@ export function listingFromAfternic(
       fastTransferStatus: l.fastTransferStatus,
       registrar: l.registrar,
       registrarRaw: l.registrarRaw,
-      offerCount: l.offerCount,
       searches: l.searches,
     },
   };
