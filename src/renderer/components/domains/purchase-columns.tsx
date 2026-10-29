@@ -22,6 +22,20 @@ function recordOf(
   return purchases[toAscii(domain.domainName)];
 }
 
+/**
+ * A value you can click to edit, marked the way the filter bar marks its
+ * values: a dotted underline in the label green (FilterBar), grey on hover.
+ */
+export const EDITABLE_VALUE =
+  'underline decoration-dotted underline-offset-[3px] decoration-[color-mix(in_srgb,#42604d_55%,transparent)] group-hover:decoration-muted-foreground dark:decoration-[color-mix(in_srgb,#bacfc1_38%,transparent)]';
+
+/**
+ * An empty value you can click to fill: the dash gets a grey background on
+ * hover, like the row's ⋯ button.
+ */
+export const EDITABLE_EMPTY =
+  'inline-block rounded-md px-1.5 py-0.5 -mx-1.5 -my-0.5 text-muted-foreground group-hover:bg-accent group-hover:text-foreground dark:group-hover:bg-accent/50';
+
 /** Fills the cell, including its padding, so one click anywhere opens the editor. */
 export function PurchaseCell({
   domain,
@@ -30,6 +44,7 @@ export function PurchaseCell({
   title,
   empty = false,
   editLabel = 'Purchase details',
+  dotted = false,
   children,
 }: {
   domain: Domain;
@@ -38,6 +53,8 @@ export function PurchaseCell({
   title?: string;
   empty?: boolean;
   editLabel?: string;
+  /** The value inside carries EDITABLE_VALUE instead of a green hover. */
+  dotted?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -46,7 +63,8 @@ export function PurchaseCell({
       title={title}
       aria-label={empty ? `${editLabel} for ${domain.domainName}` : undefined}
       className={cn(
-        'block w-[calc(100%+1rem)] cursor-pointer px-2 py-3 -mx-2 -my-3 hover:text-brand compact:-my-[9px] compact:py-[9px]',
+        'group block w-[calc(100%+1rem)] cursor-pointer px-2 py-3 -mx-2 -my-3 compact:-my-[9px] compact:py-[9px]',
+        !dotted && 'hover:text-brand',
         align === 'right' ? 'text-right' : 'text-left',
         empty && 'text-muted-foreground',
       )}
@@ -194,16 +212,21 @@ export function purchaseColumns({
           align="right"
           empty={!value}
           editLabel={editLabel}
+          dotted
         >
-          {value
-            ? formatMoney(
+          {value ? (
+            <span className={EDITABLE_VALUE}>
+              {formatMoney(
                 value,
                 p!.currency,
                 preferredCurrency,
                 numberFormat,
                 true,
-              )
-            : '—'}
+              )}
+            </span>
+          ) : (
+            <span className={EDITABLE_EMPTY}>—</span>
+          )}
         </PurchaseCell>
       );
     },

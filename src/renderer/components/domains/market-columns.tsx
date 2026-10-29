@@ -21,7 +21,12 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PurchaseCell, type PurchaseColumn } from './purchase-columns';
+import {
+  EDITABLE_EMPTY,
+  EDITABLE_VALUE,
+  PurchaseCell,
+  type PurchaseColumn,
+} from './purchase-columns';
 
 // Domains table columns and the Listing filter for names on marketplaces
 // (docs/markets.md). Built from the shared market shapes, so a new market
@@ -225,7 +230,8 @@ export function marketColumns({
     const on = (d: Domain) => of(d).find((l) => l.market === market);
     const listingCell = (d: Domain) => {
       const l = on(d);
-      if (!l) return dash;
+      if (!l)
+        return onEditListing ? <span className={EDITABLE_EMPTY}>—</span> : dash;
       // Compare with the asking price you set in DomBot.
       const mine = listPrices[toAscii(d.domainName)];
       const diff =
@@ -248,12 +254,18 @@ export function marketColumns({
         >
           <Icon
             aria-label={state.label}
-            className={cn('size-4 shrink-0', state.className)}
+            className={cn(
+              'size-4 shrink-0',
+              state.className,
+              // Grey icons dim with their price; red stays red.
+              state.faded && l.status !== 'rejected' && 'opacity-50',
+            )}
             strokeWidth={1.75}
           />
           <span
             className={cn(
               'text-[13px] text-muted-foreground tabular-nums',
+              EDITABLE_VALUE,
               state.faded && 'opacity-50',
             )}
           >
@@ -277,6 +289,7 @@ export function marketColumns({
             align="right"
             empty={!on(d)}
             editLabel={`${marketName(markets, market)} listing`}
+            dotted
           >
             {cell}
           </PurchaseCell>
