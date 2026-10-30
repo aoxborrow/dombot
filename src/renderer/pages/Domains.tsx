@@ -1239,6 +1239,13 @@ export default function Domains() {
     () => [...portfolio, ...importedList],
     [portfolio, importedList],
   );
+  const ownedNames = useMemo(
+    () =>
+      new Set(
+        ownedRows.filter((d) => !d.departed).map((d) => toAscii(d.domainName)),
+      ),
+    [ownedRows],
+  );
   const tldOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const d of ownedRows) {
@@ -2192,6 +2199,7 @@ export default function Domains() {
         {!archiveView && (marketsOn || saleRecords.length > 0) && (
           <DomainsSummary
             listings={marketListings}
+            owned={ownedNames}
             sales={saleRecords}
             accountDays={marketTraffic.accountDays}
             preferredCurrency={settings?.preferredCurrency ?? DEFAULT_CURRENCY}
