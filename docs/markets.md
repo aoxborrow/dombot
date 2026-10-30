@@ -348,8 +348,7 @@ saved, so the Domains table shows it before the next sync.
   when rejected, and a grey icon when sold or unknown. A price that isn't
   live is faded. The tooltip has
   the detail. A name can only be in one account per market, so each cell holds
-  one listing. A table with every market side by side may follow on the
-  Markets page.
+  one listing.
 - **A click on a listing cell edits that listing** on that market (or lists
   the name there, starting from its DomBot asking price). The editor shows
   only the fields the market has, read from its capabilities: a Buy Now
@@ -379,6 +378,54 @@ saved, so the Domains table shows it before the next sync.
   names.
 - Both sit directly beside Pricing in the row menu and the bulk bar; a
   Markets submenu returns when these menus are split into submenus.
+
+- **Views, Leads and Searches over 12 months** (hidden at first; the
+  Columns picker shows them), sortable, Leads breaking ties on Views: the
+  names buyers look at most. Views and leads add every market up
+  (`getMarketTraffic().domains`); Searches are GoDaddy's, sent only to
+  Discount Domain Club Domain Pro members, as its header's note says.
+- **Summary cards** above the Owned table, once a market account is
+  connected or any sale exists (hidden on phones): Listed (sets the Markets
+  filter), Sold and Net over 12 months (open the Sales tab; every sale, not
+  only market ones), Views over 30 days. Domains reads the Markets and
+  Pricing filters from its URL (`src/renderer/lib/domains-link.ts`), so other
+  pages link to a filtered table.
+
+## Sales tab
+
+The Sales tab replaced the Markets page (docs/sales-tab.md); `/markets`
+redirects to it. It reads sale records (`src/shared/sales.ts`), one per
+sale from every source:
+
+- `sold` events, yours, imported, or market sync's; market sales joined
+  through the event's `marketSale` for commission, net, payout and the
+  next step; and market sales no event records yet (under way, cancelled,
+  or ones sync left unrecorded, like a sale before a buyback).
+- The acquisition (`registered` or `purchased`) before each sale for cost
+  and holding period, so a buyback starts a new holding. Drops, archives
+  and Owned / Archive labels play no part.
+- A recent sale of a name an account still holds is a sale awaiting
+  transfer, not an error.
+- Fees on a sale you record (the sale dialog, `domain_sale_set`): blank is
+  unknown, 0 none. Net is price less fees, or the market's net. A cost
+  counts only in the sale's currency; amounts are never converted or added
+  across currencies, and partial totals say how many sales they cover.
+
+**Overview:** Needs attention (sales waiting on you, with Send auth code;
+rejected listings and ones pending over a week; prices below yours; past
+three names, a grouped row into Domains with the Markets filter set; priced
+names not listed on each market), the year's sold, gross, net and average,
+sell-through over 12 months, views over 30 days, and sales by month. The
+bell's sale alert links here.
+
+**Sales:** one row per sale, under way first; filters on the sale date
+(a bounded range leaves undated sales out and says how many), where and
+currency; totals by year, market, TLD or registrar; CSV export; a row menu
+for the name's history, Edit sale (that sale, even an earlier one) and the
+market.
+
+Sell-through is `sellThrough` (`src/shared/market-reports.ts`) over every
+sale: names sold in 12 months over names listed now plus those sold.
 
 ## Settings → Markets
 

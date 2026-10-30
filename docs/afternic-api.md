@@ -448,8 +448,8 @@ job.
 6. **DomBot, reporting:** per-domain views and leads fetched a slice per
    sync (300 names on desktop, 40 on the web host), weekly search-count
    snapshots, a Markets page (traffic by month, top names with searches
-   for Domain Pro accounts, sales by year, sell-through),
-   Views/Leads/Searches columns, and the `market_traffic` and
+   for Domain Pro accounts, sales by year, sell-through; since replaced by
+   the Sales tab, docs/sales-tab.md), Views/Leads/Searches columns, and the `market_traffic` and
    `market_report_get` tools. Done.
 
 ## Open questions

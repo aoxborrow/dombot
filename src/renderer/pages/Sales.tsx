@@ -240,8 +240,7 @@ export default function Sales() {
         return registrarName(r) || 'Unknown';
       }).sort((a, b) =>
         breakdown === 'year'
-          ? b.label.localeCompare(a.label) ||
-            a.currency.localeCompare(b.currency)
+          ? b.label.localeCompare(a.label) || b.sold - a.sold
           : 0,
       ),
     // The labels read the catalog and registrars.
@@ -422,8 +421,8 @@ export default function Sales() {
               : undefined
           }
         >
-          {money(r.fees, r.currency) ?? '—'}
-          {r.feesEstimated && '*'}
+          {r.status === 'cancelled' ? '—' : (money(r.fees, r.currency) ?? '—')}
+          {r.feesEstimated && r.status !== 'cancelled' && '*'}
         </span>
       ),
     },

@@ -1,5 +1,11 @@
 # Sales tab
 
+Built 2026-10-29 in five stacked PRs (Domains columns and cards, sale
+records, the Sales view, the overview, demo and docs); docs/markets.md,
+"Sales tab", describes what shipped. Open questions 1–3 were settled as:
+the tab shows with an empty state; sell-through keeps names listed as its
+denominator; the Domains cards hide on phones.
+
 Plan (2026-10-29) to replace the Markets tab with a **Sales** tab, move
 per-name interest into the Domains table, and give Domains a few summary
 cards. Builds on the market work in PR #207 (docs/markets.md) and takes the
