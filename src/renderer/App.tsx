@@ -10,7 +10,7 @@ import {
   CalendarClock,
   Globe,
   History,
-  BadgeDollarSign,
+  Receipt,
   Menu,
   RefreshCw,
   Settings as SettingsIcon,
@@ -250,7 +250,7 @@ export default function App() {
 const NAV_ITEMS = [
   { to: '/', label: 'Domains', icon: Globe },
   { to: '/renewals', label: 'Renewals', icon: CalendarClock },
-  { to: '/sales', label: 'Sales', icon: BadgeDollarSign },
+  { to: '/sales', label: 'Sales', icon: Receipt },
   { to: '/activity', label: 'Activity', icon: History },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ] as const;
