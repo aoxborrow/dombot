@@ -254,8 +254,15 @@ export function DataTable<T>({
               })}
             </TableRow>
           </TableHeader>
-          {/* The last row keeps its border: short tables don't fill the area. */}
-          <TableBody className="[&_tr:last-child]:border-b!">
+          {/* The last row keeps its border: short tables don't fill the area.
+              The empty-state row doesn't: it isn't a row of data. */}
+          <TableBody
+            className={cn(
+              visible.length > 0
+                ? '[&_tr:last-child]:border-b!'
+                : '[&_tr:last-child]:border-b-0',
+            )}
+          >
             {visible.map((row) => {
               const key = rowKey(row);
               const isSelected = !!selection?.selected.has(key);

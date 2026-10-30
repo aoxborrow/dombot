@@ -109,6 +109,7 @@ export function DomainsSummary({
         icon={BadgeDollarSign}
         accentClass="text-violet-500"
         label="Sold, last 12 months"
+        to="/sales"
         value={through.sold.toLocaleString()}
         hint={
           through.rate === null
@@ -121,6 +122,7 @@ export function DomainsSummary({
         icon={CircleDollarSign}
         accentClass="text-brand-500"
         label="Net, last 12 months"
+        to="/sales"
         // Net is unknown until a sale's fees are.
         value={main?.netCount ? money(main.net) : '—'}
         hint={

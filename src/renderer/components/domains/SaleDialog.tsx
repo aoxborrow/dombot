@@ -27,8 +27,9 @@ import {
 
 /**
  * Sale date, sale amount, fees, and the shared notes for one name.
- * `edit` updates a name that is already Sold. `mark` files it in Sold only
- * when the user saves. Closing without that button leaves the name where it was.
+ * `edit` updates a name that is already Sold, and Undo sale deletes the sale.
+ * `mark` records it only when the user saves. Closing without that button
+ * leaves the name where it was.
  */
 export function SaleDialog({
   domain,
@@ -39,7 +40,9 @@ export function SaleDialog({
   onClose,
 }: {
   /** A name, or just its name when it's no longer in the portfolio. */
-  domain: Pick<Domain, 'domainName'>;
+  // The Sales tab edits a sale by name alone; marking needs the rest.
+  domain: Pick<Domain, 'domainName'> &
+    Partial<Pick<Domain, 'departed' | 'source'>>;
   mode?: 'edit' | 'mark';
   /** The `sold` event to edit (the Sales tab's rows); default the latest. */
   eventId?: string;
@@ -131,6 +134,25 @@ export function SaleDialog({
     }
   }
 
+  // Blank date and amount delete the sale; the note and purchase stay.
+  async function undo() {
+    setError(null);
+    setSaving(true);
+    try {
+      await saveSale({
+        domainName: domain.domainName,
+        saleDate: null,
+        amount: null,
+        currency: null,
+        notes,
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not undo.');
+      setSaving(false);
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-md">
@@ -141,7 +163,9 @@ export function SaleDialog({
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
             {mode === 'mark'
-              ? 'Moves to Archive as Sold. Nothing changes at the registrar.'
+              ? domain.departed || domain.source === 'imported'
+                ? 'Moves to Archive as Sold. Nothing changes at the registrar.'
+                : 'Shows as Sold until the buyer takes it, then moves to Archive. Nothing changes at the registrar.'
               : 'What you sold it for and when, and what the sale cost you.'}
           </p>
           <div className="flex flex-col gap-2">
@@ -202,6 +226,20 @@ export function SaleDialog({
           )}
         </div>
         <DialogFooter>
+          {/* Edit opens on a sale on record (one an import wrote may have no
+              date or amount). */}
+          {mode === 'edit' && !resolves && (
+            <Button
+              type="button"
+              variant="outline"
+              // Red outline at rest, filled on hover with the destructive buttons' red.
+              className="border-destructive/60 text-destructive hover:bg-destructive hover:text-white sm:mr-auto dark:border-destructive/60 dark:bg-transparent dark:hover:bg-destructive/60"
+              disabled={saving}
+              onClick={() => void undo()}
+            >
+              Undo sale
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"

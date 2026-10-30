@@ -1,10 +1,20 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import type { Folder, FolderColor, FolderInput } from '../../../shared/ipc';
+import type {
+  Domain,
+  Folder,
+  FolderColor,
+  FolderInput,
+} from '../../../shared/ipc';
 import { FOLDER_COLORS } from '../../../shared/ipc';
 import { importedRows } from '../../../shared/imported-domains';
-import { archiveRows, ownershipByDomain } from '../../../shared/ownership';
+import {
+  archiveRows,
+  ownershipByDomain,
+  standingOf,
+} from '../../../shared/ownership';
+import { toAscii } from '../../../shared/domain-name';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -41,6 +51,7 @@ export default function FoldersSettings() {
   const importedDomains = useAppStore((s) => s.importedDomains);
   const domainEvents = useAppStore((s) => s.domainEvents);
   const registrars = useAppStore((s) => s.registrars);
+  const lookups = useAppStore((s) => s.registrationLookups);
   const createFolder = useAppStore((s) => s.createFolder);
   const updateFolder = useAppStore((s) => s.updateFolder);
   const deleteFolder = useAppStore((s) => s.deleteFolder);
@@ -55,12 +66,18 @@ export default function FoldersSettings() {
     const ownership = ownershipByDomain(domainEvents);
     const live = [...portfolio, ...importedRows(importedDomains, portfolio)];
     const rows = [...live, ...archiveRows(ownership, live, registrars)];
-    return countFolders(rows, ownership, assignments, folders);
+    const archived = (d: Domain) => {
+      const key = toAscii(d.domainName);
+      return standingOf(d, ownership.get(key), lookups[key]?.registered)
+        .archived;
+    };
+    return countFolders(rows, archived, assignments, folders);
   }, [
     portfolio,
     importedDomains,
     domainEvents,
     registrars,
+    lookups,
     assignments,
     folders,
   ]);

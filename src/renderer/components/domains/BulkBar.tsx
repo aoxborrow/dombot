@@ -1,5 +1,4 @@
 import {
-  Archive,
   CalendarPlus,
   ChevronDown,
   EyeOff,
@@ -10,12 +9,10 @@ import {
   Loader2,
   Lock,
   Mail,
-  OctagonMinus,
   Receipt,
   RefreshCw,
   Server,
   Trash2,
-  Undo2,
   X,
   CircleX,
 } from 'lucide-react';
@@ -41,8 +38,7 @@ import { CashIcon } from '../icons/CashIcon';
 import type { MarketAction } from './MarketActionDialog';
 
 /** Ownership actions on the selection, each opening its dialog. */
-export type OwnershipAction =
-  'sold' | 'dropped' | 'archived' | 'restore' | 'delete';
+export type OwnershipAction = 'sold' | 'delete';
 
 /**
  * The contextual bar above the table once rows are selected: the selection
@@ -83,7 +79,7 @@ export function BulkBar({
   /** Open the bulk dialog for an op kind (its value is chosen there). */
   onKind: (kind: DomainOpKind) => void;
   onViewJob: () => void;
-  /** Archive adds Move back to Owned (for names an account still holds). */
+  /** Archive offers only the actions that don't need an account. */
   archiveView: boolean;
   onOwnership: (action: OwnershipAction) => void;
   /** Set or clear the selection's asking price. */
@@ -101,9 +97,10 @@ export function BulkBar({
   const running = bulk?.status === 'running';
 
   const registrarCount = new Set(domains.map((d) => d.registrar)).size;
-  // Archive offers only the ownership states, Export, and Delete: to act on a
-  // name at its registrar, move it back to Owned first.
-  const held = domains.filter((d) => !d.departed).length;
+  // Delete applies only to names no connected account holds.
+  const removable = domains.filter(
+    (d) => d.departed || d.source === 'imported',
+  ).length;
 
   if (domains.length === 0 && !running) return null;
 
@@ -298,33 +295,24 @@ export function BulkBar({
               <Receipt className="text-muted-foreground" />
               Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onOwnership('dropped')}>
-              <OctagonMinus className="text-muted-foreground" />
-              Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            {/* Archive puts a name you own away without a reason; a name
-                already in Archive has nothing to gain from it. */}
-            {!archiveView && (
-              <DropdownMenuItem onSelect={() => onOwnership('archived')}>
-                <Archive className="text-muted-foreground" />
-                Archive<span className="-ml-[6px] opacity-50">…</span>
-              </DropdownMenuItem>
+            {removable > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => onOwnership('delete')}
+                >
+                  <Trash2 />
+                  Delete
+                  <span className="-ml-[6px] opacity-50">…</span>
+                  {removable < domains.length && (
+                    <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                      {removable} of {domains.length}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              </>
             )}
-            {archiveView && held > 0 && (
-              <DropdownMenuItem onSelect={() => onOwnership('restore')}>
-                <Undo2 className="text-muted-foreground" />
-                Move back to Owned
-                <span className="-ml-[6px] opacity-50">…</span>
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              onSelect={() => onOwnership('delete')}
-            >
-              <Trash2 />
-              Delete<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )}
