@@ -329,7 +329,13 @@ export function marketColumns({
     // Interest over the last 12 months: sort by Leads, then Views, for the
     // names buyers look at most.
     count('views', 'Views', (d) => traffic[toAscii(d.domainName)]?.views365),
-    count('leads', 'Leads', (d) => traffic[toAscii(d.domainName)]?.leads365),
+    count(
+      'leads',
+      'Leads',
+      (d) => traffic[toAscii(d.domainName)]?.leads365,
+      undefined,
+      (d) => traffic[toAscii(d.domainName)]?.views365,
+    ),
     count(
       'searches',
       'Searches',
