@@ -160,7 +160,7 @@ export function StatCard({
  */
 export function StatCardRow({
   children,
-  note = 'Reflects the current filters.',
+  note = 'Totals for the table below.',
 }: {
   children: ReactNode;
   note?: ReactNode;

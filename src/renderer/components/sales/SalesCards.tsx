@@ -82,7 +82,7 @@ export function SalesCards({
     <StatCardRow
       note={
         <>
-          Reflects the current filters, in {c ?? 'one currency'}.
+          Totals for the table below, in {c ?? 'one currency'}.
           {others.length > 0 &&
             ` ${others
               .map((o) => `${plural(o.count, 'sale')} in ${o.currency}`)
