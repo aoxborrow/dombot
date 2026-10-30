@@ -68,6 +68,38 @@ export function toCurrencyCode(value: string): CurrencyCode | null {
   return isCurrencyCode(code) ? code : null;
 }
 
+export type RateCurrency = (typeof RATE_CURRENCIES)[number];
+
+/** True when `value` is one of the 30 currencies you can enter. */
+export function isRateCurrency(value: unknown): value is RateCurrency {
+  return (
+    typeof value === 'string' &&
+    (RATE_CURRENCIES as readonly string[]).includes(value)
+  );
+}
+
+/** The error for a currency you can't enter. */
+export function notConvertible(code: string): string {
+  return `DomBot can't convert ${code}. Choose one of the 30 currencies it converts, such as USD, EUR or GBP.`;
+}
+
+/**
+ * A currency typed into a form, the API or MCP: one of the 30, or `kept`
+ * (the currency the record already has) left as it was, so editing an older
+ * record doesn't force a new currency. Null when blank; throws otherwise.
+ */
+export function toEntryCurrency(
+  value: string | null | undefined,
+  kept?: string | null,
+): CurrencyCode | null {
+  if (!value?.trim()) return null;
+  const code = toCurrencyCode(value);
+  if (!code) throw new Error(`Unknown currency ${value.trim().toUpperCase()}.`);
+  if (!isRateCurrency(code) && code !== kept)
+    throw new Error(notConvertible(code));
+  return code;
+}
+
 /** How many decimal places an amount in this currency carries. */
 export function currencyDecimals(code: CurrencyCode): number {
   return CURRENCIES[code];

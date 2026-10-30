@@ -6,6 +6,7 @@ import {
   currencyDecimals,
   isCurrencyCode,
   toCurrencyCode,
+  toEntryCurrency,
 } from './currencies';
 import { currencyInfo, parseCanonicalAmount } from './money';
 
@@ -29,6 +30,16 @@ describe('currencies', () => {
     expect(currencyInfo('XAU')).toBeNull();
     expect(parseCanonicalAmount('1500', 'JPY')).toBe('1500');
     expect(() => parseCanonicalAmount('1.5', 'JPY')).toThrow(/no decimal/);
+  });
+
+  it('enters one of the 30, or a record’s own currency left as it was', () => {
+    expect(toEntryCurrency(' eur ')).toBe('EUR');
+    expect(toEntryCurrency('')).toBeNull();
+    expect(toEntryCurrency(null)).toBeNull();
+    expect(() => toEntryCurrency('nope')).toThrow('Unknown currency NOPE.');
+    expect(() => toEntryCurrency('TWD')).toThrow("DomBot can't convert TWD.");
+    expect(() => toEntryCurrency('TWD', 'KES')).toThrow(/convert TWD/);
+    expect(toEntryCurrency('twd', 'TWD')).toBe('TWD');
   });
 
   it('picks from the 30 the ECB quotes, all of them stored codes', () => {

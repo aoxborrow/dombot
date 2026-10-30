@@ -78,10 +78,6 @@ export function currencyInfo(code: string): CurrencyInfo | null {
   return currencies().find((c) => c.code === upper) ?? null;
 }
 
-export function isIsoCurrency(code: unknown): code is string {
-  return typeof code === 'string' && currencyInfo(code) !== null;
-}
-
 export function isNumberFormatId(id: unknown): id is NumberFormatId {
   return typeof id === 'string' && NUMBER_FORMATS.some((f) => f.id === id);
 }

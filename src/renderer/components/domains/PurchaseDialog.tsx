@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isRateCurrency } from '../../../shared/currencies';
 import { toAscii } from '../../../shared/domain-name';
 import type { Domain, RegistrarName } from '../../../shared/ipc';
 import {
@@ -109,12 +110,18 @@ export function PurchaseDialog({
       );
       setDate(day);
       setRegistered(true);
+      const name =
+        registrars?.find((r) => r.name === domain.registrar)?.displayName ??
+        'This registrar';
       if (!quote.amount) {
-        const name =
-          registrars?.find((r) => r.name === domain.registrar)?.displayName ??
-          'This registrar';
         setFeeNote(
           `${name} doesn't report a registration fee. The date is filled in. Type the amount you paid.`,
+        );
+        return;
+      }
+      if (!isRateCurrency(quote.currency) && quote.currency !== currency) {
+        setFeeNote(
+          `${name} quotes the fee in ${quote.currency}, which DomBot can't convert. The date is filled in. Type the amount you paid.`,
         );
         return;
       }

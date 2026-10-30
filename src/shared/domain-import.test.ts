@@ -395,6 +395,23 @@ describe('rows', () => {
     ]);
   });
 
+  it('refuses a row in a currency DomBot can’t convert', () => {
+    const r = run(
+      [
+        'Domain,Purchase amount,Currency',
+        'example.com,10,TWD',
+        'example.net,10,USD',
+      ].join('\n'),
+    );
+    expect(r.rows.map((x) => x.domain)).toEqual(['example.net']);
+    expect(r.issues.map((i) => [i.line, i.message])).toEqual([
+      [
+        2,
+        "Purchase amount: DomBot can't convert TWD. Choose one of the 30 currencies it converts, such as USD, EUR or GBP.",
+      ],
+    ]);
+  });
+
   it('refuses an amount whose currency disagrees with its column', () => {
     const r = run(
       ['Domain,Purchase amount,Purchase currency', 'example.com,€5,USD'].join(

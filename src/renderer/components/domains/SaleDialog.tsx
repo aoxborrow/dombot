@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isRateCurrency } from '../../../shared/currencies';
 import { toAscii } from '../../../shared/domain-name';
 import type { Domain } from '../../../shared/ipc';
 import {
@@ -67,8 +68,10 @@ export function SaleDialog({
         )
       : '',
   );
+  // A new sale starts in the purchase's currency, when it's one of the 30.
+  const bought = existing?.currency;
   const [currency, setCurrency] = useState(
-    sale?.saleCurrency ?? existing?.currency ?? preferred,
+    sale?.saleCurrency ?? (isRateCurrency(bought) ? bought : preferred),
   );
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [error, setError] = useState<string | null>(null);

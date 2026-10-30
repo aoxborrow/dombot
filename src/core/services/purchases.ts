@@ -3,7 +3,7 @@ import type {
   PurchaseInput,
   SaleInput,
 } from '../../shared/ipc';
-import { toCurrencyCode, type CurrencyCode } from '../../shared/currencies';
+import { toEntryCurrency, type CurrencyCode } from '../../shared/currencies';
 import { assertDomainName } from '../../shared/domain-name';
 import {
   ACQUISITION_TYPES,
@@ -105,14 +105,13 @@ function purchaseOf(domain: string): DomainPurchase | null {
   return summaryOf(holdings().get(domain), nameNotes()[domain]);
 }
 
+/** `kept`: the edited record's currency, which may stay outside the 30. */
 function parseAmount(
   raw: string | null | undefined,
   currencyRaw: string | null | undefined,
+  kept: string | null | undefined,
 ): { amount: string | null; currency: CurrencyCode | null } {
-  const code = currencyRaw?.trim() ? toCurrencyCode(currencyRaw) : null;
-  if (currencyRaw?.trim() && !code) {
-    throw new Error(`Unknown currency ${currencyRaw.trim().toUpperCase()}.`);
-  }
+  const code = toEntryCurrency(currencyRaw, kept);
   const rawAmount = (raw ?? '').trim();
   if (!rawAmount) return { amount: null, currency: null };
   if (!code) throw new Error('Choose a currency for the amount.');
@@ -154,7 +153,6 @@ export function setPurchase(
 ): DomainPurchase | null {
   const domain = assertDomainName(input.domainName);
   const date = parsePurchaseDate(input.purchaseDate ?? '');
-  const { amount, currency } = parseAmount(input.amount, input.currency);
   // Answering an arrival alert records a new holding, unless a purchase was
   // already recorded since the name arrived (an import, or the Domains row):
   // then it edits that one instead of adding a second. Otherwise edit the
@@ -165,6 +163,11 @@ export function setPurchase(
       ? latest
       : undefined
     : latest;
+  const { amount, currency } = parseAmount(
+    input.amount,
+    input.currency,
+    existing?.currency,
+  );
   const type =
     input.kind === 'registered'
       ? DomainEventType.Registered
@@ -209,16 +212,20 @@ export function setSale(
 ): DomainPurchase | null {
   const domain = assertDomainName(input.domainName);
   const typed = parsePurchaseDate(input.saleDate ?? '', 'Sale date');
-  const { amount, currency } = parseAmount(input.amount, input.currency);
-  // Marking a name Sold always records the sale, dated today if you left it blank.
-  const date = typed ?? (input.mark && !amount ? localDay() : null);
   // Marking Sold, or answering an alert, records a new sale: a name that was
   // sold, left, and came back keeps its earlier sale as history. Marking
   // replaces the sale you'd recorded (see replaceLabel).
-  const replaced = input.mark ? replaceLabel(domain) : undefined;
-  const resolves = input.resolves ?? replaced?.resolves;
   const existing =
     input.mark || input.resolves ? undefined : holdings().get(domain)?.sale;
+  const { amount, currency } = parseAmount(
+    input.amount,
+    input.currency,
+    existing?.currency,
+  );
+  // Marking a name Sold always records the sale, dated today if you left it blank.
+  const date = typed ?? (input.mark && !amount ? localDay() : null);
+  const replaced = input.mark ? replaceLabel(domain) : undefined;
+  const resolves = input.resolves ?? replaced?.resolves;
   const next = upsert(
     existing,
     { domain, type: DomainEventType.Sold, source, date, amount, currency },

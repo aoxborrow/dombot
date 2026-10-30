@@ -928,6 +928,17 @@ describe('getRegistrationQuote', () => {
     });
   });
 
+  it('returns no fee, not dollars, for a currency code it doesn’t know', async () => {
+    clientMethods.getPricing.mockResolvedValue({
+      tld: 'green',
+      currency: 'XYZ',
+      registration: 4.5,
+    });
+    await expect(
+      getRegistrationQuote('dynadot', 'backyard.green'),
+    ).resolves.toEqual({ amount: null, currency: 'USD' });
+  });
+
   it('returns the registration fee when the registrar quotes one', async () => {
     clientMethods.getPricing.mockResolvedValue({
       tld: 'green',

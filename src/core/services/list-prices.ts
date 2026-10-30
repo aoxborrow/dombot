@@ -34,7 +34,7 @@ export function setListPrices(inputs: ListPriceInput[]): void {
     const key = assertDomainName(input.domainName);
     let next: ListPrice | null;
     try {
-      next = toListPrice(input, now);
+      next = toListPrice(input, now, { kept: prices.get(key)?.currency });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Invalid price.';
       throw new Error(

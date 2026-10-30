@@ -43,9 +43,9 @@ Two lists in `src/shared/currencies.ts`:
 - **`RATE_CURRENCIES`** (new): the 30. Everything you enter is checked
   against it.
 
-Limited to the 30:
+Limited to the 30 (built):
 
-- The currency dropdown (done in this PR): a plain list of code and name,
+- The currency dropdown: a plain list of code and name,
   no search or symbols, with USD, EUR, GBP, CNY, JPY first. Beside an amount
   it sits inside the field (`MoneyInput`'s `onCurrencyChange`), so amount and
   currency take one row in Purchase details, Mark as Sold, Pricing, the
@@ -53,14 +53,19 @@ Limited to the 30:
   (Sedo: EUR, USD, GBP; Afternic and Atom show none). Settings and the
   import's default use it on its own (`CurrencyPicker`). A record already in
   another currency shows it at the end of the list.
-- The API and MCP inputs (`src/core/api/schemas.ts`): purchases, sales,
-  asking prices, and the manual renewal price, which is free text today
-  (`renewalPriceInput`).
-- CSV import (`readCurrency` in `src/shared/import-values.ts`): a row in
-  another currency is an issue in the import report, "TWD isn't one of the
-  currencies DomBot converts", and isn't imported. A bare `$` still reads as
-  your preferred currency when it's a dollar.
-- Preferred currency (`src/core/services/settings.ts`).
+- Purchases, sales, asking prices and manual renewal prices, from the app,
+  the API and MCP: the services check with `toEntryCurrency`
+  (`src/shared/currencies.ts`), "DomBot can't convert TWD. Choose one of the
+  30 currencies it converts, such as USD, EUR or GBP." MCP's currency
+  parameters say so too.
+- CSV import (`readRow` in `src/shared/domain-import.ts`): a row with an
+  amount in another currency is an issue in the import report, with the same
+  reason, and isn't imported. The import API's row schema refuses one too.
+- Preferred currency (`src/core/services/settings.ts`): one saved outside the
+  30 reads as USD.
+- Dialog defaults: Mark as Sold starts in the purchase's currency only when
+  it's one of the 30, and Just Registered doesn't fill a fee quoted outside
+  them.
 
 Not limited, because they aren't entered here:
 
@@ -69,19 +74,24 @@ Not limited, because they aren't entered here:
 
 **Editing a record you already have:** a currency left as it was saves, even
 outside the 30, so fixing a date or a note doesn't make you change the
-currency. Choosing a new one must be one of the 30.
+currency. Choosing a new one must be one of the 30. "Left as it was" means
+the record being edited: the purchase, sale, asking price or renewal price
+the save replaces.
 
 ### Amounts already in other currencies
 
 Few installs will have any, but DomBot tells you when it finds them:
 
-- **A bell item (Info)**: "5 amounts are in currencies DomBot can't
-  convert", counted across purchases, sales, renewal prices and asking
-  prices. It opens a list of each one (name, what it is, the amount) with a
-  link to edit it. Dismissing it hides it until the count goes up.
-- **A preferred currency outside the 30** reads as USD, as an invalid one does
-  today, and the same bell item names it: "Your preferred currency was TWD,
-  which DomBot can't convert to. It's now USD."
+- **A bell row**: "3 amounts in currencies DomBot can't convert", counted
+  across purchases, sales, asking prices and manual renewal prices, one per
+  name and kind (`src/shared/unconvertible.ts`). It opens to a list of each
+  (name, what it is, the currency). A purchase or sale links to the name's
+  Activity, whose menu edits it; an asking or renewal price to its Domains
+  row. It counts once toward the badge, gray when it's all there is.
+  Dismissing it remembers the count on that device and hides it until there
+  are more.
+- **A preferred currency outside the 30** reads as USD, with no note: it's a
+  setting, not a record, and the Settings field shows USD.
 - Those amounts are kept and shown in their own currency. Totals leave them
   out and say so (see [Converting](#converting)).
 
@@ -114,10 +124,9 @@ Markets: Afternic and Atom are USD only, Sedo EUR, USD or GBP
 (`SEDO_CURRENCIES`).
 
 **A code outside the 30 from sync** is kept and shown in its own currency,
-and left out of converted totals, like any other. One fix on the way:
-`getRegistrationQuote` (`src/core/services/registrars.ts`) turns a code it
-doesn't know into USD, which would label a foreign price as dollars. It should
-return no price instead.
+and left out of converted totals, like any other. `getRegistrationQuote`
+(`src/core/services/registrars.ts`) used to turn a code it didn't know into
+USD, labeling a foreign price as dollars; it now returns no price.
 
 ## Rates
 
@@ -246,11 +255,10 @@ same answers.
 
 ## Order of work
 
-1. **Currency limits.** `RATE_CURRENCIES` and the dropdown are done. Left:
-   the API, MCP and CSV checks, the editing rule, the preferred currency
-   fallback, the bell item, and the `getRegistrationQuote` fix. Useful alone:
-   it stops new unconvertible amounts. The Settings wording waits for step 3,
-   when reports actually convert.
+1. **Currency limits.** Built: `RATE_CURRENCIES`, the dropdown, the app, API,
+   MCP and CSV checks, the editing rule, the preferred currency fallback, the
+   bell row, and the `getRegistrationQuote` fix. The Settings wording waits
+   for step 3, when reports actually convert.
 2. **Rates.** The build script and `data/exchange-rates.json`,
    `src/shared/exchange-rates.ts` with tests (each rule in
    [Which rate](#which-rate), the ISK gap, rounding), the `exchange-rates`

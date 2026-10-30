@@ -180,6 +180,22 @@ describe('setManualPrice', () => {
     ).toThrow('Unknown currency XYZ.');
   });
 
+  it('takes the 30 currencies, and keeps an older price’s own', async () => {
+    await store.put('domain-prices', 'old.com', {
+      amount: '500.00',
+      currency: 'TWD',
+    });
+    await storage.hydrateStores();
+    pricing.setManualPrice('old.com', { amount: '600', currency: 'TWD' });
+    expect(pricing.resolvePricing(reg('dynadot'), 'old.com')).toMatchObject({
+      renewal: 600,
+      currency: 'TWD',
+    });
+    expect(() =>
+      pricing.setManualPrice('new.com', { amount: '600', currency: 'TWD' }),
+    ).toThrow("DomBot can't convert TWD.");
+  });
+
   it('still reads a price stored as a USD number', async () => {
     await store.put('domain-prices', 'old.com', 12.5);
     await storage.hydrateStores();

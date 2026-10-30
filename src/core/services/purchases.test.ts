@@ -193,6 +193,55 @@ describe('purchases', () => {
     ).toThrow(/no decimal/);
   });
 
+  it('takes the 30 currencies, and keeps an older record’s own', async () => {
+    setPurchase({
+      domainName: 'old.com',
+      purchaseDate: '2021-03-04',
+      amount: '12',
+      currency: 'USD',
+      notes: '',
+    });
+    await flushWrites();
+    // A record from before the limit, in a currency DomBot can't convert.
+    const bundle = JSON.parse(exportBundle({ version: 't', platform: 't' }));
+    for (const e of Object.values(bundle.namespaces['domain-events']))
+      (e as { currency: string }).currency = 'TWD';
+    await importBundle(JSON.stringify(bundle));
+    expect(getPurchases()['old.com']).toMatchObject({ currency: 'TWD' });
+
+    // Edited in its own currency: fine.
+    setPurchase({
+      domainName: 'old.com',
+      purchaseDate: '2021-03-04',
+      amount: '15',
+      currency: 'TWD',
+      notes: '',
+    });
+    expect(getPurchases()['old.com']).toMatchObject({
+      amount: '15.00',
+      currency: 'TWD',
+    });
+    // A new amount in it, or a sale: refused.
+    expect(() =>
+      setPurchase({
+        domainName: 'new.com',
+        purchaseDate: null,
+        amount: '1',
+        currency: 'TWD',
+        notes: '',
+      }),
+    ).toThrow(/can't convert TWD/);
+    expect(() =>
+      setSale({
+        domainName: 'old.com',
+        saleDate: null,
+        amount: '100',
+        currency: 'TWD',
+        notes: '',
+      }),
+    ).toThrow(/can't convert TWD/);
+  });
+
   it('clearing a purchase keeps the note and the sale', () => {
     setPurchase({
       domainName: 'a.com',

@@ -102,6 +102,23 @@ describe('BIN prices', () => {
     ).toThrow('BIN price: use a whole amount.');
   });
 
+  it('takes the 30 currencies, and keeps an older price’s own', async () => {
+    await store.put('domain-list-prices', 'old.com', {
+      amount: '500',
+      currency: 'TWD',
+      updatedAt: 1,
+    });
+    await hydrateStores();
+    setListPrices([price('old.com', '600', { currency: 'TWD' })]);
+    expect(getListPrices()['old.com']).toMatchObject({
+      amount: '600',
+      currency: 'TWD',
+    });
+    expect(() =>
+      setListPrices([price('new.com', '600', { currency: 'TWD' })]),
+    ).toThrow("DomBot can't convert TWD.");
+  });
+
   it('sets many names in one call and leaves unchanged ones alone', async () => {
     setListPrices([price('a.com', '100'), price('b.com', '200')]);
     const first = getListPrices()['a.com'].updatedAt;
