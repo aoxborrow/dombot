@@ -8,7 +8,15 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The date filter shortcuts. A field offers the ones that suit it. */
 export type DatePresetId =
-  'expired' | 'next30' | 'next60' | 'next90' | 'last30' | 'last90' | 'last12m';
+  | 'expired'
+  | 'grace'
+  | 'redemption'
+  | 'next30'
+  | 'next60'
+  | 'next90'
+  | 'last30'
+  | 'last90'
+  | 'last12m';
 
 /**
  * One date filter's bounds, each `YYYY-MM-DD` or "" for unbounded. With a
@@ -30,6 +38,21 @@ export const FUTURE_DATE_PRESETS: DatePresetId[] = [
   'next30',
   'next60',
   'next90',
+];
+
+/**
+ * The Expiration filter's shortcuts, furthest out first down to the most
+ * overdue: FUTURE_DATE_PRESETS reversed, then Expired with the registrar's
+ * Grace and Redemption under it. Those two match a status, not a day, so the
+ * page that offers them checks the row's status too.
+ */
+export const EXPIRATION_PRESETS: DatePresetId[] = [
+  'next90',
+  'next60',
+  'next30',
+  'expired',
+  'grace',
+  'redemption',
 ];
 
 /** Shortcuts for a date that's behind: created, bought, sold. */
@@ -75,11 +98,27 @@ function shiftDay(today: Date, days: number, years = 0): string {
  */
 export const DATE_PRESETS: Record<
   DatePresetId,
-  { label: string; bounds: (today: Date) => DateRange }
+  {
+    label: string;
+    bounds: (today: Date) => DateRange;
+    /** A narrower pick inside this shortcut, listed indented under it. */
+    within?: DatePresetId;
+  }
 > = {
   expired: {
     label: 'Expired',
     bounds: (t) => ({ from: '', to: shiftDay(t, -1) }),
+  },
+  // No bounds: the registrar's status decides (see EXPIRATION_PRESETS).
+  grace: {
+    label: 'Grace',
+    bounds: () => ({ from: '', to: '' }),
+    within: 'expired',
+  },
+  redemption: {
+    label: 'Redemption',
+    bounds: () => ({ from: '', to: '' }),
+    within: 'expired',
   },
   next30: {
     label: 'Next 30 days',

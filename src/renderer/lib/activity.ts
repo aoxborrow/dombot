@@ -43,8 +43,6 @@ export const VERB: Record<DomainEvent['type'], string> = {
   registered: 'Registered',
   purchased: 'Purchased',
   sold: 'Sold',
-  dropped: 'Dropped',
-  archived: 'Archived',
   renewed: 'Renewed',
   added: 'Added',
   removed: 'Removed',

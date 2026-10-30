@@ -14,8 +14,6 @@ export const DomainEventType = {
   Registered: 'registered', // hand-registered as a new name
   Purchased: 'purchased', // bought from someone (aftermarket, private)
   Sold: 'sold',
-  Dropped: 'dropped', // you let it go; or the lookup found it gone
-  Archived: 'archived', // no longer yours, reason unspecified
   Renewed: 'renewed',
   // Something sync saw.
   Added: 'added', // the name appeared in an account
@@ -31,7 +29,7 @@ export const DomainEventSource = {
   User: 'user',
   Sync: 'sync',
   Import: 'import',
-  Lookup: 'lookup', // the registration check (the automatic drop only)
+  Lookup: 'lookup', // the registration check (none written today)
   Agent: 'agent', // an MCP client, on your behalf
   Bulk: 'bulk', // a bulk job you started
 } as const;
@@ -113,6 +111,11 @@ export interface DomainEvent {
   currency?: CurrencyCode | null;
   /** registered, purchased, renewed: the term in years. */
   years?: number | null;
+  /**
+   * removed: the expiry sync last saw, when it had passed by the day the name
+   * left. That removal is a lapse (Archive's Expired), not one to review.
+   */
+  expires?: string;
   /** The id of the sync event this user event resolves. */
   resolves?: string;
   /** A sync alert acknowledged with no action. */

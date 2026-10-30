@@ -10,7 +10,7 @@ import {
   type DomainEvent,
   type DomainNote,
 } from '../../shared/domain-events';
-import { ownershipByDomain, type ArchiveLabel } from '../../shared/ownership';
+import { ownershipByDomain } from '../../shared/ownership';
 import { parseCanonicalAmount, parsePurchaseDate } from '../../shared/money';
 import { Namespace } from '../storage/namespace';
 
@@ -77,31 +77,30 @@ export function deleteDomainEvents(ids: string[], domain?: string): void {
 }
 
 /**
- * Setting a name's state replaces the one you set: if its current state is
- * your Sold, Dropped, or Archived, that event is deleted, and the alert it
- * answered is returned for the new one to answer instead. So a name you
- * change your mind about keeps one entry, not a trail of them. A state that
- * sync set (a removal) is left alone.
+ * Recording a sale replaces the one you'd recorded: if the name has a sale of
+ * yours on record, that event is deleted, and the alert it answered is
+ * returned for the new one to answer instead. So a name you change your mind
+ * about keeps one entry, not a trail of them. A sale a market sync wrote is
+ * left alone.
  */
 export function replaceLabel(domain: string): {
   /** The label that was replaced, or null when there was none of yours. */
-  label: ArchiveLabel | null;
+  label: 'sold' | null;
   resolves: string | undefined;
 } {
   const key = toAscii(domain);
-  const o = ownershipByDomain(eventsFor(key)).get(key);
-  const e = o?.event;
-  if (!o?.label || !e || e.source === DomainEventSource.Sync)
+  const e = ownershipByDomain(eventsFor(key)).get(key)?.sale;
+  if (!e || e.source === DomainEventSource.Sync)
     return { label: null, resolves: undefined };
   deleteDomainEvents([e.id]);
-  return { label: o.label, resolves: e.resolves };
+  return { label: 'sold', resolves: e.resolves };
 }
 
-/** A name's current state, when it's one you set (for skipping no-ops). */
-export function currentLabel(domain: string): ArchiveLabel | null {
+/** 'sold' when the name has a sale of yours on record (for skipping no-ops). */
+export function currentLabel(domain: string): 'sold' | null {
   const key = toAscii(domain);
-  const o = ownershipByDomain(eventsFor(key)).get(key);
-  return o?.event && o.event.source !== DomainEventSource.Sync ? o.label : null;
+  const e = ownershipByDomain(eventsFor(key)).get(key)?.sale;
+  return e && e.source !== DomainEventSource.Sync ? 'sold' : null;
 }
 
 // ── notes ───────────────────────────────────────────────────────────────────
@@ -203,6 +202,11 @@ export function cleanEvent(id: string, value: unknown): DomainEvent | null {
     return null;
   if (v.importId !== undefined && typeof v.importId !== 'string') return null;
   if (v.marketSale !== undefined && typeof v.marketSale !== 'string')
+    return null;
+  if (
+    v.expires !== undefined &&
+    !(typeof v.expires === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.expires))
+  )
     return null;
   let date: string | null;
   try {

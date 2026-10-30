@@ -157,8 +157,11 @@ describe('words', () => {
     expect(readStatus('portfolio')).toBe('owned');
     expect(readStatus('in_account')).toBe('owned');
     expect(readStatus('SOLD')).toBe('sold');
-    expect(readStatus('Expired')).toBe('dropped');
-    expect(readStatus('Removed')).toBe('removed');
+    // Words for what DomBot works out itself: read, then ignored.
+    expect(readStatus('Expired')).toBe('ignored');
+    expect(readStatus('Dropped')).toBe('ignored');
+    expect(readStatus('Archived')).toBe('ignored');
+    expect(readStatus('Removed')).toBe('ignored');
     expect(() => readStatus('ACTIVE clientTransferProhibited')).toThrow();
   });
 

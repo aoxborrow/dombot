@@ -7,7 +7,6 @@ import type {
   ImportRow,
   ImportedDomain,
 } from '../../shared/ipc';
-import { HIDDEN_FOLDER_ID, builtInFolderName } from '../../shared/ipc';
 import { sameListPrice, toListPrice } from '../../shared/list-prices';
 import { assertDomainName } from '../../shared/domain-name';
 import {
@@ -16,7 +15,7 @@ import {
   localDay,
   type DomainEvent,
 } from '../../shared/domain-events';
-import { ownershipByDomain } from '../../shared/ownership';
+import { ownershipByDomain, standingOf } from '../../shared/ownership';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import type { RenewalPrice } from '../../shared/renewal-prices';
 import { toCurrencyCode, type CurrencyCode } from '../../shared/currencies';
@@ -43,26 +42,32 @@ import { holdings } from './purchases';
 import { getCachedPortfolio } from './registrars';
 import { listAccounts } from './accounts';
 
+/**
+ * Names an account holds, `toAscii` name → account id: every account you
+ * have, enabled or not, by its last sync and the registrar cache. A name one
+ * holds isn't imported, and isn't yours to delete.
+ */
+export function heldNames(): Map<string, string> {
+  const held = lastSyncedNames(listAccounts().map((a) => a.id));
+  for (const d of getCachedPortfolio()?.domains ?? [])
+    held.set(assertDomainName(d.domainName), d.accountId ?? d.registrar);
+  return held;
+}
+
 // The import planner (docs/domain-import-export.md, "Planning" and
 // "Applying"). `planImport` is the preview: what each row would change, with
 // nothing written. `importDomains` plans again against the current data and
 // writes it, one write per namespace. The rules:
 //
 // - a blank (absent) field keeps what's stored, and a zero amount clears it;
-// - names missing from the file are left alone, and nothing is deleted, but
-//   a sale replaces your Dropped or Archived label, as Mark as Sold does;
+// - names missing from the file are left alone, and nothing is deleted;
 // - a new imported name waits for review like a sync arrival, even with a
-//   purchase in its row;
+//   purchase in its row (one already past Archive's 90 days doesn't);
 // - a value in the file replaces what DomBot has;
-// - the row's Status decides Owned or Archive. With no Status a name stays
-//   where it is; Owned on a name in Archive moves it back with an `added`.
-
-const LABEL: Record<string, string> = {
-  sold: 'Sold',
-  dropped: 'Dropped',
-  archived: 'Archived',
-  removed: 'Removed',
-};
+// - Status Sold records a sale. Nothing else is a status you set: Owned is
+//   a no-op, and Expired, Dropped, and the other old words are worked out
+//   from the expiry date (docs/owned-and-archive.md). A buy-back (a purchase
+//   after the sale) brings a sold name back with an `added`.
 
 /** A note, shortened for the preview. */
 const clip = (text: string | undefined) =>
@@ -118,11 +123,8 @@ function compute(
   };
 
   // The data as it stands.
-  // Every account you have, enabled or not: a name one holds isn't imported.
   const accounts = listAccounts();
-  const held = lastSyncedNames(accounts.map((a) => a.id));
-  for (const d of getCachedPortfolio()?.domains ?? [])
-    held.set(assertDomainName(d.domainName), d.accountId ?? d.registrar);
+  const held = heldNames();
   const accountName = (id: string) => {
     const a = accounts.find((x) => x.id === id);
     return a ? a.label || a.registrar : id;
@@ -169,9 +171,8 @@ function compute(
 
     const account = held.get(key);
     const entry = imported[key];
-    const own = ownership.get(key);
-    const label = own?.label ?? null;
-    const userLabel = label && label !== 'removed' ? own!.event : null;
+    // A sale on record: the name is Sold, in Owned until the buyer takes it.
+    const userLabel = ownership.get(key)?.sale ?? null;
     const holding = owned.get(key);
     const rowSale = !!(
       row.sale?.date ||
@@ -182,12 +183,9 @@ function compute(
       holding?.sale?.date &&
       row.purchase.date > holding.sale.date
     );
-    const toArchive =
-      rowSale || (row.status !== undefined && row.status !== 'owned');
-    // The row's Status decides Owned or Archive; with none, the name stays
-    // where it is. A buy-back (a purchase after the sale) also brings it back.
-    const moveBack =
-      !!userLabel && !toArchive && (buyBack || row.status === 'owned');
+    const toArchive = rowSale || row.status === 'sold';
+    // A buy-back (a purchase after the sale) brings a sold name back.
+    const moveBack = !!userLabel && !toArchive && buyBack;
     let created = false;
 
     // ── where the name lives ────────────────────────────────────────────────
@@ -241,6 +239,20 @@ function compute(
       const endsOwned = !toArchive && (!userLabel || moveBack);
       if (endsOwned) {
         created = true;
+        // Already past Archive's mark (shared/ownership.ts): it lands in
+        // Archive as Expired, history rather than an arrival to review.
+        const lapsed =
+          !!fields.expirationDate &&
+          standingOf(
+            {
+              source: 'imported',
+              expirationDate: new Date(`${fields.expirationDate}T00:00:00Z`),
+              autoRenew: false,
+            },
+            undefined,
+            undefined,
+            now,
+          ).label === 'expired';
         writes.imported.push([
           key,
           {
@@ -266,19 +278,20 @@ function compute(
             source: DomainEventSource.Import,
             // Coming back isn't new: close the departure, open nothing.
             ...(removal ? { resolves: removal, dismissed: true } : {}),
+            ...(lapsed && !removal ? { dismissed: true } : {}),
           }),
         );
-        change('Status', userLabel ? LABEL[label!] : null, 'Owned');
+        change(
+          'Status',
+          userLabel ? 'Sold' : null,
+          lapsed && !moveBack ? 'Expired' : 'Owned',
+        );
       }
     }
-    // A name you put in Archive goes back to Owned with an `added`, which
-    // keeps its sale or label in the history (nothing is deleted).
-    if (userLabel && !toArchive) {
-      if (!moveBack)
-        warnings.push(
-          `It's in Archive as ${LABEL[label!]}, so it stays there. A Status of Owned moves it back.`,
-        );
-      else if (!created) {
+    // A bought-back name comes back with an `added`, which keeps its sale in
+    // the history (nothing is deleted).
+    if (moveBack) {
+      if (!created) {
         writes.events.push(
           fresh({
             domain: key,
@@ -288,8 +301,16 @@ function compute(
             source: DomainEventSource.Import,
           }),
         );
-        change('Status', LABEL[label!], 'Owned');
+        change('Status', 'Sold', 'Owned');
       }
+    }
+    if (row.status === 'ignored' && !account) {
+      const expiry =
+        fields.expirationDate ?? entry?.expirationDate ?? undefined;
+      if (!expiry && !userLabel && !toArchive)
+        warnings.push(
+          'DomBot works out Expired and Deleted from the expiry date, and this row has none, so the name stays in Owned.',
+        );
     }
 
     // ── what you paid ───────────────────────────────────────────────────────
@@ -370,30 +391,20 @@ function compute(
     }
 
     // ── what it sold for, and its status ──────────────────────────────────
-    /** A label event replacing your Dropped or Archived one (as Mark as Sold does). */
-    const label_ = (
-      type:
-        | typeof DomainEventType.Sold
-        | typeof DomainEventType.Dropped
-        | typeof DomainEventType.Archived,
-      extra: Partial<DomainEvent> = {},
-    ) => {
-      let resolves = openRemoval.get(key);
-      if (userLabel && userLabel.type !== DomainEventType.Sold) {
-        writes.deleteEvents.push(userLabel.id);
-        resolves = userLabel.resolves ?? resolves;
-      }
+    /** A sale, answering the name's open removal if it has one. */
+    const recordSale = (extra: Partial<DomainEvent> = {}) => {
+      const resolves = openRemoval.get(key);
       writes.events.push(
         fresh({
           domain: key,
-          type,
+          type: DomainEventType.Sold,
           source: DomainEventSource.Import,
           date: null,
           ...extra,
           ...(resolves ? { resolves } : {}),
         }),
       );
-      change('Status', LABEL[label ?? ''] ?? 'Owned', LABEL[type]);
+      change('Status', 'Owned', 'Sold');
     };
     const s = row.sale;
     // A "0" sale amount alone clears the amount on a sale DomBot has.
@@ -433,11 +444,11 @@ function compute(
           edited = true;
         }
         if (edited) writes.events.push({ ...next, updatedAt: now });
-      } else if (label === 'sold' && !buyBack) {
+      } else if (userLabel && !buyBack) {
         // Sold already, with no sale on this holding: nothing to add to.
       } else {
         const amount = isZero(s.amount) ? undefined : s.amount;
-        label_(DomainEventType.Sold, {
+        recordSale({
           date: s.date ?? null,
           amount: amount ?? null,
           currency: (amount
@@ -447,38 +458,8 @@ function compute(
         if (s.date) change('Sale date', null, s.date);
         if (amount) change('Sale amount', null, money(amount, s.currency));
       }
-    } else if (row.status && row.status !== 'owned') {
-      const status = row.status;
-      if (status === 'removed') {
-        if (account)
-          warnings.push(
-            `${accountName(account)} still reports this name, so it isn't marked Removed.`,
-          );
-        else if (!label) {
-          writes.events.push(
-            fresh({
-              domain: key,
-              type: DomainEventType.Removed,
-              source: DomainEventSource.Import,
-              date: localDay(now),
-              accountId: null,
-            }),
-          );
-          change('Status', 'Owned', 'Removed');
-        }
-      } else if (label === status) {
-        // Already labeled so.
-      } else if (label === 'sold') {
-        warnings.push(`It's Sold in DomBot, so it stays Sold.`);
-      } else {
-        label_(
-          status === 'sold'
-            ? DomainEventType.Sold
-            : status === 'dropped'
-              ? DomainEventType.Dropped
-              : DomainEventType.Archived,
-        );
-      }
+    } else if (row.status === 'sold' && !userLabel) {
+      recordSale();
     }
 
     // ── your data about the name ──────────────────────────────────────────
@@ -489,26 +470,20 @@ function compute(
 
     if (row.folder) {
       const name = row.folder.trim();
-      const isHidden = name.toLowerCase() === 'hidden';
       const existing = folderByName.get(name.toLowerCase());
-      const target = isHidden ? HIDDEN_FOLDER_ID : existing?.id;
+      const target = existing?.id;
       const current = assignments[key];
       const currentName = current
-        ? (builtInFolderName(current) ??
-          folders.find((f) => f.id === current)?.name ??
-          null)
+        ? (folders.find((f) => f.id === current)?.name ?? null)
         : null;
       if ((target ?? `new:${name}`) !== current) {
         if (!target && !newFolders.has(name.toLowerCase()))
           newFolders.set(name.toLowerCase(), name);
-        writes.folders.push([
-          key,
-          target ? (isHidden ? 'Hidden' : existing!.name) : name,
-        ]);
+        writes.folders.push([key, target ? existing!.name : name]);
         change(
           'Folder',
           currentName,
-          target ? (isHidden ? 'Hidden' : existing!.name) : `${name} (new)`,
+          target ? existing!.name : `${name} (new)`,
         );
       }
     }
@@ -636,7 +611,6 @@ export function importDomains(
     const ids = new Map(
       getFolders().folders.map((f) => [f.name.trim().toLowerCase(), f.id]),
     );
-    ids.set('hidden', HIDDEN_FOLDER_ID);
     for (const name of plan.newFolders) {
       if (!ids.has(name.toLowerCase()))
         ids.set(

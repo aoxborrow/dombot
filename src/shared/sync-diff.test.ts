@@ -144,7 +144,7 @@ describe('diffSync', () => {
       },
     ]);
     const owned = ownershipByDomain([...left.events, ...back.events]);
-    expect(owned.get('a.com')?.archived).toBe(false);
+    expect(owned.get('a.com')?.removal).toBeNull();
   });
 
   it('does not alert twice for a name that is already gone', () => {
@@ -180,7 +180,42 @@ describe('diffSync', () => {
     // Still Sold, not "left".
     expect(
       ownershipByDomain([sold, ...result.events]).get('a.com'),
-    ).toMatchObject({ archived: true, label: 'sold', event: sold });
+    ).toMatchObject({ sale: sold });
+  });
+
+  it('records a lapse with its expiry, with nothing to review', () => {
+    const result = run(
+      [
+        {
+          ...account('dynadot', ['a.com']),
+          expirations: { 'a.com': '2026-09-01' },
+        },
+      ],
+      [{ ...account('dynadot', []), expirations: {} }],
+      [],
+      ['dynadot'],
+    );
+    expect(result.events).toEqual([
+      expect.objectContaining({
+        type: 'removed',
+        expires: '2026-09-01',
+        dismissed: true,
+      }),
+    ]);
+    // Leaving before expiry is a removal to review.
+    const early = run(
+      [
+        {
+          ...account('dynadot', ['a.com']),
+          expirations: { 'a.com': '2027-01-01' },
+        },
+      ],
+      [{ ...account('dynadot', []), expirations: {} }],
+      [],
+      ['dynadot'],
+    );
+    expect(early.events[0].expires).toBeUndefined();
+    expect(early.events[0].dismissed).toBeUndefined();
   });
 
   it('keeps a Sold name labeled through a move and a purchase', () => {
@@ -242,7 +277,7 @@ describe('diffSync', () => {
 });
 
 describe('ownershipByDomain', () => {
-  it('labels Archive by the latest disposition, and a return makes it owned', () => {
+  it('holds a removal and a sale until the name comes back', () => {
     const e = (id: string, type: DomainEvent['type'], extra = {}) =>
       ({
         id,
@@ -256,18 +291,18 @@ describe('ownershipByDomain', () => {
       }) as DomainEvent;
     const left = e('E1', 'removed', { source: 'sync', accountId: 'dyn' });
     expect(ownershipByDomain([left]).get('a.com')).toMatchObject({
-      archived: true,
-      label: 'removed',
+      removal: left,
+      sale: null,
       lastAccountId: 'dyn',
     });
-    const dropped = e('E2', 'dropped', { resolves: 'E1' });
-    expect(ownershipByDomain([left, dropped]).get('a.com')?.label).toBe(
-      'dropped',
-    );
+    const sold = e('E2', 'sold', { resolves: 'E1' });
+    expect(ownershipByDomain([left, sold]).get('a.com')?.sale).toBe(sold);
     const back = e('E3', 'added', { source: 'sync', accountId: 'pork' });
-    expect(ownershipByDomain([left, dropped, back]).get('a.com')).toMatchObject(
-      { archived: false, label: null, lastAccountId: 'pork' },
-    );
+    expect(ownershipByDomain([left, sold, back]).get('a.com')).toMatchObject({
+      removal: null,
+      sale: null,
+      lastAccountId: 'pork',
+    });
   });
 
   describe('renewals', () => {
@@ -458,7 +493,7 @@ describe('ownershipByDomain', () => {
       expect(result.events[1].years).toBe(1);
     });
 
-    it('leaves a renewal of a name marked Sold in Archive', () => {
+    it('keeps the sale through a renewal of a name marked Sold', () => {
       const sold: DomainEvent = {
         ...renewed('a.com', 'user', 1, LAST - 1000, 'E0000'),
         type: 'sold',
@@ -471,8 +506,8 @@ describe('ownershipByDomain', () => {
       );
       expect(result.events.map((e) => e.type)).toEqual(['renewed']);
       expect(
-        ownershipByDomain([sold, ...result.events]).get('a.com'),
-      ).toMatchObject({ archived: true, label: 'sold' });
+        ownershipByDomain([sold, ...result.events]).get('a.com')?.sale,
+      ).toBe(sold);
     });
 
     it('is never an open alert', () => {
