@@ -5,6 +5,7 @@
  */
 
 import type { ReleaseFeed } from './releases';
+import type { RateRows } from './exchange-rates';
 import type {
   Domain as ProviderDomain,
   ConnectionResult,
@@ -156,6 +157,7 @@ export const IpcChannels = {
   getPortfolioPricing: 'pricing:getPortfolio',
   getManualPrices: 'pricing:getManualPrices',
   setManualPrice: 'pricing:setManualPrice',
+  getExchangeRates: 'rates:get',
   openExternal: 'app:openExternal',
   saveTextFile: 'app:saveTextFile',
   exportData: 'data:export',
@@ -961,6 +963,9 @@ export interface DombotApi {
    *  Computed locally (base rates + TLD rates + Sync-captured quotes +
    *  manual overrides). */
   getPortfolioPricing: () => Promise<Record<string, RenewalPricing>>;
+  /** The exchange rates fetched since the shipped archive, keyed by month or
+   *  day; convert with `ExchangeRates` (docs/exchange-rates.md). */
+  getExchangeRates: () => Promise<RateRows>;
   /** Every manual renewal price, keyed by the normalized domain name, for
    *  names you own or not (the CSV export reads Archive names' prices here). */
   getManualPrices: () => Promise<Record<string, RenewalPriceInput>>;

@@ -19,6 +19,10 @@ import {
 import { isStdioShimMode, runStdioShim } from './mcp/stdio';
 import { startAutoSync, stopAutoSync } from '../core/services/auto-sync';
 import {
+  enableRateFetch,
+  refreshExchangeRates,
+} from '../core/services/exchange-rates';
+import {
   abandonInterruptedBulk,
   cancelBulk,
   setBulkAutoDrive,
@@ -226,6 +230,9 @@ function runApp(): void {
     // Keep the cache the MCP tools serve warm without a manual Sync
     // (DOMBOT_SYNC_INTERVAL_MINUTES=0 disables).
     startAutoSync();
+    // The first background sync is a day away; rates are checked now too.
+    enableRateFetch();
+    void refreshExchangeRates();
   });
 
   app.on('will-quit', () => {

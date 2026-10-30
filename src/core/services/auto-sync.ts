@@ -8,6 +8,7 @@ import { getSettings } from './settings';
 import { broadcastPortfolioChanged } from '../events';
 import { isBulkRunning } from './bulk-jobs';
 import { syncMarkets } from './markets/sync';
+import { refreshExchangeRates } from './exchange-rates';
 
 // Periodic background portfolio sync. The UI never auto-refreshes on staleness
 // (the user hits Sync), but an MCP-only user may never open the window, so the
@@ -89,6 +90,8 @@ export async function syncAll(ifOlderThanMs?: number): Promise<boolean> {
       console.log('[auto-sync] markets refreshed');
       ran = true;
     }
+    // Fetches only what's missing, so every pass may ask.
+    await refreshExchangeRates();
     return ran;
   } finally {
     inFlight = false;

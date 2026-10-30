@@ -9,6 +9,7 @@ import { ApiValidationError, coreMethods, invoke } from './index';
 import { domainOp, folderPatch } from './schemas';
 import { broadcastBulkFinished, broadcastPortfolioChanged } from '../events';
 import { IpcChannels, type BulkJob } from '../../shared/ipc';
+import { enableRateFetch, resetRateFetch } from '../services/exchange-rates';
 
 let store: MemoryDocStore;
 beforeEach(async () => {
@@ -133,6 +134,30 @@ describe('invoke', () => {
       detail: {},
       pricing: {},
     });
+  });
+
+  it('a full sync brings exchange rates up to date, and only a full one', async () => {
+    const day = new Date().toISOString().slice(0, 10);
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          `<Cube><Cube time="${day}"><Cube currency="USD" rate="1.1"/></Cube></Cube>`,
+        ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    enableRateFetch();
+    try {
+      await invoke('listPortfolio', coreMethods.listPortfolio, [false]);
+      expect(fetchMock).not.toHaveBeenCalled();
+      await invoke('listPortfolio', coreMethods.listPortfolio, [true]);
+      expect(fetchMock).toHaveBeenCalled();
+      expect(
+        await invoke('getExchangeRates', coreMethods.getExchangeRates, []),
+      ).toEqual({ [day]: { rates: { USD: 1.1 } } });
+    } finally {
+      resetRateFetch();
+      vi.unstubAllGlobals();
+    }
   });
 });
 

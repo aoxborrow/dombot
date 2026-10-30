@@ -162,36 +162,53 @@ average isn't out until October ends, which is why days are needed.
 }
 ```
 
-One array per month in `currencies` order, six significant digits, `null`
-where a currency has no rate. All 321 months come to about 77 KB (35 KB
-gzipped). The script fails if the ECB's currency set no longer matches
-`RATE_CURRENCIES`, so a currency joining or leaving the euro is a deliberate
-change. Rerun it before a release; a stale archive only means a little more
-fetching at runtime.
+The 29 quoted against the euro (EUR is always 1), one array per month in
+`currencies` order, six significant digits, `null` where a currency has no
+rate. Built on 2026-10-29: 321 months, 2000-01 to 2026-09, 77 KB (35 KB
+gzipped), one month per line so a rebuild's diff shows only the new ones.
+The script fails if the currencies in the ECB's daily file no longer match
+`RATE_CURRENCIES`, so a currency joining or leaving is a deliberate change.
+Rerun it before a release; a stale archive only means a few more months
+fetched at runtime.
 
 The demo uses the archive alone and never fetches.
 
-### Fetched at runtime
+### Fetched at runtime (built)
 
-New namespace **`exchange-rates`**, flagged `cache` (Clear cache wipes it;
-the archive and the next fetch restore it, and as a cache it needs no
+`src/core/services/exchange-rates.ts`, on desktop and in the Worker. A host
+turns it on (`enableRateFetch`), so the demo and tests never reach the
+network.
+
+Namespace **`exchange-rates`**, flagged `cache` (Clear cache wipes it; the
+archive and the next fetch restore it, and as a cache it needs no
 `BUNDLE_VERSION` bump). Keyed by period:
 
 - `2026-09`: a month's average fetched after the archive was built.
 - `2026-10-28`: one business day.
 
-Each value is `{ rates: { USD: 1.15132, … } }`, EUR-based.
+Each value is `{ rates: { USD: 1.15132, … } }`, EUR-based, EUR left out.
 
-Fetched when DomBot syncs, on desktop and in the Worker, at most once a day,
-never blocking a view:
+It checks at desktop launch and with every sync: the Sync button (beside the
+sync, never holding it up), the desktop's background sync, and the Worker's
+hourly cron. A check fetches only what's missing, so most fetch nothing:
 
 1. **Months:** when the newest month held (archive or fetched) is older than
-   last month, fetch from the month after it.
-2. **Days:** fetch the 90-day file. It covers this month and last month until
-   that month's average is out, however long that takes.
-3. **Prune:** drop day rows for any month that now has an average.
+   last month, every month after it from the Data Portal. A month still
+   running is never kept.
+2. **Days:** when the newest day held is older than the newest business day
+   whose rates are out (16:00 UTC on a weekday), the 90-day file, keeping
+   the days of months with no average. That's this month, and last month
+   until its average is out, however long that takes.
+3. **Prune:** days of a month that now has an average, and a fetched month
+   the archive now ships (after an update).
 
-Offline, DomBot converts with what it holds.
+A fetch that doesn't bring what it expected (an average not out yet, a
+holiday, an error) waits six hours before the next try. Offline, DomBot
+converts with what it holds. `getExchangeRates` hands the rows to the
+renderer.
+
+`src/core/services/exchange-rates.live.test.ts` (`npm run test:live`, no
+credentials) checks both ECB formats still parse.
 
 ### Which rate
 
@@ -201,9 +218,10 @@ For an amount dated `D`, converting from `A` to `B`:
 2. **D's month has an average:** use it.
 3. **Days held in D's month:** D's own rate, else the nearest earlier
    business day held, else the nearest later one. Marked provisional.
-4. **D is past everything held** (offline for a while): the newest rate held.
-   Marked provisional.
-5. **Nothing:** before 2000, or ISK from 2009 to 2017. Not converted.
+4. **Nothing held for D's month** (past everything held after a while
+   offline, or a month that never got fetched): the newest rate held before
+   D. Marked provisional.
+5. **Nothing:** before 2000, or ISK from 2009-01 to 2018-01. Not converted.
 
 `A` and `B` come from the same row: `amount × rate[B] / rate[A]`, with
 `rate[EUR] = 1`. A provisional amount settles by itself once its month's
@@ -214,11 +232,12 @@ newest rate held.
 
 ## Converting
 
-A pure module, `src/shared/exchange-rates.ts`: it loads the archive, takes the
-fetched rows, and answers `convert(amount, from, to, date)` with the converted
-amount, the period it used, and whether it's provisional. The renderer gets
-the fetched rows from the API; core (MCP) reads them from storage. Both get the
-same answers.
+A pure module, `src/shared/exchange-rates.ts` (built): `new
+ExchangeRates(rows)` loads the archive, takes the fetched rows, and answers
+`convert(amount, from, to, date)` with the converted amount, the period it
+used, and whether it's provisional, or null when it can't. The renderer gets
+the fetched rows from the API (`getExchangeRates`); core (MCP) reads them from
+storage (`exchangeRates()`). Both get the same answers.
 
 - **Rounding:** each amount is converted, then rounded to the target
   currency's minor units; sums add integer minor units, as
@@ -259,10 +278,11 @@ same answers.
    MCP and CSV checks, the editing rule, the preferred currency fallback, the
    bell row, and the `getRegistrationQuote` fix. The Settings wording waits
    for step 3, when reports actually convert.
-2. **Rates.** The build script and `data/exchange-rates.json`,
+2. **Rates.** Built: the build script and `data/exchange-rates.json`,
    `src/shared/exchange-rates.ts` with tests (each rule in
    [Which rate](#which-rate), the ISK gap, rounding), the `exchange-rates`
-   namespace and the fetch on both hosts.
+   namespace, the fetch on both hosts, and `getExchangeRates`. Nothing shows
+   on screen yet.
 3. **Conversion where totals are today:** Renewals, the tab metric, sales by
    year, MCP.
 4. **Sales tab and Domains cards** as they're built

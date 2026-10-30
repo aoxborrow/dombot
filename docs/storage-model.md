@@ -59,6 +59,7 @@ set passed to `EncryptedDocStore`.
 | —                                        | `market-stats`            |        | account id                 | daily views and leads per market account          |
 | —                                        | `market-domain-stats`     |        | account + name             | per-name views and leads, days with traffic only  |
 | —                                        | `market-search-snapshots` |        | account + name             | weekly snapshots of GoDaddy search counts         |
+| —                                        | `exchange-rates`          | cache  | month or day               | ECB rates since the shipped archive               |
 | `settings`, `bulk-jobs`, `mcp`           | _(unchanged)_             |        |                            | app-level                                         |
 | `meta`                                   | _(unchanged)_             | local  |                            | this install only                                 |
 
