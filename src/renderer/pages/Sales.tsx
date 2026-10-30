@@ -626,6 +626,24 @@ export default function Sales() {
     );
   }
 
+  const exportButton = (
+    <div className="flex items-center gap-3">
+      {exportNote && (
+        <span className="text-sm text-brand" role="status">
+          {exportNote}
+        </span>
+      )}
+      <Button
+        variant="outline"
+        onClick={() => void exportCsv()}
+        disabled={sorted.length === 0}
+      >
+        <Download />
+        Export CSV
+      </Button>
+    </div>
+  );
+
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
       <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
@@ -633,25 +651,12 @@ export default function Sales() {
           <h1 className="mt-1.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
             Sales
           </h1>
-          <div className="flex items-center gap-3">
-            {exportNote && (
-              <span className="text-sm text-brand" role="status">
-                {exportNote}
-              </span>
-            )}
-            <Button
-              variant="outline"
-              onClick={() => void exportCsv()}
-              disabled={sorted.length === 0}
-            >
-              <Download />
-              Export CSV
-            </Button>
-          </div>
+          {/* On phones, where the switch takes its row, Export stays here. */}
+          <div className="sm:hidden">{exportButton}</div>
         </div>
 
-        {/* The view first, as on Renewals. */}
-        <div className="flex">
+        {/* The view first, as on Renewals, with Export at the other end. */}
+        <div className="flex items-center justify-between gap-3">
           <ToolbarSwitch
             fillOnPhone
             label="Which sales to show"
@@ -674,6 +679,7 @@ export default function Sales() {
               },
             ]}
           />
+          <div className="hidden sm:block">{exportButton}</div>
         </div>
 
         <SalesCards rows={viewRows} pendingView={pendingOnly} money={money} />

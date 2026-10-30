@@ -357,8 +357,15 @@ export default function Renewals() {
   return (
     // 13px between rows and cards, as on Domains, Sales and Activity.
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-[13px]">
-      <PageHeader>{registrarFilter}</PageHeader>
-      <div className="flex">{renewSwitch}</div>
+      {/* On phones, where the switch takes its row, the Registrar filter
+          stays in the title row; from sm it ends the switch's row. */}
+      <PageHeader>
+        <div className="sm:hidden">{registrarFilter}</div>
+      </PageHeader>
+      <div className="flex items-center justify-between gap-3">
+        {renewSwitch}
+        <div className="hidden sm:block">{registrarFilter}</div>
+      </div>
 
       {/* Totals: the small two-row cards Domains and Sales have. Amounts in
           another currency are left out of these; the chart lists them. */}
