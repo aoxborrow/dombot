@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowUpRight,
@@ -46,6 +46,8 @@ import {
 } from '../lib/sales';
 import { MarketLogo } from '../components/RegistrarLogo';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
+import { useColumnLayout } from '../components/data-table/ColumnPicker';
+import { applyColumnLayout } from '../components/data-table/column-layout';
 import {
   FilterToolbar,
   listField,
@@ -384,6 +386,8 @@ export default function Sales() {
     {
       key: 'name',
       label: 'Domain',
+      // First and always shown; the Columns picker moves and hides the rest.
+      locked: true,
       cell: (r) => (
         <span className="flex items-center justify-between gap-2">
           <span className="font-mono">{toUnicode(r.name)}</span>
@@ -573,6 +577,25 @@ export default function Sales() {
     },
   ];
 
+  // The columns shown and their order, remembered on this device; the
+  // Columns button in the table's footer changes them.
+  const { layout: columnLayout, setLayout: setColumnLayout } = useColumnLayout(
+    'sales',
+    columns,
+  );
+  const shownColumnKeys = applyColumnLayout(columns, columnLayout)
+    .map((c) => c.key)
+    .join(' ');
+  // A sort whose column is hidden goes back to the default, or Domain when
+  // that's hidden too, so a header always shows the sort.
+  useEffect(() => {
+    const shown = new Set(shownColumnKeys.split(' '));
+    if (shown.has(sortKey)) return;
+    const useDefault = shown.has('soldOn');
+    setSortKey(useDefault ? 'soldOn' : 'name');
+    setSortDir(useDefault ? 'desc' : 'asc');
+  }, [shownColumnKeys, sortKey]);
+
   if (records.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
@@ -678,6 +701,8 @@ export default function Sales() {
         className="mt-[13px]"
         rows={sorted}
         columns={columns}
+        layout={columnLayout}
+        onLayoutChange={setColumnLayout}
         rowKey={(r) => r.id}
         sort={{ key: sortKey, dir: sortDir }}
         onSort={toggleSort}

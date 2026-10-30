@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
@@ -50,6 +50,8 @@ import {
   MarkSoldDialog,
 } from '../components/actions/OwnershipDialogs';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
+import { useColumnLayout } from '../components/data-table/ColumnPicker';
+import { applyColumnLayout } from '../components/data-table/column-layout';
 import { sortRows, type SortValue } from '../components/data-table/table-state';
 import { type FilterField } from '../components/data-table/FilterBar';
 import {
@@ -508,6 +510,8 @@ export default function Activity() {
     {
       key: 'domain',
       label: 'Domain',
+      // First and always shown; the Columns picker moves and hides the rest.
+      locked: true,
       // The row's "⋯" menu, pinned to the cell's right edge like Domains',
       // with the name's sticky note (when it has one) just before it.
       cell: (row) => (
@@ -647,6 +651,25 @@ export default function Activity() {
       },
     },
   ];
+
+  // The columns shown and their order, remembered on this device; the
+  // Columns button in the table's footer changes them.
+  const { layout: columnLayout, setLayout: setColumnLayout } = useColumnLayout(
+    'activity',
+    columns,
+  );
+  const shownColumnKeys = applyColumnLayout(columns, columnLayout)
+    .map((c) => c.key)
+    .join(' ');
+  // A sort whose column is hidden goes back to the default, or Domain when
+  // that's hidden too, so a header always shows the sort.
+  useEffect(() => {
+    const shown = new Set(shownColumnKeys.split(' '));
+    if (shown.has(sortKey)) return;
+    const useDefault = shown.has('date');
+    setSortKey(useDefault ? 'date' : 'domain');
+    setSortDir(useDefault ? 'desc' : 'asc');
+  }, [shownColumnKeys, sortKey]);
 
   // The filter bar's fields, in the Add filter menu's order (the order the
   // old filter dropdowns had).
@@ -879,6 +902,8 @@ export default function Activity() {
         className="mt-[13px]"
         rows={rows}
         columns={columns}
+        layout={columnLayout}
+        onLayoutChange={setColumnLayout}
         rowKey={(r) => r.event.id}
         sort={{ key: sortKey, dir: sortDir }}
         onSort={toggleSort}
