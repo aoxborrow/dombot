@@ -44,7 +44,7 @@ export const MARKET_COLUMN_KEYS = new Set([
 
 /**
  * Listings get a column per connected market, `listing:afternic` and so on,
- * in the slot the layouts call `listing`: the Listings view's columns. Active
+ * in the slot the layouts call `listing`: the Listings view's columns. Owned
  * has the one `listed` column instead, a logo per market, so it stays the
  * same width however many markets are connected.
  */
@@ -291,7 +291,7 @@ export function marketColumns({
       key: listingColumnKey(market),
       label: marketName(markets, market),
       align: 'right',
-      hideOnMobile: true,
+      // Shown on phones too: they're what Listings is for.
       render: (d) => {
         const cell = listingCell(d);
         if (!onEditListing) return cell;
@@ -315,7 +315,7 @@ export function marketColumns({
     };
   };
 
-  // Active's one market column: each market the name is on, as its logo in
+  // Owned's one market column: each market the name is on, as its logo in
   // the colour of the listing cell's icon. The tooltip has each listing.
   const listed: PurchaseColumn = {
     key: 'listed',

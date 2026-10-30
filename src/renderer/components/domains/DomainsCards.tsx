@@ -32,7 +32,7 @@ import { StatCard } from '../StatCard';
 // set per view, adding up the names the table shows, so a filter (a TLD, a
 // folder, one market) shows that slice. A card that matches a filter sets it.
 
-export type DomainsView = 'active' | 'listings' | 'archive';
+export type DomainsView = 'owned' | 'listings' | 'archive';
 
 const pct = (n: number, of: number) =>
   of ? `${Math.round((n / of) * 100)}%` : '—';

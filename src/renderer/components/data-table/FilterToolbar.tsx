@@ -36,7 +36,7 @@ function small(Icon: LucideIcon) {
 }
 
 /**
- * The page's main switch (Active/Archive, Needs review/All), leading the
+ * The page's main switch (Owned/Listings/Archive, Needs review/All), leading the
  * toolbar: small-caps labels with an icon and a count.
  */
 export function ToolbarSwitch({

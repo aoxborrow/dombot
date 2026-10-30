@@ -10,7 +10,7 @@ import {
 // rejected listings.
 
 export interface DomainsLink {
-  /** Listings or Archive; Active when left out. */
+  /** Listings or Archive; Owned when left out. */
   view?: 'listings' | 'archive';
   /** The Markets filter: markets in play (empty: all), states, comparisons. */
   markets?: string[];

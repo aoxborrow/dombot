@@ -3,7 +3,7 @@ import { ToolbarSwitch } from '../data-table/FilterToolbar';
 import type { DomainsView } from './DomainsCards';
 
 /**
- * Active, Listings (the same names with their market columns; once a market
+ * Owned, Listings (the same names with their market columns; once a market
  * account is connected) and Archive (names you no longer own), leading the
  * filter toolbar.
  */
@@ -23,17 +23,17 @@ export function OwnershipSwitch({
 }) {
   return (
     <ToolbarSwitch
-      label="Active domains, their market listings, or archived domains"
+      label="Owned domains, their market listings, or archived domains"
       // Three don't fit a phone with their counts.
       className={listings ? 'max-sm:[&_.tabular-nums]:hidden' : undefined}
       options={[
         {
-          id: 'active',
-          label: 'Active',
+          id: 'owned',
+          label: 'Owned',
           icon: Globe,
           count: ownedCount,
-          active: view === 'active',
-          onClick: () => onView('active'),
+          active: view === 'owned',
+          onClick: () => onView('owned'),
         },
         ...(listings
           ? [

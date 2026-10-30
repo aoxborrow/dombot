@@ -578,14 +578,14 @@ function ShieldCheckFilled(props: React.ComponentProps<typeof ShieldCheck>) {
 
 /**
  * Each view's columns in their default order, and which start off until the
- * Columns picker turns them on. Domain is locked first. Active has one Listed
+ * Columns picker turns them on. Domain is locked first. Owned has one Listed
  * column for the markets; Listings has a column per market and the interest
  * counts, and leaves the registration settings out. Archive can show the
  * registration columns too: names still in an account stay editable, and
  * departed names show a dash.
  */
 const VIEW_COLUMNS: Record<DomainsView, ColumnLayout> = {
-  active: {
+  owned: {
     order: [
       'domainName',
       FOLDER,
@@ -664,13 +664,13 @@ const VIEW_COLUMNS: Record<DomainsView, ColumnLayout> = {
 };
 
 const VIEW_TITLE: Record<DomainsView, string> = {
-  active: 'Active',
+  owned: 'Owned',
   listings: 'Listings',
   archive: 'Archive',
 };
 
 const LAYOUT_COLUMNS: Record<DomainsView, LayoutColumn[]> = {
-  active: layoutColumns(VIEW_COLUMNS.active),
+  owned: layoutColumns(VIEW_COLUMNS.owned),
   listings: layoutColumns(VIEW_COLUMNS.listings),
   archive: layoutColumns(VIEW_COLUMNS.archive),
 };
@@ -887,7 +887,7 @@ function matchesExpiration(d: Domain, range: DateRange): boolean {
 export default function Domains() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  // Active and Listings are what you hold, Listings with its market columns;
+  // Owned and Listings are what you hold, Listings with its market columns;
   // Archive is what you no longer have (Sold, Deleted, Expired, or Removed),
   // worked out in shared/ownership.ts.
   const archiveView = params.get('view') === 'archive';
@@ -935,8 +935,8 @@ export default function Domains() {
     ? 'archive'
     : listingsView
       ? 'listings'
-      : 'active';
-  const activeView = view === 'active';
+      : 'owned';
+  const ownedView = view === 'owned';
   // The row and bulk menus name the market when there's only one kind.
   const marketIds = [...new Set((marketAccounts ?? []).map((a) => a.market))];
   // A listing column per connected market, in the catalog's order.
@@ -1295,7 +1295,7 @@ export default function Domains() {
     () => ({ ...NO_PRICING_FILTER, kinds: linked.asking ?? [] }),
   );
   // Date filters (see lib/date-range). Expiration and Purchased apply on
-  // both tabs, Created on Active only, Sold on Archive only.
+  // both tabs, Created on Owned only, Sold on Archive only.
   const [created, setCreated] = useState<DateRange>(NO_DATE_RANGE);
   const [expires, setExpires] = useState<DateRange>(NO_DATE_RANGE);
   const [purchased, setPurchased] = useState<DateRange>(NO_DATE_RANGE);
@@ -1661,8 +1661,8 @@ export default function Domains() {
       matchesExpiration,
       EXPIRATION_DOTS,
     ),
-    // Active only: what you're letting go (auto-renew off), after Expiration.
-    ...(!activeView
+    // Owned only: what you're letting go (auto-renew off), after Expiration.
+    ...(!ownedView
       ? []
       : [
           listFilter(
@@ -1677,8 +1677,8 @@ export default function Domains() {
             setAutoRenewFilter,
           ),
         ]),
-    // Created is an Active column, so its filter is Active only.
-    ...(!activeView
+    // Created is an Owned column, so its filter is Owned only.
+    ...(!ownedView
       ? []
       : [
           dateFilter(
@@ -1802,21 +1802,21 @@ export default function Domains() {
   }, [shownColumnKeys, sortKey]);
 
   function setListView(next: DomainsView) {
-    // The filters every view has stay: a folder's Active names, then its
+    // The filters every view has stay: a folder's Owned names, then its
     // listings, then the ones you no longer hold. Those a view lacks go,
     // rather than wait hidden to come back.
     if (next !== 'archive') {
       setStatus([]);
       setSold(NO_DATE_RANGE);
     }
-    if (next !== 'active') {
+    if (next !== 'owned') {
       setAutoRenewFilter([]);
       setCreated(NO_DATE_RANGE);
     }
     if (next === 'archive') setPricingFilter(NO_PRICING_FILTER);
     setPage(0);
     const nextParams = new URLSearchParams(params);
-    if (next === 'active') nextParams.delete('view');
+    if (next === 'owned') nextParams.delete('view');
     else nextParams.set('view', next);
     setParams(nextParams, { replace: true });
   }
@@ -1877,7 +1877,7 @@ export default function Domains() {
       // Date bounds are inclusive calendar days. A blank date on the row
       // stays out. Sold is an Archive column, so that bound waits there.
       const record = purchases[toAscii(d.domainName)];
-      if (activeView && !matchesDateRange(utcDay(d.createdDate), created))
+      if (ownedView && !matchesDateRange(utcDay(d.createdDate), created))
         return false;
       if (!matchesExpiration(d, expires)) return false;
       if (!matchesDateRange(record?.purchaseDate, purchased)) return false;
@@ -1896,7 +1896,7 @@ export default function Domains() {
           folders,
         );
         if (folder.length > 0 && !folder.includes(bucket)) return false;
-        if (activeView && autoRenewFilter.length > 0) {
+        if (ownedView && autoRenewFilter.length > 0) {
           if (d.autoRenewUnknown) return false;
           if (!autoRenewFilter.includes(d.autoRenew ? 'on' : 'off'))
             return false;
@@ -1947,7 +1947,7 @@ export default function Domains() {
     purchased,
     sold,
     archiveView,
-    activeView,
+    ownedView,
     archiveLabelOf,
     sortKey,
     sortDir,
@@ -2288,7 +2288,7 @@ export default function Domains() {
           <h1 className="mt-1.5 flex min-w-0 items-baseline gap-2.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
             Domains
             {/* The view, again: the switch is easy to miss below the cards. */}
-            <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground sm:text-base">
+            <span className="text-sm font-semibold uppercase tracking-wider text-brand sm:text-base">
               {VIEW_TITLE[view]}
             </span>
           </h1>
@@ -2357,10 +2357,10 @@ export default function Domains() {
           configured — so its toolbar and structure stay put; the empty body row
           carries the contextual prompt (configure a registrar / refresh / no
           matches). */}
-        {/* Below xl: Active/Archive on the left and the column picker on the
+        {/* Below xl: the view switch on the left and the column picker on the
             right, then the search and filters on their own row. From xl it's
             one wrapping row again (the inner boxes become `contents`), with
-            Columns at the end. Active/Archive's counts stand in for a subtitle
+            Columns at the end. The switch's counts stand in for a subtitle
             under the title. */}
         <div className="mt-[7px] flex flex-col gap-5 xl:mt-3 xl:flex-row xl:flex-wrap xl:items-center xl:gap-3.5">
           <div className="flex items-center justify-between gap-3 xl:contents">

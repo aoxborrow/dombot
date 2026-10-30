@@ -338,23 +338,24 @@ saved, so the Domains table shows it before the next sync.
 
 ## Domains table and actions
 
-Once a market account is connected, Domains has three views: **Active**,
-**Listings** and **Archive** (`?view=listings`, `?view=archive`). Active and
+Once a market account is connected, Domains has three views: **Owned**,
+**Listings** and **Archive** (`?view=listings`, `?view=archive`). Owned and
 Listings show the same names, the ones you hold, with different columns:
 
-- **Active** keeps one **Listed** column for the markets, each market's logo
+- **Owned** keeps one **Listed** column for the markets, each market's logo
   in the colour its listing cell's icon would have (below), so it stays the
   same width however many markets are connected. It has no per-market or
   interest columns.
 - **Listings** has a column per market, Views, Leads and Searches, and
   leaves the registration settings out (renewal, auto-renew, privacy, lock,
   nameservers); Registrar and Expiration can be turned on. The Markets
-  filter is always on its toolbar.
+  filter is always on its toolbar, and the market columns show on phones
+  too.
 - Each view saves its own columns. Switching keeps the filters both views
-  have; Auto-renew and Created are Active only.
+  have; Auto-renew and Created are Owned only.
 
-The heading names the view ("Domains ACTIVE"), since the switch sits below
-the cards.
+The heading names the view in green ("Domains OWNED"), since the switch
+sits below the cards.
 
 - **A listing column per connected market** (Afternic, Atom, Sedo, …) in
   Listings, in the slot saved layouts call `listing`, so a name listed on
@@ -405,7 +406,7 @@ the cards.
 - **Cards** above the table, one set per view (hidden on phones), adding up
   the names the table shows as filtered; one line under them says so. A
   card that matches a filter sets it.
-  - Active: Domains, Expiring in 30 days (sets Expiration), Renewals per
+  - Owned: Domains, Expiring in 30 days (sets Expiration), Renewals per
     year, Auto-renew off (sets Auto-renew), BIN priced.
   - Listings: Listed (live on a market), Not listed, Pending, Issues
     (rejected or inactive), each setting the Markets filter's status; Views
