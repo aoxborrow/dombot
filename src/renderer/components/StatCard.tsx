@@ -74,12 +74,12 @@ export function StatCard({
       <div className="relative">
         <div
           className={cn(
-            'truncate text-foreground/75',
+            'truncate',
             bare
-              ? 'text-xs sm:text-sm'
+              ? 'text-xs text-foreground/60'
               : sm
-                ? 'text-[11px] sm:text-xs'
-                : 'text-[15px]',
+                ? 'text-[11px] text-foreground/75 sm:text-xs'
+                : 'text-[15px] text-foreground/75',
           )}
         >
           {label}
@@ -88,7 +88,7 @@ export function StatCard({
           className={cn(
             'font-bold tabular-nums',
             bare
-              ? 'text-base leading-tight sm:mt-0.5 sm:text-xl'
+              ? 'text-base leading-tight sm:text-xl'
               : sm
                 ? 'text-sm leading-tight sm:text-base'
                 : 'mt-2 text-2xl',
