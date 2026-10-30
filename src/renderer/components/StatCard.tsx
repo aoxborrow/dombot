@@ -2,11 +2,15 @@ import { Children, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useCardStyle } from '../lib/card-style';
 
 /**
- * A headline number with a large faint icon behind it (Renewals, Sales). The
- * small size is the card rows' over the Domains and Sales tables (see
- * StatCardRow): on phones it shrinks to the label and value. A small card
+ * A headline number with an icon (Renewals, Sales). The small size is the
+ * card rows' over the Domains and Sales tables (see StatCardRow): on phones
+ * it shrinks to the label and value. Its icon follows the card style (see
+ * card-style.ts): from 210px wide (a container query, so it's the card's
+ * width, not the window's) the whole icon fits beside the text; narrower,
+ * it moves into a corner or before the label. A small card
  * with no hint has a bigger label and value in the same height. The value
  * can be several slots side by side, each a number with a small unit after
  * it: "6/30d  18/60d", or words a space apart, "251 7 registrars", which
@@ -38,10 +42,11 @@ export function StatCard({
   onClick,
 }: {
   icon: LucideIcon;
-  /** Tailwind text-color for the background watermark (rendered at a low group
-   * opacity), e.g. "text-brand-500". */
+  /** Tailwind text-color for the icon (and the tile's tint), e.g.
+   * "text-brand-500". */
   accentClass: string;
-  /** Adjusts the corner icon, e.g. smaller so a bell's clapper shows. */
+  /** Adjusts the old cut-off corner icon, e.g. smaller so a bell's clapper
+   * shows. */
   iconClassName?: string;
   label: string;
   value: string | StatSlot[];
@@ -51,18 +56,44 @@ export function StatCard({
   to?: string;
   onClick?: () => void;
 }) {
+  const cardStyle = useCardStyle();
   const sm = size === 'sm';
   const bare = sm && !hint;
+  // The new looks are for the small cards; the big size keeps the old one.
+  const look = sm ? cardStyle : 'watermark';
   const className = cn(
     'relative block overflow-hidden rounded-lg border bg-card text-left',
     sm
-      ? 'px-2 pt-1 pb-1.5 sm:px-3 sm:pt-[5px] sm:pb-[6px]'
+      ? '@container px-2 pt-1 pb-1.5 sm:px-3 sm:pt-[5px] sm:pb-[6px]'
       : 'px-4 pt-[9px] pb-[11px]',
     (to || onClick) &&
       'transition-colors hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
   );
-  const body = (
-    <>
+  const icon =
+    look === 'ghost' ? (
+      <Icon
+        className={cn(
+          // Faded as a group, like the watermark. Narrow: small in the
+          // top-right corner, the number running over it. Wide: 40px,
+          // centred on the right, the text cut short before it.
+          'pointer-events-none absolute top-[5px] right-[5px] size-[22px] opacity-40 [stroke-width:1.75] sm:top-1.5 sm:right-1.5 sm:size-6',
+          '@min-[210px]:top-1/2 @min-[210px]:right-2.5 @min-[210px]:size-10 @min-[210px]:-translate-y-1/2 @min-[210px]:opacity-45 @min-[210px]:[stroke-width:1.5]',
+          accentClass,
+        )}
+        aria-hidden
+      />
+    ) : look === 'tile' ? (
+      // Wide only; a narrow card puts a glyph before its label instead.
+      <span
+        className={cn(
+          'pointer-events-none absolute top-1/2 left-2 hidden size-[38px] -translate-y-1/2 items-center justify-center rounded-[9px] bg-current/10 inset-ring inset-ring-current/20 @min-[210px]:flex dark:bg-current/15 dark:inset-ring-current/25',
+          accentClass,
+        )}
+        aria-hidden
+      >
+        <Icon className="size-[22px]" strokeWidth={1.75} />
+      </span>
+    ) : (
       <Icon
         className={cn(
           // Fade the whole shape as a group (opacity-[0.15]) rather than using a
@@ -78,7 +109,17 @@ export function StatCard({
         strokeWidth={1.5}
         aria-hidden
       />
-      <div className="relative">
+    );
+  const body = (
+    <>
+      {icon}
+      <div
+        className={cn(
+          'relative',
+          look === 'ghost' && '@min-[210px]:mr-11',
+          look === 'tile' && '@min-[210px]:ml-12 sm:@min-[210px]:ml-11',
+        )}
+      >
         <div
           className={cn(
             'truncate',
@@ -87,9 +128,21 @@ export function StatCard({
               : sm
                 ? 'text-[11px] text-foreground/75 sm:text-xs'
                 : 'text-[15px] text-foreground/75',
+            look === 'tile' &&
+              'flex items-center gap-1 sm:gap-[5px] @min-[210px]:block',
           )}
         >
-          {label}
+          {look === 'tile' && (
+            <Icon
+              className={cn(
+                'size-[11px] shrink-0 sm:size-3 @min-[210px]:hidden',
+                accentClass,
+              )}
+              strokeWidth={2.25}
+              aria-hidden
+            />
+          )}
+          {look === 'tile' ? <span className="truncate">{label}</span> : label}
         </div>
         <div
           className={cn(

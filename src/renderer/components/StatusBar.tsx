@@ -8,6 +8,7 @@ import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
 import { isStale, staleAccounts, useSyncState } from '../lib/sync-state';
 import { ModeToggle } from './mode-toggle';
+import { CardStyleToggle } from './card-style-toggle';
 import {
   isDemo,
   isLocalWeb,
@@ -79,6 +80,10 @@ export default function StatusBar() {
         bare
         className="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 sm:inline-flex"
       />
+      {/* Just right of the theme toggle (64px wide), so that stays centred. */}
+      {import.meta.env.DEV && (
+        <CardStyleToggle className="absolute top-1/2 left-[calc(50%+44px)] hidden -translate-y-1/2 sm:inline-flex" />
+      )}
 
       <SyncStatus />
     </footer>
