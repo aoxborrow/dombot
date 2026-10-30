@@ -27,6 +27,11 @@ export function useSaleRecords(): SaleRecord[] {
             .filter((d) => !d.departed && d.source !== 'imported')
             .map((d) => toAscii(d.domainName)),
         ),
+        holders: new Map(
+          portfolio
+            .filter((d) => d.source !== 'imported' && d.accountId)
+            .map((d) => [toAscii(d.domainName), d.accountId!]),
+        ),
         today: localDay(),
       }),
     [events, marketSales, portfolio],

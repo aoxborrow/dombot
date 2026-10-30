@@ -47,7 +47,8 @@ export function SaleAuthCode({
         <Button
           size="sm"
           variant="outline"
-          className="h-7 shrink-0"
+          // Short enough to sit in a table row without making it taller.
+          className="-my-1 h-6 shrink-0 px-2 text-xs"
           disabled={state !== 'idle'}
           onClick={() => void send()}
           title="Get the code from the registrar that holds the name and send it to the market"
