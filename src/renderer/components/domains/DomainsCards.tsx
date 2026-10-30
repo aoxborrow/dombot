@@ -35,8 +35,6 @@ const pct = (n: number, of: number) =>
   of ? `${Math.round((n / of) * 100)}%` : '—';
 const plural = (n: number, word: string) =>
   `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
-// A blank hint keeps the cards the same height.
-const BLANK = ' ';
 
 export interface DomainsCardActions {
   /** Expiring within `days`, auto-renew off. */
@@ -171,10 +169,12 @@ export function DomainsCards({
 
   const marketsOn = markets.length > 0;
   const total = rows.length;
-  const hint = (...parts: (string | false)[]) =>
-    parts.filter(Boolean).join(' · ') || BLANK;
+  // The words beside a card's number, or none.
+  const words = (...parts: (string | false)[]) =>
+    parts.filter(Boolean).join(' · ') || undefined;
 
-  // Archive's cards are just a label and a number, so both are bigger.
+  // Every card is a label over a big number, with a few words beside it
+  // where they help: two rows, so the label and number are bigger.
   if (cards.view === 'archive') {
     return (
       <StatCardRow>
@@ -223,8 +223,12 @@ export function DomainsCards({
           icon={Store}
           accentClass="text-brand-500"
           label="Listed"
-          value={cards.listed.toLocaleString()}
-          hint={`${pct(cards.listed, total)} of ${plural(total, 'name')}`}
+          value={[
+            {
+              value: cards.listed.toLocaleString(),
+              unit: pct(cards.listed, total),
+            },
+          ]}
           onClick={() => actions.onMarketStates(['active'])}
         />
         <StatCard
@@ -232,9 +236,13 @@ export function DomainsCards({
           icon={EyeOff}
           accentClass="text-slate-500"
           label="Not listed"
-          value={cards.unlisted.toLocaleString()}
           // Pending listings aren't live yet either.
-          hint={hint(!!cards.pending && `${cards.pending} pending`)}
+          value={[
+            {
+              value: cards.unlisted.toLocaleString(),
+              unit: words(!!cards.pending && `${cards.pending} pending`),
+            },
+          ]}
           onClick={() => actions.onMarketStates(['none'])}
         />
         <StatCard
@@ -242,11 +250,15 @@ export function DomainsCards({
           icon={TriangleAlert}
           accentClass="text-rose-500"
           label="Issues"
-          value={(cards.rejected + cards.inactive).toLocaleString()}
-          hint={hint(
-            !!cards.rejected && `${cards.rejected} rejected`,
-            !!cards.inactive && `${cards.inactive} inactive`,
-          )}
+          value={[
+            {
+              value: (cards.rejected + cards.inactive).toLocaleString(),
+              unit: words(
+                !!cards.rejected && `${cards.rejected} rejected`,
+                !!cards.inactive && `${cards.inactive} inactive`,
+              ),
+            },
+          ]}
           onClick={() => actions.onMarketStates(['rejected', 'inactive'])}
         />
         <StatCard
@@ -254,12 +266,16 @@ export function DomainsCards({
           icon={ArrowUpDown}
           accentClass="text-amber-500"
           label="Discrepancies"
-          value={(cards.above + cards.below).toLocaleString()}
           // A market's price apart from your BIN price.
-          hint={hint(
-            !!cards.above && `${cards.above} above your price`,
-            !!cards.below && `${cards.below} below`,
-          )}
+          value={[
+            {
+              value: (cards.above + cards.below).toLocaleString(),
+              unit: words(
+                !!cards.above && `${cards.above} above`,
+                !!cards.below && `${cards.below} below`,
+              ),
+            },
+          ]}
           onClick={() => actions.onPriceComparisons(['above', 'below'])}
         />
       </StatCardRow>
@@ -272,11 +288,14 @@ export function DomainsCards({
         icon={Globe}
         accentClass="text-brand-500"
         label="Domains"
-        value={total.toLocaleString()}
-        hint={hint(
-          !!cards.registrars && plural(cards.registrars, 'registrar'),
-          !!cards.imported && `${cards.imported} imported`,
-        )}
+        value={[
+          {
+            value: total.toLocaleString(),
+            unit: words(
+              !!cards.registrars && plural(cards.registrars, 'registrar'),
+            ),
+          },
+        ]}
       />
       <StatCard
         size="sm"
@@ -284,20 +303,9 @@ export function DomainsCards({
         accentClass="text-rose-500"
         label="Expiring soon"
         value={[
-          {
-            value: cards.in30.toLocaleString(),
-            unit: '/30d',
-            className: cards.in30 ? 'text-destructive' : undefined,
-          },
-          {
-            value: cards.in60.toLocaleString(),
-            unit: '/60d',
-            className: cards.in60
-              ? 'text-orange-500 dark:text-orange-400'
-              : undefined,
-          },
+          { value: cards.in30.toLocaleString(), unit: '/30d' },
+          { value: cards.in60.toLocaleString(), unit: '/60d' },
         ]}
-        hint={`Auto-renew off · ${cards.renewOff.toLocaleString()} total`}
         onClick={() => actions.onExpiring(cards.in30 ? 30 : 60)}
       />
       <StatCard
@@ -305,8 +313,12 @@ export function DomainsCards({
         icon={Tag}
         accentClass="text-violet-500"
         label="BIN priced"
-        value={pct(cards.priced, total)}
-        hint={`${cards.priced.toLocaleString()} of ${plural(total, 'name')}`}
+        value={[
+          {
+            value: pct(cards.priced, total),
+            unit: `${cards.priced.toLocaleString()}/${plural(total, 'name')}`,
+          },
+        ]}
       />
       {marketsOn && (
         <StatCard
@@ -314,8 +326,12 @@ export function DomainsCards({
           icon={Store}
           accentClass="text-sky-500"
           label="For Sale"
-          value={cards.listed.toLocaleString()}
-          hint={`${pct(cards.listed, total)} on a market`}
+          value={[
+            {
+              value: cards.listed.toLocaleString(),
+              unit: pct(cards.listed, total),
+            },
+          ]}
           onClick={actions.onListings}
         />
       )}

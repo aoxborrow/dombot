@@ -88,11 +88,16 @@ export function SalesCards({
           label="Sales"
           // Finished and under way; cancelled ones aren't sales.
           value={((t?.sold ?? 0) + (t?.inProgress ?? 0)).toLocaleString()}
-          hint={hint(
-            // Every sale on the Pending view is pending.
-            !pendingView && pending > 0 && `${pending} pending`,
-            t?.cancelled && `${t.cancelled} cancelled`,
-          )}
+          // The Pending view's cards are a label and a number, so both
+          // are bigger.
+          hint={
+            pendingView
+              ? undefined
+              : hint(
+                  pending > 0 && `${pending} pending`,
+                  t?.cancelled && `${t.cancelled} cancelled`,
+                )
+          }
         />
         {pendingView ? (
           // Gross counts finished sales; most pending ones aren't yet.
@@ -102,7 +107,6 @@ export function SalesCards({
             accentClass="text-sky-500"
             label="Value"
             value={value && c ? money(value.toFixed(2), c)! : dash}
-            hint={BLANK}
           />
         ) : (
           <StatCard
@@ -120,11 +124,8 @@ export function SalesCards({
             icon={Hand}
             accentClass="text-amber-500"
             label="Needs action"
+            // An auth code or payee details for the market.
             value={(waiting.authCode + waiting.payee).toLocaleString()}
-            hint={hint(
-              waiting.authCode > 0 && `${waiting.authCode} auth code`,
-              waiting.payee > 0 && `${waiting.payee} payee details`,
-            )}
           />
         )}
         {pendingView && (
@@ -133,11 +134,8 @@ export function SalesCards({
             icon={ArrowRightLeft}
             accentClass="text-sky-500"
             label="Awaiting transfer"
+            // At the market, or a name still in your account.
             value={(waiting.market + waiting.held).toLocaleString()}
-            hint={hint(
-              waiting.market > 0 && `${waiting.market} at the market`,
-              waiting.held > 0 && `${waiting.held} still in your account`,
-            )}
           />
         )}
         {!pendingView && (

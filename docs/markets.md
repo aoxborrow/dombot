@@ -409,10 +409,12 @@ sits below the cards.
   that matches a filter sets it. `StatCardRow` fills the width in priority
   order: three cards, a fourth from lg, a fifth from xl, so they stay one
   row; on phones two to a row (the first four), just label and number.
-  - Owned: Domains (registrars, imported), Expiring soon: names with
-    auto-renew off expiring within 30 and 60 days, as two numbers on one
-    card (`StatCard` takes value slots); a click sets Expiration and
-    Auto-renew off, BIN priced, For Sale (names live on a market; opens Listings).
+  - Each card is two rows: the label, then a big number with a few words
+    beside it ("251 7 registrars", "60% 150/251 names"), cut short rather
+    than wrapped (`StatCard` value slots).
+  - Owned: Domains (registrars), Expiring soon: names with auto-renew off
+    expiring within 30 and 60 days, as two numbers ("2/30d 7/60d"); a
+    click sets Expiration and Auto-renew off, BIN priced, For Sale (names live on a market; opens Listings).
   - Listings: Listed (live on a market), Not listed (with how many are
     pending), Issues (rejected or inactive), Discrepancies (a market
     price above or below your BIN), each setting the Markets filter. They
