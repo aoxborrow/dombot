@@ -18,6 +18,8 @@ import { StatCard, StatCardRow } from '../components/StatCard';
 import { ToolbarSwitch } from '../components/data-table/FilterToolbar';
 import { FilterDropdown } from '../components/data-table/FilterBar';
 import {
+  importedRegistrarName,
+  importedRegistrarValue,
   registrarFilterOptions,
   registrarFilterValue,
 } from '../lib/registrar-filter';
@@ -258,17 +260,32 @@ export default function Renewals() {
     [portfolio, pricing, currency],
   );
   const othersNote = plusOthers(summary.others);
-  const byRegistrar = useMemo(
-    () =>
-      groupBy(
-        portfolio,
-        pricing,
-        (d) => d.registrar,
-        (id) => registrarLabel(id, portfolioRegistrarLabels),
-        currency,
-      ),
-    [portfolio, pricing, portfolioRegistrarLabels, currency],
-  );
+  // By registrar, as the Registrar filter groups them: a name you added
+  // with no registrar DomBot knows goes under the one you typed, or
+  // Unknown, never a blank slice.
+  const byRegistrar = useMemo(() => {
+    const importedLabels = new Map<string, string>();
+    const keyOf = (d: Domain) => {
+      if (d.registrar) return d.registrar;
+      const label = importedRegistrarName(d, portfolioRegistrarLabels);
+      const key = importedRegistrarValue(label);
+      importedLabels.set(key, label || 'Unknown');
+      return key;
+    };
+    return groupBy(
+      portfolio,
+      pricing,
+      keyOf,
+      (key) =>
+        importedLabels.get(key) ??
+        registrarLabel(key, portfolioRegistrarLabels),
+      currency,
+    );
+  }, [portfolio, pricing, portfolioRegistrarLabels, currency]);
+  // Unknown isn't a registrar.
+  const registrarCount = byRegistrar.filter(
+    (g) => g.key !== importedRegistrarValue(''),
+  ).length;
   const byTld = useMemo(
     () =>
       groupBy(
@@ -354,8 +371,8 @@ export default function Renewals() {
           value={[
             {
               value: count(summary.total),
-              unit: `${byRegistrar.length} registrar${
-                byRegistrar.length === 1 ? '' : 's'
+              unit: `${registrarCount} registrar${
+                registrarCount === 1 ? '' : 's'
               }`,
             },
           ]}
