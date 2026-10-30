@@ -27,7 +27,7 @@ function SmallCaps({
     <span
       className={cn(
         'text-[11px] tracking-wider uppercase',
-        bold && 'max-sm:font-semibold',
+        bold && 'max-sm:text-xs max-sm:font-semibold',
       )}
     >
       {children}
@@ -41,7 +41,7 @@ function small(Icon: LucideIcon) {
   let out = iconCache.get(Icon);
   if (!out) {
     out = function SmallIcon({ className }: { className?: string }) {
-      return <Icon className={cn(className, 'size-3.5')} />;
+      return <Icon className={cn(className, 'size-3')} />;
     } as LucideIcon;
     iconCache.set(Icon, out);
   }
@@ -66,7 +66,8 @@ export function ToolbarSwitch({
   className?: string;
   options: {
     id: string;
-    label: string;
+    /** Text, or a shorter form on phones (Manual renew → Manual). */
+    label: ReactNode;
     icon: LucideIcon;
     count: number;
     active: boolean;
@@ -76,16 +77,18 @@ export function ToolbarSwitch({
   return (
     <ViewSwitch
       label={label}
-      // Tighter round the smaller icon (a pixel off each side), and squarer
+      // The chosen segment a pixel inside the border all round, tighter round
+      // the smaller icon (a pixel off each side), and squarer
       // corners where the segments meet; the outer ones stay round.
       className={cn(
-        '[&_[role=radio]]:gap-[7px] [&_[role=radio]]:pl-[11px] [&_[role=radio]:not(:first-child)]:rounded-l-[2px] [&_[role=radio]:not(:last-child)]:rounded-r-[2px]',
+        'gap-px p-px [&_[role=radio]]:gap-[7px] [&_[role=radio]]:pl-[11px] [&_[role=radio]]:rounded-[6px] [&_[role=radio]:not(:first-child)]:rounded-l-[2px] [&_[role=radio]:not(:last-child)]:rounded-r-[2px] [&_[role=radio]_.tabular-nums]:text-[10px] [&_[role=radio]_.items-baseline]:gap-1',
         // A dim rule between two options side by side that aren't chosen,
-        // in the 2px gap between them (three options: the chosen one sets
+        // filling the 1px gap between them, border to border (three options: the chosen one sets
         // the rest apart already).
-        "[&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:relative [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:absolute [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:inset-y-px [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:-left-[1.5px] [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:w-px [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:bg-border [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:content-['']",
+        "[&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:relative [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:absolute [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:-inset-y-px [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:-left-px [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:w-px [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:bg-foreground/20 dark:[&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:bg-foreground/10 [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:content-['']",
         fillOnPhone &&
-          'max-sm:flex max-sm:h-10 max-sm:w-full max-sm:[&_[role=radio]]:flex-1',
+          // A size up all round, with the room.
+          'max-sm:flex max-sm:h-10 max-sm:w-full max-sm:[&_[role=radio]]:flex-1 max-sm:[&_[role=radio]_svg]:size-3.5 max-sm:[&_[role=radio]_.tabular-nums]:text-[11px]',
         className,
       )}
       options={options.map((o) => ({
@@ -136,7 +139,9 @@ export function FilterToolbar({
         className,
       )}
     >
-      {viewSwitch}
+      {/* Before the search from lg; narrower, on a row of its own above
+          it, still on the left (a phone's fills that row). */}
+      {viewSwitch && <div className="max-lg:basis-full">{viewSwitch}</div>}
       <SearchField
         value={search}
         onChange={onSearch}

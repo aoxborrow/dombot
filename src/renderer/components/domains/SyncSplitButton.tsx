@@ -2,6 +2,7 @@ import {
   Check,
   ChevronDown,
   CircleAlert,
+  Download,
   Plug2,
   RefreshCw,
   Upload,
@@ -181,10 +182,12 @@ export function SyncSplitButton({
               disabled={viewCount === 0}
               onSelect={onExportView}
             >
+              <Download />
               This view
               <Count n={viewCount} />
             </DropdownMenuItem>
             <DropdownMenuItem disabled={allCount === 0} onSelect={onExportAll}>
+              <Download />
               Everything
               <Count n={allCount} />
             </DropdownMenuItem>

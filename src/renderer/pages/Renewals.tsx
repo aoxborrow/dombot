@@ -1,9 +1,10 @@
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Building2,
   CalendarClock,
+  CalendarDays,
   CircleDollarSign,
   Globe,
   IterationCw,
@@ -176,7 +177,8 @@ export default function Renewals() {
   );
   const registrarFilter = (
     <FilterDropdown
-      className="w-56"
+      // Full width on phones, like the search on the other pages.
+      className="w-56 max-sm:w-full"
       field={{
         key: 'registrar',
         label: 'Registrar',
@@ -214,6 +216,9 @@ export default function Renewals() {
     <ToolbarSwitch
       fillOnPhone
       label="Which renewals to count"
+      // Three don't fit a phone with their counts, and Auto-renew needs
+      // more than a third.
+      className="max-sm:[&_.tabular-nums]:hidden max-sm:[&_[role=radio]]:flex-auto max-sm:[&_[role=radio]]:whitespace-nowrap"
       options={[
         {
           id: 'all',
@@ -233,7 +238,12 @@ export default function Renewals() {
         },
         {
           id: 'manual',
-          label: 'Manual',
+          // Just Manual on a phone, where three share the width.
+          label: (
+            <>
+              Manual<span className="max-sm:hidden"> renew</span>
+            </>
+          ),
           icon: RefreshCwOff,
           count: manual.length,
           active: renewing === 'manual',
@@ -375,15 +385,15 @@ export default function Renewals() {
   return (
     // 13px between rows and cards, as on Domains, Sales and Activity.
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-[13px]">
-      {/* On phones, where the switch takes its row, the Registrar filter
-          stays in the title row; from sm it ends the switch's row. */}
-      <PageHeader>
-        <div className="sm:hidden">{registrarFilter}</div>
-      </PageHeader>
-      <div className="flex items-center justify-between gap-3">
-        {renewSwitch}
-        <div className="hidden sm:block">{registrarFilter}</div>
-      </div>
+      <PageHeader
+        view={
+          renewing === 'auto'
+            ? 'Auto-renew'
+            : renewing === 'manual'
+              ? 'Manual renew'
+              : 'All'
+        }
+      />
 
       {/* Totals: the small two-row cards Domains and Sales have, in your
           currency. The line under them says what was converted or left out. */}
@@ -404,15 +414,17 @@ export default function Renewals() {
         />
         <StatCard
           size="sm"
+          icon={CalendarDays}
+          accentClass="text-sky-500"
+          label="Monthly avg"
+          value={usd(monthly)}
+        />
+        <StatCard
+          size="sm"
           icon={CircleDollarSign}
           accentClass="text-brand-500"
           label="Yearly"
-          value={[
-            {
-              value: usd(summary.yearly),
-              unit: `${usd(monthly)}/mo`,
-            },
-          ]}
+          value={[{ value: usd(summary.yearly) }]}
         />
         <StatCard
           size="sm"
@@ -439,6 +451,14 @@ export default function Renewals() {
           ]}
         />
       </StatCardRow>
+
+      {/* A toolbar over the chart and donuts, as over the other pages'
+          tables: the view first (a row of its own under lg, as there),
+          then the registrars. */}
+      <div className="flex flex-wrap items-center gap-3.5">
+        <div className="max-lg:basis-full">{renewSwitch}</div>
+        {registrarFilter}
+      </div>
 
       {/* Spend over time, between the totals and the composition donuts. */}
       <MonthlyBarChart months={months} fmt={usd} />
@@ -490,15 +510,19 @@ export default function Renewals() {
 
 // ── Header ───────────────────────────────────────────────────────────────────
 
-/** The title, with `children` (the Registrar filter) on the right; the
- *  same height and type as the other pages' title rows. */
-function PageHeader({ children }: { children?: ReactNode }) {
+/** The title, and the view beside it: the same height and type as the other pages' title rows. */
+function PageHeader({ view }: { view?: string }) {
   return (
-    <div className="flex min-h-9 items-start justify-between gap-4">
-      <h1 className="mt-1.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
+    <div className="mb-2 min-h-9">
+      <h1 className="mt-1.5 flex min-w-0 items-baseline gap-2.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
         Renewals
+        {/* The view, as on Domains. */}
+        {view && (
+          <span className="text-sm font-semibold uppercase tracking-wider text-brand sm:text-base">
+            {view}
+          </span>
+        )}
       </h1>
-      {children}
     </div>
   );
 }

@@ -780,41 +780,43 @@ export default function Activity() {
       <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
         {/* As tall as Domains' title row (its Sync button), so the toolbar
             lands in the same place on both pages. */}
-        <div className="min-h-9">
-          <h1 className="mt-1.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
+        <div className="mb-2 min-h-9">
+          <h1 className="mt-1.5 flex min-w-0 items-baseline gap-2.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
             Activity
+            {/* The view, as on Domains. */}
+            <span className="text-sm font-semibold uppercase tracking-wider text-brand sm:text-base">
+              {reviewOnly ? 'Needs review' : 'All'}
+            </span>
           </h1>
-        </div>
-
-        {/* The view on its own row, as on Domains and Sales; the default
-            first. */}
-        <div className="flex">
-          <ToolbarSwitch
-            fillOnPhone
-            label="Which activity to show"
-            options={[
-              {
-                id: 'all',
-                label: 'All',
-                icon: History,
-                count: allRows.length,
-                active: !reviewOnly,
-                onClick: () => setView(false),
-              },
-              {
-                id: 'review',
-                label: 'Needs review',
-                icon: Bell,
-                count: reviewCount,
-                active: reviewOnly,
-                onClick: () => setView(true),
-              },
-            ]}
-          />
         </div>
 
         <FilterToolbar
           id="activity"
+          // The default view first.
+          switch={
+            <ToolbarSwitch
+              fillOnPhone
+              label="Which activity to show"
+              options={[
+                {
+                  id: 'all',
+                  label: 'All',
+                  icon: History,
+                  count: allRows.length,
+                  active: !reviewOnly,
+                  onClick: () => setView(false),
+                },
+                {
+                  id: 'review',
+                  label: 'Needs review',
+                  icon: Bell,
+                  count: reviewCount,
+                  active: reviewOnly,
+                  onClick: () => setView(true),
+                },
+              ]}
+            />
+          }
           search={search}
           onSearch={(value) => {
             setSearch(value);

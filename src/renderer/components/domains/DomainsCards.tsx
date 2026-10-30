@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import {
+  Archive,
   ArrowUpDown,
   BadgeDollarSign,
   CalendarClock,
   EyeOff,
+  Gem,
   Globe,
   Store,
   Tag,
@@ -21,11 +23,12 @@ import {
   type PriceComparison,
 } from '../../../shared/market-filter';
 import type { MarketListing } from '../../../shared/markets';
+import { compactMoney, wholeMoney } from '../../lib/renewals';
 import { StatCard, StatCardRow } from '../StatCard';
 
 // The cards above the Domains table (docs/markets.md, "Domains table and
-// actions"): four per view (three without a market account), most useful
-// first, adding up the names the table shows, so a filter (a TLD, a
+// actions"): up to five per view (fewer without a market account), most
+// useful first, adding up the names the table shows, so a filter (a TLD, a
 // folder, one market) shows that slice. A card that matches a filter
 // sets it.
 
@@ -131,7 +134,6 @@ export function DomainsCards({
     let in30 = 0;
     let in60 = 0;
     let renewOff = 0;
-    let priced = 0;
     let imported = 0;
     let listed = 0;
     const registrars = new Set<string>();
@@ -142,7 +144,6 @@ export function DomainsCards({
         if (expiresWithin(d, 30)) in30 += 1;
         if (expiresWithin(d, 60)) in60 += 1;
       }
-      if (listPrices[toAscii(d.domainName)]?.amount != null) priced += 1;
       if (statesOf(d).includes('active')) listed += 1;
       if (d.source === 'imported') imported += 1;
       else if (d.registrar) registrars.add(d.registrar);
@@ -152,7 +153,6 @@ export function DomainsCards({
       in30,
       in60,
       renewOff,
-      priced,
       imported,
       listed,
       registrars: registrars.size,
@@ -169,6 +169,39 @@ export function DomainsCards({
 
   const marketsOn = markets.length > 0;
   const total = rows.length;
+  // Names with a BIN price, and what they add up to in the currency most
+  // of them use (amounts are never converted).
+  const bin = useMemo(() => {
+    let priced = 0;
+    const byCurrency = new Map<string, { sum: number; count: number }>();
+    for (const d of rows) {
+      const lp = listPrices[toAscii(d.domainName)];
+      if (lp?.amount == null) continue;
+      priced += 1;
+      const e = byCurrency.get(lp.currency) ?? { sum: 0, count: 0 };
+      e.sum += Number(lp.amount);
+      e.count += 1;
+      byCurrency.set(lp.currency, e);
+    }
+    const [currency, main] = [...byCurrency].sort(
+      (a, b) => b[1].count - a[1].count,
+    )[0] ?? [null, null];
+    return { priced, currency, sum: main?.sum ?? 0, count: main?.count ?? 0 };
+  }, [rows, listPrices]);
+  const binPricedCard = (
+    <StatCard
+      size="sm"
+      icon={Tag}
+      accentClass="text-violet-500"
+      label="BIN priced"
+      value={[
+        {
+          value: pct(bin.priced, total),
+          unit: `${bin.priced.toLocaleString()}/${plural(total, 'name')}`,
+        },
+      ]}
+    />
+  );
   // The words beside a card's number, or none.
   const words = (...parts: (string | false)[]) =>
     parts.filter(Boolean).join(' · ') || undefined;
@@ -178,6 +211,13 @@ export function DomainsCards({
   if (cards.view === 'archive') {
     return (
       <StatCardRow>
+        <StatCard
+          size="sm"
+          icon={Archive}
+          accentClass="text-slate-500"
+          label="Archived"
+          value={total.toLocaleString()}
+        />
         <StatCard
           size="sm"
           icon={BadgeDollarSign}
@@ -226,7 +266,9 @@ export function DomainsCards({
           value={[
             {
               value: cards.listed.toLocaleString(),
-              unit: pct(cards.listed, total),
+              // Out of how many, as Expiring's "/30d".
+              unit: `/${total.toLocaleString()}`,
+              words: pct(cards.listed, total),
             },
           ]}
           onClick={() => actions.onMarketStates(['active'])}
@@ -278,6 +320,7 @@ export function DomainsCards({
           ]}
           onClick={() => actions.onPriceComparisons(['above', 'below'])}
         />
+        {binPricedCard}
       </StatCardRow>
     );
   }
@@ -308,18 +351,7 @@ export function DomainsCards({
         ]}
         onClick={() => actions.onExpiring(cards.in30 ? 30 : 60)}
       />
-      <StatCard
-        size="sm"
-        icon={Tag}
-        accentClass="text-violet-500"
-        label="BIN priced"
-        value={[
-          {
-            value: pct(cards.priced, total),
-            unit: `${cards.priced.toLocaleString()}/${plural(total, 'name')}`,
-          },
-        ]}
-      />
+      {binPricedCard}
       {marketsOn && (
         <StatCard
           size="sm"
@@ -329,12 +361,29 @@ export function DomainsCards({
           value={[
             {
               value: cards.listed.toLocaleString(),
-              unit: `${pct(cards.listed, total)} listed`,
+              unit: `/${total.toLocaleString()}`,
+              words: `${pct(cards.listed, total)} listed`,
             },
           ]}
           onClick={actions.onListings}
         />
       )}
+      <StatCard
+        size="sm"
+        icon={Gem}
+        accentClass="text-emerald-500"
+        label="BIN value"
+        // The BIN prices added up; in the currency most of them use.
+        value={[
+          {
+            value: bin.currency ? wholeMoney(bin.sum, bin.currency) : '—',
+            unit:
+              bin.currency && bin.count
+                ? `${compactMoney(bin.sum / bin.count, bin.currency)} avg`
+                : undefined,
+          },
+        ]}
+      />
     </StatCardRow>
   );
 }
