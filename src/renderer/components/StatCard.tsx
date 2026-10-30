@@ -17,8 +17,11 @@ import { cn } from '@/lib/utils';
 export interface StatSlot {
   value: string;
   /** Small and quiet after the number: "/30d" right against it, or words
-   * ("7 registrars") a space apart. */
-  unit?: string;
+   * ("7 registrars") a space apart; words can be markup, e.g. different
+   * words at different widths. */
+  unit?: ReactNode;
+  /** Words after a "/" unit ("141/251 · 56% listed"). */
+  words?: string;
   /** A text colour for the number, e.g. "text-destructive". */
   className?: string;
 }
@@ -76,7 +79,7 @@ export function StatCard({
           className={cn(
             'truncate',
             bare
-              ? 'text-xs text-foreground/45'
+              ? 'text-[10px] text-foreground/50 sm:text-xs'
               : sm
                 ? 'text-[11px] text-foreground/75 sm:text-xs'
                 : 'text-[15px] text-foreground/75',
@@ -88,7 +91,7 @@ export function StatCard({
           className={cn(
             'font-bold tabular-nums',
             bare
-              ? 'text-base leading-tight tracking-tight sm:text-xl'
+              ? '-mt-px text-lg leading-tight tracking-tight sm:mt-0 sm:text-xl'
               : sm
                 ? 'text-sm leading-tight sm:text-base'
                 : 'mt-2 text-2xl',
@@ -104,19 +107,23 @@ export function StatCard({
                   className="flex min-w-0 items-baseline whitespace-nowrap"
                 >
                   <span className={slot.className}>{slot.value}</span>
-                  {slot.unit && (
-                    <span
-                      className={cn(
-                        'truncate',
-                        // "/30d" sits against its number; words are
-                        // smaller, quieter and further off.
-                        slot.unit.startsWith('/')
-                          ? 'text-[0.7em] font-medium text-muted-foreground'
-                          : 'ml-2.5 text-[0.6em] font-normal tracking-normal text-muted-foreground/70',
-                      )}
-                    >
-                      {slot.unit}
-                    </span>
+                  {[slot.unit, slot.words].map(
+                    (unit, j) =>
+                      unit && (
+                        <span
+                          key={j}
+                          className={cn(
+                            'truncate',
+                            // "/30d" sits against its number; words are
+                            // smaller, quieter and further off.
+                            typeof unit === 'string' && unit.startsWith('/')
+                              ? 'text-[0.7em] font-medium text-muted-foreground/80'
+                              : 'ml-2.5 text-[0.6em] font-normal tracking-normal text-muted-foreground/70',
+                          )}
+                        >
+                          {unit}
+                        </span>
+                      ),
                   )}
                 </span>
               ))}
@@ -153,17 +160,21 @@ export function StatCard({
 
 /**
  * A row of small StatCards over a table, filling its width, in priority
- * order: the first three always show; a fourth joins from lg and a fifth
- * from xl, so it stays one row. On phones it's two to a row, the first
- * four. Under it, a quiet line on the right says the cards follow the
- * filters (a page can say more), so every row of cards ends the same way.
+ * order: four, two to a row under md and one row from md (never three of
+ * four), and a fifth from `wide` (1200px). Under it, a quiet line on the
+ * right says the cards follow the filters (a page can say more), so every
+ * row of cards ends the same way.
  */
 export function StatCardRow({
   children,
-  note = 'Totals for the table below.',
+  note = 'Totals for the filtered data below.',
+  fifthAt,
 }: {
   children: ReactNode;
   note?: ReactNode;
+  /** Where the fifth card goes when it shows, if not last (Sales puts
+   * Fees between Gross and Net). */
+  fifthAt?: number;
 }) {
   const cards = Children.toArray(children);
   return (
@@ -172,18 +183,22 @@ export function StatCardRow({
         className={cn(
           // The same 13px as between the page's rows.
           'grid gap-[13px]',
-          cards.length >= 4 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-3',
-          cards.length >= 4 && 'lg:grid-cols-4',
-          cards.length >= 5 && 'xl:grid-cols-5',
+          cards.length >= 4 ? 'grid-cols-2' : 'grid-cols-3',
+          cards.length >= 4 && 'md:grid-cols-4',
+          cards.length >= 5 && 'wide:grid-cols-5',
         )}
       >
         {cards.map((card, i) => (
           <div
             key={i}
+            style={
+              fifthAt === undefined
+                ? undefined
+                : { order: i === 4 ? fifthAt : i < fifthAt ? i : i + 1 }
+            }
             className={cn(
               'grid',
-              i === 3 && 'sm:max-lg:hidden',
-              i === 4 && 'max-xl:hidden',
+              i === 4 && 'max-wide:hidden',
               i > 4 && 'hidden',
             )}
           >

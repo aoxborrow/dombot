@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import {
   Building2,
   CalendarClock,
+  CalendarDays,
   CircleDollarSign,
   Globe,
   IterationCw,
@@ -395,16 +396,18 @@ export default function Renewals() {
         />
         <StatCard
           size="sm"
+          icon={CalendarDays}
+          accentClass="text-sky-500"
+          label="Monthly avg"
+          value={usd(monthly)}
+        />
+        <StatCard
+          size="sm"
           icon={CircleDollarSign}
           accentClass="text-brand-500"
           label="Yearly"
           value={[
-            {
-              value: usd(summary.yearly),
-              unit: [`${usd(monthly)}/mo`, othersNote]
-                .filter(Boolean)
-                .join(' · '),
-            },
+            { value: usd(summary.yearly), unit: othersNote || undefined },
           ]}
         />
         <StatCard

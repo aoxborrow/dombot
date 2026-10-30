@@ -126,6 +126,14 @@ export function wholeMoney(n: number, currency: string): string {
   }
 }
 
+/** Compact whole amount: "$820", "$4.2k", "$23.1k", "€120k". */
+export function compactMoney(n: number, currency: string): string {
+  if (n < 1000) return wholeMoney(n, currency);
+  const k = n / 1000;
+  const symbol = wholeMoney(0, currency).replace(/[\d\s.,]/g, '');
+  return `${symbol}${k < 100 ? k.toFixed(1).replace(/\.0$/, '') : Math.round(k)}k`;
+}
+
 /** Everything after the first dot, lowercased. "example.co.uk" → "co.uk". */
 export function tldOf(domainName: string): string {
   const dot = domainName.indexOf('.');

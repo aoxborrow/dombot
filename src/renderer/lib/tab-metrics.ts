@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useAppStore } from '../store/app';
 import { notifications } from '../../shared/notifications';
-import { summarize, wholeMoney } from './renewals';
+import { compactMoney, summarize, wholeMoney } from './renewals';
 import { importedRows } from '../../shared/imported-domains';
 import { isPending, useSaleRecords } from './sales';
 
@@ -12,14 +12,6 @@ export interface TabMetric {
   title: string;
   /** Tinted red when the number is a problem count. */
   alert?: boolean;
-}
-
-/** Compact whole amount: "$820", "$4.2k", "€12k". */
-function compactMoney(n: number, currency: string): string {
-  if (n < 1000) return wholeMoney(n, currency);
-  const k = n / 1000;
-  const symbol = wholeMoney(0, currency).replace(/[\d\s.,]/g, '');
-  return `${symbol}${k < 10 ? k.toFixed(1).replace(/\.0$/, '') : Math.round(k)}k`;
 }
 
 export interface TabMetrics {

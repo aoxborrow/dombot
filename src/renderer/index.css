@@ -126,6 +126,8 @@
    saturation mid-ramp. Every green in the UI should come from this ramp, via
    the semantic tokens above (--primary, --brand, --ring). */
 @theme {
+  /* Between lg and xl: where a row of cards goes to five. */
+  --breakpoint-wide: 75rem;
   /* Dark-mode "expires within 30 days" orange: a quarter step from Tailwind's
      orange-400 toward orange-300 (interpolated in OKLCH), since 400 reads too
      deep next to the deeper red and 300 goes peach. */
