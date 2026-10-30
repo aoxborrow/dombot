@@ -6,9 +6,8 @@ import {
   CalendarClock,
   CircleDollarSign,
   Globe,
-  Hand,
   IterationCw,
-  Layers,
+  RefreshCwOff,
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { importedRows } from '../../shared/imported-domains';
@@ -215,7 +214,7 @@ export default function Renewals() {
         {
           id: 'all',
           label: 'All',
-          icon: Layers,
+          icon: Globe,
           count: inRegistrar.length,
           active: renewing === 'all',
           onClick: () => setRenewing('all'),
@@ -231,7 +230,7 @@ export default function Renewals() {
         {
           id: 'manual',
           label: 'Manual',
-          icon: Hand,
+          icon: RefreshCwOff,
           count: manual.length,
           active: renewing === 'manual',
           onClick: () => setRenewing('manual'),
