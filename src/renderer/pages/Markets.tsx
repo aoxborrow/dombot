@@ -7,6 +7,7 @@ import {
   salesTotal,
   sellThrough,
   trafficByMonth,
+  type CurrencyCount,
   type TrafficMonth,
 } from '../../shared/market-reports';
 import {
@@ -19,6 +20,10 @@ import {
   DEFAULT_NUMBER_FORMAT,
   formatMoney,
 } from '../../shared/money';
+import {
+  conversionText,
+  type ExchangeRates,
+} from '../../shared/exchange-rates';
 import { useAppStore } from '../store/app';
 import { StatCard } from '../components/StatCard';
 import { MarketLogo } from '../components/RegistrarLogo';
@@ -72,7 +77,8 @@ export default function Markets() {
   const settings = useAppStore((s) => s.settings);
   const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
-  const money = (amount: string, currency = 'USD') =>
+  const fx = useAppStore((s) => s.exchangeRates);
+  const money = (amount: string, currency = preferred) =>
     formatMoney(amount, currency, preferred, numberFormat, true);
   const count = (n: number) => n.toLocaleString();
 
@@ -109,13 +115,20 @@ export default function Markets() {
       leads: days.reduce((n, d) => n + (d.leads ?? 0), 0),
     };
   }, [traffic.accountDays]);
-  const years = useMemo(() => salesByYear(sales), [sales]);
+  // In your currency: a sale in another is converted at its month's average.
+  const years = useMemo(
+    () => salesByYear(sales, preferred, fx),
+    [sales, preferred, fx],
+  );
   const total = useMemo(() => salesTotal(years), [years]);
+  const anyConverted = sales.some(
+    (s) => s.status === 'completed' && s.currency !== preferred,
+  );
   // Each year's sales, newest first, for the rows that open.
   const salesByYearList = useMemo(() => {
     const out = new Map<string, MarketSale[]>();
     for (const sale of sales) {
-      if (!sale.soldOn || sale.currency !== 'USD') continue;
+      if (!sale.soldOn) continue;
       const year = sale.soldOn.slice(0, 4);
       (out.get(year) ?? out.set(year, []).get(year)!).push(sale);
     }
@@ -232,7 +245,9 @@ export default function Markets() {
           accentClass="text-brand-500"
           label="Net, all time"
           value={money(total.net)}
-          hint={`${count(total.sold)} sale${total.sold === 1 ? '' : 's'} · ${money(total.gross)} gross`}
+          hint={`${count(total.sold)} sale${total.sold === 1 ? '' : 's'} · ${money(total.gross)} gross${
+            total.leftOut.length ? ` · ${leavesOutSales(total.leftOut)}` : ''
+          }`}
         />
       </div>
 
@@ -298,7 +313,11 @@ export default function Markets() {
 
       <Section
         title="Sales by year"
-        note="Completed sales in USD. Commission is the market's; net is what you were paid."
+        note={`Completed sales in ${preferred}${
+          anyConverted
+            ? ', each converted at its month’s average exchange rate (ECB)'
+            : ''
+        }. Commission is the market's; net is what you were paid.`}
       >
         {years.length ? (
           <ReportTable>
@@ -336,11 +355,14 @@ export default function Markets() {
                           />
                           {y.year}
                         </button>
-                        {(y.inProgress > 0 || y.cancelled > 0) && (
+                        {(y.inProgress > 0 ||
+                          y.cancelled > 0 ||
+                          y.leftOut.length > 0) && (
                           <span className="ml-2 text-xs text-muted-foreground">
                             {[
                               y.inProgress && `${y.inProgress} in progress`,
                               y.cancelled && `${y.cancelled} cancelled`,
+                              y.leftOut.length > 0 && leavesOutSales(y.leftOut),
                             ]
                               .filter(Boolean)
                               .join(', ')}
@@ -350,7 +372,14 @@ export default function Markets() {
                       <TableCell className="text-right tabular-nums">
                         {y.sold}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell
+                        className="text-right tabular-nums"
+                        title={
+                          y.provisional
+                            ? 'Includes sales converted at a provisional rate until their month’s average is out'
+                            : undefined
+                        }
+                      >
                         {money(y.gross)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">
@@ -369,6 +398,8 @@ export default function Markets() {
                           <YearSales
                             sales={salesByYearList.get(y.year) ?? []}
                             money={money}
+                            preferred={preferred}
+                            fx={fx}
                           />
                         </TableCell>
                       </TableRow>
@@ -594,17 +625,42 @@ const SALE_KIND: Record<MarketSale['kind'], string> = {
   unknown: '—',
 };
 
-/** One year's sales, newest first, up to YEAR_SALES_SHOWN. */
+/** "leaves out 2 sales in TWD": completed sales DomBot can't convert. */
+function leavesOutSales(leftOut: readonly CurrencyCount[]): string {
+  const n = leftOut.reduce((sum, c) => sum + c.count, 0);
+  return `leaves out ${n} sale${n === 1 ? '' : 's'} in ${leftOut
+    .map((c) => c.currency)
+    .join(', ')}`;
+}
+
+/** One year's sales, newest first, up to YEAR_SALES_SHOWN. Each keeps its
+ *  own currency; one in another than yours shows the conversion on hover. */
 function YearSales({
   sales,
   money,
+  preferred,
+  fx,
 }: {
   sales: MarketSale[];
   money: (amount: string, currency?: string) => string;
+  preferred: string;
+  fx: ExchangeRates;
 }) {
   const shown = sales.slice(0, YEAR_SALES_SHOWN);
   const amount = (a: string | null, currency: string) =>
     a ? money(a, currency) : '—';
+  const converted = (s: MarketSale) => {
+    if (!s.price || s.currency === preferred) return undefined;
+    const c = fx.convert(s.price, s.currency, preferred, s.soldOn);
+    return c
+      ? conversionText(
+          money(s.price, s.currency),
+          money(String(c.amount), preferred),
+          c,
+          s.soldOn,
+        )
+      : `DomBot can't convert ${s.currency}`;
+  };
   return (
     <div className="px-2 py-1">
       <Table>
@@ -648,6 +704,7 @@ function YearSales({
                   s.status === 'cancelled' &&
                     'text-muted-foreground line-through',
                 )}
+                title={converted(s)}
               >
                 {amount(s.price, s.currency)}
               </TableCell>

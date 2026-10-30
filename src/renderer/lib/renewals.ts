@@ -1,10 +1,12 @@
 import { domainKey } from '../../shared/account-key';
 // Pure aggregation over the portfolio + renewal pricing, for the Renewals
-// dashboard. No React, no IPC — just numbers in, numbers out. A price carries
-// its own currency and DomBot never converts, so every total is in one
-// currency (`mainCurrency`) and the rest are listed beside it
-// (`otherCurrencies`).
+// dashboard. No React, no IPC — just numbers in, numbers out. A price keeps
+// its own currency; totals are in your preferred currency, with every other
+// price converted at the newest exchange rate held (docs/exchange-rates.md).
+// A price DomBot can't convert (outside the 30) is left out of the totals and
+// listed (`leftOut`).
 
+import type { ExchangeRates } from '../../shared/exchange-rates';
 import type { Domain, RenewalPricing } from '../../shared/ipc';
 
 /** Stable per-domain key, matching the store's `pricing` map keys. */
@@ -20,72 +22,41 @@ export function priceOf(
   return pricing[priceKey(d)];
 }
 
-/** A known annual renewal price in `currency` for a domain, else null. */
+/**
+ * A price's yearly renewal in `currency`: its own, or converted at the newest
+ * rate in `fx` (a renewal is ahead of you). Null when there's no price, or
+ * it's in a currency `fx` can't convert (or there's no `fx`).
+ */
+function inCurrency(
+  p: RenewalPricing | undefined,
+  currency: string,
+  fx?: ExchangeRates,
+): number | null {
+  if (p?.renewal == null) return null;
+  if (p.currency === currency) return p.renewal;
+  return fx?.convert(p.renewal, p.currency, currency)?.amount ?? null;
+}
+
+/** A domain's known yearly renewal in `currency`, else null. */
 function renewalOf(
   d: Domain,
   pricing: Record<string, RenewalPricing>,
   currency: string,
+  fx?: ExchangeRates,
 ): number | null {
-  const p = priceOf(d, pricing);
-  return p && p.renewal != null && p.currency === currency ? p.renewal : null;
-}
-
-/** The currency most priced names renew in; USD when nothing is priced. */
-export function mainCurrency(
-  domains: Domain[],
-  pricing: Record<string, RenewalPricing>,
-): string {
-  const counts = new Map<string, number>();
-  for (const d of domains) {
-    const p = priceOf(d, pricing);
-    if (p?.renewal != null)
-      counts.set(p.currency, (counts.get(p.currency) ?? 0) + 1);
-  }
-  let best = 'USD';
-  let most = 0;
-  for (const [currency, n] of counts) {
-    if (n > most || (n === most && currency === 'USD')) {
-      best = currency;
-      most = n;
-    }
-  }
-  return best;
+  return inCurrency(priceOf(d, pricing), currency, fx);
 }
 
 export interface CurrencyTotal {
   currency: string;
   /** Names priced in this currency. */
   count: number;
-  /** Sum of their known annual renewals. */
+  /** Sum of their known annual renewals, in this currency. */
   yearly: number;
 }
 
-/** Known renewals in every currency but `currency`, largest count first. */
-export function otherCurrencies(
-  domains: Domain[],
-  pricing: Record<string, RenewalPricing>,
-  currency: string,
-): CurrencyTotal[] {
-  const totals = new Map<string, CurrencyTotal>();
-  for (const d of domains) {
-    const p = priceOf(d, pricing);
-    if (p?.renewal == null || p.currency === currency) continue;
-    const t = totals.get(p.currency) ?? {
-      currency: p.currency,
-      count: 0,
-      yearly: 0,
-    };
-    t.count += 1;
-    t.yearly += p.renewal;
-    totals.set(p.currency, t);
-  }
-  return [...totals.values()].sort(
-    (a, b) => b.count - a.count || a.currency.localeCompare(b.currency),
-  );
-}
-
-/** Adds a renewal in another currency to `totals` (kept largest count first). */
-function addOther(totals: CurrencyTotal[], currency: string, amount: number) {
+/** Adds a renewal DomBot can't convert to `totals` (largest count first). */
+function addLeftOut(totals: CurrencyTotal[], currency: string, amount: number) {
   const t = totals.find((o) => o.currency === currency);
   if (t) {
     t.count += 1;
@@ -133,7 +104,7 @@ export function tldOf(domainName: string): string {
 }
 
 export interface RenewalSummary {
-  /** The currency the yearly figures are in (see `mainCurrency`). */
+  /** The currency the yearly figures are in: your preferred one. */
   currency: string;
   /** Total domains considered. */
   total: number;
@@ -147,20 +118,25 @@ export interface RenewalSummary {
   tld: number;
   /** Priced domains using a manual override. */
   manual: number;
-  /** Sum of known annual renewals in `currency`. */
+  /** Sum of known annual renewals in `currency`, converted where needed. */
   yearly: number;
   /** Committed spend: known renewals for auto-renew-on domains only. */
   yearlyAutoRenew: number;
-  /** Average annual renewal across domains priced in `currency`. */
+  /** Average annual renewal across the domains in `yearly`. */
   avgPerDomain: number;
-  /** Known renewals in other currencies, left out of the totals. */
-  others: CurrencyTotal[];
+  /** Prices converted from another currency into `currency`. */
+  converted: number;
+  /** The currencies they were in, alphabetically. */
+  convertedFrom: string[];
+  /** Known renewals DomBot can't convert, left out of the totals. */
+  leftOut: CurrencyTotal[];
 }
 
 export function summarize(
   domains: Domain[],
   pricing: Record<string, RenewalPricing>,
-  currency: string = mainCurrency(domains, pricing),
+  currency = 'USD',
+  fx?: ExchangeRates,
 ): RenewalSummary {
   let priced = 0;
   let base = 0;
@@ -168,18 +144,25 @@ export function summarize(
   let manual = 0;
   let yearly = 0;
   let yearlyAutoRenew = 0;
-  let inCurrency = 0;
+  let counted = 0;
+  let converted = 0;
+  const convertedFrom = new Set<string>();
+  const leftOut: CurrencyTotal[] = [];
 
   for (const d of domains) {
     const p = priceOf(d, pricing);
     if (p?.renewal == null) continue;
     priced += 1;
-    const value = renewalOf(d, pricing, currency);
+    const value = inCurrency(p, currency, fx);
     if (value != null) {
-      inCurrency += 1;
+      counted += 1;
       yearly += value;
       if (d.autoRenew) yearlyAutoRenew += value;
-    }
+      if (p.currency !== currency) {
+        converted += 1;
+        convertedFrom.add(p.currency);
+      }
+    } else addLeftOut(leftOut, p.currency, p.renewal);
     if (p?.source === 'base') base += 1;
     if (p?.source === 'tld') tld += 1;
     if (p?.source === 'manual') manual += 1;
@@ -195,8 +178,10 @@ export function summarize(
     manual,
     yearly,
     yearlyAutoRenew,
-    avgPerDomain: inCurrency > 0 ? yearly / inCurrency : 0,
-    others: otherCurrencies(domains, pricing, currency),
+    avgPerDomain: counted > 0 ? yearly / counted : 0,
+    converted,
+    convertedFrom: [...convertedFrom].sort(),
+    leftOut,
   };
 }
 
@@ -221,6 +206,7 @@ export function groupBy(
   keyOf: (d: Domain) => string,
   labelOf: (key: string) => string,
   currency = 'USD',
+  fx?: ExchangeRates,
 ): Group[] {
   const groups = new Map<string, Group>();
   for (const d of domains) {
@@ -231,7 +217,7 @@ export function groupBy(
       groups.set(key, g);
     }
     g.count += 1;
-    const value = renewalOf(d, pricing, currency);
+    const value = renewalOf(d, pricing, currency, fx);
     if (value != null) {
       g.priced += 1;
       g.yearly += value;
@@ -253,8 +239,8 @@ export interface MonthBucket {
   priced: number;
   /** Sum of known renewals due this month, in the page's currency. */
   yearly: number;
-  /** Renewals due this month priced in other currencies. */
-  others: CurrencyTotal[];
+  /** Renewals due this month that DomBot can't convert. */
+  leftOut: CurrencyTotal[];
 }
 
 /** The date a domain next comes up for renewal (renewalDate ?? expirationDate). */
@@ -291,6 +277,7 @@ export function upcomingByMonth(
   pricing: Record<string, RenewalPricing>,
   months = 12,
   currency = 'USD',
+  fx?: ExchangeRates,
 ): MonthBucket[] {
   const now = new Date();
   const startY = now.getFullYear();
@@ -308,7 +295,7 @@ export function upcomingByMonth(
       count: 0,
       priced: 0,
       yearly: 0,
-      others: [],
+      leftOut: [],
     };
     buckets.push(bucket);
     index.set(key, bucket);
@@ -329,34 +316,48 @@ export function upcomingByMonth(
     const p = priceOf(d, pricing);
     if (p?.renewal == null) continue;
     bucket.priced += 1;
-    if (p.currency === currency) bucket.yearly += p.renewal;
-    else addOther(bucket.others, p.currency, p.renewal);
+    const value = inCurrency(p, currency, fx);
+    if (value != null) bucket.yearly += value;
+    else addLeftOut(bucket.leftOut, p.currency, p.renewal);
   }
   return buckets;
 }
 
 /**
  * Total known renewal cost in `currency` for domains due within the next
- * `days` days, with any renewals priced in other currencies beside it.
+ * `days` days, with any DomBot can't convert listed beside it.
  */
 export function dueWithin(
   domains: Domain[],
   pricing: Record<string, RenewalPricing>,
   days: number,
   currency = 'USD',
-): { count: number; yearly: number; others: CurrencyTotal[] } {
+  fx?: ExchangeRates,
+): { count: number; yearly: number; leftOut: CurrencyTotal[] } {
   const cutoff = Date.now() + days * 86_400_000;
   let count = 0;
   let yearly = 0;
-  const others: CurrencyTotal[] = [];
+  const leftOut: CurrencyTotal[] = [];
   for (const d of domains) {
     const date = renewalDate(d);
     if (!date || date.getTime() > cutoff) continue;
     count += 1;
     const p = priceOf(d, pricing);
     if (p?.renewal == null) continue;
-    if (p.currency === currency) yearly += p.renewal;
-    else addOther(others, p.currency, p.renewal);
+    const value = inCurrency(p, currency, fx);
+    if (value != null) yearly += value;
+    else addLeftOut(leftOut, p.currency, p.renewal);
   }
-  return { count, yearly, others };
+  return { count, yearly, leftOut };
+}
+
+/** "Leaves out 2 renewals in TWD", "… in KES, TWD"; null with none. */
+export function leavesOut(
+  leftOut: readonly CurrencyTotal[],
+  noun = 'renewal',
+): string | null {
+  const count = leftOut.reduce((n, t) => n + t.count, 0);
+  if (count === 0) return null;
+  const codes = leftOut.map((t) => t.currency).sort();
+  return `Leaves out ${count} ${noun}${count === 1 ? '' : 's'} in ${codes.join(', ')}`;
 }

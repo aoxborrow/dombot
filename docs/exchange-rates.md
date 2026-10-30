@@ -98,7 +98,8 @@ Few installs will have any, but DomBot tells you when it finds them:
 ### Preferred currency
 
 The setting's job grows from "the default for new amounts" to the currency
-reports are shown in. Its description in Settings → General → Money becomes:
+reports are shown in. Its description in Settings → General → Money is now
+(built):
 
 > Totals and reports are shown in this currency, and new amounts start in it.
 > Saved amounts keep their own currency.
@@ -188,24 +189,30 @@ archive and the next fetch restore it, and as a cache it needs no
 
 Each value is `{ rates: { USD: 1.15132, … } }`, EUR-based, EUR left out.
 
+**Only when something needs converting** (`ratesNeeded`): an amount held in
+one of the 30 other than your preferred currency (a purchase, sale, renewal
+price, asking price, market sale or listing). Most portfolios are all USD
+with USD preferred, and those never fetch: the archive is all they'd use,
+and nothing of theirs uses it.
+
 It checks at desktop launch and with every sync: the Sync button (beside the
 sync, never holding it up), the desktop's background sync, and the Worker's
 hourly cron. A check fetches only what's missing, so most fetch nothing:
 
 1. **Months:** when the newest month held (archive or fetched) is older than
    last month, every month after it from the Data Portal. A month still
-   running is never kept.
-2. **Days:** when the newest day held is older than the newest business day
-   whose rates are out (16:00 UTC on a weekday), the 90-day file, keeping
-   the days of months with no average. That's this month, and last month
-   until its average is out, however long that takes.
+   running is never kept. About once a month.
+2. **Days:** when the newest rate held (a day, or the last day a month's
+   average covers) is a week old, the 90-day file, keeping the days of
+   months with no average. About once a week. A week-old rate is as close
+   as the month's average is to any day in it.
 3. **Prune:** days of a month that now has an average, and a fetched month
    the archive now ships (after an update).
 
-A fetch that doesn't bring what it expected (an average not out yet, a
-holiday, an error) waits six hours before the next try. Offline, DomBot
-converts with what it holds. `getExchangeRates` hands the rows to the
-renderer.
+A fetch that brings nothing newer (an average not out yet, an error) waits a
+day before the next try. Offline, DomBot converts with what it holds.
+`getExchangeRates` hands the rows to the renderer, which reloads them at
+launch and after each sync.
 
 `src/core/services/exchange-rates.live.test.ts` (`npm run test:live`, no
 credentials) checks both ECB formats still parse.
@@ -247,28 +254,39 @@ storage (`exchangeRates()`). Both get the same answers.
   changing your preferred currency changes every report at once, and a
   better rate source later needs no migration.
 - **On screen:** totals are in your currency. A row shows its own amount;
-  when that isn't your currency, its tooltip adds the conversion: "€1,200 ≈
-  $1,301 at the March 2024 average (ECB)", or "at the 28 Oct rate, until the
-  October average is out" when provisional.
+  when that isn't your currency, its tooltip adds the conversion
+  (`conversionText`): "€1,200 ≈ $1,301 at the March 2024 average (ECB)", or
+  "… at the 28 Oct 2026 rate, until the October average is out (ECB)" when
+  provisional.
 - **Left out:** a total that skipped amounts says so beside it: "Leaves out 2
-  amounts in KES". This replaces today's "plus €45" lists, which become rare.
+  renewals in KES", "leaves out 1 sale in TWD". This replaced the "plus €45"
+  lists.
 
 ## Where it shows
 
 - **Renewals** page and the Renewals tab metric (`src/renderer/lib/renewals.ts`,
-  `tab-metrics.ts`): every known renewal converted at the newest rate; the
-  other-currencies lists only hold what can't be converted.
+  `tab-metrics.ts`), built: totals in your currency, every known renewal
+  converted at the newest rate. The page's subtitle says how many were
+  converted and from what ("12 converted from EUR", the rate on hover);
+  `leftOut` only holds what can't be converted. Before, totals were in the
+  currency most names renewed in.
+- **Sales by year** (`market-reports.ts`, on the Markets page until the Sales
+  tab replaces it), built: each completed sale converted at its month's
+  average instead of counting USD only. A year is `provisional` while a
+  recent sale uses a recent rate, and a sale DomBot can't convert is left out
+  and counted. A year's sales keep their own currency, with the conversion
+  on hover.
 - **Sales tab** ([sales-tab.md](sales-tab.md)): totals, sales by month,
   breakdowns and the stat cards in your currency. This replaces that plan's
   "Currencies are never converted or summed together"; the currency filter
-  stays, for seeing only EUR sales in EUR. Sales by year
-  (`market-reports.ts`) converts instead of filtering to one currency.
+  stays, for seeing only EUR sales in EUR.
 - **Domains summary cards** (Net, last 12 months).
 - **Activity:** rows keep their own amounts, with the conversion in the
   tooltip.
-- **MCP:** summaries and totals add a converted figure beside the original
-  (amount, currency, period, provisional). Filters such as `priceCurrency`
-  stay as they are for now.
+- **MCP**, built: `market_report_get` is in your currency (`currency`, with
+  `provisional` and `leftOut` per year), and `market_sales` adds `converted`
+  beside its per-currency `totals`. Filters such as `priceCurrency` stay as
+  they are for now.
 - **CSV export:** unchanged. It's for round trips, so amounts stay as
   recorded.
 
@@ -276,15 +294,15 @@ storage (`exchangeRates()`). Both get the same answers.
 
 1. **Currency limits.** Built: `RATE_CURRENCIES`, the dropdown, the app, API,
    MCP and CSV checks, the editing rule, the preferred currency fallback, the
-   bell row, and the `getRegistrationQuote` fix. The Settings wording waits
-   for step 3, when reports actually convert.
+   bell row, and the `getRegistrationQuote` fix.
 2. **Rates.** Built: the build script and `data/exchange-rates.json`,
    `src/shared/exchange-rates.ts` with tests (each rule in
    [Which rate](#which-rate), the ISK gap, rounding), the `exchange-rates`
-   namespace, the fetch on both hosts, and `getExchangeRates`. Nothing shows
-   on screen yet.
-3. **Conversion where totals are today:** Renewals, the tab metric, sales by
-   year, MCP.
+   namespace, the fetch on both hosts (only when something needs
+   converting), and `getExchangeRates`.
+3. **Conversion where totals are today.** Built: Renewals, the tab metric,
+   sales by year on the Markets page, `market_report_get` and
+   `market_sales`, and the Settings wording.
 4. **Sales tab and Domains cards** as they're built
    ([sales-tab.md](sales-tab.md)), then the financial dashboard
    ([#112](https://github.com/aoxborrow/dombot/issues/112)).

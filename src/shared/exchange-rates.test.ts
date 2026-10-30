@@ -4,6 +4,8 @@ import { RATE_CURRENCIES } from './currencies';
 import {
   ExchangeRates,
   archiveMonths,
+  conversionText,
+  periodLabel,
   roundTo,
   type RateArchive,
   type Rates,
@@ -215,5 +217,41 @@ describe('roundTo', () => {
     expect(roundTo(12.345, 'USD')).toBe(12.35);
     expect(roundTo(12.3456, 'BHD')).toBe(12.346);
     expect(roundTo(12.3456, 'ZZZ')).toBe(12.35);
+  });
+});
+
+describe('periodLabel', () => {
+  it('reads a month as its average and a day as its rate', () => {
+    expect(periodLabel('2024-03')).toBe('the March 2024 average');
+    expect(periodLabel('2026-10-08')).toBe('the 8 Oct 2026 rate');
+  });
+});
+
+describe('conversionText', () => {
+  it('names the rate, and when a provisional one settles', () => {
+    expect(
+      conversionText('€1,200', '$1,301', {
+        amount: 1301,
+        period: '2024-03',
+        provisional: false,
+      }),
+    ).toBe('€1,200 ≈ $1,301 at the March 2024 average (ECB)');
+    expect(
+      conversionText(
+        '€10',
+        '$11',
+        { amount: 11, period: '2026-10-28', provisional: true },
+        '2026-10-29',
+      ),
+    ).toBe(
+      '€10 ≈ $11 at the 28 Oct 2026 rate, until the October average is out (ECB)',
+    );
+    expect(
+      conversionText('$5', '$5', {
+        amount: 5,
+        period: null,
+        provisional: false,
+      }),
+    ).toBe('$5');
   });
 });

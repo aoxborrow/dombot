@@ -70,6 +70,53 @@ export function archiveMonths(archive: RateArchive): Map<string, Rates> {
 
 const ARCHIVE = archiveMonths(archiveData as RateArchive);
 
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+/** A period as it reads after "at": "the March 2024 average" for a month,
+ *  "the 28 Oct 2026 rate" for a day. */
+export function periodLabel(period: string): string {
+  const [year, month, day] = period.split('-');
+  const name = MONTH_NAMES[Number(month) - 1] ?? month;
+  return day
+    ? `the ${Number(day)} ${name.slice(0, 3)} ${year} rate`
+    : `the ${name} ${year} average`;
+}
+
+/**
+ * A conversion as a tooltip reads it: "€1,200 ≈ $1,301 at the March 2024
+ * average (ECB)", or, for an amount dated in a month whose average isn't out,
+ * "… at the 28 Oct 2026 rate, until the October average is out (ECB)".
+ * `original` and `converted` come formatted.
+ */
+export function conversionText(
+  original: string,
+  converted: string,
+  conversion: Conversion,
+  date?: string | null,
+): string {
+  if (!conversion.period) return original;
+  const month =
+    conversion.provisional && date
+      ? MONTH_NAMES[Number(date.slice(5, 7)) - 1]
+      : null;
+  return `${original} ≈ ${converted} at ${periodLabel(conversion.period)}${
+    month ? `, until the ${month} average is out` : ''
+  } (ECB)`;
+}
+
 /** Rounds to the currency's minor units (JPY to whole yen, USD to cents). */
 export function roundTo(amount: number, currency: string): number {
   const decimals = isCurrencyCode(currency) ? CURRENCIES[currency] : 2;

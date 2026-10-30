@@ -24,16 +24,17 @@ import {
 import {
   dueWithin,
   groupBy,
-  mainCurrency,
+  leavesOut,
   priceOf,
   summarize,
   tldOf,
   upcomingByMonth,
   wholeMoney,
-  type CurrencyTotal,
   type Group,
   type MonthBucket,
 } from '../lib/renewals';
+import { periodLabel } from '../../shared/exchange-rates';
+import { DEFAULT_CURRENCY } from '../../shared/money';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -249,18 +250,28 @@ export default function Renewals() {
   // re-read after each Sync), so "loading" is just the brief gap before it lands.
   const pricingLoading = hasPortfolio && !hasPricing;
 
-  // Prices keep their own currency and are never converted: the totals are in
-  // the currency most names renew in, and any others are listed beside them.
-  const currency = useMemo(
-    () => mainCurrency(portfolio, pricing),
-    [portfolio, pricing],
+  // Totals are in your preferred currency. A price in another one is
+  // converted at the newest exchange rate held (a renewal is ahead of you);
+  // one DomBot can't convert is left out and said so.
+  const currency = useAppStore(
+    (s) => s.settings?.preferredCurrency ?? DEFAULT_CURRENCY,
   );
+  const fx = useAppStore((s) => s.exchangeRates);
   const usd = (n: number) => wholeMoney(n, currency);
   const summary = useMemo(
-    () => summarize(portfolio, pricing, currency),
-    [portfolio, pricing, currency],
+    () => summarize(portfolio, pricing, currency, fx),
+    [portfolio, pricing, currency, fx],
   );
-  const othersNote = plusOthers(summary.others);
+  const leftOutNote = lower(leavesOut(summary.leftOut));
+  const conversion = useMemo(() => {
+    if (summary.converted === 0) return null;
+    const period = fx.ratesFor(null)?.period;
+    const from = summary.convertedFrom.join(', ');
+    return {
+      note: `${summary.converted} converted from ${from}`,
+      title: `${summary.converted} renewal${summary.converted === 1 ? '' : 's'} in ${from} converted to ${currency}${period ? ` at ${periodLabel(period)} (ECB)` : ''}`,
+    };
+  }, [summary, fx, currency]);
   const byRegistrar = useMemo(
     () =>
       groupBy(
@@ -269,8 +280,9 @@ export default function Renewals() {
         (d) => d.registrar,
         (id) => registrarLabel(id, portfolioRegistrarLabels),
         currency,
+        fx,
       ),
-    [portfolio, pricing, portfolioRegistrarLabels, currency],
+    [portfolio, pricing, portfolioRegistrarLabels, currency, fx],
   );
   const byTld = useMemo(
     () =>
@@ -280,16 +292,17 @@ export default function Renewals() {
         (d) => tldOf(d.domainName),
         (t) => (t ? `.${t}` : '—'),
         currency,
+        fx,
       ),
-    [portfolio, pricing, currency],
+    [portfolio, pricing, currency, fx],
   );
   const months = useMemo(
-    () => upcomingByMonth(portfolio, pricing, 12, currency),
-    [portfolio, pricing, currency],
+    () => upcomingByMonth(portfolio, pricing, 12, currency, fx),
+    [portfolio, pricing, currency, fx],
   );
   const due90 = useMemo(
-    () => dueWithin(portfolio, pricing, 90, currency),
-    [portfolio, pricing, currency],
+    () => dueWithin(portfolio, pricing, 90, currency, fx),
+    [portfolio, pricing, currency, fx],
   );
 
   // Donut slices: registrar and TLD, each by domain count and by yearly spend.
@@ -338,7 +351,11 @@ export default function Renewals() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
-      <PageHeader loading={pricingLoading} summary={summary}>
+      <PageHeader
+        loading={pricingLoading}
+        summary={summary}
+        conversion={conversion}
+      >
         {registrarFilter}
       </PageHeader>
       <div>{renewSwitch}</div>
@@ -359,7 +376,7 @@ export default function Renewals() {
           accentClass="text-brand-500"
           label="Yearly renewals"
           value={usd(summary.yearly)}
-          hint={`${usd(monthly)}/mo${othersNote ? ` · ${othersNote}` : ''}`}
+          hint={`${usd(monthly)}/mo${leftOutNote ? ` · ${leftOutNote}` : ''}`}
         />
         <StatCard
           icon={CalendarClock}
@@ -367,7 +384,7 @@ export default function Renewals() {
           label="Due next 90 days"
           value={usd(due90.yearly)}
           hint={`${due90.count} domain${due90.count === 1 ? '' : 's'} renewing${
-            due90.others.length ? ` · ${plusOthers(due90.others)}` : ''
+            due90.leftOut.length ? ` · ${lower(leavesOut(due90.leftOut))}` : ''
           }`}
         />
       </div>
@@ -428,10 +445,13 @@ export default function Renewals() {
 function PageHeader({
   loading,
   summary,
+  conversion,
   children,
 }: {
   loading: boolean;
   summary: ReturnType<typeof summarize>;
+  /** Shown when some prices were converted into your currency. */
+  conversion?: { note: string; title: string } | null;
   children?: ReactNode;
 }) {
   return (
@@ -444,6 +464,9 @@ function PageHeader({
             : summary.priced > 0
               ? `Forward-looking renewal costs · ${summary.priced}/${summary.total} priced`
               : 'Annual renewal costs across your whole portfolio.'}
+          {!loading && conversion && (
+            <span title={conversion.title}> · {conversion.note}</span>
+          )}
         </p>
       </div>
       {children}
@@ -453,9 +476,9 @@ function PageHeader({
 
 // ── Monthly bar chart ────────────────────────────────────────────────────────
 
-/** Totals in other currencies, e.g. "+ €45 · + £12". */
-function plusOthers(others: CurrencyTotal[]): string {
-  return others.map((o) => `+ ${wholeMoney(o.yearly, o.currency)}`).join(' · ');
+/** "leaves out 2 renewals in TWD", for a hint after a dot; null stays null. */
+function lower(note: string | null): string | null {
+  return note && note[0].toLowerCase() + note.slice(1);
 }
 
 // The bars are all a single flat blue — the month labels already tell them
@@ -506,7 +529,7 @@ function MonthlyBarChart({
                     backgroundColor: BAR_COLOR,
                   }}
                   title={`${m.label}: ${usd(m.yearly)}${
-                    m.others.length ? ` ${plusOthers(m.others)}` : ''
+                    m.leftOut.length ? ` (${lower(leavesOut(m.leftOut))})` : ''
                   } · ${m.count} domain${m.count === 1 ? '' : 's'}`}
                 />
                 {m.yearly > 0 && (

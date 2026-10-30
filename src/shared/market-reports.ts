@@ -1,3 +1,4 @@
+import type { ExchangeRates } from './exchange-rates';
 import {
   searchesOf,
   type MarketListing,
@@ -9,11 +10,50 @@ import {
 // by month, sell-through and search demand, from what market sync stored.
 // Pure, so the Markets page and the MCP tools compute the same numbers.
 //
-// Amounts are summed in cents, so totals are exact decimal strings.
+// Amounts are summed in cents, so totals are exact decimal strings. Money is
+// in one currency: a sale in another is converted at its own month's average
+// (docs/exchange-rates.md), and one DomBot can't convert is left out and
+// counted.
 
 const cents = (amount: string | null | undefined) =>
   amount ? Math.round(Number(amount) * 100) : 0;
 const decimal = (n: number) => (n / 100).toFixed(2);
+
+/** A sale's amounts in `currency`, in cents, or null when they can't be
+ *  converted. Dated by `soldOn`; one with no date takes the newest rate. */
+function saleCents(
+  s: MarketSale,
+  currency: string,
+  fx: ExchangeRates | undefined,
+): {
+  of: (amount: string | null | undefined) => number;
+  provisional: boolean;
+} | null {
+  if (s.currency === currency) return { of: cents, provisional: false };
+  const probe = fx?.convert(0, s.currency, currency, s.soldOn);
+  if (!fx || !probe) return null;
+  return {
+    of: (amount) =>
+      amount
+        ? Math.round(
+            fx.convert(amount, s.currency, currency, s.soldOn)!.amount * 100,
+          )
+        : 0,
+    provisional: probe.provisional,
+  };
+}
+
+export interface CurrencyCount {
+  currency: string;
+  count: number;
+}
+
+function addCount(counts: CurrencyCount[], currency: string, n = 1): void {
+  const c = counts.find((x) => x.currency === currency);
+  if (c) c.count += n;
+  else counts.push({ currency, count: n });
+  counts.sort((a, b) => a.currency.localeCompare(b.currency));
+}
 
 export interface SalesYear {
   year: string;
@@ -27,15 +67,23 @@ export interface SalesYear {
   net: string;
   /** Gross ÷ sold; null with no sales. */
   average: string | null;
+  /** Some of the money uses a recent rate until its month's average
+   *  is out. */
+  provisional: boolean;
+  /** Completed sales DomBot can't convert, left out of `sold` and the money. */
+  leftOut: CurrencyCount[];
 }
 
 /**
- * Completed sales per year in one currency, newest year first. In-progress
- * and cancelled sales are counted beside them, not in the money.
+ * Completed sales per year in `currency`, newest year first, each converted
+ * at its month's average with `fx` when it's in another currency (without
+ * `fx`, only sales already in `currency` count). In-progress and cancelled
+ * sales are counted beside them, in any currency, not in the money.
  */
 export function salesByYear(
   sales: readonly MarketSale[],
   currency = 'USD',
+  fx?: ExchangeRates,
 ): SalesYear[] {
   const years = new Map<
     string,
@@ -46,10 +94,12 @@ export function salesByYear(
       gross: number;
       commission: number;
       net: number;
+      provisional: boolean;
+      leftOut: CurrencyCount[];
     }
   >();
   for (const s of sales) {
-    if (!s.soldOn || s.currency !== currency) continue;
+    if (!s.soldOn) continue;
     const year = s.soldOn.slice(0, 4);
     const y = years.get(year) ?? {
       sold: 0,
@@ -58,13 +108,21 @@ export function salesByYear(
       gross: 0,
       commission: 0,
       net: 0,
+      provisional: false,
+      leftOut: [],
     };
     if (s.status === 'completed') {
-      y.sold++;
-      y.gross += cents(s.price);
-      y.commission += cents(s.commission);
-      y.net +=
-        s.net != null ? cents(s.net) : cents(s.price) - cents(s.commission);
+      const money = saleCents(s, currency, fx);
+      if (money) {
+        y.sold++;
+        y.gross += money.of(s.price);
+        y.commission += money.of(s.commission);
+        y.net +=
+          s.net != null
+            ? money.of(s.net)
+            : money.of(s.price) - money.of(s.commission);
+        y.provisional ||= money.provisional;
+      } else addCount(y.leftOut, s.currency);
     } else if (s.status === 'cancelled') y.cancelled++;
     else if (s.status === 'in_progress') y.inProgress++;
     years.set(year, y);
@@ -80,6 +138,8 @@ export function salesByYear(
       commission: decimal(y.commission),
       net: decimal(y.net),
       average: y.sold ? decimal(Math.round(y.gross / y.sold)) : null,
+      provisional: y.provisional,
+      leftOut: y.leftOut,
     }));
 }
 
@@ -90,6 +150,9 @@ export function salesTotal(
   const sum = (f: 'gross' | 'commission' | 'net') =>
     years.reduce((n, y) => n + cents(y[f]), 0);
   const sold = years.reduce((n, y) => n + y.sold, 0);
+  const leftOut: CurrencyCount[] = [];
+  for (const y of years)
+    for (const c of y.leftOut) addCount(leftOut, c.currency, c.count);
   return {
     sold,
     inProgress: years.reduce((n, y) => n + y.inProgress, 0),
@@ -98,6 +161,51 @@ export function salesTotal(
     commission: decimal(sum('commission')),
     net: decimal(sum('net')),
     average: sold ? decimal(Math.round(sum('gross') / sold)) : null,
+    provisional: years.some((y) => y.provisional),
+    leftOut,
+  };
+}
+
+export interface ConvertedTotals {
+  currency: string;
+  price: string;
+  commission: string;
+  net: string;
+  /** Some amounts use a recent rate until their month's average is out. */
+  provisional: boolean;
+  /** Sales DomBot can't convert, left out of the sums. */
+  leftOut: CurrencyCount[];
+}
+
+/** Price, commission and net over `sales`, all in `currency`. */
+export function convertedTotals(
+  sales: readonly MarketSale[],
+  currency: string,
+  fx: ExchangeRates,
+): ConvertedTotals {
+  let price = 0;
+  let commission = 0;
+  let net = 0;
+  let provisional = false;
+  const leftOut: CurrencyCount[] = [];
+  for (const s of sales) {
+    const money = saleCents(s, currency, fx);
+    if (!money) {
+      addCount(leftOut, s.currency);
+      continue;
+    }
+    price += money.of(s.price);
+    commission += money.of(s.commission);
+    net += money.of(s.net);
+    provisional ||= money.provisional;
+  }
+  return {
+    currency,
+    price: decimal(price),
+    commission: decimal(commission),
+    net: decimal(net),
+    provisional,
+    leftOut,
   };
 }
 

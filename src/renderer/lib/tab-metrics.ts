@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { useAppStore } from '../store/app';
 import { notifications } from '../../shared/notifications';
-import { summarize, wholeMoney } from './renewals';
+import { leavesOut, summarize, wholeMoney } from './renewals';
+import { DEFAULT_CURRENCY } from '../../shared/money';
 import { importedRows } from '../../shared/imported-domains';
 
 export interface TabMetric {
@@ -38,6 +39,10 @@ export function useTabMetrics(): TabMetrics {
   const importedDomains = useAppStore((s) => s.importedDomains);
   const pricing = useAppStore((s) => s.pricing);
   const events = useAppStore((s) => s.domainEvents);
+  const currency = useAppStore(
+    (s) => s.settings?.preferredCurrency ?? DEFAULT_CURRENCY,
+  );
+  const fx = useAppStore((s) => s.exchangeRates);
 
   return useMemo(() => {
     const portfolio = [...synced, ...importedRows(importedDomains, synced)];
@@ -50,12 +55,13 @@ export function useTabMetrics(): TabMetrics {
           }
         : null;
 
-    const summary = summarize(portfolio, pricing);
+    const summary = summarize(portfolio, pricing, currency, fx);
+    const leftOut = leavesOut(summary.leftOut);
     const renewals =
       summary.priced > 0
         ? {
             value: compactMoney(summary.yearly, summary.currency),
-            title: `${wholeMoney(summary.yearly, summary.currency)} per year in renewals (${summary.priced} of ${summary.total} priced)${summary.others.map((o) => `, plus ${wholeMoney(o.yearly, o.currency)}`).join('')}`,
+            title: `${wholeMoney(summary.yearly, summary.currency)} per year in renewals (${summary.priced} of ${summary.total} priced)${leftOut ? `. ${leftOut}.` : ''}`,
           }
         : null;
 
@@ -70,5 +76,5 @@ export function useTabMetrics(): TabMetrics {
         : null;
 
     return { domains, renewals, activity };
-  }, [synced, importedDomains, pricing, events]);
+  }, [synced, importedDomains, pricing, events, currency, fx]);
 }
