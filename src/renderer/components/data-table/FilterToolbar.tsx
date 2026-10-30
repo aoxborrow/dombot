@@ -80,6 +80,10 @@ export function ToolbarSwitch({
       // corners where the segments meet; the outer ones stay round.
       className={cn(
         '[&_[role=radio]]:gap-[7px] [&_[role=radio]]:pl-[11px] [&_[role=radio]:not(:first-child)]:rounded-l-[2px] [&_[role=radio]:not(:last-child)]:rounded-r-[2px]',
+        // A dim rule between two options side by side that aren't chosen,
+        // in the 2px gap between them (three options: the chosen one sets
+        // the rest apart already).
+        "[&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:relative [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:absolute [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:inset-y-px [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:-left-[1.5px] [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:w-px [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:bg-border [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:content-['']",
         fillOnPhone &&
           'max-sm:flex max-sm:h-10 max-sm:w-full max-sm:[&_[role=radio]]:flex-1',
         className,

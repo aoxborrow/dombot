@@ -79,105 +79,104 @@ export function SalesCards({
   const dash = '—';
 
   return (
-    <div className="flex flex-col gap-1">
-      <StatCardRow>
+    <StatCardRow
+      note={
+        <>
+          Reflects the current filters, in {c ?? 'one currency'}.
+          {others.length > 0 &&
+            ` ${others
+              .map((o) => `${plural(o.count, 'sale')} in ${o.currency}`)
+              .join(', ')} left out; filter by Currency to see ${
+              others.length === 1 && others[0].count === 1 ? 'it' : 'them'
+            }.`}
+        </>
+      }
+    >
+      <StatCard
+        size="sm"
+        icon={BadgeDollarSign}
+        accentClass="text-violet-500"
+        label="Sales"
+        // Finished and under way; cancelled ones aren't sales.
+        value={((t?.sold ?? 0) + (t?.inProgress ?? 0)).toLocaleString()}
+        // The Pending view's cards are a label and a number, so both
+        // are bigger.
+        hint={
+          pendingView
+            ? undefined
+            : hint(
+                pending > 0 && `${pending} pending`,
+                t?.cancelled && `${t.cancelled} cancelled`,
+              )
+        }
+      />
+      {pendingView ? (
+        // Gross counts finished sales; most pending ones aren't yet.
         <StatCard
           size="sm"
-          icon={BadgeDollarSign}
-          accentClass="text-violet-500"
-          label="Sales"
-          // Finished and under way; cancelled ones aren't sales.
-          value={((t?.sold ?? 0) + (t?.inProgress ?? 0)).toLocaleString()}
-          // The Pending view's cards are a label and a number, so both
-          // are bigger.
-          hint={
-            pendingView
-              ? undefined
-              : hint(
-                  pending > 0 && `${pending} pending`,
-                  t?.cancelled && `${t.cancelled} cancelled`,
-                )
-          }
+          icon={Receipt}
+          accentClass="text-sky-500"
+          label="Value"
+          value={value && c ? money(value.toFixed(2), c)! : dash}
         />
-        {pendingView ? (
-          // Gross counts finished sales; most pending ones aren't yet.
-          <StatCard
-            size="sm"
-            icon={Receipt}
-            accentClass="text-sky-500"
-            label="Value"
-            value={value && c ? money(value.toFixed(2), c)! : dash}
-          />
-        ) : (
-          <StatCard
-            size="sm"
-            icon={Receipt}
-            accentClass="text-sky-500"
-            label="Gross"
-            value={t?.grossCount ? money(t.gross, c)! : dash}
-            hint={hint(t?.average && `${money(t.average, c)} avg`)}
-          />
-        )}
-        {pendingView && (
-          <StatCard
-            size="sm"
-            icon={Hand}
-            accentClass="text-amber-500"
-            label="Needs action"
-            // An auth code or payee details for the market.
-            value={(waiting.authCode + waiting.payee).toLocaleString()}
-          />
-        )}
-        {pendingView && (
-          <StatCard
-            size="sm"
-            icon={ArrowRightLeft}
-            accentClass="text-sky-500"
-            label="Awaiting transfer"
-            // At the market, or a name still in your account.
-            value={(waiting.market + waiting.held).toLocaleString()}
-          />
-        )}
-        {!pendingView && (
-          <StatCard
-            size="sm"
-            icon={CircleDollarSign}
-            accentClass="text-brand-500"
-            label="Net"
-            value={t?.netCount ? money(t.net, c)! : dash}
-            hint={hint(
-              t?.feesCount && `${money(t.fees, c)} fees`,
-              of(t?.netCount ?? 0, 'known'),
-            )}
-          />
-        )}
-        {!pendingView && (
-          <StatCard
-            size="sm"
-            icon={TrendingUp}
-            accentClass="text-rose-500"
-            label="Profit"
-            value={t?.profitCount ? money(t.profit, c)! : dash}
-            hint={hint(
-              t?.profitCount &&
-                t.roi !== null &&
-                `${Math.round(t.roi * 100).toLocaleString()}% ROI`,
-              of(t?.profitCount ?? 0, 'with a cost'),
-            )}
-          />
-        )}
-      </StatCardRow>
-      {others.length > 0 && (
-        // Quiet, on the right: a footnote to the cards.
-        <p className="text-right text-[11px] text-muted-foreground/40 sm:text-xs">
-          In {c}.{' '}
-          {others
-            .map((o) => `${plural(o.count, 'sale')} in ${o.currency}`)
-            .join(', ')}{' '}
-          left out; filter by Currency to see{' '}
-          {others.length === 1 && others[0].count === 1 ? 'it' : 'them'}.
-        </p>
+      ) : (
+        <StatCard
+          size="sm"
+          icon={Receipt}
+          accentClass="text-sky-500"
+          label="Gross"
+          value={t?.grossCount ? money(t.gross, c)! : dash}
+          hint={hint(t?.average && `${money(t.average, c)} avg`)}
+        />
       )}
-    </div>
+      {pendingView && (
+        <StatCard
+          size="sm"
+          icon={Hand}
+          accentClass="text-amber-500"
+          label="Needs action"
+          // An auth code or payee details for the market.
+          value={(waiting.authCode + waiting.payee).toLocaleString()}
+        />
+      )}
+      {pendingView && (
+        <StatCard
+          size="sm"
+          icon={ArrowRightLeft}
+          accentClass="text-sky-500"
+          label="Awaiting transfer"
+          // At the market, or a name still in your account.
+          value={(waiting.market + waiting.held).toLocaleString()}
+        />
+      )}
+      {!pendingView && (
+        <StatCard
+          size="sm"
+          icon={CircleDollarSign}
+          accentClass="text-brand-500"
+          label="Net"
+          value={t?.netCount ? money(t.net, c)! : dash}
+          hint={hint(
+            t?.feesCount && `${money(t.fees, c)} fees`,
+            of(t?.netCount ?? 0, 'known'),
+          )}
+        />
+      )}
+      {!pendingView && (
+        <StatCard
+          size="sm"
+          icon={TrendingUp}
+          accentClass="text-rose-500"
+          label="Profit"
+          value={t?.profitCount ? money(t.profit, c)! : dash}
+          hint={hint(
+            t?.profitCount &&
+              t.roi !== null &&
+              `${Math.round(t.roi * 100).toLocaleString()}% ROI`,
+            of(t?.profitCount ?? 0, 'with a cost'),
+          )}
+        />
+      )}
+    </StatCardRow>
   );
 }

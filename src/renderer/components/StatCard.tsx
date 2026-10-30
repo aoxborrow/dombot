@@ -155,33 +155,45 @@ export function StatCard({
  * A row of small StatCards over a table, filling its width, in priority
  * order: the first three always show; a fourth joins from lg and a fifth
  * from xl, so it stays one row. On phones it's two to a row, the first
- * four.
+ * four. Under it, a quiet line on the right says the cards follow the
+ * filters (a page can say more), so every row of cards ends the same way.
  */
-export function StatCardRow({ children }: { children: ReactNode }) {
+export function StatCardRow({
+  children,
+  note = 'Reflects the current filters.',
+}: {
+  children: ReactNode;
+  note?: ReactNode;
+}) {
   const cards = Children.toArray(children);
   return (
-    <div
-      className={cn(
-        // The same 13px as between the page's rows.
-        'grid gap-[13px]',
-        cards.length >= 4 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-3',
-        cards.length >= 4 && 'lg:grid-cols-4',
-        cards.length >= 5 && 'xl:grid-cols-5',
-      )}
-    >
-      {cards.map((card, i) => (
-        <div
-          key={i}
-          className={cn(
-            'grid',
-            i === 3 && 'sm:max-lg:hidden',
-            i === 4 && 'max-xl:hidden',
-            i > 4 && 'hidden',
-          )}
-        >
-          {card}
-        </div>
-      ))}
+    <div className="flex flex-col gap-1">
+      <div
+        className={cn(
+          // The same 13px as between the page's rows.
+          'grid gap-[13px]',
+          cards.length >= 4 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-3',
+          cards.length >= 4 && 'lg:grid-cols-4',
+          cards.length >= 5 && 'xl:grid-cols-5',
+        )}
+      >
+        {cards.map((card, i) => (
+          <div
+            key={i}
+            className={cn(
+              'grid',
+              i === 3 && 'sm:max-lg:hidden',
+              i === 4 && 'max-xl:hidden',
+              i > 4 && 'hidden',
+            )}
+          >
+            {card}
+          </div>
+        ))}
+      </div>
+      <p className="text-right text-[11px] text-muted-foreground/40 sm:text-xs">
+        {note}
+      </p>
     </div>
   );
 }
