@@ -8,13 +8,14 @@ import {
   Globe,
   IterationCw,
   RefreshCwOff,
+  TrendingUp,
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { importedRows } from '../../shared/imported-domains';
 import { toAscii } from '../../shared/domain-name';
 import { ownershipByDomain, standingOf } from '../../shared/ownership';
 import { useAppStore } from '../store/app';
-import { StatCard } from '../components/StatCard';
+import { StatCard, StatCardRow } from '../components/StatCard';
 import { ToolbarSwitch } from '../components/data-table/FilterToolbar';
 import { FilterDropdown } from '../components/data-table/FilterBar';
 import {
@@ -283,9 +284,22 @@ export default function Renewals() {
     () => upcomingByMonth(portfolio, pricing, 12, currency),
     [portfolio, pricing, currency],
   );
+  const due30 = useMemo(
+    () => dueWithin(portfolio, pricing, 30, currency),
+    [portfolio, pricing, currency],
+  );
   const due90 = useMemo(
     () => dueWithin(portfolio, pricing, 90, currency),
     [portfolio, pricing, currency],
+  );
+  // The month of the next 12 with the most to pay.
+  const peak = useMemo(
+    () =>
+      months.reduce<(typeof months)[number] | null>(
+        (top, m) => (m.yearly > (top?.yearly ?? 0) ? m : top),
+        null,
+      ),
+    [months],
   );
 
   // Donut slices: registrar and TLD, each by domain count and by yearly spend.
@@ -338,37 +352,57 @@ export default function Renewals() {
       <PageHeader>{registrarFilter}</PageHeader>
       <div className="flex">{renewSwitch}</div>
 
-      {/* Totals */}
-      <div className="grid gap-[13px] sm:grid-cols-3">
+      {/* Totals: the small two-row cards Domains and Sales have. Amounts in
+          another currency are left out of these; the chart lists them. */}
+      <StatCardRow>
         <StatCard
+          size="sm"
           icon={Globe}
           accentClass="text-blue-500"
-          label="Total domains"
-          value={count(summary.total)}
-          hint={`${byRegistrar.length} registrar${
-            byRegistrar.length === 1 ? '' : 's'
-          } · ${byTld.length} TLD${byTld.length === 1 ? '' : 's'}`}
+          label="Domains"
+          value={[
+            {
+              value: count(summary.total),
+              unit: `${byRegistrar.length} registrar${
+                byRegistrar.length === 1 ? '' : 's'
+              }`,
+            },
+          ]}
         />
         <StatCard
+          size="sm"
           icon={CircleDollarSign}
           accentClass="text-brand-500"
-          label="Yearly renewals"
-          value={usd(summary.yearly)}
-          hint={`${usd(monthly)}/mo${othersNote ? ` · ${othersNote}` : ''}`}
+          label="Yearly"
+          value={[
+            {
+              value: usd(summary.yearly),
+              unit: [`${usd(monthly)}/mo`, othersNote]
+                .filter(Boolean)
+                .join(' · '),
+            },
+          ]}
         />
         <StatCard
+          size="sm"
           icon={CalendarClock}
           accentClass="text-amber-500"
-          label="Due next 90 days"
-          value={usd(due90.yearly)}
-          hint={`${due90.count} domain${due90.count === 1 ? '' : 's'} renewing${
-            due90.others.length ? ` · ${plusOthers(due90.others)}` : ''
-          }`}
+          label="Due soon"
+          value={[
+            { value: usd(due30.yearly), unit: '/30d' },
+            { value: usd(due90.yearly), unit: '/90d' },
+          ]}
         />
-      </div>
+        <StatCard
+          size="sm"
+          icon={TrendingUp}
+          accentClass="text-violet-500"
+          label="Biggest month"
+          value={peak ? [{ value: usd(peak.yearly), unit: peak.label }] : '—'}
+        />
+      </StatCardRow>
 
-      {/* Spend over time — sits between the totals and the composition donuts so
-          the two rows of three never read as paired. */}
+      {/* Spend over time, between the totals and the composition donuts. */}
       <MonthlyBarChart months={months} fmt={usd} />
 
       {/* Composition: two pairs (count + spend), one row per dimension. */}
