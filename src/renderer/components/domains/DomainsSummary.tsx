@@ -122,7 +122,7 @@ export function DomainsSummary({
         icon={CircleDollarSign}
         accentClass="text-brand-500"
         label="Net, last 12 months"
-        to="/sales?view=sales"
+        to="/sales"
         // Net is unknown until a sale's fees are.
         value={main?.netCount ? money(main.net) : '—'}
         hint={

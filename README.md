@@ -39,10 +39,9 @@ browser on an invented portfolio, no install and no account.
   [Connecting marketplaces](#connecting-marketplaces).
 - **Sales.** Every sale in one place: what the markets report, and the private
   and imported sales you record, with fees, net, holding period and profit
-  where what you paid is known. Totals by year, market, TLD and registrar, per
-  currency (never converted), and a CSV export. The overview lists what needs
-  you: a sale waiting on the auth code (sent from the registrar in one click),
-  rejected or stuck listings, market prices below yours.
+  where what you paid is known. Filter by date, market, TLD or registrar and
+  the totals above follow, per currency (never converted); export to CSV. A
+  sale waiting on the auth code sends it from the registrar in one click.
 - **Export.** One click exports the current (filtered, sorted) view to a
   spreadsheet-friendly CSV.
 - **Instant, offline-friendly launch.** The whole portfolio is cached on disk

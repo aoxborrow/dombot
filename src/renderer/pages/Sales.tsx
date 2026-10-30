@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowUpRight,
   BadgeDollarSign,
+  Building2,
   CalendarClock,
   Coins,
   Download,
   Ellipsis,
+  Globe,
   History,
-  LayoutDashboard,
   Pencil,
   Store,
 } from 'lucide-react';
@@ -21,11 +22,8 @@ import {
 } from '../../shared/money';
 import {
   filterSaleRecords,
-  groupSaleRecords,
   saleRecordsCsv,
   saleTld,
-  saleTotals,
-  type SaleGroup,
   type SaleRecord,
   type SaleSource,
 } from '../../shared/sales';
@@ -48,19 +46,14 @@ import { MarketLogo } from '../components/RegistrarLogo';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import {
   FilterToolbar,
-  ToolbarSwitch,
   listField,
 } from '../components/data-table/FilterToolbar';
 import type { FilterField } from '../components/data-table/FilterBar';
 import { dateRangeField } from '../components/data-table/DateRangeFilter';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import { SaleAuthCode } from '../components/sales/SaleAuthCode';
-import {
-  SalesOverview,
-  useNeedsAttention,
-} from '../components/sales/SalesOverview';
+import { SalesCards, heldFor } from '../components/sales/SalesCards';
 import { Button } from '@/components/ui/button';
-import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,20 +68,13 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
-// The Sales tab (docs/sales-tab.md). Overview: what needs you, the year's
-// numbers, sales by month. Sales: every sale, from every source, one row
-// each; sales under way pin to the top with their next step. Totals and
-// breakdowns are per currency: amounts are never converted or combined.
+// The Sales tab (docs/sales-tab.md): every sale, from every source, one row
+// each; sales under way pin to the top with their next step. The cards above
+// add up what the filters leave, so a market, TLD, registrar or date filter
+// shows that slice's totals, one currency at a time: amounts are never
+// converted or combined.
 
 type SortKey =
   | 'name'
@@ -102,29 +88,9 @@ type SortKey =
   | 'held'
   | 'profit';
 
-type Breakdown = 'year' | 'market' | 'tld' | 'registrar';
-
-const BREAKDOWNS: { id: Breakdown; label: string }[] = [
-  { id: 'year', label: 'Year' },
-  { id: 'market', label: 'Market' },
-  { id: 'tld', label: 'TLD' },
-  { id: 'registrar', label: 'Registrar' },
-];
-
 export default function Sales() {
   const navigate = useNavigate();
-  // Overview (what needs you, the year's numbers) or every sale, switched
-  // like Domains' Active / Archive.
-  const [params, setParams] = useSearchParams();
-  const overview = params.get('view') !== 'sales';
-  const setView = (sales: boolean) => {
-    const next = new URLSearchParams(params);
-    if (sales) next.set('view', 'sales');
-    else next.delete('view');
-    setParams(next, { replace: true });
-  };
   const records = useSaleRecords();
-  const attention = useNeedsAttention(records);
   const catalog = useAppStore((s) => s.marketCatalog);
   const registrars = useAppStore((s) => s.registrars);
   const marketAccounts = useAppStore((s) => s.marketAccounts);
@@ -148,11 +114,12 @@ export default function Sales() {
   const [sold, setSold] = useState<DateRange>(NO_DATE_RANGE);
   const [sources, setSources] = useState<string[]>([]);
   const [currencies, setCurrencies] = useState<string[]>([]);
+  const [tlds, setTlds] = useState<string[]>([]);
+  const [registrarIds, setRegistrarIds] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('soldOn');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
-  const [breakdown, setBreakdown] = useState<Breakdown>('year');
   const [editing, setEditing] = useState<SaleRecord | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
 
@@ -160,9 +127,14 @@ export default function Sales() {
   const registrarName = (r: SaleRecord) =>
     accountName(registrars, r.registrarAccountId) ?? '';
   // Sales waiting on you can only be acted on through an account that's
-  // still connected.
+  // still connected, turned on and set up.
   const liveMarketAccounts = useMemo(
-    () => new Set((marketAccounts ?? []).map((a) => a.id)),
+    () =>
+      new Set(
+        (marketAccounts ?? [])
+          .filter((a) => a.enabled && a.configured)
+          .map((a) => a.id),
+      ),
     [marketAccounts],
   );
 
@@ -181,13 +153,16 @@ export default function Sales() {
       rows: byDate.records.filter(
         (r) =>
           (!currencies.length || currencies.includes(r.currency ?? '')) &&
+          (!tlds.length || tlds.includes(saleTld(r))) &&
+          (!registrarIds.length ||
+            registrarIds.includes(r.registrarAccountId ?? '')) &&
           (!q ||
             r.name.includes(q) ||
             toUnicode(r.name).toLowerCase().includes(q)),
       ),
       undated: byDate.undated,
     };
-  }, [records, sold, sources, currencies, search]);
+  }, [records, sold, sources, currencies, tlds, registrarIds, search]);
 
   // Under way first, then the chosen sort; blanks last either way.
   const sorted = useMemo(() => {
@@ -238,24 +213,6 @@ export default function Sales() {
     setPage(0);
   };
 
-  const totals = useMemo(() => saleTotals(rows), [rows]);
-  const groups = useMemo(
-    () =>
-      groupSaleRecords(rows, (r) => {
-        if (breakdown === 'year') return r.soldOn?.slice(0, 4) ?? 'Undated';
-        if (breakdown === 'market') return sourceName(r.source);
-        if (breakdown === 'tld') return `.${saleTld(r)}`;
-        return registrarName(r) || 'Unknown';
-      }).sort((a, b) =>
-        breakdown === 'year'
-          ? b.label.localeCompare(a.label) || b.sold - a.sold
-          : 0,
-      ),
-    // The labels read the catalog and registrars.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, breakdown, catalog, registrars],
-  );
-
   // Filter options, counted over every record.
   const sourceOptions = useMemo(() => {
     const counts = new Map<SaleSource, number>();
@@ -266,6 +223,31 @@ export default function Sales() {
       .sort((a, b) => a.label.localeCompare(b.label));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [records, catalog]);
+  const tldOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of records) {
+      const tld = saleTld(r);
+      counts.set(tld, (counts.get(tld) ?? 0) + 1);
+    }
+    return [...counts]
+      .map(([value, count]) => ({ value, label: `.${value}`, count }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [records]);
+  // By the account that held the name; '' is a sale with none on record.
+  const registrarOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of records) {
+      const id = r.registrarAccountId ?? '';
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return [...counts]
+      .map(([value, count]) => ({
+        value,
+        label: (value && accountName(registrars, value)) || 'Unknown',
+        count,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [records, registrars]);
   const currencyOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const r of records)
@@ -300,6 +282,34 @@ export default function Sales() {
       },
       (next) => {
         setSources(next);
+        setPage(0);
+      },
+    ),
+    listField(
+      {
+        key: 'tld',
+        label: 'TLD',
+        icon: Globe,
+        options: tldOptions,
+        selected: tlds,
+        plural: 'TLDs',
+      },
+      (next) => {
+        setTlds(next);
+        setPage(0);
+      },
+    ),
+    listField(
+      {
+        key: 'registrar',
+        label: 'Registrar',
+        icon: Building2,
+        options: registrarOptions,
+        selected: registrarIds,
+        plural: 'registrars',
+      },
+      (next) => {
+        setRegistrarIds(next);
         setPage(0);
       },
     ),
@@ -542,31 +552,7 @@ export default function Sales() {
     },
   ];
 
-  const viewSwitch = (
-    <ToolbarSwitch
-      label="Sales overview or every sale"
-      options={[
-        {
-          id: 'overview',
-          label: 'Overview',
-          icon: LayoutDashboard,
-          count: attention.length,
-          active: overview,
-          onClick: () => setView(false),
-        },
-        {
-          id: 'sales',
-          label: 'Sales',
-          icon: BadgeDollarSign,
-          count: records.length,
-          active: !overview,
-          onClick: () => setView(true),
-        },
-      ]}
-    />
-  );
-
-  if (records.length === 0 && !marketAccounts?.length) {
+  if (records.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
         <h1 className="text-2xl font-bold sm:text-[32px]">Sales</h1>
@@ -611,7 +597,6 @@ export default function Sales() {
             )}
             <Button
               variant="outline"
-              className={cn(overview && 'hidden')}
               onClick={() => void exportCsv()}
               disabled={sorted.length === 0}
             >
@@ -621,64 +606,44 @@ export default function Sales() {
           </div>
         </div>
 
-        {overview ? (
-          <div className="mt-1 flex sm:mt-3">{viewSwitch}</div>
-        ) : (
-          <FilterToolbar
-            id="sales"
-            switch={viewSwitch}
-            search={search}
-            onSearch={(value) => {
-              setSearch(value);
-              setPage(0);
-            }}
-            searchPlaceholder="Search domains…"
-            fields={filterFields}
-            presets={['soldOn', 'source', 'currency']}
-          >
-            {undated > 0 && (
-              <span className="text-xs text-muted-foreground">
-                {undated} undated sale{undated === 1 ? '' : 's'} left out
-              </span>
-            )}
-          </FilterToolbar>
-        )}
+        <FilterToolbar
+          id="sales"
+          search={search}
+          onSearch={(value) => {
+            setSearch(value);
+            setPage(0);
+          }}
+          searchPlaceholder="Search domains…"
+          fields={filterFields}
+          presets={['soldOn', 'source', 'tld', 'registrar']}
+          presetsIfRoom={['tld', 'registrar']}
+        >
+          {undated > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {undated} undated sale{undated === 1 ? '' : 's'} left out
+            </span>
+          )}
+        </FilterToolbar>
 
-        {overview ? (
-          <SalesOverview
-            records={records}
-            money={money}
-            preferredCurrency={preferred}
-          />
-        ) : (
-          <TotalsTable
-            totals={totals}
-            groups={groups}
-            breakdown={breakdown}
-            onBreakdown={setBreakdown}
-            money={money}
-          />
-        )}
+        <SalesCards rows={rows} money={money} />
       </div>
 
-      {!overview && (
-        <DataTable
-          className="mt-[13px]"
-          rows={sorted}
-          columns={columns}
-          rowKey={(r) => r.id}
-          sort={{ key: sortKey, dir: sortDir }}
-          onSort={toggleSort}
-          page={page}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-          rowClassName={(r) =>
-            isUnderWay(r) && r.step ? 'bg-amber-500/[0.06]' : undefined
-          }
-          empty="No sales match the current filters."
-        />
-      )}
+      <DataTable
+        className="mt-[13px]"
+        rows={sorted}
+        columns={columns}
+        rowKey={(r) => r.id}
+        sort={{ key: sortKey, dir: sortDir }}
+        onSort={toggleSort}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        rowClassName={(r) =>
+          isUnderWay(r) && r.step ? 'bg-amber-500/[0.06]' : undefined
+        }
+        empty="No sales match the current filters."
+      />
 
       {editing && (
         <SaleDialog
@@ -689,13 +654,6 @@ export default function Sales() {
       )}
     </div>
   );
-}
-
-/** "45 days", "8 months", "2.4 years". */
-function heldFor(days: number): string {
-  if (days < 60) return `${days} day${days === 1 ? '' : 's'}`;
-  if (days < 730) return `${Math.round(days / 30.44)} months`;
-  return `${(days / 365.25).toFixed(1)} years`;
 }
 
 function RowMenu({
@@ -746,145 +704,5 @@ function RowMenu({
         )}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-// Column headings like the Domains table's: small caps on a muted band.
-const HEAD_ROW =
-  'bg-muted hover:bg-muted [&_th]:h-8 [&_th]:text-[10px] [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_th]:uppercase';
-
-/**
- * The filtered sales added up: one row per year (or market, TLD,
- * registrar) and currency, then each currency's total. Net and profit say
- * how many sales they cover when it isn't all of them.
- */
-function TotalsTable({
-  totals,
-  groups,
-  breakdown,
-  onBreakdown,
-  money,
-}: {
-  totals: ReturnType<typeof saleTotals>;
-  groups: SaleGroup[];
-  breakdown: Breakdown;
-  onBreakdown: (b: Breakdown) => void;
-  money: (amount: string | null, currency: string | null) => string | null;
-}) {
-  // Sales recorded without a price count under '' and need the column too.
-  const multi = totals.length > 1;
-  const row = (
-    key: string,
-    label: React.ReactNode,
-    t: SaleGroup | (typeof totals)[number],
-    strong = false,
-  ) => {
-    const c = t.currency || null;
-    const partial = (count: number) =>
-      count < t.sold ? (
-        <span className="ml-1 text-[11px] text-muted-foreground">
-          ({count}/{t.sold})
-        </span>
-      ) : null;
-    return (
-      <TableRow key={key} className={cn(strong && 'font-medium')}>
-        <TableCell>
-          {label}
-          {(t.inProgress > 0 || t.cancelled > 0) && (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">
-              {[
-                t.inProgress && `${t.inProgress} under way`,
-                t.cancelled && `${t.cancelled} cancelled`,
-              ]
-                .filter(Boolean)
-                .join(', ')}
-            </span>
-          )}
-        </TableCell>
-        {multi && (
-          <TableCell className="text-muted-foreground">
-            {t.currency || '—'}
-          </TableCell>
-        )}
-        <TableCell className="text-right tabular-nums">{t.sold}</TableCell>
-        <TableCell className="text-right tabular-nums">
-          {t.sold ? money(t.gross, c) : '—'}
-        </TableCell>
-        <TableCell className="text-right tabular-nums text-muted-foreground">
-          {t.feesCount ? money(t.fees, c) : '—'}
-          {t.feesCount > 0 && partial(t.feesCount)}
-        </TableCell>
-        <TableCell className="text-right tabular-nums">
-          {t.netCount ? money(t.net, c) : '—'}
-          {t.netCount > 0 && partial(t.netCount)}
-        </TableCell>
-        <TableCell className="text-right tabular-nums">
-          {t.average ? money(t.average, c) : '—'}
-        </TableCell>
-        <TableCell className="hidden text-right tabular-nums md:table-cell">
-          {t.profitCount ? (
-            <>
-              {money(t.profit, c)}
-              {t.roi !== null && (
-                <span className="ml-1 text-[11px] text-muted-foreground">
-                  {Math.round(t.roi * 100).toLocaleString()}% ROI
-                </span>
-              )}
-              {partial(t.profitCount)}
-            </>
-          ) : (
-            '—'
-          )}
-        </TableCell>
-      </TableRow>
-    );
-  };
-  return (
-    <section className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[15px] font-semibold text-foreground/75">Totals</h2>
-        <SegmentedControl
-          aria-label="Break totals down by"
-          size="sm"
-          tone="grey"
-          value={breakdown}
-          onChange={onBreakdown}
-          options={BREAKDOWNS.map((b) => ({ value: b.id, label: b.label }))}
-        />
-      </div>
-      <div className="max-h-[320px] overflow-auto rounded-t-lg rounded-b-[4px] border">
-        <Table>
-          <TableHeader className="sticky top-0 z-10">
-            <TableRow className={HEAD_ROW}>
-              <TableHead>
-                {BREAKDOWNS.find((b) => b.id === breakdown)!.label}
-              </TableHead>
-              {multi && <TableHead>Currency</TableHead>}
-              <TableHead className="text-right">Sold</TableHead>
-              <TableHead className="text-right">Gross</TableHead>
-              <TableHead className="text-right">Fees</TableHead>
-              <TableHead className="text-right">Net</TableHead>
-              <TableHead className="text-right">Average</TableHead>
-              <TableHead className="hidden text-right md:table-cell">
-                Profit
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {groups.map((g) => row(`${g.label}|${g.currency}`, g.label, g))}
-            {totals
-              .filter((t) => t.sold || t.inProgress || t.cancelled)
-              .map((t) =>
-                row(
-                  `total|${t.currency}`,
-                  multi ? `All, ${t.currency || 'no price'}` : 'All',
-                  t,
-                  true,
-                ),
-              )}
-          </TableBody>
-        </Table>
-      </div>
-    </section>
   );
 }

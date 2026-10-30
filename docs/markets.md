@@ -388,8 +388,7 @@ saved, so the Domains table shows it before the next sync.
   connected or any sale exists (hidden on phones): Listed (sets the Markets
   filter), Sold and Net over 12 months (open the Sales tab; every sale, not
   only market ones), Views over 30 days. Domains reads the Markets and
-  Pricing filters from its URL (`src/renderer/lib/domains-link.ts`), so other
-  pages link to a filtered table.
+  Pricing filters from its URL (`src/renderer/lib/domains-link.ts`).
 
 ## Sales tab
 
@@ -411,18 +410,16 @@ sale from every source:
   counts only in the sale's currency; amounts are never converted or added
   across currencies, and partial totals say how many sales they cover.
 
-**Overview:** Needs attention (sales waiting on you, with Send auth code;
-rejected listings and ones pending over a week; prices below yours; past
-three names, a grouped row into Domains with the Markets filter set; priced
-names not listed on each market), the year's sold, gross, net and average,
-sell-through over 12 months, views over 30 days, and sales by month. The
-bell's sale alert links here.
-
-**Sales:** one row per sale, under way first; filters on the sale date
-(a bounded range leaves undated sales out and says how many), where and
-currency; totals by year, market, TLD or registrar; CSV export; a row menu
-for the name's history, Edit sale (that sale, even an earlier one) and the
-market.
+One view: one row per sale, under way first, with Send auth code inline
+on a sale waiting for it. Filters on the sale date (a bounded range leaves
+undated sales out and says how many), where, TLD, registrar and currency.
+Cards above the table add up what the filters leave: sold (with under way
+and cancelled), gross and fees, net, average, profit and ROI, average
+hold, in one currency at a time, so filtering by market, TLD or registrar
+gives that slice's totals. CSV export; a row menu for the name's history,
+Edit sale (that sale, even an earlier one) and the market. The bell's sale
+alert links here. Listing problems (rejected, pending, below your price)
+stay in Domains, under the Markets filter.
 
 Sell-through is `sellThrough` (`src/shared/market-reports.ts`) over every
 sale: names sold in 12 months over names listed now plus those sold.
