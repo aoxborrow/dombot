@@ -168,7 +168,8 @@ export function SalesCards({
         )}
       </StatCardRow>
       {others.length > 0 && (
-        <p className="text-[11px] text-muted-foreground sm:text-xs">
+        // Quiet, on the right: a footnote to the cards.
+        <p className="text-right text-[11px] text-muted-foreground/40 sm:text-xs">
           In {c}.{' '}
           {others
             .map((o) => `${plural(o.count, 'sale')} in ${o.currency}`)
