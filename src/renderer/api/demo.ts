@@ -348,6 +348,30 @@ function recordSampleSales(): void {
 }
 
 /**
+ * The registrar account behind each sale, which the Sales tab shows: the
+ * one holding the name, else one of the demo's accounts in turn (the sold
+ * names are made up and no account holds them).
+ */
+function recordSaleAccounts(): void {
+  const domains = getMergedPortfolio().domains;
+  const holder = new Map(
+    domains
+      .filter((d) => d.accountId)
+      .map((d) => [d.domainName.toLowerCase(), d.accountId!]),
+  );
+  const accounts = [...new Set(holder.values())].sort();
+  if (!accounts.length) return;
+  putEvents(
+    listEvents()
+      .filter((e) => e.type === 'sold' && !e.accountId)
+      .map((e, i) => ({
+        ...e,
+        accountId: holder.get(e.domain) ?? accounts[i % accounts.length],
+      })),
+  );
+}
+
+/**
  * One renewal price in another currency: Renewals lists it beside the dollar
  * totals. (Asking prices come with the seed: core/demo.)
  */
@@ -510,6 +534,7 @@ export async function createDemoApi(
     await getPortfolio(true);
     recordSampleHistory();
   }
+  recordSaleAccounts();
   demo.setLatency(options.latencyMs ?? 150);
 
   const table: ApiTable = { ...coreMethods, ...demoMethods };

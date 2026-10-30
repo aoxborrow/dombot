@@ -30,6 +30,7 @@ import {
   deleteDomains,
   deleteUserEvent,
   setAlertsDismissed,
+  setSaleTransferred,
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
 import { getReleaseFeed } from '../services/releases';
@@ -603,6 +604,13 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     z.tuple([z.array(s.eventId).min(1).max(5000), z.boolean()]),
     async (ids, dismissed) => {
       setAlertsDismissed(ids, dismissed);
+      return listEvents();
+    },
+  ),
+  setSaleTransferred: method(
+    z.tuple([s.eventId, z.boolean()]),
+    async (id, transferred) => {
+      setSaleTransferred(id, transferred);
       return listEvents();
     },
   ),

@@ -112,6 +112,7 @@ export default function Sales() {
   const registrars = useAppStore((s) => s.registrars);
   const marketAccounts = useAppStore((s) => s.marketAccounts);
   const settings = useAppStore((s) => s.settings);
+  const setSaleTransferred = useAppStore((s) => s.setSaleTransferred);
   const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
   // formatMoney takes no sign, so a loss is formatted unsigned and given a
@@ -489,12 +490,15 @@ export default function Sales() {
             className={cn(
               'inline-flex items-center gap-1.5 whitespace-nowrap',
               r.status !== 'completed' && 'text-muted-foreground',
-              isUnderWay(r) && r.step && 'font-medium text-foreground',
+              ((isUnderWay(r) && r.step) || r.awaitingTransfer) &&
+                'font-medium text-foreground',
             )}
           >
             <span
               className={cn(
                 'size-2 rounded-full',
+                // Amber: something to do (a market's step, or a sold name
+                // still in your account to hand over).
                 isUnderWay(r)
                   ? r.step
                     ? 'bg-amber-500'
@@ -502,7 +506,7 @@ export default function Sales() {
                   : r.status === 'cancelled'
                     ? 'bg-muted-foreground/40'
                     : r.awaitingTransfer
-                      ? 'bg-sky-500'
+                      ? 'bg-amber-500'
                       : 'bg-brand',
               )}
               aria-hidden
@@ -519,6 +523,19 @@ export default function Sales() {
                 name={r.name}
               />
             )}
+          {/* Handed over without leaving the registrar (an account change
+              there), or otherwise done: it stops waiting. */}
+          {r.awaitingTransfer && r.eventId && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="-my-1 h-6 shrink-0 px-2 text-xs"
+              title="The buyer has the name; stop showing this sale as waiting"
+              onClick={() => void setSaleTransferred(r.eventId!, true)}
+            >
+              Mark complete
+            </Button>
+          )}
         </span>
       ),
     },
@@ -718,7 +735,9 @@ export default function Sales() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         rowClassName={(r) =>
-          isUnderWay(r) && r.step ? 'bg-amber-500/[0.06]' : undefined
+          (isUnderWay(r) && r.step) || r.awaitingTransfer
+            ? 'bg-amber-500/[0.06]'
+            : undefined
         }
         empty={
           pendingOnly && !pendingCount

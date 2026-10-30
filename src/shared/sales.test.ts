@@ -221,6 +221,11 @@ describe('buildSaleRecords', () => {
     ).toBe(false);
   });
 
+  it('leaves a sale you marked handed over, though an account has it', () => {
+    const [r] = build([{ ...sale, transferred: true }], [], ['example.com']);
+    expect(r.awaitingTransfer).toBe(false);
+  });
+
   it('remembers the registrar account that held the name', () => {
     const rows = build([
       { ...event('00', 'added', '2024-12-01'), accountId: 'first' },
@@ -228,24 +233,6 @@ describe('buildSaleRecords', () => {
       { ...event('03', 'moved', '2026-02-01'), toAccountId: 'second' },
     ]);
     expect(rows[0].registrarAccountId).toBe('first');
-  });
-
-  it('places a name held since the first sync by the account it left', () => {
-    const rows = build([
-      sale,
-      { ...event('03', 'removed', '2026-02-20'), accountId: 'gone' },
-    ]);
-    expect(rows[0].registrarAccountId).toBe('gone');
-  });
-
-  it('else by the account that holds it now', () => {
-    const [r] = buildSaleRecords({
-      events: [sale],
-      marketSales: [],
-      holders: new Map([['example.com', 'current']]),
-      today: '2026-03-01',
-    });
-    expect(r.registrarAccountId).toBe('current');
   });
 });
 

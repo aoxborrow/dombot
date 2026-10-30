@@ -458,7 +458,11 @@ sale from every source:
 All or **Pending** (like Activity's Needs review; `?pending=1`): pending
 is a sale under way at a market or one awaiting transfer, and the tab's
 pill counts them. One row per sale, pending first, with Send auth code
-inline on a sale waiting for it. Filters on the sale date (a bounded range leaves
+inline on a sale waiting for it. Awaiting transfer (sold, and an account
+of yours still holds the name) is amber like a market's steps, with Mark
+complete: a buyer often takes the name at the same registrar, so nothing
+need change registrar, and marking it (`transferred` on the sold event)
+stops it waiting. Filters on the sale date (a bounded range leaves
 undated sales out and says how many), where, TLD, registrar and currency.
 Cards above the table add up what the view and filters leave: sales
 (finished and under way, with pending and cancelled), gross (with the

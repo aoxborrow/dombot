@@ -200,6 +200,8 @@ export function cleanEvent(id: string, value: unknown): DomainEvent | null {
   if (v.resolves !== undefined && typeof v.resolves !== 'string') return null;
   if (v.dismissed !== undefined && typeof v.dismissed !== 'boolean')
     return null;
+  if (v.transferred !== undefined && typeof v.transferred !== 'boolean')
+    return null;
   if (v.importId !== undefined && typeof v.importId !== 'string') return null;
   if (v.marketSale !== undefined && typeof v.marketSale !== 'string')
     return null;
