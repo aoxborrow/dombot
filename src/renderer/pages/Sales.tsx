@@ -8,12 +8,14 @@ import {
   Clock,
   Coins,
   Download,
+  CircleCheck,
   Ellipsis,
   Globe,
   History,
   Pencil,
   Receipt,
   Store,
+  Undo2,
 } from 'lucide-react';
 import { toUnicode } from '../../shared/domain-name';
 import { localDay } from '../../shared/domain-events';
@@ -401,6 +403,7 @@ export default function Sales() {
               navigate(`/activity?q=${encodeURIComponent(toUnicode(r.name))}`)
             }
             onEdit={() => setEditing(r)}
+            onTransferred={(t) => void setSaleTransferred(r.eventId!, t)}
           />
         </span>
       ),
@@ -763,12 +766,14 @@ function RowMenu({
   website,
   onHistory,
   onEdit,
+  onTransferred,
 }: {
   record: SaleRecord;
   marketName: string;
   website: string | undefined;
   onHistory: () => void;
   onEdit: () => void;
+  onTransferred: (transferred: boolean) => void;
 }) {
   return (
     <DropdownMenu>
@@ -795,6 +800,19 @@ function RowMenu({
           <Pencil />
           Edit sale…
         </DropdownMenuItem>
+        {r.awaitingTransfer && r.eventId && (
+          <DropdownMenuItem onSelect={() => onTransferred(true)}>
+            <CircleCheck />
+            Mark complete
+          </DropdownMenuItem>
+        )}
+        {/* Back to awaiting transfer, if an account still holds it. */}
+        {r.transferred && (
+          <DropdownMenuItem onSelect={() => onTransferred(false)}>
+            <Undo2 />
+            Undo Mark complete
+          </DropdownMenuItem>
+        )}
         {website && (
           <DropdownMenuItem
             onSelect={() => void window.api.openExternal(website)}

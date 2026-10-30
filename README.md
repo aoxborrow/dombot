@@ -235,7 +235,7 @@ third _adapter_ over the same `services/` core the UI uses — see
     alert status), `portfolio_alerts` (what the bell shows) and
     `portfolio_alert_dismiss`.
   - _Money, notes and ownership:_ `domain_purchase_set`, `domain_sale_set`,
-    `domain_note_set`, `domain_asking_price_set`, `domain_renewal_price_set`
+    `domain_sale_transferred_set`, `domain_note_set`, `domain_asking_price_set`, `domain_renewal_price_set`
     (your own yearly price, overriding the estimate). To let a name go, an
     agent turns its auto-renew off with `domain_set_autorenew`. Each can
     answer an open alert with `resolves` where it fits. DomBot-local, no

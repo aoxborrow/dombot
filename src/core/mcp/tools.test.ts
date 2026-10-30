@@ -55,8 +55,10 @@ vi.mock('../services/pricing', () => ({
   setManualPrice: (...a: unknown[]) => setManualPrice(...a),
 }));
 const setAlertsDismissed = vi.fn();
+const setSaleTransferred = vi.fn();
 vi.mock('../services/domain-history', () => ({
   setAlertsDismissed: (...a: unknown[]) => setAlertsDismissed(...a),
+  setSaleTransferred: (...a: unknown[]) => setSaleTransferred(...a),
 }));
 const cachedRegistered = vi.fn(() => new Map<string, boolean>());
 vi.mock('../services/registration-lookup', () => ({
@@ -966,6 +968,17 @@ describe('history, purchases, sales and alerts', () => {
       paid: { amount: '1200.00', kind: 'purchased' },
       sold: null,
     });
+  });
+
+  it('domain_sale_transferred_set marks the latest sale handed over', async () => {
+    const sale = event({ domain: 'a.com', type: 'sold', date: '2026-10-01' });
+    listEvents.mockReturnValue([sale]);
+    const out = await call('domain_sale_transferred_set', {
+      domain: 'a.com',
+      transferred: true,
+    });
+    expect(setSaleTransferred).toHaveBeenCalledWith(sale.id, true);
+    expect(out).toMatchObject({ domain: 'a.com', transferred: true });
   });
 
   it('domain_sale_set marks a new sale, and edits one that already answers the alert', async () => {

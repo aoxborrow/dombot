@@ -85,6 +85,8 @@ export interface SaleRecord {
    * hasn't taken it yet. A normal record, shown as awaiting transfer.
    */
   awaitingTransfer: boolean;
+  /** You marked the name handed over (Mark complete). */
+  transferred: boolean;
 }
 
 // ── amounts ─────────────────────────────────────────────────────────────────
@@ -279,6 +281,7 @@ function toRecord(
         ? decimal(netUnits - costUnits, currency)
         : null,
     awaitingTransfer: false,
+    transferred: event?.transferred ?? false,
   };
 }
 
