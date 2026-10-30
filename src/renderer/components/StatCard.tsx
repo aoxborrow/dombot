@@ -76,7 +76,7 @@ export function StatCard({
           className={cn(
             'truncate',
             bare
-              ? 'text-xs text-foreground/60'
+              ? 'text-xs text-foreground/45'
               : sm
                 ? 'text-[11px] text-foreground/75 sm:text-xs'
                 : 'text-[15px] text-foreground/75',
@@ -88,7 +88,7 @@ export function StatCard({
           className={cn(
             'font-bold tabular-nums',
             bare
-              ? 'text-base leading-tight sm:text-xl'
+              ? 'text-base leading-tight tracking-tight sm:text-xl'
               : sm
                 ? 'text-sm leading-tight sm:text-base'
                 : 'mt-2 text-2xl',
@@ -112,7 +112,7 @@ export function StatCard({
                         // smaller, quieter and further off.
                         slot.unit.startsWith('/')
                           ? 'text-[0.7em] font-medium text-muted-foreground'
-                          : 'ml-2.5 text-[0.6em] font-normal text-muted-foreground/70',
+                          : 'ml-2.5 text-[0.6em] font-normal tracking-normal text-muted-foreground/70',
                       )}
                     >
                       {slot.unit}
