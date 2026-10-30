@@ -46,6 +46,18 @@ export const WITHDRAWN_CURRENCIES: ReadonlySet<CurrencyCode> = new Set([
 
 export const CURRENCY_CODES = Object.keys(CURRENCIES) as CurrencyCode[];
 
+/**
+ * The currencies you pick from: EUR and the 29 the European Central Bank
+ * quotes against it, the ones DomBot can convert (docs/exchange-rates.md).
+ * A stored record may still hold any code above.
+ */
+// prettier-ignore
+export const RATE_CURRENCIES = [
+  'AUD', 'BRL', 'CAD', 'CHF', 'CNY', 'CZK', 'DKK', 'EUR', 'GBP', 'HKD',
+  'HUF', 'IDR', 'ILS', 'INR', 'ISK', 'JPY', 'KRW', 'MXN', 'MYR', 'NOK',
+  'NZD', 'PHP', 'PLN', 'RON', 'SEK', 'SGD', 'THB', 'TRY', 'USD', 'ZAR',
+] as const satisfies readonly CurrencyCode[];
+
 export function isCurrencyCode(value: unknown): value is CurrencyCode {
   return typeof value === 'string' && Object.hasOwn(CURRENCIES, value);
 }

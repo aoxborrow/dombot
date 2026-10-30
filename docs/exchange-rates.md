@@ -45,8 +45,14 @@ Two lists in `src/shared/currencies.ts`:
 
 Limited to the 30:
 
-- The currency picker (`CurrencyPicker`, `searchCurrencies`): it lists only
-  these, pinned USD, EUR, GBP, CNY, JPY first as now.
+- The currency dropdown (done in this PR): a plain list of code and name,
+  no search or symbols, with USD, EUR, GBP, CNY, JPY first. Beside an amount
+  it sits inside the field (`MoneyInput`'s `onCurrencyChange`), so amount and
+  currency take one row in Purchase details, Mark as Sold, Pricing, the
+  market listing editor and the import's typed names. A market narrows it
+  (Sedo: EUR, USD, GBP; Afternic and Atom show none). Settings and the
+  import's default use it on its own (`CurrencyPicker`). A record already in
+  another currency shows it at the end of the list.
 - The API and MCP inputs (`src/core/api/schemas.ts`): purchases, sales,
   asking prices, and the manual renewal price, which is free text today
   (`renewalPriceInput`).
@@ -240,10 +246,11 @@ same answers.
 
 ## Order of work
 
-1. **Currency limits.** `RATE_CURRENCIES`, the picker, the API, MCP and CSV
-   checks, the editing rule, the preferred currency fallback, the Settings
-   wording, the bell item, and the `getRegistrationQuote` fix. Useful alone:
-   it stops new unconvertible amounts.
+1. **Currency limits.** `RATE_CURRENCIES` and the dropdown are done. Left:
+   the API, MCP and CSV checks, the editing rule, the preferred currency
+   fallback, the bell item, and the `getRegistrationQuote` fix. Useful alone:
+   it stops new unconvertible amounts. The Settings wording waits for step 3,
+   when reports actually convert.
 2. **Rates.** The build script and `data/exchange-rates.json`,
    `src/shared/exchange-rates.ts` with tests (each rule in
    [Which rate](#which-rate), the ISK gap, rounding), the `exchange-rates`

@@ -313,44 +313,22 @@ export function MarketListingDialog({
                 Hidden from buyers on {where}. Saving shows it.
               </p>
             )}
-            <div
-              className={
-                currencies.length > 1
-                  ? 'grid grid-cols-[minmax(0,1fr)_7rem] gap-3'
-                  : undefined
-              }
+            <Field
+              id="market-price"
+              label="Price"
+              help={`${LIST_PRICE_HELP.amount} Leave it empty for ${market === 'atom' ? offersOnly : offersOnly.toLowerCase()}.`}
             >
-              <Field
+              <MoneyInput
+                whole
                 id="market-price"
-                label="Price"
-                help={`${LIST_PRICE_HELP.amount} Leave it empty for ${market === 'atom' ? offersOnly : offersOnly.toLowerCase()}.`}
-              >
-                <MoneyInput
-                  whole
-                  id="market-price"
-                  currency={currency}
-                  value={price}
-                  placeholder={offersOnly}
-                  onChange={(e) => setPrice(e.target.value)}
-                />
-              </Field>
-              {currencies.length > 1 && (
-                <Field label="Currency" help="For every price here.">
-                  <Select value={currency} onValueChange={setCurrency}>
-                    <SelectTrigger aria-label="Currency" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {currencies.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
-            </div>
+                currency={currency}
+                currencies={currencies}
+                onCurrencyChange={setCurrency}
+                value={price}
+                placeholder={offersOnly}
+                onChange={(e) => setPrice(e.target.value)}
+              />
+            </Field>
             {mineDiffers && (
               <p className="-mt-2 text-xs text-muted-foreground">
                 Your BIN price in DomBot is{' '}

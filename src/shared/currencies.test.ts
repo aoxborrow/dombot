@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   CURRENCY_CODES,
+  RATE_CURRENCIES,
   WITHDRAWN_CURRENCIES,
   currencyDecimals,
   isCurrencyCode,
   toCurrencyCode,
 } from './currencies';
-import { currencyInfo, parseCanonicalAmount, searchCurrencies } from './money';
+import { currencyInfo, parseCanonicalAmount } from './money';
 
 describe('currencies', () => {
   it('lists national currencies with their ISO decimal places', () => {
@@ -23,15 +24,18 @@ describe('currencies', () => {
     expect(toCurrencyCode('nope')).toBeNull();
   });
 
-  it('drives money.ts: known codes, decimals, and withdrawn codes last', () => {
+  it('drives money.ts: known codes and decimals', () => {
     expect(currencyInfo('hrk')?.decimals).toBe(2);
     expect(currencyInfo('XAU')).toBeNull();
     expect(parseCanonicalAmount('1500', 'JPY')).toBe('1500');
     expect(() => parseCanonicalAmount('1.5', 'JPY')).toThrow(/no decimal/);
-    const order = searchCurrencies('').map((c) => c.code);
-    const firstWithdrawn = order.findIndex((c) => WITHDRAWN_CURRENCIES.has(c));
-    expect(
-      order.slice(firstWithdrawn).every((c) => WITHDRAWN_CURRENCIES.has(c)),
-    ).toBe(true);
+  });
+
+  it('picks from the 30 the ECB quotes, all of them stored codes', () => {
+    expect(RATE_CURRENCIES).toHaveLength(30);
+    expect(RATE_CURRENCIES.every((c) => isCurrencyCode(c))).toBe(true);
+    expect(RATE_CURRENCIES.some((c) => WITHDRAWN_CURRENCIES.has(c))).toBe(
+      false,
+    );
   });
 });

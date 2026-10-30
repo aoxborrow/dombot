@@ -1026,7 +1026,7 @@ function TypedTab({
           Owned. You review every change before anything is saved.
         </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div className="flex flex-col gap-2">
           <Label htmlFor="import-bin-price">BIN price</Label>
           <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
@@ -1036,6 +1036,7 @@ function TypedTab({
             whole
             id="import-bin-price"
             currency={fields.currency}
+            onCurrencyChange={(currency) => onChange({ currency })}
             placeholder={placeholder}
             value={fields.amount}
             onChange={(e) => onChange({ amount: e.target.value })}
@@ -1067,17 +1068,6 @@ function TypedTab({
             placeholder="Optional"
             value={fields.floor}
             onChange={(e) => onChange({ floor: e.target.value })}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label>Currency</Label>
-          <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
-            For all three.
-          </p>
-          <CurrencyPicker
-            compact
-            value={fields.currency}
-            onChange={(currency) => onChange({ currency })}
           />
         </div>
       </div>
