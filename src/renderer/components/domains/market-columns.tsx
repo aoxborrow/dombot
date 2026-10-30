@@ -35,9 +35,9 @@ import {
 export const MARKET_COLUMN_KEYS = new Set([
   'listing',
   'fastTransfer',
-  'views30',
-  'leads30',
-  'searches30',
+  'views',
+  'leads',
+  'searches',
 ]);
 
 /**
@@ -204,9 +204,13 @@ export function marketColumns({
     key: string,
     label: string,
     valueOf: (d: Domain) => number | undefined,
+    tooltip?: string,
+    /** Breaks ties in the sort; a smaller number than any count. */
+    then?: (d: Domain) => number | undefined,
   ): PurchaseColumn => ({
     key,
     label,
+    tooltip,
     align: 'right',
     hideOnMobile: true,
     render: (d) => {
@@ -219,7 +223,10 @@ export function marketColumns({
         </span>
       );
     },
-    sortValue: (d) => valueOf(d) ?? null,
+    sortValue: (d) => {
+      const n = valueOf(d);
+      return n === undefined ? null : n + (then?.(d) ?? 0) / 1e9;
+    },
   });
 
   // One market's column: its price (or "Offers"), a status dot, and the
@@ -319,20 +326,20 @@ export function marketColumns({
       },
       sortValue: (d) => of(d).map(fastTransferOf).find(Boolean) ?? null,
     },
+    // Interest over the last 12 months: sort by Leads, then Views, for the
+    // names buyers look at most.
+    count('views', 'Views', (d) => traffic[toAscii(d.domainName)]?.views365),
+    count('leads', 'Leads', (d) => traffic[toAscii(d.domainName)]?.leads365),
     count(
-      'views30',
-      'Views (30d)',
-      (d) => traffic[toAscii(d.domainName)]?.views30,
-    ),
-    count(
-      'leads30',
-      'Leads (30d)',
-      (d) => traffic[toAscii(d.domainName)]?.leads30,
-    ),
-    count(
-      'searches30',
-      'Searches (30d)',
-      (d) => of(d).map(searchesOf).find(Boolean)?.total.days30 ?? undefined,
+      'searches',
+      'Searches',
+      (d) => {
+        const n = of(d)
+          .map((l) => searchesOf(l)?.total.days365)
+          .filter((x): x is number => x != null);
+        return n.length ? Math.max(...n) : undefined;
+      },
+      'Searches for the name on GoDaddy over the last 12 months. Afternic sends these only to Discount Domain Club Domain Pro members.',
     ),
   ];
 }

@@ -1,5 +1,6 @@
 import { accountNumber, accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
+import { parseDomainsLink } from '../lib/domains-link';
 import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,6 +11,7 @@ import {
   CalendarClock,
   ChevronDown,
   CircleCheck,
+  CircleHelp,
   Globe,
   Plug,
   Server,
@@ -68,6 +70,7 @@ import { FolderIcon } from '../components/icons/FolderIcon';
 import { FolderOffIcon } from '../components/icons/FolderOffIcon';
 import { FolderMenuItems } from '../components/domains/FolderMenuItems';
 import { OwnershipSwitch } from '../components/domains/OwnershipSwitch';
+import { DomainsSummary } from '../components/domains/DomainsSummary';
 import { SyncSplitButton } from '../components/domains/SyncSplitButton';
 import {
   EventTypeBadge,
@@ -183,6 +186,8 @@ type RegistrarLabels = Record<string, string>;
 interface Column {
   key: string;
   label: string;
+  /** A hover note on the header, marked with a small help icon. */
+  tooltip?: string;
   /** Cell renderer. */
   render: (d: Domain, labels: RegistrarLabels) => React.ReactNode;
   /** Value used for sorting; null/empty sorts last regardless of direction. */
@@ -571,9 +576,9 @@ const VIEW_COLUMNS: Record<'active' | 'archive', ColumnLayout> = {
       'minOffer',
       'listing',
       'fastTransfer',
-      'views30',
-      'leads30',
-      'searches30',
+      'views',
+      'leads',
+      'searches',
       'registrar',
       'createdDate',
       'purchaseDate',
@@ -587,9 +592,9 @@ const VIEW_COLUMNS: Record<'active' | 'archive', ColumnLayout> = {
     ],
     hidden: [
       'fastTransfer',
-      'views30',
-      'leads30',
-      'searches30',
+      'views',
+      'leads',
+      'searches',
       'purchaseDate',
       'purchaseAmount',
     ],
@@ -833,6 +838,7 @@ export default function Domains() {
     marketListings,
     marketCatalog,
     marketTraffic,
+    marketSales,
     importedDomains,
     settings,
     domainEvents,
@@ -1136,13 +1142,23 @@ export default function Domains() {
     return account ? [account] : [];
   });
   const [ns, setNs] = useState<string[]>([]);
-  const [marketsFilter, setMarketsFilter] =
-    useState<MarketsFilterValue>(NO_MARKETS_FILTER);
+  // The Markets and Pricing filters start from a domainsLink (the summary
+  // cards, the Sales overview).
+  const linked = useMemo(() => parseDomainsLink(params), [params]);
+  const [marketsFilter, setMarketsFilter] = useState<MarketsFilterValue>(
+    () => ({
+      ...NO_MARKETS_FILTER,
+      markets: linked.markets ?? [],
+      states: linked.states ?? [],
+      comparisons: linked.comparisons ?? [],
+    }),
+  );
   const [folder, setFolder] = useState<string[]>([]);
   // Owned only: what each name's asking price holds, and BIN price and
   // minimum offer ranges.
-  const [pricingFilter, setPricingFilter] =
-    useState<PricingFilterValue>(NO_PRICING_FILTER);
+  const [pricingFilter, setPricingFilter] = useState<PricingFilterValue>(
+    () => ({ ...NO_PRICING_FILTER, kinds: linked.asking ?? [] }),
+  );
   // Date filters (see lib/date-range). Expiration and Purchased apply on
   // both tabs, Created on Active only, Sold on Archive only.
   const [created, setCreated] = useState<DateRange>(NO_DATE_RANGE);
@@ -2064,7 +2080,18 @@ export default function Domains() {
       };
     const col = columnByKey.get(key)!;
     return {
-      label: col.label,
+      label: col.tooltip ? (
+        <span
+          className="inline-flex cursor-help items-center gap-1"
+          title={col.tooltip}
+        >
+          {col.label}
+          <CircleHelp className="size-3" aria-hidden />
+        </span>
+      ) : (
+        col.label
+      ),
+      title: col.label,
       align: col.align,
       compact: col.compact,
       hideOnMobile: col.hideOnMobile,
@@ -2141,6 +2168,23 @@ export default function Domains() {
         {/* On phones, where the header column is narrow, the sync errors
             get their own row. */}
         {syncErrors && <div className="-mt-1.5 sm:hidden">{syncErrors}</div>}
+
+        {!archiveView && (marketsOn || marketSales.length > 0) && (
+          <DomainsSummary
+            listings={marketListings}
+            sales={marketSales}
+            accountDays={marketTraffic.accountDays}
+            preferredCurrency={settings?.preferredCurrency ?? DEFAULT_CURRENCY}
+            numberFormat={settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT}
+            onListed={() => {
+              setMarketsFilter({
+                ...NO_MARKETS_FILTER,
+                states: ['active', 'pending', 'inactive', 'rejected'],
+              });
+              setPage(0);
+            }}
+          />
+        )}
 
         {/* The table always renders — even before a load or with no registrars
           configured — so its toolbar and structure stay put; the empty body row
