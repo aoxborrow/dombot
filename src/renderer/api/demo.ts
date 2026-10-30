@@ -17,6 +17,7 @@ import {
 } from '../../core/demo';
 import { onCoreEvent } from '../../core/events';
 import { setBulkAutoDrive } from '../../core/services/bulk-jobs';
+import { applyDomainOp } from '../../core/services/domain-ops';
 import {
   getMergedPortfolio,
   getPortfolio,
@@ -25,8 +26,7 @@ import { listEvents } from '../../core/services/domain-events';
 import { marketListings, syncMarkets } from '../../core/services/markets/sync';
 import { marketAdapter } from '../../core/services/markets/accounts';
 import { syncDomainTraffic } from '../../core/services/markets/traffic';
-import { DomainEventSource, localDay } from '../../shared/domain-events';
-import { applyDomainOp } from '../../core/services/domain-ops';
+import { localDay } from '../../shared/domain-events';
 import { setDispositions } from '../../core/services/domain-history';
 import { setNotes, setPurchase, setSale } from '../../core/services/purchases';
 import { setManualPrice } from '../../core/services/pricing';
@@ -289,7 +289,7 @@ async function recordSampleSettingsChanges(): Promise<void> {
         kind: 'nameservers',
         nameservers: ['ada.ns.cloudflare.com', 'bob.ns.cloudflare.com'],
       },
-      { source: DomainEventSource.Agent },
+      { source: 'agent' },
     );
 }
 
