@@ -145,7 +145,7 @@ export function NotesButton({
               // so the two sit snug). Without a note it shows only on row
               // hover, keyboard focus, or while its editor is open.
               className={cn(
-                '-my-2 inline-flex h-8 w-7 shrink-0 items-center justify-center rounded-md outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 compact:h-7 compact:w-6 dark:hover:bg-accent/50',
+                '-my-2 inline-flex h-8 w-7 shrink-0 items-center justify-center rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 compact:h-7 compact:w-6',
                 has
                   ? 'text-foreground/55 hover:text-foreground dark:text-foreground/70 dark:hover:text-foreground'
                   : 'text-foreground/40 opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100',

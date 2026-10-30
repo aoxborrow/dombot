@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Pencil } from 'lucide-react';
 import { toAscii } from '../../../shared/domain-name';
 import type { ListPrice, Domain, DomainPurchase } from '../../../shared/ipc';
 import { formatMoney, type NumberFormatId } from '../../../shared/money';
@@ -23,21 +24,37 @@ function recordOf(
 }
 
 /**
- * A value you can click to edit, marked the way the filter bar marks its
- * values: a dotted underline in the label green (FilterBar), light grey on
- * hover.
+ * A value you can click to edit: a dotted grey underline. On hover every
+ * value brightens to the same look, muted and faded market prices included:
+ * full text color, and a much lighter underline, still under the text, with
+ * a touch of green (the filter chips' underline green) to sit on the green
+ * cell.
  */
 export const EDITABLE_VALUE =
-  'underline decoration-dotted underline-offset-[3px] decoration-[color-mix(in_srgb,#42604d_55%,transparent)] group-hover:decoration-neutral-300 dark:decoration-[color-mix(in_srgb,#bacfc1_38%,transparent)] dark:group-hover:decoration-neutral-300';
+  'underline decoration-dotted underline-offset-[3px] decoration-neutral-300 group-hover:text-foreground group-hover:decoration-[#42604d]/75 group-hover:opacity-100 dark:decoration-neutral-600 dark:group-hover:decoration-[#bacfc1]/75';
 
 /**
- * An empty value you can click to fill: the dash gets a grey background on
- * hover, like the row's ⋯ button.
+ * An empty value you can click to fill: a dim dash that turns into a small
+ * green-grey pencil on hover (the cell itself lights up), the same green as
+ * the hovered underline. Sits in a fixed box so the swap doesn't shift
+ * anything.
  */
-export const EDITABLE_EMPTY =
-  'inline-flex h-8 w-7 -my-2 -mr-1 items-center justify-center rounded-md align-middle text-muted-foreground group-hover:bg-accent group-hover:text-foreground compact:h-7 compact:w-6 dark:group-hover:bg-accent/50';
+export function EditableEmpty() {
+  return (
+    <span className="inline-flex h-8 w-7 -my-2 -mr-1 items-center justify-center align-middle text-muted-foreground/50 group-hover:text-[#42604d] compact:h-7 compact:w-6 dark:group-hover:text-[#bacfc1]">
+      <span className="group-hover:hidden">—</span>
+      <Pencil
+        className="hidden size-3 group-hover:block compact:size-2.5"
+        aria-hidden
+      />
+    </span>
+  );
+}
 
-/** Fills the cell, including its padding, so one click anywhere opens the editor. */
+/**
+ * Fills the cell, including its padding, so one click anywhere opens the
+ * editor. The cell turns green on hover (data-cell-action, index.css).
+ */
 export function PurchaseCell({
   domain,
   onEdit,
@@ -45,7 +62,6 @@ export function PurchaseCell({
   title,
   empty = false,
   editLabel = 'Purchase details',
-  dotted = false,
   children,
 }: {
   domain: Domain;
@@ -54,8 +70,6 @@ export function PurchaseCell({
   title?: string;
   empty?: boolean;
   editLabel?: string;
-  /** The value inside carries EDITABLE_VALUE instead of a green hover. */
-  dotted?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -63,9 +77,9 @@ export function PurchaseCell({
       type="button"
       title={title}
       aria-label={empty ? `${editLabel} for ${domain.domainName}` : undefined}
+      data-cell-action
       className={cn(
         'group block w-[calc(100%+1rem)] cursor-pointer px-2 py-3 -mx-2 -my-3 compact:-my-[9px] compact:py-[9px]',
-        !dotted && 'hover:text-brand',
         align === 'right' ? 'text-right' : 'text-left',
         empty && 'text-muted-foreground',
       )}
@@ -213,7 +227,6 @@ export function purchaseColumns({
           align="right"
           empty={!value}
           editLabel={editLabel}
-          dotted
         >
           {value ? (
             <span className={EDITABLE_VALUE}>
@@ -226,7 +239,7 @@ export function purchaseColumns({
               )}
             </span>
           ) : (
-            <span className={EDITABLE_EMPTY}>—</span>
+            <EditableEmpty />
           )}
         </PurchaseCell>
       );

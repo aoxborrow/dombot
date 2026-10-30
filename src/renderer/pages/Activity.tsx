@@ -9,7 +9,6 @@ import {
   CalendarClock,
   ChevronDown,
   Ellipsis,
-  ExternalLink,
   Flame,
   Globe,
   History,
@@ -34,6 +33,7 @@ import {
 import { ownershipByDomain, type Ownership } from '../../shared/ownership';
 import { resolvedIds } from '../../shared/sync-diff';
 import { RegistrarLogo } from '../components/RegistrarLogo';
+import { DomainLink } from '../components/domains/DomainLink';
 import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
@@ -471,27 +471,13 @@ export default function Activity() {
 
   const columns: DataColumn<ActivityRow>[] = [
     {
-      key: 'date',
-      label: 'Date',
-      cell: ({ event: e }) => (
-        <span
-          className="font-mono text-muted-foreground tabular-nums"
-          title={new Date(e.createdAt).toLocaleString()}
-        >
-          {e.date ?? '—'}
-        </span>
-      ),
-    },
-    {
       key: 'domain',
       label: 'Domain',
       // The row's "⋯" menu, pinned to the cell's right edge like Domains',
       // with the name's sticky note (when it has one) just before it.
       cell: (row) => (
         <div className="flex items-center justify-between gap-2">
-          <span className="font-mono compact:text-[13px]">
-            {toUnicode(row.event.domain)}
-          </span>
+          <DomainLink name={toUnicode(row.event.domain)} />
           <div className="flex items-center">
             <NotesButton
               domainName={toUnicode(row.event.domain)}
@@ -515,8 +501,23 @@ export default function Activity() {
       ),
     },
     {
+      key: 'date',
+      label: 'Date',
+      cell: ({ event: e }) => (
+        <span
+          className="font-mono text-muted-foreground tabular-nums"
+          title={new Date(e.createdAt).toLocaleString()}
+        >
+          {e.date ?? '—'}
+        </span>
+      ),
+    },
+    {
       key: 'type',
       label: 'Type',
+      // Like Status: no vertical padding, centered, so the badge (taller than
+      // a line of text) doesn't make the row taller than Domains'.
+      cellClassName: 'py-0!',
       cell: ({ shown }) => <EventTypeBadge type={shown.type} />,
     },
     {
@@ -1003,8 +1004,9 @@ function RowMenu({
           variant="ghost"
           size="icon-sm"
           aria-label={`Actions for ${name}`}
-          title="Actions"
-          className="-my-2 w-7 text-muted-foreground hover:text-foreground compact:h-7 compact:w-6"
+          // Covers the Domain cell: the cell lights, not the button (index.css).
+          data-cell-action
+          className="-my-2 w-7 text-muted-foreground hover:bg-transparent hover:text-foreground compact:h-7 compact:w-6 dark:hover:bg-transparent"
         >
           <Ellipsis />
         </Button>
@@ -1048,14 +1050,6 @@ function RowMenu({
         <DropdownMenuItem onSelect={onShow}>
           <Globe className="text-muted-foreground" />
           Show in Domains
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() =>
-            void window.api.openExternal(`https://${row.event.domain}`)
-          }
-        >
-          <ExternalLink className="text-muted-foreground" />
-          Open in browser
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={() => set('delete')}>

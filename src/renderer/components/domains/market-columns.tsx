@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  EDITABLE_EMPTY,
+  EditableEmpty,
   EDITABLE_VALUE,
   PurchaseCell,
   type PurchaseColumn,
@@ -230,8 +230,7 @@ export function marketColumns({
     const on = (d: Domain) => of(d).find((l) => l.market === market);
     const listingCell = (d: Domain) => {
       const l = on(d);
-      if (!l)
-        return onEditListing ? <span className={EDITABLE_EMPTY}>—</span> : dash;
+      if (!l) return onEditListing ? <EditableEmpty /> : dash;
       // Compare with the asking price you set in DomBot.
       const mine = listPrices[toAscii(d.domainName)];
       const diff =
@@ -264,7 +263,7 @@ export function marketColumns({
           />
           <span
             className={cn(
-              'text-[13px] text-muted-foreground tabular-nums',
+              'text-[13px] text-muted-foreground tabular-nums compact:text-[11px]',
               EDITABLE_VALUE,
               state.faded && 'opacity-50',
             )}
@@ -289,7 +288,6 @@ export function marketColumns({
             align="right"
             empty={!on(d)}
             editLabel={`${marketName(markets, market)} listing`}
-            dotted
           >
             {cell}
           </PurchaseCell>

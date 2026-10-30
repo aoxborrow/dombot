@@ -10,7 +10,6 @@ import {
   CalendarClock,
   ChevronDown,
   CircleCheck,
-  ExternalLink,
   Globe,
   Plug,
   Server,
@@ -45,6 +44,7 @@ import {
   ImportedRegistrarIcon,
   RegistrarLogo,
 } from '../components/RegistrarLogo';
+import { DomainLink } from '../components/domains/DomainLink';
 import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
@@ -343,6 +343,7 @@ function FolderCell({
         <button
           type="button"
           title="Assign folder"
+          data-cell-action
           // Vertical padding matches the table cells' so this full-cell button
           // never sets the row height.
           className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground compact:px-2 compact:py-[9px] compact:text-xs"
@@ -396,7 +397,9 @@ function FolderCell({
 function ArchiveStatusCell({ label }: { label: ArchiveLabel | null }) {
   if (!label) return null;
   return (
-    <span className="flex items-center px-3 py-3 compact:px-2 compact:py-[9px]">
+    // No vertical padding (the cell has none either): the badge is taller
+    // than a line of text, and centered it doesn't make the row taller.
+    <span className="flex items-center px-3 compact:px-2">
       <EventTypeBadge
         type={label}
         title={label === 'removed' ? 'Removed from registrar' : undefined}
@@ -472,7 +475,9 @@ function domainLifecycle(
   return null;
 }
 
-/** A distinctly-colored pill per lifecycle state; nothing when healthy. */
+/** A distinctly-colored pill per lifecycle state; nothing when healthy. No
+ *  tooltip: a click on it, like anywhere in the Domain cell, opens the row
+ *  menu. */
 function LifecycleBadge({ status }: { status: string }) {
   const flag = domainLifecycle(status);
   if (!flag) return null;
@@ -482,7 +487,6 @@ function LifecycleBadge({ status }: { status: string }) {
         'border-transparent px-1.5 py-0 text-[11px] compact:px-1 compact:text-[10px]',
         LIFECYCLE_TONE[flag.tone],
       )}
-      title={`Registry status: ${status}`}
     >
       {flag.label}
     </Badge>
@@ -521,13 +525,15 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
       onCheckedChange={onToggle}
       disabled={pending || reason !== null}
       aria-label="auto-renew"
+      data-cell-action
       title={
         reason ??
         `Auto-renew ${domain.autoRenew ? 'on' : 'off'} — click to toggle`
       }
       // Unsupported ones look the same as the rest (no fade) — the not-allowed
-      // cursor and tooltip carry that.
-      className="data-[state=unchecked]:bg-flag-off disabled:opacity-100 dark:data-[state=unchecked]:bg-flag-off"
+      // cursor and tooltip carry that. The top margin centers it in a normal
+      // row (a transform would keep its click overlay to the switch).
+      className="mt-0.5 data-[state=unchecked]:bg-flag-off disabled:opacity-100 compact:mt-0 dark:data-[state=unchecked]:bg-flag-off"
     />
   );
 }
@@ -641,32 +647,12 @@ const COLUMNS: Column[] = [
     label: 'Domain',
     render: (d) => (
       <span className="inline-flex items-center gap-2">
-        {/* Opens the site in a new tab/window (Electron hands target=_blank to
-            the OS browser). noreferrer keeps the Referer header off the request.
-            The external-link glyph only shows on hover but always takes its
-            space, so nothing shifts when it appears. */}
-        <a
-          href={`https://${d.domainName}/`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={`Open https://${d.domainName} in a new window`}
-          className="group/domain inline-flex items-center font-mono hover:text-brand-600 compact:text-[13px] dark:hover:text-brand"
-        >
-          {/* One step up from the reduced mobile body size — the domain is
-              the row's primary field. Desktop inherits the table's text-sm. */}
-          {d.domainName}
-          <ExternalLink
-            // Always green (not currentColor) so it never flashes grey mid-fade.
-            className="ml-1.5 size-3 shrink-0 text-brand-600 opacity-0 transition-opacity group-hover/domain:opacity-100 dark:text-brand dark:group-hover/domain:opacity-50"
-            aria-hidden
-          />
-        </a>
+        <DomainLink name={d.domainName} />
         <LifecycleBadge status={d.status} />
         {d.source === 'imported' && (
           <Badge
             variant="outline"
             className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
-            title="Added by you. No connected account reports this name."
           >
             Imported
           </Badge>
