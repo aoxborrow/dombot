@@ -16,36 +16,50 @@ export function listField(
 }
 
 /** Small caps, like the table's column names, so the options read as labels. */
-function SmallCaps({ children }: { children: ReactNode }) {
+function SmallCaps({ children, xl }: { children: ReactNode; xl?: boolean }) {
   return (
-    <span className="text-[11px] tracking-wider uppercase">{children}</span>
+    <span
+      className={cn(
+        'tracking-wider uppercase',
+        // XL only from sm: a phone keeps the small type to fit.
+        xl ? 'text-[11px] font-semibold sm:text-sm' : 'text-[11px]',
+      )}
+    >
+      {children}
+    </span>
   );
 }
 
-/** The icon a size under the switch's default, to suit the small caps. */
-const iconCache = new Map<LucideIcon, LucideIcon>();
-function small(Icon: LucideIcon) {
-  let out = iconCache.get(Icon);
+/** The icon at a fixed size: a size under the switch's default to suit the
+ * small caps, or bigger for the XL switch. */
+const iconCache = new Map<LucideIcon, Map<string, LucideIcon>>();
+function sized(Icon: LucideIcon, size: string) {
+  const bySize =
+    iconCache.get(Icon) ?? iconCache.set(Icon, new Map()).get(Icon)!;
+  let out = bySize.get(size);
   if (!out) {
-    out = function SmallIcon({ className }: { className?: string }) {
-      return <Icon className={cn(className, 'size-3.5')} />;
+    out = function SizedIcon({ className }: { className?: string }) {
+      return <Icon className={cn(className, size)} />;
     } as LucideIcon;
-    iconCache.set(Icon, out);
+    bySize.set(size, out);
   }
   return out;
 }
 
 /**
  * The page's main switch (Owned/Listings/Archive, Needs review/All), leading the
- * toolbar: small-caps labels with an icon and a count.
+ * toolbar: small-caps labels with an icon and a count. `xl` spans the page,
+ * the options sharing its width, with bigger type and icons.
  */
 export function ToolbarSwitch({
   label,
   options,
+  size = 'default',
   className,
 }: {
   /** Accessible name for the group. */
   label: string;
+  size?: 'default' | 'xl';
   className?: string;
   options: {
     id: string;
@@ -63,12 +77,14 @@ export function ToolbarSwitch({
       // corners where the segments meet; the outer ones stay round.
       className={cn(
         '[&_[role=radio]]:gap-[7px] [&_[role=radio]]:pl-[11px] [&_[role=radio]:not(:first-child)]:rounded-l-[2px] [&_[role=radio]:not(:last-child)]:rounded-r-[2px]',
+        size === 'xl' &&
+          'flex h-10 w-full sm:h-12 [&_[role=radio]]:flex-1 sm:[&_[role=radio]]:gap-2.5 sm:[&_[role=radio]]:px-3 sm:[&_[role=radio]_.tabular-nums]:text-sm',
         className,
       )}
       options={options.map((o) => ({
         ...o,
-        label: <SmallCaps>{o.label}</SmallCaps>,
-        icon: small(o.icon),
+        label: <SmallCaps xl={size === 'xl'}>{o.label}</SmallCaps>,
+        icon: sized(o.icon, size === 'xl' ? 'size-3.5 sm:size-5' : 'size-3.5'),
       }))}
     />
   );
