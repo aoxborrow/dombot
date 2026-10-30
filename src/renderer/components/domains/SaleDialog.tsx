@@ -188,8 +188,9 @@ export function SaleDialog({
           {mode === 'edit' && !resolves && (
             <Button
               type="button"
-              variant="ghost"
-              className="text-destructive hover:text-destructive sm:mr-auto"
+              variant="outline"
+              // Red outline at rest, filled red on hover.
+              className="border-destructive/60 text-destructive hover:bg-destructive hover:text-white sm:mr-auto dark:border-destructive/60 dark:bg-transparent dark:hover:bg-destructive"
               disabled={saving}
               onClick={() => void undo()}
             >
