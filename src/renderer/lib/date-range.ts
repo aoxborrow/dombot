@@ -41,17 +41,18 @@ export const FUTURE_DATE_PRESETS: DatePresetId[] = [
 ];
 
 /**
- * The Expiration filter's shortcuts: FUTURE_DATE_PRESETS with the registrar's
- * Grace and Redemption after Expired. Those two match a status, not a day,
- * so the page that offers them checks the row's status too.
+ * The Expiration filter's shortcuts, furthest out first down to the most
+ * overdue: FUTURE_DATE_PRESETS reversed, then Expired with the registrar's
+ * Grace and Redemption under it. Those two match a status, not a day, so the
+ * page that offers them checks the row's status too.
  */
 export const EXPIRATION_PRESETS: DatePresetId[] = [
+  'next90',
+  'next60',
+  'next30',
   'expired',
   'grace',
   'redemption',
-  'next30',
-  'next60',
-  'next90',
 ];
 
 /** Shortcuts for a date that's behind: created, bought, sold. */
