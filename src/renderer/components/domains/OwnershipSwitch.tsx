@@ -10,12 +10,16 @@ import type { DomainsView } from './DomainsCards';
 export function OwnershipSwitch({
   view,
   ownedCount,
+  listedCount,
   archiveCount,
   listings,
   onView,
 }: {
   view: DomainsView;
   ownedCount: number;
+  /** Owned names live on a market: Listings shows every owned name, but
+   * its count is what's listed. */
+  listedCount: number;
   archiveCount: number;
   /** Whether Listings is offered. */
   listings: boolean;
@@ -41,7 +45,7 @@ export function OwnershipSwitch({
                 id: 'listings',
                 label: 'Listings',
                 icon: Store,
-                count: ownedCount,
+                count: listedCount,
                 active: view === 'listings',
                 onClick: () => onView('listings'),
               },

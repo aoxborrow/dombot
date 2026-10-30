@@ -340,7 +340,8 @@ saved, so the Domains table shows it before the next sync.
 
 Once a market account is connected, Domains has three views: **Owned**,
 **Listings** and **Archive** (`?view=listings`, `?view=archive`). Owned and
-Listings show the same names, the ones you hold, with different columns:
+Listings show the same names, the ones you hold, with different columns;
+Listings' count in the switch is how many of them are live on a market:
 
 - **Owned** keeps one **Listed** column for the markets, each market's logo
   in the colour its listing cell's icon would have (below), so it stays the

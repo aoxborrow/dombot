@@ -329,7 +329,7 @@ export function DomainsCards({
           value={[
             {
               value: cards.listed.toLocaleString(),
-              unit: pct(cards.listed, total),
+              unit: `${pct(cards.listed, total)} listed`,
             },
           ]}
           onClick={actions.onListings}

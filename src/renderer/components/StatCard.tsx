@@ -107,10 +107,12 @@ export function StatCard({
                   {slot.unit && (
                     <span
                       className={cn(
-                        'truncate text-[0.7em] text-muted-foreground',
+                        'truncate',
+                        // "/30d" sits against its number; words are
+                        // smaller, quieter and further off.
                         slot.unit.startsWith('/')
-                          ? 'font-medium'
-                          : 'ml-1.5 font-normal',
+                          ? 'text-[0.7em] font-medium text-muted-foreground'
+                          : 'ml-2.5 text-[0.6em] font-normal text-muted-foreground/70',
                       )}
                     >
                       {slot.unit}

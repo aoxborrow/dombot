@@ -106,6 +106,7 @@ import {
 } from '../components/domains/MarketsFilter';
 import {
   isMarketFilterSet,
+  marketState,
   matchesMarketFilter,
 } from '../../shared/market-filter';
 import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
@@ -1832,6 +1833,21 @@ export default function Domains() {
     [],
   );
 
+  // The Listings switch's count: owned names live on a connected market,
+  // over the whole portfolio like the other counts.
+  const listedCount = useMemo(
+    () =>
+      shown.filter(
+        (d) =>
+          !archiveLabelOf(d) &&
+          (marketListings[toAscii(d.domainName)] ?? []).some(
+            (l) =>
+              listingMarkets.includes(l.market) && marketState(l) === 'active',
+          ),
+      ).length,
+    [shown, archiveLabelOf, marketListings, listingMarkets],
+  );
+
   const askingFilter = useMemo(
     () =>
       isPricingFilterSet(pricingFilter)
@@ -2332,6 +2348,7 @@ export default function Domains() {
           <OwnershipSwitch
             view={view}
             ownedCount={ownedCount}
+            listedCount={listedCount}
             archiveCount={archiveCount}
             listings={marketsOn}
             onView={setListView}
