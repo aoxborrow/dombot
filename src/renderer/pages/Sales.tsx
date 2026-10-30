@@ -606,6 +606,8 @@ export default function Sales() {
           </div>
         </div>
 
+        <SalesCards rows={rows} money={money} />
+
         <FilterToolbar
           id="sales"
           search={search}
@@ -624,8 +626,6 @@ export default function Sales() {
             </span>
           )}
         </FilterToolbar>
-
-        <SalesCards rows={rows} money={money} />
       </div>
 
       <DataTable

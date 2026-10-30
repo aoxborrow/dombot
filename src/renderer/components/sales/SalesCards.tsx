@@ -1,19 +1,21 @@
 import { useMemo } from 'react';
 import {
   BadgeDollarSign,
-  ChartNoAxesColumn,
   CircleDollarSign,
   Hourglass,
   Receipt,
+  Scissors,
   TrendingUp,
 } from 'lucide-react';
 import { saleTotals, type SaleRecord } from '../../../shared/sales';
 import { StatCard } from '../StatCard';
 
-// The cards above the Sales table: the filtered sales added up, so a filter
-// on market, TLD, registrar or date shows that slice's totals. One currency
-// at a time: amounts are never converted or combined, so with several the
-// cards show the one most sales were in and say so.
+// The cards above the Sales table: the filtered sales added up, in the
+// table's column order, so a filter on market, TLD, registrar or date shows
+// that slice's totals. One currency at a time: amounts are never converted
+// or combined. The line under the cards is the one place that says so; a
+// card's own hint is only for what it can't cover (sales without fees, or
+// without a cost).
 
 const plural = (n: number, word: string) =>
   `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
@@ -24,6 +26,9 @@ export function heldFor(days: number): string {
   if (days < 730) return `${Math.round(days / 30.44)} months`;
   return `${(days / 365.25).toFixed(1)} years`;
 }
+
+// A blank hint keeps the cards the same height.
+const BLANK = ' ';
 
 export function SalesCards({
   rows,
@@ -47,7 +52,7 @@ export function SalesCards({
     };
   }, [rows]);
   const c = t?.currency ?? null;
-  // Partial figures say how many sales they cover.
+  // Only a partial figure says how many sales it covers.
   const of = (count: number, what: string) =>
     t && count < t.sold ? `${count} of ${t.sold} ${what}` : null;
   const dash = '—';
@@ -67,7 +72,7 @@ export function SalesCards({
               t?.cancelled && `${t.cancelled} cancelled`,
             ]
               .filter(Boolean)
-              .join(' · ') || 'Completed sales'
+              .join(' · ') || BLANK
           }
         />
         <StatCard
@@ -76,11 +81,15 @@ export function SalesCards({
           accentClass="text-sky-500"
           label="Gross"
           value={t?.grossCount ? money(t.gross, c)! : dash}
-          hint={
-            t?.feesCount
-              ? `${money(t.fees, c)} fees${of(t.feesCount, 'with fees') ? ` · ${of(t.feesCount, 'with fees')}` : ''}`
-              : 'What buyers paid'
-          }
+          hint={t?.average ? `${money(t.average, c)} average` : BLANK}
+        />
+        <StatCard
+          size="sm"
+          icon={Scissors}
+          accentClass="text-amber-500"
+          label="Fees"
+          value={t?.feesCount ? money(t.fees, c)! : dash}
+          hint={of(t?.feesCount ?? 0, 'known') ?? BLANK}
         />
         <StatCard
           size="sm"
@@ -88,17 +97,15 @@ export function SalesCards({
           accentClass="text-brand-500"
           label="Net"
           value={t?.netCount ? money(t.net, c)! : dash}
-          hint={of(t?.netCount ?? 0, 'sales') ?? 'After commission and fees'}
+          hint={of(t?.netCount ?? 0, 'known') ?? BLANK}
         />
         <StatCard
           size="sm"
-          icon={ChartNoAxesColumn}
-          accentClass="text-amber-500"
-          label="Average sale"
-          value={t?.average ? money(t.average, c)! : dash}
-          hint={
-            t?.grossCount ? `Over ${plural(t.grossCount, 'sale')}` : 'No sales'
-          }
+          icon={Hourglass}
+          accentClass="text-orange-500"
+          label="Held, average"
+          value={t?.holdingDays != null ? heldFor(t.holdingDays) : dash}
+          hint={of(t?.holdingCount ?? 0, 'with dates') ?? BLANK}
         />
         <StatCard
           size="sm"
@@ -107,41 +114,27 @@ export function SalesCards({
           label="Profit"
           value={t?.profitCount ? money(t.profit, c)! : dash}
           hint={
-            t?.profitCount
-              ? [
-                  t.roi !== null &&
-                    `${Math.round(t.roi * 100).toLocaleString()}% ROI`,
-                  of(t.profitCount, 'with a cost'),
-                ]
-                  .filter(Boolean)
-                  .join(' · ') || 'Net less what you paid'
-              : 'Needs what you paid'
-          }
-        />
-        <StatCard
-          size="sm"
-          icon={Hourglass}
-          accentClass="text-orange-500"
-          label="Average hold"
-          value={t?.holdingDays != null ? heldFor(t.holdingDays) : dash}
-          hint={
-            t?.holdingCount
-              ? (of(t.holdingCount, 'with dates') ?? 'Bought to sold')
-              : 'Needs a purchase date'
+            [
+              t?.profitCount &&
+                t.roi !== null &&
+                `${Math.round(t.roi * 100).toLocaleString()}% ROI`,
+              of(t?.profitCount ?? 0, 'with a cost'),
+            ]
+              .filter(Boolean)
+              .join(' · ') || BLANK
           }
         />
       </div>
-      {others.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          In {c}.{' '}
-          {others
+      <p className="text-xs text-muted-foreground">
+        Totals of the sales in the table below, as filtered
+        {c ? `, in ${c}` : ''}.
+        {others.length > 0 &&
+          ` ${others
             .map((o) => `${plural(o.count, 'sale')} in ${o.currency}`)
-            .join(', ')}{' '}
-          {others.length === 1 && others[0].count === 1 ? 'is' : 'are'} left
-          out; filter by Currency to see{' '}
-          {others.length === 1 && others[0].count === 1 ? 'it' : 'them'}.
-        </p>
-      )}
+            .join(', ')} left out; filter by Currency to see ${
+            others.length === 1 && others[0].count === 1 ? 'it' : 'them'
+          }.`}
+      </p>
     </div>
   );
 }
