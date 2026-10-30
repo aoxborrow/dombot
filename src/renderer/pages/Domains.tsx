@@ -16,6 +16,7 @@ import {
   ChevronDown,
   CircleCheck,
   Globe,
+  Import,
   IterationCw,
   Plug,
   Server,
@@ -451,14 +452,16 @@ function domainLifecycle(
 
 /** A distinctly-colored pill per lifecycle state; nothing when healthy. No
  *  tooltip: a click on it, like anywhere in the Domain cell, opens the row
- *  menu. */
-function LifecycleBadge({ status }: { status: string }) {
+ *  menu. `hold` picks the states it shows: Hold beside the name (DNS is off,
+ *  not an expiry matter), or the expiry ones in the Expires column. */
+function LifecycleBadge({ status, hold }: { status: string; hold: boolean }) {
   const flag = domainLifecycle(status);
-  if (!flag) return null;
+  if (!flag || (flag.tone === 'hold') !== hold) return null;
   return (
     <Badge
       className={cn(
-        'border-transparent px-1.5 py-0 text-[11px] compact:px-1 compact:text-[10px]',
+        // font-sans: the Expires cell around it is monospace.
+        'border-transparent px-1.5 py-0 font-sans text-[11px] compact:px-1 compact:text-[10px]',
         LIFECYCLE_TONE[flag.tone],
       )}
     >
@@ -645,14 +648,15 @@ const COLUMNS: Column[] = [
     render: (d) => (
       <span className="inline-flex items-center gap-2">
         <DomainLink name={d.domainName} />
-        <LifecycleBadge status={d.status} />
+        <LifecycleBadge status={d.status} hold />
         {d.source === 'imported' && (
-          <Badge
-            variant="outline"
-            className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
-          >
-            Imported
-          </Badge>
+          // An arrow into a tray: added by you, no connected account.
+          <span title="Imported" className="inline-flex">
+            <Import
+              className="size-3.5 text-muted-foreground/70"
+              aria-label="Imported"
+            />
+          </span>
         )}
       </span>
     ),
@@ -685,19 +689,27 @@ const COLUMNS: Column[] = [
     render: (d) => {
       const days = daysUntil(d.expirationDate);
       const color = expiryColor(days);
+      // Past expiry, the registrar's Expired / Grace / Redemption takes the
+      // countdown's place: the colour already says how long ago.
+      const lifecycle = domainLifecycle(d.status);
+      const state = lifecycle && lifecycle.tone !== 'hold' ? lifecycle : null;
       return (
         <span
           className={cn(
-            'inline-flex items-baseline gap-2.5 font-mono tabular-nums',
+            'inline-flex items-center gap-2.5 font-mono tabular-nums',
             color,
           )}
-          title={dueLabel(days)}
+          title={state ? `${dueLabel(days)} · ${state.label}` : dueLabel(days)}
         >
           <span>{fmtDate(d.expirationDate)}</span>
-          {days !== null && (
-            <span className="text-xs opacity-60 compact:text-[11px]">
-              {relativeDays(days)}
-            </span>
+          {state ? (
+            <LifecycleBadge status={d.status} hold={false} />
+          ) : (
+            days !== null && (
+              <span className="text-xs opacity-60 compact:text-[11px]">
+                {relativeDays(days)}
+              </span>
+            )
           )}
         </span>
       );

@@ -31,18 +31,20 @@ the MCP tools and the CSV export read Owned and Archive from there.
 Every name you hold, synced or imported. Its state comes from what DomBot
 already knows; you never set it.
 
-| State    | When                                                  | Shown                                                      |
-| -------- | ----------------------------------------------------- | ---------------------------------------------------------- |
-| Renewing | Auto-renew on                                         | Nothing extra                                              |
-| Expiring | Auto-renew off, expiry within 30 days                 | Nothing on the row (MCP's `expiring`; a card later)        |
-| Expired  | Past expiry, still in the account (grace, redemption) | The existing Expired / Grace / Redemption pills, unchanged |
-| Sold     | You recorded a sale and the buyer hasn't taken it yet | "Sold" pill                                                |
+| State    | When                                                  | Shown                                                   |
+| -------- | ----------------------------------------------------- | ------------------------------------------------------- |
+| Renewing | Auto-renew on                                         | Nothing extra                                           |
+| Expiring | Auto-renew off, expiry within 30 days                 | Nothing on the row (MCP's `expiring`; a card later)     |
+| Expired  | Past expiry, still in the account (grace, redemption) | Expired / Grace / Redemption pill in the Expires column |
+| Sold     | You recorded a sale and the buyer hasn't taken it yet | "Sold" pill                                             |
 
 - **Expiring only inside 30 days.** A name with auto-renew off that expires
   in 2031, or even in three months, isn't news yet.
-- **The Expired, Grace and Redemption pills already exist,** read from the
-  registrar's status (`domainLifecycle` in `src/renderer/pages/Domains.tsx`).
-  The Sold pill sits beside them. Expiring isn't a pill: the Expires
+- **The Expired, Grace and Redemption pills** are read from the registrar's
+  status (`domainLifecycle` in `src/renderer/pages/Domains.tsx`). They sit in
+  the Expires column, in place of the "Nd ago" countdown; only Hold (DNS
+  off, not an expiry matter) stays beside the name, with the Sold pill and
+  the Imported icon (an arrow into a tray). Expiring isn't a pill: the Expires
   column's colour and the Auto-renew filter already show it on the row, and
   it's worked out for MCP and a future summary card.
 - **A new Auto-renew filter** (On, Off) beside Registrar, TLD and Folder.
