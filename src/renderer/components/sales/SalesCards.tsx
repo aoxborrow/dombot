@@ -7,7 +7,8 @@ import {
   Receipt,
   TrendingUp,
 } from 'lucide-react';
-import { saleTotals, type SaleRecord } from '../../../shared/sales';
+import type { ExchangeRates } from '../../../shared/exchange-rates';
+import { recordIn, saleTotalsIn, type SaleRecord } from '../../../shared/sales';
 import { isPending } from '../../lib/sales';
 import { StatCard, StatCardRow } from '../StatCard';
 
@@ -15,8 +16,10 @@ import { StatCard, StatCardRow } from '../StatCard';
 // added up, so a filter on market, TLD, registrar or date shows that
 // slice's totals. In the table's column order: how many, gross (with the
 // average), net (with fees), profit (with ROI); holding time stays in the
-// table. One currency at a time: amounts are never converted or combined,
-// and a line under the cards says which sales another currency leaves out.
+// table. All in one currency, your preferred one (or the one the Currency
+// filter picks): a sale in another is converted at its month's average
+// (docs/exchange-rates.md), and the line under the cards says how many
+// were, and which sales DomBot couldn't convert and left out.
 // The Pending view swaps net and profit (nothing's paid yet) for what the
 // pending sales wait on: you, or the transfer.
 
@@ -36,25 +39,22 @@ const BLANK = '\u00a0';
 export function SalesCards({
   rows,
   pendingView,
+  currency,
+  fx,
   money,
 }: {
   /** The sales the table shows. */
   rows: readonly SaleRecord[];
   /** The Pending view: only unfinished sales. */
   pendingView: boolean;
+  /** What the totals are in. */
+  currency: string;
+  fx: ExchangeRates;
   money: (amount: string | null, currency: string | null) => string | null;
 }) {
-  const { t, others, pending, waiting, value } = useMemo(() => {
-    const totals = saleTotals(rows).filter((x) => x.currency);
-    const main = totals.find((x) => x.sold) ?? totals[0] ?? null;
+  const { t, pending, waiting, value } = useMemo(() => {
     return {
-      t: main,
-      others: totals
-        .filter((x) => x !== main)
-        .map((x) => ({
-          currency: x.currency,
-          count: x.sold + x.inProgress + x.cancelled,
-        })),
+      t: saleTotalsIn(rows, currency, fx),
       pending: rows.filter(isPending).length,
       // What a pending sale waits on: you (a code or payee details for
       // the market), or the name moving to the buyer.
@@ -64,16 +64,17 @@ export function SalesCards({
         market: rows.filter((r) => r.step === 'transfer').length,
         held: rows.filter((r) => r.awaitingTransfer).length,
       },
-      // A pending sale's price, finished or not, in the main currency.
-      value: rows
-        .filter((r) => r.price !== null && r.currency === main?.currency)
-        .reduce((n, r) => n + Number(r.price), 0),
+      // A pending sale's price, finished or not.
+      value: rows.reduce((n, r) => {
+        const price = recordIn(r, currency, fx)?.record.price;
+        return price ? n + Number(price) : n;
+      }, 0),
     };
-  }, [rows]);
-  const c = t?.currency ?? null;
+  }, [rows, currency, fx]);
+  const c = currency;
   // Only a partial figure says how many sales it covers.
   const of = (count: number, what: string) =>
-    t && count < t.sold ? `${count} of ${t.sold} ${what}` : null;
+    count < t.sold ? `${count} of ${t.sold} ${what}` : null;
   const hint = (...parts: (string | null | false | 0 | undefined)[]) =>
     parts.filter(Boolean).join(' · ') || BLANK;
   const dash = '—';
@@ -82,12 +83,16 @@ export function SalesCards({
     <StatCardRow
       note={
         <>
-          Totals for the table below, in {c ?? 'one currency'}.
-          {others.length > 0 &&
-            ` ${others
+          Totals for the table below, in {c}.
+          {t.converted > 0 &&
+            ` ${plural(t.converted, 'sale')} in ${t.convertedFrom.join(', ')} converted at ${
+              t.converted === 1 ? 'its' : 'each'
+            } month’s average (ECB)${t.provisional ? ', or a recent rate until it’s out' : ''}.`}
+          {t.leftOut.length > 0 &&
+            ` ${t.leftOut
               .map((o) => `${plural(o.count, 'sale')} in ${o.currency}`)
-              .join(', ')} left out; filter by Currency to see ${
-              others.length === 1 && others[0].count === 1 ? 'it' : 'them'
+              .join(', ')} left out: DomBot can’t convert ${
+              t.leftOut.length === 1 ? 'it' : 'them'
             }.`}
         </>
       }
@@ -98,7 +103,7 @@ export function SalesCards({
         accentClass="text-violet-500"
         label="Sales"
         // Finished and under way; cancelled ones aren't sales.
-        value={((t?.sold ?? 0) + (t?.inProgress ?? 0)).toLocaleString()}
+        value={(t.sold + t.inProgress).toLocaleString()}
         // The Pending view's cards are a label and a number, so both
         // are bigger.
         hint={
@@ -106,7 +111,7 @@ export function SalesCards({
             ? undefined
             : hint(
                 pending > 0 && `${pending} pending`,
-                t?.cancelled && `${t.cancelled} cancelled`,
+                t.cancelled && `${t.cancelled} cancelled`,
               )
         }
       />
@@ -125,8 +130,8 @@ export function SalesCards({
           icon={Receipt}
           accentClass="text-sky-500"
           label="Gross"
-          value={t?.grossCount ? money(t.gross, c)! : dash}
-          hint={hint(t?.average && `${money(t.average, c)} avg`)}
+          value={t.grossCount ? money(t.gross, c)! : dash}
+          hint={hint(t.average && `${money(t.average, c)} avg`)}
         />
       )}
       {pendingView && (
@@ -155,10 +160,10 @@ export function SalesCards({
           icon={CircleDollarSign}
           accentClass="text-brand-500"
           label="Net"
-          value={t?.netCount ? money(t.net, c)! : dash}
+          value={t.netCount ? money(t.net, c)! : dash}
           hint={hint(
-            t?.feesCount && `${money(t.fees, c)} fees`,
-            of(t?.netCount ?? 0, 'known'),
+            t.feesCount && `${money(t.fees, c)} fees`,
+            of(t.netCount, 'known'),
           )}
         />
       )}
@@ -168,12 +173,12 @@ export function SalesCards({
           icon={TrendingUp}
           accentClass="text-rose-500"
           label="Profit"
-          value={t?.profitCount ? money(t.profit, c)! : dash}
+          value={t.profitCount ? money(t.profit, c)! : dash}
           hint={hint(
-            t?.profitCount &&
+            t.profitCount &&
               t.roi !== null &&
               `${Math.round(t.roi * 100).toLocaleString()}% ROI`,
-            of(t?.profitCount ?? 0, 'with a cost'),
+            of(t.profitCount, 'with a cost'),
           )}
         />
       )}

@@ -21,8 +21,10 @@ import {
   DEFAULT_NUMBER_FORMAT,
   formatMoney,
 } from '../../shared/money';
+import { conversionText } from '../../shared/exchange-rates';
 import {
   filterSaleRecords,
+  recordIn,
   saleRecordsCsv,
   saleTld,
   type SaleRecord,
@@ -78,8 +80,10 @@ import { cn } from '@/lib/utils';
 // The Sales tab (docs/sales-tab.md): every sale, from every source, one row
 // each; sales under way pin to the top with their next step. The cards above
 // add up what the filters leave, so a market, TLD, registrar or date filter
-// shows that slice's totals, one currency at a time: amounts are never
-// converted or combined.
+// shows that slice's totals, in your preferred currency (or the one the
+// Currency filter picks): a sale in another is converted at its month's
+// average (docs/exchange-rates.md). Rows keep their own amounts, with the
+// conversion on hover, and sort by their converted value.
 
 type SortKey =
   | 'name'
@@ -113,6 +117,7 @@ export default function Sales() {
   const settings = useAppStore((s) => s.settings);
   const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
+  const fx = useAppStore((s) => s.exchangeRates);
   // formatMoney takes no sign, so a loss is formatted unsigned and given a
   // minus sign here.
   const money = (amount: string | null, currency: string | null) =>
@@ -185,10 +190,22 @@ export default function Sales() {
     () => (pendingOnly ? rows.filter(isPending) : rows),
     [rows, pendingOnly],
   );
+  // The totals' currency: one the Currency filter picks alone, else yours.
+  const totalsCurrency = currencies.length === 1 ? currencies[0] : preferred;
+  // Each row in your currency, for sorting amounts across currencies; one
+  // DomBot can't convert sorts by its own figures.
+  const inPreferred = useMemo(
+    () =>
+      new Map(
+        viewRows.map((r) => [r, recordIn(r, preferred, fx)?.record ?? r]),
+      ),
+    [viewRows, preferred, fx],
+  );
 
   // Pending first, then the chosen sort; blanks last either way.
   const sorted = useMemo(() => {
-    const value = (r: SaleRecord): string | number | null => {
+    const value = (row: SaleRecord): string | number | null => {
+      const r = inPreferred.get(row) ?? row;
       switch (sortKey) {
         case 'name':
           return r.name;
@@ -224,7 +241,7 @@ export default function Sales() {
     });
     // sourceName reads the catalog.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewRows, sortKey, sortDir, catalog]);
+  }, [viewRows, inPreferred, sortKey, sortDir, catalog]);
 
   const toggleSort = (key: string) => {
     if (key === sortKey) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -373,13 +390,26 @@ export default function Sales() {
   }
 
   const dash = <span className="text-muted-foreground">—</span>;
+  // In another currency than yours, the conversion shows on hover.
   const amountCell = (
     amount: string | null,
-    currency: string | null,
+    r: SaleRecord,
     className?: string,
   ) => {
-    const text = money(amount, currency);
-    return text ? <span className={className}>{text}</span> : dash;
+    const text = money(amount, r.currency);
+    if (!text) return dash;
+    let title: string | undefined;
+    if (r.currency && r.currency !== preferred) {
+      const c = fx.convert(amount!, r.currency, preferred, r.soldOn);
+      title = c
+        ? conversionText(text, money(String(c.amount), preferred)!, c, r.soldOn)
+        : `DomBot can’t convert ${r.currency}`;
+    }
+    return (
+      <span className={className} title={title}>
+        {text}
+      </span>
+    );
   };
 
   const columns: DataColumn<SaleRecord>[] = [
@@ -443,7 +473,7 @@ export default function Sales() {
       cell: (r) =>
         amountCell(
           r.price,
-          r.currency,
+          r,
           cn(
             'tabular-nums',
             r.status === 'cancelled' && 'text-muted-foreground line-through',
@@ -476,7 +506,7 @@ export default function Sales() {
       cell: (r) =>
         r.status === 'cancelled'
           ? dash
-          : amountCell(r.net, r.currency, 'tabular-nums font-medium'),
+          : amountCell(r.net, r, 'tabular-nums font-medium'),
     },
     {
       key: 'status',
@@ -567,7 +597,11 @@ export default function Sales() {
             )}
             title={
               r.cost
-                ? `Cost ${money(r.cost, r.currency)}${r.acquiredOn ? `, ${r.acquiredOn}` : ''}`
+                ? `Cost ${money(r.cost, r.currency)}${
+                    r.costPaid
+                      ? ` (paid ${money(r.costPaid.amount, r.costPaid.currency)}, converted at the purchase month’s average)`
+                      : ''
+                  }${r.acquiredOn ? `, ${r.acquiredOn}` : ''}`
                 : undefined
             }
           >
@@ -682,7 +716,13 @@ export default function Sales() {
           <div className="hidden sm:block">{exportButton}</div>
         </div>
 
-        <SalesCards rows={viewRows} pendingView={pendingOnly} money={money} />
+        <SalesCards
+          rows={viewRows}
+          pendingView={pendingOnly}
+          currency={totalsCurrency}
+          fx={fx}
+          money={money}
+        />
 
         <FilterToolbar
           id="sales"

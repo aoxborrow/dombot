@@ -160,6 +160,8 @@ credit the author on the commits that do (`Co-Authored-By`).
 - Date filters on the sale date; all-time includes undated sales, a bounded
   range leaves them out and says how many.
 - Currency handling: never convert, never combine; totals per currency.
+  Since replaced by converting to your preferred currency
+  ([exchange-rates.md](exchange-rates.md)).
 - The monthly sale-value trend; breakdowns by market, TLD, registrar.
 - CSV export of the filtered records, with the shared CSV formula guard.
 - Holding period and realized ROI where purchase data exists.

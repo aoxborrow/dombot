@@ -7,6 +7,7 @@ import {
   localDay,
   type DomainEvent,
 } from './domain-events';
+import type { ExchangeRates } from './exchange-rates';
 import type { MarketId, MarketSale } from './markets';
 
 // Sale records (docs/sales-tab.md, "The sale record"): one list of every
@@ -26,10 +27,13 @@ import type { MarketId, MarketSale } from './markets';
 // labels play no part, so reshaping them doesn't touch sales.
 //
 // The rules (from PR #183): blank is unknown and zero only when confirmed;
-// amounts in two currencies are never converted or added together; a cost
-// counts only when it's in the sale's currency; estimated renewal prices are
-// never used as historical costs. Partial totals carry how many records
-// they cover. Pure, so the page, the CSV and MCP compute the same numbers.
+// estimated renewal prices are never used as historical costs; partial
+// totals carry how many records they cover. Each record keeps its own
+// currency. Totals across currencies convert each sale at its month's
+// average (`saleTotalsIn`, docs/exchange-rates.md), and a cost in another
+// currency than the sale's is converted at the purchase date; one DomBot
+// can't convert is left out and counted. Pure, so the page, the CSV and MCP
+// compute the same numbers.
 
 /**
  * Where a sale came from: a market, or one you recorded or imported.
@@ -74,8 +78,11 @@ export interface SaleRecord {
   registrarAccountId: string | null;
   /** The acquisition this sale ends: registered or bought, and when. */
   acquiredOn: string | null;
-  /** What you paid, in the sale's currency; null when unknown or in another. */
+  /** What you paid, in the sale's currency (converted at the purchase date
+   *  when you paid in another); null when unknown or not convertible. */
   cost: string | null;
+  /** What you paid as recorded, when `cost` is converted from it. */
+  costPaid: { amount: string; currency: string } | null;
   /** Days from acquisition to sale; null without both dates. */
   holdingDays: number | null;
   /** Net less cost; null unless both are known. */
@@ -123,6 +130,8 @@ export interface SaleRecordInput {
   held?: ReadonlySet<string>;
   /** YYYY-MM-DD; with `held`, which sales are recent enough to await transfer. */
   today?: string;
+  /** Converts a cost paid in another currency than the sale's. */
+  fx?: ExchangeRates;
 }
 
 /**
@@ -144,6 +153,7 @@ export function buildSaleRecords({
   marketSales,
   held = new Set(),
   today = localDay(),
+  fx,
 }: SaleRecordInput): SaleRecord[] {
   const recent = (soldOn: string | null) =>
     !soldOn ||
@@ -194,7 +204,7 @@ export function buildSaleRecords({
           ? (byKey.get(e.marketSale) ?? null)
           : null
         : entry.sale!;
-      const record = toRecord(name, e ?? null, sale, h);
+      const record = toRecord(name, e ?? null, sale, h, fx);
       records.push(record);
       // A completed sale ends the holding; one still under way or
       // cancelled doesn't.
@@ -218,6 +228,7 @@ function toRecord(
   event: DomainEvent | null,
   sale: MarketSale | null,
   h: Holding,
+  fx: ExchangeRates | undefined,
 ): SaleRecord {
   const currency = event?.currency ?? sale?.currency ?? null;
   const price = event?.amount ?? sale?.price ?? null;
@@ -235,10 +246,22 @@ function toRecord(
         : null;
   const soldOn = event ? event.date : (sale?.soldOn ?? null);
   const acquired = h.acquisition;
-  const cost =
-    acquired && acquired.currency === currency
-      ? (acquired.amount ?? null)
+  const paid =
+    acquired?.amount && acquired.currency
+      ? { amount: acquired.amount, currency: acquired.currency }
       : null;
+  // In the sale's currency, at what it was worth when you paid it.
+  const converted =
+    paid && currency && paid.currency !== currency
+      ? fx?.convert(paid.amount, paid.currency, currency, acquired?.date)
+      : null;
+  const cost = !paid
+    ? null
+    : paid.currency === currency
+      ? paid.amount
+      : converted
+        ? decimal(units(String(converted.amount))!, currency)
+        : null;
   const held =
     soldOn && acquired?.date
       ? Math.round((Date.parse(soldOn) - Date.parse(acquired.date)) / DAY)
@@ -273,6 +296,7 @@ function toRecord(
     registrarAccountId: h.account,
     acquiredOn: acquired?.date ?? null,
     cost,
+    costPaid: converted ? paid : null,
     holdingDays: held !== null && held >= 0 ? held : null,
     profit:
       netUnits !== null && costUnits !== null
@@ -417,6 +441,94 @@ function totalsOf(currency: string, list: readonly SaleRecord[]): SaleTotals {
   };
 }
 
+export interface CurrencyCount {
+  currency: string;
+  count: number;
+}
+
+/**
+ * A record with its money in `currency`: as it is when it's already in it
+ * (or has no price), else each amount converted at the sale date (undated:
+ * the newest rate). Null when its currency can't be converted.
+ */
+export function recordIn(
+  r: SaleRecord,
+  currency: string,
+  fx: ExchangeRates,
+): { record: SaleRecord; provisional: boolean } | null {
+  const from = r.currency;
+  if (!from || from === currency) return { record: r, provisional: false };
+  const probe = fx.convert(0, from, currency, r.soldOn);
+  if (!probe) return null;
+  const to = (amount: string | null) => {
+    if (amount === null) return null;
+    const c = fx.convert(amount, from, currency, r.soldOn);
+    return c ? decimal(units(String(c.amount))!, currency) : null;
+  };
+  return {
+    record: {
+      ...r,
+      currency,
+      price: to(r.price),
+      fees: to(r.fees),
+      net: to(r.net),
+      cost: to(r.cost),
+      profit: to(r.profit),
+    },
+    provisional: probe.provisional,
+  };
+}
+
+/** Totals in one currency, with what took converting. */
+export interface ConvertedSaleTotals extends SaleTotals {
+  /** Records converted from another currency. */
+  converted: number;
+  /** Their currencies, alphabetically. */
+  convertedFrom: string[];
+  /** Some use a recent rate until their month's average is out. */
+  provisional: boolean;
+  /** Records in a currency DomBot can't convert, left out. */
+  leftOut: CurrencyCount[];
+}
+
+/**
+ * Every record's totals in `currency`, each converted at its sale date
+ * (`recordIn`); one DomBot can't convert is left out and counted.
+ */
+export function saleTotalsIn(
+  records: readonly SaleRecord[],
+  currency: string,
+  fx: ExchangeRates,
+): ConvertedSaleTotals {
+  const list: SaleRecord[] = [];
+  const from = new Set<string>();
+  const leftOut: CurrencyCount[] = [];
+  let converted = 0;
+  let provisional = false;
+  for (const r of records) {
+    const c = recordIn(r, currency, fx);
+    if (!c) {
+      const left = leftOut.find((x) => x.currency === r.currency);
+      if (left) left.count++;
+      else leftOut.push({ currency: r.currency!, count: 1 });
+      continue;
+    }
+    if (c.record !== r) {
+      converted++;
+      from.add(r.currency!);
+      provisional ||= c.provisional;
+    }
+    list.push(c.record);
+  }
+  return {
+    ...totalsOf(currency, list),
+    converted,
+    convertedFrom: [...from].sort(),
+    provisional,
+    leftOut: leftOut.sort((a, b) => a.currency.localeCompare(b.currency)),
+  };
+}
+
 /** One group of a breakdown: its label, in one currency. */
 export interface SaleGroup extends SaleTotals {
   label: string;
@@ -424,14 +536,21 @@ export interface SaleGroup extends SaleTotals {
 
 /**
  * Totals grouped by `labelOf` (market, TLD, registrar…), one row per label
- * and currency, the most sales first.
+ * and currency, the most sales first. With `into`, one row per label, every
+ * record converted into its currency (`recordIn`; one that can't be is
+ * left out).
  */
 export function groupSaleRecords(
   records: readonly SaleRecord[],
   labelOf: (r: SaleRecord) => string,
+  into?: { currency: string; fx: ExchangeRates },
 ): SaleGroup[] {
   const groups = new Map<string, SaleRecord[]>();
-  for (const r of records) {
+  for (const original of records) {
+    const r = into
+      ? recordIn(original, into.currency, into.fx)?.record
+      : original;
+    if (!r) continue;
     const key = JSON.stringify([labelOf(r), r.currency ?? '']);
     (groups.get(key) ?? groups.set(key, []).get(key)!).push(r);
   }
@@ -464,13 +583,16 @@ export interface SaleMonth {
 
 /**
  * The last `months` months, ending with `today`'s, each month's completed
- * sales in `currency`; months with none are there with zeros.
+ * sales in `currency`; months with none are there with zeros. With `fx`, a
+ * sale in another currency is converted at its month's average, rather than
+ * left out.
  */
 export function salesByMonth(
   records: readonly SaleRecord[],
   currency: string,
   today: string,
   months = 12,
+  fx?: ExchangeRates,
 ): SaleMonth[] {
   const out: { month: string; sold: number; gross: number }[] = [];
   const year = Number(today.slice(0, 4));
@@ -480,8 +602,9 @@ export function salesByMonth(
     out.push({ month: d.toISOString().slice(0, 7), sold: 0, gross: 0 });
   }
   const byMonth = new Map(out.map((m) => [m.month, m]));
-  for (const r of records) {
-    if (r.status !== 'completed' || !r.soldOn || r.currency !== currency)
+  for (const original of records) {
+    const r = fx ? recordIn(original, currency, fx)?.record : original;
+    if (!r || r.status !== 'completed' || !r.soldOn || r.currency !== currency)
       continue;
     const m = byMonth.get(r.soldOn.slice(0, 7));
     if (!m) continue;

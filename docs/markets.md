@@ -451,9 +451,10 @@ sale from every source:
 - A recent sale of a name an account still holds is a sale awaiting
   transfer, not an error.
 - Fees on a sale you record (the sale dialog, `domain_sale_set`): blank is
-  unknown, 0 none. Net is price less fees, or the market's net. A cost
-  counts only in the sale's currency; amounts are never converted or added
-  across currencies, and partial totals say how many sales they cover.
+  unknown, 0 none. Net is price less fees, or the market's net. A record
+  keeps its own currency; a cost paid in another is converted at the
+  purchase month's average (docs/exchange-rates.md). Partial totals say how
+  many sales they cover.
 
 All or **Pending** (like Activity's Needs review; `?pending=1`): pending
 is a sale under way at a market or one awaiting transfer, and the tab's
@@ -467,9 +468,11 @@ table. On the Pending view, net and profit give way to what the pending
 sales wait on: Needs action (an auth code or payee details) and Awaiting
 transfer (at the market, or a name still in your account), and Gross to
 the pending sales' Value. Filtering by market, TLD or registrar gives
-that slice's totals,
-one currency at a time; a line under the cards appears only when sales in
-another currency are left out. CSV export; a row menu for the name's history,
+that slice's totals, in your preferred currency (or the one the Currency
+filter picks), each sale in another converted at its month's average; the
+line under the cards says how many were, and leaves out (and counts) any in
+a currency DomBot can't convert. Rows keep their own amounts, with the
+conversion on hover, and sort by the converted value. CSV export; a row menu for the name's history,
 Edit sale (that sale, even an earlier one) and the market. The bell's sale
 alert links here. Listing problems (rejected, pending, below your price)
 stay in Domains, under the Markets filter.

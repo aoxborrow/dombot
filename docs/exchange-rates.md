@@ -266,21 +266,32 @@ storage (`exchangeRates()`). Both get the same answers.
 
 - **Renewals** page and the Renewals tab metric (`src/renderer/lib/renewals.ts`,
   `tab-metrics.ts`), built: totals in your currency, every known renewal
-  converted at the newest rate. The page's subtitle says how many were
-  converted and from what ("12 converted from EUR", the rate on hover);
-  `leftOut` only holds what can't be converted. Before, totals were in the
-  currency most names renewed in.
-- **Sales by year** (`market-reports.ts`, on the Markets page until the Sales
-  tab replaces it), built: each completed sale converted at its month's
-  average instead of counting USD only. A year is `provisional` while a
-  recent sale uses a recent rate, and a sale DomBot can't convert is left out
-  and counted. A year's sales keep their own currency, with the conversion
-  on hover.
-- **Sales tab** ([sales-tab.md](sales-tab.md)): totals, sales by month,
-  breakdowns and the stat cards in your currency. This replaces that plan's
-  "Currencies are never converted or summed together"; the currency filter
-  stays, for seeing only EUR sales in EUR.
-- **Domains summary cards** (Net, last 12 months).
+  converted at the newest rate. The line under the cards says how many were
+  converted, from what and at which rate ("In USD: 12 converted from EUR at
+  the September 2026 average (ECB)."), and what was left out; `leftOut` only
+  holds what can't be converted. Before, totals were in the currency most
+  names renewed in.
+- **Sales by year** (`market-reports.ts`), built: each completed sale
+  converted at its month's average instead of counting USD only. A year is
+  `provisional` while a recent sale uses a recent rate, and a sale DomBot
+  can't convert is left out and counted. It backs MCP's
+  `market_report_get`; the Markets page that showed it is gone (#213).
+- **Sales tab** ([sales-tab.md](sales-tab.md), #213), built:
+  - The cards (Sales, Gross, Net, Profit; Value on Pending) are in your
+    currency (`saleTotalsIn`, `src/shared/sales.ts`), each sale converted
+    at its month's average. The line under them says how many were
+    converted and from what, and which sales DomBot can't convert and left
+    out. This replaces that plan's "never converted or combined".
+  - The Currency filter, with one currency picked, shows that currency's
+    sales in it, unconverted.
+  - Rows keep their own amounts, with the conversion on hover, and sort by
+    their value in your currency.
+  - A cost paid in another currency than the sale's is converted at the
+    purchase date, so profit and ROI cover it (before, it was unknown). The
+    Profit cell's hover names what was paid.
+  - `salesByMonth` and `groupSaleRecords` take the rates too, for the
+    monthly trend and breakdowns when they're built.
+- **Domains summary cards:** #213's cards are counts, so nothing to convert.
 - **Activity:** rows keep their own amounts, with the conversion in the
   tooltip.
 - **MCP**, built: `market_report_get` is in your currency (`currency`, with
@@ -303,9 +314,11 @@ storage (`exchangeRates()`). Both get the same answers.
 3. **Conversion where totals are today.** Built: Renewals, the tab metric,
    sales by year on the Markets page, `market_report_get` and
    `market_sales`, and the Settings wording.
-4. **Sales tab and Domains cards** as they're built
-   ([sales-tab.md](sales-tab.md)), then the financial dashboard
-   ([#112](https://github.com/aoxborrow/dombot/issues/112)).
+4. **Sales tab.** Built on #213 (this PR is stacked on it): the cards in
+   your currency, conversion on hover, sorting by converted value, and
+   costs converted at the purchase date. The financial dashboard
+   ([#112](https://github.com/aoxborrow/dombot/issues/112)) and Activity's
+   tooltips come later.
 
 ## Decided
 
