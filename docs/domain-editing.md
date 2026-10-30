@@ -207,8 +207,6 @@ burning the rest of the queue.
 - **Masked forwards** are shown read-only; a save that would drop one asks
   first.
 - **Selection after a job** is kept, so a second op can run on the same rows.
-- **Hidden domains.** A selection made with the Hidden filter active includes
-  hidden rows; nothing special.
 
 ## Future work
 

@@ -202,12 +202,8 @@ const api: DombotApi = {
   setMarketListingDefaults: (...args) =>
     ipcRenderer.invoke(IpcChannels.setMarketListingDefaults, ...args),
   getDomainEvents: () => ipcRenderer.invoke(IpcChannels.getDomainEvents),
-  setDispositions: (items, type, date) =>
-    ipcRenderer.invoke(IpcChannels.setDispositions, items, type, date),
   markSold: (items, date) =>
     ipcRenderer.invoke(IpcChannels.markSold, items, date),
-  restoreOwned: (domainNames) =>
-    ipcRenderer.invoke(IpcChannels.restoreOwned, domainNames),
   setAlertsDismissed: (ids, dismissed) =>
     ipcRenderer.invoke(IpcChannels.setAlertsDismissed, ids, dismissed),
   deleteUserEvent: (id) => ipcRenderer.invoke(IpcChannels.deleteUserEvent, id),

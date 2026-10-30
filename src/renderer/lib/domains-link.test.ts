@@ -3,8 +3,8 @@ import { domainsLink, parseDomainsLink } from './domains-link';
 
 describe('domainsLink', () => {
   it('is plain /domains with no filters', () => {
-    expect(domainsLink({})).toBe('/domains');
-    expect(domainsLink({ markets: [] })).toBe('/domains');
+    expect(domainsLink({})).toBe('/');
+    expect(domainsLink({ markets: [] })).toBe('/');
   });
 
   it('round-trips the Markets and Pricing filters', () => {

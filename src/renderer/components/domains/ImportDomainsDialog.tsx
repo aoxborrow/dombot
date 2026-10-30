@@ -1,13 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  CircleAlert,
-  EyeOff,
-  FileUp,
-  Info,
-  Pencil,
-  Upload,
-} from 'lucide-react';
+import { CircleAlert, FileUp, Info, Pencil, Upload } from 'lucide-react';
 import { decodeText, toCsv } from '../../../shared/csv';
 import { domainsCsvTemplate } from '../../../shared/domain-csv';
 import { newEventId } from '../../../shared/domain-events';
@@ -1292,8 +1285,6 @@ function MatchStep({
               <SelectItem value={NONE}>From the file</SelectItem>
               <SelectItem value="owned">Owned</SelectItem>
               <SelectItem value="sold">Sold</SelectItem>
-              <SelectItem value="dropped">Dropped</SelectItem>
-              <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1371,11 +1362,8 @@ export function reviewRows(built: BuiltRows, plan: ImportPlan): ReviewRow[] {
 }
 
 const STATUS_LABEL: Record<NonNullable<ImportRow['status']>, string> = {
-  owned: 'Owned',
   sold: 'Sold',
-  dropped: 'Dropped',
-  archived: 'Archived',
-  removed: 'Removed',
+  ignored: 'From expiry',
 };
 
 /**
@@ -1568,10 +1556,8 @@ function ReviewTable({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
 
-  /** The Folder filter's icon: the folder's color, Hidden's eye, gray if new. */
+  /** The Folder filter's icon: the folder's color, gray if new. */
   const folderIcon = (name: string) => {
-    if (name.toLowerCase() === 'hidden')
-      return <EyeOff className="size-3.5 shrink-0" aria-hidden />;
     const folder = folders.find(
       (f) => f.name.toLowerCase() === name.toLowerCase(),
     );

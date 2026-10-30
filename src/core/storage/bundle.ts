@@ -13,7 +13,8 @@ import { migrateLegacyProxies } from '../services/proxies';
 import { sanitizeBundleDiagnostics } from './sanitize-diagnostics';
 import {
   LEGACY_IMPORTED_NAMESPACE,
-  hiddenFolderAssignments,
+  withoutBuiltInFolders,
+  withoutLegacyEvents,
   upgradeLegacyNamespaces,
 } from './migrations';
 import {
@@ -133,12 +134,15 @@ export function parseBundle(text: string): DataBundle {
   if ((head.version as number) < 4) {
     head.namespaces = upgradeLegacyNamespaces(head.namespaces);
   }
-  // v4's Archive folder is v5's Hidden folder (migration 2).
+  // The built-in Archive and Hidden folders, and the `dropped` and
+  // `archived` events, are gone (storage migration 5): any file can hold them.
   const folderAssignments = head.namespaces['domain-folders'];
-  if ((head.version as number) < 5 && folderAssignments) {
+  if (folderAssignments)
     head.namespaces['domain-folders'] =
-      hiddenFolderAssignments(folderAssignments);
-  }
+      withoutBuiltInFolders(folderAssignments);
+  const legacyEvents = head.namespaces[EVENTS_NAMESPACE];
+  if (legacyEvents)
+    head.namespaces[EVENTS_NAMESPACE] = withoutLegacyEvents(legacyEvents);
   // A v8 file from main before the rename has `manual-domains` (migration 4).
   const legacyImported = head.namespaces[LEGACY_IMPORTED_NAMESPACE];
   if (legacyImported) {

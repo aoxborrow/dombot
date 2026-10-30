@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { EyeOff, FolderPlus } from 'lucide-react';
+import { FolderPlus } from 'lucide-react';
 import type { Folder } from '../../../shared/ipc';
 import { folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
@@ -20,7 +20,7 @@ const NEW = '__new__';
 
 /**
  * Pick a folder by name, with the icons and colors of the Folder filter:
- * one of yours, Hidden, or a new one typed in. The value is the folder's
+ * one of yours, or a new one typed in. The value is the folder's
  * name ("" for none); a name that isn't a folder yet is created by whatever
  * saves it.
  */
@@ -39,7 +39,6 @@ export function FolderSelect({
   id?: string;
 }) {
   const known = (name: string) =>
-    name.trim().toLowerCase() === 'hidden' ||
     folders.some((f) => f.name.toLowerCase() === name.trim().toLowerCase());
   const [creating, setCreating] = useState(value !== '' && !known(value));
   const icon = 'size-4 shrink-0';
@@ -73,10 +72,6 @@ export function FolderSelect({
               {f.name}
             </SelectItem>
           ))}
-          <SelectItem value="Hidden">
-            <EyeOff className={icon} aria-hidden />
-            Hidden
-          </SelectItem>
           <SelectSeparator />
           <SelectItem value={NEW}>
             <FolderPlus className={icon} aria-hidden />

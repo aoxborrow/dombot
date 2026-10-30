@@ -21,12 +21,16 @@ import {
   getMergedPortfolio,
   getPortfolio,
 } from '../../core/services/registrars';
-import { listEvents } from '../../core/services/domain-events';
+import {
+  listEvents,
+  newEvent,
+  putEvents,
+} from '../../core/services/domain-events';
 import { marketListings, syncMarkets } from '../../core/services/markets/sync';
 import { marketAdapter } from '../../core/services/markets/accounts';
 import { syncDomainTraffic } from '../../core/services/markets/traffic';
 import { localDay } from '../../shared/domain-events';
-import { setDispositions } from '../../core/services/domain-history';
+import { rememberRegistrationLookups } from '../../core/services/registration-lookup';
 import { setNotes, setPurchase, setSale } from '../../core/services/purchases';
 import { setManualPrice } from '../../core/services/pricing';
 import { addImportedDomains } from '../../core/services/imported-domains';
@@ -105,7 +109,9 @@ export interface DemoApi {
 
 /**
  * Changes after the baseline sync, so every kind of alert shows: departures
- * from several accounts, arrivals, and a move.
+ * from several accounts, arrivals, and a move. One departure is a name whose
+ * expiry had already passed, so Archive shows one as Expired with nothing to
+ * review (docs/owned-and-archive.md).
  */
 function stageSampleChanges(world: DemoWorld): void {
   const records = world.all();
@@ -120,6 +126,14 @@ function stageSampleChanges(world: DemoWorld): void {
     const list = of(registrar);
     if (list.length > 0) world.remove(list[list.length - 1].domainName);
   }
+  // A lapse: a name sync last saw past its expiry leaves too.
+  const lapsed = records.find(
+    (record) =>
+      record.registrar !== 'godaddy' &&
+      record.registrar !== 'porkbun' &&
+      record.expirationDate.getTime() < Date.now(),
+  );
+  if (lapsed) world.remove(lapsed.domainName);
 
   const moving = godaddy[0];
   world.remove(moving.domainName);
@@ -151,11 +165,17 @@ function stageSampleChanges(world: DemoWorld): void {
 
 /**
  * Some answered alerts and recorded purchases, so Activity shows history
- * beside what still needs review.
+ * beside what still needs review, and every Archive label shows: Sold (a
+ * departure you sold), Deleted (one the lookup says nobody holds), Expired
+ * (the lapse; see stageSampleChanges), and Removed (the rest, to review).
+ * One name you still hold is Sold too, awaiting transfer.
  */
 function recordSampleHistory(): void {
-  const departures = listEvents().filter((e) => e.type === 'removed');
-  const [sold, dropped] = departures;
+  // A lapse records its expiry and needs no answer.
+  const departures = listEvents().filter(
+    (e) => e.type === 'removed' && !e.expires,
+  );
+  const [sold, deleted] = departures;
   if (sold) {
     setSale({
       domainName: sold.domain,
@@ -167,13 +187,29 @@ function recordSampleHistory(): void {
       resolves: sold.id,
     });
   }
-  if (dropped) {
-    setDispositions(
-      [{ domainName: dropped.domain, resolves: dropped.id }],
-      'dropped',
-    );
+  if (deleted) {
+    rememberRegistrationLookups({
+      [deleted.domain]: {
+        registered: false,
+        registrar: null,
+        created: null,
+        expires: null,
+        checkedAt: new Date().toISOString(),
+      },
+    });
   }
   const owned = getMergedPortfolio().domains.map((d) => d.domainName);
+  // Sold, and the buyer hasn't taken it yet: Owned with the Sold pill.
+  if (owned[6]) {
+    setSale({
+      domainName: owned[6],
+      saleDate: localDay(),
+      amount: '3800',
+      currency: 'USD',
+      notes: '',
+      mark: true,
+    });
+  }
   const day = (daysAgo: number) => localDay(Date.now() - daysAgo * 86_400_000);
   owned.slice(3, 5).forEach((domainName, i) =>
     setPurchase({
@@ -184,6 +220,130 @@ function recordSampleHistory(): void {
       notes: '',
     }),
   );
+}
+
+/** What the sold names cost, a stand-in rotation. */
+const SOLD_NAME_COSTS = [
+  '150.00',
+  '480.00',
+  '900.00',
+  '1200.00',
+  '2500.00',
+  '60.00',
+] as const;
+
+/**
+ * Sales beyond the markets' and what the sold names cost, so the Sales tab
+ * has every kind: purchases or hand registrations on most sold names
+ * (holding period and profit), and private and imported sales, some with
+ * fees and one in euros. The names are made up and no account holds them.
+ */
+function recordSampleSales(): void {
+  const DAY = 86_400_000;
+  const day = (ms: number) => localDay(ms);
+  const sold = listEvents().filter((e) => e.type === 'sold' && e.date);
+  const acquisitions = sold
+    // A few with nothing on record, so coverage shows.
+    .filter((_, i) => i % 5 !== 4)
+    .map((e, i) => {
+      const registered = i % 4 === 0;
+      return newEvent({
+        domain: e.domain,
+        type: registered ? 'registered' : 'purchased',
+        source: 'user',
+        date: day(Date.parse(e.date!) - (300 + ((i * 173) % 1100)) * DAY),
+        amount: registered
+          ? '10.99'
+          : SOLD_NAME_COSTS[i % SOLD_NAME_COSTS.length],
+        currency: 'USD',
+        ...(registered ? { years: 1 } : {}),
+      });
+    });
+
+  const now = Date.now();
+  const sales: {
+    domain: string;
+    soldDaysAgo: number;
+    amount: string;
+    fees: string | null;
+    paid: string | null;
+    currency?: 'USD' | 'EUR';
+    source: 'user' | 'import';
+  }[] = [
+    // Escrow fees on a private deal.
+    {
+      domain: 'tallgrass.com',
+      soldDaysAgo: 38,
+      amount: '7500.00',
+      fees: '243.75',
+      paid: '650.00',
+      source: 'user',
+    },
+    // A direct sale with no fees.
+    {
+      domain: 'brightwake.io',
+      soldDaysAgo: 160,
+      amount: '3200.00',
+      fees: '0.00',
+      paid: '39.00',
+      source: 'user',
+    },
+    // Through a broker, in euros.
+    {
+      domain: 'kastanie.de',
+      soldDaysAgo: 290,
+      amount: '4800.00',
+      fees: '480.00',
+      paid: '900.00',
+      currency: 'EUR',
+      source: 'user',
+    },
+    // From a spreadsheet of old sales: fees not recorded.
+    {
+      domain: 'oldmill.net',
+      soldDaysAgo: 520,
+      amount: '1800.00',
+      fees: null,
+      paid: '120.00',
+      source: 'import',
+    },
+    {
+      domain: 'copperline.co',
+      soldDaysAgo: 700,
+      amount: '5400.00',
+      fees: '540.00',
+      paid: null,
+      source: 'import',
+    },
+  ];
+  const recorded = sales.flatMap((x) => {
+    const soldOn = now - x.soldDaysAgo * DAY;
+    const currency = x.currency ?? 'USD';
+    return [
+      ...(x.paid
+        ? [
+            newEvent({
+              domain: x.domain,
+              type: 'purchased',
+              source: x.source,
+              date: day(soldOn - 640 * DAY),
+              amount: x.paid,
+              currency,
+            }),
+          ]
+        : []),
+      newEvent({
+        domain: x.domain,
+        type: 'sold',
+        source: x.source,
+        date: day(soldOn),
+        amount: x.amount,
+        currency,
+        fees: x.fees,
+      }),
+    ];
+  });
+  putEvents([...acquisitions, ...recorded]);
 }
 
 /**
@@ -224,9 +384,11 @@ function recordSampleNotes(): void {
 }
 
 /**
- * Two names you added by hand: one at Gandi (a registrar DomBot supports,
- * and the demo also syncs a Gandi account, so both show), one at a
- * registrar it doesn't know.
+ * Names you added by hand: one at Gandi (a registrar DomBot supports, and
+ * the demo also syncs a Gandi account, so both show), and three at a
+ * registrar it doesn't know: one renewing by hand, one Expiring (auto-renew
+ * off, due within 30 days), and one long past expiry, which Archive shows as
+ * Expired.
  */
 function recordSampleImportedDomains(): void {
   const day = (daysAhead: number) =>
@@ -247,6 +409,24 @@ function recordSampleImportedDomains(): void {
         fields: {
           registrarLabel: 'Epik',
           expirationDate: day(45),
+          autoRenew: false,
+        },
+      },
+      {
+        domainName: 'lanternway.org',
+        fields: {
+          registrarLabel: 'Epik',
+          createdDate: '2021-06-14',
+          expirationDate: day(12),
+          autoRenew: false,
+        },
+      },
+      {
+        domainName: 'oldorchard.net',
+        fields: {
+          registrarLabel: 'Epik',
+          createdDate: '2016-03-09',
+          expirationDate: day(-130),
           autoRenew: false,
         },
       },
@@ -282,6 +462,7 @@ export async function createDemoApi(
       Infinity,
     );
   }
+  recordSampleSales();
   recordSampleRenewalPrice();
   recordSampleNotes();
   recordSampleImportedDomains();

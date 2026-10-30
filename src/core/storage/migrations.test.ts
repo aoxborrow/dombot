@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryDocStore } from './doc-store';
 import { EncryptedDocStore, aesGcmCipher, type Cipher } from './encrypted';
 import { SCHEMA_VERSION, runMigrations } from './migrations';
-import { HIDDEN_FOLDER_ID } from '../../shared/ipc';
 
 let raw: MemoryDocStore;
 let cipher: Cipher;
@@ -86,10 +85,8 @@ describe('runMigrations', () => {
     expect(await store.list('folders')).toEqual({
       folders: [{ id: 'f1', name: 'Keep' }],
     });
-    expect(await store.list('domain-folders')).toEqual({
-      'a.com': 'f1',
-      'b.com': HIDDEN_FOLDER_ID,
-    });
+    // The built-in Hidden folder is gone (v5): its names have no folder.
+    expect(await store.list('domain-folders')).toEqual({ 'a.com': 'f1' });
     // Untouched namespaces stay put; old ones are gone.
     expect(await store.get('settings', 'mcpEnabled')).toBe(true);
     for (const old of [
@@ -103,7 +100,7 @@ describe('runMigrations', () => {
     ]) {
       expect(await raw.list(old)).toEqual({});
     }
-    expect(await store.get('meta', 'schemaVersion')).toBe(4);
+    expect(await store.get('meta', 'schemaVersion')).toBe(5);
 
     // A second run is a no-op.
     const before = await contents();
@@ -158,22 +155,46 @@ describe('runMigrations', () => {
       'a.com': { amount: '12.50', currency: 'USD' },
       'b.com': { amount: '9.00', currency: 'EUR' },
     });
-    expect(await store.get('meta', 'schemaVersion')).toBe(4);
+    expect(await store.get('meta', 'schemaVersion')).toBe(5);
   });
 
-  it('v2 moves Archive folder assignments to Hidden on a v1 store', async () => {
+  it('v5 drops the built-in folders on a v1 store', async () => {
     const store = sealing(['registrar-credentials']);
     await store.put('meta', 'schemaVersion', 1);
     await store.putMany('domain-folders', [
       ['a.com', '__archive__'],
       ['b.com', 'f1'],
+      ['c.com', '__hidden__'],
     ]);
     await runMigrations(raw, store);
-    expect(await store.list('domain-folders')).toEqual({
-      'a.com': HIDDEN_FOLDER_ID,
-      'b.com': 'f1',
+    expect(await store.list('domain-folders')).toEqual({ 'b.com': 'f1' });
+    expect(await store.get('meta', 'schemaVersion')).toBe(5);
+  });
+
+  it('v5 deletes dropped and archived events and keeps the rest', async () => {
+    const store = sealing(['registrar-credentials']);
+    await store.put('meta', 'schemaVersion', 4);
+    const ev = (id: string, type: string) => ({
+      id,
+      domain: 'a.com',
+      type,
+      source: 'user',
+      date: '2026-09-01',
+      createdAt: 1,
+      updatedAt: null,
     });
-    expect(await store.get('meta', 'schemaVersion')).toBe(4);
+    await store.putMany('domain-events', [
+      ['E1', ev('E1', 'removed')],
+      ['E2', ev('E2', 'dropped')],
+      ['E3', ev('E3', 'archived')],
+      ['E4', ev('E4', 'sold')],
+    ]);
+    await runMigrations(raw, store);
+    expect(Object.keys(await store.list('domain-events'))).toEqual([
+      'E1',
+      'E4',
+    ]);
+    expect(await store.get('meta', 'schemaVersion')).toBe(5);
   });
 
   it('v4 moves manual-domains to imported-domains', async () => {
@@ -184,6 +205,6 @@ describe('runMigrations', () => {
     await runMigrations(raw, store);
     expect(await store.list('imported-domains')).toEqual({ 'a.com': entry });
     expect(await raw.list('manual-domains')).toEqual({});
-    expect(await store.get('meta', 'schemaVersion')).toBe(4);
+    expect(await store.get('meta', 'schemaVersion')).toBe(5);
   });
 });

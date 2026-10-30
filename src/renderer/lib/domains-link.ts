@@ -26,7 +26,7 @@ const ASKING: readonly AskingKind[] = [
   'none',
 ];
 
-/** `/domains?…` with the filters as query parameters. */
+/** Domains (`/?…`) with the filters as query parameters. */
 export function domainsLink(link: DomainsLink): string {
   const params = new URLSearchParams();
   const put = (key: string, values: readonly string[] | undefined) => {
@@ -37,7 +37,7 @@ export function domainsLink(link: DomainsLink): string {
   put('prices', link.comparisons);
   put('asking', link.asking);
   const q = params.toString();
-  return q ? `/domains?${q}` : '/domains';
+  return q ? `/?${q}` : '/';
 }
 
 /** The filters a `domainsLink` set, read back; unknown values are dropped. */

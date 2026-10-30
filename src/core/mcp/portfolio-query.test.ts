@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  HIDDEN_FOLDER_ID,
   STALE_AFTER_MS,
   type Domain,
   type RegistrarMeta,
 } from '../../shared/ipc';
 import { importedRow } from '../../shared/imported-domains';
-import { archiveRows, type Ownership } from '../../shared/ownership';
+import { archiveRows, ownershipByDomain } from '../../shared/ownership';
+import type { DomainEvent } from '../../shared/domain-events';
 import {
   DEFAULT_LIMIT,
   isStaleAt,
@@ -166,10 +166,7 @@ describe('folder resolution', () => {
     domain({ domainName: 'b.com', registrar: 'dynadot' }),
     domain({ domainName: 'h.com', registrar: 'dynadot' }),
   ];
-  const assignments = {
-    'a.com': 'f1',
-    'h.com': HIDDEN_FOLDER_ID,
-  };
+  const assignments = { 'a.com': 'f1' };
 
   it('matches by folder id', () =>
     expect(names(domains, { folder: 'f1' }, folders, assignments)).toEqual([
@@ -181,24 +178,14 @@ describe('folder resolution', () => {
       ['a.com'],
     ));
 
-  it('matches Hidden by keyword and by id', () => {
-    expect(names(domains, { folder: 'Hidden' }, folders, assignments)).toEqual([
-      'h.com',
-    ]);
-    expect(
-      names(domains, { folder: HIDDEN_FOLDER_ID }, folders, assignments),
-    ).toEqual(['h.com']);
-  });
-
   it('an unknown folder name returns zero rows', () =>
     expect(names(domains, { folder: 'Nope' }, folders, assignments)).toEqual(
       [],
     ));
 
-  it('resolves the folder name onto the row (incl. Hidden)', () => {
+  it('resolves the folder name onto the row', () => {
     const rows = run(domains, {}, folders, assignments).rows;
     expect(rows.find((r) => r.domainName === 'a.com')!.folder).toBe('Clients');
-    expect(rows.find((r) => r.domainName === 'h.com')!.folder).toBe('Hidden');
     expect(rows.find((r) => r.domainName === 'b.com')!.folder).toBeNull();
   });
 });
@@ -318,51 +305,58 @@ describe('meta and edge cases', () => {
 });
 
 describe('ownership', () => {
-  const sold: Ownership = {
-    archived: true,
-    label: 'sold',
-    event: null,
-    lastAccountId: 'dynadot',
-  };
-  const ownership = new Map<string, Ownership>([
-    ['escrow.com', sold],
-    ['gone.com', { ...sold, label: 'dropped', lastAccountId: 'old-account' }],
+  const at = (id: string, patch: Partial<DomainEvent>): DomainEvent => ({
+    id,
+    domain: 'a.com',
+    type: 'sold',
+    source: 'user',
+    date: '2026-09-01',
+    createdAt: 1,
+    updatedAt: null,
+    ...patch,
+  });
+  const ownership = ownershipByDomain([
+    at('E1', { domain: 'escrow.com', accountId: 'dynadot' }),
+    at('E2', { domain: 'gone.com', type: 'removed', accountId: 'old-account' }),
+    at('E3', {
+      domain: 'lapsed.com',
+      type: 'removed',
+      source: 'sync',
+      date: '2026-09-20',
+      expires: '2026-09-01',
+      accountId: 'dynadot',
+    }),
   ]);
+  const soon = new Date(NOW + 10 * 86_400_000);
   const live = [
     domain({ domainName: 'kept.com', autoRenew: true }),
-    domain({ domainName: 'hidden.com' }),
+    domain({ domainName: 'letgo.com', autoRenew: false, expirationDate: soon }),
     domain({ domainName: 'escrow.com', autoRenew: true }),
   ];
   // gone.com's last account was removed, so its Archive row has no registrar.
   const domains = [...live, ...archiveRows(ownership, live, null)];
-  const assignments = { 'hidden.com': HIDDEN_FOLDER_ID };
   const query = (args: QueryArgs) =>
-    queryPortfolio(domains, [], assignments, META, args, ownership);
+    queryPortfolio(domains, [], {}, META, args, ownership);
 
-  it('covers Owned by default, Hidden names included', () => {
+  it('keeps every name an account holds in Owned, with its derived states', () => {
     const res = query({ sort: 'domainName' });
-    expect(res.rows.map((r) => [r.domainName, r.hidden])).toEqual([
-      ['hidden.com', true],
-      ['kept.com', false],
+    expect(
+      res.rows.map((r) => [r.domainName, r.expiring, r.salePending]),
+    ).toEqual([
+      ['escrow.com', false, true],
+      ['kept.com', false, false],
+      ['letgo.com', true, false],
     ]);
     expect(res.rows.every((r) => r.ownership === 'owned')).toBe(true);
   });
 
-  it('covers Archive, held or not', () => {
+  it('covers Archive: names no account holds, and why', () => {
     const res = query({ ownership: 'archive', sort: 'domainName' });
     expect(res.rows).toMatchObject([
       {
-        domainName: 'escrow.com',
-        ownership: 'archive',
-        archiveLabel: 'sold',
-        inAccount: true,
-        registrar: 'dynadot',
-        autoRenew: true,
-      },
-      {
         domainName: 'gone.com',
         ownership: 'archive',
-        archiveLabel: 'dropped',
+        archiveLabel: 'removed',
         inAccount: false,
         registrar: null,
         accountId: 'old-account',
@@ -371,16 +365,27 @@ describe('ownership', () => {
         locked: null,
         privacy: null,
       },
+      { domainName: 'lapsed.com', archiveLabel: 'expired' },
     ]);
-    expect(query({ ownership: 'all' }).total).toBe(4);
+    expect(query({ ownership: 'all' }).total).toBe(5);
+    // The lookup's "not registered" makes a departure Deleted.
+    const deleted = queryPortfolio(
+      domains,
+      [],
+      {},
+      META,
+      { ownership: 'archive', nameContains: 'gone' },
+      ownership,
+      { registered: new Map([['gone.com', false]]) },
+    );
+    expect(deleted.rows[0].archiveLabel).toBe('deleted');
   });
 
   it('never matches a setting filter on a name no account reports', () => {
     const names = (args: QueryArgs) =>
       query({ ownership: 'archive', ...args }).rows.map((r) => r.domainName);
     expect(names({ autoRenew: false })).toEqual([]);
-    expect(names({ locked: false })).toEqual(['escrow.com']);
-    expect(names({ privacy: false })).toEqual(['escrow.com']);
+    expect(names({ locked: false })).toEqual([]);
   });
 });
 

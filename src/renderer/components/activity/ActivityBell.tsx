@@ -16,8 +16,6 @@ import { useAppStore } from '../../store/app';
 import { useAvailableUpdate, useUpdates } from '../../lib/updates';
 import { EventTypeBadge } from './EventTypeBadge';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import type { MarketSale } from '../../../shared/markets';
 import { cn } from '@/lib/utils';
 import {
@@ -201,6 +199,7 @@ export function ActivityBell() {
               <li key={`${sale.accountId}:${sale.id}`}>
                 <SaleRow
                   sale={sale}
+                  onNavigate={close}
                   market={
                     marketCatalog.find((m) => m.id === sale.market)?.name ??
                     sale.market
@@ -335,96 +334,37 @@ const SALE_ACTION: Record<NonNullable<MarketSale['action']>, string> = {
 };
 
 /**
- * A market sale waiting on you. One that needs the auth code can send it from
- * here: DomBot asks the registrar that holds the name for it and passes it
- * on, without showing or storing it.
+ * A market sale waiting on you. The bell only tells you: the row opens the
+ * Sales overview, which has the action (Send auth code and the rest).
  */
-function SaleRow({ sale, market }: { sale: MarketSale; market: string }) {
-  const loadMarkets = useAppStore((s) => s.loadMarkets);
-  const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle');
-  const [error, setError] = useState<string | null>(null);
-  // Shown once DomBot couldn't get the code itself: type it instead.
-  const [typing, setTyping] = useState(false);
-  const [code, setCode] = useState('');
+function SaleRow({
+  sale,
+  market,
+  onNavigate,
+}: {
+  sale: MarketSale;
+  market: string;
+  onNavigate: () => void;
+}) {
   const name = toUnicode(sale.name);
   const what = `on ${market} ${sale.action ? SALE_ACTION[sale.action] : ''}`;
-  const send = async (authCode?: string) => {
-    setState('sending');
-    setError(null);
-    try {
-      await window.api.setMarketSaleAuthCode(sale.accountId, sale.id, authCode);
-      setState('sent');
-      setTyping(false);
-      void loadMarkets();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setState('idle');
-      setTyping(true);
-    }
-  };
   return (
-    <div className="flex flex-col gap-1.5 px-3 py-1.5 text-sm">
-      <div className="flex items-center gap-2">
-        <span
-          className={cn('size-2 shrink-0 rounded-full', SEVERITY_DOT.high)}
-          aria-hidden
-        />
-        <Badge variant="outline">Sale</Badge>
-        <span className="min-w-0 flex-1 truncate" title={`${name} ${what}`}>
-          <span className="font-mono">{name}</span>{' '}
-          <span className="text-muted-foreground">{what}</span>
-        </span>
-        {sale.action === 'auth_code' && !typing && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 shrink-0"
-            disabled={state !== 'idle'}
-            onClick={() => void send()}
-            title="Get the code from the registrar that holds the name and send it to the market"
-          >
-            {state === 'sending'
-              ? 'Sending…'
-              : state === 'sent'
-                ? 'Sent'
-                : 'Send auth code'}
-          </Button>
-        )}
-      </div>
-      {error && (
-        <p role="alert" className="pl-4 text-xs text-destructive">
-          {error}
-        </p>
-      )}
-      {typing && (
-        <form
-          className="flex gap-2 pl-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (code.trim()) void send(code);
-          }}
-        >
-          <Input
-            className="h-7"
-            value={code}
-            placeholder="Auth code"
-            aria-label={`Auth code for ${name}`}
-            autoComplete="off"
-            spellCheck={false}
-            disabled={state === 'sending'}
-            onChange={(e) => setCode(e.target.value)}
-          />
-          <Button
-            type="submit"
-            size="sm"
-            className="h-7"
-            disabled={state === 'sending' || !code.trim()}
-          >
-            {state === 'sending' ? 'Sending…' : 'Send'}
-          </Button>
-        </form>
-      )}
-    </div>
+    <Link
+      to="/sales"
+      onClick={onNavigate}
+      className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
+      title={`${name} ${what}`}
+    >
+      <span
+        className={cn('size-2 shrink-0 rounded-full', SEVERITY_DOT.high)}
+        aria-hidden
+      />
+      <Badge variant="outline">Sale</Badge>
+      <span className="min-w-0 flex-1 truncate">
+        <span className="font-mono">{name}</span>{' '}
+        <span className="text-muted-foreground">{what}</span>
+      </span>
+    </Link>
   );
 }
 
