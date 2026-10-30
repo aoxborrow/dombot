@@ -1,6 +1,6 @@
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   Building2,
   CalendarClock,
@@ -16,11 +16,8 @@ import { toAscii } from '../../shared/domain-name';
 import { ownershipByDomain, standingOf } from '../../shared/ownership';
 import { useAppStore } from '../store/app';
 import { StatCard } from '../components/StatCard';
-import {
-  ToolbarSwitch,
-  listField,
-} from '../components/data-table/FilterToolbar';
-import { FilterBar } from '../components/data-table/FilterBar';
+import { ToolbarSwitch } from '../components/data-table/FilterToolbar';
+import { FilterDropdown } from '../components/data-table/FilterBar';
 import {
   registrarFilterOptions,
   registrarFilterValue,
@@ -175,20 +172,23 @@ export default function Renewals() {
           ),
     [allDomains, registrar, portfolioRegistrarLabels],
   );
-  const registrarField = listField(
-    {
-      key: 'registrar',
-      label: 'Registrar',
-      icon: Building2,
-      options: registrarFilterOptions(
-        allDomains,
-        portfolioRegistrarLabels,
-        multipleAccounts,
-      ),
-      selected: registrar,
-      plural: 'registrars',
-    },
-    setRegistrar,
+  const registrarFilter = (
+    <FilterDropdown
+      className="w-56"
+      field={{
+        key: 'registrar',
+        label: 'Registrar',
+        icon: Building2,
+        options: registrarFilterOptions(
+          allDomains,
+          portfolioRegistrarLabels,
+          multipleAccounts,
+        ),
+        selected: registrar,
+        onChange: setRegistrar,
+        plural: 'registrars',
+      }}
+    />
   );
   // Every name, only the ones that renew on their own, or only the ones you
   // renew by hand (auto-renew off, or unknown for a name you added).
@@ -208,44 +208,36 @@ export default function Renewals() {
       : renewing === 'manual'
         ? manual
         : inRegistrar;
-  const toolbar = (
-    <div className="flex flex-wrap items-center gap-3.5">
-      <ToolbarSwitch
-        label="Which renewals to count"
-        options={[
-          {
-            id: 'all',
-            label: 'All',
-            icon: Layers,
-            count: inRegistrar.length,
-            active: renewing === 'all',
-            onClick: () => setRenewing('all'),
-          },
-          {
-            id: 'auto',
-            label: 'Auto-renewing',
-            icon: IterationCw,
-            count: autoRenewing.length,
-            active: renewing === 'auto',
-            onClick: () => setRenewing('auto'),
-          },
-          {
-            id: 'manual',
-            label: 'Manual',
-            icon: Hand,
-            count: manual.length,
-            active: renewing === 'manual',
-            onClick: () => setRenewing('manual'),
-          },
-        ]}
-      />
-      <FilterBar
-        id="renewals"
-        fields={[registrarField]}
-        presets={['registrar']}
-        variant="flat"
-      />
-    </div>
+  const renewSwitch = (
+    <ToolbarSwitch
+      label="Which renewals to count"
+      options={[
+        {
+          id: 'all',
+          label: 'All',
+          icon: Layers,
+          count: inRegistrar.length,
+          active: renewing === 'all',
+          onClick: () => setRenewing('all'),
+        },
+        {
+          id: 'auto',
+          label: 'Auto-renewing',
+          icon: IterationCw,
+          count: autoRenewing.length,
+          active: renewing === 'auto',
+          onClick: () => setRenewing('auto'),
+        },
+        {
+          id: 'manual',
+          label: 'Manual',
+          icon: Hand,
+          count: manual.length,
+          active: renewing === 'manual',
+          onClick: () => setRenewing('manual'),
+        },
+      ]}
+    />
   );
   // The switch and the filter narrow what's counted, not whether there's a
   // portfolio.
@@ -347,8 +339,10 @@ export default function Renewals() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
-      <PageHeader loading={pricingLoading} summary={summary} />
-      {toolbar}
+      <PageHeader loading={pricingLoading} summary={summary}>
+        {registrarFilter}
+      </PageHeader>
+      <div>{renewSwitch}</div>
 
       {/* Totals */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -430,12 +424,16 @@ export default function Renewals() {
 
 // ── Header ───────────────────────────────────────────────────────────────────
 
+/** The title and summary, with `children` (the Registrar filter) on the
+ *  right, as the Markets page has its market picker. */
 function PageHeader({
   loading,
   summary,
+  children,
 }: {
   loading: boolean;
   summary: ReturnType<typeof summarize>;
+  children?: ReactNode;
 }) {
   return (
     <div className="flex items-end justify-between gap-4">
@@ -449,6 +447,7 @@ function PageHeader({
               : 'Annual renewal costs across your whole portfolio.'}
         </p>
       </div>
+      {children}
     </div>
   );
 }

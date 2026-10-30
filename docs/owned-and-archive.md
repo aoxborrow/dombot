@@ -114,8 +114,8 @@ current bug goes away by construction.
 
 A switch picks **All**, **Auto-renewing** or **Manual** (auto-renew off, or
 unknown for a name you added: it renews only if you renew it), and the whole
-page (totals, months, donuts) follows it. Beside it, a multi-select
-**Registrar** filter works like the Domains one: one option per account,
+page (totals, months, donuts) follows it. On the right of the title, a
+multi-select **Registrar** dropdown has the Domains filter's options: one per account,
 then the registrars of the names you added (`src/renderer/lib/registrar-filter.tsx`).
 
 ## Dynadot: off is manual renewal
