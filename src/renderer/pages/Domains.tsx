@@ -1827,7 +1827,8 @@ export default function Domains() {
     : listingMarkets;
   // The same days the Expiration filter's shortcuts pick.
   const expiresWithin = useCallback(
-    (d: Domain) => matchesExpiration(d, presetRange('next30')),
+    (d: Domain, days: 30 | 60) =>
+      matchesExpiration(d, presetRange(days === 30 ? 'next30' : 'next60')),
     [],
   );
 
@@ -2350,8 +2351,10 @@ export default function Domains() {
             expiresWithin={expiresWithin}
             archiveLabelOf={archiveLabelOf}
             actions={{
-              onExpiring: () => {
-                setExpires(presetRange('next30'));
+              // The names the card counts: expiring, auto-renew off.
+              onExpiring: (days) => {
+                setExpires(presetRange(days === 30 ? 'next30' : 'next60'));
+                setAutoRenewFilter(['off']);
                 setPage(0);
               },
               onMarketStates: (states) => {

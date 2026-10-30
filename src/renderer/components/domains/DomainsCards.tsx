@@ -39,8 +39,8 @@ const plural = (n: number, word: string) =>
 const BLANK = ' ';
 
 export interface DomainsCardActions {
-  /** Expiring within 30 days. */
-  onExpiring: () => void;
+  /** Expiring within `days`, auto-renew off. */
+  onExpiring: (days: 30 | 60) => void;
   /** The Markets filter set to these states (in the markets in play). */
   onMarketStates: (states: MarketStateChoice[]) => void;
   /** The Markets filter set to listings priced apart from your BIN. */
@@ -68,8 +68,8 @@ export function DomainsCards({
    * none without a market account. */
   markets: readonly string[];
   listPrices: Record<string, ListPrice>;
-  /** Whether a name expires within 30 days (and hasn't yet). */
-  expiresWithin: (d: Domain) => boolean;
+  /** Whether a name expires within 30 or 60 days (and hasn't yet). */
+  expiresWithin: (d: Domain, days: 30 | 60) => boolean;
   archiveLabelOf: (d: Domain) => ArchiveLabel | null;
   actions: DomainsCardActions;
 }) {
@@ -128,15 +128,22 @@ export function DomainsCards({
         below,
       };
     }
+    // Expiring and not renewing: a name auto-renew will take care of isn't
+    // a worry.
     let in30 = 0;
+    let in60 = 0;
     let renewOff = 0;
     let priced = 0;
     let imported = 0;
     let listed = 0;
     const registrars = new Set<string>();
     for (const d of rows) {
-      if (expiresWithin(d)) in30 += 1;
-      if (!d.autoRenewUnknown && !d.autoRenew) renewOff += 1;
+      // As the Auto-renew filter's Off: unknown isn't off.
+      if (!d.autoRenewUnknown && !d.autoRenew) {
+        renewOff += 1;
+        if (expiresWithin(d, 30)) in30 += 1;
+        if (expiresWithin(d, 60)) in60 += 1;
+      }
       if (listPrices[toAscii(d.domainName)]?.amount != null) priced += 1;
       if (statesOf(d).includes('active')) listed += 1;
       if (d.source === 'imported') imported += 1;
@@ -145,6 +152,7 @@ export function DomainsCards({
     return {
       view,
       in30,
+      in60,
       renewOff,
       priced,
       imported,
@@ -274,10 +282,23 @@ export function DomainsCards({
         size="sm"
         icon={CalendarClock}
         accentClass="text-rose-500"
-        label="Expiring, 30 days"
-        value={cards.in30.toLocaleString()}
-        hint={`${cards.renewOff.toLocaleString()} auto-renew off`}
-        onClick={actions.onExpiring}
+        label="Expiring soon"
+        value={[
+          {
+            value: cards.in30.toLocaleString(),
+            unit: '/30d',
+            className: cards.in30 ? 'text-destructive' : undefined,
+          },
+          {
+            value: cards.in60.toLocaleString(),
+            unit: '/60d',
+            className: cards.in60
+              ? 'text-orange-500 dark:text-orange-400'
+              : undefined,
+          },
+        ]}
+        hint={`Auto-renew off · ${cards.renewOff.toLocaleString()} total`}
+        onClick={() => actions.onExpiring(cards.in30 ? 30 : 60)}
       />
       <StatCard
         size="sm"

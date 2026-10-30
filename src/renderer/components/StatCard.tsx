@@ -7,9 +7,20 @@ import { cn } from '@/lib/utils';
  * A headline number with a large faint icon behind it (Renewals, Sales). The
  * small size is the card rows' over the Domains and Sales tables (see
  * StatCardRow): on phones it shrinks to the label and value. A small card
- * with no hint has a bigger label and value in the same height. With `to`
- * or `onClick` the whole card is a link or button.
+ * with no hint has a bigger label and value in the same height. The value
+ * can be several slots side by side, each a number with a small unit after
+ * it ("6 /30d  18 /60d"). With `to` or `onClick` the whole card is a link
+ * or button.
  */
+/** One of a card's values: a number, a small unit after it, its colour. */
+export interface StatSlot {
+  value: string;
+  /** Small and quiet after the number, e.g. "/30d". */
+  unit?: string;
+  /** A text colour for the number, e.g. "text-destructive". */
+  className?: string;
+}
+
 export function StatCard({
   icon: Icon,
   accentClass,
@@ -25,7 +36,7 @@ export function StatCard({
    * opacity), e.g. "text-brand-500". */
   accentClass: string;
   label: string;
-  value: string;
+  value: string | StatSlot[];
   /** The line under the value; small cards may leave it out. */
   hint?: string;
   size?: 'default' | 'sm';
@@ -81,7 +92,22 @@ export function StatCard({
                 : 'mt-2 text-2xl',
           )}
         >
-          {value}
+          {typeof value === 'string' ? (
+            value
+          ) : (
+            <span className="inline-flex flex-wrap items-baseline gap-x-2.5">
+              {value.map((slot, i) => (
+                <span key={i} className="whitespace-nowrap">
+                  <span className={slot.className}>{slot.value}</span>
+                  {slot.unit && (
+                    <span className="text-[0.7em] font-medium text-muted-foreground">
+                      {slot.unit}
+                    </span>
+                  )}
+                </span>
+              ))}
+            </span>
+          )}
         </div>
         {!bare && (
           <div
