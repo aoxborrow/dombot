@@ -184,8 +184,12 @@ export function DataTable<T>({
           // inline-level cell content (checkbox, switch, inline-flex spans)
           // from adding baseline descent under the line box. Column rules
           // sit between cells only: the outer cells' would double the frame's
-          // border, a darker strip just inside it.
-          'domain-table-scroll absolute inset-0 overflow-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 [&_tr>*:first-child]:border-l-0 [&_tr>*:last-child]:border-r-0 [&_td]:py-3 [&_td>*]:align-top compact:[&_td]:py-[9px]',
+          // border, a darker strip just inside it. In the body each rule is
+          // the cell's own inset shadow on its right edge, not a border:
+          // Chrome doesn't paint a hovered row's background under the
+          // borders of a positioned cell (the cells with a click overlay),
+          // so their rules showed darker than the rest.
+          'domain-table-scroll absolute inset-0 overflow-auto rounded-lg border [&_td]:shadow-[inset_-1px_0_0_color-mix(in_oklab,var(--border)_50%,transparent)] [&_th]:border-x [&_th]:border-x-border/50 [&_tr>*:first-child]:border-l-0 [&_tr>*:last-child]:border-r-0 [&_tr>td:last-child]:shadow-none [&_td]:py-3 [&_td>*]:align-top compact:[&_td]:py-[9px]',
           density === 'compact' && 'compact',
         )}
       >
@@ -282,7 +286,7 @@ export function DataTable<T>({
                 >
                   {selection && (
                     // Compact rows: no 2px nudge down, or the box sits low.
-                    <TableCell className="w-0 border-r-0! pl-3 compact:[&>[role=checkbox]]:translate-y-0">
+                    <TableCell className="w-0 border-r-0! pl-3 shadow-none! compact:[&>[role=checkbox]]:translate-y-0">
                       <Checkbox
                         checked={isSelected}
                         onMouseDown={(e) => {

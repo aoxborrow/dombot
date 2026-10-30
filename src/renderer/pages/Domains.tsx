@@ -14,7 +14,6 @@ import {
   Archive,
   Building2,
   CalendarClock,
-  ChevronDown,
   CircleCheck,
   CircleHelp,
   Globe,
@@ -343,10 +342,6 @@ function FolderCell({
                 )}
               />
               <span className="truncate">{current.name}</span>
-              <ChevronDown
-                className="ml-auto size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                aria-hidden
-              />
             </span>
           ) : (
             // Fixed h-4 wrapper (the icon's own height) so every state is the
