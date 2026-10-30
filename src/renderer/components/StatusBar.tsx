@@ -80,9 +80,11 @@ export default function StatusBar() {
         bare
         className="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 sm:inline-flex"
       />
-      {/* Just right of the theme toggle (64px wide), so that stays centred. */}
+      {/* Just right of the theme toggle (64px wide), so that stays centred.
+          The bar is full on phones, where the choice shows, so there it
+          floats just above the bar. */}
       {import.meta.env.DEV && (
-        <CardStyleToggle className="absolute top-1/2 left-[calc(50%+44px)] hidden -translate-y-1/2 sm:inline-flex" />
+        <CardStyleToggle className="fixed right-2 bottom-10 z-50 rounded-md border bg-background p-0.5 shadow-sm sm:absolute sm:top-1/2 sm:right-auto sm:bottom-auto sm:left-[calc(50%+44px)] sm:z-auto sm:-translate-y-1/2 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none" />
       )}
 
       <SyncStatus />

@@ -2,17 +2,21 @@ import { cn } from '@/lib/utils';
 import { setCardStyle, useCardStyle, type CardStyle } from '../lib/card-style';
 
 const OPTIONS: { value: CardStyle; label: string; title: string }[] = [
-  { value: 'ghost', label: 'F', title: 'Card icons: faded, whole (F)' },
   {
-    value: 'glyph',
-    label: 'G',
-    title: 'Card icons: glyph by the label, dimmer when wide (G)',
+    value: 'corner',
+    label: 'Corner',
+    title: 'Phone cards: icon in the top-right corner',
   },
-  { value: 'watermark', label: 'Old', title: 'Card icons: cut-off corner' },
+  {
+    value: 'label',
+    label: 'Label',
+    title: 'Phone cards: icon before the label',
+  },
+  { value: 'watermark', label: 'Old', title: 'The old cut-off corner icon' },
 ];
 
-/** The status bar's switch between the stat card looks, while we choose
- * one (dev builds only; temporary). */
+/** The status bar's switch for where a phone card's icon goes, while we
+ * choose (dev builds only; temporary). */
 export function CardStyleToggle({ className }: { className?: string }) {
   const style = useCardStyle();
   return (

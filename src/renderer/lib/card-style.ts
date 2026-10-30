@@ -1,14 +1,14 @@
 import { useSyncExternalStore } from 'react';
 
 /**
- * How the small stat cards show their icon, while we choose between two
- * looks (temporary; one goes once picked). 'ghost': a faded icon, whole,
- * on the right of a wide card and small in the top-right corner of a narrow
- * one. 'glyph': a dimmer faded icon on the right of a wide card, a glyph
- * before the label in a narrow one. 'watermark': the old big icon cut off by
- * the corner.
+ * Where a small stat card's icon sits on a narrow phone card, while we
+ * choose (temporary; the switch goes once picked). Wide cards always put it
+ * at the side and narrow ones from sm in the corner (see StatCard).
+ * 'corner': the same 21px faded icon in the top-right corner. 'label': a
+ * small glyph before the label. 'watermark': the old big icon cut off by
+ * the corner, at every width.
  */
-export type CardStyle = 'ghost' | 'glyph' | 'watermark';
+export type CardStyle = 'corner' | 'label' | 'watermark';
 
 const STORAGE_KEY = 'dombot-card-style';
 const listeners = new Set<() => void>();
@@ -16,11 +16,11 @@ const listeners = new Set<() => void>();
 function readStored(): CardStyle {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    if (v === 'ghost' || v === 'glyph' || v === 'watermark') return v;
+    if (v === 'corner' || v === 'label' || v === 'watermark') return v;
   } catch {
     // localStorage may be unavailable; fall back to the default.
   }
-  return 'ghost';
+  return 'corner';
 }
 
 let current = readStored();

@@ -7,10 +7,12 @@ import { useCardStyle } from '../lib/card-style';
 /**
  * A headline number with an icon (Renewals, Sales). The small size is the
  * card rows' over the Domains and Sales tables (see StatCardRow): on phones
- * it shrinks to the label and value. Its icon follows the card style (see
- * card-style.ts): from 210px wide (a container query, so it's the card's
- * width, not the window's) the whole icon fits beside the text; narrower,
- * it moves into a corner or before the label. A small card
+ * it shrinks to the label and value. Its icon is whole, in one of three
+ * places. Side: from 210px wide (a container query, so it's the card's
+ * width, not the window's) it's 40px and faded, centred on the right beside
+ * the text. Corner: narrower, it's 21px in the top-right corner and the
+ * number runs over it. Label: on a phone it can instead be a small glyph
+ * before the label (see card-style.ts). A small card
  * with no hint has a bigger label and value in the same height. The value
  * can be several slots side by side, each a number with a small unit after
  * it: "6/30d  18/60d", or words a space apart, "251 7 registrars", which
@@ -58,7 +60,7 @@ export function StatCard({
   const cardStyle = useCardStyle();
   const sm = size === 'sm';
   const bare = sm && !hint;
-  // The new looks are for the small cards; the big size keeps the old one.
+  // The new places are for the small cards; the big size keeps the old one.
   const look = sm ? cardStyle : 'watermark';
   const className = cn(
     'relative block overflow-hidden rounded-lg border bg-card text-left',
@@ -72,16 +74,14 @@ export function StatCard({
     look !== 'watermark' ? (
       <Icon
         className={cn(
-          // Faded as a group, like the watermark. Wide: 40px, centred on the
-          // right, the text cut short before it.
-          'pointer-events-none absolute @min-[210px]:top-1/2 @min-[210px]:right-2.5 @min-[210px]:size-10 @min-[210px]:-translate-y-1/2 @min-[210px]:[stroke-width:1.5]',
-          look === 'ghost'
-            ? // Narrow: small in the top-right corner, the number running
-              // over it.
-              'top-[3px] right-[5px] size-[17px] opacity-40 [stroke-width:1.75] sm:top-1 sm:right-1.5 sm:size-[19px] @min-[210px]:opacity-45'
-            : // Dimmer than the ghost; a narrow card has only a glyph
-              // before its label instead.
-              'hidden opacity-30 @min-[210px]:block',
+          // Faded as a group, like the watermark. Corner (narrow): 21px in
+          // the top-right corner, the number running over it.
+          'pointer-events-none absolute top-1 right-[5px] size-[21px] opacity-40 [stroke-width:1.75] sm:right-1.5',
+          // Side (wide): 40px, centred on the right, the text cut short
+          // before it.
+          '@min-[210px]:top-1/2 @min-[210px]:right-2.5 @min-[210px]:size-10 @min-[210px]:-translate-y-1/2 @min-[210px]:opacity-30 @min-[210px]:[stroke-width:1.5]',
+          // Label: a narrow phone card has only the glyph before its label.
+          look === 'label' && 'hidden sm:block @min-[210px]:block',
           accentClass,
         )}
         aria-hidden
@@ -117,21 +117,21 @@ export function StatCard({
               : sm
                 ? 'text-[11px] text-foreground/75 sm:text-xs'
                 : 'text-[15px] text-foreground/75',
-            look === 'glyph' &&
-              'flex items-center gap-1 sm:gap-[5px] @min-[210px]:block',
+            look === 'label' &&
+              'flex items-center gap-1 sm:block @min-[210px]:block',
           )}
         >
-          {look === 'glyph' && (
+          {look === 'label' && (
             <Icon
               className={cn(
-                'size-[11px] shrink-0 sm:size-3 @min-[210px]:hidden',
+                'size-[11px] shrink-0 opacity-90 sm:hidden @min-[210px]:hidden',
                 accentClass,
               )}
               strokeWidth={2.25}
               aria-hidden
             />
           )}
-          {look === 'glyph' ? <span className="truncate">{label}</span> : label}
+          {look === 'label' ? <span className="truncate">{label}</span> : label}
         </div>
         <div
           className={cn(
