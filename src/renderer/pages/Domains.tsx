@@ -2414,7 +2414,6 @@ export default function Domains() {
             setSearch(value);
             setPage(0);
           }}
-          searchPlaceholder="Search domains…"
           fields={filterFields}
           presets={VIEW_FILTERS[view].presets}
           presetsIfRoom={VIEW_FILTERS[view].ifRoom}

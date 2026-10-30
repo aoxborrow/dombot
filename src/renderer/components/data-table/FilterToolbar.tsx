@@ -84,7 +84,7 @@ export function FilterToolbar({
   switch: viewSwitch,
   search,
   onSearch,
-  searchPlaceholder,
+  searchPlaceholder = 'Search…',
   fields,
   presets,
   presetsIfRoom,
@@ -96,7 +96,8 @@ export function FilterToolbar({
   switch?: ReactNode;
   search: string;
   onSearch: (value: string) => void;
-  searchPlaceholder: string;
+  /** "Search…" unless a page needs more. */
+  searchPlaceholder?: string;
   fields: FilterField[];
   presets?: string[];
   /** Of `presets`, the ones shown only while there's room; see FilterBar. */
@@ -117,7 +118,8 @@ export function FilterToolbar({
         value={search}
         onChange={onSearch}
         placeholder={searchPlaceholder}
-        className="flex-[0_1_198px]"
+        // Short: the chips get the room. Full width on phones.
+        className="min-w-24 flex-[0_1_120px]"
       />
       <FilterBar
         id={id}

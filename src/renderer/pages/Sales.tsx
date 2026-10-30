@@ -661,7 +661,6 @@ export default function Sales() {
             setSearch(value);
             setPage(0);
           }}
-          searchPlaceholder="Search domains…"
           fields={filterFields}
           presets={['soldOn', 'source', 'registrar']}
           presetsIfRoom={['registrar']}

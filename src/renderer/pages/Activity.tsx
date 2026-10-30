@@ -796,7 +796,6 @@ export default function Activity() {
             setSearch(value);
             setPage(0);
           }}
-          searchPlaceholder="Search domains…"
           fields={filterFields}
           presets={['account', 'priority', 'type']}
         />
