@@ -2477,7 +2477,7 @@ export default function Domains() {
                 onClose={close}
               />
             );
-          // Remove from DomBot: only the names no connected account holds.
+          // Delete: only the names no connected account holds.
           return (
             <DeleteDomainsDialog
               domains={ds.filter((d) => d.departed || d.source === 'imported')}

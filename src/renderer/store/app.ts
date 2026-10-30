@@ -272,7 +272,7 @@ interface AppState {
   setAlertsDismissed: (ids: string[], dismissed: boolean) => Promise<void>;
   /** Undo one of your own events. */
   deleteUserEvent: (id: string) => Promise<void>;
-  /** Remove from DomBot: everything it holds about names no account holds. */
+  /** Delete: everything it holds about names no account holds. */
   deleteDomains: (domainNames: string[]) => Promise<void>;
 
   // Row selection for bulk actions, keyed `${registrar}:${domainName}`. Lives

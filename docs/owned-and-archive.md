@@ -1,7 +1,7 @@
 # Owned and Archive — letting a name go
 
-Built. It replaced Mark as Dropped, Archive, the Hidden folder, and Delete
-for names you still hold with one rule:
+Built. It replaced Mark as Dropped, Archive, and the Hidden folder with one
+rule, and Delete now applies only to names you no longer hold:
 
 **Archive holds only names you no longer have.** Nothing you hold goes there
 by hand. Not renewing a name means turning off its auto-renew, the real
@@ -98,15 +98,14 @@ Archive from its expiry dates, with no status to set.
   sync already writes that removal as dismissed for a name you've labeled
   (`src/shared/sync-diff.ts`). The pill doubles as a reminder to finish the
   transfer. Undo deletes the sale.
-- **Remove from DomBot**, only for names no connected account holds:
-  imported names and Archive names. It's today's `deleteDomains`, renamed. In
-  a bulk selection it shows how many it applies to ("Remove from DomBot (12 of
-  50)"), the way Activity's bulk actions do.
+- **Delete**, only for names no connected account holds: imported names and
+  Archive names. In a bulk selection it shows how many it applies to
+  ("Delete … 12 of 50"), the way Activity's bulk actions do.
 
 That's the whole list. **Gone:** Mark as Dropped and its date field, Archive,
 Move back to Owned (the only manual label left is a sale, and undoing it is
 part of the sale dialog), the Hidden folder, and Delete for held names. A held
-name's row menu ends at Open in browser, with no red item.
+name's row menu ends at Mark as Sold, with no red item.
 
 ## Renewals
 
@@ -189,8 +188,8 @@ One PR, in this order:
    Status filter (Sold, Deleted, Expired, Removed), and trimmed row, bulk and
    Activity menus (`RowActionsMenu.tsx`, `BulkBar.tsx`, `Activity.tsx`,
    `OwnershipDialogs.tsx`, `FolderMenuItems.tsx`).
-3. **Remove from DomBot.** Rename Delete, gate it on "no connected account
-   holds it", add the bulk count.
+3. **Delete.** Gate it on "no connected account holds it", add the bulk
+   count.
 4. **Renewals.** Owned only, minus Sold; the two labeled halves.
 5. **MCP, CSV, demo, docs.** The changes above; the demo seed
    (`src/renderer/api/demo.ts` marks a name dropped, which goes); the

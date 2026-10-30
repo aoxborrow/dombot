@@ -164,7 +164,7 @@ describe('domain history', () => {
     expect(listEvents()[0].dismissed).toBe(false);
   });
 
-  it('Remove from DomBot forgets everything about a name', async () => {
+  it('Delete forgets everything about a name', async () => {
     setPurchase({
       domainName: 'a.com',
       purchaseDate: '2020-01-01',
@@ -184,7 +184,7 @@ describe('domain history', () => {
     expect(await store.list('domain-notes')).toEqual({});
   });
 
-  it('Remove from DomBot skips names an account holds', () => {
+  it('Delete skips names an account holds', () => {
     markSold([{ domainName: 'a.com' }, { domainName: 'b.com' }]);
     expect(deleteDomains(['a.com', 'b.com'], new Set(['a.com']))).toBe(1);
     expect(listEvents().map((e) => e.domain)).toEqual(['a.com']);

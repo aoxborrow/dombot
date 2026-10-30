@@ -40,7 +40,7 @@ import type { MarketAction } from './MarketActionDialog';
  * for a name you own, a refresh, a Folder submenu, and the actions that
  * aren't a column (forwarding, renew, auth code); then, for every name,
  * Notes, Purchase details, and Mark as Sold (Edit sale once one is recorded;
- * undoing it is in that dialog). Remove from DomBot ends the menu only for a
+ * undoing it is in that dialog). Delete ends the menu only for a
  * name no connected account holds (imported and Archive names): a name you
  * hold goes away by turning its auto-renew off (docs/owned-and-archive.md).
  * A name in Archive gets no registrar actions. Registrar-backed items the
@@ -91,7 +91,7 @@ export function RowActionsMenu({
   archive: ArchiveLabel | null;
   /** A sale is on record: Mark as Sold edits it. */
   sold: boolean;
-  /** No connected account holds it: Remove from DomBot applies. */
+  /** No connected account holds it: Delete applies. */
   removable: boolean;
   onMarkSold: () => void;
   onDelete: () => void;
@@ -282,7 +282,7 @@ export function RowActionsMenu({
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={onDelete}>
               <Trash2 />
-              Remove from DomBot<span className="-ml-[6px] opacity-50">…</span>
+              Delete<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
           </>
         )}

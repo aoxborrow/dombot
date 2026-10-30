@@ -71,7 +71,7 @@ titled "Pricing"), `ListPrice` / `listPrices` in code, and the `Price`,
   warning on the row.
 - **It's keyed by name** in its own namespace (`domain-list-prices`), like
   notes, folders, and renewal prices. So it follows a name between accounts,
-  survives Clear cache, and travels in the backup. Remove from DomBot removes it.
+  survives Clear cache, and travels in the backup. Delete removes it.
 - **It isn't a listing.** Setting a price doesn't list the name anywhere.
 - **It isn't an event.** Changing a price rewrites the record; there's no
   price history.

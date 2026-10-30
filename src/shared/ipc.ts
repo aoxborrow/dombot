@@ -1263,8 +1263,8 @@ export interface DombotApi {
   /** Undo one of your own events. Sync events can't be deleted. */
   deleteUserEvent: (id: string) => Promise<DomainEvent[]>;
   /**
-   * Remove from DomBot: delete everything DomBot holds about each name no
-   * connected account holds (imported and Archive names).
+   * Delete everything DomBot holds about each name no connected account
+   * holds (imported and Archive names).
    */
   deleteDomains: (domainNames: string[]) => Promise<DomainEvent[]>;
   /** This registrar's registration fee for a name that just arrived. */

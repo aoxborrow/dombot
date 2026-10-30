@@ -130,7 +130,7 @@ type DialogState =
  * labels) and what sync saw (arrivals, departures, moves). An alert you've
  * answered shows your answer in its place. Open alerts are tinted by priority
  * with a Dismiss beside "Needs review"; every row has a menu to record a sale
- * or a purchase, or remove a name no account holds from DomBot, and the same
+ * or a purchase, or delete a name no account holds, and the same
  * actions work in bulk on a selection.
  */
 export default function Activity() {
@@ -449,7 +449,7 @@ export default function Activity() {
   const namesOf = (list: ActivityRow[]) => [
     ...new Map(list.map((r) => [r.event.domain, r.event])).values(),
   ];
-  /** Remove from DomBot applies only to names no connected account holds. */
+  /** Delete applies only to names no connected account holds. */
   const removableOf = (list: ActivityRow[]) =>
     namesOf(list).filter((e) => !held(e));
 
@@ -814,7 +814,7 @@ export default function Activity() {
                 <DropdownMenuSeparator />
                 <BulkItem
                   icon={Trash2}
-                  label="Remove from DomBot"
+                  label="Delete"
                   count={removableOf(selectedRows).length}
                   destructive
                   onSelect={() =>
@@ -956,7 +956,7 @@ function AccountLabel({
  * A row's "⋯" menu, in the same order as the Domains one: record a purchase
  * or a sale, dismiss its review, open it in Domains, or remove it from
  * DomBot. Dismiss on a row that doesn't need review is disabled; a sold
- * name's Mark as Sold edits its sale. Remove from DomBot is only there for a
+ * name's Mark as Sold edits its sale. Delete is only there for a
  * name no connected account holds.
  */
 function RowMenu({
@@ -1026,7 +1026,7 @@ function RowMenu({
               onSelect={() => set('delete')}
             >
               <Trash2 />
-              Remove from DomBot…
+              Delete…
             </DropdownMenuItem>
           </>
         )}

@@ -97,7 +97,7 @@ export function BulkBar({
   const running = bulk?.status === 'running';
 
   const registrarCount = new Set(domains.map((d) => d.registrar)).size;
-  // Remove from DomBot applies only to names no connected account holds.
+  // Delete applies only to names no connected account holds.
   const removable = domains.filter(
     (d) => d.departed || d.source === 'imported',
   ).length;
@@ -303,7 +303,7 @@ export function BulkBar({
                   onSelect={() => onOwnership('delete')}
                 >
                   <Trash2 />
-                  Remove from DomBot
+                  Delete
                   <span className="-ml-[6px] opacity-50">…</span>
                   {removable < domains.length && (
                     <span className="ml-auto text-xs tabular-nums text-muted-foreground">

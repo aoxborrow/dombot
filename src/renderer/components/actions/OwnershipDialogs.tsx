@@ -51,8 +51,8 @@ export function MarkSoldDialog({
 }
 
 /**
- * Remove from DomBot: deletes everything DomBot holds about names no
- * connected account holds (imported and Archive names). Pass only those.
+ * Delete everything DomBot holds about names no connected account holds
+ * (imported and Archive names). Pass only those.
  */
 export function DeleteDomainsDialog({
   domains,
@@ -66,16 +66,16 @@ export function DeleteDomainsDialog({
   const deleteDomains = useAppStore((s) => s.deleteDomains);
   return (
     <ActionDialog
-      title="Remove from DomBot"
+      title="Delete"
       names={domains.map((d) => d.domainName)}
       description={`This removes everything DomBot holds about ${
         domains.length === 1 ? 'the name' : 'these names'
       }: purchases and sales, notes, activity, folder, and price. Nothing changes at any registrar.`}
-      actionLabel="Remove"
+      actionLabel="Delete"
       destructive
       onConfirm={async () => {
         await deleteDomains(domains.map((d) => d.domainName));
-        toast.success(`Removed ${who(domains)} from DomBot`);
+        toast.success(`Deleted ${who(domains)}`);
         onDone?.();
       }}
       onClose={onClose}

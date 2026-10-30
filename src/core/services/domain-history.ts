@@ -284,8 +284,8 @@ export function deleteUserEvent(id: string): void {
 }
 
 /**
- * Remove from DomBot: removes everything DomBot holds about each name
- * (events, notes, folder, prices, its imported row). Only for names no
+ * Delete: removes everything DomBot holds about each name (events, notes,
+ * folder, prices, its imported row). Only for names no
  * connected account holds (`held`, `toAscii` names): imported names and
  * Archive names. Held names are skipped; returns how many were removed.
  */

@@ -260,13 +260,13 @@ should move to one central module
   the registrant is redacted under GDPR (and registrar-scoped where present),
   so ownership can't be read from it.
 
-### Remove from DomBot
+### Delete
 
-**Remove from DomBot** removes everything DomBot holds about a name: its
+**Delete** removes everything DomBot holds about a name: its
 events, notes, folder, prices, and imported-domain entry. It's only for names
 no connected account holds (imported names and Archive names), and it's for
 mistakes and names you never want to see again, not for recording what
-happened. A name an account holds can't be removed; turn its auto-renew off
+happened. A name an account holds can't be deleted; turn its auto-renew off
 to let it go.
 
 ## Activity and alerts

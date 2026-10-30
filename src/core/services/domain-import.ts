@@ -45,7 +45,7 @@ import { listAccounts } from './accounts';
 /**
  * Names an account holds, `toAscii` name → account id: every account you
  * have, enabled or not, by its last sync and the registrar cache. A name one
- * holds isn't imported, and isn't yours to remove from DomBot.
+ * holds isn't imported, and isn't yours to delete.
  */
 export function heldNames(): Map<string, string> {
   const held = lastSyncedNames(listAccounts().map((a) => a.id));

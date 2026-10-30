@@ -144,7 +144,7 @@ describe('imported domains', () => {
     expect(getImportedDomains()).toEqual({});
   });
 
-  it('is removed by Remove from DomBot', () => {
+  it('is removed by Delete', () => {
     addImportedDomains([{ domainName: 'a.com' }], { source: 'user' });
     deleteDomains(['a.com'], new Set());
     expect(getImportedDomains()).toEqual({});
