@@ -317,7 +317,9 @@ export function marketColumns({
 
   // Owned's one market column: every connected market's logo, always in
   // the same order, coloured as its listing cell's icon would be, or dim
-  // where the name isn't listed. The tooltip has each market.
+  // where the name isn't listed. Each logo is a button that opens that
+  // market's listing editor (or lists the name there); its tooltip says
+  // what that market has.
   const listed: PurchaseColumn = {
     key: 'listed',
     label: 'Listed',
@@ -329,24 +331,15 @@ export function marketColumns({
         listing: of(d).find((l) => l.market === m),
       }));
       return (
-        <span
-          className="flex items-center gap-1.5"
-          title={slots
-            .map(({ market, listing }) =>
-              listing
-                ? describe(listing, markets, (a) => money(a, listing.currency))
-                : `${marketName(markets, market)}: Not listed`,
-            )
-            .join('\n')}
-        >
+        <span className="flex items-center gap-0.5">
           {slots.map(({ market, listing }) => {
             const state =
               listing && cellState(listing, priceDiff(listing, mine));
-            return (
+            const name = marketName(markets, market);
+            const logo = (
               <MarketLogo
-                key={market}
                 market={market}
-                label={`${marketName(markets, market)}: ${state?.label ?? 'Not listed'}`}
+                label={`${name}: ${state?.label ?? 'Not listed'}`}
                 className={cn(
                   'size-4',
                   !state
@@ -359,6 +352,28 @@ export function marketColumns({
                       ],
                 )}
               />
+            );
+            const title = listing
+              ? describe(listing, markets, (a) => money(a, listing.currency))
+              : `${name}: Not listed`;
+            if (!onEditListing)
+              return (
+                <span key={market} className="p-0.5" title={title}>
+                  {logo}
+                </span>
+              );
+            return (
+              <button
+                key={market}
+                type="button"
+                data-cell-action
+                title={`${title}\nClick to ${listing ? 'edit the listing' : `list it on ${name}`}`}
+                aria-label={`${listing ? 'Edit' : 'Add'} ${name} listing for ${d.domainName}`}
+                className="cursor-pointer rounded-sm p-0.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                onClick={() => onEditListing(d, market)}
+              >
+                {logo}
+              </button>
             );
           })}
         </span>
