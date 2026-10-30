@@ -100,8 +100,8 @@ export function StatCard({
 
 /**
  * A row of small StatCards over a table, filling its width, in priority
- * order: the first three always show; a fourth joins from xl and a fifth
- * from 2xl, so it stays one row. On phones it's two to a row, the first
+ * order: the first three always show; a fourth joins from lg and a fifth
+ * from xl, so it stays one row. On phones it's two to a row, the first
  * four.
  */
 export function StatCardRow({ children }: { children: ReactNode }) {
@@ -111,8 +111,8 @@ export function StatCardRow({ children }: { children: ReactNode }) {
       className={cn(
         'grid gap-1.5 sm:gap-2.5',
         cards.length >= 4 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-3',
-        cards.length >= 4 && 'xl:grid-cols-4',
-        cards.length >= 5 && '2xl:grid-cols-5',
+        cards.length >= 4 && 'lg:grid-cols-4',
+        cards.length >= 5 && 'xl:grid-cols-5',
       )}
     >
       {cards.map((card, i) => (
@@ -120,8 +120,8 @@ export function StatCardRow({ children }: { children: ReactNode }) {
           key={i}
           className={cn(
             'grid',
-            i === 3 && 'sm:max-xl:hidden',
-            i === 4 && 'max-2xl:hidden',
+            i === 3 && 'sm:max-lg:hidden',
+            i === 4 && 'max-xl:hidden',
             i > 4 && 'hidden',
           )}
         >

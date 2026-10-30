@@ -407,7 +407,7 @@ sits below the cards.
   Activity too), with the filters and Columns below.
 - **Cards** above the table add up the names it shows as filtered; a card
   that matches a filter sets it. `StatCardRow` fills the width in priority
-  order: three cards, a fourth from xl, a fifth from 2xl, so they stay one
+  order: three cards, a fourth from lg, a fifth from xl, so they stay one
   row; on phones two to a row (the first four), just label and number.
   - Owned: Domains (registrars, imported), Expiring in 30 days (sets
     Expiration; with auto-renew off), BIN priced, Listed (opens Listings).
