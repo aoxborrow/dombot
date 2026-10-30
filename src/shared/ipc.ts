@@ -227,6 +227,7 @@ export const IpcChannels = {
   getDomainEvents: 'domainEvents:list',
   markSold: 'domainEvents:markSold',
   setAlertsDismissed: 'domainEvents:setAlertsDismissed',
+  setSaleTransferred: 'domainEvents:setSaleTransferred',
   deleteUserEvent: 'domainEvents:deleteUserEvent',
   deleteDomains: 'domainEvents:deleteDomains',
   getRegistrationQuote: 'pricing:registrationQuote',
@@ -1270,6 +1271,11 @@ export interface DombotApi {
   setAlertsDismissed: (
     ids: string[],
     dismissed: boolean,
+  ) => Promise<DomainEvent[]>;
+  /** Mark a sale's name handed over to the buyer, or not after all. */
+  setSaleTransferred: (
+    id: string,
+    transferred: boolean,
   ) => Promise<DomainEvent[]>;
   /** Undo one of your own events. Sync events can't be deleted. */
   deleteUserEvent: (id: string) => Promise<DomainEvent[]>;

@@ -128,9 +128,6 @@ export interface SaleRecordInput {
   marketSales: readonly MarketSale[];
   /** Every name a connected registrar account holds now, by `toAscii`. */
   held?: ReadonlySet<string>;
-  /** The account each name sits in now (or last did), by `toAscii`: the
-   * registrar of a sale nothing else places. */
-  holders?: ReadonlyMap<string, string>;
   /** YYYY-MM-DD; with `held`, which sales are recent enough to await transfer. */
   today?: string;
   /** Converts a cost paid in another currency than the sale's. */
@@ -155,7 +152,6 @@ export function buildSaleRecords({
   events,
   marketSales,
   held = new Set(),
-  holders = new Map(),
   today = localDay(),
   fx,
 }: SaleRecordInput): SaleRecord[] {
@@ -191,7 +187,7 @@ export function buildSaleRecords({
     entries.sort((a, b) => a.key.localeCompare(b.key));
     const h: Holding = { acquisition: null, account: null };
     let last: SaleRecord | null = null;
-    for (const [i, entry] of entries.entries()) {
+    for (const entry of entries) {
       const e = entry.event;
       if (e) {
         if (ACQUISITION_TYPES.has(e.type)) {
@@ -209,23 +205,12 @@ export function buildSaleRecords({
           : null
         : entry.sale!;
       const record = toRecord(name, e ?? null, sale, h, fx);
-      // A name held since an account's first sync has no event saying
-      // where; the account it later left says, else the one it's in now.
-      record.registrarAccountId ??=
-        entries
-          .slice(i + 1)
-          .find(
-            (x) =>
-              x.event?.type === DomainEventType.Removed && x.event.accountId,
-          )?.event?.accountId ??
-        holders.get(name) ??
-        null;
       records.push(record);
       // A completed sale ends the holding; one still under way or
-      // cancelled doesn't.
+      // cancelled doesn't. One you marked handed over waits on nothing.
       if (record.status === 'completed') {
         h.acquisition = null;
-        last = record;
+        last = e?.transferred ? null : record;
       }
     }
     if (last && held.has(name) && recent(last.soldOn))

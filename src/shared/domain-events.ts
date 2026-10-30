@@ -125,6 +125,9 @@ export interface DomainEvent {
   resolves?: string;
   /** A sync alert acknowledged with no action. */
   dismissed?: boolean;
+  /** sold: you marked the name handed over, though an account of yours
+   * still shows it (the buyer took it at the same registrar, say). */
+  transferred?: boolean;
   /** The import that wrote it, if one did (docs/domain-import-export.md). */
   importId?: string;
   /**

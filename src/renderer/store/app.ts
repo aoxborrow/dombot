@@ -275,6 +275,7 @@ interface AppState {
   /** Mark names Sold with no price, dated `date` (blank: today). */
   markSold: (items: OwnershipItem[], date?: string | null) => Promise<void>;
   setAlertsDismissed: (ids: string[], dismissed: boolean) => Promise<void>;
+  setSaleTransferred: (id: string, transferred: boolean) => Promise<void>;
   /** Undo one of your own events. */
   deleteUserEvent: (id: string) => Promise<void>;
   /** Delete: everything it holds about names no account holds. */
@@ -875,6 +876,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   markSold: async (items, date) => {
     set({ domainEvents: await window.api.markSold(items, date) });
     await get().loadPurchases();
+  },
+  setSaleTransferred: async (id, transferred) => {
+    set({
+      domainEvents: await window.api.setSaleTransferred(id, transferred),
+    });
   },
   setAlertsDismissed: async (ids, dismissed) => {
     set({ domainEvents: await window.api.setAlertsDismissed(ids, dismissed) });
