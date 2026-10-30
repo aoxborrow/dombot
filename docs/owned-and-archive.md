@@ -40,11 +40,13 @@ already knows; you never set it.
 
 - **Expiring only inside 30 days.** A name with auto-renew off that expires
   in 2031, or even in three months, isn't news yet.
-- **The Expired, Grace and Redemption pills** are read from the registrar's
-  status (`domainLifecycle` in `src/renderer/pages/Domains.tsx`). They sit in
-  the Expiration column after the date, which past expiry is one colour (the
-  Expired pill's) with no countdown; the Expiration filter can pick Grace or
-  Redemption. Only Hold (DNS off, not an expiry matter) stays beside the
+- **The Grace and Redemption pills** are read from the registrar's status
+  (`domainLifecycle` in `src/renderer/pages/Domains.tsx`); **Expired** shows
+  when the registrar says so or the date has passed. They sit in the
+  Expiration column after the date, which is orange inside 30 days and red
+  past expiry, like the Expired pill (Grace is fuchsia, Redemption purple),
+  with no countdown once past. The Expiration filter's Expired includes Grace
+  and Redemption, which it lists under it. Only Hold (DNS off, not an expiry matter) stays beside the
   name, with the Sold and Imported pills. Expiring isn't a pill: the
   Expiration column's colour and the Auto-renew filter already show it on the row, and
   it's worked out for MCP and a future summary card.

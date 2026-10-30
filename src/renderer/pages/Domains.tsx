@@ -416,18 +416,17 @@ type LifecycleTone = 'redemption' | 'expired' | 'grace' | 'hold';
 const EXPIRED = { label: 'Expired', tone: 'expired' as LifecycleTone };
 
 /**
- * A solid pill per lifecycle state. The post-expiry states walk the cool side
- * of the wheel with severity — grace (still renewable at the normal price) is
- * pink, expired fuchsia, redemption (renewable at a fee) purple — matching the
- * expired-date text (see expiryColor) and staying clear of the countdown's warm
- * yellow → orange → red ramp. Hold (DNS switched off by a registrar/registry
- * lock) is a different, site-down problem and takes a deep red.
+ * A solid pill per lifecycle state. Expired is red, the past-expiry date's
+ * colour (see expiryColor), whether the registrar says so or only the date
+ * has passed. Grace (still renewable at the normal price) is fuchsia and
+ * redemption (renewable at a fee) purple, so the two read apart from it.
+ * Hold (DNS switched off by a registrar/registry lock) is a different,
+ * site-down problem and takes a deep red.
  */
 const LIFECYCLE_TONE: Record<LifecycleTone, string> = {
   redemption: 'bg-purple-950 text-purple-100',
-  // The past-expiry date's colour (expiryColor), so the two read as one.
-  expired: 'bg-fuchsia-600 text-white dark:bg-fuchsia-500',
-  grace: 'bg-pink-500 text-white',
+  expired: 'bg-red-600 text-white dark:bg-red-700',
+  grace: 'bg-fuchsia-600 text-white dark:bg-fuchsia-500',
   hold: 'bg-red-800 text-white',
 };
 
@@ -457,8 +456,17 @@ function domainLifecycle(
  *  tooltip: a click on it, like anywhere in the Domain cell, opens the row
  *  menu. `hold` picks the states it shows: Hold beside the name (DNS is off,
  *  not an expiry matter), or the expiry ones in the Expires column. */
-function LifecycleBadge({ status, hold }: { status: string; hold: boolean }) {
-  const flag = domainLifecycle(status);
+function LifecycleBadge({
+  status,
+  hold,
+  flag: given,
+}: {
+  status: string;
+  hold: boolean;
+  /** A state worked out elsewhere (Expired by the date), in place of the status's. */
+  flag?: { label: string; tone: LifecycleTone };
+}) {
+  const flag = given ?? domainLifecycle(status);
   if (!flag || (flag.tone === 'hold') !== hold) return null;
   return (
     <Badge
@@ -715,10 +723,7 @@ const COLUMNS: Column[] = [
         >
           <span>{fmtDate(d.expirationDate)}</span>
           {state ? (
-            <LifecycleBadge
-              status={state === EXPIRED ? 'expired' : d.status}
-              hold={false}
-            />
+            <LifecycleBadge status={d.status} hold={false} flag={state} />
           ) : (
             // A countdown ahead of expiry; past it the colour says enough.
             days !== null &&
@@ -800,15 +805,13 @@ function relativeDays(days: number): string {
 }
 
 /**
- * Expiry text color. Upcoming expiries climb a warm ramp as they near — yellow
- * (≤60, a heads-up) → orange (≤30) → red (≤14, and today). Past expiry is one
- * fuchsia, the Expired pill's, so it can't be mistaken for a countdown; the
- * Grace and Redemption pills say what's left. Muted when there's no date.
+ * Expiry text color: yellow (≤60 days, a heads-up), orange (0–30, today
+ * included), then red once it's past; the Expired, Grace and Redemption
+ * pills say what's left. Muted when there's no date.
  */
 function expiryColor(days: number | null): string {
   if (days === null) return 'text-muted-foreground';
-  if (days < 0) return 'text-fuchsia-600 dark:text-fuchsia-400';
-  if (days <= 14) return 'text-red-700 dark:text-red-500';
+  if (days < 0) return 'text-red-700 dark:text-red-500';
   if (days <= 30) return 'text-orange-500 dark:text-orange-375';
   if (days <= 60) return 'text-yellow-600 dark:text-yellow-400';
   return 'text-foreground';
