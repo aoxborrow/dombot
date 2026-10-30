@@ -113,9 +113,17 @@ export default function Sales() {
   const settings = useAppStore((s) => s.settings);
   const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
+  // formatMoney takes no sign, so a loss is formatted unsigned and given a
+  // minus sign here.
   const money = (amount: string | null, currency: string | null) =>
     amount && currency
-      ? formatMoney(amount, currency, preferred, numberFormat, true)
+      ? `${amount.startsWith('-') ? '−' : ''}${formatMoney(
+          amount.replace(/^-/, ''),
+          currency,
+          preferred,
+          numberFormat,
+          true,
+        )}`
       : null;
 
   const [search, setSearch] = useState('');
@@ -511,8 +519,7 @@ export default function Sales() {
                 : undefined
             }
           >
-            {Number(r.profit) < 0 ? '−' : ''}
-            {money(r.profit.replace('-', ''), r.currency)}
+            {money(r.profit, r.currency)}
           </span>
         ),
     },
@@ -707,7 +714,8 @@ function TotalsTable({
   onBreakdown: (b: Breakdown) => void;
   money: (amount: string | null, currency: string | null) => string | null;
 }) {
-  const multi = totals.filter((t) => t.currency).length > 1;
+  // Sales recorded without a price count under '' and need the column too.
+  const multi = totals.length > 1;
   const row = (
     key: string,
     label: React.ReactNode,
