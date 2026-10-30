@@ -380,8 +380,12 @@ export function readBoolean(raw: string): boolean | null {
   throw new Error(`${raw.trim()} isn't yes or no.`);
 }
 
-export type ImportStatus =
-  'owned' | 'sold' | 'dropped' | 'archived' | 'removed';
+/**
+ * `sold` records a sale and `owned` writes nothing. `ignored` is a word for
+ * a state DomBot works out itself (Expired, Dropped, Deleted, Archived, …):
+ * accepted so older files still import, and otherwise ignored.
+ */
+export type ImportStatus = 'owned' | 'sold' | 'ignored';
 
 const STATUS_WORDS: Record<string, ImportStatus> = {
   owned: 'owned',
@@ -391,13 +395,15 @@ const STATUS_WORDS: Record<string, ImportStatus> = {
   held: 'owned',
   inaccount: 'owned',
   sold: 'sold',
-  dropped: 'dropped',
-  deleted: 'dropped',
-  expired: 'dropped',
-  lapsed: 'dropped',
-  released: 'dropped',
-  archived: 'archived',
-  removed: 'removed',
+  dropped: 'ignored',
+  deleted: 'ignored',
+  expired: 'ignored',
+  expiring: 'ignored',
+  lapsed: 'ignored',
+  released: 'ignored',
+  archived: 'ignored',
+  removed: 'ignored',
+  hidden: 'ignored',
 };
 
 /** An ownership status word, or null when the cell isn't one. */

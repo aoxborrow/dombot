@@ -1,7 +1,5 @@
 import { toAscii } from '../../shared/domain-name';
 import type { Domain, Folder, FolderColor } from '../../shared/ipc';
-import { isHiddenFolder } from '../../shared/ipc';
-import type { Ownership } from '../../shared/ownership';
 
 // The folder color palette. Main stores only the palette key (see
 // shared/ipc.ts); the renderer owns how each key looks. Every class string is a
@@ -92,19 +90,18 @@ export function folderColorStyle(color: FolderColor): FolderColorStyle {
 export const NO_FOLDER = '__none__';
 
 /**
- * A name's Folder filter bucket: its folder, Hidden, or None. An assignment
- * to a folder that's been deleted counts as None.
+ * A name's Folder filter bucket: its folder, or None. An assignment to a
+ * folder that's been deleted counts as None.
  */
 export function folderBucket(
   id: string | undefined,
   folders: Folder[],
 ): string {
-  if (isHiddenFolder(id)) return id!;
   return id && folders.some((f) => f.id === id) ? id : NO_FOLDER;
 }
 
 export interface FolderCounts {
-  /** Owned rows per bucket (a folder id, Hidden, or None). */
+  /** Owned rows per bucket (a folder id, or None). */
   owned: Record<string, number>;
   /** Archive rows per bucket. */
   archive: Record<string, number>;
@@ -117,14 +114,15 @@ export interface FolderCounts {
  */
 export function countFolders(
   rows: Domain[],
-  ownership: Map<string, Ownership>,
+  /** Whether the row is in Archive (shared/ownership.ts, `standingOf`). */
+  archived: (d: Domain) => boolean,
   assignments: Record<string, string>,
   folders: Folder[],
 ): FolderCounts {
   const counts: FolderCounts = { owned: {}, archive: {} };
   for (const d of rows) {
     const key = toAscii(d.domainName);
-    const view = ownership.get(key)?.label ? counts.archive : counts.owned;
+    const view = archived(d) ? counts.archive : counts.owned;
     const bucket = folderBucket(assignments[key], folders);
     view[bucket] = (view[bucket] ?? 0) + 1;
   }

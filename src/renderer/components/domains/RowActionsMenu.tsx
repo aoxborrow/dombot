@@ -1,19 +1,16 @@
 import { useRef } from 'react';
 import { domainKey } from '../../../shared/account-key';
 import {
-  Archive,
   Calculator,
   CalendarPlus,
   Ellipsis,
   KeyRound,
   Link2,
   Mail,
-  OctagonMinus,
   Receipt,
   PencilLine,
   RefreshCw,
   Trash2,
-  Undo2,
   CircleX,
 } from 'lucide-react';
 import type { Domain, Folder } from '../../../shared/ipc';
@@ -40,12 +37,13 @@ import type { MarketAction } from './MarketActionDialog';
 
 /**
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell):
- * for a name you own, a refresh, a Folder submenu (a folder, Hidden, or None),
- * and the actions that aren't a column (forwarding, renew, auth code); then,
- * for every name, Notes, Purchase details, and the ownership states: Sold, Dropped, or Archived (the one it's in is disabled; a new one
- * replaces yours; Archive only for a name you own), "Move back
- * to Owned" for a labeled name an account still holds, and Delete. A name in
- * Archive gets no registrar actions: move it back to Owned first. Registrar-backed items the
+ * for a name you own, a refresh, a Folder submenu, and the actions that
+ * aren't a column (forwarding, renew, auth code); then, for every name,
+ * Notes, Purchase details, and Mark as Sold (Edit sale once one is recorded;
+ * undoing it is in that dialog). Delete ends the menu only for a
+ * name no connected account holds (imported and Archive names): a name you
+ * hold goes away by turning its auto-renew off (docs/owned-and-archive.md).
+ * A name in Archive gets no registrar actions. Registrar-backed items the
  * registrar can't do are disabled with the reason as their tooltip. Disabled
  * outright while a write for this row is in flight.
  */
@@ -65,10 +63,9 @@ export function RowActionsMenu({
   onEditDetails,
   onAssignFolder,
   archive,
+  sold,
+  removable,
   onMarkSold,
-  onMarkDropped,
-  onMarkArchived,
-  onRestoreOwned,
   onDelete,
   onMarket,
   marketLabel = 'markets',
@@ -92,10 +89,11 @@ export function RowActionsMenu({
   onAssignFolder: (folderId: string | null) => void;
   /** Why the name is in Archive, or null while you own it. */
   archive: ArchiveLabel | null;
+  /** A sale is on record: Mark as Sold edits it. */
+  sold: boolean;
+  /** No connected account holds it: Delete applies. */
+  removable: boolean;
   onMarkSold: () => void;
-  onMarkDropped: () => void;
-  onMarkArchived: () => void;
-  onRestoreOwned: () => void;
   onDelete: () => void;
   /** List or delist on a market; absent with no market account. */
   onMarket?: (action: MarketAction) => void;
@@ -105,10 +103,6 @@ export function RowActionsMenu({
   /** Why each market action can't apply here; null when it can. */
   marketReasons?: Record<MarketAction, string | null>;
 }) {
-  // A name you labeled that an account still holds can go back to Owned. One
-  // gone from every account stays Sold, Dropped, or Archived.
-  const labeled =
-    archive === 'sold' || archive === 'dropped' || archive === 'archived';
   const key = domainKey(domain);
   // An imported name isn't at a connected account: registrar actions can't run.
   const importedReason =
@@ -278,38 +272,20 @@ export function RowActionsMenu({
           </>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={archive === 'sold' ? onEditSale : onMarkSold}
-        >
+        <DropdownMenuItem onSelect={sold ? onEditSale : onMarkSold}>
           <Receipt className="text-muted-foreground" />
-          Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
+          {sold ? 'Edit sale' : 'Mark as Sold'}
+          <span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={archive === 'dropped'}
-          onSelect={onMarkDropped}
-        >
-          <OctagonMinus className="text-muted-foreground" />
-          Mark as Dropped<span className="-ml-[6px] opacity-50">…</span>
-        </DropdownMenuItem>
-        {/* Puts a name you own away without a reason. In Archive, Removed
-            already means "gone, no reason given". */}
-        {archive === null && (
-          <DropdownMenuItem onSelect={onMarkArchived}>
-            <Archive className="text-muted-foreground" />
-            Archive<span className="-ml-[6px] opacity-50">…</span>
-          </DropdownMenuItem>
+        {removable && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+              <Trash2 />
+              Delete<span className="-ml-[6px] opacity-50">…</span>
+            </DropdownMenuItem>
+          </>
         )}
-        {!domain.departed && labeled && (
-          <DropdownMenuItem onSelect={onRestoreOwned}>
-            <Undo2 className="text-muted-foreground" />
-            Move back to Owned
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-          <Trash2 />
-          Delete<span className="-ml-[6px] opacity-50">…</span>
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -54,13 +54,13 @@ vi.mock('../services/pricing', () => ({
   getManualPrices: () => getManualPrices(),
   setManualPrice: (...a: unknown[]) => setManualPrice(...a),
 }));
-const restoreOwned = vi.fn();
-const setDispositions = vi.fn();
 const setAlertsDismissed = vi.fn();
 vi.mock('../services/domain-history', () => ({
-  restoreOwned: (...a: unknown[]) => restoreOwned(...a),
-  setDispositions: (...a: unknown[]) => setDispositions(...a),
   setAlertsDismissed: (...a: unknown[]) => setAlertsDismissed(...a),
+}));
+const cachedRegistered = vi.fn(() => new Map<string, boolean>());
+vi.mock('../services/registration-lookup', () => ({
+  cachedRegistered: () => cachedRegistered(),
 }));
 
 vi.mock('../services/registrars', () => ({
@@ -179,6 +179,13 @@ beforeEach(() => {
   getRegistrarMetadata.mockReturnValue([]);
   holdings.mockReturnValue(new Map());
   nameNote.mockReturnValue(undefined);
+  cachedRegistered.mockReturnValue(new Map());
+  getMergedPortfolio.mockReturnValue({
+    domains: [],
+    fetchedAt: 0,
+    registrars: [],
+    errors: [],
+  });
 });
 
 /** A sync or user event for one name. */
@@ -220,11 +227,15 @@ describe('resolveRegistrar (via domain_set_autorenew)', () => {
     listEvents.mockReturnValue([
       event({ domain: 'gone.com' }),
       event({ domain: 'gone.com', type: 'removed' }),
-      event({ domain: 'gone.com', type: 'dropped', source: 'user' }),
     ]);
     await expect(
       call('domain_set_autorenew', { domain: 'gone.com', enabled: true }),
-    ).rejects.toThrow(/is in Archive \(dropped\)/);
+    ).rejects.toThrow(/is in Archive \(removed\)/);
+    // The lookup's answer makes it Deleted.
+    cachedRegistered.mockReturnValue(new Map([['gone.com', false]]));
+    await expect(
+      call('domain_set_autorenew', { domain: 'gone.com', enabled: true }),
+    ).rejects.toThrow(/is in Archive \(deleted\)/);
     expect(applyDomainOp).not.toHaveBeenCalled();
   });
 
@@ -506,7 +517,7 @@ describe('end-to-end handlers', () => {
     ]);
   });
 
-  it('portfolio_query reads Owned / Archive from the event log', async () => {
+  it('portfolio_query keeps held names Owned and reads Archive from the event log', async () => {
     const live = (domainName: string) => ({
       registrar: 'dynadot',
       domainName,
@@ -542,7 +553,14 @@ describe('end-to-end handlers', () => {
         inAccount: r.inAccount,
       }));
 
-    expect(await rows({})).toEqual([
+    // Sold but still held: Owned, awaiting transfer.
+    expect(await rows({ sort: 'domainName' })).toEqual([
+      {
+        domainName: 'escrow.com',
+        ownership: 'owned',
+        archiveLabel: null,
+        inAccount: true,
+      },
       {
         domainName: 'kept.com',
         ownership: 'owned',
@@ -551,12 +569,6 @@ describe('end-to-end handlers', () => {
       },
     ]);
     expect(await rows({ ownership: 'archive', sort: 'domainName' })).toEqual([
-      {
-        domainName: 'escrow.com',
-        ownership: 'archive',
-        archiveLabel: 'sold',
-        inAccount: true,
-      },
       {
         domainName: 'gone.com',
         ownership: 'archive',
@@ -657,7 +669,7 @@ describe('folder tools', () => {
         work,
         { id: 'f2', name: 'Ideas', description: '', color: 'blue' },
       ],
-      assignments: { 'a.com': 'f1', 'b.com': 'f1', 'c.com': '__hidden__' },
+      assignments: { 'a.com': 'f1', 'b.com': 'f1' },
     });
     getMergedPortfolio.mockReturnValue({
       domains: [{ domainName: 'a.com' }, { domainName: 'd.com' }],
@@ -667,14 +679,13 @@ describe('folder tools', () => {
     });
   });
 
-  it('folder_list counts domains per folder and includes Hidden', async () => {
+  it('folder_list counts domains per folder', async () => {
     const out = (await call('folder_list')) as {
-      folders: { id: string; domainCount: number; builtIn: boolean }[];
+      folders: { id: string; domainCount: number }[];
     };
-    expect(out.folders.map((f) => [f.id, f.domainCount, f.builtIn])).toEqual([
-      ['f1', 2, false],
-      ['f2', 0, false],
-      ['__hidden__', 1, true],
+    expect(out.folders.map((f) => [f.id, f.domainCount])).toEqual([
+      ['f1', 2],
+      ['f2', 0],
     ]);
   });
 
@@ -689,12 +700,9 @@ describe('folder tools', () => {
     expect(broadcastPortfolioChanged).toHaveBeenCalled();
   });
 
-  it('folder_create rejects a duplicate name or "Hidden"', async () => {
+  it('folder_create rejects a duplicate name', async () => {
     await expect(call('folder_create', { name: 'work' })).rejects.toThrow(
       /already exists/,
-    );
-    await expect(call('folder_create', { name: 'hidden' })).rejects.toThrow(
-      /built-in/,
     );
     expect(createFolder).not.toHaveBeenCalled();
   });
@@ -708,13 +716,10 @@ describe('folder tools', () => {
     ).rejects.toThrow(/already exists/);
   });
 
-  it('folder_rename / folder_delete refuse Hidden and unknown folders', async () => {
+  it('folder_rename / folder_delete refuse unknown folders', async () => {
     await expect(
       call('folder_rename', { folder: 'Hidden', name: 'X' }),
-    ).rejects.toThrow(/can't be renamed/);
-    await expect(
-      call('folder_delete', { folder: '__hidden__' }),
-    ).rejects.toThrow(/can't be deleted/);
+    ).rejects.toThrow(/folder_list/);
     await expect(call('folder_delete', { folder: 'Nope' })).rejects.toThrow(
       /folder_list/,
     );
@@ -732,7 +737,7 @@ describe('folder tools', () => {
     });
   });
 
-  it('domain_set_folder assigns by name, Hidden, or null', async () => {
+  it('domain_set_folder assigns by name or null', async () => {
     expect(
       await call('domain_set_folder', { domain: 'D.com', folder: 'ideas' }),
     ).toEqual({
@@ -743,13 +748,10 @@ describe('folder tools', () => {
     expect(assignFolder).toHaveBeenLastCalledWith('d.com', 'f2');
 
     expect(
-      await call('domain_set_folder', { domain: 'a.com', folder: 'Hidden' }),
+      await call('domain_set_folder', { domain: 'a.com', folder: null }),
     ).toMatchObject({ previous: { id: 'f1', name: 'Work' } });
-    expect(assignFolder).toHaveBeenLastCalledWith('a.com', '__hidden__');
-
-    await call('domain_set_folder', { domain: 'a.com', folder: null });
     expect(assignFolder).toHaveBeenLastCalledWith('a.com', null);
-    expect(broadcastPortfolioChanged).toHaveBeenCalledTimes(3);
+    expect(broadcastPortfolioChanged).toHaveBeenCalledTimes(2);
   });
 
   it('domain_set_folder accepts an Archive name from the event log', async () => {
@@ -835,39 +837,6 @@ describe('local write tools', () => {
       await call('domain_renewal_price_set', { domain: 'a.com', amount: null }),
     ).toEqual({ domain: 'a.com', renewalPrice: null });
     expect(setManualPrice).toHaveBeenLastCalledWith('a.com', null);
-  });
-
-  it('domain_ownership_set records an agent drop, or moves a name back', async () => {
-    await call('domain_ownership_set', {
-      domain: 'a.com',
-      ownership: 'dropped',
-      date: '2026-10-01',
-    });
-    expect(setDispositions).toHaveBeenCalledWith(
-      [{ domainName: 'a.com' }],
-      'dropped',
-      '2026-10-01',
-      'agent',
-    );
-    await call('domain_ownership_set', { domain: 'a.com', ownership: 'owned' });
-    expect(restoreOwned).toHaveBeenCalledWith(['a.com']);
-  });
-
-  it('domain_ownership_set reports the label from the event log', async () => {
-    listEvents.mockReturnValue([
-      event({ domain: 'a.com' }),
-      event({ domain: 'a.com', type: 'archived', source: 'agent' }),
-    ]);
-    expect(
-      await call('domain_ownership_set', {
-        domain: 'a.com',
-        ownership: 'archived',
-      }),
-    ).toEqual({
-      domain: 'a.com',
-      ownership: 'archive',
-      archiveLabel: 'archived',
-    });
   });
 
   it('registrar_set_enabled resolves the account and broadcasts', async () => {
@@ -994,6 +963,34 @@ describe('history, purchases, sales and alerts', () => {
     });
   });
 
+  it('domain_sale_set with remove deletes the sale on record', async () => {
+    const sale = event({ domain: 'a.com', type: 'sold', source: 'user' });
+    holdings.mockReturnValue(new Map([['a.com', { sale }]]));
+    listEvents.mockReturnValue([sale]);
+    getPurchases.mockReturnValue({ 'a.com': { notes: 'keep me' } });
+    const out = await call('domain_sale_set', {
+      domain: 'a.com',
+      remove: true,
+    });
+    expect(setSale).toHaveBeenLastCalledWith(
+      {
+        domainName: 'a.com',
+        saleDate: null,
+        amount: null,
+        currency: null,
+        notes: 'keep me',
+      },
+      'agent',
+    );
+    // A held name: Owned, and the mock still has its sale.
+    expect(out).toMatchObject({ ownership: 'owned', salePending: true });
+
+    listEvents.mockReturnValue([]);
+    await expect(
+      call('domain_sale_set', { domain: 'a.com', remove: true }),
+    ).rejects.toThrow(/no sale on record/);
+  });
+
   it('domain_sale_set records a new sale for a name that sold and came back', async () => {
     const sale = event({ domain: 'a.com', type: 'sold', date: '2025-05-01' });
     const back = event({ domain: 'a.com', type: 'added', date: '2026-02-01' });
@@ -1031,6 +1028,13 @@ describe('history, purchases, sales and alerts', () => {
     });
     listEvents.mockReturnValue([sold, left, added, quiet]);
     nameNote.mockReturnValue({ text: 'Sold to a startup' });
+    // No account holds it any more.
+    getMergedPortfolio.mockReturnValue({
+      domains: [],
+      fetchedAt: 0,
+      registrars: [],
+      errors: [],
+    });
 
     const out = (await call('domain_history', { domain: 'a.com' })) as {
       events: { id: string; alert: string | null; resolvedBy: string | null }[];

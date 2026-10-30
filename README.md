@@ -220,15 +220,14 @@ third _adapter_ over the same `services/` core the UI uses — see
     what you paid, sold for, noted, and are asking, and the estimated renewal
     price) plus sync health (`total`, `stale`, and
     per-registrar `errors`). Like the Domains page it covers the names you own
-    by default; `ownership` switches to Archive (sold, dropped, archived, or
-    gone from your accounts) or both, and each row says which, and whether
-    it's Hidden. With no filters it returns every name you own (paged), so it
+    by default; `ownership` switches to Archive (names you no longer have:
+    sold, deleted, expired, or removed) or both, and each row says which, and
+    whether an owned name is expiring or sold awaiting transfer. With no filters it returns every name you own (paged), so it
     doubles as a plain list. It's a pure cache read (no registrar calls);
     `portfolio_sync` runs the live cross-registrar pass that refreshes the
     cache, returning a per-registrar summary. An agent syncs once (or when
     `portfolio_query` reports `stale`/empty), then reads cheaply.
-  - _Folders:_ `folder_list` (with domain counts, including the built-in
-    Hidden folder), `folder_create`, `folder_rename`, `folder_delete` (its
+  - _Folders:_ `folder_list` (with domain counts), `folder_create`, `folder_rename`, `folder_delete` (its
     domains go back to no folder), and `domain_set_folder` (by folder name or
     id, or `null` to clear). They write the same folder store as the app, so
     an open window updates live.
@@ -237,8 +236,8 @@ third _adapter_ over the same `services/` core the UI uses — see
     `portfolio_alert_dismiss`.
   - _Money, notes and ownership:_ `domain_purchase_set`, `domain_sale_set`,
     `domain_note_set`, `domain_asking_price_set`, `domain_renewal_price_set`
-    (your own yearly price, overriding the estimate), and
-    `domain_ownership_set` (Dropped, Archived, or back to Owned). Each can
+    (your own yearly price, overriding the estimate). To let a name go, an
+    agent turns its auto-renew off with `domain_set_autorenew`. Each can
     answer an open alert with `resolves` where it fits. DomBot-local, no
     registrar calls; history they write is marked **Agent** in Activity.
   - _Registrar accounts:_ `registrar_set_enabled`.

@@ -52,7 +52,6 @@ describe('reading a file', () => {
       {
         line: 2,
         domain: 'xn--mnich-kva.de',
-        status: 'owned',
         folder: 'Premium',
         notes: '=hand reg, lucky',
         registration: {
@@ -265,7 +264,6 @@ describe('reading a file', () => {
     expect(r.rows[0]).toEqual({
       line: 2,
       domain: 'example.io',
-      status: 'owned',
       listPrice: { amount: '1000', currency: 'USD' },
       purchase: { date: '2021-06-29' },
     });
@@ -485,8 +483,8 @@ describe('the template', () => {
     const r = run(domainsCsvTemplate());
     expect(r.issues).toEqual([]);
     expect(r.rows.map((x) => [x.domain, x.status])).toEqual([
-      ['example.com', 'owned'],
-      ['example.net', 'owned'],
+      ['example.com', undefined],
+      ['example.net', undefined],
       ['example.org', 'sold'],
     ]);
     expect(r.rows[1].listPrice).toEqual({

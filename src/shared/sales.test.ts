@@ -221,17 +221,6 @@ describe('buildSaleRecords', () => {
     ).toBe(false);
   });
 
-  it('ignores drops and archives', () => {
-    const rows = build([
-      purchase,
-      event('d', 'dropped', '2025-06-01'),
-      event('a', 'archived', '2025-07-01'),
-      sale,
-    ]);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].cost).toBe('100.00');
-  });
-
   it('remembers the registrar account that held the name', () => {
     const rows = build([
       { ...event('00', 'added', '2024-12-01'), accountId: 'first' },

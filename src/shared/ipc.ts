@@ -53,8 +53,8 @@ export type Domain = ProviderDomain & {
   accountId?: string;
   accountLabel?: string;
   /**
-   * Set on a row DomBot kept after the name left the registrar (Sold, Dropped,
-   * or Archive). It is not at the registrar, so registrar actions do not apply.
+   * Set on a row DomBot kept after the name left your accounts (Archive). It
+   * is not at the registrar, so registrar actions do not apply.
    */
   departed?: boolean;
   /**
@@ -223,9 +223,7 @@ export const IpcChannels = {
   getMarketListingDefaults: 'markets:getDefaults',
   setMarketListingDefaults: 'markets:setDefaults',
   getDomainEvents: 'domainEvents:list',
-  setDispositions: 'domainEvents:setDispositions',
   markSold: 'domainEvents:markSold',
-  restoreOwned: 'domainEvents:restoreOwned',
   setAlertsDismissed: 'domainEvents:setAlertsDismissed',
   deleteUserEvent: 'domainEvents:deleteUserEvent',
   deleteDomains: 'domainEvents:deleteDomains',
@@ -491,8 +489,13 @@ export interface ImportRow {
   line: number;
   /** `toAscii(name)`. */
   domain: string;
-  status?: 'owned' | 'sold' | 'dropped' | 'archived' | 'removed';
-  /** A folder name; "Hidden" is the built-in one. */
+  /**
+   * `sold` records a sale. `ignored`: a word for a state DomBot works out
+   * from the expiry date (Expired, Dropped, …), kept only to warn when the
+   * row has no expiry. Owned and a blank cell write nothing.
+   */
+  status?: 'sold' | 'ignored';
+  /** A folder name. */
   folder?: string;
   notes?: string;
   registration?: {
@@ -866,31 +869,6 @@ export const FOLDER_COLORS: FolderColor[] = [
   'violet',
   'pink',
 ];
-
-/**
- * The built-in Hidden folder: names you still own but don't want in the usual
- * list (personal names, expiring ones you're letting go). Not stored in the
- * folders list and has no color, but a valid assignment target; like any
- * folder, a name is in it or in one other folder, never both. Hidden names
- * stay out of Owned until the folder filter selects Hidden.
- *
- * Before the domain history work the same idea was the Archive folder
- * (`'__archive__'`, and before that `'__hidden__'`); migration 2 moves those
- * assignments here. Archive is now an ownership action, not a folder.
- */
-export const HIDDEN_FOLDER_ID = '__hidden__';
-
-/** "Hidden" for the built-in folder; null for a user folder or no folder. */
-export function builtInFolderName(
-  id: string | null | undefined,
-): string | null {
-  return id === HIDDEN_FOLDER_ID ? 'Hidden' : null;
-}
-
-/** True for the built-in Hidden folder. */
-export function isHiddenFolder(id: string | null | undefined): boolean {
-  return id === HIDDEN_FOLDER_ID;
-}
 
 /**
  * Future per-folder configuration that cascades to the folder's domains. Kept
@@ -1278,25 +1256,11 @@ export interface DombotApi {
   // Domain history (docs/storage-model.md). Each change returns the whole log.
   /** Every domain event, oldest first. */
   getDomainEvents: () => Promise<DomainEvent[]>;
-  /**
-   * Mark names Dropped or Archived on `date` (blank: today). Each `resolves`
-   * closes the alert it answers.
-   */
-  setDispositions: (
-    items: OwnershipItem[],
-    type: 'dropped' | 'archived',
-    date?: string | null,
-  ) => Promise<DomainEvent[]>;
   /** Mark names Sold with no price, dated `date` (blank: today). */
   markSold: (
     items: OwnershipItem[],
     date?: string | null,
   ) => Promise<DomainEvent[]>;
-  /**
-   * "Move back to Owned": undo each name's Sold, Dropped, or Archived event.
-   * Names only removed by their registrar are skipped.
-   */
-  restoreOwned: (domainNames: string[]) => Promise<DomainEvent[]>;
   /** Acknowledge sync alerts with no action, or bring them back. */
   setAlertsDismissed: (
     ids: string[],
@@ -1304,7 +1268,10 @@ export interface DombotApi {
   ) => Promise<DomainEvent[]>;
   /** Undo one of your own events. Sync events can't be deleted. */
   deleteUserEvent: (id: string) => Promise<DomainEvent[]>;
-  /** Delete everything DomBot holds about each name. */
+  /**
+   * Delete everything DomBot holds about each name no connected account
+   * holds (imported and Archive names).
+   */
   deleteDomains: (domainNames: string[]) => Promise<DomainEvent[]>;
   /** This registrar's registration fee for a name that just arrived. */
   getRegistrationQuote: (

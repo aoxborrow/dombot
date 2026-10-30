@@ -70,10 +70,9 @@ warn-future-purchase.com,Owned,,,,,,,,2031-01-01,50,USD,,,,,Warning: purchase da
 warn-future-sale.net,Sold,,,,,,,,2020-01-01,40,USD,,2031-06-01,900,USD,Warning: sale date in the future
 warn-sale-before-purchase.io,Sold,,,,,,,,2022-06-01,40,USD,,2021-01-01,900,USD,Warning: sale before purchase
 abbey.com,Owned,,Namecheap,2028-01-01,,,,,,,,,,,,"Warning (demo): an account reports it, so registrar details come from there"
-acorn.com,Removed,,,,,,,,,,,,,,,"Warning (demo): an account still reports it, so not Removed"
-cadet.com,,,,,5000,,,USD,,,,,,,,"Warning (demo): in Archive as Sold, stays there (no Status)"
-indigo.io,,Brandables,,,,,,,,,,,,,,"Warning (demo): in Archive as Dropped, stays there (no Status)"
-cadet.com,Dropped,,,,,,,,,,,,,,,"Warning: same name twice, merged (the rows disagree)"
+cadet.com,,,,,5000,,,USD,,,,,,,,"Warning: same name twice, merged (the rows disagree)"
+warn-expired-undated.com,Expired,,,,,,,,,,,,,,,"Warning: Expired with no expiry date, so it stays in Owned"
+cadet.com,Expired,,,,,,,,,,,,,,,"Warning: same name twice, merged (the rows disagree)"
 err-min-offer-high.com,Owned,,,,500,900,,USD,,,,,,,,Skipped: minimum offer above BIN price
 err-floor-high.com,Owned,,,,500,,700,USD,,,,,,,,Skipped: floor above BIN price
 err-negative.com,Owned,,,,,,,,,-5,USD,,,,,Skipped: negative amount

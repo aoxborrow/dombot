@@ -267,23 +267,12 @@ interface AppState {
    */
   domainEvents: DomainEvent[];
   loadDomainEvents: () => Promise<void>;
-  /**
-   * Mark names Dropped or Archived on `date` (blank: today). Each `resolves`
-   * closes the alert it answers.
-   */
-  setDispositions: (
-    items: OwnershipItem[],
-    type: 'dropped' | 'archived',
-    date?: string | null,
-  ) => Promise<void>;
   /** Mark names Sold with no price, dated `date` (blank: today). */
   markSold: (items: OwnershipItem[], date?: string | null) => Promise<void>;
-  /** "Move back to Owned": undo Sold, Dropped, or Archived. */
-  restoreOwned: (domainNames: string[]) => Promise<void>;
   setAlertsDismissed: (ids: string[], dismissed: boolean) => Promise<void>;
   /** Undo one of your own events. */
   deleteUserEvent: (id: string) => Promise<void>;
-  /** Delete everything DomBot holds about each name. */
+  /** Delete: everything it holds about names no account holds. */
   deleteDomains: (domainNames: string[]) => Promise<void>;
 
   // Row selection for bulk actions, keyed `${registrar}:${domainName}`. Lives
@@ -870,17 +859,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     ]);
     set({ domainEvents, importedDomains });
   },
-  setDispositions: async (items, type, date) => {
-    set({
-      domainEvents: await window.api.setDispositions(items, type, date),
-    });
-  },
   markSold: async (items, date) => {
     set({ domainEvents: await window.api.markSold(items, date) });
-    await get().loadPurchases();
-  },
-  restoreOwned: async (domainNames) => {
-    set({ domainEvents: await window.api.restoreOwned(domainNames) });
     await get().loadPurchases();
   },
   setAlertsDismissed: async (ids, dismissed) => {
