@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { BadgeDollarSign, CircleDollarSign, Eye, Store } from 'lucide-react';
 import { localDay } from '../../../shared/domain-events';
+import { marketState } from '../../../shared/market-filter';
 import { sellThrough } from '../../../shared/market-reports';
 import type {
   MarketListing,
@@ -26,6 +27,7 @@ const plural = (n: number, word: string) =>
 
 export function DomainsSummary({
   listings,
+  owned,
   sales,
   accountDays,
   preferredCurrency,
@@ -33,6 +35,8 @@ export function DomainsSummary({
   onListed,
 }: {
   listings: Record<string, MarketListing[]>;
+  /** Names you own (the Owned view), by `toAscii`. */
+  owned: ReadonlySet<string>;
   sales: readonly MarketSale[];
   accountDays: readonly MarketStatsDay[];
   preferredCurrency: string;
@@ -42,13 +46,17 @@ export function DomainsSummary({
 }) {
   const today = localDay();
   const all = useMemo(() => Object.values(listings).flat(), [listings]);
+  // What the Listed card's click shows: names you own with a listing in
+  // one of the Markets filter's states (not sold or unknown).
   const listed = useMemo(() => {
-    const names = Object.entries(listings).filter(([, ls]) => ls.length > 0);
+    const live = [...owned].flatMap((name) =>
+      (listings[name] ?? []).filter((l) => marketState(l) !== null),
+    );
     return {
-      names: names.length,
-      markets: new Set(all.map((l) => l.market)).size,
+      names: new Set(live.map((l) => l.name)).size,
+      markets: new Set(live.map((l) => l.market)).size,
     };
-  }, [listings, all]);
+  }, [listings, owned]);
   const through = useMemo(
     () => sellThrough(sales, all, today),
     [sales, all, today],
