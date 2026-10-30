@@ -397,7 +397,9 @@ function FolderCell({
 function ArchiveStatusCell({ label }: { label: ArchiveLabel | null }) {
   if (!label) return null;
   return (
-    <span className="flex items-center px-3 py-3 compact:px-2 compact:py-[9px]">
+    // No vertical padding (the cell has none either): the badge is taller
+    // than a line of text, and centered it doesn't make the row taller.
+    <span className="flex items-center px-3 compact:px-2">
       <EventTypeBadge
         type={label}
         title={label === 'removed' ? 'Removed from registrar' : undefined}
@@ -473,7 +475,9 @@ function domainLifecycle(
   return null;
 }
 
-/** A distinctly-colored pill per lifecycle state; nothing when healthy. */
+/** A distinctly-colored pill per lifecycle state; nothing when healthy. No
+ *  tooltip: a click on it, like anywhere in the Domain cell, opens the row
+ *  menu. */
 function LifecycleBadge({ status }: { status: string }) {
   const flag = domainLifecycle(status);
   if (!flag) return null;
@@ -483,7 +487,6 @@ function LifecycleBadge({ status }: { status: string }) {
         'border-transparent px-1.5 py-0 text-[11px] compact:px-1 compact:text-[10px]',
         LIFECYCLE_TONE[flag.tone],
       )}
-      title={`Registry status: ${status}`}
     >
       {flag.label}
     </Badge>
@@ -650,7 +653,6 @@ const COLUMNS: Column[] = [
           <Badge
             variant="outline"
             className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
-            title="Added by you. No connected account reports this name."
           >
             Imported
           </Badge>

@@ -515,6 +515,9 @@ export default function Activity() {
     {
       key: 'type',
       label: 'Type',
+      // Like Status: no vertical padding, centered, so the badge (taller than
+      // a line of text) doesn't make the row taller than Domains'.
+      cellClassName: 'py-0!',
       cell: ({ shown }) => <EventTypeBadge type={shown.type} />,
     },
     {

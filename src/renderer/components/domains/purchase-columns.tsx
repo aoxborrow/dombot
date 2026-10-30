@@ -34,16 +34,17 @@ export const EDITABLE_VALUE =
   'underline decoration-dotted underline-offset-[3px] decoration-neutral-300 group-hover:text-foreground group-hover:decoration-[#42604d]/75 group-hover:opacity-100 dark:decoration-neutral-600 dark:group-hover:decoration-[#bacfc1]/75';
 
 /**
- * An empty value you can click to fill: a dim dash that turns into a pencil
- * on hover (the cell itself lights up). Sits in a fixed box so the swap
- * doesn't shift anything.
+ * An empty value you can click to fill: a dim dash that turns into a small
+ * green-grey pencil on hover (the cell itself lights up), the same green as
+ * the hovered underline. Sits in a fixed box so the swap doesn't shift
+ * anything.
  */
 export function EditableEmpty() {
   return (
-    <span className="inline-flex h-8 w-7 -my-2 -mr-1 items-center justify-center align-middle text-muted-foreground/50 group-hover:text-foreground/80 compact:h-7 compact:w-6">
+    <span className="inline-flex h-8 w-7 -my-2 -mr-1 items-center justify-center align-middle text-muted-foreground/50 group-hover:text-[#42604d] compact:h-7 compact:w-6 dark:group-hover:text-[#bacfc1]">
       <span className="group-hover:hidden">—</span>
       <Pencil
-        className="hidden size-3.5 group-hover:block compact:size-3"
+        className="hidden size-3 group-hover:block compact:size-2.5"
         aria-hidden
       />
     </span>
