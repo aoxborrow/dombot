@@ -15,10 +15,7 @@ import {
   localDay,
   type DomainEvent,
 } from '../../shared/domain-events';
-import {
-  IMPORTED_ARCHIVE_DAYS,
-  ownershipByDomain,
-} from '../../shared/ownership';
+import { ownershipByDomain, standingOf } from '../../shared/ownership';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import type { RenewalPrice } from '../../shared/renewal-prices';
 import { toCurrencyCode, type CurrencyCode } from '../../shared/currencies';
@@ -242,11 +239,20 @@ function compute(
       const endsOwned = !toArchive && (!userLabel || moveBack);
       if (endsOwned) {
         created = true;
-        // Already past Archive's mark: history, not an arrival to review.
+        // Already past Archive's mark (shared/ownership.ts): it lands in
+        // Archive as Expired, history rather than an arrival to review.
         const lapsed =
           !!fields.expirationDate &&
-          Date.parse(`${fields.expirationDate}T00:00:00Z`) <
-            now - IMPORTED_ARCHIVE_DAYS * 86_400_000;
+          standingOf(
+            {
+              source: 'imported',
+              expirationDate: new Date(`${fields.expirationDate}T00:00:00Z`),
+              autoRenew: false,
+            },
+            undefined,
+            undefined,
+            now,
+          ).label === 'expired';
         writes.imported.push([
           key,
           {
@@ -275,7 +281,11 @@ function compute(
             ...(lapsed && !removal ? { dismissed: true } : {}),
           }),
         );
-        change('Status', userLabel ? 'Sold' : null, 'Owned');
+        change(
+          'Status',
+          userLabel ? 'Sold' : null,
+          lapsed && !moveBack ? 'Expired' : 'Owned',
+        );
       }
     }
     // A bought-back name comes back with an `added`, which keeps its sale in

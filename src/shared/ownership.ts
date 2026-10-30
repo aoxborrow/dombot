@@ -1,4 +1,4 @@
-import { DomainEventType, localDay, type DomainEvent } from './domain-events';
+import { DomainEventType, type DomainEvent } from './domain-events';
 import { toAscii, toUnicode } from './domain-name';
 import type { Domain, RegistrarMeta } from './ipc';
 
@@ -93,7 +93,13 @@ const OWNED: Standing = {
   expiring: false,
 };
 
-/** Whole days from `now` to a `YYYY-MM-DD` day or a Date; null if unknown. */
+/** `now`'s UTC calendar day as ms (expiry days are UTC days). */
+const utcDayOf = (now: number) => Math.floor(now / DAY_MS) * DAY_MS;
+
+/**
+ * Calendar days from today to a `YYYY-MM-DD` day or a Date's UTC day: 0 on
+ * the day it expires, negative after. Null if unknown.
+ */
 function daysUntil(
   day: string | Date | null | undefined,
   now: number,
@@ -102,13 +108,7 @@ function daysUntil(
   const ms =
     day instanceof Date ? day.getTime() : Date.parse(`${day}T00:00:00Z`);
   if (Number.isNaN(ms)) return null;
-  return Math.floor((ms - now) / DAY_MS);
-}
-
-/** A removal that came after the expiry sync last saw: the name lapsed. */
-function leftAfterExpiry(removal: DomainEvent): boolean {
-  if (!removal.expires || !removal.date) return false;
-  return removal.date > removal.expires;
+  return Math.round((utcDayOf(ms) - utcDayOf(now)) / DAY_MS);
 }
 
 /**
@@ -133,7 +133,7 @@ export function standingOf(
       ? 'sold'
       : registered === false
         ? 'deleted'
-        : o?.removal && leftAfterExpiry(o.removal)
+        : o?.removal?.expires
           ? 'expired'
           : 'removed';
     return { ...OWNED, archived: true, label };
@@ -166,12 +166,16 @@ export function needsReview(label: ArchiveLabel | null): boolean {
   return label === 'removed';
 }
 
-/** The `expires` to record on a removal, so its label can be worked out. */
+/**
+ * The `expires` to record on a removal: the expiry sync last saw, when that
+ * UTC day had passed by the time the name left (a lapse, Archive's Expired).
+ */
 export function removalExpiry(
   expires: string | undefined,
   now: number,
 ): { expires: string } | Record<string, never> {
-  return expires && expires < localDay(now) ? { expires } : {};
+  const today = new Date(utcDayOf(now)).toISOString().slice(0, 10);
+  return expires && expires < today ? { expires } : {};
 }
 
 /**

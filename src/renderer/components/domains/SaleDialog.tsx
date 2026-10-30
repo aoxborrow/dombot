@@ -183,7 +183,9 @@ export function SaleDialog({
           )}
         </div>
         <DialogFooter>
-          {mode === 'edit' && (sale?.saleDate || sale?.saleAmount) && (
+          {/* Edit opens on a sale on record (one an import wrote may have no
+              date or amount). */}
+          {mode === 'edit' && !resolves && (
             <Button
               type="button"
               variant="ghost"

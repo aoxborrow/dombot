@@ -1270,10 +1270,15 @@ export default function Domains() {
   // Distinct filter options with per-option domain counts, derived from the
   // loaded portfolio. Counts are over the whole portfolio (independent of the
   // other active filters), matching the Nameservers and Folder filters.
-  // Imported names count alongside the registrar rows.
+  // Imported names count alongside the registrar rows, less those already in
+  // Archive (sold, deleted, or long expired).
+  const ownedImported = useMemo(
+    () => importedList.filter((d) => !archiveLabelOf(d)),
+    [importedList, archiveLabelOf],
+  );
   const ownedRows = useMemo(
-    () => [...portfolio, ...importedList],
-    [portfolio, importedList],
+    () => [...portfolio, ...ownedImported],
+    [portfolio, ownedImported],
   );
   const tldOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1325,7 +1330,7 @@ export default function Domains() {
       ),
     })).sort((a, b) => a.label.localeCompare(b.label));
     const imported = new Map<string, { label: string; count: number }>();
-    for (const d of importedList) {
+    for (const d of ownedImported) {
       const label = importedRegistrarName(d, portfolioRegistrarLabels);
       const value = importedRegistrarValue(label);
       const existing = imported.get(value);
@@ -1345,7 +1350,7 @@ export default function Domains() {
     );
     if (accounts.length > 0 && added.length > 0) added[0].divider = true;
     return [...accounts, ...added];
-  }, [portfolio, importedList, portfolioRegistrarLabels, multipleAccounts]);
+  }, [portfolio, ownedImported, portfolioRegistrarLabels, multipleAccounts]);
 
   // Nameserver groups (by base domain, with per-provider splits) plus the set of
   // groups each domain belongs to. Derived from `merged`, so it fills in as

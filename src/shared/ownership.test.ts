@@ -106,6 +106,18 @@ describe('standingOf', () => {
     expect(at(29)).toBe(true);
     expect(at(90)).toBe(false);
     expect(at(10, true)).toBe(false);
+    // The day it expires still counts, whatever the time of day.
+    expect(
+      standingOf(
+        row({
+          expirationDate: new Date('2026-10-29T00:00:00Z'),
+          autoRenew: false,
+        }),
+        undefined,
+        undefined,
+        NOW,
+      ).expiring,
+    ).toBe(true);
     // Past expiry is the registrar's Expired / Grace / Redemption instead.
     expect(at(-3)).toBe(false);
     expect(
@@ -207,6 +219,9 @@ describe('removalExpiry', () => {
     expect(removalExpiry('2026-01-01', NOW)).toEqual({ expires: '2026-01-01' });
     expect(removalExpiry('2027-01-01', NOW)).toEqual({});
     expect(removalExpiry(undefined, NOW)).toEqual({});
+    // Today's UTC day hasn't passed yet.
+    expect(removalExpiry('2026-10-29', NOW)).toEqual({});
+    expect(removalExpiry('2026-10-28', NOW)).toEqual({ expires: '2026-10-28' });
   });
 });
 

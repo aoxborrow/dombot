@@ -217,6 +217,12 @@ describe('importing domains', () => {
       (d) => d.domainName === 'lapsed.com',
     )!;
     expect(standingOf(lapsed, undefined).label).toBe('expired');
+    // The preview says where it lands.
+    expect(plan.outcomes[0].changes).toContainEqual({
+      field: 'Status',
+      from: null,
+      to: 'Expired',
+    });
     // With no expiry date it stays in Owned, and the row says so.
     expect(plan.outcomes[0].warnings).toEqual([]);
     expect(plan.outcomes[1].warnings).toContainEqual(
