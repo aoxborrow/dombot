@@ -9,13 +9,15 @@ import {
 import { clearAll } from './cache';
 import {
   enableRateFetch,
-  expectedDay,
   getExchangeRateRows,
   parseDailyXml,
   parseMonthlyCsv,
+  ratesNeeded,
   refreshExchangeRates,
   resetRateFetch,
 } from './exchange-rates';
+import { setListPrices } from './list-prices';
+import { updateSettings } from './settings';
 
 // Dates follow the shipped archive, so a rebuild doesn't break these:
 // `archived` is its newest month, `current` the one after (no average yet),
@@ -27,9 +29,12 @@ const shift = (month: string, by: number) => {
 const archived = new ExchangeRates().newestMonth!;
 const current = shift(archived, 1);
 const next = shift(archived, 2);
-/** 17:00 UTC on a day of `month`: that weekday's rates are out. */
+/** Noon UTC on a day of `month`. */
 const at = (month: string, day: number) =>
-  new Date(`${month}-${String(day).padStart(2, '0')}T17:00:00Z`);
+  new Date(`${month}-${String(day).padStart(2, '0')}T12:00:00Z`);
+const dayOf = (month: string, day: number) =>
+  `${month}-${String(day).padStart(2, '0')}`;
+const HOUR = 60 * 60 * 1000;
 
 const xml = (days: Record<string, Rates>) =>
   '<?xml version="1.0" encoding="UTF-8"?><gesmes:Envelope><Cube>' +
@@ -95,24 +100,29 @@ describe('parsers', () => {
       ]),
     );
   });
-
-  it('expects a weekday’s rates once they’re out, and Friday’s at the weekend', () => {
-    expect(expectedDay(new Date('2026-10-29T10:00:00Z'))).toBe('2026-10-28');
-    expect(expectedDay(new Date('2026-10-29T17:00:00Z'))).toBe('2026-10-29');
-    expect(expectedDay(new Date('2026-10-31T17:00:00Z'))).toBe('2026-10-30');
-    expect(expectedDay(new Date('2026-11-02T09:00:00Z'))).toBe('2026-10-30');
-  });
 });
 
 describe('refreshExchangeRates', () => {
   const fetchMock = vi.fn();
   let store: MemoryDocStore;
+  /** An asking price in euros, so a USD portfolio needs rates. */
+  const holdEuros = (currency: string | null = 'EUR') =>
+    setListPrices([
+      {
+        domainName: 'euro.com',
+        amount: currency ? '100' : null,
+        minOffer: null,
+        floor: null,
+        currency,
+      },
+    ]);
   beforeEach(async () => {
     await flushWrites().catch(() => {});
     store = new MemoryDocStore();
     configureStore(store);
     await hydrateStores();
     resetRateFetch();
+    holdEuros();
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -130,122 +140,156 @@ describe('refreshExchangeRates', () => {
         : new Response(days),
     );
   const urls = () => fetchMock.mock.calls.map(([url]) => String(url));
+  const DAYS_URL =
+    'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml';
 
   it('does nothing until the host turns it on', async () => {
     expect(await refreshExchangeRates(at(current, 15))).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('keeps the days of the month with no average, and stops once it has the newest', async () => {
+  it('never fetches for a portfolio all in your currency', async () => {
     enableRateFetch();
-    const now = at(current, 15);
-    const newest = expectedDay(now);
+    expect(ratesNeeded()).toBe(true);
+    holdEuros(null);
+    expect(ratesNeeded()).toBe(false);
+    holdEuros('USD');
+    expect(ratesNeeded()).toBe(false);
+    expect(await refreshExchangeRates(at(next, 15))).toBe(false);
+    // Euros are your currency now: nothing to convert either.
+    holdEuros();
+    updateSettings({ preferredCurrency: 'EUR' });
+    expect(ratesNeeded()).toBe(false);
+    // A currency outside the 30 can't be converted, so it needs nothing.
+    updateSettings({ preferredCurrency: 'USD' });
+    holdEuros(null);
+    await store.put('domain-list-prices', 'old.com', {
+      amount: '500',
+      currency: 'TWD',
+      updatedAt: 1,
+    });
+    await hydrateStores();
+    expect(ratesNeeded()).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps the days of the month with no average, then waits a week', async () => {
+    enableRateFetch();
     serve(
       '',
       xml({
-        [newest]: { USD: 1.12, GBP: 0.84 },
-        [`${current}-01`]: { USD: 1.1 },
-        [`${archived}-28`]: { USD: 1.05 },
+        [dayOf(current, 14)]: { USD: 1.12, GBP: 0.84 },
+        [dayOf(current, 1)]: { USD: 1.1 },
+        [dayOf(archived, 28)]: { USD: 1.05 },
       }),
     );
-    expect(await refreshExchangeRates(now)).toBe(true);
+    expect(await refreshExchangeRates(at(current, 15))).toBe(true);
     // The archive is current, so only the days were fetched.
-    expect(urls()).toEqual([
-      'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml',
-    ]);
+    expect(urls()).toEqual([DAYS_URL]);
     expect(getExchangeRateRows()).toEqual({
-      [newest]: { rates: { USD: 1.12, GBP: 0.84 } },
-      [`${current}-01`]: { rates: { USD: 1.1 } },
+      [dayOf(current, 14)]: { rates: { USD: 1.12, GBP: 0.84 } },
+      [dayOf(current, 1)]: { rates: { USD: 1.1 } },
     });
     await flushWrites();
-    expect(Object.keys(await store.list('exchange-rates')).sort()).toEqual(
-      [`${current}-01`, newest].sort(),
-    );
+    expect(Object.keys(await store.list('exchange-rates')).sort()).toEqual([
+      dayOf(current, 1),
+      dayOf(current, 14),
+    ]);
 
-    expect(await refreshExchangeRates(now)).toBe(false);
+    await refreshExchangeRates(at(current, 15));
+    await refreshExchangeRates(at(current, 21));
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    await refreshExchangeRates(at(current, 22));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('fetches nothing in the first week after the newest average', async () => {
+    enableRateFetch();
+    serve('', xml({}));
+    expect(await refreshExchangeRates(at(current, 6))).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('fetches the month that ended, then drops its days', async () => {
     enableRateFetch();
-    serve('', xml({ [`${current}-20`]: { USD: 1.1 } }));
+    serve('', xml({ [dayOf(current, 19)]: { USD: 1.1 } }));
     await refreshExchangeRates(at(current, 20));
-    expect(Object.keys(getExchangeRateRows())).toEqual([`${current}-20`]);
+    expect(Object.keys(getExchangeRateRows())).toEqual([dayOf(current, 19)]);
 
-    const now = at(next, 10);
-    const newest = expectedDay(now);
     fetchMock.mockReset();
     serve(
       csv([
         ['USD', current, 1.11],
         ['GBP', current, 0.85],
       ]),
-      xml({ [newest]: { USD: 1.2 }, [`${current}-20`]: { USD: 1.1 } }),
+      xml({
+        [dayOf(next, 9)]: { USD: 1.2 },
+        [dayOf(current, 19)]: { USD: 1.1 },
+      }),
     );
-    expect(await refreshExchangeRates(now)).toBe(true);
+    expect(await refreshExchangeRates(at(next, 10))).toBe(true);
     expect(urls()[0]).toContain(`?startPeriod=${current}&`);
     expect(getExchangeRateRows()).toEqual({
       [current]: { rates: { USD: 1.11, GBP: 0.85 } },
-      [newest]: { rates: { USD: 1.2 } },
+      [dayOf(next, 9)]: { rates: { USD: 1.2 } },
     });
     const fx = new ExchangeRates(getExchangeRateRows());
-    expect(fx.convert(100, 'EUR', 'USD', `${current}-20`)).toEqual({
+    expect(fx.convert(100, 'EUR', 'USD', dayOf(current, 20))).toEqual({
       amount: 111,
       period: current,
       provisional: false,
     });
   });
 
-  it('waits before asking again for an average that isn’t out', async () => {
+  it('waits a day before asking again for an average that isn’t out', async () => {
     enableRateFetch();
     const now = at(next, 2);
-    serve('', xml({ [expectedDay(now)]: { USD: 1.2 } }));
+    serve('', xml({ [dayOf(current, 30)]: { USD: 1.2 } }));
     await refreshExchangeRates(now);
     const monthCalls = () =>
       urls().filter((url) => url.includes('data-api')).length;
     expect(monthCalls()).toBe(1);
 
-    await refreshExchangeRates(new Date(now.getTime() + 60 * 60 * 1000));
+    await refreshExchangeRates(new Date(now.getTime() + 12 * HOUR));
     expect(monthCalls()).toBe(1);
-    await refreshExchangeRates(new Date(now.getTime() + 7 * 60 * 60 * 1000));
+    await refreshExchangeRates(new Date(now.getTime() + 25 * HOUR));
     expect(monthCalls()).toBe(2);
   });
 
-  it('keeps what it holds when the ECB fails, and retries later', async () => {
+  it('keeps what it holds when the ECB fails, and retries a day later', async () => {
     enableRateFetch();
     const now = at(current, 15);
-    serve('', xml({ [`${current}-01`]: { USD: 1.1 } }));
+    serve('', xml({ [dayOf(current, 1)]: { USD: 1.1 } }));
     await refreshExchangeRates(now);
     fetchMock.mockReset();
     fetchMock.mockResolvedValue(new Response('down', { status: 503 }));
-    const later = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    expect(await refreshExchangeRates(later)).toBe(false);
-    expect(Object.keys(getExchangeRateRows())).toEqual([`${current}-01`]);
+    expect(await refreshExchangeRates(at(current, 16))).toBe(false);
+    expect(Object.keys(getExchangeRateRows())).toEqual([dayOf(current, 1)]);
     expect(console.error).toHaveBeenCalledWith(
       '[exchange-rates] days failed:',
       'the ECB answered 503',
     );
-    await refreshExchangeRates(new Date(later.getTime() + 60_000));
+    await refreshExchangeRates(new Date(at(current, 16).getTime() + HOUR));
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    await refreshExchangeRates(at(current, 17));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('drops a fetched month that the archive now ships', async () => {
     await store.put('exchange-rates', archived, { rates: { USD: 1 } });
     await hydrateStores();
     enableRateFetch();
-    const now = at(current, 15);
-    serve('', xml({ [expectedDay(now)]: { USD: 1.2 } }));
-    await refreshExchangeRates(now);
-    expect(Object.keys(getExchangeRateRows())).toEqual([expectedDay(now)]);
+    serve('', xml({ [dayOf(current, 14)]: { USD: 1.2 } }));
+    await refreshExchangeRates(at(current, 15));
+    expect(Object.keys(getExchangeRateRows())).toEqual([dayOf(current, 14)]);
   });
 
   it('runs once for overlapping calls, and Clear cache empties it', async () => {
     enableRateFetch();
-    const now = at(current, 15);
-    serve('', xml({ [expectedDay(now)]: { USD: 1.2 } }));
+    serve('', xml({ [dayOf(current, 14)]: { USD: 1.2 } }));
     const [a, b] = await Promise.all([
-      refreshExchangeRates(now),
-      refreshExchangeRates(now),
+      refreshExchangeRates(at(current, 15)),
+      refreshExchangeRates(at(current, 15)),
     ]);
     expect([a, b]).toEqual([true, true]);
     expect(fetchMock).toHaveBeenCalledTimes(1);

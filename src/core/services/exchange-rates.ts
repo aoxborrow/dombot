@@ -9,6 +9,11 @@ import {
 } from '../../shared/exchange-rates';
 import { userAgentHeaders } from '../app-info';
 import { Namespace } from '../storage/namespace';
+import { listEvents } from './domain-events';
+import { getListPrices } from './list-prices';
+import { marketListings, marketSales } from './markets/sync';
+import { getPortfolioPricing } from './registrars';
+import { getSettings } from './settings';
 
 // Keeps the European Central Bank rates DomBot converts with current
 // (docs/exchange-rates.md): the months whose average came out after the
@@ -17,6 +22,8 @@ import { Namespace } from '../storage/namespace';
 // never blocking a view; offline, conversions use what's held. The renderer
 // reads the rows through the API and converts with the same shared module.
 //
+// Fetches rarely, and only for a portfolio with amounts in more than one
+// currency: most are all USD and never need a rate beyond the archive's.
 // Off until a host turns it on, so the demo and tests never reach the network.
 
 const store = new Namespace<RateRow>('exchange-rates', { cache: true });
@@ -29,11 +36,13 @@ const monthsUrl = (from: string) =>
   `?startPeriod=${from}&format=csvdata&detail=dataonly`;
 
 const TIMEOUT_MS = 10_000;
-/** After a fetch that didn't bring what it expected (a holiday, an average
- *  that isn't out yet, an error), the next try waits this long. */
-const RETRY_MS = 6 * 60 * 60 * 1000;
-/** The ECB publishes around 16:00 CET; by this hour UTC a weekday's is out. */
-const PUBLISHED_BY_UTC_HOUR = 16;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Days are fetched once the newest rate held is this old. A month's average
+ *  is within a percent or two of any day in it, and so is a week-old rate. */
+const DAYS_STALE_MS = 7 * DAY_MS;
+/** After a fetch that brought nothing newer (an average that isn't out yet,
+ *  an error), the next try waits this long. */
+const RETRY_MS = DAY_MS;
 
 let enabled = false;
 const missedAt = { months: 0, days: 0 };
@@ -68,17 +77,37 @@ function shiftMonth(month: string, by: number): string {
   return d.toISOString().slice(0, 7);
 }
 
-/** The newest business day whose rates are out by `now`. Only weekends are
- *  known; a TARGET holiday just costs one fetch that finds nothing new. */
-export function expectedDay(now: Date): string {
-  const d = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+/** The last day a month's average covers. */
+function monthEnd(month: string): string {
+  const [year, m] = month.split('-').map(Number);
+  return new Date(Date.UTC(year, m, 0)).toISOString().slice(0, 10);
+}
+
+/** The newest day any rate held covers: a day's own, or a month's last. */
+function newestCovered(rates: ExchangeRates): string {
+  const month = rates.newestMonth;
+  const fromMonth = month ? monthEnd(month) : '';
+  const day = rates.newestDay ?? '';
+  return day > fromMonth ? day : fromMonth;
+}
+
+/**
+ * Whether anything held needs converting: an amount in one of the 30 other
+ * than your preferred currency. A portfolio all in one currency never does.
+ */
+export function ratesNeeded(): boolean {
+  const preferred = getSettings().preferredCurrency;
+  const other = (code: string | null | undefined) =>
+    !!code && code !== preferred && isRateCurrency(code);
+  return (
+    listEvents().some((e) => e.amount && other(e.currency)) ||
+    Object.values(getListPrices()).some((p) => other(p.currency)) ||
+    marketSales().some((s) => other(s.currency)) ||
+    marketListings().some((l) => l.price && other(l.currency)) ||
+    Object.values(getPortfolioPricing()).some(
+      (p) => p.renewal != null && other(p.currency),
+    )
   );
-  if (now.getUTCHours() < PUBLISHED_BY_UTC_HOUR)
-    d.setUTCDate(d.getUTCDate() - 1);
-  while (d.getUTCDay() === 0 || d.getUTCDay() === 6)
-    d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
 }
 
 /** The ECB Data Portal's monthly averages (`csvdata`, `detail=dataonly`, so
@@ -137,20 +166,20 @@ async function get(url: string): Promise<string> {
 }
 
 /**
- * Fetches what's missing, best effort:
+ * When something needs converting (`ratesNeeded`), fetches what's missing,
+ * best effort:
  *
  * 1. Months: when the newest average held (archive or fetched) is older than
  *    last month, every month after it.
- * 2. Days: when the newest day held is older than the newest business day
- *    whose rates are out, the 90-day file, keeping the days of months with
- *    no average.
+ * 2. Days: when the newest rate held is a week old, the 90-day file, keeping
+ *    the days of months with no average.
  * 3. Prune: days of months that now have an average, and fetched months the
  *    archive already has (after an update ships a newer one).
  *
  * Returns true when it changed what's held. One run at a time.
  */
 export function refreshExchangeRates(now = new Date()): Promise<boolean> {
-  if (!enabled) return Promise.resolve(false);
+  if (!enabled || !ratesNeeded()) return Promise.resolve(false);
   inFlight ??= refresh(now).finally(() => {
     inFlight = null;
   });
@@ -185,8 +214,9 @@ async function refresh(now: Date): Promise<boolean> {
   }
 
   const held = new ExchangeRates(store.all());
-  const expected = expectedDay(now);
-  if ((held.newestDay ?? '') < expected && time - missedAt.days >= RETRY_MS) {
+  const covered = newestCovered(held);
+  const weekAgo = new Date(time - DAYS_STALE_MS).toISOString().slice(0, 10);
+  if (covered < weekAgo && time - missedAt.days >= RETRY_MS) {
     try {
       const days = parseDailyXml(await get(DAYS_URL));
       for (const [day, rates] of days) {
@@ -194,7 +224,7 @@ async function refresh(now: Date): Promise<boolean> {
         void store.set(day, { rates });
         changed = true;
       }
-      if (!days.has(expected)) missedAt.days = time;
+      if (![...days.keys()].some((day) => day > covered)) missedAt.days = time;
     } catch (err) {
       missedAt.days = time;
       console.error('[exchange-rates] days failed:', errorText(err));

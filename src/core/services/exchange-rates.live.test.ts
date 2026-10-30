@@ -5,13 +5,13 @@ import { MemoryDocStore } from '../storage/doc-store';
 import { configureStore, hydrateStores } from '../storage/namespace';
 import {
   enableRateFetch,
-  expectedDay,
   getExchangeRateRows,
   parseDailyXml,
   parseMonthlyCsv,
   refreshExchangeRates,
   resetRateFetch,
 } from './exchange-rates';
+import { setListPrices } from './list-prices';
 
 // Against the real ECB; no credentials. Catches a change in either format.
 
@@ -50,17 +50,26 @@ describe('ECB rates (live)', () => {
     expect(months.get('2024-01')!.USD! * 100).toBeCloseTo(archived!.amount, 1);
   });
 
-  it('brings what DomBot holds up to the newest day', async () => {
+  it('brings what DomBot holds to within a week', async () => {
+    // A euro amount in a USD portfolio, so there's something to convert.
+    setListPrices([
+      {
+        domainName: 'euro.com',
+        amount: '100',
+        minOffer: null,
+        floor: null,
+        currency: 'EUR',
+      },
+    ]);
     enableRateFetch();
     const now = new Date();
-    expect(await refreshExchangeRates(now)).toBe(true);
+    await refreshExchangeRates(now);
     const fx = new ExchangeRates(getExchangeRateRows());
-    // The newest business day, unless today is a TARGET holiday.
-    expect(
-      fx.newestDay! >= expectedDay(new Date(now.getTime() - 4 * 864e5)),
-    ).toBe(true);
     const today = fx.convert(100, 'GBP', 'JPY', now.toISOString().slice(0, 10));
     expect(today?.provisional).toBe(true);
     expect(today!.amount).toBeGreaterThan(1000);
+    // A day in the last ten, or last month's average early in a month.
+    const tenDaysAgo = new Date(now.getTime() - 10 * 864e5).toISOString();
+    expect(today!.period! >= tenDaysAgo.slice(0, 7)).toBe(true);
   });
 });
