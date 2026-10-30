@@ -468,24 +468,17 @@ function LifecycleBadge({ status }: { status: string }) {
 }
 
 /**
- * The states Owned works out for a name (docs/owned-and-archive.md), beside
- * the lifecycle pills: Expiring (auto-renew off, expiring within 30 days) and
- * Sold (a sale recorded; the buyer hasn't taken the name yet, so it doubles
- * as a reminder to finish the transfer).
+ * Sold, beside the lifecycle pills: a sale is recorded and the buyer hasn't
+ * taken the name yet, so it doubles as a reminder to finish the transfer.
+ * (Expiring is worked out too, docs/owned-and-archive.md, but isn't shown on
+ * the row: the Expires column's colour and the Auto-renew filter cover it.)
  */
-function OwnedStateBadges({ standing }: { standing: Standing }) {
+function SoldBadge({ standing }: { standing: Standing }) {
   if (standing.archived) return null;
   const pill =
     'border-transparent px-1.5 py-0 text-[11px] compact:px-1 compact:text-[10px]';
   return (
     <>
-      {standing.expiring && (
-        <Badge
-          className={cn(pill, 'bg-amber-500 text-white dark:bg-amber-600')}
-        >
-          Expiring
-        </Badge>
-      )}
       {standing.salePending && (
         <Badge
           className={cn(pill, 'bg-emerald-600 text-white dark:bg-emerald-700')}
@@ -1983,7 +1976,7 @@ export default function Domains() {
         <div className="flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-2">
             {col.render(d, portfolioRegistrarLabels)}
-            <OwnedStateBadges standing={standingOfRow(d)} />
+            <SoldBadge standing={standingOfRow(d)} />
           </span>
           <div className="flex items-center">
             <NotesButton

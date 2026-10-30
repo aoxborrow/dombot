@@ -34,7 +34,7 @@ already knows; you never set it.
 | State    | When                                                  | Shown                                                      |
 | -------- | ----------------------------------------------------- | ---------------------------------------------------------- |
 | Renewing | Auto-renew on                                         | Nothing extra                                              |
-| Expiring | Auto-renew off, expiry within 30 days                 | Amber "Expiring" pill                                      |
+| Expiring | Auto-renew off, expiry within 30 days                 | Nothing on the row (MCP's `expiring`; a card later)        |
 | Expired  | Past expiry, still in the account (grace, redemption) | The existing Expired / Grace / Redemption pills, unchanged |
 | Sold     | You recorded a sale and the buyer hasn't taken it yet | "Sold" pill                                                |
 
@@ -42,11 +42,13 @@ already knows; you never set it.
   in 2031, or even in three months, isn't news yet.
 - **The Expired, Grace and Redemption pills already exist,** read from the
   registrar's status (`domainLifecycle` in `src/renderer/pages/Domains.tsx`).
-  The Expiring and Sold pills sit beside them.
+  The Sold pill sits beside them. Expiring isn't a pill: the Expires
+  column's colour and the Auto-renew filter already show it on the row, and
+  it's worked out for MCP and a future summary card.
 - **A new Auto-renew filter** (On, Off) beside Registrar, TLD and Folder.
   There isn't one today, and it's how you see what you're letting go.
 - **Imported names** use the auto-renew and expiry you entered. Unknown
-  auto-renew gets no Expiring pill.
+  auto-renew is never Expiring.
 
 ## Archive
 
@@ -187,7 +189,7 @@ One PR, in this order:
    bundle v9); derive the Owned states and Archive labels
    (`src/shared/ownership.ts`, `archiveLabelOf` in Domains); imported names'
    90-day rule.
-2. **Domains UI.** Expiring and Sold pills, the Auto-renew filter, the Archive
+2. **Domains UI.** The Sold pill, the Auto-renew filter, the Archive
    Status filter (Sold, Deleted, Expired, Removed), and trimmed row, bulk and
    Activity menus (`RowActionsMenu.tsx`, `BulkBar.tsx`, `Activity.tsx`,
    `OwnershipDialogs.tsx`, `FolderMenuItems.tsx`).
