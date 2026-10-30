@@ -2,10 +2,11 @@ import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { useMemo, useState } from 'react';
 import {
+  AlarmClock,
   Building2,
   CalendarClock,
-  CalendarDays,
-  CircleDollarSign,
+  CalendarSync,
+  ChartColumn,
   Globe,
   IterationCw,
   RefreshCwOff,
@@ -223,7 +224,7 @@ export default function Renewals() {
         {
           id: 'all',
           label: 'All',
-          icon: Globe,
+          icon: CalendarClock,
           count: inRegistrar.length,
           active: renewing === 'all',
           onClick: () => setRenewing('all'),
@@ -414,21 +415,21 @@ export default function Renewals() {
         />
         <StatCard
           size="sm"
-          icon={CalendarDays}
+          icon={ChartColumn}
           accentClass="text-sky-500"
           label="Monthly avg"
           value={usd(monthly)}
         />
         <StatCard
           size="sm"
-          icon={CircleDollarSign}
+          icon={CalendarSync}
           accentClass="text-brand-500"
           label="Yearly"
           value={[{ value: usd(summary.yearly) }]}
         />
         <StatCard
           size="sm"
-          icon={CalendarClock}
+          icon={AlarmClock}
           accentClass="text-amber-500"
           label="Due, 30 days"
           value={[
@@ -513,7 +514,7 @@ export default function Renewals() {
 /** The title, and the view beside it: the same height and type as the other pages' title rows. */
 function PageHeader({ view }: { view?: string }) {
   return (
-    <div className="mb-2 min-h-9">
+    <div className="mb-1 min-h-9">
       <h1 className="mt-1.5 flex min-w-0 items-baseline gap-2.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
         Renewals
         {/* The view, as on Domains. */}

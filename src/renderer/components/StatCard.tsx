@@ -29,6 +29,7 @@ export interface StatSlot {
 export function StatCard({
   icon: Icon,
   accentClass,
+  iconClassName,
   label,
   value,
   hint,
@@ -40,6 +41,8 @@ export function StatCard({
   /** Tailwind text-color for the background watermark (rendered at a low group
    * opacity), e.g. "text-brand-500". */
   accentClass: string;
+  /** Adjusts the corner icon, e.g. smaller so a bell's clapper shows. */
+  iconClassName?: string;
   label: string;
   value: string | StatSlot[];
   /** The line under the value; small cards may leave it out. */
@@ -70,6 +73,7 @@ export function StatCard({
             ? '-right-2 -bottom-3 size-[44px] sm:-right-3 sm:-bottom-4 sm:size-[64px]'
             : '-right-4 -bottom-6 size-[123px]',
           accentClass,
+          iconClassName,
         )}
         strokeWidth={1.5}
         aria-hidden

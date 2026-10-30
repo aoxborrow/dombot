@@ -5,6 +5,8 @@ import {
   Bell,
   Building2,
   Calculator,
+  CircleMinus,
+  CirclePlus,
   CalendarClock,
   ChevronDown,
   Ellipsis,
@@ -38,6 +40,7 @@ import {
 } from '../../shared/ownership';
 import { resolvedIds } from '../../shared/sync-diff';
 import { RegistrarLogo } from '../components/RegistrarLogo';
+import { StatCard, StatCardRow } from '../components/StatCard';
 import { DomainLink } from '../components/domains/DomainLink';
 import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
@@ -434,6 +437,25 @@ export default function Activity() {
   }
 
   // Selection: any rows. State actions apply to each selected name once.
+  // The cards over the table: what the rows the filters leave hold.
+  const counts = useMemo(() => {
+    const n = { review: 0, high: 0, added: 0, removed: 0, sold: 0 };
+    for (const { event: e, shown } of rows) {
+      const p = reviewPriority(e, resolved);
+      if (p) n.review += 1;
+      if (p === 'high') n.high += 1;
+      if (shown.type === 'added') n.added += 1;
+      if (shown.type === 'removed') n.removed += 1;
+      if (shown.type === 'sold') n.sold += 1;
+    }
+    return n;
+  }, [rows, resolved]);
+  // A card that counts a type sets the Type filter to it.
+  const showType = (type: string) => {
+    setTypes([type]);
+    setPage(0);
+  };
+
   const selectedRows = allRows.filter((r) => selected.has(r.event.id));
   const openSelected = selectedRows
     .map((r) => r.event)
@@ -788,7 +810,7 @@ export default function Activity() {
       <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
         {/* As tall as Domains' title row (its Sync button), so the toolbar
             lands in the same place on both pages. */}
-        <div className="mb-2 min-h-9">
+        <div className="mb-1 min-h-9">
           <h1 className="mt-1.5 flex min-w-0 items-baseline gap-2.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
             Activity
             {/* The view, as on Domains. */}
@@ -797,6 +819,48 @@ export default function Activity() {
             </span>
           </h1>
         </div>
+
+        <StatCardRow>
+          <StatCard
+            size="sm"
+            icon={Bell}
+            accentClass="text-amber-500"
+            // Smaller and higher, so the clapper isn't cut off.
+            iconClassName="bottom-0.5 size-[34px] sm:-right-2 sm:bottom-0.5 sm:size-[48px]"
+            label="Needs review"
+            value={[
+              {
+                value: counts.review.toLocaleString(),
+                unit: counts.high ? `${counts.high} high` : undefined,
+              },
+            ]}
+            onClick={() => setView(true)}
+          />
+          <StatCard
+            size="sm"
+            icon={CirclePlus}
+            accentClass="text-brand-500"
+            label="Added"
+            value={counts.added.toLocaleString()}
+            onClick={() => showType('added')}
+          />
+          <StatCard
+            size="sm"
+            icon={CircleMinus}
+            accentClass="text-rose-500"
+            label="Removed"
+            value={counts.removed.toLocaleString()}
+            onClick={() => showType('removed')}
+          />
+          <StatCard
+            size="sm"
+            icon={Receipt}
+            accentClass="text-violet-500"
+            label="Sold"
+            value={counts.sold.toLocaleString()}
+            onClick={() => showType('sold')}
+          />
+        </StatCardRow>
 
         <FilterToolbar
           id="activity"

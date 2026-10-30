@@ -226,7 +226,7 @@ export default function App() {
           area between them scrolls when a page is taller. Its scrollbar gutter
           is always reserved so pages of different heights line up. The top 8px
           fades out, so scrolled content doesn't cut off hard at the tabs. */}
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] [mask-image:linear-gradient(to_bottom,transparent,black_8px)] px-4 pt-[22px] pb-4 sm:px-6 sm:pt-[31px]">
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] [mask-image:linear-gradient(to_bottom,transparent,black_8px)] px-4 pt-[18px] pb-4 sm:px-6 sm:pt-[27px]">
         <Routes>
           <Route path="/" element={<Domains />} />
           <Route path="/renewals" element={<Renewals />} />

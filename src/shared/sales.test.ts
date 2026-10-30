@@ -254,6 +254,24 @@ describe('buildSaleRecords', () => {
     ]);
     expect(rows[0].registrarAccountId).toBe('first');
   });
+
+  it('places a name held since the first sync by the account it left', () => {
+    const rows = build([
+      sale,
+      { ...event('03', 'removed', '2026-02-20'), accountId: 'gone' },
+    ]);
+    expect(rows[0].registrarAccountId).toBe('gone');
+  });
+
+  it('else by the account that holds it now', () => {
+    const [r] = buildSaleRecords({
+      events: [sale],
+      marketSales: [],
+      holders: new Map([['example.com', 'current']]),
+      today: '2026-03-01',
+    });
+    expect(r.registrarAccountId).toBe('current');
+  });
 });
 
 describe('filterSaleRecords', () => {

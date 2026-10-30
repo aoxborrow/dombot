@@ -4,6 +4,7 @@ import {
   ArrowUpDown,
   BadgeDollarSign,
   CalendarClock,
+  Eye,
   EyeOff,
   Gem,
   Globe,
@@ -22,7 +23,10 @@ import {
   type MarketStateChoice,
   type PriceComparison,
 } from '../../../shared/market-filter';
-import type { MarketListing } from '../../../shared/markets';
+import type {
+  DomainTrafficTotals,
+  MarketListing,
+} from '../../../shared/markets';
 import { compactMoney, wholeMoney } from '../../lib/renewals';
 import { StatCard, StatCardRow } from '../StatCard';
 
@@ -57,6 +61,7 @@ export function DomainsCards({
   listings,
   markets,
   listPrices,
+  traffic,
   expiresWithin,
   archiveLabelOf,
   actions,
@@ -69,6 +74,8 @@ export function DomainsCards({
    * none without a market account. */
   markets: readonly string[];
   listPrices: Record<string, ListPrice>;
+  /** Each name's market views and leads (30 and 365 days), where fetched. */
+  traffic: Record<string, DomainTrafficTotals>;
   /** Whether a name expires within 30 or 60 days (and hasn't yet). */
   expiresWithin: (d: Domain, days: 30 | 60) => boolean;
   archiveLabelOf: (d: Domain) => ArchiveLabel | null;
@@ -106,9 +113,24 @@ export function DomainsCards({
       let inactive = 0;
       let above = 0;
       let below = 0;
+      // Listed names with a BIN price; views and leads over 30 days.
+      let listedPriced = 0;
+      let views = 0;
+      let leads = 0;
+      let withTraffic = 0;
       for (const d of rows) {
         const states = statesOf(d);
-        if (states.includes('active')) listed += 1;
+        const key = toAscii(d.domainName);
+        if (states.includes('active')) {
+          listed += 1;
+          if (listPrices[key]?.amount != null) listedPriced += 1;
+        }
+        const tr = traffic[key];
+        if (tr) {
+          withTraffic += 1;
+          views += tr.views30;
+          leads += tr.leads30;
+        }
         if (!states.some(Boolean)) unlisted += 1;
         if (states.includes('pending')) pending += 1;
         if (states.includes('rejected')) rejected += 1;
@@ -127,6 +149,10 @@ export function DomainsCards({
         inactive,
         above,
         below,
+        listedPriced,
+        views,
+        leads,
+        withTraffic,
       };
     }
     // Expiring and not renewing: a name auto-renew will take care of isn't
@@ -163,6 +189,7 @@ export function DomainsCards({
     listings,
     markets,
     listPrices,
+    traffic,
     expiresWithin,
     archiveLabelOf,
   ]);
@@ -268,7 +295,8 @@ export function DomainsCards({
               value: cards.listed.toLocaleString(),
               // Out of how many, as Expiring's "/30d".
               unit: `/${total.toLocaleString()}`,
-              words: pct(cards.listed, total),
+              // Of those listed, how many have your BIN price.
+              words: `${pct(cards.listedPriced, cards.listed)} BIN priced`,
             },
           ]}
           onClick={() => actions.onMarketStates(['active'])}
@@ -320,7 +348,19 @@ export function DomainsCards({
           ]}
           onClick={() => actions.onPriceComparisons(['above', 'below'])}
         />
-        {binPricedCard}
+        <StatCard
+          size="sm"
+          icon={Eye}
+          accentClass="text-sky-500"
+          label="Views, 30 days"
+          // Visits to the names' sale pages; leads only from Afternic.
+          value={[
+            {
+              value: cards.withTraffic ? cards.views.toLocaleString() : '—',
+              unit: cards.leads ? plural(cards.leads, 'lead') : undefined,
+            },
+          ]}
+        />
       </StatCardRow>
     );
   }

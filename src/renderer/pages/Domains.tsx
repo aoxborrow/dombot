@@ -2319,7 +2319,7 @@ export default function Domains() {
           and the row-count bar keep a slice of the page. The -m-1 p-1
           pair leaves room for focus rings, which the scroll box would clip. */}
       <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
-        <div className="mb-2 flex items-start justify-between gap-x-6">
+        <div className="mb-1 flex items-start justify-between gap-x-6">
           {/* Centred on the 36px Sync button beside it. */}
           <h1 className="mt-1.5 flex min-w-0 items-baseline gap-2.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
             Domains
@@ -2360,6 +2360,7 @@ export default function Domains() {
             listings={marketListings}
             markets={marketsOn ? cardMarkets : []}
             listPrices={listPrices}
+            traffic={marketTraffic.domains}
             expiresWithin={expiresWithin}
             archiveLabelOf={archiveLabelOf}
             actions={{
