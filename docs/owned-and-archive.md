@@ -1,11 +1,14 @@
 # Owned and Archive — letting a name go
 
-Plan, not built yet. It replaces Mark as Dropped, Archive, the Hidden folder,
-and Delete for names you still hold with one rule:
+Built. It replaced Mark as Dropped, Archive, the Hidden folder, and Delete
+for names you still hold with one rule:
 
 **Archive holds only names you no longer have.** Nothing you hold goes there
 by hand. Not renewing a name means turning off its auto-renew, the real
 setting at the registrar, which DomBot already reads and changes.
+
+The rule lives in `src/shared/ownership.ts` (`standingOf`): every screen,
+the MCP tools and the CSV export read Owned and Archive from there.
 
 ## Why
 
@@ -53,7 +56,7 @@ Names that left every account. The label comes from facts, in this order:
 | ------- | ------------------------------------------------------------------------------- | -------------------- |
 | Sold    | You recorded a sale (before or after it left)                                   | No                   |
 | Deleted | The registration lookup says it isn't registered (the rule in storage-model.md) | No                   |
-| Expired | It left after its last known expiry date                                        | No                   |
+| Expired | It left after its last known expiry date (the `expires` on its `removed`)       | No                   |
 | Removed | It left before expiry, with no sale recorded                                    | Yes: Sold or Dismiss |
 
 - **Expired needs no review.** A name that leaves after its expiry date lapsed,
@@ -122,9 +125,9 @@ auto-renew off in DomBot also silently turns off Dynadot's reminder emails.
 Reading collapses both into `autoRenew: false`.
 
 Off means "won't renew automatically" and nothing more, so the library writes
-`reset` (manual renewal). DomBot never sets Do Not Renew. That's a
-registrar-client fix and release, then a bump here. Check live that `reset`
-doesn't fall back to an account-level auto-renew default.
+`reset` (manual renewal). DomBot never sets Do Not Renew. registrar-client
+0.10.1 writes `reset`, and DomBot depends on it. Still to check live: that
+`reset` doesn't fall back to an account-level auto-renew default.
 
 ## Storage and events
 
@@ -136,9 +139,12 @@ No migration concerns: get the model right while there are few users.
 - **Drop the Hidden folder.** Migration 5 deletes `__hidden__` assignments, so
   those names return to no folder. `HIDDEN_FOLDER_ID`, `isHiddenFolder` and
   `builtInFolderName` go, along with every special case for them.
-- **Nothing new is stored.** Expiring, Expired, Deleted and Sold-pending are
-  all worked out when shown. `ArchiveLabel` becomes
-  `sold | deleted | expired | removed`.
+- **Nothing new is stored but one field.** Expiring, Expired, Deleted and
+  Sold-pending are all worked out when shown. `ArchiveLabel` is
+  `sold | deleted | expired | removed`. Expired needs the expiry a name had
+  when it left, which no record keeps once it's gone, so sync writes it on
+  the `removed` (`expires`) when it had passed, and writes that removal
+  already dismissed: a lapse has nothing to review.
 - **History of your decision:** once every domain change writes an event
   ([#151](https://github.com/aoxborrow/dombot/issues/151)), turning auto-renew
   off shows up in the name's history. That's the record of when you let a name
@@ -171,9 +177,9 @@ No migration concerns: get the model right while there are few users.
 - Update [domain-import-export.md](domain-import-export.md), the sample and
   example CSVs, and `ImportStatus` in `src/shared/import-values.ts`.
 
-## Where it lands
+## How it landed
 
-One PR, in this order so each commit builds and passes:
+One PR, in this order:
 
 1. **Model.** Drop the two event types and the Hidden folder (migration 5,
    bundle v9); derive the Owned states and Archive labels
@@ -190,7 +196,7 @@ One PR, in this order so each commit builds and passes:
    (`src/renderer/api/demo.ts` marks a name dropped, which goes); the
    "Owned, Archive, and Hidden" and "Delete" sections of storage-model.md.
 
-The Dynadot change ships separately, in registrar-client.
+The Dynadot change shipped in registrar-client 0.10.1; this PR bumps it.
 
 Tests: migration 5, the Owned-state and Archive-label derivation (held,
 departed before and after expiry, lookup, sale pending, imported at and past
