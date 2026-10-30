@@ -7,7 +7,7 @@ import {
 } from '../storage/namespace';
 import { clearAll } from './cache';
 import { exportBundle, importBundle } from '../storage/bundle';
-import { listEvents } from './domain-events';
+import { listEvents, newEvent, putEvents } from './domain-events';
 import { getPurchases, setNotes, setPurchase, setSale } from './purchases';
 
 let store: MemoryDocStore;
@@ -20,6 +20,56 @@ beforeEach(async () => {
 });
 
 describe('purchases', () => {
+  it('stores fees on a sale, keeps them on an edit without them, and edits an earlier sale by id', () => {
+    const base = { domainName: 'a.com', notes: '', currency: 'USD' };
+    setSale({
+      ...base,
+      saleDate: '2024-01-02',
+      amount: '1000',
+      fees: '150',
+      mark: true,
+    });
+    expect(getPurchases()['a.com']).toMatchObject({
+      saleAmount: '1000.00',
+      saleFees: '150.00',
+    });
+    setSale({ ...base, saleDate: '2024-01-03', amount: '1200' });
+    expect(getPurchases()['a.com'].saleFees).toBe('150.00');
+    setSale({ ...base, saleDate: '2024-01-03', amount: '1200', fees: '' });
+    expect(getPurchases()['a.com'].saleFees).toBeUndefined();
+    expect(() =>
+      setSale({ ...base, saleDate: null, amount: '1', fees: '1.234' }),
+    ).toThrow();
+
+    // Bought back and sold again: the first sale is still editable.
+    const first = listEvents().find((e) => e.type === 'sold')!;
+    putEvents([
+      newEvent({
+        domain: 'a.com',
+        type: 'sold',
+        source: 'user',
+        date: '2025-01-01',
+        amount: '5000.00',
+        currency: 'USD',
+      }),
+    ]);
+    setSale({
+      ...base,
+      eventId: first.id,
+      saleDate: '2024-01-03',
+      amount: '1200',
+      fees: '0',
+    });
+    const sold = listEvents().filter((e) => e.type === 'sold');
+    expect(sold.map((e) => [e.amount, e.fees ?? null])).toEqual([
+      ['1200.00', '0.00'],
+      ['5000.00', null],
+    ]);
+    expect(() =>
+      setSale({ ...base, eventId: 'nope', saleDate: null, amount: '1' }),
+    ).toThrow('no longer recorded');
+  });
+
   it('records what an agent saves as the agent’s', () => {
     setPurchase(
       {

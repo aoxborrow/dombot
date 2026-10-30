@@ -217,6 +217,14 @@ export function cleanEvent(id: string, value: unknown): DomainEvent | null {
       return null;
     }
   }
+  if (v.fees !== undefined && v.fees !== null) {
+    if (!hasAmount || typeof v.fees !== 'string') return null;
+    try {
+      parseCanonicalAmount(v.fees, String(v.currency));
+    } catch {
+      return null;
+    }
+  }
   if (
     v.years !== undefined &&
     v.years !== null &&

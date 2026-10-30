@@ -413,6 +413,8 @@ export interface DomainPurchase {
   saleDate?: string | null;
   saleAmount?: string | null;
   saleCurrency?: string | null;
+  /** The sale's fees, in `saleCurrency`; null when unknown. */
+  saleFees?: string | null;
 }
 
 /** One purchase record to save or import. `domainName` is not stored on the record. */
@@ -440,9 +442,13 @@ export interface OwnershipItem {
 
 export interface SaleInput {
   domainName: string;
+  /** The `sold` event to edit, for a sale before the latest (a buyback). */
+  eventId?: string;
   saleDate: string | null;
   amount: string | null;
   currency: string | null;
+  /** Fees, in `currency`; blank is unknown. Omitted keeps what's stored. */
+  fees?: string | null;
   notes: string;
   /** The sync `removed` alert this answers; closes it. */
   resolves?: string;

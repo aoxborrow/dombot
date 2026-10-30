@@ -705,6 +705,7 @@ function moneyOf(key: string) {
             date: p.saleDate ?? null,
             amount: p.saleAmount ?? null,
             currency: p.saleCurrency ?? null,
+            fees: p.saleFees ?? null,
           }
         : null,
   };
@@ -1457,11 +1458,19 @@ export function registerTools(server: McpServer): void {
           .nullable()
           .optional()
           .describe('ISO 4217 code, e.g. "USD". Required with an amount.'),
+        fees: z
+          .string()
+          .max(40)
+          .nullable()
+          .optional()
+          .describe(
+            'What the sale cost (commission, escrow, broker), a decimal in `currency`; "0" for none, null for unknown (default: unchanged).',
+          ),
         resolves: resolvesParam,
       },
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
-    async ({ domain, date, amount, currency, resolves }) => {
+    async ({ domain, date, amount, currency, fees, resolves }) => {
       const key = assertInPortfolio(domain);
       const existing = holdings().get(key)?.sale;
       // Edit the sale that has the name in Archive as Sold, so a repeated call
@@ -1477,6 +1486,7 @@ export function registerTools(server: McpServer): void {
           saleDate: date ?? (isNew ? localDay() : existing.date),
           amount: amount ?? null,
           currency: currency ?? null,
+          ...(fees !== undefined ? { fees } : {}),
           notes: getPurchases()[key]?.notes ?? '',
           ...(isNew ? { mark: true, resolves } : {}),
         },

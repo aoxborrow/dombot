@@ -136,9 +136,10 @@ export interface SellThrough {
  * How much of the listed portfolio sold in the last 12 months: completed
  * sales over the names listed now plus the ones that sold (they've left the
  * listings). An estimate: listings that came and went unsold aren't known.
+ * `sales` can be market sales or every sale record (src/shared/sales.ts).
  */
 export function sellThrough(
-  sales: readonly MarketSale[],
+  sales: readonly Pick<MarketSale, 'name' | 'status' | 'soldOn'>[],
   listings: readonly MarketListing[],
   today: string,
 ): SellThrough {
