@@ -239,28 +239,20 @@ describe('dueWithin', () => {
     const usd = domain({
       domainName: 'usd.com',
       renewalDate: new Date('2026-06-20'),
-      autoRenew: true,
     });
     const eur = domain({
       domainName: 'eur.de',
       renewalDate: new Date('2026-06-21'),
     });
-    const off = domain({
-      domainName: 'off.com',
-      renewalDate: new Date('2026-06-22'),
-      autoRenew: false,
-    });
     const [eurKey, eurPrice] = price(eur, 45);
     const pricing = {
-      ...Object.fromEntries([price(usd, 12), price(off, 8)]),
+      ...Object.fromEntries([price(usd, 12)]),
       [eurKey]: { ...eurPrice, currency: 'EUR' },
     };
 
-    // The auto-renewing part beside the total; the rest has auto-renew off.
-    expect(dueWithin([usd, eur, off], pricing, 30)).toEqual({
-      count: 3,
-      yearly: 20,
-      yearlyAutoRenew: 12,
+    expect(dueWithin([usd, eur], pricing, 30)).toEqual({
+      count: 2,
+      yearly: 12,
       others: [{ currency: 'EUR', count: 1, yearly: 45 }],
     });
     const jun = upcomingByMonth([usd, eur], pricing, 1)[0];

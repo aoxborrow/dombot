@@ -109,15 +109,14 @@ name's row menu ends at Mark as Sold, with no red item.
 
 ## Renewals
 
-Counts Owned names, minus Sold ones. It already computes both halves
-(`yearly` and `yearlyAutoRenew` in `src/renderer/lib/renewals.ts`); the change
-is labeling them: **Auto-renewing** and **Auto-renew off** ("renews only if you
-renew it"). Due next 90 days splits the same way. Archive names are never
-counted, so the current bug goes away by construction.
+Counts Owned names, minus Sold ones. Archive names are never counted, so the
+current bug goes away by construction.
 
-A switch beside the Account filter picks **All** or **Auto-renewing**: the
-second leaves out every name with auto-renew off, so the whole page (totals,
-months, donuts) shows only what renews on its own.
+A switch picks **All**, **Auto-renewing** or **Manual** (auto-renew off, or
+unknown for a name you added: it renews only if you renew it), and the whole
+page (totals, months, donuts) follows it. Beside it, a multi-select
+**Registrar** filter works like the Domains one: one option per account,
+then the registrars of the names you added (`src/renderer/lib/registrar-filter.tsx`).
 
 ## Dynadot: off is manual renewal
 

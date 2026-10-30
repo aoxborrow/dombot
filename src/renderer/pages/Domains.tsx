@@ -1,5 +1,10 @@
 import { accountNumber, accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
+import {
+  importedRegistrarName,
+  registrarFilterOptions,
+  registrarFilterValue,
+} from '../lib/registrar-filter';
 import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -141,7 +146,6 @@ import {
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { paginate, sortRows } from '../components/data-table/table-state';
 import { dateRangeField } from '../components/data-table/DateRangeFilter';
-import { type FilterOption } from '../components/data-table/Toolbar';
 import { type FilterField } from '../components/data-table/FilterBar';
 import {
   NO_PRICING_FILTER,
@@ -202,22 +206,6 @@ interface Column {
 }
 
 /** Everything after the first dot, e.g. "example.co.uk" → "co.uk". */
-/**
- * Registrar filter value for a name you added that no account reports: one
- * per registrar name (so a known "gandi" and a typed "Gandi.net" meet), and
- * "imported:" alone for names with no registrar (Unknown).
- */
-function importedRegistrarValue(label: string): string {
-  return `imported:${label.trim().toLowerCase()}`;
-}
-
-/** An imported name's registrar as shown: DomBot's name for it, or your text. */
-function importedRegistrarName(d: Domain, labels: RegistrarLabels): string {
-  return d.registrar
-    ? registrarLabel(d.registrar, labels)
-    : (d.importedRegistrarLabel ?? '');
-}
-
 /** Distinct names among rows (a name two accounts hold is one row in a CSV). */
 function nameCount(rows: Domain[]): number {
   return new Set(rows.map((d) => toAscii(d.domainName))).size;
@@ -1292,65 +1280,17 @@ export default function Domains() {
       count,
     })).sort((a, b) => a.value.localeCompare(b.value));
   }, [ownedRows]);
-  // One option per account (keyed by account id), so accounts of the same
-  // registrar can be filtered apart or, by multi-selecting, together. Labelled
-  // "Registrar · nickname" / "Registrar #2" / "Registrar". Then, past a line,
-  // the names you added, by the registrar you gave them (a faint building, no
-  // logo, as no account backs them), with Unknown last.
-  const registrarOptions = useMemo(() => {
-    const acc = new Map<
-      string,
-      { label: string; registrar: string; count: number }
-    >();
-    for (const d of portfolio) {
-      const value = d.accountId ?? d.registrar;
-      const existing = acc.get(value);
-      if (existing) existing.count += 1;
-      else
-        acc.set(value, {
-          label: accountTitle(
-            registrarLabel(d.registrar, portfolioRegistrarLabels),
-            d.accountLabel,
-            multipleAccounts.has(d.registrar),
-          ),
-          registrar: d.registrar,
-          count: 1,
-        });
-    }
-    const accounts = Array.from(acc, ([value, v]) => ({
-      value,
-      label: v.label,
-      count: v.count,
-      icon: (
-        <RegistrarLogo
-          name={v.registrar as RegistrarName}
-          label={v.label}
-          className="size-4"
-        />
+  // One option per account, then the registrars of the names you added
+  // (lib/registrar-filter.tsx, shared with Renewals).
+  const registrarOptions = useMemo(
+    () =>
+      registrarFilterOptions(
+        [...portfolio, ...ownedImported],
+        portfolioRegistrarLabels,
+        multipleAccounts,
       ),
-    })).sort((a, b) => a.label.localeCompare(b.label));
-    const imported = new Map<string, { label: string; count: number }>();
-    for (const d of ownedImported) {
-      const label = importedRegistrarName(d, portfolioRegistrarLabels);
-      const value = importedRegistrarValue(label);
-      const existing = imported.get(value);
-      if (existing) existing.count += 1;
-      else imported.set(value, { label: label || 'Unknown', count: 1 });
-    }
-    const unknown = importedRegistrarValue('');
-    const added: FilterOption[] = Array.from(imported, ([value, v]) => ({
-      value,
-      label: v.label,
-      count: v.count,
-      icon: <ImportedRegistrarIcon />,
-    })).sort(
-      (a, b) =>
-        Number(a.value === unknown) - Number(b.value === unknown) ||
-        a.label.localeCompare(b.label),
-    );
-    if (accounts.length > 0 && added.length > 0) added[0].divider = true;
-    return [...accounts, ...added];
-  }, [portfolio, ownedImported, portfolioRegistrarLabels, multipleAccounts]);
+    [portfolio, ownedImported, portfolioRegistrarLabels, multipleAccounts],
+  );
 
   // Nameserver groups (by base domain, with per-provider splits) plus the set of
   // groups each domain belongs to. Derived from `merged`, so it fills in as
@@ -1786,13 +1726,7 @@ export default function Domains() {
       // the names you added by their registrar.
       if (
         registrar.length > 0 &&
-        !registrar.includes(
-          d.source === 'imported'
-            ? importedRegistrarValue(
-                importedRegistrarName(d, portfolioRegistrarLabels),
-              )
-            : (d.accountId ?? d.registrar),
-        )
+        !registrar.includes(registrarFilterValue(d, portfolioRegistrarLabels))
       )
         return false;
       // Nameservers: keep a domain in ANY selected nameserver group.

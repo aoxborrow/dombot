@@ -1,11 +1,12 @@
-import { accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { useMemo, useState } from 'react';
 import {
+  Building2,
   CalendarClock,
   CircleDollarSign,
   Globe,
+  Hand,
   IterationCw,
   Layers,
 } from 'lucide-react';
@@ -15,7 +16,15 @@ import { toAscii } from '../../shared/domain-name';
 import { ownershipByDomain, standingOf } from '../../shared/ownership';
 import { useAppStore } from '../store/app';
 import { StatCard } from '../components/StatCard';
-import { ToolbarSwitch } from '../components/data-table/FilterToolbar';
+import {
+  ToolbarSwitch,
+  listField,
+} from '../components/data-table/FilterToolbar';
+import { FilterBar } from '../components/data-table/FilterBar';
+import {
+  registrarFilterOptions,
+  registrarFilterValue,
+} from '../lib/registrar-filter';
 import {
   dueWithin,
   groupBy,
@@ -147,80 +156,103 @@ export default function Renewals() {
       return !st.archived && !st.salePending;
     });
   }, [syncedDomains, importedDomains, domainEvents, registrationLookups]);
-  const [account, setAccount] = useState('all');
   const accounts = useAppStore((s) => s.registrars);
   const multipleAccounts = useMemo(
     () => multiAccountRegistrars(accounts, allDomains),
     [accounts, allDomains],
   );
-  const showAccountDetails = multipleAccounts.size > 0;
-  const inAccount = useMemo(
+  // The Registrar filter, as on Domains: accounts, then the registrars of
+  // the names you added; several at once. Counts are over every name.
+  const [registrar, setRegistrar] = useState<string[]>([]);
+  const inRegistrar = useMemo(
     () =>
-      !showAccountDetails || account === 'all'
+      registrar.length === 0
         ? allDomains
-        : allDomains.filter((d) => (d.accountId ?? d.registrar) === account),
-    [allDomains, account, showAccountDetails],
+        : allDomains.filter((d) =>
+            registrar.includes(
+              registrarFilterValue(d, portfolioRegistrarLabels),
+            ),
+          ),
+    [allDomains, registrar, portfolioRegistrarLabels],
   );
-  // Every name, or only the ones that renew on their own: names with
-  // auto-renew off renew only if you renew them.
-  const [autoOnly, setAutoOnly] = useState(false);
+  const registrarField = listField(
+    {
+      key: 'registrar',
+      label: 'Registrar',
+      icon: Building2,
+      options: registrarFilterOptions(
+        allDomains,
+        portfolioRegistrarLabels,
+        multipleAccounts,
+      ),
+      selected: registrar,
+      plural: 'registrars',
+    },
+    setRegistrar,
+  );
+  // Every name, only the ones that renew on their own, or only the ones you
+  // renew by hand (auto-renew off, or unknown for a name you added).
+  const [renewing, setRenewing] = useState<'all' | 'auto' | 'manual'>('all');
+  const autoRenews = (d: Domain) => d.autoRenew && !d.autoRenewUnknown;
   const autoRenewing = useMemo(
-    () => inAccount.filter((d) => d.autoRenew && !d.autoRenewUnknown),
-    [inAccount],
+    () => inRegistrar.filter(autoRenews),
+    [inRegistrar],
   );
-  const portfolio = autoOnly ? autoRenewing : inAccount;
-  const renewSwitch = (
-    <ToolbarSwitch
-      label="Which renewals to count"
-      options={[
-        {
-          id: 'all',
-          label: 'All',
-          icon: Layers,
-          count: inAccount.length,
-          active: !autoOnly,
-          onClick: () => setAutoOnly(false),
-        },
-        {
-          id: 'auto',
-          label: 'Auto-renewing',
-          icon: IterationCw,
-          count: autoRenewing.length,
-          active: autoOnly,
-          onClick: () => setAutoOnly(true),
-        },
-      ]}
-    />
+  const manual = useMemo(
+    () => inRegistrar.filter((d) => !autoRenews(d)),
+    [inRegistrar],
   );
-  const accountFilter = showAccountDetails && (
-    <label className="flex items-center gap-3 text-sm">
-      Account
-      <select
-        aria-label="Account"
-        className="rounded-md border bg-background px-3 py-2"
-        value={account}
-        onChange={(e) => setAccount(e.target.value)}
-      >
-        <option value="all">All accounts</option>
-        {accounts
-          ?.filter((r) => r.configured && r.enabled)
-          .map((r) => (
-            <option key={r.accountId ?? r.name} value={r.accountId ?? r.name}>
-              {accountTitle(
-                r.displayName,
-                r.accountLabel,
-                multipleAccounts.has(r.name),
-              )}
-            </option>
-          ))}
-      </select>
-    </label>
+  const portfolio =
+    renewing === 'auto'
+      ? autoRenewing
+      : renewing === 'manual'
+        ? manual
+        : inRegistrar;
+  const toolbar = (
+    <div className="flex flex-wrap items-center gap-3.5">
+      <ToolbarSwitch
+        label="Which renewals to count"
+        options={[
+          {
+            id: 'all',
+            label: 'All',
+            icon: Layers,
+            count: inRegistrar.length,
+            active: renewing === 'all',
+            onClick: () => setRenewing('all'),
+          },
+          {
+            id: 'auto',
+            label: 'Auto-renewing',
+            icon: IterationCw,
+            count: autoRenewing.length,
+            active: renewing === 'auto',
+            onClick: () => setRenewing('auto'),
+          },
+          {
+            id: 'manual',
+            label: 'Manual',
+            icon: Hand,
+            count: manual.length,
+            active: renewing === 'manual',
+            onClick: () => setRenewing('manual'),
+          },
+        ]}
+      />
+      <FilterBar
+        id="renewals"
+        fields={[registrarField]}
+        presets={['registrar']}
+        variant="flat"
+      />
+    </div>
   );
-  // The switch narrows what's counted, not whether there's a portfolio.
+  // The switch and the filter narrow what's counted, not whether there's a
+  // portfolio.
   const hasPortfolio =
-    inAccount.length > 0 &&
+    allDomains.length > 0 &&
     (portfolioLoadedAt !== null ||
-      inAccount.some((d) => d.source === 'imported'));
+      allDomains.some((d) => d.source === 'imported'));
   const hasPricing = Object.keys(pricing).length > 0;
   // Pricing is computed locally in main and arrives with the portfolio (and is
   // re-read after each Sync), so "loading" is just the brief gap before it lands.
@@ -298,7 +330,6 @@ export default function Renewals() {
     return (
       <div className="mx-auto w-full max-w-[1400px]">
         <PageHeader loading={pricingLoading} summary={summary} />
-        {accountFilter}
         <Empty className="mt-6 rounded-lg border border-dashed">
           <EmptyHeader>
             <EmptyTitle>No portfolio loaded</EmptyTitle>
@@ -313,20 +344,11 @@ export default function Renewals() {
   }
 
   const monthly = summary.yearly / 12;
-  // The auto-renewing and auto-renew off halves; nothing to split when the
-  // switch already counts only auto-renewing names.
-  const split = (auto: number, total: number) =>
-    autoOnly
-      ? ''
-      : ` · ${usd(auto)} auto-renewing, ${usd(total - auto)} auto-renew off`;
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
       <PageHeader loading={pricingLoading} summary={summary} />
-      <div className="flex flex-wrap items-center gap-4">
-        {renewSwitch}
-        {accountFilter}
-      </div>
+      {toolbar}
 
       {/* Totals */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -344,19 +366,16 @@ export default function Renewals() {
           accentClass="text-brand-500"
           label="Yearly renewals"
           value={usd(summary.yearly)}
-          hint={`${usd(monthly)}/mo${split(summary.yearlyAutoRenew, summary.yearly)}${
-            othersNote ? ` · ${othersNote}` : ''
-          }`}
+          hint={`${usd(monthly)}/mo${othersNote ? ` · ${othersNote}` : ''}`}
         />
         <StatCard
           icon={CalendarClock}
           accentClass="text-amber-500"
           label="Due next 90 days"
           value={usd(due90.yearly)}
-          hint={`${due90.count} domain${due90.count === 1 ? '' : 's'}${split(
-            due90.yearlyAutoRenew,
-            due90.yearly,
-          )}${due90.others.length ? ` · ${plusOthers(due90.others)}` : ''}`}
+          hint={`${due90.count} domain${due90.count === 1 ? '' : 's'} renewing${
+            due90.others.length ? ` · ${plusOthers(due90.others)}` : ''
+          }`}
         />
       </div>
 
