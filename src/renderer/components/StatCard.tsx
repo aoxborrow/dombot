@@ -42,8 +42,7 @@ export function StatCard({
   onClick,
 }: {
   icon: LucideIcon;
-  /** Tailwind text-color for the icon (and the tile's tint), e.g.
-   * "text-brand-500". */
+  /** Tailwind text-color for the icon, e.g. "text-brand-500". */
   accentClass: string;
   /** Adjusts the old cut-off corner icon, e.g. smaller so a bell's clapper
    * shows. */
@@ -70,29 +69,23 @@ export function StatCard({
       'transition-colors hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
   );
   const icon =
-    look === 'ghost' ? (
+    look !== 'watermark' ? (
       <Icon
         className={cn(
-          // Faded as a group, like the watermark. Narrow: small in the
-          // top-right corner, the number running over it. Wide: 40px,
-          // centred on the right, the text cut short before it.
-          'pointer-events-none absolute top-[5px] right-[5px] size-[22px] opacity-40 [stroke-width:1.75] sm:top-1.5 sm:right-1.5 sm:size-6',
-          '@min-[210px]:top-1/2 @min-[210px]:right-2.5 @min-[210px]:size-10 @min-[210px]:-translate-y-1/2 @min-[210px]:opacity-45 @min-[210px]:[stroke-width:1.5]',
+          // Faded as a group, like the watermark. Wide: 40px, centred on the
+          // right, the text cut short before it.
+          'pointer-events-none absolute @min-[210px]:top-1/2 @min-[210px]:right-2.5 @min-[210px]:size-10 @min-[210px]:-translate-y-1/2 @min-[210px]:[stroke-width:1.5]',
+          look === 'ghost'
+            ? // Narrow: small in the top-right corner, the number running
+              // over it.
+              'top-[5px] right-[5px] size-[22px] opacity-40 [stroke-width:1.75] sm:top-1.5 sm:right-1.5 sm:size-6 @min-[210px]:opacity-45'
+            : // Dimmer than the ghost; a narrow card has only a glyph
+              // before its label instead.
+              'hidden opacity-25 @min-[210px]:block',
           accentClass,
         )}
         aria-hidden
       />
-    ) : look === 'tile' ? (
-      // Wide only; a narrow card puts a glyph before its label instead.
-      <span
-        className={cn(
-          'pointer-events-none absolute top-1/2 left-2 hidden size-[38px] -translate-y-1/2 items-center justify-center rounded-[9px] bg-current/10 inset-ring inset-ring-current/20 @min-[210px]:flex dark:bg-current/15 dark:inset-ring-current/25',
-          accentClass,
-        )}
-        aria-hidden
-      >
-        <Icon className="size-[22px]" strokeWidth={1.75} />
-      </span>
     ) : (
       <Icon
         className={cn(
@@ -114,11 +107,7 @@ export function StatCard({
     <>
       {icon}
       <div
-        className={cn(
-          'relative',
-          look === 'ghost' && '@min-[210px]:mr-11',
-          look === 'tile' && '@min-[210px]:ml-12 sm:@min-[210px]:ml-11',
-        )}
+        className={cn('relative', look !== 'watermark' && '@min-[210px]:mr-11')}
       >
         <div
           className={cn(
@@ -128,11 +117,11 @@ export function StatCard({
               : sm
                 ? 'text-[11px] text-foreground/75 sm:text-xs'
                 : 'text-[15px] text-foreground/75',
-            look === 'tile' &&
+            look === 'glyph' &&
               'flex items-center gap-1 sm:gap-[5px] @min-[210px]:block',
           )}
         >
-          {look === 'tile' && (
+          {look === 'glyph' && (
             <Icon
               className={cn(
                 'size-[11px] shrink-0 sm:size-3 @min-[210px]:hidden',
@@ -142,7 +131,7 @@ export function StatCard({
               aria-hidden
             />
           )}
-          {look === 'tile' ? <span className="truncate">{label}</span> : label}
+          {look === 'glyph' ? <span className="truncate">{label}</span> : label}
         </div>
         <div
           className={cn(

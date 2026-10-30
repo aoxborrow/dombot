@@ -3,7 +3,11 @@ import { setCardStyle, useCardStyle, type CardStyle } from '../lib/card-style';
 
 const OPTIONS: { value: CardStyle; label: string; title: string }[] = [
   { value: 'ghost', label: 'F', title: 'Card icons: faded, whole (F)' },
-  { value: 'tile', label: 'G', title: 'Card icons: tile on the left (G)' },
+  {
+    value: 'glyph',
+    label: 'G',
+    title: 'Card icons: glyph by the label, dimmer when wide (G)',
+  },
   { value: 'watermark', label: 'Old', title: 'Card icons: cut-off corner' },
 ];
 

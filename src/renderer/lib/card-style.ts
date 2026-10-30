@@ -4,10 +4,11 @@ import { useSyncExternalStore } from 'react';
  * How the small stat cards show their icon, while we choose between two
  * looks (temporary; one goes once picked). 'ghost': a faded icon, whole,
  * on the right of a wide card and small in the top-right corner of a narrow
- * one. 'tile': a tinted tile on the left of a wide card, a glyph before the
- * label in a narrow one. 'watermark': the old big icon cut off by the corner.
+ * one. 'glyph': a dimmer faded icon on the right of a wide card, a glyph
+ * before the label in a narrow one. 'watermark': the old big icon cut off by
+ * the corner.
  */
-export type CardStyle = 'ghost' | 'tile' | 'watermark';
+export type CardStyle = 'ghost' | 'glyph' | 'watermark';
 
 const STORAGE_KEY = 'dombot-card-style';
 const listeners = new Set<() => void>();
@@ -15,7 +16,7 @@ const listeners = new Set<() => void>();
 function readStored(): CardStyle {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    if (v === 'ghost' || v === 'tile' || v === 'watermark') return v;
+    if (v === 'ghost' || v === 'glyph' || v === 'watermark') return v;
   } catch {
     // localStorage may be unavailable; fall back to the default.
   }
