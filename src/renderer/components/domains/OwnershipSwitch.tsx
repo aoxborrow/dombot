@@ -1,39 +1,59 @@
-import { Archive, Globe } from 'lucide-react';
+import { Archive, Globe, Store } from 'lucide-react';
 import { ToolbarSwitch } from '../data-table/FilterToolbar';
+import type { DomainsView } from './DomainsCards';
 
-/** Active vs Archive (names you no longer own), leading the filter toolbar. */
+/**
+ * Active, Listings (the same names with their market columns; once a market
+ * account is connected) and Archive (names you no longer own), leading the
+ * filter toolbar.
+ */
 export function OwnershipSwitch({
-  archive,
+  view,
   ownedCount,
   archiveCount,
-  onOwned,
-  onArchive,
+  listings,
+  onView,
 }: {
-  archive: boolean;
+  view: DomainsView;
   ownedCount: number;
   archiveCount: number;
-  onOwned: () => void;
-  onArchive: () => void;
+  /** Whether Listings is offered. */
+  listings: boolean;
+  onView: (view: DomainsView) => void;
 }) {
   return (
     <ToolbarSwitch
-      label="Active domains or archived domains"
+      label="Active domains, their market listings, or archived domains"
+      // Three don't fit a phone with their counts.
+      className={listings ? 'max-sm:[&_.tabular-nums]:hidden' : undefined}
       options={[
         {
-          id: 'owned',
+          id: 'active',
           label: 'Active',
           icon: Globe,
           count: ownedCount,
-          active: !archive,
-          onClick: onOwned,
+          active: view === 'active',
+          onClick: () => onView('active'),
         },
+        ...(listings
+          ? [
+              {
+                id: 'listings',
+                label: 'Listings',
+                icon: Store,
+                count: ownedCount,
+                active: view === 'listings',
+                onClick: () => onView('listings'),
+              },
+            ]
+          : []),
         {
           id: 'archive',
           label: 'Archive',
           icon: Archive,
           count: archiveCount,
-          active: archive,
-          onClick: onArchive,
+          active: view === 'archive',
+          onClick: () => onView('archive'),
         },
       ]}
     />

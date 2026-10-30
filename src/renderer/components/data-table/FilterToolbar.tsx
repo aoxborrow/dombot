@@ -42,9 +42,11 @@ function small(Icon: LucideIcon) {
 export function ToolbarSwitch({
   label,
   options,
+  className,
 }: {
   /** Accessible name for the group. */
   label: string;
+  className?: string;
   options: {
     id: string;
     label: string;
@@ -59,7 +61,10 @@ export function ToolbarSwitch({
       label={label}
       // Tighter round the smaller icon (a pixel off each side), and squarer
       // corners where the segments meet; the outer ones stay round.
-      className="[&_[role=radio]]:gap-[7px] [&_[role=radio]]:pl-[11px] [&_[role=radio]:not(:first-child)]:rounded-l-[2px] [&_[role=radio]:not(:last-child)]:rounded-r-[2px]"
+      className={cn(
+        '[&_[role=radio]]:gap-[7px] [&_[role=radio]]:pl-[11px] [&_[role=radio]:not(:first-child)]:rounded-l-[2px] [&_[role=radio]:not(:last-child)]:rounded-r-[2px]',
+        className,
+      )}
       options={options.map((o) => ({
         ...o,
         label: <SmallCaps>{o.label}</SmallCaps>,

@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MarketLogo } from '../RegistrarLogo';
 import {
   EditableEmpty,
   EDITABLE_VALUE,
@@ -33,6 +34,7 @@ import {
 // shows up here with no changes.
 
 export const MARKET_COLUMN_KEYS = new Set([
+  'listed',
   'listing',
   'fastTransfer',
   'views',
@@ -42,8 +44,9 @@ export const MARKET_COLUMN_KEYS = new Set([
 
 /**
  * Listings get a column per connected market, `listing:afternic` and so on,
- * in the slot the layouts call `listing`. (A Markets-page table with every
- * market side by side may follow; a table cell holds one line.)
+ * in the slot the layouts call `listing`: the Listings view's columns. Active
+ * has the one `listed` column instead, a logo per market, so it stays the
+ * same width however many markets are connected.
  */
 export const listingColumnKey = (market: string) => `listing:${market}`;
 
@@ -148,6 +151,13 @@ function cellState(
   };
 }
 
+/** A listing's price minus your DomBot BIN price; 0 when equal or unknown. */
+function priceDiff(l: MarketListing, mine: ListPrice | undefined): number {
+  return mine?.amount != null && l.price != null && mine.currency === l.currency
+    ? Number(l.price) - Number(mine.amount)
+    : 0;
+}
+
 function describe(
   l: MarketListing,
   markets: MarketInfo[],
@@ -240,10 +250,7 @@ export function marketColumns({
       if (!l) return onEditListing ? <EditableEmpty /> : dash;
       // Compare with the asking price you set in DomBot.
       const mine = listPrices[toAscii(d.domainName)];
-      const diff =
-        mine?.amount != null && l.price != null && mine.currency === l.currency
-          ? Number(l.price) - Number(mine.amount)
-          : 0;
+      const diff = priceDiff(l, mine);
       const state = cellState(l, diff);
       const title = [
         describe(l, markets, (a) => money(a, l.currency)),
@@ -308,7 +315,56 @@ export function marketColumns({
     };
   };
 
+  // Active's one market column: each market the name is on, as its logo in
+  // the colour of the listing cell's icon. The tooltip has each listing.
+  const listed: PurchaseColumn = {
+    key: 'listed',
+    label: 'Listed',
+    hideOnMobile: true,
+    render: (d) => {
+      const mine = listPrices[toAscii(d.domainName)];
+      const on = listingMarkets
+        .map((m) => of(d).find((l) => l.market === m))
+        .filter((l): l is MarketListing => !!l);
+      if (!on.length) return dash;
+      return (
+        <span
+          className="flex items-center gap-1.5"
+          title={on
+            .map((l) => describe(l, markets, (a) => money(a, l.currency)))
+            .join('\n')}
+        >
+          {on.map((l) => {
+            const state = cellState(l, priceDiff(l, mine));
+            return (
+              <MarketLogo
+                key={l.market}
+                market={l.market}
+                label={`${marketName(markets, l.market)}: ${state.label}`}
+                className={cn(
+                  'size-4',
+                  state.className,
+                  state.faded && l.status !== 'rejected' && 'opacity-50',
+                )}
+              />
+            );
+          })}
+        </span>
+      );
+    },
+    // Most markets selling it first.
+    sortValue: (d) => {
+      const n = of(d).filter((l) => listingMarkets.includes(l.market));
+      if (!n.length) return null;
+      return (
+        n.filter((l) => l.status === 'active' && l.forSale).length +
+        n.length / 100
+      );
+    },
+  };
+
   return [
+    listed,
     ...listingMarkets.map(listingColumn),
     {
       key: 'fastTransfer',

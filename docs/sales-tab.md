@@ -10,6 +10,11 @@ attention list. Sales by month was dropped with the Overview. Open questions 1â€
 the tab shows with an empty state; sell-through keeps names listed as its
 denominator; the Domains cards hide on phones.
 
+Later the same PR split Domains into Active, Listings and Archive views,
+each with its own cards (docs/markets.md, "Domains table and actions"), so
+the Domains cards described below (Listed, Sold, Net, Views) no longer
+exist; Sold and Net live only on the Sales tab.
+
 Plan (2026-10-29) to replace the Markets tab with a **Sales** tab, move
 per-name interest into the Domains table, and give Domains a few summary
 cards. Builds on the market work in PR #207 (docs/markets.md) and takes the

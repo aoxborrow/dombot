@@ -338,9 +338,27 @@ saved, so the Domains table shows it before the next sync.
 
 ## Domains table and actions
 
-- **A listing column per connected market** (Afternic, Atom, Sedo, …), in the slot
-  saved layouts call `listing`, so a name listed on two markets stays on one
-  line: the market's price (or "Offers") right-aligned in grey, and one
+Once a market account is connected, Domains has three views: **Active**,
+**Listings** and **Archive** (`?view=listings`, `?view=archive`). Active and
+Listings show the same names, the ones you hold, with different columns:
+
+- **Active** keeps one **Listed** column for the markets, each market's logo
+  in the colour its listing cell's icon would have (below), so it stays the
+  same width however many markets are connected. It has no per-market or
+  interest columns.
+- **Listings** has a column per market, Views, Leads and Searches, and
+  leaves the registration settings out (renewal, auto-renew, privacy, lock,
+  nameservers); Registrar and Expiration can be turned on. The Markets
+  filter is always on its toolbar.
+- Each view saves its own columns. Switching keeps the filters both views
+  have; Auto-renew and Created are Active only.
+
+The heading names the view ("Domains ACTIVE"), since the switch sits below
+the cards.
+
+- **A listing column per connected market** (Afternic, Atom, Sedo, …) in
+  Listings, in the slot saved layouts call `listing`, so a name listed on
+  two markets stays on one line: the market's price (or "Offers") right-aligned in grey, and one
   status icon at the left: a soft check when live at your DomBot price, an
   amber circled arrow up or down when the market's price is above or below
   it, an eye-slash for visibility you control (inactive or hidden), a grey
@@ -379,16 +397,27 @@ saved, so the Domains table shows it before the next sync.
 - Both sit directly beside Pricing in the row menu and the bulk bar; a
   Markets submenu returns when these menus are split into submenus.
 
-- **Views, Leads and Searches over 12 months** (hidden at first; the
-  Columns picker shows them), sortable, Leads breaking ties on Views: the
-  names buyers look at most. Views and leads add every market up
-  (`getMarketTraffic().domains`); Searches are GoDaddy's, sent only to
-  Discount Domain Club Domain Pro members, as its header's note says.
-- **Summary cards** above the Owned table, once a market account is
-  connected or any sale exists (hidden on phones): Listed (sets the Markets
-  filter), Sold and Net over 12 months (open the Sales tab; every sale, not
-  only market ones), Views over 30 days. Domains reads the Markets and
-  Pricing filters from its URL (`src/renderer/lib/domains-link.ts`).
+- **Views, Leads and Searches over 12 months** in Listings, sortable,
+  Leads breaking ties on Views: the names buyers look at most. Views and
+  leads add every market up (`getMarketTraffic().domains`); Searches are
+  GoDaddy's, sent only to Discount Domain Club Domain Pro members, as its
+  header's note says.
+- **Cards** above the table, one set per view (hidden on phones), adding up
+  the names the table shows as filtered; one line under them says so. A
+  card that matches a filter sets it.
+  - Active: Domains, Expiring in 30 days (sets Expiration), Renewals per
+    year, Auto-renew off (sets Auto-renew), BIN priced.
+  - Listings: Listed (live on a market), Not listed, Pending, Issues
+    (rejected or inactive), each setting the Markets filter's status; Views
+    and Leads over 12 months. They count the markets the Markets filter
+    picks, so filtering to one market gives that market's numbers, its
+    own traffic included (`getMarketTraffic().byMarket`).
+  - Archive: Sold, Deleted, Expired, Removed (each sets Status).
+- Domains reads its view and the Markets and Pricing filters from the URL
+  (`src/renderer/lib/domains-link.ts`).
+- No offers or individual leads: Afternic's API dropped its per-name offer
+  count on 2026-10-28 and has only daily lead counts (docs/afternic-api.md),
+  and Sedo and Atom send none either.
 
 ## Sales tab
 
