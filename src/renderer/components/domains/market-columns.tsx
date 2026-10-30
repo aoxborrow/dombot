@@ -331,7 +331,7 @@ export function marketColumns({
         listing: of(d).find((l) => l.market === m),
       }));
       return (
-        <span className="flex items-center gap-0.5">
+        <span className="flex items-center gap-1.5">
           {slots.map(({ market, listing }) => {
             const state =
               listing && cellState(listing, priceDiff(listing, mine));
@@ -347,7 +347,9 @@ export function marketColumns({
                     ? 'text-muted-foreground/30 group-hover:text-muted-foreground/70'
                     : state.faded && listing.status !== 'rejected'
                       ? [state.className, 'opacity-50 group-hover:opacity-90']
-                      : [state.className, 'group-hover:brightness-150'],
+                      : // Opacity, not brightness: a brighter amber or red
+                        // turns muddy.
+                        [state.className, 'opacity-80 group-hover:opacity-100'],
                 )}
               />
             );
@@ -356,7 +358,7 @@ export function marketColumns({
               : `${name}: Not listed`;
             if (!onEditListing)
               return (
-                <span key={market} className="p-0.5" title={title}>
+                <span key={market} className="flex" title={title}>
                   {logo}
                 </span>
               );
@@ -368,7 +370,9 @@ export function marketColumns({
                 // button, and there are several here.
                 title={`${title}\nClick to ${listing ? 'edit the listing' : `list it on ${name}`}`}
                 aria-label={`${listing ? 'Edit' : 'Add'} ${name} listing for ${d.domainName}`}
-                className="group cursor-pointer rounded-sm p-0.5 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                // A flex box with its padding cancelled out, so it's no
+                // taller than the logo and the row keeps its height.
+                className="group -m-0.5 flex cursor-pointer rounded-sm p-0.5 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                 onClick={() => onEditListing(d, market)}
               >
                 {logo}
