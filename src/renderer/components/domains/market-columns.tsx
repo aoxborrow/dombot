@@ -340,16 +340,14 @@ export function marketColumns({
               <MarketLogo
                 market={market}
                 label={`${name}: ${state?.label ?? 'Not listed'}`}
+                // A hover brightens the logo; there's no cell highlight.
                 className={cn(
-                  'size-4',
+                  'size-4 transition',
                   !state
-                    ? 'text-muted-foreground/30'
-                    : [
-                        state.className,
-                        state.faded &&
-                          listing.status !== 'rejected' &&
-                          'opacity-50',
-                      ],
+                    ? 'text-muted-foreground/30 group-hover:text-muted-foreground/70'
+                    : state.faded && listing.status !== 'rejected'
+                      ? [state.className, 'opacity-50 group-hover:opacity-90']
+                      : [state.className, 'group-hover:brightness-150'],
                 )}
               />
             );
@@ -366,10 +364,11 @@ export function marketColumns({
               <button
                 key={market}
                 type="button"
-                data-cell-action
+                // Not data-cell-action: that makes the whole cell one
+                // button, and there are several here.
                 title={`${title}\nClick to ${listing ? 'edit the listing' : `list it on ${name}`}`}
                 aria-label={`${listing ? 'Edit' : 'Add'} ${name} listing for ${d.domainName}`}
-                className="cursor-pointer rounded-sm p-0.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                className="group cursor-pointer rounded-sm p-0.5 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                 onClick={() => onEditListing(d, market)}
               >
                 {logo}
