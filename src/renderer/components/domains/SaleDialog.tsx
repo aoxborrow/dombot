@@ -189,8 +189,8 @@ export function SaleDialog({
             <Button
               type="button"
               variant="outline"
-              // Red outline at rest, filled red on hover.
-              className="border-destructive/60 text-destructive hover:bg-destructive hover:text-white sm:mr-auto dark:border-destructive/60 dark:bg-transparent dark:hover:bg-destructive"
+              // Red outline at rest, filled on hover with the destructive buttons' red.
+              className="border-destructive/60 text-destructive hover:bg-destructive hover:text-white sm:mr-auto dark:border-destructive/60 dark:bg-transparent dark:hover:bg-destructive/60"
               disabled={saving}
               onClick={() => void undo()}
             >
