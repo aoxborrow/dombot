@@ -2356,6 +2356,7 @@ export default function Domains() {
             listings={marketListings}
             markets={marketsOn ? cardMarkets : []}
             listPrices={listPrices}
+            traffic={marketTraffic.domains}
             expiresWithin={expiresWithin}
             archiveLabelOf={archiveLabelOf}
             actions={{
