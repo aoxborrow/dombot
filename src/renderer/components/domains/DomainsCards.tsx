@@ -166,6 +166,7 @@ export function DomainsCards({
   const hint = (...parts: (string | false)[]) =>
     parts.filter(Boolean).join(' · ') || BLANK;
 
+  // Archive's cards are just a label and a number, so both are bigger.
   if (cards.view === 'archive') {
     return (
       <StatCardRow>
@@ -175,7 +176,6 @@ export function DomainsCards({
           accentClass="text-violet-500"
           label="Sold"
           value={cards.sold.toLocaleString()}
-          hint={BLANK}
           onClick={() => actions.onArchiveStatus(['sold'])}
         />
         <StatCard
@@ -184,7 +184,6 @@ export function DomainsCards({
           accentClass="text-amber-500"
           label="Expired"
           value={cards.expired.toLocaleString()}
-          hint={BLANK}
           onClick={() => actions.onArchiveStatus(['expired'])}
         />
         <StatCard
@@ -193,10 +192,6 @@ export function DomainsCards({
           accentClass="text-rose-500"
           label="Deleted or removed"
           value={(cards.deleted + cards.removed).toLocaleString()}
-          hint={hint(
-            !!cards.deleted && `${cards.deleted} deleted`,
-            !!cards.removed && `${cards.removed} removed`,
-          )}
           onClick={() => actions.onArchiveStatus(['deleted', 'removed'])}
         />
         {marketsOn && (
@@ -206,7 +201,6 @@ export function DomainsCards({
             accentClass="text-sky-500"
             label="Still listed"
             value={cards.stillListed.toLocaleString()}
-            hint="Live or pending on a market"
             onClick={() => actions.onMarketStates(['active', 'pending'])}
           />
         )}
@@ -251,10 +245,11 @@ export function DomainsCards({
           size="sm"
           icon={ArrowUpDown}
           accentClass="text-amber-500"
-          label="Off your price"
+          label="Discrepancies"
           value={(cards.above + cards.below).toLocaleString()}
+          // A market's price apart from your BIN price.
           hint={hint(
-            !!cards.above && `${cards.above} above`,
+            !!cards.above && `${cards.above} above your price`,
             !!cards.below && `${cards.below} below`,
           )}
           onClick={() => actions.onPriceComparisons(['above', 'below'])}
@@ -297,7 +292,7 @@ export function DomainsCards({
           size="sm"
           icon={Store}
           accentClass="text-sky-500"
-          label="Listed"
+          label="For Sale"
           value={cards.listed.toLocaleString()}
           hint={`${pct(cards.listed, total)} on a market`}
           onClick={actions.onListings}

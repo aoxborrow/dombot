@@ -6,8 +6,9 @@ import { cn } from '@/lib/utils';
 /**
  * A headline number with a large faint icon behind it (Renewals, Sales). The
  * small size is the card rows' over the Domains and Sales tables (see
- * StatCardRow): on phones it shrinks to the label and value. With `to` or
- * `onClick` the whole card is a link or button.
+ * StatCardRow): on phones it shrinks to the label and value. A small card
+ * with no hint has a bigger label and value in the same height. With `to`
+ * or `onClick` the whole card is a link or button.
  */
 export function StatCard({
   icon: Icon,
@@ -25,12 +26,14 @@ export function StatCard({
   accentClass: string;
   label: string;
   value: string;
-  hint: string;
+  /** The line under the value; small cards may leave it out. */
+  hint?: string;
   size?: 'default' | 'sm';
   to?: string;
   onClick?: () => void;
 }) {
   const sm = size === 'sm';
+  const bare = sm && !hint;
   const className = cn(
     'relative block overflow-hidden rounded-lg border bg-card text-left',
     sm
@@ -59,7 +62,11 @@ export function StatCard({
         <div
           className={cn(
             'truncate text-foreground/75',
-            sm ? 'text-[11px] sm:text-xs' : 'text-[15px]',
+            bare
+              ? 'text-xs sm:text-sm'
+              : sm
+                ? 'text-[11px] sm:text-xs'
+                : 'text-[15px]',
           )}
         >
           {label}
@@ -67,19 +74,25 @@ export function StatCard({
         <div
           className={cn(
             'font-bold tabular-nums',
-            sm ? 'text-sm leading-tight sm:text-base' : 'mt-2 text-2xl',
+            bare
+              ? 'text-base leading-tight sm:mt-0.5 sm:text-xl'
+              : sm
+                ? 'text-sm leading-tight sm:text-base'
+                : 'mt-2 text-2xl',
           )}
         >
           {value}
         </div>
-        <div
-          className={cn(
-            'truncate text-muted-foreground',
-            sm ? 'hidden text-[11px] sm:block' : 'mt-1 text-xs',
-          )}
-        >
-          {hint}
-        </div>
+        {!bare && (
+          <div
+            className={cn(
+              'truncate text-muted-foreground',
+              sm ? 'hidden text-[11px] sm:block' : 'mt-1 text-xs',
+            )}
+          >
+            {hint}
+          </div>
+        )}
       </div>
     </>
   );

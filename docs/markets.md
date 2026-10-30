@@ -410,16 +410,17 @@ sits below the cards.
   order: three cards, a fourth from lg, a fifth from xl, so they stay one
   row; on phones two to a row (the first four), just label and number.
   - Owned: Domains (registrars, imported), Expiring in 30 days (sets
-    Expiration; with auto-renew off), BIN priced, Listed (opens Listings).
+    Expiration; with auto-renew off), BIN priced, For Sale (names live on a market; opens Listings).
   - Listings: Listed (live on a market), Not listed (with how many are
-    pending), Issues (rejected or inactive), Off your price (a market
+    pending), Issues (rejected or inactive), Discrepancies (a market
     price above or below your BIN), each setting the Markets filter. They
     count the markets the Markets filter picks, so filtering to one market
     gives that market's numbers. Views and leads stay in the columns: their
     12-month window can't be changed, so a card of them would belong on a
     dashboard.
   - Archive: Sold, Expired, Deleted or removed (each sets Status), Still
-    listed (live or pending on a market: to take down).
+    listed (live or pending on a market: to take down). Just a label and a
+    number each, so both are bigger (a small `StatCard` with no hint).
   - Without a market account, Owned and Archive have three.
 - Domains reads its view and the Markets and Pricing filters from the URL
   (`src/renderer/lib/domains-link.ts`).
