@@ -292,8 +292,9 @@ storage (`exchangeRates()`). Both get the same answers.
   - `salesByMonth` and `groupSaleRecords` take the rates too, for the
     monthly trend and breakdowns when they're built.
 - **Domains summary cards:** #213's cards are counts, so nothing to convert.
-- **Activity:** rows keep their own amounts, with the conversion in the
-  tooltip.
+- **Activity**, built: rows keep their own amounts; the Details hover adds
+  the conversion at the event's date (`eventConversion` in
+  `src/renderer/lib/activity.ts`), or says DomBot can't convert it.
 - **MCP**, built: `market_report_get` is in your currency (`currency`, with
   `provisional` and `leftOut` per year), and `market_sales` adds `converted`
   beside its per-currency `totals`. Filters such as `priceCurrency` stay as
@@ -316,9 +317,9 @@ storage (`exchangeRates()`). Both get the same answers.
    `market_sales`, and the Settings wording.
 4. **Sales tab.** Built on #213 (this PR is stacked on it): the cards in
    your currency, conversion on hover, sorting by converted value, and
-   costs converted at the purchase date. The financial dashboard
-   ([#112](https://github.com/aoxborrow/dombot/issues/112)) and Activity's
-   tooltips come later.
+   costs converted at the purchase date. Activity's Details hover too. The
+   financial dashboard
+   ([#112](https://github.com/aoxborrow/dombot/issues/112)) comes later.
 
 ## Decided
 

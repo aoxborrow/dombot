@@ -6,6 +6,10 @@ import {
 import type { Domain, RegistrarMeta } from '../../shared/ipc';
 import { toUnicode } from '../../shared/domain-name';
 import { formatMoney, type NumberFormatId } from '../../shared/money';
+import {
+  conversionText,
+  type ExchangeRates,
+} from '../../shared/exchange-rates';
 import { changeText } from '../../shared/domain-changes';
 import { accountName } from './domain-history';
 import type { SyncFailure } from '../../shared/notifications';
@@ -90,6 +94,29 @@ export function eventDetails(
     );
   if (e.years) parts.push(`${e.years} yr`);
   return parts.length ? parts.join(' · ') : null;
+}
+
+/**
+ * The Details hover for an amount in another currency than yours: "€1,200 ≈
+ * $1,301 at the March 2024 average (ECB) · 2 yr", converted at the event's
+ * date (an undated one at the newest rate), or that DomBot can't convert it.
+ * Null when there's nothing to convert; the row keeps its own amount.
+ */
+export function eventConversion(
+  e: DomainEvent,
+  numberFormat: NumberFormatId,
+  preferredCurrency: string,
+  fx: ExchangeRates,
+): string | null {
+  if (!e.amount || !e.currency || e.currency === preferredCurrency) return null;
+  const money = (amount: string, currency: string) =>
+    formatMoney(amount, currency, preferredCurrency, numberFormat);
+  const original = money(e.amount, e.currency);
+  const c = fx.convert(e.amount, e.currency, preferredCurrency, e.date);
+  const years = e.years ? ` · ${e.years} yr` : '';
+  return c
+    ? `${conversionText(original, money(String(c.amount), preferredCurrency), c, e.date)}${years}`
+    : `${original}${years} (DomBot can’t convert ${e.currency})`;
 }
 
 /**
