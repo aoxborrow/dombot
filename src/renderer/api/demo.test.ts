@@ -21,8 +21,8 @@ describe('createDemoApi', () => {
     const snap = await api.hydrateFromCache();
     expect(snap.portfolio?.domains).toHaveLength(40);
     expect(snap.portfolio?.domains[0].expirationDate).toBeInstanceOf(Date);
-    // The 40 synced names, plus the two the demo adds by hand.
-    expect(Object.keys(snap.pricing)).toHaveLength(42);
+    // The 40 synced names, plus the four the demo adds by hand.
+    expect(Object.keys(snap.pricing)).toHaveLength(44);
 
     const meta = await api.getRegistrarMetadata();
     expect(meta.filter((m) => m.configured)).toHaveLength(
@@ -99,6 +99,32 @@ describe('createDemoApi', () => {
       'Personal',
       'Selling',
     ]);
+  });
+
+  it('shows every Owned state and Archive label', async () => {
+    const { api } = await createDemoApi({ latencyMs: 0, sampleChanges: true });
+    const events = await api.getDomainEvents();
+    // Lapses: the expiry each left after, nothing to review.
+    const lapses = events.filter((e) => e.type === 'removed' && e.expires);
+    expect(lapses.length).toBeGreaterThan(0);
+    expect(lapses.every((e) => e.dismissed)).toBe(true);
+    // A sale on a name still held (awaiting transfer), and one that left.
+    const held = new Set(
+      (await api.hydrateFromCache()).portfolio!.domains.map(
+        (d) => d.domainName,
+      ),
+    );
+    const sold = events.filter((e) => e.type === 'sold' && !e.marketSale);
+    expect(sold.some((e) => held.has(e.domain))).toBe(true);
+    expect(sold.some((e) => !held.has(e.domain))).toBe(true);
+    // Removals left to review (Archive's Removed).
+    const open = events.filter(
+      (e) =>
+        e.type === 'removed' &&
+        !e.dismissed &&
+        !events.some((x) => x.resolves === e.id),
+    );
+    expect(open.length).toBeGreaterThan(0);
   });
 
   it('a fresh boot starts over from the seed', async () => {

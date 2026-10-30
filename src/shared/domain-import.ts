@@ -274,7 +274,7 @@ function readRow(
   const row: ImportRow = { line, domain };
   const status =
     at('status', () => readStatus(cells.status ?? '')) ?? setup.defaults.status;
-  if (status) row.status = status;
+  if (status && status !== 'owned') row.status = status;
   const folder = cells.folder?.trim().split(/\s*[;|]\s*/)[0];
   const folderName =
     folder && !/^(\(no folder\)|none|-|—)$/i.test(folder)

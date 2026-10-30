@@ -113,7 +113,7 @@ describe('BIN prices', () => {
 
   it('is removed by Delete', () => {
     setListPrices([price('a.com', '100')]);
-    deleteDomains(['a.com']);
+    deleteDomains(['a.com'], new Set());
     expect(getListPrices()).toEqual({});
   });
 

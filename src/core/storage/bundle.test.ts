@@ -18,7 +18,6 @@ import { createFolder, getFolders } from '../services/folders';
 import { setStoredCredentials } from '../services/credentials';
 import { getRegistrarClient } from '../services/registrars';
 import { sealBundle } from '../../shared/bundle-seal';
-import { HIDDEN_FOLDER_ID } from '../../shared/ipc';
 import { bumpRevision, getRevisions } from '../revision';
 import { onCoreEvent } from '../events';
 
@@ -200,7 +199,8 @@ describe('export → import', () => {
     });
     expect(getFolders()).toEqual({
       folders: [{ id: 'f1', name: 'Keep', description: '', color: 'red' }],
-      assignments: { 'a.com': 'f1', 'b.com': HIDDEN_FOLDER_ID },
+      // The built-in Hidden folder is gone: b.com has no folder.
+      assignments: { 'a.com': 'f1' },
     });
     for (const old of ['credentials', 'cache-portfolio', 'pricing-overrides'])
       expect(await store.list(old)).toEqual({});
@@ -242,21 +242,37 @@ describe('export → import', () => {
     });
   });
 
-  it("moves a v4 file's Archive folder assignments to Hidden", async () => {
-    const v4 = {
+  it('drops the built-in folders and the dropped and archived events', async () => {
+    const event = (id: string, type: string) => ({
+      id,
+      domain: 'a.com',
+      type,
+      source: 'user',
+      date: '2026-09-01',
+      createdAt: 1,
+      updatedAt: null,
+    });
+    const v8 = {
       ...buildBundle(APP),
-      version: 4,
+      version: 8,
       namespaces: {
         ...buildBundle(APP).namespaces,
-        'domain-folders': { 'a.com': '__archive__', 'b.com': 'f1' },
+        'domain-folders': {
+          'a.com': '__archive__',
+          'b.com': 'f1',
+          'c.com': '__hidden__',
+        },
+        'domain-events': {
+          E1: event('E1', 'removed'),
+          E2: event('E2', 'dropped'),
+          E3: event('E3', 'archived'),
+        },
       },
     };
-    await importBundle(JSON.stringify(v4));
+    await importBundle(JSON.stringify(v8));
     await flushWrites();
-    expect(await store.list('domain-folders')).toEqual({
-      'a.com': HIDDEN_FOLDER_ID,
-      'b.com': 'f1',
-    });
+    expect(await store.list('domain-folders')).toEqual({ 'b.com': 'f1' });
+    expect(Object.keys(await store.list('domain-events'))).toEqual(['E1']);
   });
 
   it('reads a v8 file from before the rename: manual-domains', async () => {

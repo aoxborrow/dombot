@@ -29,14 +29,16 @@ import {
 import {
   deleteDomains,
   deleteUserEvent,
-  restoreOwned,
   setAlertsDismissed,
-  setDispositions,
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
 import { getReleaseFeed } from '../services/releases';
 import { getListPrices, setListPrices } from '../services/list-prices';
-import { importDomains, planImport } from '../services/domain-import';
+import {
+  heldNames,
+  importDomains,
+  planImport,
+} from '../services/domain-import';
 import {
   getImportedDomains,
   updateImportedDomain,
@@ -590,24 +592,10 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   // ── Domain history (events) ───────────────────────────────────────────────
   // Every change returns the whole log, so the caller refreshes in one call.
   getDomainEvents: method(none, async () => listEvents()),
-  setDispositions: method(
-    z.tuple([s.ownershipItems, s.disposition, s.optionalDay]),
-    async (items, type, date) => {
-      setDispositions(items, type, date);
-      return listEvents();
-    },
-  ),
   markSold: method(
     z.tuple([s.ownershipItems, s.optionalDay]),
     async (items, date) => {
       markSold(items, date);
-      return listEvents();
-    },
-  ),
-  restoreOwned: method(
-    z.tuple([s.domainNameList.min(1)]),
-    async (domainNames) => {
-      restoreOwned(domainNames);
       return listEvents();
     },
   ),
@@ -625,7 +613,7 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   deleteDomains: method(
     z.tuple([s.domainNameList.min(1)]),
     async (domainNames) => {
-      deleteDomains(domainNames);
+      deleteDomains(domainNames, new Set(heldNames().keys()));
       return listEvents();
     },
   ),

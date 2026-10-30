@@ -17,14 +17,19 @@ import type {
 } from '../../shared/ipc';
 import { toAscii } from '../../shared/domain-name';
 import { reportsPrivacy } from '../../shared/domain-ops';
-import { HIDDEN_FOLDER_ID, STALE_AFTER_MS } from '../../shared/ipc';
+import { STALE_AFTER_MS } from '../../shared/ipc';
 import {
   hasAskingRange,
   matchesAsking,
   type AskingFilter,
   type AskingKind,
 } from '../../shared/list-prices';
-import type { ArchiveLabel, Ownership } from '../../shared/ownership';
+import {
+  standingOf,
+  type ArchiveLabel,
+  type Ownership,
+  type Standing,
+} from '../../shared/ownership';
 
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 500;
@@ -127,6 +132,8 @@ export interface RowExtras {
   pricing?: Record<string, RenewalPricing>;
   /** Each listed name's markets, keyed by `toAscii(name)`. */
   listedMarkets?: Map<string, Set<string>>;
+  /** The registration lookup's cached answers (Archive's Deleted). */
+  registered?: Map<string, boolean>;
 }
 
 /** Only the fields an agent needs for a row — drops `syncedAt`/`deleted`, adds
@@ -145,16 +152,21 @@ export interface QueryRow {
    *  account reports it, so the registrar tools can't act on it. */
   source: DomainSource;
   domainName: string;
-  /** `archive`: sold, dropped, archived, or removed from your accounts. */
+  /** `archive`: no longer yours (docs/owned-and-archive.md). */
   ownership: 'owned' | 'archive';
-  /** Why it's in Archive; `removed` is a removal you haven't labeled. */
+  /**
+   * Why it's in Archive: `sold`, `deleted` (the lookup says nobody holds
+   * it), `expired` (it left after its expiry), or `removed` (it left early
+   * with no sale recorded; the one to review).
+   */
   archiveLabel: ArchiveLabel | null;
-  /** Whether an account still reports it (a sale in escrow can be in Archive
-   *  and still in your account). When false, the fields an account reports
-   *  are empty and the registrar is the last one it was seen at. */
+  /** Owned, auto-renew off, and expiring within 30 days. */
+  expiring: boolean;
+  /** A sale recorded on a name you still hold: the buyer hasn't taken it. */
+  salePending: boolean;
+  /** Whether an account still reports it. When false, the fields an account
+   *  reports are empty and the registrar is the last one it was seen at. */
   inAccount: boolean;
-  /** In the Hidden folder: still yours, and still renews. */
-  hidden: boolean;
   status: string;
   createdDate: Date | null;
   expirationDate: Date | null;
@@ -250,16 +262,13 @@ function tldSuffix(tld: string): string {
   return `.${t}`;
 }
 
-/** Resolves a folder filter (name / id / "Hidden") to the folderId to match, or
- *  null when it names no known folder (→ the query returns no rows). */
+/** Resolves a folder filter (name / id) to the folderId to match, or null
+ *  when it names no known folder (→ the query returns no rows). */
 export function resolveFolderId(
   param: string,
   folders: FolderRef[],
 ): string | null {
-  const p = param.trim();
-  if (param === HIDDEN_FOLDER_ID || p.toLowerCase() === 'hidden')
-    return HIDDEN_FOLDER_ID;
-  const lower = p.toLowerCase();
+  const lower = param.trim().toLowerCase();
   const match =
     folders.find((f) => f.id === param) ??
     folders.find((f) => f.name.toLowerCase() === lower);
@@ -282,13 +291,22 @@ export function queryPortfolio(
   ownership: Map<string, Ownership> = new Map(),
   extras: RowExtras = {},
 ): QueryResult {
-  const labelOf = (d: Domain): ArchiveLabel | null =>
-    ownership.get(toAscii(d.domainName))?.label ?? null;
+  const now = Date.now();
+  const standing = new Map<Domain, Standing>();
+  const standingFor = (d: Domain): Standing => {
+    let s = standing.get(d);
+    if (!s) {
+      const key = toAscii(d.domainName);
+      s = standingOf(d, ownership.get(key), extras.registered?.get(key), now);
+      standing.set(d, s);
+    }
+    return s;
+  };
+  const labelOf = (d: Domain): ArchiveLabel | null => standingFor(d).label;
   const scope = args.ownership ?? 'owned';
   const folderNameFor = (d: Domain): string | null => {
     const id = assignments[toAscii(d.domainName)];
     if (!id) return null;
-    if (id === HIDDEN_FOLDER_ID) return 'Hidden';
     return folders.find((f) => f.id === id)?.name ?? null;
   };
 
@@ -324,8 +342,8 @@ export function queryPortfolio(
   };
 
   const filtered = domains.filter((d) => {
-    // Owned vs Archive, as on the Domains page: a name with an Archive label
-    // is in Archive, even while an account still reports it.
+    // Owned vs Archive, as on the Domains page: a name an account holds is
+    // always Owned.
     const label = labelOf(d);
     if (scope === 'owned' && label) return false;
     if (scope === 'archive' && !label) return false;
@@ -454,8 +472,9 @@ export function queryPortfolio(
       domainName: d.domainName,
       ownership: label ? 'archive' : 'owned',
       archiveLabel: label,
+      expiring: standingFor(d).expiring,
+      salePending: standingFor(d).salePending,
       inAccount,
-      hidden: assignments[toAscii(d.domainName)] === HIDDEN_FOLDER_ID,
       status: d.status,
       createdDate: d.createdDate,
       expirationDate: d.expirationDate,

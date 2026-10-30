@@ -217,3 +217,25 @@ export async function lookupRegistrations(
   });
   return out;
 }
+
+/**
+ * What the last lookup said about each name being registered, from the cache
+ * alone (no network): `toAscii` name → registered. Archive's Deleted label
+ * reads it outside the app (MCP, export).
+ */
+export function cachedRegistered(): Map<string, boolean> {
+  const out = new Map<string, boolean>();
+  for (const [key, row] of Object.entries(store.all()))
+    if (row && typeof row.registered === 'boolean')
+      out.set(key, row.registered);
+  return out;
+}
+
+/** Store lookups as if just fetched (the demo, whose names aren't real). */
+export function rememberRegistrationLookups(
+  rows: Record<string, RegistrationLookup>,
+): void {
+  void store.setMany(
+    Object.entries(rows).map(([name, row]) => [toAscii(name), row]),
+  );
+}
