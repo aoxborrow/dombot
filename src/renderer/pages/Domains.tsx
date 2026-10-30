@@ -142,10 +142,7 @@ import {
   type DateRange,
 } from '../lib/date-range';
 import { usePreferences } from '../lib/preferences';
-import {
-  ColumnPicker,
-  useColumnLayout,
-} from '../components/data-table/ColumnPicker';
+import { useColumnLayout } from '../components/data-table/ColumnPicker';
 import {
   applyColumnLayout,
   type ColumnLayout,
@@ -2293,15 +2290,6 @@ export default function Domains() {
     </div>
   );
 
-  const columnPicker = (
-    <ColumnPicker
-      columns={dataColumns}
-      layout={columnLayout}
-      onChange={setColumnLayout}
-      forceVisible={filteredDateColumns}
-    />
-  );
-
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
       {/* Title and filters scroll away on a short screen so the column names
@@ -2344,7 +2332,7 @@ export default function Domains() {
 
         {/* The view first, as on Renewals; its counts stand in for a
             subtitle under the title. */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex">
           <OwnershipSwitch
             view={view}
             ownedCount={ownedCount}
@@ -2353,9 +2341,6 @@ export default function Domains() {
             listings={marketsOn}
             onView={setListView}
           />
-          {/* On phones Columns sits here, rather than wrap onto a row of
-              its own under the filters. */}
-          <div className="sm:hidden">{columnPicker}</div>
         </div>
 
         {(archiveView ? archiveCount > 0 : ownedCount > 0) && (
@@ -2394,7 +2379,7 @@ export default function Domains() {
         {/* The table always renders — even before a load or with no registrars
           configured — so its toolbar and structure stay put; the empty body row
           carries the contextual prompt (configure a registrar / refresh / no
-          matches). The search and filters wrap, with Columns at the end. */}
+          matches). Columns is in the table's footer, under the rows. */}
         <FilterToolbar
           id="domains"
           search={search}
@@ -2434,9 +2419,6 @@ export default function Domains() {
               {exportNote.text}
             </span>
           )}
-          <div className="order-last ml-auto hidden sm:block">
-            {columnPicker}
-          </div>
         </FilterToolbar>
 
         {/* Bulk action bar — contextual: appears once any row is selected, or
@@ -2475,6 +2457,7 @@ export default function Domains() {
         rows={filtered}
         columns={dataColumns}
         layout={columnLayout}
+        onLayoutChange={setColumnLayout}
         forceVisible={filteredDateColumns}
         rowKey={domainKey}
         sort={{ key: sortKey, dir: sortDir }}
