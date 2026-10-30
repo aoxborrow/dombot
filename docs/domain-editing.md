@@ -65,7 +65,11 @@ all call it, so:
 - errors are classified once: `unsupported`, `rate-limited`, `failed`,
   `cancelled`, or `unknown` when a write's outcome can't be confirmed (see
   the [retry standard](web-deployment.md#retry-standard));
-- a target names its account (`accountId`), resolved before the write.
+- a target names its account (`accountId`), resolved before the write;
+- the history is written once: a confirmed renewal is a `renewed` event and
+  a confirmed settings change a `changed` one, with the caller as its source
+  (`user`, `bulk`, or `agent`; see
+  [storage-model.md](storage-model.md#domain-events)).
 
 ### Bulk jobs
 

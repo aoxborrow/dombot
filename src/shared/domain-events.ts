@@ -21,6 +21,8 @@ export const DomainEventType = {
   Added: 'added', // the name appeared in an account
   Removed: 'removed', // the name is gone from an account
   Moved: 'moved', // gone from one of your accounts, appeared in another
+  // A setting changed (auto-renew, privacy, nameservers…): never an alert.
+  Changed: 'changed',
 } as const;
 export type DomainEventType =
   (typeof DomainEventType)[keyof typeof DomainEventType];
@@ -31,6 +33,7 @@ export const DomainEventSource = {
   Import: 'import',
   Lookup: 'lookup', // the registration check (the automatic drop only)
   Agent: 'agent', // an MCP client, on your behalf
+  Bulk: 'bulk', // a bulk job you started
 } as const;
 export type DomainEventSource =
   (typeof DomainEventSource)[keyof typeof DomainEventSource];
@@ -51,6 +54,34 @@ export function isDomainEventSource(
 ): value is DomainEventSource {
   return typeof value === 'string' && EVENT_SOURCES.has(value);
 }
+
+/**
+ * What a `changed` event changed. The values match the `DomainOp` kinds that
+ * write them; DNS and contacts are MCP-only writes.
+ */
+export const DomainSetting = {
+  AutoRenew: 'autoRenew',
+  Privacy: 'privacy',
+  Lock: 'lock',
+  Nameservers: 'nameservers',
+  UrlForwarding: 'urlForwarding',
+  EmailForwarding: 'emailForwarding',
+  Dns: 'dns',
+  Contacts: 'contacts',
+} as const;
+export type DomainSetting = (typeof DomainSetting)[keyof typeof DomainSetting];
+
+const SETTINGS = new Set<string>(Object.values(DomainSetting));
+
+export function isDomainSetting(value: unknown): value is DomainSetting {
+  return typeof value === 'string' && SETTINGS.has(value);
+}
+
+/**
+ * A setting's value in a `changed` event: on or off, or a list (nameservers,
+ * forwarding rules, DNS records, contact roles) as short readable lines.
+ */
+export type SettingValue = boolean | string[];
 
 /** Types that start a holding: what you paid shows against these. */
 export const ACQUISITION_TYPES: ReadonlySet<DomainEventType> = new Set([
@@ -94,6 +125,12 @@ export interface DomainEvent {
    * never records the same sale twice.
    */
   marketSale?: string;
+  /** changed: which setting. */
+  setting?: DomainSetting;
+  /** changed: the value before, when DomBot knew it. */
+  before?: SettingValue;
+  /** changed: the value after. */
+  after?: SettingValue;
 }
 
 /** A note on a name, or on one of its events. Stored in `domain-notes`. */

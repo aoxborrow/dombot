@@ -6,6 +6,7 @@ import {
 import type { Domain, RegistrarMeta } from '../../shared/ipc';
 import { toUnicode } from '../../shared/domain-name';
 import { formatMoney, type NumberFormatId } from '../../shared/money';
+import { changeText } from '../../shared/domain-changes';
 import { accountName } from './domain-history';
 import type { SyncFailure } from '../../shared/notifications';
 
@@ -48,6 +49,7 @@ export const VERB: Record<DomainEvent['type'], string> = {
   added: 'Added',
   removed: 'Removed',
   moved: 'Moved',
+  changed: 'Changed',
 };
 
 export const SOURCE_LABEL: Record<DomainEvent['source'], string> = {
@@ -56,6 +58,7 @@ export const SOURCE_LABEL: Record<DomainEvent['source'], string> = {
   import: 'Import',
   lookup: 'Lookup',
   agent: 'Agent',
+  bulk: 'Bulk',
 };
 
 /** The day an event happened: its date, or the day it was recorded. */
@@ -75,12 +78,13 @@ export function eventAccounts(e: DomainEvent): string[] {
   );
 }
 
-/** "$2,500 · 2 yr", or null when there's nothing to say. */
+/** "$2,500 · 2 yr", "Auto-renew: on → off", or null when there's nothing to say. */
 export function eventDetails(
   e: DomainEvent,
   numberFormat: NumberFormatId,
   preferredCurrency: string,
 ): string | null {
+  if (e.type === DomainEventType.Changed) return changeText(e);
   const parts: string[] = [];
   if (e.amount && e.currency)
     parts.push(

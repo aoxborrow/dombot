@@ -15,6 +15,7 @@ import {
   Inbox,
   OctagonMinus,
   Receipt,
+  SlidersHorizontal,
   Trash2,
   Upload,
   X,
@@ -23,6 +24,7 @@ import { toast } from 'sonner';
 import { toAscii, toUnicode } from '../../shared/domain-name';
 import { importedRows } from '../../shared/imported-domains';
 import { DomainEventType, type DomainEvent } from '../../shared/domain-events';
+import { SETTING_LABEL, SETTING_ORDER } from '../../shared/domain-changes';
 import type { RegistrarMeta, RegistrarName } from '../../shared/ipc';
 import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
 import {
@@ -99,6 +101,7 @@ const TYPE_ORDER: DomainEvent['type'][] = [
   'purchased',
   'renewed',
   'moved',
+  'changed',
   'sold',
   'removed',
   'dropped',
@@ -165,6 +168,8 @@ export default function Activity() {
   const [types, setTypes] = useState<string[]>([]);
   const [accounts, setAccounts] = useState<string[]>([]);
   const [sources, setSources] = useState<string[]>([]);
+  // Which settings changed (`changed` events only).
+  const [changes, setChanges] = useState<string[]>([]);
   const [priorities, setPriorities] = useState<string[]>([]);
   const [days, setDays] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState('date');
@@ -193,6 +198,7 @@ export default function Activity() {
       setTypes([]);
       setAccounts([]);
       setSources([]);
+      setChanges([]);
       setPriorities([]);
       setDays([]);
       setPage(0);
@@ -266,6 +272,18 @@ export default function Activity() {
       .filter((s) => counts.has(s))
       .map((s) => ({ value: s, label: SOURCE_LABEL[s], count: counts.get(s) }));
   }, [allRows]);
+  // Only the settings that have changed, like Source.
+  const changeOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const { shown } of allRows)
+      if (shown.setting)
+        counts.set(shown.setting, (counts.get(shown.setting) ?? 0) + 1);
+    return SETTING_ORDER.filter((s) => counts.has(s)).map((s) => ({
+      value: s,
+      label: SETTING_LABEL[s],
+      count: counts.get(s),
+    }));
+  }, [allRows]);
   const priorityOptions = useMemo(() => {
     const counts = { high: 0, low: 0 };
     for (const e of events) {
@@ -301,7 +319,9 @@ export default function Activity() {
   const hasActiveFilters =
     search.trim() !== '' ||
     importId !== null ||
-    [types, accounts, sources, priorities, days].some((f) => f.length > 0);
+    [types, accounts, sources, changes, priorities, days].some(
+      (f) => f.length > 0,
+    );
 
   // When the import being shown was recorded.
   const importedAt = useMemo(() => {
@@ -343,6 +363,11 @@ export default function Activity() {
         return false;
       if (types.length > 0 && !types.includes(shown.type)) return false;
       if (sources.length > 0 && !sources.includes(shown.source)) return false;
+      if (
+        changes.length > 0 &&
+        !(shown.setting && changes.includes(shown.setting))
+      )
+        return false;
       if (
         accounts.length > 0 &&
         !eventAccounts(e).some((id) => accounts.includes(id))
@@ -386,6 +411,7 @@ export default function Activity() {
     priorities,
     types,
     sources,
+    changes,
     accounts,
     days,
     openedAt,
@@ -538,7 +564,8 @@ export default function Activity() {
           </span>
         ) : e.accountId ? (
           <AccountLabel registrars={registrars} id={e.accountId} />
-        ) : e.type === DomainEventType.Added ? (
+        ) : e.type === DomainEventType.Added ||
+          e.type === DomainEventType.Changed ? (
           // An imported name, from a file or the Add domains form alike.
           <span className="whitespace-nowrap text-muted-foreground">
             Imported
@@ -552,10 +579,18 @@ export default function Activity() {
       label: 'Details',
       sortable: false,
       hideOnMobile: true,
-      cell: ({ shown }) =>
-        eventDetails(shown, numberFormat, preferred) ?? (
+      cell: ({ shown }) => {
+        const details = eventDetails(shown, numberFormat, preferred);
+        // A change can name several nameservers or rules: cut it short, with
+        // the whole of it on hover.
+        return details ? (
+          <span className="block max-w-xs truncate" title={details}>
+            {details}
+          </span>
+        ) : (
           <span className="text-muted-foreground/50">—</span>
-        ),
+        );
+      },
     },
     {
       key: 'source',
@@ -646,6 +681,17 @@ export default function Activity() {
         plural: 'types',
       },
       setTypes,
+    ),
+    listFilter(
+      {
+        key: 'change',
+        label: 'Change',
+        icon: SlidersHorizontal,
+        options: changeOptions,
+        selected: changes,
+        plural: 'changes',
+      },
+      setChanges,
     ),
     listFilter(
       {
@@ -875,7 +921,7 @@ export default function Activity() {
           reviewOnly && !hasActiveFilters
             ? 'Nothing needs review.'
             : events.length === 0
-              ? 'No activity yet. Arrivals, departures, and moves appear after an account’s second sync; purchases and sales as you record them.'
+              ? 'No activity yet. Arrivals, departures, and moves appear after an account’s second sync; purchases, sales, and settings changes as you make them.'
               : 'No activity matches the current filters.'
         }
       />

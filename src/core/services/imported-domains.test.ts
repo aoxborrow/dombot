@@ -115,6 +115,28 @@ describe('imported domains', () => {
     );
   });
 
+  it('records turning auto-renew on or off as a change of yours', () => {
+    addImportedDomains([{ domainName: 'a.com' }], { source: 'user' });
+    // From not set: no `before`.
+    updateImportedDomain('a.com', { autoRenew: true });
+    // Other fields, or auto-renew left as it is, record nothing.
+    updateImportedDomain('a.com', {
+      autoRenew: true,
+      createdDate: '2020-01-01',
+    });
+    updateImportedDomain('a.com', { autoRenew: false });
+    // Cleared to not set isn't a change of the setting.
+    updateImportedDomain('a.com', { autoRenew: null });
+    expect(
+      listEvents()
+        .filter((e) => e.type === 'changed')
+        .map((e) => [e.source, e.setting, e.before, e.after]),
+    ).toEqual([
+      ['user', 'autoRenew', undefined, true],
+      ['user', 'autoRenew', true, false],
+    ]);
+  });
+
   it('takes a name that left an account back without a new review', () => {
     recordSync(holding(['a.com']));
     recordSync(holding([]));

@@ -30,6 +30,7 @@ const TYPE_STYLE: Record<DomainEvent['type'], string> = {
   sold: 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
   moved: KEPT,
   renewed: KEPT,
+  changed: KEPT,
 };
 
 /** The same colors as a dot, for filter options. */
@@ -43,6 +44,7 @@ const TYPE_DOT: Record<DomainEvent['type'], string> = {
   sold: 'bg-emerald-500 dark:bg-emerald-400',
   moved: KEPT_DOT,
   renewed: KEPT_DOT,
+  changed: KEPT_DOT,
 };
 
 export function EventTypeBadge({

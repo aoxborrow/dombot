@@ -14,6 +14,8 @@ import {
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { parsePurchaseDate } from '../../shared/money';
 import { Namespace } from '../storage/namespace';
+import { importedAutoRenewChange } from '../../shared/domain-changes';
+import { changeEvent } from './domain-changes';
 import { listEvents, newEvent, putEvents } from './domain-events';
 
 // Imported domains (docs/domain-import-export.md): names you own that no
@@ -136,12 +138,41 @@ export function addImportedDomains(
   return entries.map(([key]) => key);
 }
 
-/** Writes imported entries in one write (an import's new and edited names). */
-export function putImportedDomains(entries: [string, ImportedDomain][]): void {
-  if (entries.length > 0) void store.setMany(entries);
+/**
+ * Writes imported entries in one write (an import's new and edited names).
+ * An edit that turns a name's auto-renew on or off is recorded as a `changed`
+ * event from that import.
+ */
+export function putImportedDomains(
+  entries: [string, ImportedDomain][],
+  importId?: string,
+): void {
+  if (entries.length === 0) return;
+  const now = Date.now();
+  const changes = entries.flatMap(([key, next]) => {
+    const existing = store.get(key);
+    const change =
+      existing && importedAutoRenewChange(existing.autoRenew, next.autoRenew);
+    return change
+      ? [
+          changeEvent(
+            key,
+            change,
+            DomainEventSource.Import,
+            importId ? { importId } : {},
+            now,
+          ),
+        ]
+      : [];
+  });
+  void store.setMany(entries);
+  if (changes.length > 0) putEvents(changes);
 }
 
-/** Edits an imported name's registration fields. Throws for a name that isn't imported. */
+/**
+ * Edits an imported name's registration fields; turning its auto-renew on or
+ * off is recorded as a `changed` event. Throws for a name that isn't imported.
+ */
 export function updateImportedDomain(
   domainName: string,
   fields: Partial<ImportedDomainFields>,
@@ -149,12 +180,16 @@ export function updateImportedDomain(
   const key = assertDomainName(domainName);
   const existing = store.get(key);
   if (!existing) throw new Error(`${key} isn't an imported domain.`);
+  const now = Date.now();
   const next: ImportedDomain = {
     ...existing,
     ...cleanFields(fields),
-    updatedAt: Date.now(),
+    updatedAt: now,
   };
   void store.set(key, next);
+  const change = importedAutoRenewChange(existing.autoRenew, next.autoRenew);
+  if (change)
+    putEvents([changeEvent(key, change, DomainEventSource.User, {}, now)]);
   return next;
 }
 

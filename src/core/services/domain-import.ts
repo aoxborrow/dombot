@@ -628,7 +628,7 @@ export function importDomains(
 ): ImportPlan & { importId: string } {
   const { plan, writes } = compute(rows, options.importId, Date.now());
 
-  putImportedDomains(writes.imported);
+  putImportedDomains(writes.imported, options.importId);
   if (writes.deleteEvents.length > 0) deleteDomainEvents(writes.deleteEvents);
   if (writes.events.length > 0) putEvents(writes.events);
   setNameNotes(writes.notes);

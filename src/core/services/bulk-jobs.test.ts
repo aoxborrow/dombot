@@ -12,6 +12,8 @@ import type {
   DomainOpStatus,
   DomainTarget,
 } from '../../shared/ipc';
+import type { DomainEvent } from '../../shared/domain-events';
+import type { ConfirmedRenewal } from './domain-history';
 
 // Mock the one op the runner calls and the three broadcasts it emits.
 const applyDomainOp = vi.fn();
@@ -39,6 +41,8 @@ import {
   startBulk,
   stepBulk,
 } from './bulk-jobs';
+import { changeEvent } from './domain-changes';
+import { listEvents } from './domain-events';
 import { MemoryDocStore } from '../storage/doc-store';
 import {
   configureStore,
@@ -461,5 +465,54 @@ describe('abandonInterruptedBulk', () => {
   it('is a no-op with no job', () => {
     expect(() => abandonInterruptedBulk()).not.toThrow();
     expect(getBulkJob()).toBeNull();
+  });
+});
+
+describe('the history a job writes', () => {
+  it('records its changes and renewals as the bulk job’s, a slice at a time', async () => {
+    // What applyDomainOp hands back for the runner to write.
+    applyDomainOp.mockImplementation(
+      async (
+        target: DomainTarget,
+        _op: DomainOp,
+        opts: {
+          changes: DomainEvent[];
+          renewals: ConfirmedRenewal[];
+          source: string;
+        },
+      ) => {
+        if (target.domainName === 'a.com')
+          opts.renewals.push({
+            domainName: 'a.com',
+            accountId: 'dynadot',
+            years: 1,
+          });
+        opts.changes.push(
+          changeEvent(
+            target.domainName,
+            { setting: 'autoRenew', before: false, after: true },
+            opts.source as 'bulk',
+            { accountId: target.accountId },
+          ),
+        );
+        return resultFor(target, 'ok');
+      },
+    );
+    startBulk(targets('dynadot', 'a.com', 'b.com'), AUTO_RENEW);
+    await vi.runAllTimersAsync();
+    await flushWrites();
+
+    expect(applyDomainOp.mock.calls.map((c) => c[2].source)).toEqual([
+      'bulk',
+      'bulk',
+    ]);
+    expect(
+      listEvents().map((e) => [e.domain, e.type, e.source, e.after]),
+    ).toEqual([
+      // One lane at Dynadot: each name is its own slice.
+      ['a.com', 'changed', 'bulk', true],
+      ['a.com', 'renewed', 'bulk', undefined],
+      ['b.com', 'changed', 'bulk', true],
+    ]);
   });
 });

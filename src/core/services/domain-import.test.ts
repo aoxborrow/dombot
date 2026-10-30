@@ -510,3 +510,18 @@ describe('writing an import', () => {
     expect(Object.keys(getImportedDomains())).toHaveLength(2000);
   });
 });
+
+describe('settings changes an import makes', () => {
+  it('records an imported name’s auto-renew turned off, as the import', () => {
+    apply([row('a.com', { registration: { autoRenew: true } })]);
+    const id = `imp${n + 1}`;
+    apply([row('a.com', { registration: { autoRenew: false } })]);
+    // The same again changes nothing, so records nothing.
+    apply([row('a.com', { registration: { autoRenew: false } })]);
+    expect(
+      listEvents()
+        .filter((e) => e.type === 'changed')
+        .map((e) => [e.source, e.importId, e.setting, e.before, e.after]),
+    ).toEqual([['import', id, 'autoRenew', true, false]]);
+  });
+});
