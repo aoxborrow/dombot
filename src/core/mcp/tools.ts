@@ -35,11 +35,19 @@ import {
 import { getManualPrices, setManualPrice } from '../services/pricing';
 import { setAlertsDismissed } from '../services/domain-history';
 import { applyDomainOp } from '../services/domain-ops';
-import { eventsFor, listEvents, nameNote } from '../services/domain-events';
+import {
+  eventsFor,
+  listEvents,
+  nameNote,
+  putEvents,
+} from '../services/domain-events';
+import { changeEvent } from '../services/domain-changes';
+import { dnsRecordLine, type SettingChange } from '../../shared/domain-changes';
 import { notifications } from '../../shared/notifications';
 import {
   DomainEventSource,
   DomainEventType,
+  DomainSetting,
   localDay,
   type DomainEvent,
 } from '../../shared/domain-events';
@@ -89,16 +97,27 @@ function json(data: unknown) {
 // Runs a cache-backed write (via a service fn that patches the portfolio/detail
 // caches on success) and, when the registrar reports success, notifies open
 // windows so an open Domains table reflects the change without a manual Sync.
+// With `change`, a success also goes in the name's history, as the agent's.
 // The raw OperationResult is returned so the caller sees the provider's message.
-async function cachedWrite(op: () => Promise<OperationResult>) {
+async function cachedWrite(
+  op: () => Promise<OperationResult>,
+  change?: { domain: string; accountId: string; change: SettingChange },
+) {
   const result = await op();
+  if (result.success && change)
+    putEvents([
+      changeEvent(change.domain, change.change, DomainEventSource.Agent, {
+        accountId: change.accountId,
+      }),
+    ]);
   if (result.success) broadcastPortfolioChanged();
   return json(result);
 }
 
 // Runs a per-domain op through the shared dispatcher (services/domain-ops.ts) —
 // the exact path the table's row controls use — so capability gating, cache
-// patching, and the window notification are identical. Returns the provider's
+// patching, the window notification, and the history are identical (recorded
+// as the agent's). Returns the provider's
 // message plus the classified `status` (ok / failed / unsupported / …); `success`
 // is kept for callers that only check a boolean.
 async function domainOp(
@@ -110,6 +129,7 @@ async function domainOp(
   const r = await applyDomainOp(
     { registrar, domainName: domain, accountId },
     op,
+    { source: DomainEventSource.Agent },
   );
   return json({
     accountId: r.target?.accountId ?? accountId,
@@ -226,6 +246,7 @@ const contactSet = z.object({
   tech: contact.optional(),
   billing: contact.optional(),
 });
+const CONTACT_ROLES = ['registrant', 'admin', 'tech', 'billing'] as const;
 
 // A single DNS record in provider-agnostic form.
 const dnsRecord = z.object({
@@ -1465,7 +1486,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Get a domain’s history',
       description:
-        'For a single domain: everything DomBot recorded about it, oldest first — arrivals and departures seen by sync, moves between your accounts, renewals, purchases, and sales — plus its note and its current Owned/Archive state. Each event says who recorded it (`source`: sync, user, import, lookup, or agent). Sync alerts ("added" and "removed") carry `alert` (open, dismissed, or resolved) and `resolvedBy`, the id of the event that answered it. Works for names in Archive and names no account reports. Local — no registrar call.',
+        'For a single domain: everything DomBot recorded about it, oldest first — arrivals and departures seen by sync, moves between your accounts, renewals, purchases, sales, and settings changes (`changed`: its `setting` — autoRenew, privacy, lock, nameservers, urlForwarding, emailForwarding, dns, or contacts — with `after`, and `before` when DomBot knew it) — plus its note and its current Owned/Archive state. Each event says who recorded it (`source`: sync, user, import, lookup, agent, or bulk: a bulk job in the app). Sync alerts ("added" and "removed") carry `alert` (open, dismissed, or resolved) and `resolvedBy`, the id of the event that answered it. Works for names in Archive and names no account reports. Local — no registrar call.',
       inputSchema: { domain },
       annotations: { readOnlyHint: true },
     },
@@ -1663,8 +1684,16 @@ export function registerTools(server: McpServer): void {
     async ({ accountId, registrar, domain, records }) => {
       const r = resolveRegistrar(domain, registrar, accountId);
       const account = resolveDomainAccount(r, domain, accountId);
-      return cachedWrite(() =>
-        getRegistrarClient(r, account.id).setDnsRecords(domain, records),
+      return cachedWrite(
+        () => getRegistrarClient(r, account.id).setDnsRecords(domain, records),
+        {
+          domain,
+          accountId: account.id,
+          change: {
+            setting: DomainSetting.Dns,
+            after: records.map(dnsRecordLine),
+          },
+        },
       );
     },
   );
@@ -1688,8 +1717,18 @@ export function registerTools(server: McpServer): void {
     async ({ accountId, registrar, domain, contacts }) => {
       const r = resolveRegistrar(domain, registrar, accountId);
       const account = resolveDomainAccount(r, domain, accountId);
-      return cachedWrite(() =>
-        getRegistrarClient(r, account.id).updateContacts(domain, contacts),
+      return cachedWrite(
+        () =>
+          getRegistrarClient(r, account.id).updateContacts(domain, contacts),
+        // The roles only: contact details stay out of the history.
+        {
+          domain,
+          accountId: account.id,
+          change: {
+            setting: DomainSetting.Contacts,
+            after: CONTACT_ROLES.filter((role) => contacts[role]),
+          },
+        },
       );
     },
   );

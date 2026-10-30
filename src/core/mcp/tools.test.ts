@@ -122,10 +122,18 @@ vi.mock('../services/folders', () => ({
 
 const listEvents = vi.fn<() => DomainEvent[]>(() => []);
 const nameNote = vi.fn<(d: string) => { text: string } | undefined>();
+const putEvents = vi.fn<(events: DomainEvent[]) => void>();
 vi.mock('../services/domain-events', () => ({
   listEvents: () => listEvents(),
   eventsFor: (d: string) => listEvents().filter((e) => e.domain === d),
   nameNote: (d: string) => nameNote(d),
+  newEvent: (fields: object, now: number) => ({
+    ...fields,
+    id: `e${now}`,
+    createdAt: now,
+    updatedAt: null,
+  }),
+  putEvents: (events: DomainEvent[]) => putEvents(events),
 }));
 
 const broadcastPortfolioChanged = vi.fn();
@@ -260,6 +268,8 @@ describe('resolveRegistrar (via domain_set_autorenew)', () => {
     expect(applyDomainOp).toHaveBeenCalledWith(
       { registrar: 'dynadot', accountId: 'dynadot', domainName: 'example.com' },
       { kind: 'autoRenew', enabled: true },
+      // Recorded in the name's history as the agent's.
+      { source: 'agent' },
     );
   });
 
@@ -272,6 +282,7 @@ describe('resolveRegistrar (via domain_set_autorenew)', () => {
     expect(applyDomainOp).toHaveBeenCalledWith(
       { registrar: 'porkbun', accountId: 'porkbun', domainName: 'example.com' },
       { kind: 'autoRenew', enabled: false },
+      { source: 'agent' },
     );
   });
 
@@ -359,6 +370,53 @@ describe('cachedWrite() (via domain_dns_set)', () => {
     const out = await call('domain_dns_set', { domain: 'a.com', records: [] });
     expect(out).toEqual({ success: false, message: 'nope' });
     expect(broadcastPortfolioChanged).not.toHaveBeenCalled();
+    expect(putEvents).not.toHaveBeenCalled();
+  });
+
+  it('records the records set in the history, as the agent', async () => {
+    setDnsRecords.mockResolvedValue({ success: true, message: '' });
+    await call('domain_dns_set', {
+      domain: 'a.com',
+      records: [
+        { type: 'A', name: '@', value: '203.0.113.7' },
+        { type: 'MX', name: '@', value: 'mail.a.com', priority: 10 },
+      ],
+    });
+    expect(putEvents).toHaveBeenCalledWith([
+      expect.objectContaining({
+        domain: 'a.com',
+        type: 'changed',
+        source: 'agent',
+        accountId: 'dynadot',
+        setting: 'dns',
+        after: ['A @ 203.0.113.7', 'MX @ mail.a.com (10)'],
+      }),
+    ]);
+  });
+});
+
+describe('domain_contacts_set', () => {
+  beforeEach(() => findRegistrarsForDomain.mockReturnValue(['dynadot']));
+
+  it('records which roles changed, never the contact details', async () => {
+    const updateContacts = vi.fn().mockResolvedValue({ success: true });
+    getRegistrarClient.mockReturnValueOnce({
+      setDnsRecords,
+      getDomain,
+      updateContacts,
+    } as never);
+    await call('domain_contacts_set', {
+      domain: 'a.com',
+      contacts: { registrant: fullContact(), tech: fullContact() },
+    });
+    const [[events]] = putEvents.mock.calls;
+    expect(events).toEqual([
+      expect.objectContaining({
+        setting: 'contacts',
+        after: ['registrant', 'tech'],
+      }),
+    ]);
+    expect(JSON.stringify(events)).not.toContain(fullContact().email);
   });
 });
 
@@ -606,6 +664,7 @@ describe('end-to-end handlers', () => {
     expect(applyDomainOp).toHaveBeenCalledWith(
       { registrar: 'dynadot', accountId: 'dynadot', domainName: 'a.com' },
       { kind: 'renew', years: 3 },
+      { source: 'agent' },
     );
     expect(out).toMatchObject({ success: true, status: 'ok' });
   });
@@ -614,10 +673,11 @@ describe('end-to-end handlers', () => {
     findRegistrarsForDomain.mockReturnValue(['dynadot']);
     applyDomainOp.mockResolvedValue({ status: 'ok', message: 'Renewed' });
     await call('domain_renew', { domain: 'a.com' });
-    expect(applyDomainOp).toHaveBeenCalledWith(expect.anything(), {
-      kind: 'renew',
-      years: 1,
-    });
+    expect(applyDomainOp).toHaveBeenCalledWith(
+      expect.anything(),
+      { kind: 'renew', years: 1 },
+      { source: 'agent' },
+    );
   });
 
   it('domain_auth_code_get returns the code on ok', async () => {

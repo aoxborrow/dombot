@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { DombotApi } from '../../shared/ipc';
+import type { DombotApi, DomainTarget, RegistrarName } from '../../shared/ipc';
 import {
   coreMethods,
   invoke,
@@ -17,6 +17,7 @@ import {
 } from '../../core/demo';
 import { onCoreEvent } from '../../core/events';
 import { setBulkAutoDrive } from '../../core/services/bulk-jobs';
+import { applyDomainOp } from '../../core/services/domain-ops';
 import {
   getMergedPortfolio,
   getPortfolio,
@@ -308,6 +309,43 @@ function recordSampleImportedDomains(): void {
 }
 
 /**
+ * A few settings changed through the real write path, so Activity shows
+ * Changed rows from you and from an agent: auto-renew off on two names
+ * (letting them go), privacy on, and nameservers moved.
+ */
+async function recordSampleSettingsChanges(): Promise<void> {
+  // Names from the middle of accounts whose API changes all four, clear of
+  // the ones the sample departures and moves take.
+  const names = getMergedPortfolio().domains.filter(
+    (d) => d.registrar === 'namecheap' || d.registrar === 'dynadot',
+  );
+  const pick = (at: number) => names[Math.floor((names.length * at) / 10)];
+  const targetOf = (d: (typeof names)[number]): DomainTarget => ({
+    registrar: d.registrar as RegistrarName,
+    accountId: d.accountId,
+    domainName: d.domainName,
+  });
+  const letGo = [pick(2), pick(5)].filter((d) => d?.autoRenew);
+  for (const d of letGo)
+    await applyDomainOp(targetOf(d), { kind: 'autoRenew', enabled: false });
+  const privacy = names
+    .slice(Math.floor(names.length * 0.3))
+    .find((d) => !d.privacy && !letGo.includes(d));
+  if (privacy)
+    await applyDomainOp(targetOf(privacy), { kind: 'privacy', enabled: true });
+  const moved = pick(7);
+  if (moved)
+    await applyDomainOp(
+      targetOf(moved),
+      {
+        kind: 'nameservers',
+        nameservers: ['ada.ns.cloudflare.com', 'bob.ns.cloudflare.com'],
+      },
+      { source: 'agent' },
+    );
+}
+
+/**
  * Boots a fresh in-memory core, installs the demo, runs the first sync so
  * the portfolio is full before anything renders, and returns the API.
  */
@@ -338,6 +376,7 @@ export async function createDemoApi(
   recordSampleNotes();
   recordSampleImportedDomains();
   if (options.sampleChanges) {
+    await recordSampleSettingsChanges();
     stageSampleChanges(demo.world);
     await getPortfolio(true);
     recordSampleHistory();

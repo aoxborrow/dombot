@@ -17,6 +17,7 @@ import {
 import { Namespace } from '../storage/namespace';
 import { applyDomainOp } from './domain-ops';
 import { recordRenewals, type ConfirmedRenewal } from './domain-history';
+import { putEvents } from './domain-events';
 import type {
   MarketBulkJob,
   MarketBulkOp,
@@ -27,6 +28,10 @@ import type {
   MarketWriteResult,
 } from '../../shared/markets';
 import { toAscii } from '../../shared/domain-name';
+import {
+  DomainEventSource,
+  type DomainEvent,
+} from '../../shared/domain-events';
 import { marketAccount } from './markets/accounts';
 import { marketInfo } from './markets/registry';
 import {
@@ -369,8 +374,10 @@ async function runStep(j: StoredJob): Promise<BulkStep> {
 
   const controller = new AbortController();
   stepController = controller;
-  // Confirmed renewals in this slice, recorded together (one write).
+  // Confirmed renewals and settings changes in this slice, recorded together
+  // (one write each).
   const renewals: ConfirmedRenewal[] = [];
+  const changes: DomainEvent[] = [];
   try {
     await Promise.all(
       slice.map(async (target) => {
@@ -380,6 +387,8 @@ async function runStep(j: StoredJob): Promise<BulkStep> {
               signal: controller.signal,
               silent: true,
               renewals,
+              changes,
+              source: DomainEventSource.Bulk,
             });
         if (result.status === 'rate-limited') {
           j.notBefore[target.registrar] = Date.now() + RATE_LIMIT_PAUSE_MS;
@@ -390,9 +399,14 @@ async function runStep(j: StoredJob): Promise<BulkStep> {
   } finally {
     stepController = null;
     try {
-      recordRenewals(renewals);
+      recordRenewals(renewals, DomainEventSource.Bulk);
     } catch (err) {
       console.error('[domain-history] recording renewals failed', err);
+    }
+    try {
+      if (changes.length > 0) putEvents(changes);
+    } catch (err) {
+      console.error('[domain-history] recording changes failed', err);
     }
   }
 
