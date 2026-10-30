@@ -1,6 +1,7 @@
 import { accountNumber, accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { parseDomainsLink } from '../lib/domains-link';
+import { useSaleRecords } from '../lib/sales';
 import {
   importedRegistrarName,
   registrarFilterOptions,
@@ -893,7 +894,6 @@ export default function Domains() {
     marketListings,
     marketCatalog,
     marketTraffic,
-    marketSales,
     importedDomains,
     settings,
     domainEvents,
@@ -901,6 +901,7 @@ export default function Domains() {
     loadRegistrationLookups,
   } = useAppStore();
 
+  const saleRecords = useSaleRecords();
   // Market columns and the Markets filter only appear once a market account
   // is connected.
   const marketsOn = (marketAccounts?.length ?? 0) > 0;
@@ -2274,11 +2275,11 @@ export default function Domains() {
             get their own row. */}
         {syncErrors && <div className="-mt-1.5 sm:hidden">{syncErrors}</div>}
 
-        {!archiveView && (marketsOn || marketSales.length > 0) && (
+        {!archiveView && (marketsOn || saleRecords.length > 0) && (
           <DomainsSummary
             listings={marketListings}
             owned={ownedNames}
-            sales={marketSales}
+            sales={saleRecords}
             accountDays={marketTraffic.accountDays}
             preferredCurrency={settings?.preferredCurrency ?? DEFAULT_CURRENCY}
             numberFormat={settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT}

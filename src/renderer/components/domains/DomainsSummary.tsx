@@ -3,24 +3,24 @@ import { BadgeDollarSign, CircleDollarSign, Eye, Store } from 'lucide-react';
 import { localDay } from '../../../shared/domain-events';
 import { marketState } from '../../../shared/market-filter';
 import { sellThrough } from '../../../shared/market-reports';
-import type {
-  MarketListing,
-  MarketSale,
-  MarketStatsDay,
-} from '../../../shared/markets';
+import type { MarketListing, MarketStatsDay } from '../../../shared/markets';
 import { formatMoney, type NumberFormatId } from '../../../shared/money';
+import {
+  filterSaleRecords,
+  NO_SALE_FILTER,
+  saleTotals,
+  type SaleRecord,
+} from '../../../shared/sales';
 import { StatCard } from '../StatCard';
 
 // The small cards above the Owned table (docs/sales-tab.md, "Domains"):
-// what's listed, what sold and what it netted over 12 months, and the last
-// 30 days' views. Shown once a market account is connected or a sale exists.
+// what's listed, what sold and what it netted over 12 months (every sale,
+// private ones too), and the last 30 days' views. Shown once a market account
+// is connected or a sale exists.
 
 const DAY = 86_400_000;
 const daysAgo = (today: string, n: number) =>
   new Date(Date.parse(today) - n * DAY).toISOString().slice(0, 10);
-
-const cents = (amount: string | null | undefined) =>
-  amount ? Math.round(Number(amount) * 100) : 0;
 
 const plural = (n: number, word: string) =>
   `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
@@ -37,7 +37,8 @@ export function DomainsSummary({
   listings: Record<string, MarketListing[]>;
   /** Names you own (the Owned view), by `toAscii`. */
   owned: ReadonlySet<string>;
-  sales: readonly MarketSale[];
+  /** Every sale record (src/shared/sales.ts). */
+  sales: readonly SaleRecord[];
   accountDays: readonly MarketStatsDay[];
   preferredCurrency: string;
   numberFormat: NumberFormatId;
@@ -64,34 +65,16 @@ export function DomainsSummary({
   // Net over 12 months in the currency most sales were in: amounts in two
   // currencies are never added together.
   const year = useMemo(() => {
-    const since = daysAgo(today, 365);
-    const done = sales.filter(
-      (s) => s.status === 'completed' && s.soldOn && s.soldOn >= since,
-    );
-    const byCurrency = new Map<string, MarketSale[]>();
-    for (const s of done)
-      (
-        byCurrency.get(s.currency) ??
-        byCurrency.set(s.currency, []).get(s.currency)!
-      ).push(s);
-    const [currency, list] = [...byCurrency].sort(
-      (a, b) => b[1].length - a[1].length,
-    )[0] ?? [preferredCurrency, []];
-    const gross = list.reduce((n, s) => n + cents(s.price), 0);
-    const net = list.reduce(
-      (n, s) =>
-        n +
-        (s.net != null ? cents(s.net) : cents(s.price) - cents(s.commission)),
-      0,
-    );
+    const { records } = filterSaleRecords(sales, {
+      ...NO_SALE_FILTER,
+      from: daysAgo(today, 365),
+    });
+    const totals = saleTotals(records).filter((t) => t.currency && t.sold);
     return {
-      currency,
-      count: list.length,
-      gross: (gross / 100).toFixed(2),
-      net: (net / 100).toFixed(2),
-      others: byCurrency.size - (list.length ? 1 : 0),
+      main: totals[0] ?? null,
+      others: Math.max(0, totals.length - 1),
     };
-  }, [sales, today, preferredCurrency]);
+  }, [sales, today]);
   const last30 = useMemo(() => {
     const since = daysAgo(today, 30);
     const days = accountDays.filter((d) => d.date > since);
@@ -100,8 +83,15 @@ export function DomainsSummary({
       leads: days.reduce((n, d) => n + (d.leads ?? 0), 0),
     };
   }, [accountDays, today]);
+  const main = year.main;
   const money = (amount: string) =>
-    formatMoney(amount, year.currency, preferredCurrency, numberFormat, true);
+    formatMoney(
+      amount,
+      main?.currency ?? preferredCurrency,
+      preferredCurrency,
+      numberFormat,
+      true,
+    );
 
   return (
     <div className="hidden grid-cols-2 gap-2.5 sm:grid lg:grid-cols-4">
@@ -119,6 +109,7 @@ export function DomainsSummary({
         icon={BadgeDollarSign}
         accentClass="text-violet-500"
         label="Sold, last 12 months"
+        to="/sales"
         value={through.sold.toLocaleString()}
         hint={
           through.rate === null
@@ -131,12 +122,24 @@ export function DomainsSummary({
         icon={CircleDollarSign}
         accentClass="text-brand-500"
         label="Net, last 12 months"
-        value={money(year.net)}
-        hint={`${plural(year.count, 'sale')} · ${money(year.gross)} gross${
-          year.others
-            ? ` · +${year.others} other ${year.others === 1 ? 'currency' : 'currencies'}`
-            : ''
-        }`}
+        to="/sales"
+        // Net is unknown until a sale's fees are.
+        value={main?.netCount ? money(main.net) : '—'}
+        hint={
+          main
+            ? [
+                // Net is known only where fees are.
+                main.netCount < main.sold
+                  ? `${main.netCount} of ${plural(main.sold, 'sale')}`
+                  : plural(main.sold, 'sale'),
+                `${money(main.gross)} gross`,
+                year.others &&
+                  `+${year.others} other ${year.others === 1 ? 'currency' : 'currencies'}`,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : 'No sales yet'
+        }
       />
       <StatCard
         size="sm"

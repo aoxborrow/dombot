@@ -33,10 +33,15 @@ browser on an invented portfolio, no install and no account.
   available and a base per-TLD price database otherwise, and you can enter a
   price by hand for anything still unpriced.
 - **Marketplaces.** Connect Afternic, Sedo and Atom accounts to see each
-  name's listing, price, views and leads in the table, list or delist names at
-  your DomBot prices from the row menu or in bulk, and follow traffic and sales
-  on the Markets page. Completed sales are recorded in each name's history. See
+  name's listing, price, and 12-month views, leads and searches in the table,
+  and list or delist names at your DomBot prices from the row menu or in bulk.
+  Completed sales are recorded in each name's history. See
   [Connecting marketplaces](#connecting-marketplaces).
+- **Sales.** Every sale in one place: what the markets report, and the private
+  and imported sales you record, with fees, net, holding period and profit
+  where what you paid is known. Filter by date, market, TLD or registrar and
+  the totals above follow, per currency (never converted); export to CSV. A
+  sale waiting on the auth code sends it from the registrar in one click.
 - **Export.** One click exports the current (filtered, sorted) view to a
   spreadsheet-friendly CSV.
 - **Instant, offline-friendly launch.** The whole portfolio is cached on disk
