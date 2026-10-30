@@ -674,12 +674,20 @@ export function FilterBar({
       if (row.offsetWidth === 0) return;
       const chipEl = (key: string) =>
         row.querySelector<HTMLElement>(`[data-filter-chip="${key}"]`);
-      // The row's first line: down to the bottom of its first item (the
-      // search box, or the view switch).
-      const first = Array.from(row.children).find(
-        (c) => (c as HTMLElement).offsetWidth > 0,
-      );
+      const start0 =
+        row.getBoundingClientRect().left + parseFloat(style.paddingLeft);
+      // The row's first line the chips can share: down to the bottom of its
+      // first item that isn't a row to itself (the search box, or past a
+      // view switch or a phone's full-width search, the first chip).
+      const first = Array.from(row.children).find((c) => {
+        const w = (c as HTMLElement).offsetWidth;
+        return w > 0 && w < end - start0 - 1;
+      }) as HTMLElement | undefined;
       const firstBottom = first?.getBoundingClientRect().bottom ?? Infinity;
+      // Nothing before the chips on that line: they start at its edge.
+      const firstIsChip =
+        !!first?.querySelector('[data-filter-chip]') ||
+        !!first?.matches('[data-filter-chip]');
       const next = new Set<string>();
       for (const [i, f] of placed.entries()) {
         if (!presetsIfRoom.includes(f.key) || !optional(f)) continue;
@@ -693,15 +701,16 @@ export function FilterBar({
             .slice(0, i)
             .reverse()
             .map((p) => (next.has(p.key) ? null : chipEl(p.key)))
-            .find((p) => p) ?? (first as HTMLElement | undefined);
-        if (!width || !prev) continue;
-        const box = prev.getBoundingClientRect();
-        const start = box.right + gap;
-        // Only on the first line, with room for the square add button,
-        // which is as wide as a chip is tall.
+            .find((p) => p) ?? (firstIsChip ? undefined : first);
+        const height = (prev ?? first)?.offsetHeight;
+        if (!width || !height) continue;
+        const box = prev?.getBoundingClientRect();
+        const start = box ? box.right + gap : start0;
+        // Only on that line, with room for the square add button, which is
+        // as wide as a chip is tall.
         const noRoom =
-          box.top >= firstBottom ||
-          start + width + gap + prev.offsetHeight > end + 0.5;
+          (box ? box.top : 0) >= firstBottom ||
+          start + width + gap + height > end + 0.5;
         if (noRoom) next.add(f.key);
       }
       setCramped((was) =>
