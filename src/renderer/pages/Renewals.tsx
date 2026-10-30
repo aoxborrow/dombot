@@ -1,6 +1,6 @@
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Building2,
   CalendarClock,
@@ -175,7 +175,8 @@ export default function Renewals() {
   );
   const registrarFilter = (
     <FilterDropdown
-      className="w-56"
+      // Full width on phones, like the search on the other pages.
+      className="w-56 max-sm:w-full"
       field={{
         key: 'registrar',
         label: 'Registrar',
@@ -213,6 +214,9 @@ export default function Renewals() {
     <ToolbarSwitch
       fillOnPhone
       label="Which renewals to count"
+      // Three don't fit a phone with their counts, and Auto-renew needs
+      // more than a third.
+      className="max-sm:[&_.tabular-nums]:hidden max-sm:[&_[role=radio]]:flex-auto max-sm:[&_[role=radio]]:whitespace-nowrap"
       options={[
         {
           id: 'all',
@@ -357,15 +361,7 @@ export default function Renewals() {
   return (
     // 13px between rows and cards, as on Domains, Sales and Activity.
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-[13px]">
-      {/* On phones, where the switch takes its row, the Registrar filter
-          stays in the title row; from sm it ends the switch's row. */}
-      <PageHeader>
-        <div className="sm:hidden">{registrarFilter}</div>
-      </PageHeader>
-      <div className="flex items-center justify-between gap-3">
-        {renewSwitch}
-        <div className="hidden sm:block">{registrarFilter}</div>
-      </div>
+      <PageHeader />
 
       {/* Totals: the small two-row cards Domains and Sales have. Amounts in
           another currency are left out of these; the chart lists them. */}
@@ -424,6 +420,14 @@ export default function Renewals() {
         />
       </StatCardRow>
 
+      {/* A toolbar over the chart and donuts, as over the other pages'
+          tables: the view first (a row of its own under lg, as there),
+          then the registrars. */}
+      <div className="flex flex-wrap items-center gap-3.5">
+        <div className="max-lg:basis-full">{renewSwitch}</div>
+        {registrarFilter}
+      </div>
+
       {/* Spend over time, between the totals and the composition donuts. */}
       <MonthlyBarChart months={months} fmt={usd} />
 
@@ -474,15 +478,13 @@ export default function Renewals() {
 
 // ── Header ───────────────────────────────────────────────────────────────────
 
-/** The title, with `children` (the Registrar filter) on the right; the
- *  same height and type as the other pages' title rows. */
-function PageHeader({ children }: { children?: ReactNode }) {
+/** The title: the same height and type as the other pages' title rows. */
+function PageHeader() {
   return (
-    <div className="flex min-h-9 items-start justify-between gap-4">
+    <div className="mb-[15px] min-h-9">
       <h1 className="mt-1.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
         Renewals
       </h1>
-      {children}
     </div>
   );
 }
