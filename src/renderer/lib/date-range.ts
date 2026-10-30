@@ -8,7 +8,15 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The date filter shortcuts. A field offers the ones that suit it. */
 export type DatePresetId =
-  'expired' | 'next30' | 'next60' | 'next90' | 'last30' | 'last90' | 'last12m';
+  | 'expired'
+  | 'grace'
+  | 'redemption'
+  | 'next30'
+  | 'next60'
+  | 'next90'
+  | 'last30'
+  | 'last90'
+  | 'last12m';
 
 /**
  * One date filter's bounds, each `YYYY-MM-DD` or "" for unbounded. With a
@@ -27,6 +35,20 @@ export const NO_DATE_RANGE: DateRange = { from: '', to: '' };
 /** Shortcuts for a date that's ahead: renewals and expiry. */
 export const FUTURE_DATE_PRESETS: DatePresetId[] = [
   'expired',
+  'next30',
+  'next60',
+  'next90',
+];
+
+/**
+ * The Expiration filter's shortcuts: FUTURE_DATE_PRESETS with the registrar's
+ * Grace and Redemption after Expired. Those two match a status, not a day,
+ * so the page that offers them checks the row's status too.
+ */
+export const EXPIRATION_PRESETS: DatePresetId[] = [
+  'expired',
+  'grace',
+  'redemption',
   'next30',
   'next60',
   'next90',
@@ -80,6 +102,15 @@ export const DATE_PRESETS: Record<
   expired: {
     label: 'Expired',
     bounds: (t) => ({ from: '', to: shiftDay(t, -1) }),
+  },
+  // No bounds: the registrar's status decides (see EXPIRATION_PRESETS).
+  grace: {
+    label: 'Grace',
+    bounds: () => ({ from: '', to: '' }),
+  },
+  redemption: {
+    label: 'Redemption',
+    bounds: () => ({ from: '', to: '' }),
   },
   next30: {
     label: 'Next 30 days',

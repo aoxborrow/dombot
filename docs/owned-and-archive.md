@@ -42,10 +42,11 @@ already knows; you never set it.
   in 2031, or even in three months, isn't news yet.
 - **The Expired, Grace and Redemption pills** are read from the registrar's
   status (`domainLifecycle` in `src/renderer/pages/Domains.tsx`). They sit in
-  the Expires column, in place of the "Nd ago" countdown; only Hold (DNS
-  off, not an expiry matter) stays beside the name, with the Sold pill and
-  the Imported icon (an arrow into a tray). Expiring isn't a pill: the Expires
-  column's colour and the Auto-renew filter already show it on the row, and
+  the Expiration column after the date, which past expiry is one colour (the
+  Expired pill's) with no countdown; the Expiration filter can pick Grace or
+  Redemption. Only Hold (DNS off, not an expiry matter) stays beside the
+  name, with the Sold and Imported pills. Expiring isn't a pill: the
+  Expiration column's colour and the Auto-renew filter already show it on the row, and
   it's worked out for MCP and a future summary card.
 - **A new Auto-renew filter** (On, Off) beside Registrar, TLD and Folder.
   There isn't one today, and it's how you see what you're letting go.

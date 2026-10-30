@@ -16,7 +16,6 @@ import {
   ChevronDown,
   CircleCheck,
   Globe,
-  Import,
   IterationCw,
   Plug,
   Server,
@@ -125,7 +124,7 @@ import { BulkBar, type OwnershipAction } from '../components/domains/BulkBar';
 import { BulkActionDialog } from '../components/domains/BulkActionDialog';
 import { defaultBulkOp } from '../lib/bulk';
 import {
-  FUTURE_DATE_PRESETS,
+  EXPIRATION_PRESETS,
   isDateRangeSet,
   matchesDateRange,
   NO_DATE_RANGE,
@@ -423,7 +422,8 @@ type LifecycleTone = 'redemption' | 'expired' | 'grace' | 'hold';
  */
 const LIFECYCLE_TONE: Record<LifecycleTone, string> = {
   redemption: 'bg-purple-950 text-purple-100',
-  expired: 'bg-fuchsia-700 text-white',
+  // The past-expiry date's colour (expiryColor), so the two read as one.
+  expired: 'bg-fuchsia-600 text-white dark:bg-fuchsia-500',
   grace: 'bg-pink-500 text-white',
   hold: 'bg-red-800 text-white',
 };
@@ -650,13 +650,12 @@ const COLUMNS: Column[] = [
         <DomainLink name={d.domainName} />
         <LifecycleBadge status={d.status} hold />
         {d.source === 'imported' && (
-          // An arrow into a tray: added by you, no connected account.
-          <span title="Imported" className="inline-flex">
-            <Import
-              className="size-3.5 text-muted-foreground/70"
-              aria-label="Imported"
-            />
-          </span>
+          <Badge
+            variant="outline"
+            className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
+          >
+            Imported
+          </Badge>
         )}
       </span>
     ),
@@ -685,7 +684,7 @@ const COLUMNS: Column[] = [
   },
   {
     key: 'expirationDate',
-    label: 'Expires',
+    label: 'Expiration',
     render: (d) => {
       const days = daysUntil(d.expirationDate);
       const color = expiryColor(days);
@@ -705,7 +704,9 @@ const COLUMNS: Column[] = [
           {state ? (
             <LifecycleBadge status={d.status} hold={false} />
           ) : (
-            days !== null && (
+            // A countdown ahead of expiry; past it the colour says enough.
+            days !== null &&
+            days >= 0 && (
               <span className="text-xs opacity-60 compact:text-[11px]">
                 {relativeDays(days)}
               </span>
@@ -777,33 +778,35 @@ function dueLabel(days: number | null): string {
   return `Expires in ${days} day${days === 1 ? '' : 's'}`;
 }
 
-/** Compact relative form shown next to the date, e.g. "30d", "today", "5d ago". */
+/** Compact countdown shown next to an upcoming date, e.g. "30d", "today". */
 function relativeDays(days: number): string {
-  if (days < 0) return `${-days}d ago`;
-  if (days === 0) return 'today';
-  return `${days}d`;
+  return days === 0 ? 'today' : `${days}d`;
 }
 
 /**
  * Expiry text color. Upcoming expiries climb a warm ramp as they near — yellow
- * (≤60, a heads-up) → orange (≤30) → red (≤14). Past expiries switch to the
- * cool side so they can't be mistaken for a countdown: pink while the domain
- * is likely still recoverable (most registrars' grace + redemption windows
- * fall inside ~45 days), then a deep purple once it's probably gone. Muted
- * when there's no date.
+ * (≤60, a heads-up) → orange (≤30) → red (≤14, and today). Past expiry is one
+ * fuchsia, the Expired pill's, so it can't be mistaken for a countdown; the
+ * Grace and Redemption pills say what's left. Muted when there's no date.
  */
 function expiryColor(days: number | null): string {
   if (days === null) return 'text-muted-foreground';
-  if (days < -RECOVERABLE_DAYS) return 'text-purple-900 dark:text-purple-500';
-  if (days <= 0) return 'text-pink-600 dark:text-pink-400';
+  if (days < 0) return 'text-fuchsia-600 dark:text-fuchsia-400';
   if (days <= 14) return 'text-red-700 dark:text-red-500';
   if (days <= 30) return 'text-orange-500 dark:text-orange-375';
   if (days <= 60) return 'text-yellow-600 dark:text-yellow-400';
   return 'text-foreground';
 }
 
-/** Days past expiry within which a domain is usually still renewable. */
-const RECOVERABLE_DAYS = 45;
+/**
+ * The Expiration filter: the date range, or for the Grace and Redemption
+ * shortcuts the registrar's status (date-range.ts, EXPIRATION_PRESETS).
+ */
+function matchesExpiration(d: Domain, range: DateRange): boolean {
+  if (range.preset === 'grace' || range.preset === 'redemption')
+    return domainLifecycle(d.status)?.tone === range.preset;
+  return matchesDateRange(utcDay(d.expirationDate), range);
+}
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
@@ -1424,6 +1427,8 @@ export default function Domains() {
     presets: DatePresetId[],
     dayOf: (d: Domain) => string | null | undefined,
     icon?: typeof CalendarClock,
+    matches: (d: Domain, r: DateRange) => boolean = (d, r) =>
+      matchesDateRange(dayOf(d), r),
   ) =>
     dateRangeField({
       key,
@@ -1431,7 +1436,11 @@ export default function Domains() {
       icon,
       range,
       presets,
-      count: (r) => shown.filter((d) => matchesDateRange(dayOf(d), r)).length,
+      // Over this tab's names only (Archive rows carry their last expiry).
+      count: (r) =>
+        shown.filter(
+          (d) => !archiveLabelOf(d) === !archiveView && matches(d, r),
+        ).length,
       onChange: (next) => {
         set(next);
         setPage(0);
@@ -1552,9 +1561,10 @@ export default function Domains() {
       'Expiration',
       expires,
       setExpires,
-      FUTURE_DATE_PRESETS,
+      EXPIRATION_PRESETS,
       (d) => utcDay(d.expirationDate),
       CalendarClock,
+      matchesExpiration,
     ),
     // Owned only: what you're letting go (auto-renew off), after Expiration.
     ...(archiveView
@@ -1760,7 +1770,7 @@ export default function Domains() {
       const record = purchases[toAscii(d.domainName)];
       if (!archiveView && !matchesDateRange(utcDay(d.createdDate), created))
         return false;
-      if (!matchesDateRange(utcDay(d.expirationDate), expires)) return false;
+      if (!matchesExpiration(d, expires)) return false;
       if (!matchesDateRange(record?.purchaseDate, purchased)) return false;
       if (archiveView && !matchesDateRange(record?.saleDate, sold))
         return false;
