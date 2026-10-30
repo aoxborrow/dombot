@@ -767,7 +767,6 @@ export default function Activity() {
             first. */}
         <div className="flex">
           <ToolbarSwitch
-            size="xl"
             label="Which activity to show"
             options={[
               {

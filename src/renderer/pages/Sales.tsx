@@ -630,7 +630,6 @@ export default function Sales() {
         {/* The view first, as on Renewals. */}
         <div className="flex">
           <ToolbarSwitch
-            size="xl"
             label="Which sales to show"
             options={[
               {
