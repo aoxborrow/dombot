@@ -7,6 +7,7 @@ import { toAscii } from '../../shared/domain-name';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  Archive,
   EyeOff,
   Building2,
   CalendarClock,
@@ -61,7 +62,12 @@ import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
 import { importedRows } from '../../shared/imported-domains';
 import { priceMoney } from '../lib/renewals';
 import { nameserverGroup } from '../lib/nameservers';
-import { folderColorStyle } from '../lib/folders';
+import {
+  countFolders,
+  folderBucket,
+  folderColorStyle,
+  NO_FOLDER,
+} from '../lib/folders';
 import {
   reportOpResult,
   targetOf,
@@ -281,8 +287,6 @@ function CellSkeleton({ align }: { align?: 'left' | 'right' | 'center' }) {
 
 /** Sort sentinel for the injected Folder column (folders aren't a Domain field). */
 const FOLDER = 'folder';
-/** Filter value matching domains with no folder assigned (the "None" bucket). */
-const NONE = '__none__';
 
 const RENEWAL = 'renewal';
 
@@ -1154,7 +1158,13 @@ export default function Domains() {
       comparisons: linked.comparisons ?? [],
     }),
   );
-  const [folder, setFolder] = useState<string[]>([]);
+  // Starts from ?folder= so a folder's count in Settings opens on it.
+  const [folder, setFolder] = useState<string[]>(() => {
+    const id = params.get('folder');
+    return id ? [id] : [];
+  });
+  // Archive only: Sold, Dropped, Archived, Removed.
+  const [status, setStatus] = useState<string[]>([]);
   // Owned only: what each name's asking price holds, and BIN price and
   // minimum offer ranges.
   const [pricingFilter, setPricingFilter] = useState<PricingFilterValue>(
@@ -1331,37 +1341,32 @@ export default function Domains() {
     return { nsGroups: groups, nsKeysByDomain: keysByDomain };
   }, [merged, marketCatalog]);
 
-  // Owned: the Folder filter offers the user's folders, None, and Hidden.
-  // Archive: the same control filters by status (Sold, Dropped, …).
-  const { ownedFolderOptions, archiveStatusOptions, ownedCount, archiveCount } =
+  // The Folder filter offers the user's folders, None, and Hidden, counted
+  // over this tab's names (a name in Archive keeps its folder). Archive also
+  // filters by status (Sold, Dropped, …).
+  const { folderOptions, archiveStatusOptions, ownedCount, archiveCount } =
     useMemo(() => {
-      const counts: Record<string, number> = {};
+      const counts = countFolders(
+        listed,
+        ownership,
+        folderAssignments,
+        folders,
+      );
+      const inView = archiveView ? counts.archive : counts.owned;
       const status: Record<ArchiveLabel, number> = {
         sold: 0,
         dropped: 0,
         archived: 0,
         removed: 0,
       };
-      let noFolder = 0;
-      let hidden = 0;
       for (const d of listed) {
         const label = ownership.get(toAscii(d.domainName))?.label;
-        if (label) {
-          status[label] += 1;
-          continue;
-        }
-        const id = folderAssignments[toAscii(d.domainName)];
-        if (id === HIDDEN_FOLDER_ID) hidden += 1;
-        else if (id && folders.some((f) => f.id === id)) {
-          counts[id] = (counts[id] ?? 0) + 1;
-        } else {
-          noFolder += 1;
-        }
+        if (label) status[label] += 1;
       }
       const opts = folders.map((f) => ({
         value: f.id,
         label: f.name,
-        count: counts[f.id] ?? 0,
+        count: inView[f.id] ?? 0,
         icon: (
           <FolderIcon
             className={cn('size-4 shrink-0', folderColorStyle(f.color).text)}
@@ -1370,9 +1375,9 @@ export default function Domains() {
         ),
       }));
       opts.push({
-        value: NONE,
+        value: NO_FOLDER,
         label: 'None',
-        count: noFolder,
+        count: inView[NO_FOLDER] ?? 0,
         icon: (
           <FolderOffIcon
             className="size-4 shrink-0 text-muted-foreground/50"
@@ -1383,7 +1388,7 @@ export default function Domains() {
       opts.push({
         value: HIDDEN_FOLDER_ID,
         label: 'Hidden',
-        count: hidden,
+        count: inView[HIDDEN_FOLDER_ID] ?? 0,
         icon: <EyeOff className="size-4 shrink-0" aria-hidden />,
       });
       const statusOptions = (
@@ -1394,15 +1399,16 @@ export default function Domains() {
         count: status[label],
         icon: <EventTypeDot type={label} />,
       }));
-      const userFolderCount = Object.values(counts).reduce((n, c) => n + c, 0);
+      const sum = (c: Record<string, number>) =>
+        Object.values(c).reduce((n, x) => n + x, 0);
       return {
-        ownedFolderOptions: opts,
+        folderOptions: opts,
         archiveStatusOptions: statusOptions,
         // Owned counts what shows by default: Hidden is left out.
-        ownedCount: noFolder + userFolderCount,
-        archiveCount: Object.values(status).reduce((n, c) => n + c, 0),
+        ownedCount: sum(counts.owned) - (counts.owned[HIDDEN_FOLDER_ID] ?? 0),
+        archiveCount: sum(counts.archive),
       };
-    }, [listed, folders, folderAssignments, ownership]);
+    }, [listed, folders, folderAssignments, ownership, archiveView]);
 
   // The filter bar's fields, in the Add filter menu's order (the order the
   // old filter buttons had). Each set field shows as a chip; clearing is per
@@ -1463,17 +1469,32 @@ export default function Domains() {
       },
       setTld,
     ),
-    // Owned: folders and Hidden. Archive: status.
+    // Archive: status, then the folder each name had. Owned: the folder.
+    ...(archiveView && archiveCount > 0
+      ? [
+          listFilter(
+            {
+              key: 'status',
+              label: 'Status',
+              icon: Archive,
+              options: archiveStatusOptions,
+              selected: status,
+              plural: 'statuses',
+            },
+            setStatus,
+          ),
+        ]
+      : []),
     ...(!archiveView || archiveCount > 0
       ? [
           listFilter(
             {
               key: 'folder',
-              label: archiveView ? 'Status' : 'Folder',
+              label: 'Folder',
               icon: FolderIcon,
-              options: archiveView ? archiveStatusOptions : ownedFolderOptions,
+              options: folderOptions,
               selected: folder,
-              plural: archiveView ? 'statuses' : 'folders',
+              plural: 'folders',
             },
             setFolder,
           ),
@@ -1668,7 +1689,9 @@ export default function Domains() {
   }, [shownColumnKeys, sortKey]);
 
   function setListView(next: 'owned' | 'archive') {
-    setFolder([]);
+    // Folder applies on both tabs, so it stays: a folder's Owned names, then
+    // the ones you no longer hold.
+    setStatus([]);
     setPricingFilter(NO_PRICING_FILTER);
     // Created is Active only and Sold is Archive only; neither waits,
     // hidden, to come back.
@@ -1738,27 +1761,22 @@ export default function Domains() {
       if (!matchesDateRange(record?.purchaseDate, purchased)) return false;
       if (archiveView && !matchesDateRange(record?.saleDate, sold))
         return false;
-      // Owned vs Archive comes from the event log. In Archive the filter is
-      // the status; in Owned it's the folder (a real folder, Hidden, or None),
-      // and Hidden stays out unless the filter picks it.
+      // Owned vs Archive comes from the event log. Archive also filters by
+      // status. The folder is a real folder, Hidden, or None on both tabs; in
+      // Owned, Hidden stays out unless the filter picks it.
       {
         const label = archiveLabelOf(d);
-        if (archiveView) {
-          if (!label) return false;
-          if (folder.length > 0 && !folder.includes(label)) return false;
-        } else {
-          if (label) return false;
-          const id = folderAssignments[toAscii(d.domainName)];
-          const bucket = isHiddenFolder(id)
-            ? id!
-            : id && folders.some((f) => f.id === id)
-              ? id
-              : NONE;
-          if (folder.length > 0) {
-            if (!folder.includes(bucket)) return false;
-          } else if (isHiddenFolder(bucket)) {
-            return false;
-          }
+        if (!label === archiveView) return false;
+        if (archiveView && status.length > 0 && !status.includes(label!))
+          return false;
+        const bucket = folderBucket(
+          folderAssignments[toAscii(d.domainName)],
+          folders,
+        );
+        if (folder.length > 0) {
+          if (!folder.includes(bucket)) return false;
+        } else if (!archiveView && isHiddenFolder(bucket)) {
+          return false;
         }
       }
       return true;
@@ -1798,6 +1816,7 @@ export default function Domains() {
     listingMarkets,
     marketListings,
     folder,
+    status,
     folders,
     folderAssignments,
     askingFilter,
@@ -2227,6 +2246,7 @@ export default function Domains() {
             presets={[
               'registrar',
               'tld',
+              'status',
               'folder',
               'price',
               'markets',
