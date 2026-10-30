@@ -246,8 +246,10 @@
      click anywhere in the cell is a click on it. The cell turns green on
      hover and while its menu or editor is open. Other links and buttons in
      the cell (the domain name, the notes icon) sit above the overlay and
-     keep their own clicks. The row's select checkbox cell lights with the
-     cell beside it (the Domain cell). */
+     keep their own clicks. So does anything with a tooltip, so the tooltip
+     shows: a listing's status (inside its control, so a click still
+     reaches it) and the Domain cell's badges. The row's select checkbox
+     cell lights with the cell beside it (the Domain cell). */
   td:has([data-cell-action]),
   td:has(> [role='checkbox']) {
     position: relative;
@@ -259,7 +261,7 @@
     position: absolute;
     inset: 0;
   }
-  td:has([data-cell-action]) :is(a, button:not([data-cell-action])) {
+  td:has([data-cell-action]) :is(a, button, [title]):not([data-cell-action]) {
     position: relative;
     z-index: 1;
   }
