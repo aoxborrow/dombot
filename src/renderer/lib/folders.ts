@@ -1,4 +1,7 @@
-import type { FolderColor } from '../../shared/ipc';
+import { toAscii } from '../../shared/domain-name';
+import type { Domain, Folder, FolderColor } from '../../shared/ipc';
+import { isHiddenFolder } from '../../shared/ipc';
+import type { Ownership } from '../../shared/ownership';
 
 // The folder color palette. Main stores only the palette key (see
 // shared/ipc.ts); the renderer owns how each key looks. Every class string is a
@@ -83,4 +86,47 @@ export const FOLDER_COLOR_STYLES: Record<FolderColor, FolderColorStyle> = {
  *  hand-edited folders.json never breaks rendering. */
 export function folderColorStyle(color: FolderColor): FolderColorStyle {
   return FOLDER_COLOR_STYLES[color] ?? FOLDER_COLOR_STYLES.gray;
+}
+
+/** Folder filter value for names in no folder (the "None" bucket). */
+export const NO_FOLDER = '__none__';
+
+/**
+ * A name's Folder filter bucket: its folder, Hidden, or None. An assignment
+ * to a folder that's been deleted counts as None.
+ */
+export function folderBucket(
+  id: string | undefined,
+  folders: Folder[],
+): string {
+  if (isHiddenFolder(id)) return id!;
+  return id && folders.some((f) => f.id === id) ? id : NO_FOLDER;
+}
+
+export interface FolderCounts {
+  /** Owned rows per bucket (a folder id, Hidden, or None). */
+  owned: Record<string, number>;
+  /** Archive rows per bucket. */
+  archive: Record<string, number>;
+}
+
+/**
+ * Rows per Folder filter bucket, in Owned and in Archive, as the Domains
+ * table counts them. A name in Archive keeps its folder. An assignment for a
+ * name with no row (one DomBot doesn't show any more) isn't counted.
+ */
+export function countFolders(
+  rows: Domain[],
+  ownership: Map<string, Ownership>,
+  assignments: Record<string, string>,
+  folders: Folder[],
+): FolderCounts {
+  const counts: FolderCounts = { owned: {}, archive: {} };
+  for (const d of rows) {
+    const key = toAscii(d.domainName);
+    const view = ownership.get(key)?.label ? counts.archive : counts.owned;
+    const bucket = folderBucket(assignments[key], folders);
+    view[bucket] = (view[bucket] ?? 0) + 1;
+  }
+  return counts;
 }
