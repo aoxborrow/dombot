@@ -767,6 +767,7 @@ export default function Activity() {
             first. */}
         <div className="flex">
           <ToolbarSwitch
+            fillOnPhone
             label="Which activity to show"
             options={[
               {

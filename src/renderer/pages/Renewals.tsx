@@ -209,6 +209,7 @@ export default function Renewals() {
         : inRegistrar;
   const renewSwitch = (
     <ToolbarSwitch
+      fillOnPhone
       label="Which renewals to count"
       options={[
         {

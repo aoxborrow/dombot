@@ -27,6 +27,7 @@ export function OwnershipSwitch({
 }) {
   return (
     <ToolbarSwitch
+      fillOnPhone
       label="Owned domains, their market listings, or archived domains"
       // Three don't fit a phone with their counts.
       className={listings ? 'max-sm:[&_.tabular-nums]:hidden' : undefined}
