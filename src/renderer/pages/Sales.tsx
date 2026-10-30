@@ -277,7 +277,22 @@ export default function Sales() {
       .sort((a, b) => b.count - a.count);
   }, [records]);
 
+  // TLD first in the Add filter menu, though never a default chip.
   const filterFields: FilterField[] = [
+    listField(
+      {
+        key: 'tld',
+        label: 'TLD',
+        icon: Globe,
+        options: tldOptions,
+        selected: tlds,
+        plural: 'TLDs',
+      },
+      (next) => {
+        setTlds(next);
+        setPage(0);
+      },
+    ),
     dateRangeField({
       key: 'soldOn',
       label: 'Sold',
@@ -302,20 +317,6 @@ export default function Sales() {
       },
       (next) => {
         setSources(next);
-        setPage(0);
-      },
-    ),
-    listField(
-      {
-        key: 'tld',
-        label: 'TLD',
-        icon: Globe,
-        options: tldOptions,
-        selected: tlds,
-        plural: 'TLDs',
-      },
-      (next) => {
-        setTlds(next);
         setPage(0);
       },
     ),
@@ -662,8 +663,8 @@ export default function Sales() {
           }}
           searchPlaceholder="Search domains…"
           fields={filterFields}
-          presets={['soldOn', 'source', 'tld', 'registrar']}
-          presetsIfRoom={['tld', 'registrar']}
+          presets={['soldOn', 'source', 'registrar']}
+          presetsIfRoom={['registrar']}
         >
           {undated > 0 && (
             <span className="text-xs text-muted-foreground">

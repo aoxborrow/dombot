@@ -661,6 +661,29 @@ const VIEW_COLUMNS: Record<DomainsView, ColumnLayout> = {
   },
 };
 
+/**
+ * Each view's default filter chips, in order, and which of them show only
+ * while they fit on the toolbar's first line. TLD is in the Add filter menu
+ * only.
+ */
+const VIEW_FILTERS: Record<
+  DomainsView,
+  { presets: string[]; ifRoom: string[] }
+> = {
+  owned: {
+    presets: ['registrar', 'folder', 'price', 'expirationDate'],
+    ifRoom: ['price', 'expirationDate'],
+  },
+  listings: {
+    presets: ['folder', 'price', 'markets'],
+    ifRoom: ['folder'],
+  },
+  archive: {
+    presets: ['registrar', 'status', 'folder', 'expirationDate'],
+    ifRoom: ['folder', 'expirationDate'],
+  },
+};
+
 const VIEW_TITLE: Record<DomainsView, string> = {
   owned: 'Owned',
   listings: 'Listings',
@@ -1539,18 +1562,8 @@ export default function Domains() {
       },
     });
   const purchaseOf = (d: Domain) => purchases[toAscii(d.domainName)];
+  // TLD first in the Add filter menu, though never a default chip.
   const filterFields: FilterField[] = [
-    listFilter(
-      {
-        key: 'registrar',
-        label: 'Registrar',
-        icon: Building2,
-        options: registrarOptions,
-        selected: registrar,
-        plural: 'registrars',
-      },
-      setRegistrar,
-    ),
     listFilter(
       {
         key: 'tld',
@@ -1561,6 +1574,17 @@ export default function Domains() {
         plural: 'TLDs',
       },
       setTld,
+    ),
+    listFilter(
+      {
+        key: 'registrar',
+        label: 'Registrar',
+        icon: Building2,
+        options: registrarOptions,
+        selected: registrar,
+        plural: 'registrars',
+      },
+      setRegistrar,
     ),
     // Archive: status, then the folder each name had. Owned: the folder.
     ...(archiveView && archiveCount > 0
@@ -2380,8 +2404,11 @@ export default function Domains() {
           configured — so its toolbar and structure stay put; the empty body row
           carries the contextual prompt (configure a registrar / refresh / no
           matches). Columns is in the table's footer, under the rows. */}
+        {/* One bar per view: each has its own default chips, and its own
+            memory of the ones you removed. */}
         <FilterToolbar
-          id="domains"
+          key={view}
+          id={`domains.${view}`}
           search={search}
           onSearch={(value) => {
             setSearch(value);
@@ -2389,22 +2416,8 @@ export default function Domains() {
           }}
           searchPlaceholder="Search domains…"
           fields={filterFields}
-          presets={[
-            'registrar',
-            'tld',
-            'status',
-            'folder',
-            'price',
-            'markets',
-            'expirationDate',
-          ]}
-          // Shown from the start when they fit as the page loads; Listings
-          // always has Markets.
-          presetsIfRoom={
-            listingsView
-              ? ['price', 'expirationDate']
-              : ['price', 'markets', 'expirationDate']
-          }
+          presets={VIEW_FILTERS[view].presets}
+          presetsIfRoom={VIEW_FILTERS[view].ifRoom}
         >
           {exportNote && (
             <span

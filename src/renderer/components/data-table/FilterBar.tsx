@@ -617,9 +617,8 @@ export function FilterBar({
   /** Keys of the fields always shown, in order, even when unset. */
   presets?: string[];
   /** Of `presets`, the ones shown while unset only when they fit on the
-   *  line after the chip before them, with room for the square add button.
-   *  Decided once each, as the bar first lays out: resizing the window
-   *  later doesn't add or drop them. */
+   *  row's first line, after the chip before them, with room for the
+   *  square add button. Checked again as the window resizes. */
   presetsIfRoom?: string[];
   /** The chips' look; see FilterChipVariant. */
   variant?: FilterChipVariant;
@@ -639,8 +638,6 @@ export function FilterBar({
   // presetsIfRoom that don't fit right now, and each one's width from when
   // it last showed. Picking one from the menu shows it regardless.
   const [cramped, setCramped] = useState<Set<string>>(() => new Set());
-  // Each optional preset's verdict once made (true: no room), kept.
-  const decided = useRef(new Map<string, boolean>());
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const widths = useRef(new Map<string, number>());
   const anchor = useRef<HTMLSpanElement>(null);
@@ -668,28 +665,34 @@ export function FilterBar({
       if (row.offsetWidth === 0) return;
       const chipEl = (key: string) =>
         row.querySelector<HTMLElement>(`[data-filter-chip="${key}"]`);
+      // The row's first line: down to the bottom of its first item (the
+      // search box, or the view switch).
+      const first = Array.from(row.children).find(
+        (c) => (c as HTMLElement).offsetWidth > 0,
+      );
+      const firstBottom = first?.getBoundingClientRect().bottom ?? Infinity;
       const next = new Set<string>();
       for (const [i, f] of placed.entries()) {
-        if (!presetsIfRoom.includes(f.key)) continue;
-        const verdict = decided.current.get(f.key);
-        if (verdict !== undefined) {
-          if (verdict) next.add(f.key);
-          continue;
-        }
+        if (!presetsIfRoom.includes(f.key) || !optional(f)) continue;
         const el = chipEl(f.key);
         if (el?.offsetWidth) widths.current.set(f.key, el.offsetWidth);
         const width = widths.current.get(f.key);
-        // The chip before it that's showing.
-        const prev = placed
-          .slice(0, i)
-          .reverse()
-          .map((p) => (next.has(p.key) ? null : chipEl(p.key)))
-          .find((p) => p);
+        // What it would follow: the chip before it that's showing, else
+        // the row's first item.
+        const prev =
+          placed
+            .slice(0, i)
+            .reverse()
+            .map((p) => (next.has(p.key) ? null : chipEl(p.key)))
+            .find((p) => p) ?? (first as HTMLElement | undefined);
         if (!width || !prev) continue;
-        const start = prev.getBoundingClientRect().right + gap;
-        // The square add button is as wide as a chip is tall.
-        const noRoom = start + width + gap + prev.offsetHeight > end + 0.5;
-        decided.current.set(f.key, noRoom);
+        const box = prev.getBoundingClientRect();
+        const start = box.right + gap;
+        // Only on the first line, with room for the square add button,
+        // which is as wide as a chip is tall.
+        const noRoom =
+          box.top >= firstBottom ||
+          start + width + gap + prev.offsetHeight > end + 0.5;
         if (noRoom) next.add(f.key);
       }
       setCramped((was) =>
