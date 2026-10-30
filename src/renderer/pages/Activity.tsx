@@ -9,7 +9,6 @@ import {
   CalendarClock,
   ChevronDown,
   Ellipsis,
-  ExternalLink,
   Flame,
   Globe,
   History,
@@ -1048,14 +1047,6 @@ function RowMenu({
         <DropdownMenuItem onSelect={onShow}>
           <Globe className="text-muted-foreground" />
           Show in Domains
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() =>
-            void window.api.openExternal(`https://${row.event.domain}`)
-          }
-        >
-          <ExternalLink className="text-muted-foreground" />
-          Open in browser
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={() => set('delete')}>

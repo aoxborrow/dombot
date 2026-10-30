@@ -26,10 +26,12 @@ function recordOf(
 /**
  * A value you can click to edit: a dotted grey underline. On hover every
  * value brightens to the same look, muted and faded market prices included:
- * full text color, and an underline much lighter but still under the text.
+ * full text color, and a much lighter underline, still under the text, with
+ * a touch of green (the filter chips' underline green) to sit on the green
+ * cell.
  */
 export const EDITABLE_VALUE =
-  'underline decoration-dotted underline-offset-[3px] decoration-neutral-300 group-hover:text-foreground group-hover:decoration-neutral-500 group-hover:opacity-100 dark:decoration-neutral-600 dark:group-hover:decoration-neutral-400';
+  'underline decoration-dotted underline-offset-[3px] decoration-neutral-300 group-hover:text-foreground group-hover:decoration-[#42604d]/75 group-hover:opacity-100 dark:decoration-neutral-600 dark:group-hover:decoration-[#bacfc1]/75';
 
 /**
  * An empty value you can click to fill: a dim dash that turns into a pencil

@@ -37,7 +37,6 @@
   --flag-off: #d69800;
   /* Domains table: a cell that acts as one button, on hover (see below). */
   --cell-hover: var(--color-brand-100);
-  --cell-hover-border: var(--color-brand-300);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -88,7 +87,6 @@
   --brand: var(--color-brand-500);
   --flag-off: #e1a322;
   --cell-hover: var(--color-brand-900);
-  --cell-hover-border: var(--color-brand-600);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -245,11 +243,11 @@
   }
   /* Domains table cells that act as one button. The cell's control carries
      `data-cell-action`, and its ::after stretches over the whole cell, so a
-     click anywhere in the cell is a click on it. The cell turns green, with
-     a green bottom rule, on hover and while its menu or editor is open.
-     Other links and buttons in the cell (the domain name, the notes icon)
-     sit above the overlay and keep their own clicks. The row's select
-     checkbox cell lights with the cell beside it (the Domain cell). */
+     click anywhere in the cell is a click on it. The cell turns green on
+     hover and while its menu or editor is open. Other links and buttons in
+     the cell (the domain name, the notes icon) sit above the overlay and
+     keep their own clicks. The row's select checkbox cell lights with the
+     cell beside it (the Domain cell). */
   td:has([data-cell-action]),
   td:has(> [role='checkbox']) {
     position: relative;
@@ -272,7 +270,5 @@
       + td [aria-expanded='true']
     ) {
     background-color: var(--cell-hover);
-    /* The table collapses borders: the cell's own rule wins over the row's. */
-    border-bottom: 1px solid var(--cell-hover-border);
   }
 }

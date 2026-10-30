@@ -191,7 +191,7 @@ export function DataTable<T>({
           <TableHeader className="sticky top-0 z-10 bg-muted [&_th]:bg-muted">
             <TableRow className="[&_th]:h-8 [&_th]:font-medium [&_th]:tracking-wider [&_th]:text-muted-foreground [&_button]:text-[10px] [&_button]:uppercase">
               {selection && (
-                <TableHead className="w-9 border-r-0! pl-3">
+                <TableHead className="w-0 border-r-0! pl-3">
                   <Checkbox
                     checked={
                       allSelected
@@ -271,7 +271,7 @@ export function DataTable<T>({
                 >
                   {selection && (
                     // Compact rows: no 2px nudge down, or the box sits low.
-                    <TableCell className="w-9 border-r-0! pl-3 compact:[&>[role=checkbox]]:translate-y-0">
+                    <TableCell className="w-0 border-r-0! pl-3 compact:[&>[role=checkbox]]:translate-y-0">
                       <Checkbox
                         checked={isSelected}
                         onMouseDown={(e) => {

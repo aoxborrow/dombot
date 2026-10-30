@@ -5,7 +5,6 @@ import {
   Calculator,
   CalendarPlus,
   Ellipsis,
-  ExternalLink,
   KeyRound,
   Link2,
   Mail,
@@ -18,7 +17,6 @@ import {
   CircleX,
 } from 'lucide-react';
 import type { Domain, Folder } from '../../../shared/ipc';
-import { toAscii } from '../../../shared/domain-name';
 import type { ArchiveLabel } from '../../../shared/ownership';
 import { useAppStore } from '../../store/app';
 import { MarketLogo } from '../RegistrarLogo';
@@ -307,17 +305,6 @@ export function RowActionsMenu({
             Move back to Owned
           </DropdownMenuItem>
         )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={() =>
-            void window.api.openExternal(
-              `https://${toAscii(domain.domainName)}`,
-            )
-          }
-        >
-          <ExternalLink className="text-muted-foreground" />
-          Open in browser
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={onDelete}>
           <Trash2 />
