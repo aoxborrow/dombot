@@ -21,7 +21,7 @@ import {
   type SaleMonth,
   type SaleRecord,
 } from '../../../shared/sales';
-import { SALE_STEP_LABEL, saleSourceLabel } from '../../lib/sales';
+import { SALE_STEP_LABEL, isUnderWay, saleSourceLabel } from '../../lib/sales';
 import { needsAttention, type AttentionItem } from '../../lib/sales-attention';
 import { SEVERITY_DOT } from '../../lib/severity';
 import { useAppStore } from '../../store/app';
@@ -48,8 +48,13 @@ export function useNeedsAttention(records: SaleRecord[]): AttentionItem[] {
   const portfolio = useAppStore((s) => s.portfolio);
   const imported = useAppStore((s) => s.importedDomains);
   return useMemo(() => {
-    const live = new Set((marketAccounts ?? []).map((a) => a.id));
-    const connected = new Set((marketAccounts ?? []).map((a) => a.market));
+    // Only accounts that sync: a turned-off or unfinished one has no
+    // listings stored, so every priced name would look unlisted there.
+    const syncing = (marketAccounts ?? []).filter(
+      (a) => a.enabled && a.configured,
+    );
+    const live = new Set(syncing.map((a) => a.id));
+    const connected = new Set(syncing.map((a) => a.market));
     const owned = new Set([
       ...portfolio.filter((d) => !d.departed).map((d) => toAscii(d.domainName)),
       ...Object.keys(imported).map(toAscii),
@@ -96,24 +101,25 @@ export function SalesOverview({
 
   const items = useNeedsAttention(records);
 
-  // This year's sales, in the currency most of them were in.
+  // This year's sales, in the currency most of them were in; null when
+  // nothing sold this year (the cards show dashes, never all-time figures).
+  // Under way counts every sale still going, dated or not.
   const year = useMemo(() => {
     const { records: kept } = filterSaleRecords(records, {
       ...NO_SALE_FILTER,
       from: `${today.slice(0, 4)}-01-01`,
     });
-    const totals = saleTotals(kept).filter((t) => t.currency);
-    const main =
-      totals.find((t) => t.sold) ??
-      totals[0] ??
-      saleTotals(records).find((t) => t.currency) ??
-      null;
+    const totals = saleTotals(kept).filter((t) => t.currency && t.sold);
     return {
-      main,
-      others: totals.filter((t) => t.sold && t !== main).length,
+      main: totals[0] ?? null,
+      others: Math.max(0, totals.length - 1),
+      underWay: records.filter(isUnderWay).length,
+      // The chart's currency when nothing sold this year: the one most
+      // sales were in.
+      fallback: saleTotals(records).find((t) => t.currency)?.currency ?? null,
     };
   }, [records, today]);
-  const currency = year.main?.currency || preferredCurrency;
+  const currency = year.main?.currency || year.fallback || preferredCurrency;
   const through = useMemo(
     () => sellThrough(records, Object.values(listings).flat(), today),
     [records, listings, today],
@@ -191,8 +197,8 @@ export function SalesOverview({
           label="Sold this year"
           value={(t?.sold ?? 0).toLocaleString()}
           hint={
-            t?.inProgress
-              ? `${t.inProgress} under way`
+            year.underWay
+              ? `${year.underWay} under way`
               : `${plural(records.filter((r) => r.status === 'completed').length, 'sale')} all time`
           }
         />
@@ -219,7 +225,7 @@ export function SalesOverview({
           accentClass="text-amber-500"
           label="Average sale"
           value={t?.average ? money(t.average, currency)! : '—'}
-          hint={t?.sold ? `Over ${plural(t.sold, 'sale')}` : 'No sales yet'}
+          hint={t?.sold ? `Over ${plural(t.sold, 'sale')}` : 'None this year'}
         />
         <StatCard
           icon={Percent}
