@@ -165,7 +165,9 @@ export function DataTable<T>({
   };
 
   // The first data column reads as part of the checkbox column: no divider.
-  const firstCell = (i: number) => selection && i === 0 && 'border-l-0! pl-3';
+  // Without one (Sales), it gets more room on the left instead.
+  const firstCell = (i: number) =>
+    i === 0 && (selection ? 'border-l-0! pl-3' : 'pl-4');
 
   return (
     <div
