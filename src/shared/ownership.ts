@@ -1,30 +1,48 @@
-import { DomainEventType, type DomainEvent } from './domain-events';
+import { DomainEventType, localDay, type DomainEvent } from './domain-events';
 import { toAscii, toUnicode } from './domain-name';
 import type { Domain, RegistrarMeta } from './ipc';
 
-// Owned or Archive, read from a name's ownership events (docs/storage-model.md,
-// "Owned, Archive, and Hidden"): sold, dropped, archived, and removed put it in
-// Archive; added brings it back. Events are taken in the order they were
-// recorded (their ids), so marking a name Sold today counts after the sync
-// that saw it, whatever sale date you type.
+// Owned or Archive (docs/owned-and-archive.md). Archive holds only names you
+// no longer have; nothing you hold goes there by hand. What's stored is the
+// event log: a sale you recorded, and the removals and arrivals sync saw.
+// Everything shown (Expiring, Sold awaiting transfer, and each Archive label)
+// is worked out from those, the row, and the registration lookup. Events are
+// taken in the order they were recorded (their ids), so marking a name Sold
+// today counts after the sync that saw it, whatever sale date you type.
 
-/** Why a name is in Archive. `removed` is a sync removal you haven't labeled. */
-export type ArchiveLabel = 'sold' | 'dropped' | 'archived' | 'removed';
+/**
+ * Why a name is in Archive, in the order they're checked: you recorded a
+ * sale; the lookup says nobody holds it; it left after its expiry; it left
+ * early with no sale recorded (the one that asks for review).
+ */
+export type ArchiveLabel = 'sold' | 'deleted' | 'expired' | 'removed';
 
+export const ARCHIVE_LABELS: readonly ArchiveLabel[] = [
+  'sold',
+  'deleted',
+  'expired',
+  'removed',
+];
+
+/** Auto-renew off and expiring within this many days shows as Expiring. */
+export const EXPIRING_DAYS = 30;
+/**
+ * An imported name this many days past expiry (beyond grace, redemption, and
+ * pending delete) moves to Archive as Expired: no sync will see it leave.
+ */
+export const IMPORTED_ARCHIVE_DAYS = 90;
+
+const DAY_MS = 86_400_000;
+
+/** What the event log says about a name. */
 export interface Ownership {
-  archived: boolean;
-  label: ArchiveLabel | null;
-  /** The event that put it in Archive (what "Move back to Owned" undoes). */
-  event: DomainEvent | null;
+  /** The sale on record since the name last arrived in an account. */
+  sale: DomainEvent | null;
+  /** Sync saw it leave your last account: that `removed`, until it's back. */
+  removal: DomainEvent | null;
   /** The account it was last seen in, for showing an Archive row. */
   lastAccountId: string | null;
 }
-
-const LABEL: Partial<Record<DomainEvent['type'], ArchiveLabel>> = {
-  [DomainEventType.Sold]: 'sold',
-  [DomainEventType.Dropped]: 'dropped',
-  [DomainEventType.Archived]: 'archived',
-};
 
 /** Each name's ownership, for every name with at least one event. */
 export function ownershipByDomain(
@@ -34,36 +52,134 @@ export function ownershipByDomain(
   const sorted = [...events].sort((a, b) => a.id.localeCompare(b.id));
   for (const e of sorted) {
     const o: Ownership = out.get(e.domain) ?? {
-      archived: false,
-      label: null,
-      event: null,
+      sale: null,
+      removal: null,
       lastAccountId: null,
     };
     const account = e.toAccountId ?? e.accountId ?? null;
     if (account) o.lastAccountId = account;
-    const label = LABEL[e.type];
-    if (label) {
-      Object.assign(o, { archived: true, label, event: e });
+    if (e.type === DomainEventType.Sold) {
+      o.sale = e;
     } else if (e.type === DomainEventType.Removed) {
-      // Leaving after you've said what happened keeps your label.
-      if (!o.archived)
-        Object.assign(o, { archived: true, label: 'removed', event: e });
+      o.removal = e;
+    } else if (e.type === DomainEventType.Moved) {
+      // Found in another of your accounts: held again, a sale still pending.
+      o.removal = null;
     } else if (e.type === DomainEventType.Added) {
-      // Back in one of your accounts.
-      Object.assign(o, { archived: false, label: null, event: null });
+      // Back in one of your accounts: a sale before it left is history.
+      Object.assign(o, { sale: null, removal: null });
     }
-    // Purchases, registrations, and moves between your accounts don't change
-    // ownership: recording what you paid for a sold name, or moving it before
-    // the buyer takes it, leaves it in Archive.
+    // Purchases, registrations, and renewals don't change ownership.
     out.set(e.domain, o);
   }
   return out;
 }
 
+/** Where a row stands: Owned with its derived states, or Archive and why. */
+export interface Standing {
+  archived: boolean;
+  /** Set exactly when `archived`. */
+  label: ArchiveLabel | null;
+  /** Owned, with a sale recorded: the buyer hasn't taken it yet. */
+  salePending: boolean;
+  /** Owned, auto-renew off, expiring within {@link EXPIRING_DAYS}. */
+  expiring: boolean;
+}
+
+const OWNED: Standing = {
+  archived: false,
+  label: null,
+  salePending: false,
+  expiring: false,
+};
+
+/** Whole days from `now` to a `YYYY-MM-DD` day or a Date; null if unknown. */
+function daysUntil(
+  day: string | Date | null | undefined,
+  now: number,
+): number | null {
+  if (!day) return null;
+  const ms =
+    day instanceof Date ? day.getTime() : Date.parse(`${day}T00:00:00Z`);
+  if (Number.isNaN(ms)) return null;
+  return Math.floor((ms - now) / DAY_MS);
+}
+
+/** A removal that came after the expiry sync last saw: the name lapsed. */
+function leftAfterExpiry(removal: DomainEvent): boolean {
+  if (!removal.expires || !removal.date) return false;
+  return removal.date > removal.expires;
+}
+
 /**
- * Rows for names in Archive that no registrar reports any more. They carry
- * the account the name was last seen in; created and expires start empty and
- * the Archive view fills them from the public registration lookup.
+ * A row's standing. `registered` is the registration lookup's answer for the
+ * name (false: nobody holds it), when there is one. Synced names an account
+ * holds are always Owned; departed rows (see {@link archiveRows}) are always
+ * Archive; an imported name reaches Archive through a sale, the lookup, or
+ * {@link IMPORTED_ARCHIVE_DAYS} past its expiry.
+ */
+export function standingOf(
+  d: Pick<
+    Domain,
+    'source' | 'departed' | 'expirationDate' | 'autoRenew' | 'autoRenewUnknown'
+  >,
+  o: Ownership | undefined,
+  registered?: boolean | null,
+  now: number = Date.now(),
+): Standing {
+  const sale = o?.sale ?? null;
+  if (d.departed) {
+    const label: ArchiveLabel = sale
+      ? 'sold'
+      : registered === false
+        ? 'deleted'
+        : o?.removal && leftAfterExpiry(o.removal)
+          ? 'expired'
+          : 'removed';
+    return { ...OWNED, archived: true, label };
+  }
+  const days = daysUntil(d.expirationDate, now);
+  if (d.source === 'imported') {
+    const label: ArchiveLabel | null = sale
+      ? 'sold'
+      : registered === false
+        ? 'deleted'
+        : days !== null && days < -IMPORTED_ARCHIVE_DAYS
+          ? 'expired'
+          : null;
+    if (label) return { ...OWNED, archived: true, label };
+  }
+  return {
+    ...OWNED,
+    salePending: !!sale,
+    expiring:
+      !d.autoRenew &&
+      !d.autoRenewUnknown &&
+      days !== null &&
+      days >= 0 &&
+      days <= EXPIRING_DAYS,
+  };
+}
+
+/** An Archive label that still wants an answer from you. */
+export function needsReview(label: ArchiveLabel | null): boolean {
+  return label === 'removed';
+}
+
+/** The `expires` to record on a removal, so its label can be worked out. */
+export function removalExpiry(
+  expires: string | undefined,
+  now: number,
+): { expires: string } | Record<string, never> {
+  return expires && expires < localDay(now) ? { expires } : {};
+}
+
+/**
+ * Rows for names in Archive that no registrar reports any more: sync saw
+ * them leave, or you recorded a sale for a name DomBot holds nothing else
+ * for. They carry the account the name was last seen in and the expiry sync
+ * last saw; the Archive view refreshes created and expires from the public
+ * registration lookup.
  */
 export function archiveRows(
   ownership: Map<string, Ownership>,
@@ -73,10 +189,11 @@ export function archiveRows(
   const held = new Set(live.map((d) => toAscii(d.domainName)));
   const rows: Domain[] = [];
   for (const [name, o] of ownership) {
-    if (!o.archived || held.has(name)) continue;
+    if (!(o.removal || o.sale) || held.has(name)) continue;
     const meta = registrars?.find(
       (r) => (r.accountId ?? r.name) === o.lastAccountId,
     );
+    const left = o.removal ?? o.sale;
     rows.push({
       registrar: (meta?.name ?? '') as Domain['registrar'],
       accountId: o.lastAccountId ?? undefined,
@@ -84,13 +201,15 @@ export function archiveRows(
       domainName: toUnicode(name),
       status: '',
       createdDate: null,
-      expirationDate: null,
+      expirationDate: o.removal?.expires
+        ? new Date(`${o.removal.expires}T00:00:00Z`)
+        : null,
       renewalDate: null,
       autoRenew: false,
       locked: false,
       privacy: false,
       nameservers: [],
-      syncedAt: new Date(o.event?.createdAt ?? 0),
+      syncedAt: new Date(left?.createdAt ?? 0),
       deleted: false,
       source: 'registrar',
       departed: true,

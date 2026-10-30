@@ -1,7 +1,6 @@
 import { useMemo, useState, type ComponentType } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Archive,
   ArrowRight,
   Bell,
   Building2,
@@ -13,7 +12,6 @@ import {
   Globe,
   History,
   Inbox,
-  OctagonMinus,
   Receipt,
   Trash2,
   Upload,
@@ -30,7 +28,12 @@ import {
   reviewPriority,
   type ReviewPriority,
 } from '../../shared/notifications';
-import { ownershipByDomain, type Ownership } from '../../shared/ownership';
+import {
+  archiveRows,
+  ownershipByDomain,
+  standingOf,
+  type Ownership,
+} from '../../shared/ownership';
 import { resolvedIds } from '../../shared/sync-diff';
 import { RegistrarLogo } from '../components/RegistrarLogo';
 import { DomainLink } from '../components/domains/DomainLink';
@@ -42,7 +45,6 @@ import {
 } from '../components/activity/EventTypeBadge';
 import {
   DeleteDomainsDialog,
-  DispositionDialog,
   MarkSoldDialog,
 } from '../components/actions/OwnershipDialogs';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
@@ -101,14 +103,12 @@ const TYPE_ORDER: DomainEvent['type'][] = [
   'moved',
   'sold',
   'removed',
-  'dropped',
-  'archived',
 ];
 
 /**
  * One row: an event, and what the row shows for it. When you answer a sync
  * alert (a name that left or arrived), your answer takes the alert's row, so
- * "Removed" becomes "Dropped" in place rather than adding a second row.
+ * "Removed" becomes "Sold" in place rather than adding a second row.
  */
 interface ActivityRow {
   /** The event the row is for; its id is the row's key. */
@@ -120,7 +120,7 @@ interface ActivityRow {
 
 type DialogState =
   | {
-      kind: 'sold' | 'dropped' | 'archived' | 'delete' | 'notes';
+      kind: 'sold' | 'delete' | 'notes';
       rows: ActivityRow[];
     }
   | { kind: 'purchase'; row: ActivityRow };
@@ -129,9 +129,9 @@ type DialogState =
  * Every domain event, newest first: what you recorded (purchases, sales,
  * labels) and what sync saw (arrivals, departures, moves). An alert you've
  * answered shows your answer in its place. Open alerts are tinted by priority
- * with a Dismiss beside "Needs review"; every row has a menu to set the name's
- * state (Sold, Dropped, Archived), record a purchase, or delete it, and the
- * same actions work in bulk on a selection.
+ * with a Dismiss beside "Needs review"; every row has a menu to record a sale
+ * or a purchase, or remove a name no account holds from DomBot, and the same
+ * actions work in bulk on a selection.
  */
 export default function Activity() {
   const events = useAppStore((s) => s.domainEvents);
@@ -417,6 +417,15 @@ export default function Activity() {
     [portfolio],
   );
   const held = (e: DomainEvent) => heldNames.has(e.domain);
+  const lookups = useAppStore((s) => s.registrationLookups);
+  /** Whether Domains shows the name in Archive (shared/ownership.ts). */
+  const inArchive = (e: DomainEvent) => {
+    const o = stateOf(e);
+    const row =
+      domains.find((d) => toAscii(d.domainName) === e.domain) ??
+      (o ? archiveRows(new Map([[e.domain, o]]), domains, null)[0] : undefined);
+    return !!row && standingOf(row, o, lookups[e.domain]?.registered).archived;
+  };
   /** The alert a new state answers: the row's own, unless sync closed it. */
   const answers = (e: DomainEvent) => {
     if (
@@ -427,22 +436,22 @@ export default function Activity() {
     const closer = closedBy.get(e.id);
     return closer && closer.source === 'sync' ? undefined : e.id;
   };
-  /** One item per name, skipping names already in `label` (for Archived,
-   *  any name already in Archive). */
-  const itemsOf = (list: ActivityRow[], label?: string) => {
+  /** One item per name with no sale on record yet. */
+  const unsoldOf = (list: ActivityRow[]) => {
     const seen = new Set<string>();
     return list.flatMap(({ event: e }) => {
       if (seen.has(e.domain)) return [];
       seen.add(e.domain);
-      const state = stateOf(e);
-      if (label && state?.label === label) return [];
-      if (label === 'archived' && state?.archived) return [];
+      if (stateOf(e)?.sale) return [];
       return [{ domainName: toUnicode(e.domain), resolves: answers(e) }];
     });
   };
   const namesOf = (list: ActivityRow[]) => [
     ...new Map(list.map((r) => [r.event.domain, r.event])).values(),
   ];
+  /** Remove from DomBot applies only to names no connected account holds. */
+  const removableOf = (list: ActivityRow[]) =>
+    namesOf(list).filter((e) => !held(e));
 
   function dismiss(list: DomainEvent[]) {
     const ids = list.map((e) => e.id);
@@ -465,7 +474,7 @@ export default function Activity() {
 
   function showInDomains(e: DomainEvent) {
     const next = new URLSearchParams({ q: toUnicode(e.domain) });
-    if (stateOf(e)?.archived) next.set('view', 'archive');
+    if (inArchive(e)) next.set('view', 'archive');
     navigate(`/?${next}`);
   }
 
@@ -491,6 +500,7 @@ export default function Activity() {
               row={row}
               state={stateOf(row.event)}
               needsReview={!!priorityOf(row.event)}
+              removable={!held(row.event)}
               onDialog={setDialog}
               onNotes={() => setNotesFor(row.event.id)}
               onDismiss={() => dismiss([row.event])}
@@ -788,25 +798,9 @@ export default function Activity() {
                 <BulkItem
                   icon={Receipt}
                   label="Mark as Sold"
-                  count={itemsOf(selectedRows, 'sold').length}
+                  count={unsoldOf(selectedRows).length}
                   onSelect={() =>
                     setDialog({ kind: 'sold', rows: selectedRows })
-                  }
-                />
-                <BulkItem
-                  icon={OctagonMinus}
-                  label="Mark as Dropped"
-                  count={itemsOf(selectedRows, 'dropped').length}
-                  onSelect={() =>
-                    setDialog({ kind: 'dropped', rows: selectedRows })
-                  }
-                />
-                <BulkItem
-                  icon={Archive}
-                  label="Archive"
-                  count={itemsOf(selectedRows, 'archived').length}
-                  onSelect={() =>
-                    setDialog({ kind: 'archived', rows: selectedRows })
                   }
                 />
                 <DropdownMenuSeparator />
@@ -820,8 +814,8 @@ export default function Activity() {
                 <DropdownMenuSeparator />
                 <BulkItem
                   icon={Trash2}
-                  label="Delete"
-                  count={namesOf(selectedRows).length}
+                  label="Remove from DomBot"
+                  count={removableOf(selectedRows).length}
                   destructive
                   onSelect={() =>
                     setDialog({ kind: 'delete', rows: selectedRows })
@@ -885,11 +879,9 @@ export default function Activity() {
           <SaleDialog
             domain={alertDomain(dialog.rows[0].event, domains, registrars)}
             // Already Sold: edit that sale. Otherwise mark it.
-            mode={
-              stateOf(dialog.rows[0].event)?.label === 'sold' ? 'edit' : 'mark'
-            }
+            mode={stateOf(dialog.rows[0].event)?.sale ? 'edit' : 'mark'}
             resolves={
-              stateOf(dialog.rows[0].event)?.label === 'sold'
+              stateOf(dialog.rows[0].event)?.sale
                 ? undefined
                 : answers(dialog.rows[0].event)
             }
@@ -898,19 +890,11 @@ export default function Activity() {
           />
         ) : (
           <MarkSoldDialog
-            items={itemsOf(dialog.rows, 'sold')}
+            items={unsoldOf(dialog.rows)}
             onDone={clearSelection}
             onClose={() => setDialog(null)}
           />
         ))}
-      {(dialog?.kind === 'dropped' || dialog?.kind === 'archived') && (
-        <DispositionDialog
-          type={dialog.kind}
-          items={itemsOf(dialog.rows, dialog.kind)}
-          onDone={clearSelection}
-          onClose={() => setDialog(null)}
-        />
-      )}
       {dialog?.kind === 'purchase' && (
         <PurchaseDialog
           domain={alertDomain(dialog.row.event, domains, registrars)}
@@ -933,9 +917,8 @@ export default function Activity() {
       )}
       {dialog?.kind === 'delete' && (
         <DeleteDomainsDialog
-          domains={namesOf(dialog.rows).map((e) => ({
+          domains={removableOf(dialog.rows).map((e) => ({
             domainName: toUnicode(e.domain),
-            departed: !held(e),
           }))}
           onDone={clearSelection}
           onClose={() => setDialog(null)}
@@ -970,16 +953,17 @@ function AccountLabel({
 }
 
 /**
- * A row's "⋯" menu, in the same order as the Domains one: record a purchase,
- * set the name's state, dismiss its review, open it in Domains, or delete it.
- * Dropped when it's already Dropped, Archive for a name already in Archive,
- * and Dismiss on a row that doesn't need review are disabled; a sold name's
- * Mark as Sold edits its sale.
+ * A row's "⋯" menu, in the same order as the Domains one: record a purchase
+ * or a sale, dismiss its review, open it in Domains, or remove it from
+ * DomBot. Dismiss on a row that doesn't need review is disabled; a sold
+ * name's Mark as Sold edits its sale. Remove from DomBot is only there for a
+ * name no connected account holds.
  */
 function RowMenu({
   row,
   state,
   needsReview,
+  removable,
   onDialog,
   onNotes,
   onDismiss,
@@ -988,15 +972,14 @@ function RowMenu({
   row: ActivityRow;
   state: Ownership | undefined;
   needsReview: boolean;
+  removable: boolean;
   onDialog: (dialog: DialogState) => void;
   onNotes: () => void;
   onDismiss: () => void;
   onShow: () => void;
 }) {
   const name = toUnicode(row.event.domain);
-  const is = (label: string) => state?.label === label;
-  const set = (kind: 'sold' | 'dropped' | 'archived' | 'delete') =>
-    onDialog({ kind, rows: [row] });
+  const set = (kind: 'sold' | 'delete') => onDialog({ kind, rows: [row] });
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -1024,23 +1007,7 @@ function RowMenu({
         {/* A sold name's Mark as Sold edits its sale. */}
         <DropdownMenuItem onSelect={() => set('sold')}>
           <Receipt className="text-muted-foreground" />
-          Mark as Sold…
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={is('dropped')}
-          onSelect={() => set('dropped')}
-        >
-          <OctagonMinus className="text-muted-foreground" />
-          Mark as Dropped…
-        </DropdownMenuItem>
-        {/* Archive puts a name you own away without a reason. One already
-            in Archive (Removed means "gone, no reason given") can't use it. */}
-        <DropdownMenuItem
-          disabled={!!state?.archived}
-          onSelect={() => set('archived')}
-        >
-          <Archive className="text-muted-foreground" />
-          Archive…
+          {state?.sale ? 'Edit sale…' : 'Mark as Sold…'}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!needsReview} onSelect={onDismiss}>
@@ -1051,11 +1018,18 @@ function RowMenu({
           <Globe className="text-muted-foreground" />
           Show in Domains
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onSelect={() => set('delete')}>
-          <Trash2 />
-          Delete…
-        </DropdownMenuItem>
+        {removable && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => set('delete')}
+            >
+              <Trash2 />
+              Remove from DomBot…
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

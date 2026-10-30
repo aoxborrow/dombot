@@ -1,5 +1,4 @@
 import { isDomainKey, toAscii } from '../../shared/domain-name';
-import { HIDDEN_FOLDER_ID } from '../../shared/ipc';
 import type { DocStore } from './doc-store';
 import { RENEWAL_PRICES_NAMESPACE } from './names';
 import { toRenewalPrice, type RenewalPrice } from '../../shared/renewal-prices';
@@ -10,7 +9,7 @@ import { toRenewalPrice, type RenewalPrice } from '../../shared/renewal-prices';
 // one table of renames and one set of re-keying rules.
 
 /** The storage schema this build writes. Stored at `meta/schemaVersion`. */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** v0 → v1: old namespace name → new. */
 export const RENAMED_NAMESPACES: Readonly<Record<string, string>> = {
@@ -34,8 +33,18 @@ const REKEYED_BY_NAME = new Set(['pricing-overrides']);
 // Folder assignments lived in `folders` under this key until v1.
 const LEGACY_ASSIGNMENTS_KEY = 'assignments';
 // The built-in "hide this name" folder was Archive (`__archive__`) between
-// the Hidden → Archive rename and v2, when it became Hidden again.
+// the Hidden → Archive rename and v2, when it became Hidden (`__hidden__`)
+// again. v5 removed it: its names went back to no folder.
 const LEGACY_ARCHIVE_FOLDER_ID = '__archive__';
+export const LEGACY_HIDDEN_FOLDER_ID = '__hidden__';
+
+/** v5: event types that no longer exist (docs/owned-and-archive.md). */
+export const LEGACY_EVENT_TYPES: ReadonlySet<string> = new Set([
+  'dropped',
+  'archived',
+]);
+const EVENTS_NAMESPACE = 'domain-events';
+const FOLDER_ASSIGNMENTS_NAMESPACE = 'domain-folders';
 
 /** `${accountId ?? registrar}:${domain}` → `toAscii(domain)`, or null when the
  *  key doesn't end in a domain name. */
@@ -68,32 +77,50 @@ export function rekeyByName<T>(
   return out;
 }
 
-/** A folder id with the old Archive folder mapped to Hidden (v2). */
-export function hiddenFolderId(folderId: string): string {
-  return folderId === LEGACY_ARCHIVE_FOLDER_ID ? HIDDEN_FOLDER_ID : folderId;
+/** The built-in Archive (v1) and Hidden (v2–v4) folders, gone since v5. */
+export function isLegacyBuiltInFolder(folderId: unknown): boolean {
+  return (
+    folderId === LEGACY_ARCHIVE_FOLDER_ID ||
+    folderId === LEGACY_HIDDEN_FOLDER_ID
+  );
 }
 
-/** The pre-v1 `folders/assignments` map, keyed by name, with the old
- *  Archive folder mapped to Hidden. */
+/** The pre-v1 `folders/assignments` map, keyed by name, without the
+ *  built-in folders. */
 export function assignmentsByName(raw: unknown): Record<string, string> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const ids: Record<string, string> = {};
   for (const [key, folderId] of Object.entries(raw)) {
-    if (typeof folderId !== 'string') continue;
-    ids[key] = hiddenFolderId(folderId);
+    if (typeof folderId !== 'string' || isLegacyBuiltInFolder(folderId))
+      continue;
+    ids[key] = folderId;
   }
   return rekeyByName(ids, 'folder assignments');
 }
 
-/** v2 for a v4 bundle's `domain-folders`: Archive assignments become Hidden. */
-export function hiddenFolderAssignments(
+/** v5 for a bundle's `domain-folders`: the built-in folders' names go back
+ *  to no folder. */
+export function withoutBuiltInFolders(
   entries: Record<string, unknown>,
 ): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(entries).map(([name, id]) => [
-      name,
-      typeof id === 'string' ? hiddenFolderId(id) : id,
-    ]),
+    Object.entries(entries).filter(([, id]) => !isLegacyBuiltInFolder(id)),
+  );
+}
+
+/** v5 for a bundle's `domain-events`: `dropped` and `archived` go. */
+export function withoutLegacyEvents(
+  entries: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(entries).filter(
+      ([, e]) =>
+        !(
+          e &&
+          typeof e === 'object' &&
+          LEGACY_EVENT_TYPES.has((e as { type?: unknown }).type as string)
+        ),
+    ),
   );
 }
 
@@ -138,10 +165,9 @@ export async function runMigrations(
     await migration1(raw, store);
     await store.put('meta', 'schemaVersion', 1);
   }
-  if (version < 2) {
-    await migration2(store);
-    await store.put('meta', 'schemaVersion', 2);
-  }
+  // v2 moved the Archive folder's names to Hidden; v5 removes both, so
+  // that step has nothing left to do.
+  if (version < 2) await store.put('meta', 'schemaVersion', 2);
   if (version < 3) {
     await migration3(store);
     await store.put('meta', 'schemaVersion', 3);
@@ -149,6 +175,10 @@ export async function runMigrations(
   if (version < 4) {
     await migration4(raw);
     await store.put('meta', 'schemaVersion', 4);
+  }
+  if (version < 5) {
+    await migration5(store);
+    await store.put('meta', 'schemaVersion', 5);
   }
 }
 
@@ -179,19 +209,6 @@ async function migration1(raw: DocStore, store: DocStore): Promise<void> {
   }
 }
 
-/** v2: the Archive folder becomes Hidden (Archive is now an ownership action). */
-async function migration2(store: DocStore): Promise<void> {
-  const entries = await store.list('domain-folders');
-  const moved = Object.entries(entries).filter(
-    ([, id]) => id === LEGACY_ARCHIVE_FOLDER_ID,
-  );
-  if (moved.length === 0) return;
-  await store.putMany(
-    'domain-folders',
-    moved.map(([name]) => [name, HIDDEN_FOLDER_ID]),
-  );
-}
-
 /**
  * v3: manual renewal prices gain a currency. Each stored USD number becomes
  * `{ amount, currency: 'USD' }` (docs/domain-import-export.md); a value that
@@ -220,4 +237,23 @@ async function migration4(raw: DocStore): Promise<void> {
   if (Object.keys(entries).length === 0) return;
   await raw.putMany(IMPORTED_NAMESPACE, Object.entries(entries));
   await raw.clear(LEGACY_IMPORTED_NAMESPACE);
+}
+
+/**
+ * v5: Archive holds only names you no longer have (docs/owned-and-archive.md).
+ * The `dropped` and `archived` events go, so a held name that was marked
+ * comes back to Owned; the Hidden folder goes, so its names return to no
+ * folder. Nothing changes meaning: every other event and assignment stays.
+ */
+async function migration5(store: DocStore): Promise<void> {
+  const events = await store.list(EVENTS_NAMESPACE);
+  for (const [id, e] of Object.entries(events)) {
+    const type = (e as { type?: unknown } | null)?.type;
+    if (typeof type === 'string' && LEGACY_EVENT_TYPES.has(type))
+      await store.delete(EVENTS_NAMESPACE, id);
+  }
+  const assignments = await store.list(FOLDER_ASSIGNMENTS_NAMESPACE);
+  for (const [name, id] of Object.entries(assignments))
+    if (isLegacyBuiltInFolder(id))
+      await store.delete(FOLDER_ASSIGNMENTS_NAMESPACE, name);
 }

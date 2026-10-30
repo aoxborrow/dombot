@@ -13,11 +13,9 @@ import {
   deleteUserEvent,
   recordRenewals,
   recordSync,
-  restoreOwned,
   setAlertsDismissed,
-  setDispositions,
 } from './domain-history';
-import { assignFolder, getFolders } from './folders';
+import { assignFolder, createFolder, getFolders } from './folders';
 import { clearAll } from './cache';
 import { getPurchases, markSold, setPurchase, setSale } from './purchases';
 
@@ -60,59 +58,25 @@ describe('domain history', () => {
     });
   });
 
-  it('labels a departure, and Move back to Owned undoes the label', () => {
+  it('a sale replaces your earlier sale and keeps answering the alert', () => {
     recordSync(holding(['a.com']));
     const [left] = recordSync(holding([]));
-    const owner = () => ownershipByDomain(listEvents()).get('a.com');
-    expect(owner()?.label).toBe('removed');
-    setDispositions([{ domainName: 'a.com', resolves: left.id }], 'dropped');
-    expect(owner()?.label).toBe('dropped');
-    restoreOwned(['a.com']);
-    expect(owner()?.label).toBe('removed');
-    // A sync departure has nothing of yours to undo.
-    expect(() => restoreOwned(['a.com'])).toThrow(/isn't marked/);
-  });
-
-  it('changing a label replaces yours and keeps answering the alert', () => {
-    recordSync(holding(['a.com']));
-    const [left] = recordSync(holding([]));
-    setDispositions([{ domainName: 'a.com', resolves: left.id }], 'dropped');
-    // Sold takes Dropped's place: one answer, still to the same alert.
-    markSold([{ domainName: 'a.com' }]);
+    markSold([{ domainName: 'a.com', resolves: left.id }]);
+    setSale({
+      domainName: 'a.com',
+      saleDate: '2026-09-01',
+      amount: '900',
+      currency: 'USD',
+      notes: '',
+      mark: true,
+    });
     const answers = () => listEvents().filter((e) => e.source === 'user');
-    expect(answers().map((e) => [e.type, e.resolves])).toEqual([
-      ['sold', left.id],
+    expect(answers().map((e) => [e.type, e.amount, e.resolves])).toEqual([
+      ['sold', '900.00', left.id],
     ]);
-    setDispositions([{ domainName: 'a.com' }], 'archived');
-    expect(answers().map((e) => [e.type, e.resolves])).toEqual([
-      ['archived', left.id],
-    ]);
-    // Setting the state it's already in changes nothing.
-    const before = answers()[0].id;
-    setDispositions([{ domainName: 'a.com' }], 'archived');
-    expect(answers().map((e) => e.id)).toEqual([before]);
-    expect(ownershipByDomain(listEvents()).get('a.com')?.label).toBe(
-      'archived',
-    );
-  });
-
-  it("records an agent's mark as the agent's, and your next mark replaces it", () => {
-    setDispositions([{ domainName: 'a.com' }], 'archived', null, 'agent');
-    expect(
-      listEvents()
-        .filter((e) => e.type === 'archived')
-        .map((e) => e.source),
-    ).toEqual(['agent']);
-    setDispositions([{ domainName: 'a.com' }], 'dropped');
-    expect(
-      listEvents()
-        .filter((e) => e.type === 'archived' || e.type === 'dropped')
-        .map((e) => [e.type, e.source]),
-    ).toEqual([['dropped', 'user']]);
-    restoreOwned(['a.com']);
-    expect(ownershipByDomain(listEvents()).get('a.com')?.label ?? null).toBe(
-      null,
-    );
+    // Marking it Sold again changes nothing.
+    markSold([{ domainName: 'a.com' }]);
+    expect(answers()).toHaveLength(1);
   });
 
   it('marks a name Sold with no details, dated today, closing its alert', () => {
@@ -132,7 +96,10 @@ describe('domain history', () => {
     expect(sold.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     // Undoing the sale brings the alert back.
     deleteUserEvent(sold.id);
-    expect(ownershipByDomain(listEvents()).get('a.com')?.label).toBe('removed');
+    expect(ownershipByDomain(listEvents()).get('a.com')).toMatchObject({
+      sale: null,
+      removal: left,
+    });
   });
 
   it('records a second sale when a sold name comes back and is sold again', () => {
@@ -149,7 +116,7 @@ describe('domain history', () => {
     sell(false);
     recordSync(holding([]));
     recordSync(holding(['a.com']));
-    expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
+    expect(ownershipByDomain(listEvents()).get('a.com')?.sale).toBeNull();
     sell(true);
     const sales = listEvents().filter((e) => e.type === 'sold');
     expect(sales.map((e) => e.amount)).toEqual(['50.00', null]);
@@ -197,7 +164,7 @@ describe('domain history', () => {
     expect(listEvents()[0].dismissed).toBe(false);
   });
 
-  it('Delete forgets everything about a name', async () => {
+  it('Remove from DomBot forgets everything about a name', async () => {
     setPurchase({
       domainName: 'a.com',
       purchaseDate: '2020-01-01',
@@ -205,8 +172,11 @@ describe('domain history', () => {
       currency: 'USD',
       notes: 'mine',
     });
-    assignFolder('a.com', '__hidden__');
-    deleteDomains(['A.com']);
+    assignFolder(
+      'a.com',
+      createFolder({ name: 'Keep', description: '', color: 'gray' }).id,
+    );
+    expect(deleteDomains(['A.com'], new Set())).toBe(1);
     expect(listEvents()).toEqual([]);
     expect(nameNote('a.com')).toBeUndefined();
     expect(getFolders().assignments['a.com']).toBeUndefined();
@@ -214,23 +184,13 @@ describe('domain history', () => {
     expect(await store.list('domain-notes')).toEqual({});
   });
 
-  it('marks many names at once, on the date you pick', async () => {
-    recordSync(holding(['a.com', 'b.com', 'c.com']));
-    const left = recordSync(holding(['c.com']));
-    const openA = left.find((e) => e.domain === 'a.com')!;
-    setDispositions(
-      [{ domainName: 'a.com', resolves: openA.id }, { domainName: 'b.com' }],
-      'dropped',
-      '2026-09-01',
+  it('Remove from DomBot skips names an account holds', () => {
+    markSold([{ domainName: 'a.com' }, { domainName: 'b.com' }]);
+    expect(deleteDomains(['a.com', 'b.com'], new Set(['a.com']))).toBe(1);
+    expect(listEvents().map((e) => e.domain)).toEqual(['a.com']);
+    expect(() => deleteDomains(['a.com'], new Set(['a.com']))).toThrow(
+      /auto-renew/,
     );
-    const owner = ownershipByDomain(listEvents());
-    expect(owner.get('a.com')?.label).toBe('dropped');
-    expect(owner.get('b.com')?.label).toBe('dropped');
-    const dropped = listEvents().filter((e) => e.type === 'dropped');
-    expect(dropped.map((e) => e.date)).toEqual(['2026-09-01', '2026-09-01']);
-    expect(dropped[0].resolves).toBe(openA.id);
-    await flushWrites();
-    expect(Object.keys(await store.list('domain-events'))).toHaveLength(4);
   });
 
   it('marks many names Sold with no price, dated today by default', () => {
@@ -241,17 +201,6 @@ describe('domain history', () => {
       sold.every((e) => !e.amount && /^\d{4}-\d{2}-\d{2}$/.test(e.date!)),
     ).toBe(true);
     expect(getPurchases()['a.com']).toMatchObject({ saleAmount: null });
-  });
-
-  it('moves back to Owned only the names you labeled', () => {
-    recordSync(holding(['a.com', 'b.com']));
-    recordSync(holding([]));
-    setDispositions([{ domainName: 'a.com' }], 'archived');
-    // b.com only left on its own: nothing of yours to undo, so it's skipped.
-    expect(restoreOwned(['a.com', 'b.com'])).toBe(1);
-    const owner = ownershipByDomain(listEvents());
-    expect(owner.get('a.com')?.label).toBe('removed');
-    expect(owner.get('b.com')?.label).toBe('removed');
   });
 
   describe('renewals', () => {

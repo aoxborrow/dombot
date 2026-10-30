@@ -6,7 +6,7 @@ import {
   flushWrites,
   hydrateStores,
 } from '../storage/namespace';
-import { ownershipByDomain } from '../../shared/ownership';
+import { ownershipByDomain, standingOf } from '../../shared/ownership';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { domainsToCsv } from '../../shared/domain-csv';
 import { buildRows, guessSetup, readTable } from '../../shared/domain-import';
@@ -14,7 +14,7 @@ import { importedRows } from '../../shared/imported-domains';
 import { listAccounts } from './accounts';
 import { getListPrices } from './list-prices';
 import { listEvents, nameNotes } from './domain-events';
-import { recordSync, setDispositions } from './domain-history';
+import { recordSync } from './domain-history';
 import { importDomains, planImport } from './domain-import';
 import { getFolders } from './folders';
 import { getImportedDomains } from './imported-domains';
@@ -167,9 +167,8 @@ describe('importing domains', () => {
     });
   });
 
-  it('records a sale in place of your Dropped label, but never replaces Sold', () => {
+  it('records a sale from the row, and never replaces one on record', () => {
     sync(['a.com', 'b.com']);
-    setDispositions([{ domainName: 'a.com' }], 'dropped');
     setSale({
       domainName: 'b.com',
       saleDate: '2024-01-01',
@@ -180,30 +179,50 @@ describe('importing domains', () => {
     });
     const plan = apply([
       row('a.com', { sale: { amount: '700.00', currency: 'USD' } }),
-      row('b.com', { status: 'dropped' }),
+      row('b.com', { status: 'sold' }),
     ]);
-    const own = ownershipByDomain(listEvents());
-    expect(own.get('a.com')?.label).toBe('sold');
-    expect(listEvents().filter((e) => e.type === 'dropped')).toEqual([]);
-    expect(own.get('b.com')?.label).toBe('sold');
-    expect(plan.outcomes[1].warnings).toEqual([
-      "It's Sold in DomBot, so it stays Sold.",
-    ]);
+    expect(plan.outcomes[0].changes).toContainEqual({
+      field: 'Status',
+      from: 'Owned',
+      to: 'Sold',
+    });
+    expect(plan.outcomes[1].changes).toEqual([]);
+    const sales = listEvents().filter((e) => e.type === 'sold');
+    expect(sales.map((e) => e.domain).sort()).toEqual(['a.com', 'b.com']);
   });
 
-  it('recreates a Removed review, but not for a name an account holds', () => {
+  it('ignores Expired, Dropped, Removed and the other old status words', () => {
     sync(['held.com']);
     const plan = apply([
-      row('gone.com', { status: 'removed' }),
-      row('held.com', { status: 'removed' }),
+      row('lapsed.com', {
+        status: 'ignored',
+        registration: { expirationDate: '2020-01-01' },
+      }),
+      row('undated.com', { status: 'ignored' }),
+      row('held.com', { status: 'ignored' }),
     ]);
-    expect(openReviews()).toEqual([['removed', 'gone.com']]);
-    expect(getImportedDomains()).toEqual({});
-    expect(plan.outcomes.map((o) => o.result)).toEqual([
-      'history',
-      'unchanged',
+    // Nothing but the names themselves: no sale, no removal, no label.
+    expect(
+      listEvents()
+        .filter((e) => e.type !== 'added')
+        .map((e) => e.type),
+    ).toEqual([]);
+    expect(Object.keys(getImportedDomains()).sort()).toEqual([
+      'lapsed.com',
+      'undated.com',
     ]);
-    expect(plan.outcomes[1].warnings[0]).toMatch(/still reports this name/);
+    // Long past expiry: Archive works it out, with no arrival to review.
+    expect(openReviews()).toEqual([['added', 'undated.com']]);
+    const lapsed = importedRows(getImportedDomains(), []).find(
+      (d) => d.domainName === 'lapsed.com',
+    )!;
+    expect(standingOf(lapsed, undefined).label).toBe('expired');
+    // With no expiry date it stays in Owned, and the row says so.
+    expect(plan.outcomes[0].warnings).toEqual([]);
+    expect(plan.outcomes[1].warnings).toContainEqual(
+      expect.stringMatching(/stays in Owned/),
+    );
+    expect(plan.outcomes[2].warnings).toEqual([]);
   });
 
   it('puts a name with a sale only in Archive, with no imported entry', () => {
@@ -214,24 +233,7 @@ describe('importing domains', () => {
     ]);
     expect(plan.counts.history).toBe(1);
     expect(getImportedDomains()).toEqual({});
-    expect(ownershipByDomain(listEvents()).get('sold.com')?.label).toBe('sold');
-  });
-
-  it('moves a name in Archive back to Owned on Status Owned, keeping its history', () => {
-    sync(['a.com']);
-    setDispositions([{ domainName: 'a.com' }], 'dropped');
-    const stays = planImport([row('a.com', { notes: 'hi' })]);
-    expect(stays.outcomes[0].warnings[0]).toMatch(
-      /A Status of Owned moves it back/,
-    );
-    const plan = apply([row('a.com', { status: 'owned' })]);
-    expect(plan.outcomes[0].changes).toContainEqual({
-      field: 'Status',
-      from: 'Dropped',
-      to: 'Owned',
-    });
-    expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
-    expect(listEvents().filter((e) => e.type === 'dropped')).toHaveLength(1);
+    expect(ownershipByDomain(listEvents()).get('sold.com')?.sale).toBeTruthy();
   });
 
   it('brings a name back from an open removal without a new review', () => {
@@ -241,7 +243,7 @@ describe('importing domains', () => {
     apply([row('a.com', { registration: { registrarLabel: 'Epik' } })]);
     expect(openReviews()).toEqual([]);
     expect(getImportedDomains()['a.com'].registrarLabel).toBe('Epik');
-    expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
+    expect(ownershipByDomain(listEvents()).get('a.com')?.removal).toBeNull();
   });
 
   it('treats a purchase after the last sale as a buy-back: a new holding, Owned', () => {
@@ -262,7 +264,7 @@ describe('importing domains', () => {
       purchaseDate: '2023-01-01',
       saleDate: null,
     });
-    expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
+    expect(ownershipByDomain(listEvents()).get('a.com')?.sale).toBeNull();
   });
 
   it('brings a sold imported name back to Owned on a buy-back', () => {
@@ -273,7 +275,7 @@ describe('importing domains', () => {
     ]);
     apply([row('a.com', { sale: { date: '2019-01-01' } })]);
     expect(getImportedDomains()['a.com']).toBeDefined();
-    expect(ownershipByDomain(listEvents()).get('a.com')?.label).toBe('sold');
+    expect(ownershipByDomain(listEvents()).get('a.com')?.sale).toBeTruthy();
 
     const plan = apply([
       row('a.com', { purchase: { date: '2023-01-01', amount: '80.00' } }),
@@ -283,15 +285,7 @@ describe('importing domains', () => {
       from: 'Sold',
       to: 'Owned',
     });
-    expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
-  });
-
-  it('warns that a labeled name stays in Archive, with or without a Status column', () => {
-    apply([row('a.com', { status: 'dropped' })]);
-    const plan = planImport([row('a.com', { notes: 'hi' })]);
-    expect(plan.outcomes[0].warnings).toContainEqual(
-      expect.stringMatching(/in Archive as Dropped, so it stays there/),
-    );
+    expect(ownershipByDomain(listEvents()).get('a.com')?.sale).toBeNull();
   });
 
   it('clears the typed registrar when a known one replaces it', () => {
@@ -341,18 +335,18 @@ describe('importing domains', () => {
     expect(getListPrices()['a.com']).toBeUndefined();
   });
 
-  it('creates missing folders once, and knows Hidden', () => {
+  it('creates missing folders once; Hidden is an ordinary name', () => {
     const plan = apply([
       row('a.com', { folder: 'Brandables' }),
       row('b.com', { folder: 'brandables' }),
       row('c.com', { folder: 'hidden' }),
     ]);
-    expect(plan.newFolders).toEqual(['Brandables']);
+    expect(plan.newFolders).toEqual(['Brandables', 'hidden']);
     const { folders, assignments } = getFolders();
-    expect(folders.map((f) => f.name)).toEqual(['Brandables']);
+    expect(folders.map((f) => f.name)).toEqual(['Brandables', 'hidden']);
     expect(assignments['a.com']).toBe(folders[0].id);
     expect(assignments['b.com']).toBe(folders[0].id);
-    expect(assignments['c.com']).toBe('__hidden__');
+    expect(assignments['c.com']).toBe(folders[1].id);
   });
 
   it('sets renewal and BIN prices, merging a BIN price in the same currency', () => {
@@ -403,15 +397,18 @@ describe('importing domains', () => {
         purchase: { date: '2018-01-01', amount: '10.00', currency: 'USD' },
         sale: { date: '2019-01-01', amount: '50.00', currency: 'USD' },
       }),
-      row('gone.example', { status: 'removed' }),
-      row('dropped.example', { status: 'dropped' }),
+      row('lapsed.example', {
+        registration: { expirationDate: '2025-01-01', autoRenew: false },
+      }),
     ]);
     const exportAll = () => {
       const events = listEvents();
       const own = ownershipByDomain(events);
       const imported = importedRows(getImportedDomains(), []);
       const departed: Domain[] = [...own]
-        .filter(([name, o]) => o.archived && !getImportedDomains()[name])
+        .filter(
+          ([name, o]) => (o.sale || o.removal) && !getImportedDomains()[name],
+        )
         .map(([name]) => ({
           ...importedRows(
             { [name]: { registrar: null, addedAt: 0, updatedAt: null } },
@@ -433,7 +430,15 @@ describe('importing domains', () => {
           listPrices: getListPrices(),
           pricing: getPortfolioPricing(),
           manualPrices: getManualPrices(),
-          archiveLabel: (name) => own.get(name)?.label ?? null,
+          statusOf: (d) => {
+            const st = standingOf(
+              d,
+              own.get(d.domainName),
+              undefined,
+              Date.parse('2026-06-15T00:00:00Z'),
+            );
+            return st.label ?? (st.salePending ? 'sold' : null);
+          },
           accountName: () => 'Imported',
           now: Date.parse('2026-06-15T00:00:00Z'),
         },

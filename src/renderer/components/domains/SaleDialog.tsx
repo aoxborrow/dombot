@@ -27,8 +27,9 @@ import {
 
 /**
  * Sale date, sale amount, and the shared notes for one name.
- * `edit` updates a name that is already Sold. `mark` files it in Sold only
- * when the user saves. Closing without that button leaves the name where it was.
+ * `edit` updates a name that is already Sold, and Undo sale deletes the sale.
+ * `mark` records it only when the user saves. Closing without that button
+ * leaves the name where it was.
  */
 export function SaleDialog({
   domain,
@@ -104,6 +105,25 @@ export function SaleDialog({
     }
   }
 
+  // Blank date and amount delete the sale; the note and purchase stay.
+  async function undo() {
+    setError(null);
+    setSaving(true);
+    try {
+      await saveSale({
+        domainName: domain.domainName,
+        saleDate: null,
+        amount: null,
+        currency: null,
+        notes,
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not undo.');
+      setSaving(false);
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-md">
@@ -114,7 +134,9 @@ export function SaleDialog({
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
             {mode === 'mark'
-              ? 'Moves to Archive as Sold. Nothing changes at the registrar.'
+              ? domain.departed || domain.source === 'imported'
+                ? 'Moves to Archive as Sold. Nothing changes at the registrar.'
+                : 'Shows as Sold until the buyer takes it, then moves to Archive. Nothing changes at the registrar.'
               : 'What you sold it for and when.'}
           </p>
           <div className="flex flex-col gap-2">
@@ -161,6 +183,17 @@ export function SaleDialog({
           )}
         </div>
         <DialogFooter>
+          {mode === 'edit' && (sale?.saleDate || sale?.saleAmount) && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-destructive hover:text-destructive sm:mr-auto"
+              disabled={saving}
+              onClick={() => void undo()}
+            >
+              Undo sale
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"

@@ -111,9 +111,9 @@ describe('BIN prices', () => {
     expect(getListPrices()['b.com'].amount).toBe('300');
   });
 
-  it('is removed by Delete', () => {
+  it('is removed by Remove from DomBot', () => {
     setListPrices([price('a.com', '100')]);
-    deleteDomains(['a.com']);
+    deleteDomains(['a.com'], new Set());
     expect(getListPrices()).toEqual({});
   });
 

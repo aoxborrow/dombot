@@ -149,7 +149,11 @@ export interface RenewalSummary {
   manual: number;
   /** Sum of known annual renewals in `currency`. */
   yearly: number;
-  /** Committed spend: known renewals for auto-renew-on domains only. */
+  /**
+   * Committed spend: known renewals for auto-renewing domains only. The rest
+   * (`yearly - yearlyAutoRenew`) has auto-renew off: it renews only if you
+   * renew it.
+   */
   yearlyAutoRenew: number;
   /** Average annual renewal across domains priced in `currency`. */
   avgPerDomain: number;
@@ -337,17 +341,24 @@ export function upcomingByMonth(
 
 /**
  * Total known renewal cost in `currency` for domains due within the next
- * `days` days, with any renewals priced in other currencies beside it.
+ * `days` days, with any renewals priced in other currencies beside it, and
+ * the auto-renewing part (the rest has auto-renew off).
  */
 export function dueWithin(
   domains: Domain[],
   pricing: Record<string, RenewalPricing>,
   days: number,
   currency = 'USD',
-): { count: number; yearly: number; others: CurrencyTotal[] } {
+): {
+  count: number;
+  yearly: number;
+  yearlyAutoRenew: number;
+  others: CurrencyTotal[];
+} {
   const cutoff = Date.now() + days * 86_400_000;
   let count = 0;
   let yearly = 0;
+  let yearlyAutoRenew = 0;
   const others: CurrencyTotal[] = [];
   for (const d of domains) {
     const date = renewalDate(d);
@@ -355,8 +366,10 @@ export function dueWithin(
     count += 1;
     const p = priceOf(d, pricing);
     if (p?.renewal == null) continue;
-    if (p.currency === currency) yearly += p.renewal;
-    else addOther(others, p.currency, p.renewal);
+    if (p.currency === currency) {
+      yearly += p.renewal;
+      if (d.autoRenew) yearlyAutoRenew += p.renewal;
+    } else addOther(others, p.currency, p.renewal);
   }
-  return { count, yearly, others };
+  return { count, yearly, yearlyAutoRenew, others };
 }

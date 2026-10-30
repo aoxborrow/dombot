@@ -6,12 +6,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
-  EyeOff,
   Building2,
   CalendarClock,
   ChevronDown,
   CircleCheck,
   Globe,
+  IterationCw,
   Plug,
   Server,
   ShieldBan,
@@ -28,16 +28,14 @@ import type {
 } from '../../shared/ipc';
 import { LockClosedIcon, LockOpenIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
-import {
-  HIDDEN_FOLDER_ID,
-  builtInFolderName,
-  isHiddenFolder,
-} from '../../shared/ipc';
 import { DomainEventType } from '../../shared/domain-events';
 import {
+  ARCHIVE_LABELS,
   archiveRows,
   ownershipByDomain,
+  standingOf,
   type ArchiveLabel,
+  type Standing,
 } from '../../shared/ownership';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { ARCHIVE_LABEL, accountName } from '../lib/domain-history';
@@ -50,9 +48,7 @@ import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
   DeleteDomainsDialog,
-  DispositionDialog,
   MarkSoldDialog,
-  RestoreOwnedDialog,
 } from '../components/actions/OwnershipDialogs';
 import { useAppStore } from '../store/app';
 import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
@@ -316,12 +312,6 @@ function RenewalCell({
 }
 
 /**
- * The Folder cell: a small colored folder icon plus the folder name when the
- * domain is in a folder, a muted "Hidden" for the built-in Hidden folder, or a
- * muted dash when unassigned. Display only — assigning is done from
- * the row menu.
- */
-/**
  * The Folder column cell — the row's only click target. A full-height, padded
  * button (faded folder icon when unassigned, the colored folder chip otherwise)
  * that opens the folder-assignment menu directly. Rendered in a `p-0` cell so
@@ -336,10 +326,7 @@ function FolderCell({
   folderId: string | undefined;
   onAssign: (folderId: string | null) => void;
 }) {
-  const builtIn = builtInFolderName(folderId);
-  const BuiltInIcon = EyeOff;
-  const current =
-    folderId && !builtIn ? folders.find((f) => f.id === folderId) : undefined;
+  const current = folderId ? folders.find((f) => f.id === folderId) : undefined;
 
   return (
     <DropdownMenu>
@@ -352,16 +339,7 @@ function FolderCell({
           // never sets the row height.
           className="group flex w-full cursor-pointer items-center gap-1.5 px-3 py-3 text-left text-sm text-muted-foreground/40 transition-colors hover:text-foreground compact:px-2 compact:py-[9px] compact:text-xs"
         >
-          {builtIn ? (
-            <span className="inline-flex h-4 items-center gap-2 leading-none text-muted-foreground">
-              <BuiltInIcon className="size-4 shrink-0" />
-              {builtIn}
-              <ChevronDown
-                className="ml-auto size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-                aria-hidden
-              />
-            </span>
-          ) : current ? (
+          {current ? (
             <span className="inline-flex h-4 max-w-full items-center gap-2 leading-none text-foreground">
               <FolderIcon
                 className={cn(
@@ -394,9 +372,10 @@ function FolderCell({
 }
 
 /**
- * In Archive the Folder column shows why the name is there instead: its latest
- * ownership event, as the same badge Activity shows (Sold, Dropped,
- * Archived, or Removed: sync saw it go; label it from the row menu).
+ * In Archive the Folder column shows why the name is there instead, as the
+ * badges Activity shows (docs/owned-and-archive.md): Sold, Deleted (the
+ * lookup says nobody holds it), Expired (it left after expiry), or Removed
+ * (it left early with no sale recorded; review it on Activity).
  */
 function ArchiveStatusCell({ label }: { label: ArchiveLabel | null }) {
   if (!label) return null;
@@ -404,18 +383,21 @@ function ArchiveStatusCell({ label }: { label: ArchiveLabel | null }) {
     // No vertical padding (the cell has none either): the badge is taller
     // than a line of text, and centered it doesn't make the row taller.
     <span className="flex items-center px-3 compact:px-2">
-      <EventTypeBadge
-        type={label}
-        title={label === 'removed' ? 'Removed from registrar' : undefined}
-      />
+      <EventTypeBadge type={label} title={ARCHIVE_TITLE[label]} />
     </span>
   );
 }
 
+const ARCHIVE_TITLE: Record<ArchiveLabel, string> = {
+  sold: 'You recorded a sale',
+  deleted: 'Not registered: the registration lookup found no holder',
+  expired: 'Left your accounts after its expiry date',
+  removed: 'Left your accounts before expiry, with no sale recorded',
+};
+
 /**
  * The folder-assignment menu, opened directly from the Folder cell. A flat list
- * of the user's folders followed by "None" (clear) and "Archive" (the built-in
- * folder that drops the domain from the table).
+ * of the user's folders followed by "None" (clear).
  */
 function FolderMenuContent({
   folders,
@@ -494,6 +476,36 @@ function LifecycleBadge({ status }: { status: string }) {
     >
       {flag.label}
     </Badge>
+  );
+}
+
+/**
+ * The states Owned works out for a name (docs/owned-and-archive.md), beside
+ * the lifecycle pills: Expiring (auto-renew off, expiring within 30 days) and
+ * Sold (a sale recorded; the buyer hasn't taken the name yet, so it doubles
+ * as a reminder to finish the transfer).
+ */
+function OwnedStateBadges({ standing }: { standing: Standing }) {
+  if (standing.archived) return null;
+  const pill =
+    'border-transparent px-1.5 py-0 text-[11px] compact:px-1 compact:text-[10px]';
+  return (
+    <>
+      {standing.expiring && (
+        <Badge
+          className={cn(pill, 'bg-amber-500 text-white dark:bg-amber-600')}
+        >
+          Expiring
+        </Badge>
+      )}
+      {standing.salePending && (
+        <Badge
+          className={cn(pill, 'bg-emerald-600 text-white dark:bg-emerald-700')}
+        >
+          Sold
+        </Badge>
+      )}
+    </>
   );
 }
 
@@ -805,8 +817,8 @@ const RECOVERABLE_DAYS = 45;
 export default function Domains() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  // Owned is what you hold; Archive is what you no longer own (Sold, Dropped,
-  // Archived, or Removed from registrar), read from the domain event log.
+  // Owned is what you hold; Archive is what you no longer have (Sold,
+  // Deleted, Expired, or Removed), worked out in shared/ownership.ts.
   const archiveView = params.get('view') === 'archive';
   const {
     portfolio,
@@ -842,7 +854,6 @@ export default function Domains() {
     domainEvents,
     registrationLookups,
     loadRegistrationLookups,
-    restoreOwned,
   } = useAppStore();
 
   // Market columns and the Markets filter only appear once a market account
@@ -901,11 +912,6 @@ export default function Domains() {
     }
     return out;
   }, [domainEvents]);
-  const archiveLabelOf = useCallback(
-    (d: Domain): ArchiveLabel | null =>
-      ownership.get(toAscii(d.domainName))?.label ?? null,
-    [ownership],
-  );
 
   const multipleAccounts = useMemo(
     () => multiAccountRegistrars(registrars, portfolio),
@@ -1002,7 +1008,7 @@ export default function Domains() {
       numberFormat: settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
       onEditPurchase: setPurchaseFor,
       onEditSale: setSaleFor,
-      isSold: (d) => ownership.get(toAscii(d.domainName))?.label === 'sold',
+      isSold: (d) => !!ownership.get(toAscii(d.domainName))?.sale,
       listPrices,
       onEditListPrice: (d) => setListPriceFor([d]),
     })) {
@@ -1082,14 +1088,22 @@ export default function Domains() {
   );
 
   // Archive asks RDAP for names that have left, so created and expires stay
-  // current and a free name can be shown as unregistered.
-  const departedKey = archiveView
-    ? listed
-        .filter((d) => d.departed)
-        .map((d) => d.domainName.toLowerCase())
-        .sort()
-        .join('\n')
-    : '';
+  // current and a free name can be shown as unregistered. Imported names past
+  // expiry are asked about in either view: a definite "not registered" moves
+  // one to Archive as Deleted before its 90 days are up.
+  // "Now" for the derived states: when the page opened.
+  const [now] = useState(() => Date.now());
+  const departedKey = listed
+    .filter((d) =>
+      d.departed
+        ? archiveView
+        : d.source === 'imported' &&
+          !!d.expirationDate &&
+          d.expirationDate.getTime() < now,
+    )
+    .map((d) => d.domainName.toLowerCase())
+    .sort()
+    .join('\n');
   useEffect(() => {
     if (!departedKey) return;
     void loadRegistrationLookups(departedKey.split('\n'));
@@ -1125,6 +1139,43 @@ export default function Domains() {
     });
   }, [listed, archiveView, registrationLookups]);
 
+  // Each shown row's standing (shared/ownership.ts): Owned with its derived
+  // states, or Archive and why.
+  const standings = useMemo(() => {
+    const out = new Map<Domain, Standing>();
+    for (const d of shown) {
+      const key = toAscii(d.domainName);
+      out.set(
+        d,
+        standingOf(
+          d,
+          ownership.get(key),
+          registrationLookups[key]?.registered,
+          now,
+        ),
+      );
+    }
+    return out;
+  }, [shown, ownership, registrationLookups, now]);
+  const standingOfRow = useCallback(
+    (d: Domain): Standing => {
+      const known = standings.get(d);
+      if (known) return known;
+      const key = toAscii(d.domainName);
+      return standingOf(
+        d,
+        ownership.get(key),
+        registrationLookups[key]?.registered,
+        now,
+      );
+    },
+    [standings, ownership, registrationLookups, now],
+  );
+  const archiveLabelOf = useCallback(
+    (d: Domain): ArchiveLabel | null => standingOfRow(d).label,
+    [standingOfRow],
+  );
+
   // Starts from ?q= so another page (Activity's Show in Domains) can open it
   // on one name.
   const [search, setSearch] = useState(() => params.get('q') ?? '');
@@ -1147,8 +1198,10 @@ export default function Domains() {
     const id = params.get('folder');
     return id ? [id] : [];
   });
-  // Archive only: Sold, Dropped, Archived, Removed.
+  // Archive only: Sold, Deleted, Expired, Removed.
   const [status, setStatus] = useState<string[]>([]);
+  // Owned only: auto-renew on or off (how you see what you're letting go).
+  const [autoRenewFilter, setAutoRenewFilter] = useState<string[]>([]);
   // Owned only: what each name's asking price holds, and BIN price and
   // minimum offer ranges.
   const [pricingFilter, setPricingFilter] =
@@ -1324,74 +1377,80 @@ export default function Domains() {
     return { nsGroups: groups, nsKeysByDomain: keysByDomain };
   }, [merged, marketCatalog]);
 
-  // The Folder filter offers the user's folders, None, and Hidden, counted
-  // over this tab's names (a name in Archive keeps its folder). Archive also
-  // filters by status (Sold, Dropped, …).
-  const { folderOptions, archiveStatusOptions, ownedCount, archiveCount } =
-    useMemo(() => {
-      const counts = countFolders(
-        listed,
-        ownership,
-        folderAssignments,
-        folders,
-      );
-      const inView = archiveView ? counts.archive : counts.owned;
-      const status: Record<ArchiveLabel, number> = {
-        sold: 0,
-        dropped: 0,
-        archived: 0,
-        removed: 0,
-      };
-      for (const d of listed) {
-        const label = ownership.get(toAscii(d.domainName))?.label;
-        if (label) status[label] += 1;
+  // The Folder filter offers the user's folders and None, counted over this
+  // tab's names (a name in Archive keeps its folder). Archive also filters by
+  // status (Sold, Deleted, Expired, Removed); Owned by auto-renew (On, Off).
+  const {
+    folderOptions,
+    archiveStatusOptions,
+    autoRenewOptions,
+    ownedCount,
+    archiveCount,
+  } = useMemo(() => {
+    const counts = countFolders(
+      shown,
+      (d) => !!archiveLabelOf(d),
+      folderAssignments,
+      folders,
+    );
+    const inView = archiveView ? counts.archive : counts.owned;
+    const status: Record<ArchiveLabel, number> = {
+      sold: 0,
+      deleted: 0,
+      expired: 0,
+      removed: 0,
+    };
+    let renewOn = 0;
+    let renewOff = 0;
+    for (const d of shown) {
+      const label = archiveLabelOf(d);
+      if (label) status[label] += 1;
+      else if (!d.autoRenewUnknown) {
+        if (d.autoRenew) renewOn += 1;
+        else renewOff += 1;
       }
-      const opts = folders.map((f) => ({
-        value: f.id,
-        label: f.name,
-        count: inView[f.id] ?? 0,
-        icon: (
-          <FolderIcon
-            className={cn('size-4 shrink-0', folderColorStyle(f.color).text)}
-            aria-hidden
-          />
-        ),
-      }));
-      opts.push({
-        value: NO_FOLDER,
-        label: 'None',
-        count: inView[NO_FOLDER] ?? 0,
-        icon: (
-          <FolderOffIcon
-            className="size-4 shrink-0 text-muted-foreground/50"
-            aria-hidden
-          />
-        ),
-      });
-      opts.push({
-        value: HIDDEN_FOLDER_ID,
-        label: 'Hidden',
-        count: inView[HIDDEN_FOLDER_ID] ?? 0,
-        icon: <EyeOff className="size-4 shrink-0" aria-hidden />,
-      });
-      const statusOptions = (
-        ['sold', 'dropped', 'archived', 'removed'] as const
-      ).map((label) => ({
-        value: label,
-        label: ARCHIVE_LABEL[label],
-        count: status[label],
-        icon: <EventTypeDot type={label} />,
-      }));
-      const sum = (c: Record<string, number>) =>
-        Object.values(c).reduce((n, x) => n + x, 0);
-      return {
-        folderOptions: opts,
-        archiveStatusOptions: statusOptions,
-        // Owned counts what shows by default: Hidden is left out.
-        ownedCount: sum(counts.owned) - (counts.owned[HIDDEN_FOLDER_ID] ?? 0),
-        archiveCount: sum(counts.archive),
-      };
-    }, [listed, folders, folderAssignments, ownership, archiveView]);
+    }
+    const opts = folders.map((f) => ({
+      value: f.id,
+      label: f.name,
+      count: inView[f.id] ?? 0,
+      icon: (
+        <FolderIcon
+          className={cn('size-4 shrink-0', folderColorStyle(f.color).text)}
+          aria-hidden
+        />
+      ),
+    }));
+    opts.push({
+      value: NO_FOLDER,
+      label: 'None',
+      count: inView[NO_FOLDER] ?? 0,
+      icon: (
+        <FolderOffIcon
+          className="size-4 shrink-0 text-muted-foreground/50"
+          aria-hidden
+        />
+      ),
+    });
+    const statusOptions = ARCHIVE_LABELS.map((label) => ({
+      value: label,
+      label: ARCHIVE_LABEL[label],
+      count: status[label],
+      icon: <EventTypeDot type={label} />,
+    }));
+    const sum = (c: Record<string, number>) =>
+      Object.values(c).reduce((n, x) => n + x, 0);
+    return {
+      folderOptions: opts,
+      archiveStatusOptions: statusOptions,
+      autoRenewOptions: [
+        { value: 'on', label: 'On', count: renewOn },
+        { value: 'off', label: 'Off', count: renewOff },
+      ],
+      ownedCount: sum(counts.owned),
+      archiveCount: sum(counts.archive),
+    };
+  }, [shown, folders, folderAssignments, archiveLabelOf, archiveView]);
 
   // The filter bar's fields, in the Add filter menu's order (the order the
   // old filter buttons had). Each set field shows as a chip; clearing is per
@@ -1483,6 +1542,21 @@ export default function Domains() {
           ),
         ]
       : []),
+    ...(archiveView
+      ? []
+      : [
+          listFilter(
+            {
+              key: 'autoRenew',
+              label: 'Auto-renew',
+              icon: IterationCw,
+              options: autoRenewOptions,
+              selected: autoRenewFilter,
+              plural: 'values',
+            },
+            setAutoRenewFilter,
+          ),
+        ]),
     ...(archiveView
       ? []
       : [
@@ -1675,6 +1749,7 @@ export default function Domains() {
     // Folder applies on both tabs, so it stays: a folder's Owned names, then
     // the ones you no longer hold.
     setStatus([]);
+    setAutoRenewFilter([]);
     setPricingFilter(NO_PRICING_FILTER);
     // Created is Active only and Sold is Archive only; neither waits,
     // hidden, to come back.
@@ -1744,9 +1819,9 @@ export default function Domains() {
       if (!matchesDateRange(record?.purchaseDate, purchased)) return false;
       if (archiveView && !matchesDateRange(record?.saleDate, sold))
         return false;
-      // Owned vs Archive comes from the event log. Archive also filters by
-      // status. The folder is a real folder, Hidden, or None on both tabs; in
-      // Owned, Hidden stays out unless the filter picks it.
+      // Owned vs Archive (shared/ownership.ts). Archive also filters by
+      // status; Owned by auto-renew. The folder (a real folder or None)
+      // filters both tabs.
       {
         const label = archiveLabelOf(d);
         if (!label === archiveView) return false;
@@ -1756,10 +1831,11 @@ export default function Domains() {
           folderAssignments[toAscii(d.domainName)],
           folders,
         );
-        if (folder.length > 0) {
-          if (!folder.includes(bucket)) return false;
-        } else if (!archiveView && isHiddenFolder(bucket)) {
-          return false;
+        if (folder.length > 0 && !folder.includes(bucket)) return false;
+        if (!archiveView && autoRenewFilter.length > 0) {
+          if (d.autoRenewUnknown) return false;
+          if (!autoRenewFilter.includes(d.autoRenew ? 'on' : 'off'))
+            return false;
         }
       }
       return true;
@@ -1777,11 +1853,7 @@ export default function Domains() {
         const label = archiveLabelOf(d);
         if (label) return ARCHIVE_LABEL[label].toLowerCase();
         const id = folderAssignments[toAscii(d.domainName)];
-        return (
-          builtInFolderName(id)?.toLowerCase() ??
-          folders.find((f) => f.id === id)?.name.toLowerCase() ??
-          null
-        );
+        return folders.find((f) => f.id === id)?.name.toLowerCase() ?? null;
       }
       return col?.sortValue(d, portfolioRegistrarLabels) ?? null;
     };
@@ -1802,6 +1874,7 @@ export default function Domains() {
     status,
     folders,
     folderAssignments,
+    autoRenewFilter,
     askingFilter,
     listPrices,
     purchases,
@@ -1849,9 +1922,7 @@ export default function Domains() {
         folderId === null
           ? `Removed ${noun} from their folders`
           : `Moved ${noun} to ${
-              builtInFolderName(folderId) ??
-              folders.find((folder) => folder.id === folderId)?.name ??
-              'folder'
+              folders.find((folder) => folder.id === folderId)?.name ?? 'folder'
             }`,
       );
     });
@@ -1868,14 +1939,6 @@ export default function Domains() {
   function openOwnership(action: OwnershipAction, ds: Domain[]) {
     if (action === 'sold' && ds.length === 1) setMarkSoldFor(ds[0]);
     else setOwnershipDialog({ action, domains: ds });
-  }
-
-  // Moving one name back is one click (and reversible); many go through the
-  // dialog. Only a name an account still holds offers it.
-  function moveBackToOwned(d: Domain) {
-    void restoreOwned([d.domainName]).then(() =>
-      toast.success(`Moved ${d.domainName} back to Owned`),
-    );
   }
 
   // After a bulk ownership action the names leave this view: clear them.
@@ -1940,7 +2003,10 @@ export default function Domains() {
         listPrices,
         pricing,
         manualPrices: await window.api.getManualPrices(),
-        archiveLabel: (name) => ownership.get(name)?.label ?? null,
+        statusOf: (d) => {
+          const st = standingOfRow(d);
+          return st.label ?? (st.salePending ? 'sold' : null);
+        },
         accountName: (d) =>
           accountName(registrars, d.accountId ?? d.registrar) ??
           registrarLabel(d.registrar, portfolioRegistrarLabels),
@@ -1975,7 +2041,10 @@ export default function Domains() {
       const key = domainKey(d);
       return (
         <div className="flex items-center justify-between gap-2">
-          {col.render(d, portfolioRegistrarLabels)}
+          <span className="inline-flex items-center gap-2">
+            {col.render(d, portfolioRegistrarLabels)}
+            <OwnedStateBadges standing={standingOfRow(d)} />
+          </span>
           <div className="flex items-center">
             <NotesButton
               domainName={d.domainName}
@@ -1999,10 +2068,9 @@ export default function Domains() {
               onEditDetails={() => setDetailsFor(d)}
               onAssignFolder={(folderId) => applyFolders([d], folderId)}
               archive={archiveLabelOf(d)}
+              sold={!!ownership.get(toAscii(d.domainName))?.sale}
+              removable={d.departed === true || d.source === 'imported'}
               onMarkSold={() => openOwnership('sold', [d])}
-              onMarkDropped={() => openOwnership('dropped', [d])}
-              onMarkArchived={() => openOwnership('archived', [d])}
-              onRestoreOwned={() => moveBackToOwned(d)}
               onDelete={() => openOwnership('delete', [d])}
               onMarket={
                 marketsOn
@@ -2301,7 +2369,7 @@ export default function Domains() {
               </div>
             </div>
           ) : archiveView && archiveCount === 0 ? (
-            'Names you mark Sold, Dropped, or Archived, and names that leave your accounts, show up here.'
+            'Names you no longer have show up here: sold, expired, or gone from your accounts. To let a name go, turn its auto-renew off.'
           ) : portfolio.length === 0 ? (
             hasLoaded ? (
               'No domains found in any configured registrar.'
@@ -2396,15 +2464,6 @@ export default function Domains() {
           const { action, domains: ds } = ownershipDialog;
           const close = () => setOwnershipDialog(null);
           const done = () => clearDone(ds);
-          if (action === 'dropped' || action === 'archived')
-            return (
-              <DispositionDialog
-                type={action}
-                items={ownershipItems(ds)}
-                onDone={done}
-                onClose={close}
-              />
-            );
           if (action === 'sold')
             return (
               <MarkSoldDialog
@@ -2413,22 +2472,13 @@ export default function Domains() {
                 onClose={close}
               />
             );
-          if (action === 'restore')
-            return (
-              <RestoreOwnedDialog
-                names={ds.map((d) => d.domainName)}
-                restorable={ds
-                  .filter((d) => {
-                    const o = ownership.get(toAscii(d.domainName));
-                    return !d.departed && o?.event && o.event.source !== 'sync';
-                  })
-                  .map((d) => d.domainName)}
-                onDone={done}
-                onClose={close}
-              />
-            );
+          // Remove from DomBot: only the names no connected account holds.
           return (
-            <DeleteDomainsDialog domains={ds} onDone={done} onClose={close} />
+            <DeleteDomainsDialog
+              domains={ds.filter((d) => d.departed || d.source === 'imported')}
+              onDone={done}
+              onClose={close}
+            />
           );
         })()}
       {renewFor && (

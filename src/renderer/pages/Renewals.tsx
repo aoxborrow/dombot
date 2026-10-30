@@ -5,6 +5,8 @@ import { useMemo, useState } from 'react';
 import { CalendarClock, CircleDollarSign, Globe } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { importedRows } from '../../shared/imported-domains';
+import { toAscii } from '../../shared/domain-name';
+import { ownershipByDomain, standingOf } from '../../shared/ownership';
 import { useAppStore } from '../store/app';
 import { StatCard } from '../components/StatCard';
 import {
@@ -116,13 +118,28 @@ export default function Renewals() {
     portfolioRegistrarLabels,
     pricing,
     setManualPrice,
+    domainEvents,
+    registrationLookups,
   } = useAppStore();
 
-  // Synced names plus the ones you added by hand.
-  const allDomains = useMemo(
-    () => [...syncedDomains, ...importedRows(importedDomains, syncedDomains)],
-    [syncedDomains, importedDomains],
-  );
+  // The names in Owned (synced, and the ones you added by hand), less those
+  // you've sold that the buyer hasn't taken yet. Archive is never counted
+  // (docs/owned-and-archive.md).
+  const allDomains = useMemo(() => {
+    const ownership = ownershipByDomain(domainEvents);
+    return [
+      ...syncedDomains,
+      ...importedRows(importedDomains, syncedDomains),
+    ].filter((d) => {
+      const key = toAscii(d.domainName);
+      const st = standingOf(
+        d,
+        ownership.get(key),
+        registrationLookups[key]?.registered,
+      );
+      return !st.archived && !st.salePending;
+    });
+  }, [syncedDomains, importedDomains, domainEvents, registrationLookups]);
   const [account, setAccount] = useState('all');
   const accounts = useAppStore((s) => s.registrars);
   const multipleAccounts = useMemo(
@@ -279,16 +296,20 @@ export default function Renewals() {
           accentClass="text-brand-500"
           label="Yearly renewals"
           value={usd(summary.yearly)}
-          hint={`${usd(monthly)}/mo · ${usd(summary.yearlyAutoRenew)} auto-renews, ${usd(
+          hint={`${usd(monthly)}/mo · ${usd(summary.yearlyAutoRenew)} auto-renewing, ${usd(
             summary.yearly - summary.yearlyAutoRenew,
-          )} manual${othersNote ? ` · ${othersNote}` : ''}`}
+          )} auto-renew off${othersNote ? ` · ${othersNote}` : ''}`}
         />
         <StatCard
           icon={CalendarClock}
           accentClass="text-amber-500"
           label="Due next 90 days"
           value={usd(due90.yearly)}
-          hint={`${due90.count} domain${due90.count === 1 ? '' : 's'} renewing${
+          hint={`${due90.count} domain${due90.count === 1 ? '' : 's'} · ${usd(
+            due90.yearlyAutoRenew,
+          )} auto-renewing, ${usd(
+            due90.yearly - due90.yearlyAutoRenew,
+          )} auto-renew off${
             due90.others.length ? ` · ${plusOthers(due90.others)}` : ''
           }`}
         />
