@@ -222,7 +222,7 @@ export default function Renewals() {
         {
           id: 'all',
           label: 'All',
-          icon: Globe,
+          icon: CalendarClock,
           count: inRegistrar.length,
           active: renewing === 'all',
           onClick: () => setRenewing('all'),
