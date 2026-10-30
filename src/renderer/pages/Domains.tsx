@@ -817,6 +817,30 @@ function expiryColor(days: number | null): string {
   return 'text-foreground';
 }
 
+/** A colour dot, the size of the Status filter's. */
+function Dot({ className }: { className: string }) {
+  return (
+    <span
+      className={cn('m-1 size-2 shrink-0 rounded-full', className)}
+      aria-hidden
+    />
+  );
+}
+
+/**
+ * The Expiration filter's shortcuts in the column's colours: the pills' for
+ * Expired, Grace and Redemption, the dates' for the windows ahead (Next 60
+ * reaches into yellow; Next 90 past it, so it has none).
+ */
+const EXPIRATION_DOTS: Partial<Record<DatePresetId, React.ReactNode>> = {
+  expired: <Dot className="bg-red-600 dark:bg-red-700" />,
+  grace: <Dot className="bg-fuchsia-600 dark:bg-fuchsia-500" />,
+  redemption: <Dot className="bg-purple-800 dark:bg-purple-700" />,
+  next30: <Dot className="bg-orange-500" />,
+  next60: <Dot className="bg-yellow-500" />,
+  next90: <Dot className="bg-muted-foreground/40" />,
+};
+
 /**
  * The Expiration filter: the date range, or for the Grace and Redemption
  * shortcuts the registrar's status (date-range.ts, EXPIRATION_PRESETS).
@@ -1448,6 +1472,7 @@ export default function Domains() {
     icon?: typeof CalendarClock,
     matches: (d: Domain, r: DateRange) => boolean = (d, r) =>
       matchesDateRange(dayOf(d), r),
+    presetIcons?: Partial<Record<DatePresetId, React.ReactNode>>,
   ) =>
     dateRangeField({
       key,
@@ -1455,6 +1480,7 @@ export default function Domains() {
       icon,
       range,
       presets,
+      presetIcons,
       // Over this tab's names only (Archive rows carry their last expiry).
       count: (r) =>
         shown.filter(
@@ -1584,6 +1610,7 @@ export default function Domains() {
       (d) => utcDay(d.expirationDate),
       CalendarClock,
       matchesExpiration,
+      EXPIRATION_DOTS,
     ),
     // Owned only: what you're letting go (auto-renew off), after Expiration.
     ...(archiveView
