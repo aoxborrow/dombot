@@ -1451,13 +1451,17 @@ export function registerTools(server: McpServer): void {
           .max(40)
           .nullable()
           .optional()
-          .describe('A decimal in `currency`, e.g. "5000".'),
+          .describe(
+            'A decimal in `currency`, e.g. "5000" (default: unchanged on an edit; null clears it).',
+          ),
         currency: z
           .string()
           .max(10)
           .nullable()
           .optional()
-          .describe('ISO 4217 code, e.g. "USD". Required with an amount.'),
+          .describe(
+            'ISO 4217 code, e.g. "USD". Required with an amount (default: unchanged on an edit).',
+          ),
         fees: z
           .string()
           .max(40)
@@ -1484,8 +1488,20 @@ export function registerTools(server: McpServer): void {
         {
           domainName: key,
           saleDate: date ?? (isNew ? localDay() : existing.date),
-          amount: amount ?? null,
-          currency: currency ?? null,
+          // Left out on an edit: unchanged, as the date is (so a fees-only
+          // call keeps the price).
+          amount:
+            amount !== undefined
+              ? amount
+              : isNew
+                ? null
+                : (existing.amount ?? null),
+          currency:
+            currency !== undefined
+              ? currency
+              : isNew
+                ? null
+                : (existing.currency ?? null),
           ...(fees !== undefined ? { fees } : {}),
           notes: getPurchases()[key]?.notes ?? '',
           ...(isNew ? { mark: true, resolves } : {}),
