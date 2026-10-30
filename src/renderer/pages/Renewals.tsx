@@ -221,7 +221,7 @@ export default function Renewals() {
         },
         {
           id: 'auto',
-          label: 'Auto-renewing',
+          label: 'Auto-renew',
           icon: IterationCw,
           count: autoRenewing.length,
           active: renewing === 'auto',

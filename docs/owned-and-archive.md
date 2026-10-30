@@ -112,7 +112,7 @@ name's row menu ends at Mark as Sold, with no red item.
 Counts Owned names, minus Sold ones. Archive names are never counted, so the
 current bug goes away by construction.
 
-A switch picks **All**, **Auto-renewing** or **Manual** (auto-renew off, or
+A switch picks **All**, **Auto-renew** or **Manual** (auto-renew off, or
 unknown for a name you added: it renews only if you renew it), and the whole
 page (totals, months, donuts) follows it. On the right of the title, a
 multi-select **Registrar** dropdown has the Domains filter's options: one per account,
