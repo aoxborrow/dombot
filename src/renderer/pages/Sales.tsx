@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowUpRight,
   BadgeDollarSign,
@@ -8,6 +8,7 @@ import {
   Download,
   Ellipsis,
   History,
+  LayoutDashboard,
   Pencil,
   Store,
 } from 'lucide-react';
@@ -47,12 +48,17 @@ import { MarketLogo } from '../components/RegistrarLogo';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import {
   FilterToolbar,
+  ToolbarSwitch,
   listField,
 } from '../components/data-table/FilterToolbar';
 import type { FilterField } from '../components/data-table/FilterBar';
 import { dateRangeField } from '../components/data-table/DateRangeFilter';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import { SaleAuthCode } from '../components/sales/SaleAuthCode';
+import {
+  SalesOverview,
+  useNeedsAttention,
+} from '../components/sales/SalesOverview';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
@@ -79,8 +85,9 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
-// The Sales tab (docs/sales-tab.md): every sale, from every source, one row
-// each. Sales under way pin to the top with their next step. Totals and
+// The Sales tab (docs/sales-tab.md). Overview: what needs you, the year's
+// numbers, sales by month. Sales: every sale, from every source, one row
+// each; sales under way pin to the top with their next step. Totals and
 // breakdowns are per currency: amounts are never converted or combined.
 
 type SortKey =
@@ -106,7 +113,18 @@ const BREAKDOWNS: { id: Breakdown; label: string }[] = [
 
 export default function Sales() {
   const navigate = useNavigate();
+  // Overview (what needs you, the year's numbers) or every sale, switched
+  // like Domains' Active / Archive.
+  const [params, setParams] = useSearchParams();
+  const overview = params.get('view') !== 'sales';
+  const setView = (sales: boolean) => {
+    const next = new URLSearchParams(params);
+    if (sales) next.set('view', 'sales');
+    else next.delete('view');
+    setParams(next, { replace: true });
+  };
   const records = useSaleRecords();
+  const attention = useNeedsAttention(records);
   const catalog = useAppStore((s) => s.marketCatalog);
   const registrars = useAppStore((s) => s.registrars);
   const marketAccounts = useAppStore((s) => s.marketAccounts);
@@ -518,7 +536,31 @@ export default function Sales() {
     },
   ];
 
-  if (records.length === 0) {
+  const viewSwitch = (
+    <ToolbarSwitch
+      label="Sales overview or every sale"
+      options={[
+        {
+          id: 'overview',
+          label: 'Overview',
+          icon: LayoutDashboard,
+          count: attention.length,
+          active: overview,
+          onClick: () => setView(false),
+        },
+        {
+          id: 'sales',
+          label: 'Sales',
+          icon: BadgeDollarSign,
+          count: records.length,
+          active: !overview,
+          onClick: () => setView(true),
+        },
+      ]}
+    />
+  );
+
+  if (records.length === 0 && !marketAccounts?.length) {
     return (
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
         <h1 className="text-2xl font-bold sm:text-[32px]">Sales</h1>
@@ -563,6 +605,7 @@ export default function Sales() {
             )}
             <Button
               variant="outline"
+              className={cn(overview && 'hidden')}
               onClick={() => void exportCsv()}
               disabled={sorted.length === 0}
             >
@@ -572,49 +615,64 @@ export default function Sales() {
           </div>
         </div>
 
-        <FilterToolbar
-          id="sales"
-          search={search}
-          onSearch={(value) => {
-            setSearch(value);
-            setPage(0);
-          }}
-          searchPlaceholder="Search domains…"
-          fields={filterFields}
-          presets={['soldOn', 'source', 'currency']}
-        >
-          {undated > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {undated} undated sale{undated === 1 ? '' : 's'} left out
-            </span>
-          )}
-        </FilterToolbar>
+        {overview ? (
+          <div className="mt-1 flex sm:mt-3">{viewSwitch}</div>
+        ) : (
+          <FilterToolbar
+            id="sales"
+            switch={viewSwitch}
+            search={search}
+            onSearch={(value) => {
+              setSearch(value);
+              setPage(0);
+            }}
+            searchPlaceholder="Search domains…"
+            fields={filterFields}
+            presets={['soldOn', 'source', 'currency']}
+          >
+            {undated > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {undated} undated sale{undated === 1 ? '' : 's'} left out
+              </span>
+            )}
+          </FilterToolbar>
+        )}
 
-        <TotalsTable
-          totals={totals}
-          groups={groups}
-          breakdown={breakdown}
-          onBreakdown={setBreakdown}
-          money={money}
-        />
+        {overview ? (
+          <SalesOverview
+            records={records}
+            money={money}
+            preferredCurrency={preferred}
+          />
+        ) : (
+          <TotalsTable
+            totals={totals}
+            groups={groups}
+            breakdown={breakdown}
+            onBreakdown={setBreakdown}
+            money={money}
+          />
+        )}
       </div>
 
-      <DataTable
-        className="mt-[13px]"
-        rows={sorted}
-        columns={columns}
-        rowKey={(r) => r.id}
-        sort={{ key: sortKey, dir: sortDir }}
-        onSort={toggleSort}
-        page={page}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-        rowClassName={(r) =>
-          isUnderWay(r) && r.step ? 'bg-amber-500/[0.06]' : undefined
-        }
-        empty="No sales match the current filters."
-      />
+      {!overview && (
+        <DataTable
+          className="mt-[13px]"
+          rows={sorted}
+          columns={columns}
+          rowKey={(r) => r.id}
+          sort={{ key: sortKey, dir: sortDir }}
+          onSort={toggleSort}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          rowClassName={(r) =>
+            isUnderWay(r) && r.step ? 'bg-amber-500/[0.06]' : undefined
+          }
+          empty="No sales match the current filters."
+        />
+      )}
 
       {editing && (
         <SaleDialog

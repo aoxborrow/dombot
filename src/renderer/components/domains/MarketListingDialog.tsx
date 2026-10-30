@@ -71,7 +71,8 @@ export function MarketListingDialog({
   market,
   onClose,
 }: {
-  domain: Domain;
+  /** A name, or just its name (the Sales overview). */
+  domain: Pick<Domain, 'domainName'>;
   market: string;
   onClose: () => void;
 }) {
