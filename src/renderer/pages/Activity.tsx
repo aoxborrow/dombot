@@ -780,7 +780,7 @@ export default function Activity() {
       <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
         {/* As tall as Domains' title row (its Sync button), so the toolbar
             lands in the same place on both pages. */}
-        <div className="min-h-9">
+        <div className="mb-[15px] min-h-9">
           <h1 className="mt-1.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
             Activity
           </h1>
