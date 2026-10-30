@@ -1827,8 +1827,7 @@ export default function Domains() {
     : listingMarkets;
   // The same days the Expiration filter's shortcuts pick.
   const expiresWithin = useCallback(
-    (d: Domain, days: 30 | 60) =>
-      matchesExpiration(d, presetRange(days === 30 ? 'next30' : 'next60')),
+    (d: Domain) => matchesExpiration(d, presetRange('next30')),
     [],
   );
 
@@ -2277,6 +2276,15 @@ export default function Domains() {
     </div>
   );
 
+  const columnPicker = (
+    <ColumnPicker
+      columns={dataColumns}
+      layout={columnLayout}
+      onChange={setColumnLayout}
+      forceVisible={filteredDateColumns}
+    />
+  );
+
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
       {/* Title and filters scroll away on a short screen so the column names
@@ -2317,16 +2325,27 @@ export default function Domains() {
             get their own row. */}
         {syncErrors && <div className="-mt-1.5 sm:hidden">{syncErrors}</div>}
 
+        {/* The view first, as on Renewals; its counts stand in for a
+            subtitle under the title. */}
+        <div className="flex items-center justify-between gap-3">
+          <OwnershipSwitch
+            view={view}
+            ownedCount={ownedCount}
+            archiveCount={archiveCount}
+            listings={marketsOn}
+            onView={setListView}
+          />
+          {/* On phones Columns sits here, rather than wrap onto a row of
+              its own under the filters. */}
+          <div className="sm:hidden">{columnPicker}</div>
+        </div>
+
         {(archiveView ? archiveCount > 0 : ownedCount > 0) && (
           <DomainsCards
             view={view}
             rows={filtered}
             listings={marketListings}
-            markets={cardMarkets}
-            filteredToMarkets={marketsFilter.markets.length > 0}
-            marketNames={(id) =>
-              marketCatalog.find((m) => m.id === id)?.name ?? id
-            }
+            markets={marketsOn ? cardMarkets : []}
             listPrices={listPrices}
             expiresWithin={expiresWithin}
             archiveLabelOf={archiveLabelOf}
@@ -2339,6 +2358,11 @@ export default function Domains() {
                 setMarketsFilter({ ...marketsFilter, states });
                 setPage(0);
               },
+              onPriceComparisons: (comparisons) => {
+                setMarketsFilter({ ...marketsFilter, comparisons });
+                setPage(0);
+              },
+              onListings: () => setListView('listings'),
               onArchiveStatus: (labels) => {
                 setStatus(labels);
                 setPage(0);
@@ -2350,72 +2374,51 @@ export default function Domains() {
         {/* The table always renders — even before a load or with no registrars
           configured — so its toolbar and structure stay put; the empty body row
           carries the contextual prompt (configure a registrar / refresh / no
-          matches). */}
-        {/* Below xl: the view switch on the left and the column picker on the
-            right, then the search and filters on their own row. From xl it's
-            one wrapping row again (the inner boxes become `contents`), with
-            Columns at the end. The switch's counts stand in for a subtitle
-            under the title. */}
-        <div className="mt-[7px] flex flex-col gap-5 xl:mt-3 xl:flex-row xl:flex-wrap xl:items-center xl:gap-3.5">
-          <div className="flex items-center justify-between gap-3 xl:contents">
-            <OwnershipSwitch
-              view={view}
-              ownedCount={ownedCount}
-              archiveCount={archiveCount}
-              listings={marketsOn}
-              onView={setListView}
-            />
-            <div className="xl:order-last xl:ml-auto">
-              <ColumnPicker
-                columns={dataColumns}
-                layout={columnLayout}
-                onChange={setColumnLayout}
-                forceVisible={filteredDateColumns}
-              />
-            </div>
+          matches). The search and filters wrap, with Columns at the end. */}
+        <FilterToolbar
+          id="domains"
+          className="mt-0 sm:mt-0"
+          search={search}
+          onSearch={(value) => {
+            setSearch(value);
+            setPage(0);
+          }}
+          searchPlaceholder="Search domains…"
+          fields={filterFields}
+          presets={[
+            'registrar',
+            'tld',
+            'status',
+            'folder',
+            'price',
+            'markets',
+            'expirationDate',
+          ]}
+          // Shown from the start when they fit as the page loads; Listings
+          // always has Markets.
+          presetsIfRoom={
+            listingsView
+              ? ['price', 'expirationDate']
+              : ['price', 'markets', 'expirationDate']
+          }
+        >
+          {exportNote && (
+            <span
+              className={cn(
+                // Before Columns, which is last.
+                'order-[9998] inline-flex items-center gap-1.5 text-sm',
+                exportNote.error ? 'text-destructive' : 'text-brand',
+              )}
+              role="status"
+            >
+              {!exportNote.error && <CircleCheck className="size-4" />}
+              {exportNote.text}
+            </span>
+          )}
+          <div className="order-last ml-auto hidden sm:block">
+            {columnPicker}
           </div>
-          <FilterToolbar
-            id="domains"
-            className="mt-0 sm:mt-0 xl:contents"
-            search={search}
-            onSearch={(value) => {
-              setSearch(value);
-              setPage(0);
-            }}
-            searchPlaceholder="Search domains…"
-            fields={filterFields}
-            presets={[
-              'registrar',
-              'tld',
-              'status',
-              'folder',
-              'price',
-              'markets',
-              'expirationDate',
-            ]}
-            // Shown from the start when they fit as the page loads; Listings
-            // always has Markets.
-            presetsIfRoom={
-              listingsView
-                ? ['price', 'expirationDate']
-                : ['price', 'markets', 'expirationDate']
-            }
-          >
-            {exportNote && (
-              <span
-                className={cn(
-                  // Before Columns, which is last.
-                  'inline-flex items-center gap-1.5 text-sm sm:order-last xl:order-[9998]',
-                  exportNote.error ? 'text-destructive' : 'text-brand',
-                )}
-                role="status"
-              >
-                {!exportNote.error && <CircleCheck className="size-4" />}
-                {exportNote.text}
-              </span>
-            )}
-          </FilterToolbar>
-        </div>
+        </FilterToolbar>
 
         {/* Bulk action bar — contextual: appears once any row is selected, or
             while a bulk job is running (as a progress pill). */}

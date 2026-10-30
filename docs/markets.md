@@ -403,20 +403,24 @@ sits below the cards.
   leads add every market up (`getMarketTraffic().domains`); Searches are
   GoDaddy's, sent only to Discount Domain Club Domain Pro members, as its
   header's note says.
-- **Cards** above the table, three per view in one row at every width
-  (`StatCardRow`; on phones just the label and number), adding up the
-  names the table shows as filtered; one line under them says so. A card
-  that matches a filter sets it.
-  - Owned: Domains (with how many registrars and imported names),
-    Expiring in 30 days (sets Expiration; with 60 days and auto-renew
-    off), BIN priced.
+- The view switch sits above the cards, as on Renewals (Sales and
+  Activity too), with the filters and Columns below.
+- **Cards** above the table add up the names it shows as filtered; a card
+  that matches a filter sets it. `StatCardRow` fills the width in priority
+  order: three cards, a fourth from xl, a fifth from 2xl, so they stay one
+  row; on phones two to a row (the first four), just label and number.
+  - Owned: Domains (registrars, imported), Expiring in 30 days (sets
+    Expiration; with auto-renew off), BIN priced, Listed (opens Listings).
   - Listings: Listed (live on a market), Not listed (with how many are
-    pending), Issues (rejected or inactive), each setting the Markets
-    filter's status. They count the markets the Markets filter picks, so
-    filtering to one market gives that market's numbers. Views and leads
-    stay in the columns: their 12-month window can't be changed, so a
-    card of them would belong on a dashboard.
-  - Archive: Sold, Expired, Deleted or removed (each sets Status).
+    pending), Issues (rejected or inactive), Off your price (a market
+    price above or below your BIN), each setting the Markets filter. They
+    count the markets the Markets filter picks, so filtering to one market
+    gives that market's numbers. Views and leads stay in the columns: their
+    12-month window can't be changed, so a card of them would belong on a
+    dashboard.
+  - Archive: Sold, Expired, Deleted or removed (each sets Status), Still
+    listed (live or pending on a market: to take down).
+  - Without a market account, Owned and Archive have three.
 - Domains reads its view and the Markets and Pricing filters from the URL
   (`src/renderer/lib/domains-link.ts`).
 - No offers or individual leads: Afternic's API dropped its per-name offer
@@ -448,11 +452,12 @@ is a sale under way at a market or one awaiting transfer, and the tab's
 pill counts them. One row per sale, pending first, with Send auth code
 inline on a sale waiting for it. Filters on the sale date (a bounded range leaves
 undated sales out and says how many), where, TLD, registrar and currency.
-Three cards above the table add up what the view and filters leave:
-sales (finished and under way, with pending and cancelled), gross (with
-the average and fees), and profit (with ROI); net and holding time stay
-in the table. One currency at a time, so filtering by market, TLD or registrar
-gives that slice's totals. CSV export; a row menu for the name's history,
+Cards above the table add up what the view and filters leave: sales
+(finished and under way, with pending and cancelled), gross (with the
+average), net (with fees) and profit (with ROI); holding time stays in the
+table. Filtering by market, TLD or registrar gives that slice's totals,
+one currency at a time; a line under the cards appears only when sales in
+another currency are left out. CSV export; a row menu for the name's history,
 Edit sale (that sale, even an earlier one) and the market. The bell's sale
 alert links here. Listing problems (rejected, pending, below your price)
 stay in Domains, under the Markets filter.

@@ -626,33 +626,35 @@ export default function Sales() {
           </div>
         </div>
 
+        {/* The view first, as on Renewals. */}
+        <div className="flex">
+          <ToolbarSwitch
+            label="Which sales to show"
+            options={[
+              {
+                id: 'all',
+                label: 'All',
+                icon: BadgeDollarSign,
+                count: rows.length,
+                active: !pendingOnly,
+                onClick: () => setView(false),
+              },
+              {
+                id: 'pending',
+                label: 'Pending',
+                icon: Hourglass,
+                count: pendingCount,
+                active: pendingOnly,
+                onClick: () => setView(true),
+              },
+            ]}
+          />
+        </div>
+
         <SalesCards rows={viewRows} money={money} />
 
         <FilterToolbar
           id="sales"
-          switch={
-            <ToolbarSwitch
-              label="Which sales to show"
-              options={[
-                {
-                  id: 'all',
-                  label: 'All',
-                  icon: BadgeDollarSign,
-                  count: rows.length,
-                  active: !pendingOnly,
-                  onClick: () => setView(false),
-                },
-                {
-                  id: 'pending',
-                  label: 'Pending',
-                  icon: Hourglass,
-                  count: pendingCount,
-                  active: pendingOnly,
-                  onClick: () => setView(true),
-                },
-              ]}
-            />
-          }
           search={search}
           onSearch={(value) => {
             setSearch(value);

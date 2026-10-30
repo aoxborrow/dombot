@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Children, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -99,23 +99,35 @@ export function StatCard({
 }
 
 /**
- * A row of small StatCards over a table, adding up what the table shows, and
- * the one line under them that says so. Three to a row at every width; on
- * wide screens they keep to the left rather than stretch.
+ * A row of small StatCards over a table, filling its width, in priority
+ * order: the first three always show; a fourth joins from xl and a fifth
+ * from 2xl, so it stays one row. On phones it's two to a row, the first
+ * four.
  */
-export function StatCardRow({
-  note,
-  children,
-}: {
-  note: ReactNode;
-  children: ReactNode;
-}) {
+export function StatCardRow({ children }: { children: ReactNode }) {
+  const cards = Children.toArray(children);
   return (
-    <div className="flex flex-col gap-1">
-      <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 xl:grid-cols-4 2xl:grid-cols-5">
-        {children}
-      </div>
-      <p className="text-[11px] text-muted-foreground sm:text-xs">{note}</p>
+    <div
+      className={cn(
+        'grid gap-1.5 sm:gap-2.5',
+        cards.length >= 4 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-3',
+        cards.length >= 4 && 'xl:grid-cols-4',
+        cards.length >= 5 && '2xl:grid-cols-5',
+      )}
+    >
+      {cards.map((card, i) => (
+        <div
+          key={i}
+          className={cn(
+            'grid',
+            i === 3 && 'sm:max-xl:hidden',
+            i === 4 && 'max-2xl:hidden',
+            i > 4 && 'hidden',
+          )}
+        >
+          {card}
+        </div>
+      ))}
     </div>
   );
 }
