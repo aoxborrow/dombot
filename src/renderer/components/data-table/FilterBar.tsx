@@ -252,10 +252,7 @@ export function FilterDropdown({
         className="w-60"
         onCloseAutoFocus={(e) => e.preventDefault()}
         // Hand the panel's focus on to its search box, as the chip does.
-        onFocus={(e) => {
-          if (e.target === e.currentTarget)
-            e.currentTarget.querySelector('input')?.focus();
-        }}
+        onFocus={focusLeadingInput}
       >
         <ListMenu field={list} />
       </DropdownMenuContent>
@@ -392,11 +389,8 @@ function FilterChip({
         // Stay on the chip, not its trigger half, when the menu closes.
         onCloseAutoFocus={(e) => e.preventDefault()}
         // The menu focuses its own panel as it opens; hand that on to the
-        // panel's first field (a search box, Min), so typing lands there.
-        onFocus={(e) => {
-          if (e.target === e.currentTarget)
-            e.currentTarget.querySelector('input')?.focus();
-        }}
+        // panel's search box, so typing lands there.
+        onFocus={focusLeadingInput}
       >
         {field.kind === 'list' ? <ListMenu field={field} /> : field.content}
       </DropdownMenuContent>
@@ -585,6 +579,21 @@ const removedPresets = new Map<string, Set<string>>();
 
 /** The box a bar's chips wrap in: the nearest ancestor that lays out (a
  *  toolbar can be `display: contents`). */
+/**
+ * A filter panel focuses itself as it opens, and again when a click lands
+ * on its background. Hand that on to an input only when it's the panel's
+ * first control (a list's search box), and without scrolling: an input
+ * further down (Markets' and Pricing's price range) would pull the panel
+ * back to it on every click, so you couldn't scroll up past it.
+ */
+function focusLeadingInput(e: React.FocusEvent<HTMLElement>) {
+  if (e.target !== e.currentTarget) return;
+  const first = e.currentTarget.querySelector<HTMLElement>(
+    'input, button, select, textarea, [role^="menuitem"], [tabindex]:not([tabindex="-1"])',
+  );
+  if (first instanceof HTMLInputElement) first.focus({ preventScroll: true });
+}
+
 function rowOf(el: Element | null): HTMLElement | null {
   let row = el?.parentElement ?? null;
   while (row && getComputedStyle(row).display === 'contents')
