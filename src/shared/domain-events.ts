@@ -109,6 +109,11 @@ export interface DomainEvent {
   /** Canonical decimal ("19.99", "1500"); set together with `currency`. */
   amount?: string | null;
   currency?: CurrencyCode | null;
+  /**
+   * sold: what the sale cost you (commission, escrow, broker), in
+   * `currency`. Absent or null is unknown; "0" means none.
+   */
+  fees?: string | null;
   /** registered, purchased, renewed: the term in years. */
   years?: number | null;
   /**

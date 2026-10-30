@@ -26,7 +26,7 @@ import {
 } from './NotesLimit';
 
 /**
- * Sale date, sale amount, and the shared notes for one name.
+ * Sale date, sale amount, fees, and the shared notes for one name.
  * `edit` updates a name that is already Sold, and Undo sale deletes the sale.
  * `mark` records it only when the user saves. Closing without that button
  * leaves the name where it was.
@@ -34,12 +34,18 @@ import {
 export function SaleDialog({
   domain,
   mode = 'edit',
+  eventId,
   resolves,
   onSaved,
   onClose,
 }: {
-  domain: Domain;
+  /** A name, or just its name when it's no longer in the portfolio. */
+  // The Sales tab edits a sale by name alone; marking needs the rest.
+  domain: Pick<Domain, 'domainName'> &
+    Partial<Pick<Domain, 'departed' | 'source'>>;
   mode?: 'edit' | 'mark';
+  /** The `sold` event to edit (the Sales tab's rows); default the latest. */
+  eventId?: string;
   /** The "removed from registrar" alert this sale answers, if any. */
   resolves?: string;
   /** Runs after the sale is stored. */
@@ -47,6 +53,7 @@ export function SaleDialog({
   onClose: () => void;
 }) {
   const purchases = useAppStore((s) => s.purchases);
+  const events = useAppStore((s) => s.domainEvents);
   const settings = useAppStore((s) => s.settings);
   const saveSale = useAppStore((s) => s.saveSale);
   const formatId: NumberFormatId =
@@ -55,7 +62,16 @@ export function SaleDialog({
   const existing = purchases[toAscii(domain.domainName)];
   // Marking Sold, or answering an alert, records a new sale: start blank
   // rather than from an earlier one. The note belongs to the name.
-  const sale = mode === 'mark' || resolves ? undefined : existing;
+  const event = eventId ? events.find((e) => e.id === eventId) : undefined;
+  const latest = mode === 'mark' || resolves ? undefined : existing;
+  const sale = event
+    ? {
+        saleDate: event.date,
+        saleAmount: event.amount ?? null,
+        saleCurrency: event.currency ?? null,
+        saleFees: event.fees ?? null,
+      }
+    : latest;
 
   // The date starts as stored, or today when there's none yet.
   const [date, setDate] = useState(sale?.saleDate || todayInput);
@@ -70,6 +86,15 @@ export function SaleDialog({
   );
   // A new sale starts in the purchase's currency, when it's one of the 30.
   const bought = existing?.currency;
+  const [fees, setFees] = useState(
+    sale?.saleFees
+      ? formatAmountInput(
+          sale.saleFees,
+          sale.saleCurrency ?? preferred,
+          formatId,
+        )
+      : '',
+  );
   const [currency, setCurrency] = useState(
     sale?.saleCurrency ?? (isRateCurrency(bought) ? bought : preferred),
   );
@@ -81,9 +106,11 @@ export function SaleDialog({
     setError(null);
     let saleDate: string | null = null;
     let canonical: string | null = null;
+    let canonicalFees: string | null = null;
     try {
       saleDate = parsePurchaseDate(date, 'Sale date');
       canonical = parseLocalizedAmount(amount, currency, formatId);
+      canonicalFees = parseLocalizedAmount(fees, currency, formatId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Check the amount.');
       return;
@@ -93,10 +120,12 @@ export function SaleDialog({
       await saveSale({
         ...(mode === 'mark' ? { mark: true } : {}),
         ...(resolves ? { resolves } : {}),
+        ...(eventId ? { eventId } : {}),
         domainName: domain.domainName,
         saleDate,
         amount: canonical,
         currency: canonical ? currency : null,
+        fees: canonical ? canonicalFees : null,
         notes,
       });
       await onSaved?.();
@@ -139,7 +168,7 @@ export function SaleDialog({
               ? domain.departed || domain.source === 'imported'
                 ? 'Moves to Archive as Sold. Nothing changes at the registrar.'
                 : 'Shows as Sold until the buyer takes it, then moves to Archive. Nothing changes at the registrar.'
-              : 'What you sold it for and when.'}
+              : 'What you sold it for and when, and what the sale cost you.'}
           </p>
           <div className="flex flex-col gap-2">
             <Label htmlFor="sale-date">Sale date</Label>
@@ -160,6 +189,20 @@ export function SaleDialog({
               placeholder={formatAmountInput('0', currency, formatId)}
               onChange={(e) => setAmount(e.target.value)}
             />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="sale-fees">Fees</Label>
+            <MoneyInput
+              id="sale-fees"
+              currency={currency}
+              value={fees}
+              placeholder="Unknown"
+              aria-describedby="sale-fees-hint"
+              onChange={(e) => setFees(e.target.value)}
+            />
+            <p id="sale-fees-hint" className="text-xs text-muted-foreground">
+              Commission, escrow or broker fees. Blank is unknown; 0 means none.
+            </p>
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="sale-notes">Notes</Label>

@@ -722,6 +722,7 @@ function moneyOf(key: string) {
             date: p.saleDate ?? null,
             amount: p.saleAmount ?? null,
             currency: p.saleCurrency ?? null,
+            fees: p.saleFees ?? null,
           }
         : null,
   };
@@ -1428,14 +1429,24 @@ export function registerTools(server: McpServer): void {
           .max(40)
           .nullable()
           .optional()
-          .describe('A decimal in `currency`, e.g. "5000".'),
+          .describe(
+            'A decimal in `currency`, e.g. "5000" (default: unchanged on an edit; null clears it).',
+          ),
         currency: z
           .string()
           .max(10)
           .nullable()
           .optional()
           .describe(
-            `ISO 4217 code, e.g. "USD". Required with an amount. ${CURRENCY_HELP}`,
+            `ISO 4217 code, e.g. "USD". Required with an amount (default: unchanged on an edit). ${CURRENCY_HELP}`,
+          ),
+        fees: z
+          .string()
+          .max(40)
+          .nullable()
+          .optional()
+          .describe(
+            'What the sale cost (commission, escrow, broker), a decimal in `currency`; "0" for none, null for unknown (default: unchanged).',
           ),
         resolves: resolvesParam,
         remove: z
@@ -1447,7 +1458,7 @@ export function registerTools(server: McpServer): void {
       },
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
-    async ({ domain, date, amount, currency, resolves, remove }) => {
+    async ({ domain, date, amount, currency, fees, resolves, remove }) => {
       const key = assertInPortfolio(domain);
       const existing = holdings().get(key)?.sale;
       const onRecord = !!ownershipByDomain(eventsFor(key)).get(key)?.sale;
@@ -1482,8 +1493,21 @@ export function registerTools(server: McpServer): void {
         {
           domainName: key,
           saleDate: date ?? (isNew ? localDay() : existing.date),
-          amount: amount ?? null,
-          currency: currency ?? null,
+          // Left out on an edit: unchanged, as the date is (so a fees-only
+          // call keeps the price).
+          amount:
+            amount !== undefined
+              ? amount
+              : isNew
+                ? null
+                : (existing.amount ?? null),
+          currency:
+            currency !== undefined
+              ? currency
+              : isNew
+                ? null
+                : (existing.currency ?? null),
+          ...(fees !== undefined ? { fees } : {}),
           notes: getPurchases()[key]?.notes ?? '',
           ...(isNew ? { mark: true, resolves } : {}),
         },

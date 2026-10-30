@@ -84,6 +84,7 @@ export function ColumnPicker({
   onChange,
   forceVisible = [],
   forceVisibleReason = 'Shown while it’s filtered',
+  footer = false,
 }: {
   /** Every column the table could show (the ones given to DataTable). */
   columns: PickerColumn[];
@@ -92,6 +93,9 @@ export function ColumnPicker({
   forceVisible?: readonly string[];
   /** Why a forced column can't be turned off. */
   forceVisibleReason?: string;
+  /** In the table's footer (DataTable puts it there): small, labelled,
+   * opening upward from its left edge. */
+  footer?: boolean;
 }) {
   const narrow = useNarrowScreen();
   const hintId = useId();
@@ -208,17 +212,23 @@ export function ColumnPicker({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        {/* Icon only on phones, where it shares a row with the page's switch. */}
+        {/* In a toolbar, icon only on phones, where it shares a row with
+            the page's switch. */}
         <Button
           variant="outline"
-          className="h-9 text-muted-foreground max-sm:w-9 max-sm:px-0"
+          size={footer ? 'sm' : 'default'}
+          className={cn(
+            'text-muted-foreground',
+            !footer && 'h-9 max-sm:w-9 max-sm:px-0',
+          )}
         >
           <Columns3 />
-          <span className="max-sm:sr-only">Columns</span>
+          <span className={cn(!footer && 'max-sm:sr-only')}>Columns</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        align="end"
+        align={footer ? 'start' : 'end'}
+        side={footer ? 'top' : 'bottom'}
         sideOffset={6}
         collisionPadding={16}
         className="flex max-h-[min(32rem,70vh)] w-64 flex-col p-0"

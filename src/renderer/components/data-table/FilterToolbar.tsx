@@ -16,9 +16,22 @@ export function listField(
 }
 
 /** Small caps, like the table's column names, so the options read as labels. */
-function SmallCaps({ children }: { children: ReactNode }) {
+function SmallCaps({
+  children,
+  bold,
+}: {
+  children: ReactNode;
+  bold?: boolean;
+}) {
   return (
-    <span className="text-[11px] tracking-wider uppercase">{children}</span>
+    <span
+      className={cn(
+        'text-[11px] tracking-wider uppercase',
+        bold && 'max-sm:font-semibold',
+      )}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -36,15 +49,21 @@ function small(Icon: LucideIcon) {
 }
 
 /**
- * The page's main switch (Active/Archive, Needs review/All), leading the
- * toolbar: small-caps labels with an icon and a count.
+ * The page's main switch (Owned/Listings/Archive, Needs review/All), leading the
+ * toolbar: small-caps labels with an icon and a count. With `fillOnPhone`
+ * it spans a phone's width, the options sharing it; from sm it's its
+ * usual size.
  */
 export function ToolbarSwitch({
   label,
   options,
+  fillOnPhone = false,
+  className,
 }: {
   /** Accessible name for the group. */
   label: string;
+  fillOnPhone?: boolean;
+  className?: string;
   options: {
     id: string;
     label: string;
@@ -59,10 +78,19 @@ export function ToolbarSwitch({
       label={label}
       // Tighter round the smaller icon (a pixel off each side), and squarer
       // corners where the segments meet; the outer ones stay round.
-      className="[&_[role=radio]]:gap-[7px] [&_[role=radio]]:pl-[11px] [&_[role=radio]:not(:first-child)]:rounded-l-[2px] [&_[role=radio]:not(:last-child)]:rounded-r-[2px]"
+      className={cn(
+        '[&_[role=radio]]:gap-[7px] [&_[role=radio]]:pl-[11px] [&_[role=radio]:not(:first-child)]:rounded-l-[2px] [&_[role=radio]:not(:last-child)]:rounded-r-[2px]',
+        // A dim rule between two options side by side that aren't chosen,
+        // in the 2px gap between them (three options: the chosen one sets
+        // the rest apart already).
+        "[&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:relative [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:absolute [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:inset-y-px [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:-left-[1.5px] [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:w-px [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:bg-border [&_[role=radio][aria-checked=false]+[role=radio][aria-checked=false]]:before:content-['']",
+        fillOnPhone &&
+          'max-sm:flex max-sm:h-10 max-sm:w-full max-sm:[&_[role=radio]]:flex-1',
+        className,
+      )}
       options={options.map((o) => ({
         ...o,
-        label: <SmallCaps>{o.label}</SmallCaps>,
+        label: <SmallCaps bold={fillOnPhone}>{o.label}</SmallCaps>,
         icon: small(o.icon),
       }))}
     />
@@ -79,7 +107,7 @@ export function FilterToolbar({
   switch: viewSwitch,
   search,
   onSearch,
-  searchPlaceholder,
+  searchPlaceholder = 'Search…',
   fields,
   presets,
   presetsIfRoom,
@@ -91,7 +119,8 @@ export function FilterToolbar({
   switch?: ReactNode;
   search: string;
   onSearch: (value: string) => void;
-  searchPlaceholder: string;
+  /** "Search…" unless a page needs more. */
+  searchPlaceholder?: string;
   fields: FilterField[];
   presets?: string[];
   /** Of `presets`, the ones shown only while there's room; see FilterBar. */
@@ -102,7 +131,8 @@ export function FilterToolbar({
   return (
     <div
       className={cn(
-        'mt-1 flex flex-wrap items-center gap-3.5 sm:mt-3',
+        // No margin of its own: the page's 13px gap spaces it.
+        'flex flex-wrap items-center gap-3.5',
         className,
       )}
     >
@@ -111,7 +141,9 @@ export function FilterToolbar({
         value={search}
         onChange={onSearch}
         placeholder={searchPlaceholder}
-        className="flex-[0_1_198px]"
+        // Short, so the chips get the room.
+        // Full width on phones.
+        className="min-w-24 flex-[0_1_160px]"
       />
       <FilterBar
         id={id}

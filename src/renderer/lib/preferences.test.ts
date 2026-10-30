@@ -39,17 +39,35 @@ describe('parsePreferences', () => {
     };
     const stored = {
       columnLayouts: {
-        'domains.active': layout,
+        'domains.owned': layout,
         'domains.archive': { order: 'nope', hidden: [] },
         other: { order: [1], hidden: [] },
       },
     };
     expect(parsePreferences(JSON.stringify(stored)).columnLayouts).toEqual({
-      'domains.active': layout,
+      'domains.owned': layout,
     });
     expect(
       parsePreferences(JSON.stringify({ columnLayouts: [layout] }))
         .columnLayouts,
     ).toEqual({});
+  });
+
+  it('carries a layout saved before Active was renamed Owned', () => {
+    const layout = { order: ['domainName'], hidden: [] };
+    const other = { order: ['domainName', 'registrar'], hidden: [] };
+    expect(
+      parsePreferences(
+        JSON.stringify({ columnLayouts: { 'domains.active': layout } }),
+      ).columnLayouts,
+    ).toEqual({ 'domains.owned': layout });
+    // A layout saved under the new name wins.
+    expect(
+      parsePreferences(
+        JSON.stringify({
+          columnLayouts: { 'domains.active': layout, 'domains.owned': other },
+        }),
+      ).columnLayouts,
+    ).toEqual({ 'domains.owned': other });
   });
 });

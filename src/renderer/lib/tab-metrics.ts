@@ -4,6 +4,7 @@ import { notifications } from '../../shared/notifications';
 import { leavesOut, summarize, wholeMoney } from './renewals';
 import { DEFAULT_CURRENCY } from '../../shared/money';
 import { importedRows } from '../../shared/imported-domains';
+import { isPending, useSaleRecords } from './sales';
 
 export interface TabMetric {
   /** Short display value for the tab's pill, e.g. "1,050" or "$4.2k". */
@@ -25,13 +26,14 @@ function compactMoney(n: number, currency: string): string {
 export interface TabMetrics {
   domains: TabMetric | null;
   renewals: TabMetric | null;
+  sales: TabMetric | null;
   activity: TabMetric | null;
 }
 
 /**
  * The headline number each top-level tab shows in its pill: Domains → portfolio
- * size, Renewals → known annual renewal spend, Activity → alerts that need
- * review (only when there are any). Settings has none: sync failures show in
+ * size, Renewals → known annual renewal spend, Sales → pending sales,
+ * Activity → alerts that need review (those two only when there are any). Settings has none: sync failures show in
  * the bell and the status bar. `null` hides the pill.
  */
 export function useTabMetrics(): TabMetrics {
@@ -43,6 +45,7 @@ export function useTabMetrics(): TabMetrics {
     (s) => s.settings?.preferredCurrency ?? DEFAULT_CURRENCY,
   );
   const fx = useAppStore((s) => s.exchangeRates);
+  const saleRecords = useSaleRecords();
 
   return useMemo(() => {
     const portfolio = [...synced, ...importedRows(importedDomains, synced)];
@@ -75,6 +78,17 @@ export function useTabMetrics(): TabMetrics {
           }
         : null;
 
-    return { domains, renewals, activity };
-  }, [synced, importedDomains, pricing, events, currency, fx]);
+    // Not the bell's sale alerts: every sale that hasn't finished, whether
+    // it waits on you, the buyer or the market (the Sales Pending view).
+    const pending = saleRecords.filter(isPending).length;
+    const sales =
+      pending > 0
+        ? {
+            value: pending.toLocaleString('en-US'),
+            title: `${pending.toLocaleString('en-US')} sale${pending === 1 ? '' : 's'} pending`,
+          }
+        : null;
+
+    return { domains, renewals, sales, activity };
+  }, [synced, importedDomains, pricing, events, currency, fx, saleRecords]);
 }

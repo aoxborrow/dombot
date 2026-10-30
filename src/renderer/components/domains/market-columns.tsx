@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MarketLogo } from '../RegistrarLogo';
 import {
   EditableEmpty,
   EDITABLE_VALUE,
@@ -33,17 +34,19 @@ import {
 // shows up here with no changes.
 
 export const MARKET_COLUMN_KEYS = new Set([
+  'listed',
   'listing',
   'fastTransfer',
-  'views30',
-  'leads30',
-  'searches30',
+  'views',
+  'leads',
+  'searches',
 ]);
 
 /**
  * Listings get a column per connected market, `listing:afternic` and so on,
- * in the slot the layouts call `listing`. (A Markets-page table with every
- * market side by side may follow; a table cell holds one line.)
+ * in the slot the layouts call `listing`: the Listings view's columns. Owned
+ * has the one `listed` column instead, a logo per market, so it stays the
+ * same width however many markets are connected.
  */
 export const listingColumnKey = (market: string) => `listing:${market}`;
 
@@ -148,6 +151,13 @@ function cellState(
   };
 }
 
+/** A listing's price minus your DomBot BIN price; 0 when equal or unknown. */
+function priceDiff(l: MarketListing, mine: ListPrice | undefined): number {
+  return mine?.amount != null && l.price != null && mine.currency === l.currency
+    ? Number(l.price) - Number(mine.amount)
+    : 0;
+}
+
 function describe(
   l: MarketListing,
   markets: MarketInfo[],
@@ -204,9 +214,13 @@ export function marketColumns({
     key: string,
     label: string,
     valueOf: (d: Domain) => number | undefined,
+    tooltip?: string,
+    /** Breaks ties in the sort; a smaller number than any count. */
+    then?: (d: Domain) => number | undefined,
   ): PurchaseColumn => ({
     key,
     label,
+    tooltip,
     align: 'right',
     hideOnMobile: true,
     render: (d) => {
@@ -219,7 +233,10 @@ export function marketColumns({
         </span>
       );
     },
-    sortValue: (d) => valueOf(d) ?? null,
+    sortValue: (d) => {
+      const n = valueOf(d);
+      return n === undefined ? null : n + (then?.(d) ?? 0) / 1e9;
+    },
   });
 
   // One market's column: its price (or "Offers"), a status dot, and the
@@ -233,10 +250,7 @@ export function marketColumns({
       if (!l) return onEditListing ? <EditableEmpty /> : dash;
       // Compare with the asking price you set in DomBot.
       const mine = listPrices[toAscii(d.domainName)];
-      const diff =
-        mine?.amount != null && l.price != null && mine.currency === l.currency
-          ? Number(l.price) - Number(mine.amount)
-          : 0;
+      const diff = priceDiff(l, mine);
       const state = cellState(l, diff);
       const title = [
         describe(l, markets, (a) => money(a, l.currency)),
@@ -277,7 +291,7 @@ export function marketColumns({
       key: listingColumnKey(market),
       label: marketName(markets, market),
       align: 'right',
-      hideOnMobile: true,
+      // Shown on phones too: they're what Listings is for.
       render: (d) => {
         const cell = listingCell(d);
         if (!onEditListing) return cell;
@@ -301,7 +315,86 @@ export function marketColumns({
     };
   };
 
+  // Owned's one market column: every connected market's logo, always in
+  // the same order, coloured as its listing cell's icon would be, or dim
+  // where the name isn't listed. Each logo is a button that opens that
+  // market's listing editor (or lists the name there); its tooltip says
+  // what that market has.
+  const listed: PurchaseColumn = {
+    key: 'listed',
+    label: 'Listed',
+    hideOnMobile: true,
+    render: (d) => {
+      const mine = listPrices[toAscii(d.domainName)];
+      const slots = listingMarkets.map((m) => ({
+        market: m,
+        listing: of(d).find((l) => l.market === m),
+      }));
+      return (
+        <span className="flex items-center gap-1.5">
+          {slots.map(({ market, listing }) => {
+            const state =
+              listing && cellState(listing, priceDiff(listing, mine));
+            const name = marketName(markets, market);
+            const logo = (
+              <MarketLogo
+                market={market}
+                label={`${name}: ${state?.label ?? 'Not listed'}`}
+                // A hover brightens the logo; there's no cell highlight.
+                className={cn(
+                  'size-4 transition',
+                  !state
+                    ? 'text-muted-foreground/30 group-hover:text-muted-foreground/70'
+                    : state.faded && listing.status !== 'rejected'
+                      ? [state.className, 'opacity-50 group-hover:opacity-90']
+                      : // Opacity, not brightness: a brighter amber or red
+                        // turns muddy.
+                        [state.className, 'opacity-80 group-hover:opacity-100'],
+                )}
+              />
+            );
+            const title = listing
+              ? describe(listing, markets, (a) => money(a, listing.currency))
+              : `${name}: Not listed`;
+            if (!onEditListing)
+              return (
+                <span key={market} className="flex" title={title}>
+                  {logo}
+                </span>
+              );
+            return (
+              <button
+                key={market}
+                type="button"
+                // Not data-cell-action: that makes the whole cell one
+                // button, and there are several here.
+                title={`${title}\nClick to ${listing ? 'edit the listing' : `list it on ${name}`}`}
+                aria-label={`${listing ? 'Edit' : 'Add'} ${name} listing for ${d.domainName}`}
+                // A flex box with its padding cancelled out, so it's no
+                // taller than the logo and the row keeps its height.
+                className="group -m-0.5 flex cursor-pointer rounded-sm p-0.5 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                onClick={() => onEditListing(d, market)}
+              >
+                {logo}
+              </button>
+            );
+          })}
+        </span>
+      );
+    },
+    // Most markets selling it first.
+    sortValue: (d) => {
+      const n = of(d).filter((l) => listingMarkets.includes(l.market));
+      if (!n.length) return null;
+      return (
+        n.filter((l) => l.status === 'active' && l.forSale).length +
+        n.length / 100
+      );
+    },
+  };
+
   return [
+    listed,
     ...listingMarkets.map(listingColumn),
     {
       key: 'fastTransfer',
@@ -319,20 +412,26 @@ export function marketColumns({
       },
       sortValue: (d) => of(d).map(fastTransferOf).find(Boolean) ?? null,
     },
+    // Interest over the last 12 months: sort by Leads, then Views, for the
+    // names buyers look at most.
+    count('views', 'Views', (d) => traffic[toAscii(d.domainName)]?.views365),
     count(
-      'views30',
-      'Views (30d)',
-      (d) => traffic[toAscii(d.domainName)]?.views30,
+      'leads',
+      'Leads',
+      (d) => traffic[toAscii(d.domainName)]?.leads365,
+      undefined,
+      (d) => traffic[toAscii(d.domainName)]?.views365,
     ),
     count(
-      'leads30',
-      'Leads (30d)',
-      (d) => traffic[toAscii(d.domainName)]?.leads30,
-    ),
-    count(
-      'searches30',
-      'Searches (30d)',
-      (d) => of(d).map(searchesOf).find(Boolean)?.total.days30 ?? undefined,
+      'searches',
+      'Searches',
+      (d) => {
+        const n = of(d)
+          .map((l) => searchesOf(l)?.total.days365)
+          .filter((x): x is number => x != null);
+        return n.length ? Math.max(...n) : undefined;
+      },
+      'Searches for the name on GoDaddy over the last 12 months. Afternic sends these only to Discount Domain Club Domain Pro members.',
     ),
   ];
 }

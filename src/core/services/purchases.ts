@@ -86,6 +86,7 @@ function summaryOf(
     saleDate: h?.sale?.date ?? null,
     saleAmount: h?.sale?.amount ?? null,
     saleCurrency: h?.sale?.currency ?? null,
+    ...(h?.sale?.fees != null ? { saleFees: h.sale.fees } : {}),
   };
 }
 
@@ -185,6 +186,16 @@ export function setPurchase(
   return purchaseOf(domain);
 }
 
+/** One of a name's `sold` events, by id; an unknown id is an error. */
+function saleEvent(domain: string, id: string): DomainEvent {
+  const e = listEvents().find(
+    (x) =>
+      x.id === id && x.domain === domain && x.type === DomainEventType.Sold,
+  );
+  if (!e) throw new Error('That sale is no longer recorded.');
+  return e;
+}
+
 function withResolves(e: DomainEvent, resolves: string | undefined) {
   return resolves ? { ...e, resolves } : e;
 }
@@ -214,23 +225,41 @@ export function setSale(
   const typed = parsePurchaseDate(input.saleDate ?? '', 'Sale date');
   // Marking Sold, or answering an alert, records a new sale: a name that was
   // sold, left, and came back keeps its earlier sale as history. Marking
-  // replaces the sale you'd recorded (see replaceLabel).
+  // replaces the sale you'd recorded (see replaceLabel). Read before parsing,
+  // so an edit can keep the sale's own currency.
   const existing =
-    input.mark || input.resolves ? undefined : holdings().get(domain)?.sale;
+    input.mark || input.resolves
+      ? undefined
+      : input.eventId
+        ? saleEvent(domain, input.eventId)
+        : holdings().get(domain)?.sale;
   const { amount, currency } = parseAmount(
     input.amount,
     input.currency,
     existing?.currency,
   );
+  // Fees only go with a price, in its currency.
+  const fees =
+    input.fees === undefined
+      ? undefined
+      : amount && currency && input.fees?.trim()
+        ? parseCanonicalAmount(input.fees.trim(), currency, 'Fees')
+        : null;
   // Marking a name Sold always records the sale, dated today if you left it blank.
   const date = typed ?? (input.mark && !amount ? localDay() : null);
   const replaced = input.mark ? replaceLabel(domain) : undefined;
   const resolves = input.resolves ?? replaced?.resolves;
-  const next = upsert(
+  const upserted = upsert(
     existing,
     { domain, type: DomainEventType.Sold, source, date, amount, currency },
     Date.now(),
   );
+  const next =
+    upserted && fees !== undefined
+      ? { ...upserted, fees }
+      : upserted && !amount
+        ? { ...upserted, fees: null }
+        : upserted;
   if (next) putEvents([withResolves(next, resolves)]);
   else if (existing) deleteEvent(existing.id);
   setNameNote(domain, input.notes ?? '');

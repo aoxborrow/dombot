@@ -221,9 +221,11 @@ export const noteText = z.string().max(4000);
 export const saleInput = z
   .object({
     domainName: z.string().trim().min(1).max(253),
+    eventId: z.string().min(1).max(80).optional(),
     saleDate: z.string().nullable(),
     amount: z.string().nullable(),
     currency: z.string().nullable(),
+    fees: z.string().max(40).nullable().optional(),
     notes: z.string().max(4000),
     resolves: z.string().min(1).max(80).optional(),
     mark: z.boolean().optional(),

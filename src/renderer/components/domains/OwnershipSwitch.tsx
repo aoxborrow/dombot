@@ -1,39 +1,64 @@
-import { Archive, Globe } from 'lucide-react';
+import { Archive, Globe, Store } from 'lucide-react';
 import { ToolbarSwitch } from '../data-table/FilterToolbar';
+import type { DomainsView } from './DomainsCards';
 
-/** Active vs Archive (names you no longer own), leading the filter toolbar. */
+/**
+ * Owned, Listings (the same names with their market columns; once a market
+ * account is connected) and Archive (names you no longer own), leading the
+ * filter toolbar.
+ */
 export function OwnershipSwitch({
-  archive,
+  view,
   ownedCount,
+  listedCount,
   archiveCount,
-  onOwned,
-  onArchive,
+  listings,
+  onView,
 }: {
-  archive: boolean;
+  view: DomainsView;
   ownedCount: number;
+  /** Owned names live on a market: Listings shows every owned name, but
+   * its count is what's listed. */
+  listedCount: number;
   archiveCount: number;
-  onOwned: () => void;
-  onArchive: () => void;
+  /** Whether Listings is offered. */
+  listings: boolean;
+  onView: (view: DomainsView) => void;
 }) {
   return (
     <ToolbarSwitch
-      label="Active domains or archived domains"
+      fillOnPhone
+      label="Owned domains, their market listings, or archived domains"
+      // Three don't fit a phone with their counts.
+      className={listings ? 'max-sm:[&_.tabular-nums]:hidden' : undefined}
       options={[
         {
           id: 'owned',
-          label: 'Active',
+          label: 'Owned',
           icon: Globe,
           count: ownedCount,
-          active: !archive,
-          onClick: onOwned,
+          active: view === 'owned',
+          onClick: () => onView('owned'),
         },
+        ...(listings
+          ? [
+              {
+                id: 'listings',
+                label: 'Listings',
+                icon: Store,
+                count: listedCount,
+                active: view === 'listings',
+                onClick: () => onView('listings'),
+              },
+            ]
+          : []),
         {
           id: 'archive',
           label: 'Archive',
           icon: Archive,
           count: archiveCount,
-          active: archive,
-          onClick: onArchive,
+          active: view === 'archive',
+          onClick: () => onView('archive'),
         },
       ]}
     />

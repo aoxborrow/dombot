@@ -16,7 +16,7 @@ export interface SegmentedOption<T extends string> {
  * A one-of-N switch styled like the app's inputs (the select's border,
  * background, and shadow), with the chosen segment solid brand green, like
  * the primary buttons, or with `tone="grey"` a quieter grey wash. `sm` matches the small select (h-8), `default` the
- * regular inputs (h-9). Used for the page views (Active | Archive, All |
+ * regular inputs (h-9). Used for the page views (Owned | Listings | Archive, All |
  * Needs review), table density, and the Settings appearance picker.
  */
 export function SegmentedControl<T extends string>({

@@ -1004,6 +1004,25 @@ describe('history, purchases, sales and alerts', () => {
     expect(input).not.toHaveProperty('mark');
   });
 
+  it('domain_sale_set with only fees keeps the sale’s price', async () => {
+    const sale = event({
+      domain: 'a.com',
+      type: 'sold',
+      date: '2026-10-01',
+      amount: '5000.00',
+      currency: 'USD',
+    });
+    holdings.mockReturnValue(new Map([['a.com', { sale }]]));
+    listEvents.mockReturnValue([sale]);
+    await call('domain_sale_set', { domain: 'a.com', fees: '250' });
+    expect(setSale.mock.lastCall![0]).toMatchObject({
+      saleDate: '2026-10-01',
+      amount: '5000.00',
+      currency: 'USD',
+      fees: '250',
+    });
+  });
+
   it('domain_sale_set with remove deletes the sale on record', async () => {
     const sale = event({ domain: 'a.com', type: 'sold', source: 'user' });
     holdings.mockReturnValue(new Map([['a.com', { sale }]]));

@@ -929,8 +929,8 @@ export function generateDemoSeed(
       used.add(domainName);
       usedLabels.add(domainName.slice(0, domainName.indexOf('.')));
 
-      // Expiry: most within the next 18 months, a handful overdue, and a few
-      // far out (multi-year renewals). A small slice of the overdue sits in the
+      // Expiry: most within the next 18 months, a few overdue (about 2.5%)
+      // or due within 30 days (5%), and a few far out (multi-year renewals). A small slice of the overdue sits in the
       // registry grace and redemption windows so those lifecycle states show in
       // the demo. Created 1–9 years ago. Each branch consumes exactly one r()
       // so the rest of the seed stays put.
@@ -940,13 +940,13 @@ export function generateDemoSeed(
       if (roll < 0.006) {
         daysOut = -35 - Math.floor(r() * 40); // ~35–74 days past due
         lifecycle = 'redemption';
-      } else if (roll < 0.024) {
+      } else if (roll < 0.016) {
         daysOut = -1 - Math.floor(r() * 28); // within the ~30-day grace window
         lifecycle = 'grace';
-      } else if (roll < 0.05) {
+      } else if (roll < 0.025) {
         daysOut = -Math.floor(r() * 25) - 1;
         lifecycle = 'expired';
-      } else if (roll < 0.15) {
+      } else if (roll < 0.075) {
         daysOut = Math.floor(r() * 30);
         lifecycle = 'active';
       } else if (roll < 0.85) {

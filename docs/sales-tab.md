@@ -1,5 +1,20 @@
 # Sales tab
 
+Built 2026-10-29 in five stacked PRs (Domains columns and cards, sale
+records, the Sales view, cards over the table, demo and docs);
+docs/markets.md, "Sales tab", describes what shipped. One change from the
+plan below: there's no Overview. The Sales view is the whole tab, its cards
+total whatever the filters leave (which replaces the breakdown tables and
+the stat cards), and listing problems stay in Domains rather than a Needs
+attention list. Sales by month was dropped with the Overview. Open questions 1–3 were settled as:
+the tab shows with an empty state; sell-through keeps names listed as its
+denominator; the Domains cards hide on phones.
+
+Later the same PR split Domains into Owned, Listings and Archive views,
+each with its own cards (docs/markets.md, "Domains table and actions"), so
+the Domains cards described below (Listed, Sold, Net, Views) no longer
+exist; Sold and Net live only on the Sales tab.
+
 Plan (2026-10-29) to replace the Markets tab with a **Sales** tab, move
 per-name interest into the Domains table, and give Domains a few summary
 cards. Builds on the market work in PR #207 (docs/markets.md) and takes the

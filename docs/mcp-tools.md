@@ -263,7 +263,7 @@ saying so.
   (`leads`, `views`), `minViews?`, `limit`, `offset`. Listed names ranked by
   stored views and leads, with `coverage`: per-name traffic is fetched a
   slice of names per sync.
-- **`market_report_get`** — the Markets page's report: sales by year and in
+- **`market_report_get`** — market sales by year and in
   total, sell-through over the last 12 months, and views and leads by month.
 
 `portfolio_query` also takes `listedOn` and `notListedOn` (a market id), to
