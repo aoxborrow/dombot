@@ -139,9 +139,8 @@ export function SalesOverview({
   const t = year.main;
   const plural = (n: number, word: string) =>
     `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
-  const other = year.others
-    ? ` · +${year.others} other ${year.others === 1 ? 'currency' : 'currencies'}`
-    : '';
+  // Amounts in another currency aren't in these figures.
+  const other = year.others ? `, ${currency} only` : '';
 
   return (
     <div className="flex flex-col gap-6 pb-12">
