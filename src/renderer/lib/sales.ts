@@ -68,6 +68,12 @@ export function saleStatusLabel(r: SaleRecord): string {
   return 'In progress';
 }
 
-/** Still under way: pinned to the top of the Sales view. */
+/** Still under way at the market. */
 export const isUnderWay = (r: SaleRecord) =>
   r.status === 'in_progress' || r.status === 'unknown';
+
+/**
+ * Not finished: under way at the market, or sold and the buyer hasn't taken
+ * the name yet. The Sales tab's Pending view and pill; pinned to the top.
+ */
+export const isPending = (r: SaleRecord) => isUnderWay(r) || r.awaitingTransfer;

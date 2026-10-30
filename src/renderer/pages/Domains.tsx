@@ -2328,8 +2328,6 @@ export default function Domains() {
               marketCatalog.find((m) => m.id === id)?.name ?? id
             }
             listPrices={listPrices}
-            traffic={marketTraffic}
-            pricing={pricing}
             expiresWithin={expiresWithin}
             archiveLabelOf={archiveLabelOf}
             actions={{
@@ -2337,16 +2335,12 @@ export default function Domains() {
                 setExpires(presetRange('next30'));
                 setPage(0);
               },
-              onAutoRenewOff: () => {
-                setAutoRenewFilter(['off']);
-                setPage(0);
-              },
               onMarketStates: (states) => {
                 setMarketsFilter({ ...marketsFilter, states });
                 setPage(0);
               },
-              onArchiveStatus: (label) => {
-                setStatus([label]);
+              onArchiveStatus: (labels) => {
+                setStatus(labels);
                 setPage(0);
               },
             }}

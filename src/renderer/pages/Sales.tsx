@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowUpRight,
   BadgeDollarSign,
@@ -10,6 +10,7 @@ import {
   Ellipsis,
   Globe,
   History,
+  Hourglass,
   Pencil,
   Store,
 } from 'lucide-react';
@@ -37,6 +38,7 @@ import {
   type DateRange,
 } from '../lib/date-range';
 import {
+  isPending,
   isUnderWay,
   saleSourceLabel,
   saleStatusLabel,
@@ -47,6 +49,7 @@ import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import {
   FilterToolbar,
   listField,
+  ToolbarSwitch,
 } from '../components/data-table/FilterToolbar';
 import type { FilterField } from '../components/data-table/FilterBar';
 import { dateRangeField } from '../components/data-table/DateRangeFilter';
@@ -90,6 +93,17 @@ type SortKey =
 
 export default function Sales() {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  // All, or only the sales that haven't finished (like Activity's Needs
+  // review): under way at a market, or waiting on the buyer to take the name.
+  const pendingOnly = params.get('pending') === '1';
+  const setView = (pending: boolean) => {
+    const next = new URLSearchParams(params);
+    if (pending) next.set('pending', '1');
+    else next.delete('pending');
+    setParams(next, { replace: true });
+    setPage(0);
+  };
   const records = useSaleRecords();
   const catalog = useAppStore((s) => s.marketCatalog);
   const registrars = useAppStore((s) => s.registrars);
@@ -164,7 +178,13 @@ export default function Sales() {
     };
   }, [records, sold, sources, currencies, tlds, registrarIds, search]);
 
-  // Under way first, then the chosen sort; blanks last either way.
+  const pendingCount = useMemo(() => rows.filter(isPending).length, [rows]);
+  const viewRows = useMemo(
+    () => (pendingOnly ? rows.filter(isPending) : rows),
+    [rows, pendingOnly],
+  );
+
+  // Pending first, then the chosen sort; blanks last either way.
   const sorted = useMemo(() => {
     const value = (r: SaleRecord): string | number | null => {
       switch (sortKey) {
@@ -191,8 +211,8 @@ export default function Sales() {
       }
     };
     const dir = sortDir === 'asc' ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      const pin = Number(isUnderWay(b)) - Number(isUnderWay(a));
+    return [...viewRows].sort((a, b) => {
+      const pin = Number(isPending(b)) - Number(isPending(a));
       if (pin) return pin;
       const va = value(a);
       const vb = value(b);
@@ -202,7 +222,7 @@ export default function Sales() {
     });
     // sourceName reads the catalog.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, sortKey, sortDir, catalog]);
+  }, [viewRows, sortKey, sortDir, catalog]);
 
   const toggleSort = (key: string) => {
     if (key === sortKey) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -606,10 +626,33 @@ export default function Sales() {
           </div>
         </div>
 
-        <SalesCards rows={rows} money={money} />
+        <SalesCards rows={viewRows} money={money} />
 
         <FilterToolbar
           id="sales"
+          switch={
+            <ToolbarSwitch
+              label="Which sales to show"
+              options={[
+                {
+                  id: 'all',
+                  label: 'All',
+                  icon: BadgeDollarSign,
+                  count: rows.length,
+                  active: !pendingOnly,
+                  onClick: () => setView(false),
+                },
+                {
+                  id: 'pending',
+                  label: 'Pending',
+                  icon: Hourglass,
+                  count: pendingCount,
+                  active: pendingOnly,
+                  onClick: () => setView(true),
+                },
+              ]}
+            />
+          }
           search={search}
           onSearch={(value) => {
             setSearch(value);
@@ -642,7 +685,11 @@ export default function Sales() {
         rowClassName={(r) =>
           isUnderWay(r) && r.step ? 'bg-amber-500/[0.06]' : undefined
         }
-        empty="No sales match the current filters."
+        empty={
+          pendingOnly && !pendingCount
+            ? 'No sales pending: every sale has finished.'
+            : 'No sales match the current filters.'
+        }
       />
 
       {editing && (

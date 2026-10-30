@@ -3,7 +3,7 @@ import { useAppStore } from '../store/app';
 import { notifications } from '../../shared/notifications';
 import { summarize, wholeMoney } from './renewals';
 import { importedRows } from '../../shared/imported-domains';
-import { isUnderWay, useSaleRecords } from './sales';
+import { isPending, useSaleRecords } from './sales';
 
 export interface TabMetric {
   /** Short display value for the tab's pill, e.g. "1,050" or "$4.2k". */
@@ -31,7 +31,7 @@ export interface TabMetrics {
 
 /**
  * The headline number each top-level tab shows in its pill: Domains → portfolio
- * size, Renewals → known annual renewal spend, Sales → sales still under way,
+ * size, Renewals → known annual renewal spend, Sales → pending sales,
  * Activity → alerts that need review (those two only when there are any). Settings has none: sync failures show in
  * the bell and the status bar. `null` hides the pill.
  */
@@ -73,13 +73,13 @@ export function useTabMetrics(): TabMetrics {
         : null;
 
     // Not the bell's sale alerts: every sale that hasn't finished, whether
-    // it waits on you, the buyer or the market.
-    const underWay = saleRecords.filter(isUnderWay).length;
+    // it waits on you, the buyer or the market (the Sales Pending view).
+    const pending = saleRecords.filter(isPending).length;
     const sales =
-      underWay > 0
+      pending > 0
         ? {
-            value: underWay.toLocaleString('en-US'),
-            title: `${underWay.toLocaleString('en-US')} sale${underWay === 1 ? '' : 's'} under way`,
+            value: pending.toLocaleString('en-US'),
+            title: `${pending.toLocaleString('en-US')} sale${pending === 1 ? '' : 's'} pending`,
           }
         : null;
 
