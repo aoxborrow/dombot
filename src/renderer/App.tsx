@@ -58,7 +58,7 @@ const TAB_OPTIONS: Record<
   '/': { metric: 'domains', pillFrom: 'md' },
   '/renewals': { metric: 'renewals', pillFrom: 'lg' },
   '/activity': { metric: 'activity', pillFrom: 'lg' },
-  '/sales': { pillFrom: 'lg' },
+  '/sales': { metric: 'sales', pillFrom: 'lg' },
   '/settings': {
     pillFrom: 'lg',
     // The gear is drawn smaller than the other icons, so it's bumped up.

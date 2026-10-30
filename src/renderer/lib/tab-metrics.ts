@@ -3,6 +3,7 @@ import { useAppStore } from '../store/app';
 import { notifications } from '../../shared/notifications';
 import { summarize, wholeMoney } from './renewals';
 import { importedRows } from '../../shared/imported-domains';
+import { isUnderWay, useSaleRecords } from './sales';
 
 export interface TabMetric {
   /** Short display value for the tab's pill, e.g. "1,050" or "$4.2k". */
@@ -24,13 +25,14 @@ function compactMoney(n: number, currency: string): string {
 export interface TabMetrics {
   domains: TabMetric | null;
   renewals: TabMetric | null;
+  sales: TabMetric | null;
   activity: TabMetric | null;
 }
 
 /**
  * The headline number each top-level tab shows in its pill: Domains → portfolio
- * size, Renewals → known annual renewal spend, Activity → alerts that need
- * review (only when there are any). Settings has none: sync failures show in
+ * size, Renewals → known annual renewal spend, Sales → sales still under way,
+ * Activity → alerts that need review (those two only when there are any). Settings has none: sync failures show in
  * the bell and the status bar. `null` hides the pill.
  */
 export function useTabMetrics(): TabMetrics {
@@ -38,6 +40,7 @@ export function useTabMetrics(): TabMetrics {
   const importedDomains = useAppStore((s) => s.importedDomains);
   const pricing = useAppStore((s) => s.pricing);
   const events = useAppStore((s) => s.domainEvents);
+  const saleRecords = useSaleRecords();
 
   return useMemo(() => {
     const portfolio = [...synced, ...importedRows(importedDomains, synced)];
@@ -69,6 +72,17 @@ export function useTabMetrics(): TabMetrics {
           }
         : null;
 
-    return { domains, renewals, activity };
-  }, [synced, importedDomains, pricing, events]);
+    // Not the bell's sale alerts: every sale that hasn't finished, whether
+    // it waits on you, the buyer or the market.
+    const underWay = saleRecords.filter(isUnderWay).length;
+    const sales =
+      underWay > 0
+        ? {
+            value: underWay.toLocaleString('en-US'),
+            title: `${underWay.toLocaleString('en-US')} sale${underWay === 1 ? '' : 's'} under way`,
+          }
+        : null;
+
+    return { domains, renewals, sales, activity };
+  }, [synced, importedDomains, pricing, events, saleRecords]);
 }
