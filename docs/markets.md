@@ -456,7 +456,11 @@ undated sales out and says how many), where, TLD, registrar and currency.
 Cards above the table add up what the view and filters leave: sales
 (finished and under way, with pending and cancelled), gross (with the
 average), net (with fees) and profit (with ROI); holding time stays in the
-table. Filtering by market, TLD or registrar gives that slice's totals,
+table. On the Pending view, net and profit give way to what the pending
+sales wait on: Needs action (an auth code or payee details) and Awaiting
+transfer (at the market, or a name still in your account), and Gross to
+the pending sales' Value. Filtering by market, TLD or registrar gives
+that slice's totals,
 one currency at a time; a line under the cards appears only when sales in
 another currency are left out. CSV export; a row menu for the name's history,
 Edit sale (that sale, even an earlier one) and the market. The bell's sale

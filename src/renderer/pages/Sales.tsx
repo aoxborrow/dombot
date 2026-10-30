@@ -651,7 +651,7 @@ export default function Sales() {
           />
         </div>
 
-        <SalesCards rows={viewRows} money={money} />
+        <SalesCards rows={viewRows} pendingView={pendingOnly} money={money} />
 
         <FilterToolbar
           id="sales"

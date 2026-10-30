@@ -107,7 +107,8 @@ export function FilterToolbar({
   return (
     <div
       className={cn(
-        'mt-1 flex flex-wrap items-center gap-3.5 sm:mt-3',
+        // No margin of its own: the page's 13px gap spaces it.
+        'flex flex-wrap items-center gap-3.5',
         className,
       )}
     >

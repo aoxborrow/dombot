@@ -122,7 +122,8 @@ export function StatCardRow({ children }: { children: ReactNode }) {
   return (
     <div
       className={cn(
-        'grid gap-1.5 sm:gap-2.5',
+        // The same 13px as between the page's rows.
+        'grid gap-[13px]',
         cards.length >= 4 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-3',
         cards.length >= 4 && 'lg:grid-cols-4',
         cards.length >= 5 && 'xl:grid-cols-5',

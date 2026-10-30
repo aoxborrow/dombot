@@ -244,10 +244,6 @@ export default function Renewals() {
     allDomains.length > 0 &&
     (portfolioLoadedAt !== null ||
       allDomains.some((d) => d.source === 'imported'));
-  const hasPricing = Object.keys(pricing).length > 0;
-  // Pricing is computed locally in main and arrives with the portfolio (and is
-  // re-read after each Sync), so "loading" is just the brief gap before it lands.
-  const pricingLoading = hasPortfolio && !hasPricing;
 
   // Prices keep their own currency and are never converted: the totals are in
   // the currency most names renew in, and any others are listed beside them.
@@ -320,7 +316,7 @@ export default function Renewals() {
   if (!hasPortfolio) {
     return (
       <div className="mx-auto w-full max-w-[1400px]">
-        <PageHeader loading={pricingLoading} summary={summary} />
+        <PageHeader />
         <Empty className="mt-6 rounded-lg border border-dashed">
           <EmptyHeader>
             <EmptyTitle>No portfolio loaded</EmptyTitle>
@@ -337,14 +333,13 @@ export default function Renewals() {
   const monthly = summary.yearly / 12;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
-      <PageHeader loading={pricingLoading} summary={summary}>
-        {registrarFilter}
-      </PageHeader>
-      <div>{renewSwitch}</div>
+    // 13px between rows and cards, as on Domains, Sales and Activity.
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-[13px]">
+      <PageHeader>{registrarFilter}</PageHeader>
+      <div className="flex">{renewSwitch}</div>
 
       {/* Totals */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-[13px] sm:grid-cols-3">
         <StatCard
           icon={Globe}
           accentClass="text-blue-500"
@@ -377,7 +372,7 @@ export default function Renewals() {
       <MonthlyBarChart months={months} fmt={usd} />
 
       {/* Composition: two pairs (count + spend), one row per dimension. */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-[13px] md:grid-cols-2">
         <DonutCard
           title="Domains by registrar"
           slices={regCount}
@@ -423,29 +418,14 @@ export default function Renewals() {
 
 // ── Header ───────────────────────────────────────────────────────────────────
 
-/** The title and summary, with `children` (the Registrar filter) on the
- *  right, as the Markets page has its market picker. */
-function PageHeader({
-  loading,
-  summary,
-  children,
-}: {
-  loading: boolean;
-  summary: ReturnType<typeof summarize>;
-  children?: ReactNode;
-}) {
+/** The title, with `children` (the Registrar filter) on the right; the
+ *  same height and type as the other pages' title rows. */
+function PageHeader({ children }: { children?: ReactNode }) {
   return (
-    <div className="flex items-end justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-bold sm:text-[32px]">Renewals</h1>
-        <p className="-mt-0.5 text-sm text-muted-foreground">
-          {loading
-            ? `Pricing… ${summary.priced}/${summary.total}`
-            : summary.priced > 0
-              ? `Forward-looking renewal costs · ${summary.priced}/${summary.total} priced`
-              : 'Annual renewal costs across your whole portfolio.'}
-        </p>
-      </div>
+    <div className="flex min-h-9 items-start justify-between gap-4">
+      <h1 className="mt-1.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
+        Renewals
+      </h1>
       {children}
     </div>
   );

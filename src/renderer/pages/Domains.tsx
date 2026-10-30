@@ -2377,7 +2377,6 @@ export default function Domains() {
           matches). The search and filters wrap, with Columns at the end. */}
         <FilterToolbar
           id="domains"
-          className="mt-0 sm:mt-0"
           search={search}
           onSearch={(value) => {
             setSearch(value);
