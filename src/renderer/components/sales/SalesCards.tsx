@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import {
   ArrowRightLeft,
-  BadgeDollarSign,
-  CircleDollarSign,
-  Coins,
+  Banknote,
   Hand,
-  Receipt,
+  HandCoins,
+  ShoppingBag,
   TrendingUp,
+  Wallet,
 } from 'lucide-react';
 import { saleTotals, type SaleRecord } from '../../../shared/sales';
 import { cn } from '@/lib/utils';
@@ -111,7 +111,7 @@ export function SalesCards({
     >
       <StatCard
         size="sm"
-        icon={BadgeDollarSign}
+        icon={ShoppingBag}
         accentClass="text-violet-500"
         label={pendingView ? 'Pending sales' : 'Sales'}
         // Finished and under way; cancelled ones aren't sales.
@@ -127,7 +127,7 @@ export function SalesCards({
         // Gross counts finished sales; most pending ones aren't yet.
         <StatCard
           size="sm"
-          icon={Receipt}
+          icon={Banknote}
           accentClass="text-sky-500"
           label="Value"
           value={value && c ? money(value.toFixed(2), c)! : dash}
@@ -135,7 +135,7 @@ export function SalesCards({
       ) : (
         <StatCard
           size="sm"
-          icon={Receipt}
+          icon={Banknote}
           accentClass="text-sky-500"
           label="Gross"
           value={[
@@ -184,7 +184,7 @@ export function SalesCards({
       {!pendingView && (
         <StatCard
           size="sm"
-          icon={CircleDollarSign}
+          icon={Wallet}
           accentClass="text-brand-500"
           label="Net"
           value={[
@@ -218,7 +218,7 @@ export function SalesCards({
       {!pendingView && (
         <StatCard
           size="sm"
-          icon={Coins}
+          icon={HandCoins}
           accentClass="text-amber-500"
           label="Fees"
           value={[
@@ -237,7 +237,7 @@ export function SalesCards({
       {pendingView && (
         <StatCard
           size="sm"
-          icon={CircleDollarSign}
+          icon={Wallet}
           accentClass="text-brand-500"
           label="Expected net"
           value={[

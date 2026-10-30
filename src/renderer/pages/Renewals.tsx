@@ -2,10 +2,11 @@ import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { useMemo, useState } from 'react';
 import {
+  AlarmClock,
   Building2,
   CalendarClock,
-  CalendarDays,
-  CircleDollarSign,
+  CalendarSync,
+  ChartColumn,
   Globe,
   IterationCw,
   RefreshCwOff,
@@ -396,14 +397,14 @@ export default function Renewals() {
         />
         <StatCard
           size="sm"
-          icon={CalendarDays}
+          icon={ChartColumn}
           accentClass="text-sky-500"
           label="Monthly avg"
           value={usd(monthly)}
         />
         <StatCard
           size="sm"
-          icon={CircleDollarSign}
+          icon={CalendarSync}
           accentClass="text-brand-500"
           label="Yearly"
           value={[
@@ -412,7 +413,7 @@ export default function Renewals() {
         />
         <StatCard
           size="sm"
-          icon={CalendarClock}
+          icon={AlarmClock}
           accentClass="text-amber-500"
           label="Due, 30 days"
           value={[
