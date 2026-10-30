@@ -31,12 +31,12 @@ the MCP tools and the CSV export read Owned and Archive from there.
 Every name you hold, synced or imported. Its state comes from what DomBot
 already knows; you never set it.
 
-| State    | When                                                  | Shown                                                   |
-| -------- | ----------------------------------------------------- | ------------------------------------------------------- |
-| Renewing | Auto-renew on                                         | Nothing extra                                           |
-| Expiring | Auto-renew off, expiry within 30 days                 | Nothing on the row (MCP's `expiring`; a card later)     |
-| Expired  | Past expiry, still in the account (grace, redemption) | Expired / Grace / Redemption pill in the Expires column |
-| Sold     | You recorded a sale and the buyer hasn't taken it yet | "Sold" pill                                             |
+| State    | When                                                  | Shown                                                      |
+| -------- | ----------------------------------------------------- | ---------------------------------------------------------- |
+| Renewing | Auto-renew on                                         | Nothing extra                                              |
+| Expiring | Auto-renew off, expiry within 30 days                 | Nothing on the row (MCP's `expiring`; a card later)        |
+| Expired  | Past expiry, still in the account (grace, redemption) | Expired / Grace / Redemption pill in the Expiration column |
+| Sold     | You recorded a sale and the buyer hasn't taken it yet | "Sold" pill                                                |
 
 - **Expiring only inside 30 days.** A name with auto-renew off that expires
   in 2031, or even in three months, isn't news yet.
