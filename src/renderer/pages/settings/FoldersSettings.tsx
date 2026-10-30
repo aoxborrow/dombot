@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import type { Folder, FolderColor, FolderInput } from '../../../shared/ipc';
 import { FOLDER_COLORS } from '../../../shared/ipc';
+import { importedRows } from '../../../shared/imported-domains';
+import { archiveRows, ownershipByDomain } from '../../../shared/ownership';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -22,17 +25,22 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 import { useAppStore } from '../../store/app';
-import { folderColorStyle } from '../../lib/folders';
+import { countFolders, folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../../components/icons/FolderIcon';
 
 /**
  * Settings → Folders: create, edit, and delete the folders used to organize
  * domains. Assignment happens on the Domains table; this page owns the
- * definitions (name, description, color) and shows how many domains each holds.
+ * definitions (name, description, color) and shows how many domains each holds,
+ * counted as the Domains table's Folder filter counts them.
  */
 export default function FoldersSettings() {
   const folders = useAppStore((s) => s.folders);
   const assignments = useAppStore((s) => s.folderAssignments);
+  const portfolio = useAppStore((s) => s.portfolio);
+  const importedDomains = useAppStore((s) => s.importedDomains);
+  const domainEvents = useAppStore((s) => s.domainEvents);
+  const registrars = useAppStore((s) => s.registrars);
   const createFolder = useAppStore((s) => s.createFolder);
   const updateFolder = useAppStore((s) => s.updateFolder);
   const deleteFolder = useAppStore((s) => s.deleteFolder);
@@ -41,12 +49,21 @@ export default function FoldersSettings() {
   const [editing, setEditing] = useState<Folder | null>(null);
   const [deleting, setDeleting] = useState<Folder | null>(null);
 
-  // Domains assigned to each folder id.
+  // Each folder's names in Owned and in Archive: the Domains table's rows,
+  // so an assignment left on a name DomBot no longer shows isn't counted.
   const counts = useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const id of Object.values(assignments)) c[id] = (c[id] ?? 0) + 1;
-    return c;
-  }, [assignments]);
+    const ownership = ownershipByDomain(domainEvents);
+    const live = [...portfolio, ...importedRows(importedDomains, portfolio)];
+    const rows = [...live, ...archiveRows(ownership, live, registrars)];
+    return countFolders(rows, ownership, assignments, folders);
+  }, [
+    portfolio,
+    importedDomains,
+    domainEvents,
+    registrars,
+    assignments,
+    folders,
+  ]);
 
   const closeForm = () => {
     setCreating(false);
@@ -85,7 +102,8 @@ export default function FoldersSettings() {
               <FolderRow
                 key={f.id}
                 folder={f}
-                count={counts[f.id] ?? 0}
+                owned={counts.owned[f.id] ?? 0}
+                archived={counts.archive[f.id] ?? 0}
                 onEdit={() => setEditing(f)}
                 onDelete={() => setDeleting(f)}
               />
@@ -109,7 +127,10 @@ export default function FoldersSettings() {
       {deleting && (
         <DeleteFolderDialog
           folder={deleting}
-          count={counts[deleting.id] ?? 0}
+          count={
+            (counts.owned[deleting.id] ?? 0) +
+            (counts.archive[deleting.id] ?? 0)
+          }
           onClose={() => setDeleting(null)}
           onConfirm={async () => {
             await deleteFolder(deleting.id);
@@ -121,14 +142,31 @@ export default function FoldersSettings() {
   );
 }
 
+const COUNT_LINK = 'underline-offset-4 hover:text-foreground hover:underline';
+
+/** "3 domains", opening the Domains table on the folder when there are any. */
+function CountLink({ count, to }: { count: number; to: string }) {
+  const text = `${count} domain${count === 1 ? '' : 's'}`;
+  if (count === 0) return text;
+  return (
+    <Link to={to} className={COUNT_LINK}>
+      {text}
+    </Link>
+  );
+}
+
 function FolderRow({
   folder,
-  count,
+  owned,
+  archived,
   onEdit,
   onDelete,
 }: {
   folder: Folder;
-  count: number;
+  /** Names in this folder in Owned. */
+  owned: number;
+  /** Names in Archive that keep this folder. */
+  archived: number;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -140,7 +178,21 @@ function FolderRow({
         <div className="flex items-center gap-2">
           <span className="font-medium">{folder.name}</span>
           <span className="text-xs tabular-nums text-muted-foreground">
-            {count} domain{count === 1 ? '' : 's'}
+            <CountLink
+              count={owned}
+              to={`/?${new URLSearchParams({ folder: folder.id })}`}
+            />
+            {archived > 0 && (
+              <>
+                {' · '}
+                <Link
+                  to={`/?${new URLSearchParams({ view: 'archive', folder: folder.id })}`}
+                  className={COUNT_LINK}
+                >
+                  {archived} in Archive
+                </Link>
+              </>
+            )}
           </span>
         </div>
         {folder.description ? (
