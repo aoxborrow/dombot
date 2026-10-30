@@ -343,9 +343,10 @@ Once a market account is connected, Domains has three views: **Owned**,
 Listings show the same names, the ones you hold, with different columns;
 Listings' count in the switch is how many of them are live on a market:
 
-- **Owned** keeps one **Listed** column for the markets, each market's logo
-  in the colour its listing cell's icon would have (below), so it stays the
-  same width however many markets are connected. It has no per-market or
+- **Owned** keeps one **Listed** column for the markets: every connected
+  market's logo, always in the same order, in the colour its listing cell's
+  icon would have (below), or dim where the name isn't listed there. It
+  stays the same width however many names are listed. It has no per-market or
   interest columns.
 - **Listings** has a column per market, Views, Leads and Searches, and
   leaves the registration settings out (renewal, auto-renew, privacy, lock,

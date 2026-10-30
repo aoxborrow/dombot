@@ -315,36 +315,48 @@ export function marketColumns({
     };
   };
 
-  // Owned's one market column: each market the name is on, as its logo in
-  // the colour of the listing cell's icon. The tooltip has each listing.
+  // Owned's one market column: every connected market's logo, always in
+  // the same order, coloured as its listing cell's icon would be, or dim
+  // where the name isn't listed. The tooltip has each market.
   const listed: PurchaseColumn = {
     key: 'listed',
     label: 'Listed',
     hideOnMobile: true,
     render: (d) => {
       const mine = listPrices[toAscii(d.domainName)];
-      const on = listingMarkets
-        .map((m) => of(d).find((l) => l.market === m))
-        .filter((l): l is MarketListing => !!l);
-      if (!on.length) return dash;
+      const slots = listingMarkets.map((m) => ({
+        market: m,
+        listing: of(d).find((l) => l.market === m),
+      }));
       return (
         <span
           className="flex items-center gap-1.5"
-          title={on
-            .map((l) => describe(l, markets, (a) => money(a, l.currency)))
+          title={slots
+            .map(({ market, listing }) =>
+              listing
+                ? describe(listing, markets, (a) => money(a, listing.currency))
+                : `${marketName(markets, market)}: Not listed`,
+            )
             .join('\n')}
         >
-          {on.map((l) => {
-            const state = cellState(l, priceDiff(l, mine));
+          {slots.map(({ market, listing }) => {
+            const state =
+              listing && cellState(listing, priceDiff(listing, mine));
             return (
               <MarketLogo
-                key={l.market}
-                market={l.market}
-                label={`${marketName(markets, l.market)}: ${state.label}`}
+                key={market}
+                market={market}
+                label={`${marketName(markets, market)}: ${state?.label ?? 'Not listed'}`}
                 className={cn(
                   'size-4',
-                  state.className,
-                  state.faded && l.status !== 'rejected' && 'opacity-50',
+                  !state
+                    ? 'text-muted-foreground/30'
+                    : [
+                        state.className,
+                        state.faded &&
+                          listing.status !== 'rejected' &&
+                          'opacity-50',
+                      ],
                 )}
               />
             );
