@@ -2090,6 +2090,14 @@ export default function Domains() {
       return <CellSkeleton align={col.align} />;
     if (d.unregistered && registration)
       return <span className="text-muted-foreground">—</span>;
+    // Archive: the name isn't yours, so its expiry (often the new holder's,
+    // from the lookup) is plain grey, with no countdown or pill.
+    if (archiveView && col.key === 'expirationDate')
+      return (
+        <span className="font-mono text-muted-foreground tabular-nums">
+          {d.expirationDate ? fmtDate(d.expirationDate) : '—'}
+        </span>
+      );
     if (col.key === 'registrar' && d.registrationRegistrar)
       return (
         <span
