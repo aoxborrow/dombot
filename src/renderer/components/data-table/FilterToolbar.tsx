@@ -66,7 +66,8 @@ export function ToolbarSwitch({
   className?: string;
   options: {
     id: string;
-    label: string;
+    /** Text, or a shorter form on phones (Manual renew → Manual). */
+    label: ReactNode;
     icon: LucideIcon;
     count: number;
     active: boolean;

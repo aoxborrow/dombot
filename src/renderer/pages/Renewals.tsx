@@ -236,7 +236,12 @@ export default function Renewals() {
         },
         {
           id: 'manual',
-          label: 'Manual',
+          // Just Manual on a phone, where three share the width.
+          label: (
+            <>
+              Manual<span className="max-sm:hidden"> renew</span>
+            </>
+          ),
           icon: RefreshCwOff,
           count: manual.length,
           active: renewing === 'manual',
@@ -361,7 +366,15 @@ export default function Renewals() {
   return (
     // 13px between rows and cards, as on Domains, Sales and Activity.
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-[13px]">
-      <PageHeader />
+      <PageHeader
+        view={
+          renewing === 'auto'
+            ? 'Auto-renew'
+            : renewing === 'manual'
+              ? 'Manual renew'
+              : 'All'
+        }
+      />
 
       {/* Totals: the small two-row cards Domains and Sales have. Amounts in
           another currency are left out of these; the chart lists them. */}
@@ -478,12 +491,18 @@ export default function Renewals() {
 
 // ── Header ───────────────────────────────────────────────────────────────────
 
-/** The title: the same height and type as the other pages' title rows. */
-function PageHeader() {
+/** The title, and the view beside it: the same height and type as the other pages' title rows. */
+function PageHeader({ view }: { view?: string }) {
   return (
-    <div className="mb-[15px] min-h-9">
-      <h1 className="mt-1.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
+    <div className="mb-2 min-h-9">
+      <h1 className="mt-1.5 flex min-w-0 items-baseline gap-2.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
         Renewals
+        {/* The view, as on Domains. */}
+        {view && (
+          <span className="text-sm font-semibold uppercase tracking-wider text-brand sm:text-base">
+            {view}
+          </span>
+        )}
       </h1>
     </div>
   );
