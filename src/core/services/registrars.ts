@@ -1018,6 +1018,18 @@ export function getCachedDetail(): Record<string, Partial<Domain>> {
   return out;
 }
 
+/** One domain's cached detail (revived), or null when it was never fetched. */
+export function getCachedDomainDetail(
+  accountId: string,
+  domainName: string,
+): Partial<Domain> | null {
+  const entry = readEntry<DetailRecord>(
+    'detail',
+    detailKey(accountId, domainName),
+  );
+  return entry ? reviveDomainDates(withoutQuote(entry.data)) : null;
+}
+
 /**
  * Renewal pricing for every cached portfolio domain, computed from local data
  * only (manual override → the quote captured at Sync → shopper TLD rate → the

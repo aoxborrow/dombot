@@ -120,7 +120,9 @@ portfolio: synced, imported, or with history.
 - **`domain_history`** — every event for the name, oldest first, with its
   note and current `ownership` / `archiveLabel`. Each event has its `source`;
   sync alerts (`added`, `removed`) also have `alert` (`open`, `dismissed` or
-  `resolved`) and `resolvedBy`.
+  `resolved`) and `resolvedBy`. A settings change is `changed`, with its
+  `setting`, `after`, and `before` when DomBot knew it. The `domain_*` writes
+  record theirs with `source: agent`.
 - **`domain_purchase_set`** — `date?`, `amount?`, `currency?`, `kind?`
   (`registered` or `purchased`), `resolves?`. Edits the latest purchase;
   with `resolves` (an open `added` alert) it records the purchase that

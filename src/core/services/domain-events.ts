@@ -2,8 +2,10 @@ import { isCurrencyCode } from '../../shared/currencies';
 import { isDomainKey, toAscii } from '../../shared/domain-name';
 import {
   DomainEventSource,
+  DomainEventType,
   isDomainEventSource,
   isDomainEventType,
+  isDomainSetting,
   newEventId,
   type DomainEvent,
   type DomainNote,
@@ -180,6 +182,10 @@ export function setNameNotes(entries: [domain: string, text: string][]): void {
 const optionalId = (v: unknown) =>
   v === undefined || v === null || typeof v === 'string';
 
+const isSettingValue = (v: unknown) =>
+  typeof v === 'boolean' ||
+  (Array.isArray(v) && v.every((line) => typeof line === 'string'));
+
 /** An event read from a data bundle, re-checked; null when it doesn't hold. */
 export function cleanEvent(id: string, value: unknown): DomainEvent | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -236,6 +242,15 @@ export function cleanEvent(id: string, value: unknown): DomainEvent | null {
   ) {
     return null;
   }
+  // A settings change says which setting and what it became.
+  if (v.setting !== undefined && !isDomainSetting(v.setting)) return null;
+  if (v.before !== undefined && !isSettingValue(v.before)) return null;
+  if (v.after !== undefined && !isSettingValue(v.after)) return null;
+  if (
+    v.type === DomainEventType.Changed &&
+    (v.setting === undefined || v.after === undefined)
+  )
+    return null;
   return {
     ...(v as unknown as DomainEvent),
     domain,

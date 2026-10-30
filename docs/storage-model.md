@@ -102,6 +102,8 @@ export const DomainEventType = {
   Added: 'added', // the name appeared in an account
   Removed: 'removed', // the name is gone from an account
   Moved: 'moved', // gone from one of your accounts, appeared in another
+  // A setting changed (auto-renew, privacy, nameservers…): never an alert.
+  Changed: 'changed',
 } as const;
 export type DomainEventType =
   (typeof DomainEventType)[keyof typeof DomainEventType];
@@ -112,6 +114,7 @@ export const DomainEventSource = {
   Import: 'import',
   Lookup: 'lookup', // the registration check (none written today)
   Agent: 'agent', // an MCP client, on your behalf
+  Bulk: 'bulk', // a bulk job you started
 } as const;
 export type DomainEventSource =
   (typeof DomainEventSource)[keyof typeof DomainEventSource];
@@ -134,6 +137,9 @@ interface DomainEvent {
   resolves?: string; // a user event closing a sync-detected one
   marketSale?: string; // sold: the market-sales key it came from (docs/markets.md)
   dismissed?: boolean; // sync alert acknowledged with no action
+  setting?: DomainSetting; // changed: autoRenew, privacy, lock, nameservers, …
+  before?: boolean | string[]; // changed: the old value, when DomBot knew it
+  after?: boolean | string[]; // changed: the new value
 }
 ```
 
@@ -189,8 +195,9 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   and `removed`).
 - **Renewals.** Each renewal is one `renewed` event, dated the day it
   was seen, with `accountId` and `years`:
-  - **DomBot's.** A renew op the registrar confirms (row action, bulk renew,
-    MCP `domain_renew`) writes `source: 'user'`. The amount is only what the
+  - **DomBot's.** A renew op the registrar confirms writes `source: 'user'`
+    from a row action, `'bulk'` from bulk renew, and `'agent'` from MCP
+    `domain_renew`. The amount is only what the
     registrar charged, when its response carries a `charge`; otherwise none.
     Bulk renew writes a slice's events in one `putEvents`. An `unknown`
     outcome writes nothing; sync records it once the expiry moves.
@@ -213,6 +220,32 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
   - Renewals are never alerts, and don't change Owned / Archive. An event
     without an amount is priced when read (manual price → quote → TLD rate →
     base database), as an estimate.
+- **Settings changes.** A write that changes a name's setting writes one
+  `changed` event, dated the day it was made, with `accountId`, the
+  `setting`, its `after` and, when DomBot knew it, its `before`. It's the
+  name's record of when auto-renew went off (how you let a name go,
+  [owned-and-archive.md](owned-and-archive.md)), when nameservers moved, and
+  who did it.
+  - **Where they're written.** `applyDomainOp` writes them, so a row control
+    (`source: 'user'`), a bulk job (`'bulk'`, a slice's events in one
+    `putEvents`, like renewals) and the MCP `domain_*` tools (`'agent'`) all
+    record the same way. The MCP-only `domain_dns_set` and
+    `domain_contacts_set` write their own (`dns`: the records; `contacts`: the
+    roles changed, never the contact details). An imported name's auto-renew,
+    edited in the app (`'user'`) or by a CSV import (`'import'`, with its
+    `importId`), writes one too.
+  - **What's recorded.** Only a confirmed change: a failure, a skip, or an
+    `unknown` outcome writes nothing. A setting DomBot knew was already at
+    the new value writes nothing either, so a bulk "auto-renew on" over a
+    mixed selection records only the names it changed. `before` comes from
+    the cache (the fetched detail, then the list row) and is left out when
+    the list doesn't carry that setting reliably. Forwarding is a full
+    replace and its old rules aren't kept, so it never has a `before`.
+    On/off settings are booleans; lists (nameservers, forwarding rules, DNS
+    records, contact roles) are short readable lines.
+  - **Never alerts.** They don't need review and don't change Owned /
+    Archive. Activity shows them as **Changed**, with a **Change** filter by
+    setting.
 - **CSV import edits, it doesn't append.** A purchase in an imported row
   updates the name's current purchase or registration in place (type, date,
   amount, years), and a sale updates the current sale, so importing the same
@@ -275,8 +308,9 @@ to let it go.
 
 A top-level **Activity** page (beside Domains and Renewals) lists every domain
 event in one table, newest first: date, domain, what happened, account(s),
-amount, source (you, sync, import, lookup), and status. It filters by event
-type, domain, account, date range, and "Needs review", and reuses the Domains
+amount or setting changed, source (you, sync, import, lookup, agent, bulk), and
+status. It filters by event type, setting changed, domain, account, source,
+date range, and "Needs review", and reuses the Domains
 table's sorting, paging, and sticky header. A domain's row menu gets "Activity",
 which opens the same table filtered to that name.
 
@@ -457,9 +491,10 @@ import; today that's only `meta`. An unknown namespace in a file is skipped.
 - **The central RDAP module**
   ([#105](https://github.com/aoxborrow/dombot/issues/105)): one path for
   Deleted, and a later expiry from RDAP updating an imported name's date.
-- **Every domain change writes an event:** auto-renew, privacy, lock,
-  nameservers and forwarding, from the app, bulk jobs and MCP
-  ([#151](https://github.com/aoxborrow/dombot/issues/151)).
+- **Changes made at the registrar.** A setting changed outside DomBot
+  (Cloudflare and 101domain auto-renew can only be changed there) shows only
+  as a new value after sync. `registrar-last-sync` could keep each name's
+  settings beside its expiry, so sync writes `changed` with `source: 'sync'`.
 - **Bulk Record purchase** on Activity and Domains
   ([#148](https://github.com/aoxborrow/dombot/issues/148)). The other bulk
   review actions (Mark as Sold, Dismiss review) are built.
