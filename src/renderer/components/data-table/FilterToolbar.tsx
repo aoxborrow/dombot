@@ -118,8 +118,9 @@ export function FilterToolbar({
         value={search}
         onChange={onSearch}
         placeholder={searchPlaceholder}
-        // Short: the chips get the room. Full width on phones.
-        className="min-w-24 flex-[0_1_120px]"
+        // A little wider than a Registrar chip, so the chips get the room.
+        // Full width on phones.
+        className="min-w-24 flex-[0_1_145px]"
       />
       <FilterBar
         id={id}
