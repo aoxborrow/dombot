@@ -2,13 +2,20 @@ import { accountTitle } from '../../shared/account-label';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { useMemo, useState } from 'react';
-import { CalendarClock, CircleDollarSign, Globe } from 'lucide-react';
+import {
+  CalendarClock,
+  CircleDollarSign,
+  Globe,
+  IterationCw,
+  Layers,
+} from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { importedRows } from '../../shared/imported-domains';
 import { toAscii } from '../../shared/domain-name';
 import { ownershipByDomain, standingOf } from '../../shared/ownership';
 import { useAppStore } from '../store/app';
 import { StatCard } from '../components/StatCard';
+import { ToolbarSwitch } from '../components/data-table/FilterToolbar';
 import {
   dueWithin,
   groupBy,
@@ -147,12 +154,43 @@ export default function Renewals() {
     [accounts, allDomains],
   );
   const showAccountDetails = multipleAccounts.size > 0;
-  const portfolio = useMemo(
+  const inAccount = useMemo(
     () =>
       !showAccountDetails || account === 'all'
         ? allDomains
         : allDomains.filter((d) => (d.accountId ?? d.registrar) === account),
     [allDomains, account, showAccountDetails],
+  );
+  // Every name, or only the ones that renew on their own: names with
+  // auto-renew off renew only if you renew them.
+  const [autoOnly, setAutoOnly] = useState(false);
+  const autoRenewing = useMemo(
+    () => inAccount.filter((d) => d.autoRenew && !d.autoRenewUnknown),
+    [inAccount],
+  );
+  const portfolio = autoOnly ? autoRenewing : inAccount;
+  const renewSwitch = (
+    <ToolbarSwitch
+      label="Which renewals to count"
+      options={[
+        {
+          id: 'all',
+          label: 'All',
+          icon: Layers,
+          count: inAccount.length,
+          active: !autoOnly,
+          onClick: () => setAutoOnly(false),
+        },
+        {
+          id: 'auto',
+          label: 'Auto-renewing',
+          icon: IterationCw,
+          count: autoRenewing.length,
+          active: autoOnly,
+          onClick: () => setAutoOnly(true),
+        },
+      ]}
+    />
   );
   const accountFilter = showAccountDetails && (
     <label className="flex items-center gap-3 text-sm">
@@ -178,10 +216,11 @@ export default function Renewals() {
       </select>
     </label>
   );
+  // The switch narrows what's counted, not whether there's a portfolio.
   const hasPortfolio =
-    portfolio.length > 0 &&
+    inAccount.length > 0 &&
     (portfolioLoadedAt !== null ||
-      portfolio.some((d) => d.source === 'imported'));
+      inAccount.some((d) => d.source === 'imported'));
   const hasPricing = Object.keys(pricing).length > 0;
   // Pricing is computed locally in main and arrives with the portfolio (and is
   // re-read after each Sync), so "loading" is just the brief gap before it lands.
@@ -274,11 +313,20 @@ export default function Renewals() {
   }
 
   const monthly = summary.yearly / 12;
+  // The auto-renewing and auto-renew off halves; nothing to split when the
+  // switch already counts only auto-renewing names.
+  const split = (auto: number, total: number) =>
+    autoOnly
+      ? ''
+      : ` · ${usd(auto)} auto-renewing, ${usd(total - auto)} auto-renew off`;
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
       <PageHeader loading={pricingLoading} summary={summary} />
-      {accountFilter}
+      <div className="flex flex-wrap items-center gap-4">
+        {renewSwitch}
+        {accountFilter}
+      </div>
 
       {/* Totals */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -296,22 +344,19 @@ export default function Renewals() {
           accentClass="text-brand-500"
           label="Yearly renewals"
           value={usd(summary.yearly)}
-          hint={`${usd(monthly)}/mo · ${usd(summary.yearlyAutoRenew)} auto-renewing, ${usd(
-            summary.yearly - summary.yearlyAutoRenew,
-          )} auto-renew off${othersNote ? ` · ${othersNote}` : ''}`}
+          hint={`${usd(monthly)}/mo${split(summary.yearlyAutoRenew, summary.yearly)}${
+            othersNote ? ` · ${othersNote}` : ''
+          }`}
         />
         <StatCard
           icon={CalendarClock}
           accentClass="text-amber-500"
           label="Due next 90 days"
           value={usd(due90.yearly)}
-          hint={`${due90.count} domain${due90.count === 1 ? '' : 's'} · ${usd(
+          hint={`${due90.count} domain${due90.count === 1 ? '' : 's'}${split(
             due90.yearlyAutoRenew,
-          )} auto-renewing, ${usd(
-            due90.yearly - due90.yearlyAutoRenew,
-          )} auto-renew off${
-            due90.others.length ? ` · ${plusOthers(due90.others)}` : ''
-          }`}
+            due90.yearly,
+          )}${due90.others.length ? ` · ${plusOthers(due90.others)}` : ''}`}
         />
       </div>
 

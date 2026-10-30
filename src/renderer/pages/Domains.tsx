@@ -1550,21 +1550,6 @@ export default function Domains() {
     ...(archiveView
       ? []
       : [
-          listFilter(
-            {
-              key: 'autoRenew',
-              label: 'Auto-renew',
-              icon: IterationCw,
-              options: autoRenewOptions,
-              selected: autoRenewFilter,
-              plural: 'values',
-            },
-            setAutoRenewFilter,
-          ),
-        ]),
-    ...(archiveView
-      ? []
-      : [
           pricingField({
             value: pricingFilter,
             onChange: (next) => {
@@ -1626,6 +1611,22 @@ export default function Domains() {
       (d) => utcDay(d.expirationDate),
       CalendarClock,
     ),
+    // Owned only: what you're letting go (auto-renew off), after Expiration.
+    ...(archiveView
+      ? []
+      : [
+          listFilter(
+            {
+              key: 'autoRenew',
+              label: 'Auto-renew',
+              icon: IterationCw,
+              options: autoRenewOptions,
+              selected: autoRenewFilter,
+              plural: 'values',
+            },
+            setAutoRenewFilter,
+          ),
+        ]),
     // Created is an Active column, so its filter is Active only.
     ...(archiveView
       ? []

@@ -115,6 +115,10 @@ is labeling them: **Auto-renewing** and **Auto-renew off** ("renews only if you
 renew it"). Due next 90 days splits the same way. Archive names are never
 counted, so the current bug goes away by construction.
 
+A switch beside the Account filter picks **All** or **Auto-renewing**: the
+second leaves out every name with auto-renew off, so the whole page (totals,
+months, donuts) shows only what renews on its own.
+
 ## Dynadot: off is manual renewal
 
 Dynadot has three renew options: auto-renew, manual renewal, and Do Not Renew
