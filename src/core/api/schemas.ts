@@ -127,9 +127,7 @@ export const importRow = z
   .object({
     line: z.number().int().min(0),
     domain: z.string().trim().min(1).max(253),
-    status: z
-      .enum(['owned', 'sold', 'dropped', 'archived', 'removed'])
-      .optional(),
+    status: z.enum(['sold', 'ignored']).optional(),
     folder: z.string().trim().min(1).max(100).optional(),
     notes: z.string().max(4000).optional(),
     registration: z
@@ -231,8 +229,6 @@ export const saleInput = z
   .strict();
 
 export const eventId = z.string().min(1).max(80);
-
-export const disposition = z.enum(['dropped', 'archived']);
 
 /** Names to act on, each with the sync alert the action answers. */
 export const ownershipItems = z

@@ -3,7 +3,11 @@ import { toAscii } from '../../shared/domain-name';
 import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
 import type { Domain } from '../../shared/ipc';
 import { importedRows } from '../../shared/imported-domains';
-import { archiveRows, ownershipByDomain } from '../../shared/ownership';
+import {
+  archiveRows,
+  ownershipByDomain,
+  standingOf,
+} from '../../shared/ownership';
 import { useAppStore } from '../store/app';
 import { accountName } from './domain-history';
 
@@ -44,7 +48,15 @@ export async function exportAllDomains(): Promise<number | null> {
     listPrices: s.listPrices,
     pricing: s.pricing,
     manualPrices: await window.api.getManualPrices(),
-    archiveLabel: (name) => ownership.get(name)?.label ?? null,
+    statusOf: (d) => {
+      const key = toAscii(d.domainName);
+      const st = standingOf(
+        d,
+        ownership.get(key),
+        s.registrationLookups[key]?.registered,
+      );
+      return st.label ?? (st.salePending ? 'sold' : null);
+    },
     accountName: (d) =>
       accountName(s.registrars, d.accountId ?? d.registrar) ??
       s.portfolioRegistrarLabels[d.registrar] ??

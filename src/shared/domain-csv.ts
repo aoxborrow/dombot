@@ -4,7 +4,6 @@ import { toCsv } from './csv';
 import { isIdn, toAscii, toUnicode } from './domain-name';
 import { reportsPrivacy } from './domain-ops';
 import {
-  builtInFolderName,
   type ListPrice,
   type Domain,
   type DomainPurchase,
@@ -38,8 +37,11 @@ export interface DomainCsvContext {
    * Archive names, which have no pricing entry, keep theirs.
    */
   manualPrices: Record<string, RenewalPriceInput>;
-  /** Why a name is in Archive, or null while you own it. */
-  archiveLabel: (name: string) => ArchiveLabel | null;
+  /**
+   * The Status a row exports: its Archive label, `sold` for a sale awaiting
+   * transfer (so the file imports the sale back), or null for Owned.
+   */
+  statusOf: (row: Domain) => ArchiveLabel | null;
   /** The account a row comes from, as DomBot names it ("Dynadot #2"). */
   accountName: (row: Domain) => string;
   /** For "Days until expiry"; defaults to now. */
@@ -66,8 +68,8 @@ export interface DomainCsvColumn {
 
 const STATUS: Record<ArchiveLabel, string> = {
   sold: 'Sold',
-  dropped: 'Dropped',
-  archived: 'Archived',
+  deleted: 'Deleted',
+  expired: 'Expired',
   removed: 'Removed',
 };
 
@@ -116,7 +118,7 @@ export const DOMAIN_CSV_COLUMNS: DomainCsvColumn[] = [
     header: 'Status',
     importable: true,
     value: (r) => {
-      const label = r.ctx.archiveLabel(r.key);
+      const label = r.ctx.statusOf(r.domain);
       return label ? STATUS[label] : 'Owned';
     },
   },
@@ -126,11 +128,7 @@ export const DOMAIN_CSV_COLUMNS: DomainCsvColumn[] = [
     value: (r) => {
       const id = r.ctx.assignments[r.key];
       if (!id) return '';
-      return (
-        builtInFolderName(id) ??
-        r.ctx.folders.find((f) => f.id === id)?.name ??
-        ''
-      );
+      return r.ctx.folders.find((f) => f.id === id)?.name ?? '';
     },
   },
   {

@@ -475,7 +475,8 @@ const SOLD_YEARS = 3;
 /**
  * Fills the world from the names you've priced in DomBot: half listed on
  * all three markets, most of the rest on Afternic alone, mostly at your
- * price; with sales over three years and one waiting on an auth code.
+ * price; with sales over three years, one under way at each step (the
+ * auth code, payee details, the transfer) and one cancelled.
  */
 export function seedDemoMarkets(
   world: DemoMarketWorld,
@@ -620,31 +621,55 @@ export function seedDemoMarkets(
     world.sales.set(accountId, sales);
   }
 
-  // A buyer paid for a name you hold: the bell asks for its auth code. On a
-  // name whose registrar can produce one, so Send auth code goes through.
-  const waiting = [...world.account('demo-afternic').values()].find(
-    (l) => l.price && l.status === 'active' && givesAuthCode(l.name),
+  // Sales under way on names you hold, one at each step, and one that fell
+  // through. The auth code one is on a name whose registrar can produce
+  // one, so Send auth code goes through.
+  const onAfternic = [...world.account('demo-afternic').values()].filter(
+    (l) => l.price && l.status === 'active',
   );
-  if (waiting) {
+  const used = new Set<string>();
+  const take = (ok: (name: string) => boolean = () => true) => {
+    const l = onAfternic.find((x) => !used.has(x.name) && ok(x.name));
+    if (l) used.add(l.name);
+    return l;
+  };
+  const underWay = (
+    l: MarketListing | undefined,
+    daysAgo: number,
+    status: MarketSale['status'],
+    statusRaw: string,
+    action: MarketSale['action'],
+  ) => {
+    if (!l?.price) return;
     world.sales.get('demo-afternic')!.push({
       market: 'afternic',
       accountId: 'demo-afternic',
-      id: `demo-${waiting.name}`,
-      name: waiting.name,
-      soldOn: isoDay(now - 2 * DAY),
-      status: 'in_progress',
-      statusRaw: 'AWAITING_AUTH_CODE',
+      id: `demo-${l.name}`,
+      name: l.name,
+      soldOn: isoDay(now - daysAgo * DAY),
+      status,
+      statusRaw,
       kind: 'buy_now',
-      price: waiting.price,
-      commission: String(Number(waiting.price) * 0.2),
+      price: l.price,
+      commission: String(Number(l.price) * 0.2),
       commissionEstimated: false,
-      net: String(Number(waiting.price) * 0.8),
+      net: String(Number(l.price) * 0.8),
       currency: 'USD',
       installments: null,
       paidOutOn: null,
-      action: 'auth_code',
+      action,
     });
-  }
+  };
+  underWay(
+    take(givesAuthCode),
+    2,
+    'in_progress',
+    'AWAITING_AUTH_CODE',
+    'auth_code',
+  );
+  underWay(take(), 5, 'in_progress', 'AWAITING_PAYEE_INFO', 'payee_details');
+  underWay(take(), 9, 'in_progress', 'TRANSFER_PENDING', 'transfer');
+  underWay(take(), 140, 'cancelled', 'CANCELLED', null);
 }
 
 /** A factory for registry.configureMarketFactory over one world. */

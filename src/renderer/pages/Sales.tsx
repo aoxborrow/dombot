@@ -439,8 +439,8 @@ export default function Sales() {
               : undefined
           }
         >
-          {money(r.fees, r.currency) ?? '—'}
-          {r.feesEstimated && '*'}
+          {r.status === 'cancelled' ? '—' : (money(r.fees, r.currency) ?? '—')}
+          {r.feesEstimated && r.status !== 'cancelled' && '*'}
         </span>
       ),
     },

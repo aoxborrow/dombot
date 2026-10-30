@@ -72,10 +72,16 @@ describe('demo markets', () => {
       expect(folder('For Sale').includes(n) || elsewhere.has(n)).toBe(true);
   });
 
-  it('has sales over three years and one waiting on an auth code', () => {
+  it('has sales over three years, one at each step, and one cancelled', () => {
     const sales = marketSales();
     expect(sales.filter((s) => s.status === 'completed').length).toBe(18);
+    expect(
+      sales.filter((s) => s.status === 'in_progress').map((s) => s.action),
+    ).toEqual(
+      expect.arrayContaining(['auth_code', 'payee_details', 'transfer']),
+    );
     expect(sales.filter((s) => s.action === 'auth_code')).toHaveLength(1);
+    expect(sales.filter((s) => s.status === 'cancelled')).toHaveLength(1);
   });
 
   it('sends the waiting sale its auth code from the registrar', async () => {

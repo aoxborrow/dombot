@@ -121,7 +121,7 @@ describe('imported domains', () => {
     expect(open().map((e) => e.type)).toEqual(['removed']);
     addImportedDomains([{ domainName: 'a.com' }], { source: 'import' });
     expect(open()).toEqual([]);
-    expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
+    expect(ownershipByDomain(listEvents()).get('a.com')?.removal).toBeNull();
   });
 
   it('hands a name to the account that reports it, with no new arrival', () => {
@@ -132,7 +132,7 @@ describe('imported domains', () => {
       ['moved', 'a.com', null],
     ]);
     expect(getImportedDomains()).toEqual({});
-    expect(ownershipByDomain(listEvents()).get('a.com')?.archived).toBe(false);
+    expect(ownershipByDomain(listEvents()).get('a.com')?.removal).toBeNull();
   });
 
   it("hands over on an account's first sync too", () => {
@@ -146,7 +146,7 @@ describe('imported domains', () => {
 
   it('is removed by Delete', () => {
     addImportedDomains([{ domainName: 'a.com' }], { source: 'user' });
-    deleteDomains(['a.com']);
+    deleteDomains(['a.com'], new Set());
     expect(getImportedDomains()).toEqual({});
   });
 

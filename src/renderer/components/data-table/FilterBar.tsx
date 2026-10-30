@@ -9,7 +9,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import { Search, X } from 'lucide-react';
+import { ChevronDown, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -209,6 +209,60 @@ function ListMenu({ field }: { field: ListField }) {
  * from the value on the field background. `flat`: the whole chip on the
  * tint, name and value side by side.
  */
+/**
+ * A list filter as a plain dropdown, for a page with one filter (Renewals'
+ * Registrar): it looks like a select, reads "All registrars" when nothing is
+ * picked, and has no ×. Its menu is the chip's, so picking works the same.
+ */
+export function FilterDropdown({
+  field,
+  align = 'end',
+  className,
+}: {
+  field: Omit<ListField, 'kind'>;
+  /** The menu's edge against the trigger's. */
+  align?: 'start' | 'end';
+  className?: string;
+}) {
+  const list: ListField = { ...field, kind: 'list' };
+  const summary = summaryOf(list);
+  const Icon = field.icon;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${field.label}: ${summary ?? 'all'}`}
+          // The look of a select trigger (components/ui/select.tsx).
+          className={cn(
+            'flex h-9 items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 text-sm whitespace-nowrap shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-input/30 dark:hover:bg-input/50',
+            className,
+          )}
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <Icon className="size-4 shrink-0 text-muted-foreground" />
+            <span className="truncate">{summary ?? `All ${field.plural}`}</span>
+          </span>
+          <ChevronDown className="size-4 shrink-0 opacity-50" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align={align}
+        sideOffset={6}
+        className="w-60"
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        // Hand the panel's focus on to its search box, as the chip does.
+        onFocus={(e) => {
+          if (e.target === e.currentTarget)
+            e.currentTarget.querySelector('input')?.focus();
+        }}
+      >
+        <ListMenu field={list} />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export type FilterChipVariant = 'segmented' | 'flat';
 
 /**

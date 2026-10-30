@@ -1,4 +1,4 @@
-import { startTransition, type ComponentType } from 'react';
+import { startTransition, type ComponentType, type ReactNode } from 'react';
 import { Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,8 @@ import { stopMenuKeys, type FilterField } from './FilterBar';
 /**
  * A filter bar field for one date column. `presets` are the shortcuts that
  * suit it (FUTURE_DATE_PRESETS or PAST_DATE_PRESETS, or a pick of them);
- * `count`, when given, numbers the rows each shortcut would keep.
+ * `count`, when given, numbers the rows each shortcut would keep, and
+ * `presetIcons` puts a mark before a shortcut (Expiration's colours).
  * `onChange` gets the new range, NO_DATE_RANGE when the chip is cleared.
  */
 export function dateRangeField({
@@ -34,6 +35,7 @@ export function dateRangeField({
   icon = Calendar,
   range,
   presets = [],
+  presetIcons,
   count,
   onChange,
 }: {
@@ -42,6 +44,7 @@ export function dateRangeField({
   icon?: ComponentType<{ className?: string }>;
   range: DateRange;
   presets?: DatePresetId[];
+  presetIcons?: Partial<Record<DatePresetId, ReactNode>>;
   count?: (range: DateRange) => number;
   onChange: (next: DateRange) => void;
 }): FilterField {
@@ -57,6 +60,7 @@ export function dateRangeField({
         label={label}
         value={range}
         presets={presets}
+        presetIcons={presetIcons}
         count={count}
         onChange={onChange}
       />
@@ -69,12 +73,14 @@ function DateRangeMenu({
   label,
   value,
   presets,
+  presetIcons,
   count,
   onChange,
 }: {
   label: string;
   value: DateRange;
   presets: DatePresetId[];
+  presetIcons?: Partial<Record<DatePresetId, ReactNode>>;
   count?: (range: DateRange) => number;
   onChange: (next: DateRange) => void;
 }) {
@@ -96,7 +102,17 @@ function DateRangeMenu({
               )
             }
           >
-            <span className="flex-1 truncate">{DATE_PRESETS[id].label}</span>
+            {/* Grace and Redemption sit indented under Expired, which
+                includes them. */}
+            <span
+              className={cn(
+                'flex flex-1 items-center gap-2 truncate',
+                DATE_PRESETS[id].within && 'pl-4',
+              )}
+            >
+              {presetIcons?.[id]}
+              {DATE_PRESETS[id].label}
+            </span>
             {count && (
               <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">
                 {count(presetRange(id, today))}

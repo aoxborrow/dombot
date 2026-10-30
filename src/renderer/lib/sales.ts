@@ -55,7 +55,7 @@ export const SALE_STEP_LABEL: Record<
   string
 > = {
   auth_code: 'Needs the auth code',
-  transfer: 'Transfer',
+  transfer: 'Waiting on the transfer',
   payee_details: 'Needs payee details',
 };
 

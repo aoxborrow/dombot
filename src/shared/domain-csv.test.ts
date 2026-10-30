@@ -7,7 +7,7 @@ import {
   domainsCsvTemplate,
   type DomainCsvContext,
 } from './domain-csv';
-import { HIDDEN_FOLDER_ID, type Domain, type Folder } from './ipc';
+import type { Domain, Folder } from './ipc';
 
 const NOW = new Date('2026-06-15T12:00:00Z').getTime();
 
@@ -38,7 +38,7 @@ function ctx(partial: Partial<DomainCsvContext> = {}): DomainCsvContext {
     listPrices: {},
     pricing: {},
     manualPrices: {},
-    archiveLabel: () => null,
+    statusOf: () => null,
     accountName: (d) => (d.registrar === 'godaddy' ? 'GoDaddy #2' : 'Dynadot'),
     now: NOW,
     ...partial,
@@ -169,19 +169,26 @@ describe('domainsToCsv', () => {
           domain({ domainName: 'a.com' }),
           domain({ domainName: 'b.com' }),
           domain({ domainName: 'c.com', departed: true }),
+          domain({ domainName: 'd.com', departed: true }),
         ],
         ctx({
           folders,
-          assignments: { 'a.com': 'f1', 'b.com': HIDDEN_FOLDER_ID },
-          archiveLabel: (name) => (name === 'c.com' ? 'sold' : null),
+          assignments: { 'a.com': 'f1' },
+          statusOf: (d) =>
+            d.domainName === 'c.com'
+              ? 'sold'
+              : d.domainName === 'd.com'
+                ? 'expired'
+                : null,
           manualPrices: { 'c.com': { amount: '12.00', currency: 'USD' } },
         }),
       ),
     );
     expect(rows.map((r) => [r.Status, r.Folder])).toEqual([
       ['Owned', 'Premium'],
-      ['Owned', 'Hidden'],
+      ['Owned', ''],
       ['Sold', ''],
+      ['Expired', ''],
     ]);
     // A name no account holds has no registrar-reported values.
     // Your renewal price is kept, so the file imports back the same.
