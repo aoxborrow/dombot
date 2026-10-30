@@ -5,13 +5,14 @@ import {
   BadgeDollarSign,
   Building2,
   CalendarClock,
+  Clock,
   Coins,
   Download,
   Ellipsis,
   Globe,
   History,
-  Hourglass,
   Pencil,
+  Receipt,
   Store,
 } from 'lucide-react';
 import { toUnicode } from '../../shared/domain-name';
@@ -651,41 +652,37 @@ export default function Sales() {
           <h1 className="mt-1.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
             Sales
           </h1>
-          {/* On phones, where the switch takes its row, Export stays here. */}
-          <div className="sm:hidden">{exportButton}</div>
-        </div>
-
-        {/* The view first, as on Renewals, with Export at the other end. */}
-        <div className="flex items-center justify-between gap-3">
-          <ToolbarSwitch
-            fillOnPhone
-            label="Which sales to show"
-            options={[
-              {
-                id: 'all',
-                label: 'All',
-                icon: BadgeDollarSign,
-                count: rows.length,
-                active: !pendingOnly,
-                onClick: () => setView(false),
-              },
-              {
-                id: 'pending',
-                label: 'Pending',
-                icon: Hourglass,
-                count: pendingCount,
-                active: pendingOnly,
-                onClick: () => setView(true),
-              },
-            ]}
-          />
-          <div className="hidden sm:block">{exportButton}</div>
+          {exportButton}
         </div>
 
         <SalesCards rows={viewRows} pendingView={pendingOnly} money={money} />
 
         <FilterToolbar
           id="sales"
+          switch={
+            <ToolbarSwitch
+              fillOnPhone
+              label="Which sales to show"
+              options={[
+                {
+                  id: 'all',
+                  label: 'All',
+                  icon: Receipt,
+                  count: rows.length,
+                  active: !pendingOnly,
+                  onClick: () => setView(false),
+                },
+                {
+                  id: 'pending',
+                  label: 'Pending',
+                  icon: Clock,
+                  count: pendingCount,
+                  active: pendingOnly,
+                  onClick: () => setView(true),
+                },
+              ]}
+            />
+          }
           search={search}
           onSearch={(value) => {
             setSearch(value);

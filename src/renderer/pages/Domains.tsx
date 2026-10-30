@@ -2349,19 +2349,6 @@ export default function Domains() {
             get their own row. */}
         {syncErrors && <div className="-mt-1.5 sm:hidden">{syncErrors}</div>}
 
-        {/* The view first, as on Renewals; its counts stand in for a
-            subtitle under the title. */}
-        <div className="flex">
-          <OwnershipSwitch
-            view={view}
-            ownedCount={ownedCount}
-            listedCount={listedCount}
-            archiveCount={archiveCount}
-            listings={marketsOn}
-            onView={setListView}
-          />
-        </div>
-
         {(archiveView ? archiveCount > 0 : ownedCount > 0) && (
           <DomainsCards
             view={view}
@@ -2404,6 +2391,16 @@ export default function Domains() {
         <FilterToolbar
           key={view}
           id={`domains.${view}`}
+          switch={
+            <OwnershipSwitch
+              view={view}
+              ownedCount={ownedCount}
+              listedCount={listedCount}
+              archiveCount={archiveCount}
+              listings={marketsOn}
+              onView={setListView}
+            />
+          }
           search={search}
           onSearch={(value) => {
             setSearch(value);

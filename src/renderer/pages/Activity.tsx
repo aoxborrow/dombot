@@ -786,35 +786,33 @@ export default function Activity() {
           </h1>
         </div>
 
-        {/* The view on its own row, as on Domains and Sales; the default
-            first. */}
-        <div className="flex">
-          <ToolbarSwitch
-            fillOnPhone
-            label="Which activity to show"
-            options={[
-              {
-                id: 'all',
-                label: 'All',
-                icon: History,
-                count: allRows.length,
-                active: !reviewOnly,
-                onClick: () => setView(false),
-              },
-              {
-                id: 'review',
-                label: 'Needs review',
-                icon: Bell,
-                count: reviewCount,
-                active: reviewOnly,
-                onClick: () => setView(true),
-              },
-            ]}
-          />
-        </div>
-
         <FilterToolbar
           id="activity"
+          // The default view first.
+          switch={
+            <ToolbarSwitch
+              fillOnPhone
+              label="Which activity to show"
+              options={[
+                {
+                  id: 'all',
+                  label: 'All',
+                  icon: History,
+                  count: allRows.length,
+                  active: !reviewOnly,
+                  onClick: () => setView(false),
+                },
+                {
+                  id: 'review',
+                  label: 'Needs review',
+                  icon: Bell,
+                  count: reviewCount,
+                  active: reviewOnly,
+                  onClick: () => setView(true),
+                },
+              ]}
+            />
+          }
           search={search}
           onSearch={(value) => {
             setSearch(value);
