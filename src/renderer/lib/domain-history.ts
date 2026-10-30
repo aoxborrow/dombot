@@ -8,8 +8,8 @@ import type { ArchiveLabel } from '../../shared/ownership';
 
 export const ARCHIVE_LABEL: Record<ArchiveLabel, string> = {
   sold: 'Sold',
-  dropped: 'Dropped',
-  archived: 'Archived',
+  deleted: 'Deleted',
+  expired: 'Expired',
   removed: 'Removed',
 };
 

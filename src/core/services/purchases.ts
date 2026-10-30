@@ -214,7 +214,7 @@ export function setSale(
   const date = typed ?? (input.mark && !amount ? localDay() : null);
   // Marking Sold, or answering an alert, records a new sale: a name that was
   // sold, left, and came back keeps its earlier sale as history. Marking
-  // replaces the Dropped or Archived label you'd set (see replaceLabel).
+  // replaces the sale you'd recorded (see replaceLabel).
   const replaced = input.mark ? replaceLabel(domain) : undefined;
   const resolves = input.resolves ?? replaced?.resolves;
   const existing =

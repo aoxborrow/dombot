@@ -1,6 +1,4 @@
 import {
-  HIDDEN_FOLDER_ID,
-  isHiddenFolder,
   type Folder,
   type FolderInput,
   type FolderPatch,
@@ -58,7 +56,6 @@ export function updateFolder(id: string, patch: FolderPatch): void {
 
 /** Deletes a folder and drops every assignment pointing at it. */
 export function deleteFolder(id: string): void {
-  if (isHiddenFolder(id)) return;
   persistFolders(loadFolders().filter((f) => f.id !== id));
   for (const [key, folderId] of Object.entries(assignments.all())) {
     if (folderId === id) void assignments.delete(key);
@@ -75,9 +72,7 @@ export function assignFolder(
 ): void {
   const key = assertDomainName(domainName);
   const valid =
-    folderId !== null &&
-    (folderId === HIDDEN_FOLDER_ID ||
-      loadFolders().some((f) => f.id === folderId));
+    folderId !== null && loadFolders().some((f) => f.id === folderId);
   if (valid) void assignments.set(key, folderId);
   else void assignments.delete(key);
 }
@@ -91,7 +86,7 @@ export function assignFolders(
 ): void {
   const ids = new Set(loadFolders().map((f) => f.id));
   const writes = entries
-    .filter(([, id]) => id === HIDDEN_FOLDER_ID || ids.has(id))
+    .filter(([, id]) => ids.has(id))
     .map(([domain, id]) => [assertDomainName(domain), id] as [string, string]);
   if (writes.length > 0) void assignments.setMany(writes);
 }
