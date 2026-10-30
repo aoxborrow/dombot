@@ -40,7 +40,7 @@ export const FOLDER_COLOR_STYLES: Record<FolderColor, FolderColorStyle> = {
     label: 'Amber',
     chip: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
     swatch: 'bg-amber-500',
-    text: 'text-amber-600 dark:text-amber-400',
+    text: 'text-amber-500 dark:text-amber-400',
   },
   green: {
     label: 'Green',

@@ -62,7 +62,7 @@ export function RegistrarLogo({
       role="img"
       aria-label={`${label} logo`}
       className={cn(
-        'inline-flex size-[27px] shrink-0 items-center justify-center text-muted-foreground/70 [&>svg]:size-full',
+        'inline-flex size-[27px] shrink-0 items-center justify-center text-muted-foreground/85 [&>svg]:size-full',
         className,
       )}
       dangerouslySetInnerHTML={{ __html: monochrome(svg) }}

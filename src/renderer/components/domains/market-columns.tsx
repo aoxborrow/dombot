@@ -139,7 +139,7 @@ function cellState(
   if (diff)
     return {
       icon: diff > 0 ? CircleArrowUp : CircleArrowDown,
-      className: 'text-amber-600 dark:text-amber-400',
+      className: 'text-amber-500 dark:text-amber-400',
       label: diff > 0 ? 'Above your price' : 'Below your price',
       faded: false,
     };
