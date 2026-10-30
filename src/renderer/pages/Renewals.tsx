@@ -8,7 +8,6 @@ import {
   Globe,
   IterationCw,
   RefreshCwOff,
-  TrendingUp,
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { importedRows } from '../../shared/imported-domains';
@@ -292,15 +291,6 @@ export default function Renewals() {
     () => dueWithin(portfolio, pricing, 90, currency),
     [portfolio, pricing, currency],
   );
-  // The month of the next 12 with the most to pay.
-  const peak = useMemo(
-    () =>
-      months.reduce<(typeof months)[number] | null>(
-        (top, m) => (m.yearly > (top?.yearly ?? 0) ? m : top),
-        null,
-      ),
-    [months],
-  );
 
   // Donut slices: registrar and TLD, each by domain count and by yearly spend.
   const regCount = useMemo(
@@ -387,18 +377,25 @@ export default function Renewals() {
           size="sm"
           icon={CalendarClock}
           accentClass="text-amber-500"
-          label="Due soon"
+          label="Due, 30 days"
           value={[
-            { value: usd(due30.yearly), unit: '/30d' },
-            { value: usd(due90.yearly), unit: '/90d' },
+            {
+              value: usd(due30.yearly),
+              unit: `${due30.count} name${due30.count === 1 ? '' : 's'}`,
+            },
           ]}
         />
         <StatCard
           size="sm"
-          icon={TrendingUp}
-          accentClass="text-violet-500"
-          label="Biggest month"
-          value={peak ? [{ value: usd(peak.yearly), unit: peak.label }] : '—'}
+          icon={CalendarClock}
+          accentClass="text-orange-500"
+          label="Due, 90 days"
+          value={[
+            {
+              value: usd(due90.yearly),
+              unit: `${due90.count} name${due90.count === 1 ? '' : 's'}`,
+            },
+          ]}
         />
       </StatCardRow>
 
