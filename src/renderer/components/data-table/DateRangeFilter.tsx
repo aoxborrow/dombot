@@ -96,7 +96,16 @@ function DateRangeMenu({
               )
             }
           >
-            <span className="flex-1 truncate">{DATE_PRESETS[id].label}</span>
+            {/* Grace and Redemption sit indented under Expired, which
+                includes them. */}
+            <span
+              className={cn(
+                'flex-1 truncate',
+                DATE_PRESETS[id].within && 'pl-4',
+              )}
+            >
+              {DATE_PRESETS[id].label}
+            </span>
             {count && (
               <span className="ml-4 shrink-0 text-xs tabular-nums text-muted-foreground">
                 {count(presetRange(id, today))}

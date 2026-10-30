@@ -412,6 +412,9 @@ function FolderMenuContent({
 
 type LifecycleTone = 'redemption' | 'expired' | 'grace' | 'hold';
 
+/** Expired by the date alone, when the registrar's status doesn't say. */
+const EXPIRED = { label: 'Expired', tone: 'expired' as LifecycleTone };
+
 /**
  * A solid pill per lifecycle state. The post-expiry states walk the cool side
  * of the wheel with severity — grace (still renewable at the normal price) is
@@ -690,19 +693,32 @@ const COLUMNS: Column[] = [
       const color = expiryColor(days);
       // Past expiry, the registrar's Expired / Grace / Redemption takes the
       // countdown's place: the colour already says how long ago.
+      // Past the date with no registrar state, it's Expired too.
       const lifecycle = domainLifecycle(d.status);
-      const state = lifecycle && lifecycle.tone !== 'hold' ? lifecycle : null;
+      const state =
+        lifecycle && lifecycle.tone !== 'hold'
+          ? lifecycle
+          : days !== null && days < 0
+            ? EXPIRED
+            : null;
       return (
         <span
           className={cn(
             'inline-flex items-center gap-2.5 font-mono tabular-nums',
             color,
           )}
-          title={state ? `${dueLabel(days)} · ${state.label}` : dueLabel(days)}
+          title={
+            state && state !== EXPIRED
+              ? `${dueLabel(days)} · ${state.label}`
+              : dueLabel(days)
+          }
         >
           <span>{fmtDate(d.expirationDate)}</span>
           {state ? (
-            <LifecycleBadge status={d.status} hold={false} />
+            <LifecycleBadge
+              status={state === EXPIRED ? 'expired' : d.status}
+              hold={false}
+            />
           ) : (
             // A countdown ahead of expiry; past it the colour says enough.
             days !== null &&

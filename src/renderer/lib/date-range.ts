@@ -97,7 +97,12 @@ function shiftDay(today: Date, days: number, years = 0): string {
  */
 export const DATE_PRESETS: Record<
   DatePresetId,
-  { label: string; bounds: (today: Date) => DateRange }
+  {
+    label: string;
+    bounds: (today: Date) => DateRange;
+    /** A narrower pick inside this shortcut, listed indented under it. */
+    within?: DatePresetId;
+  }
 > = {
   expired: {
     label: 'Expired',
@@ -107,10 +112,12 @@ export const DATE_PRESETS: Record<
   grace: {
     label: 'Grace',
     bounds: () => ({ from: '', to: '' }),
+    within: 'expired',
   },
   redemption: {
     label: 'Redemption',
     bounds: () => ({ from: '', to: '' }),
+    within: 'expired',
   },
   next30: {
     label: 'Next 30 days',
