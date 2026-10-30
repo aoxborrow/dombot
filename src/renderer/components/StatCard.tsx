@@ -78,10 +78,10 @@ export function StatCard({
           look === 'ghost'
             ? // Narrow: small in the top-right corner, the number running
               // over it.
-              'top-[5px] right-[5px] size-[22px] opacity-40 [stroke-width:1.75] sm:top-1.5 sm:right-1.5 sm:size-6 @min-[210px]:opacity-45'
+              'top-[3px] right-[5px] size-[17px] opacity-40 [stroke-width:1.75] sm:top-1 sm:right-1.5 sm:size-[19px] @min-[210px]:opacity-45'
             : // Dimmer than the ghost; a narrow card has only a glyph
               // before its label instead.
-              'hidden opacity-25 @min-[210px]:block',
+              'hidden opacity-30 @min-[210px]:block',
           accentClass,
         )}
         aria-hidden
