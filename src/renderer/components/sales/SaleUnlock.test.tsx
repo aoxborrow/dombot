@@ -12,6 +12,12 @@ const state = {
 vi.mock('../../store/app', () => ({
   useAppStore: (select: (s: typeof state) => unknown) => select(state),
 }));
+// A static render can't click, so this seeds the button's own Unlocking state.
+let clicked = false;
+vi.mock('react', async (importOriginal) => {
+  const react = await importOriginal<typeof import('react')>();
+  return { ...react, useState: (init: unknown) => [clicked || init, vi.fn()] };
+});
 const { SaleUnlock } = await import('./SaleUnlock');
 
 const domain = (patch: Partial<Domain> = {}): Domain => ({
@@ -36,6 +42,7 @@ const html = (d: Domain) =>
 beforeEach(() => {
   state.registrars = null;
   state.mutating = {};
+  clicked = false;
 });
 
 describe('SaleUnlock', () => {
@@ -62,10 +69,25 @@ describe('SaleUnlock', () => {
     );
   });
 
-  it('reads Unlocking… while the registrar is asked', () => {
+  it('reads Unlocking… while its own write runs', () => {
+    clicked = true;
     state.mutating = { 'dynadot:sold.com': true };
     const out = html(domain());
     expect(out).toContain('Unlocking…');
     expect(out).toContain('disabled=""');
+  });
+
+  it('waits, without reading Unlocking…, while another write runs', () => {
+    state.mutating = { 'dynadot:sold.com': true };
+    const out = html(domain());
+    expect(out).toContain('>Unlock</button>');
+    expect(out).toContain('disabled=""');
+  });
+
+  it('stays Unlocked while another write on the name runs', () => {
+    state.mutating = { 'dynadot:sold.com': true };
+    const out = html(domain({ locked: false }));
+    expect(out).toContain('>Unlocked</button>');
+    expect(out).not.toContain('Unlocking…');
   });
 });
