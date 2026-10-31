@@ -1,6 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpCircle, ChevronDown, Coins, History, X } from 'lucide-react';
+import {
+  ChevronDown,
+  CircleAlert,
+  CircleArrowUp,
+  CircleDollarSign,
+  CircleMinus,
+  CirclePlus,
+  Coins,
+  History,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { BellIcon } from '@heroicons/react/24/outline';
 import { toUnicode } from '../../../shared/domain-name';
 import {
@@ -8,7 +19,7 @@ import {
   notifications,
   type Notification,
 } from '../../../shared/notifications';
-import { SEVERITY_COUNT, SEVERITY_DOT } from '../../lib/severity';
+import { SEVERITY_COUNT, SEVERITY_TEXT } from '../../lib/severity';
 import { accountName } from '../../lib/domain-history';
 import { syncProblems } from '../../lib/activity';
 import { timeAgo } from '../../lib/time';
@@ -16,8 +27,6 @@ import { useAppStore } from '../../store/app';
 import { useAvailableUpdate, useUpdates } from '../../lib/updates';
 import { useUnconvertible } from '../../lib/unconvertible';
 import type { UnconvertibleAmount } from '../../../shared/unconvertible';
-import { EventTypeBadge } from './EventTypeBadge';
-import { Badge } from '@/components/ui/badge';
 import type { MarketSale } from '../../../shared/markets';
 import { cn } from '@/lib/utils';
 import {
@@ -155,51 +164,48 @@ export function ActivityBell() {
           </Link>
         </div>
 
-        {update && (
-          // The whole row highlights on hover, under the dismiss button too.
-          <div className="flex items-center border-b bg-brand/[0.06] hover:bg-brand/10">
-            <Link
-              to="/settings?tab=about"
-              onClick={close}
-              className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 text-sm"
-              title={`You have ${update.current}`}
-            >
-              <ArrowUpCircle
-                className="size-4 shrink-0 text-brand"
-                aria-hidden
-              />
-              <span className="min-w-0 flex-1 truncate">
-                <span className="font-medium text-brand">
-                  DomBot {update.latest.version}
-                </span>{' '}
-                <span className="text-muted-foreground">is available</span>
-              </span>
-              {update.latest.publishedAt && (
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {timeAgo(Date.parse(update.latest.publishedAt))}
-                </span>
-              )}
-            </Link>
-            <button
-              type="button"
-              onClick={() => dismissUpdate(update.latest.version)}
-              aria-label={`Dismiss DomBot ${update.latest.version}`}
-              title="Dismiss until the next release"
-              className="mx-1 shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
-        )}
-        {unconvertible.shown && (
-          <UnconvertibleRow
-            items={unconvertible.items}
-            onDismiss={unconvertible.dismiss}
-            onNavigate={close}
-          />
-        )}
-        {salesToAct.length > 0 && (
-          <ul className="border-b py-1">
+        {list.length === 0 &&
+        !update &&
+        !unconvertible.shown &&
+        !salesToAct.length ? (
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+            Nothing needs your attention.
+          </p>
+        ) : (
+          <ul className="min-h-0 flex-1 overflow-y-auto py-1">
+            {update && (
+              <li>
+                <BellRow
+                  icon={CircleArrowUp}
+                  tone="text-brand"
+                  to="/settings?tab=about"
+                  onNavigate={close}
+                  title={`You have ${update.current}`}
+                  at={
+                    update.latest.publishedAt
+                      ? Date.parse(update.latest.publishedAt)
+                      : null
+                  }
+                  onDismiss={() => dismissUpdate(update.latest.version)}
+                  dismissLabel={`Dismiss DomBot ${update.latest.version}`}
+                  dismissTitle="Dismiss until the next release"
+                >
+                  <span className="font-medium">
+                    DomBot {update.latest.version}
+                  </span>{' '}
+                  <span className="text-muted-foreground">is available</span>
+                </BellRow>
+              </li>
+            )}
+            {unconvertible.shown && (
+              <li>
+                <UnconvertibleRow
+                  items={unconvertible.items}
+                  onDismiss={unconvertible.dismiss}
+                  onNavigate={close}
+                />
+              </li>
+            )}
             {salesToAct.map((sale) => (
               <li key={`${sale.accountId}:${sale.id}`}>
                 <SaleRow
@@ -212,17 +218,6 @@ export function ActivityBell() {
                 />
               </li>
             ))}
-          </ul>
-        )}
-        {list.length === 0 &&
-        (update ||
-          salesToAct.length > 0 ||
-          unconvertible.shown) ? null : list.length === 0 ? (
-          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-            Nothing needs your attention.
-          </p>
-        ) : (
-          <ul className="min-h-0 flex-1 overflow-y-auto py-1">
             {list.slice(0, SHOWN).map((n) => (
               <li key={n.id}>
                 <NotificationRow
@@ -248,7 +243,7 @@ export function ActivityBell() {
                   to="/activity?review=1"
                   state={{ fresh: true }}
                   onClick={close}
-                  className="block px-3 py-1.5 text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
+                  className="block py-1.5 pr-3 pl-[38px] text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground dark:hover:bg-accent/50"
                 >
                   and {list.length - SHOWN} more
                 </Link>
@@ -261,10 +256,104 @@ export function ActivityBell() {
   );
 }
 
+// Text starts 38px in: the 12px padding, the 16px icon and the 10px gap.
+// The currency list and "and N more" indent to match.
+const ROW =
+  'flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50';
+
 /**
- * One notification: severity dot, what happened, and when. A domain row opens
- * Activity on that name; a sync error opens Settings → Registrars, where its
- * card has the details (the message is also the row's tooltip).
+ * Every row in the bell has one shape: an icon coloured by how much it needs
+ * you, what happened, when, and, for the notes you can put away, a dismiss
+ * button. The icon says what kind of thing it is, so there are no pills.
+ */
+function BellRow({
+  icon: Icon,
+  tone,
+  to,
+  state,
+  onNavigate,
+  title,
+  at,
+  onDismiss,
+  dismissLabel,
+  dismissTitle,
+  children,
+}: {
+  icon: LucideIcon;
+  /** The icon's colour class. */
+  tone: string;
+  to: string;
+  state?: unknown;
+  onNavigate: () => void;
+  title?: string;
+  /** ms epoch; null shows no time. */
+  at?: number | null;
+  onDismiss?: () => void;
+  dismissLabel?: string;
+  dismissTitle?: string;
+  children: ReactNode;
+}) {
+  const link = (
+    <Link
+      to={to}
+      state={state}
+      onClick={onNavigate}
+      className={cn(
+        ROW,
+        onDismiss &&
+          'min-w-0 flex-1 pr-0 hover:bg-transparent dark:hover:bg-transparent',
+      )}
+      title={title}
+    >
+      <Icon className={cn('size-4 shrink-0', tone)} aria-hidden />
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {at != null && (
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {timeAgo(at)}
+        </span>
+      )}
+    </Link>
+  );
+  if (!onDismiss) return link;
+  // The whole row highlights on hover, under the dismiss button too.
+  return (
+    <div className="flex items-center hover:bg-foreground/5 dark:hover:bg-accent/50">
+      {link}
+      <DismissButton
+        onClick={onDismiss}
+        label={dismissLabel}
+        title={dismissTitle}
+      />
+    </div>
+  );
+}
+
+function DismissButton({
+  onClick,
+  label,
+  title,
+}: {
+  onClick: () => void;
+  label?: string;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={title}
+      className="mx-1 shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
+    >
+      <X className="size-3.5" />
+    </button>
+  );
+}
+
+/**
+ * One notification. A name that left or arrived opens Activity on that name;
+ * a sync error opens the account's settings, where its card has the details
+ * (the message is also the row's tooltip).
  */
 function NotificationRow({
   n,
@@ -278,59 +367,42 @@ function NotificationRow({
   settingsTab?: 'registrars' | 'markets';
   onNavigate: () => void;
 }) {
-  const dot = (
-    <span
-      className={cn('size-2 shrink-0 rounded-full', SEVERITY_DOT[n.severity])}
-      aria-hidden
-    />
-  );
   if (n.kind === 'sync-error') {
-    // Opens Settings → Registrars, where the account's card has the error.
     return (
-      <Link
+      <BellRow
+        icon={CircleAlert}
+        tone={SEVERITY_TEXT.error}
         to={`/settings?tab=${settingsTab}`}
-        onClick={onNavigate}
-        className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
+        onNavigate={onNavigate}
         title={n.message}
+        at={n.at}
       >
-        {/* No dot: the solid pill is the signal, set apart from the
-            outlined event types below. */}
-        <Badge className="border-transparent bg-red-600 text-white dark:bg-red-500">
-          Error
-        </Badge>
-        <span className="min-w-0 flex-1 truncate">
-          <span className="font-medium">
-            {account ?? n.message.split(':')[0]}
-          </span>{' '}
-          <span className="text-muted-foreground">sync failed</span>
-        </span>
-        {n.at !== null && (
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {timeAgo(n.at)}
-          </span>
-        )}
-      </Link>
+        <span className="font-medium">
+          {account ?? n.message.split(':')[0]}
+        </span>{' '}
+        <span className="text-muted-foreground">sync failed</span>
+      </BellRow>
     );
   }
   const name = toUnicode(n.domain ?? '');
+  const departure = n.kind === 'departure';
   return (
-    <Link
+    <BellRow
+      icon={departure ? CircleMinus : CirclePlus}
+      tone={SEVERITY_TEXT[n.severity]}
       to={`/activity?review=1&q=${encodeURIComponent(name)}`}
       // Activity clears its other filters so this name shows.
       state={{ fresh: true }}
-      onClick={onNavigate}
-      className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
+      onNavigate={onNavigate}
       title={account ? `${name}, ${account}` : name}
+      at={n.at}
     >
-      {dot}
-      <EventTypeBadge type={n.kind === 'departure' ? 'removed' : 'added'} />
-      <span className="min-w-0 flex-1 truncate font-mono">{name}</span>
-      {n.at !== null && (
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {timeAgo(n.at)}
-        </span>
-      )}
-    </Link>
+      <span className="font-mono">{name}</span>{' '}
+      <span className="text-muted-foreground">
+        {departure ? 'removed' : 'added'}
+        {account && ` ${departure ? 'from' : 'to'} ${account}`}
+      </span>
+    </BellRow>
   );
 }
 
@@ -351,13 +423,13 @@ function UnconvertibleRow({
   const [open, setOpen] = useState(false);
   const n = items.length;
   return (
-    <div className="border-b">
+    <div>
       <div className="flex items-center hover:bg-foreground/5 dark:hover:bg-accent/50">
         <button
           type="button"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
-          className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 text-left text-sm"
+          className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pl-3 text-left text-sm"
         >
           <Coins
             className="size-4 shrink-0 text-muted-foreground"
@@ -379,19 +451,15 @@ function UnconvertibleRow({
             aria-hidden
           />
         </button>
-        <button
-          type="button"
+        <DismissButton
           onClick={onDismiss}
-          aria-label="Dismiss the currency note"
+          label="Dismiss the currency note"
           title="Dismiss until there are more"
-          className="mx-1 shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
-        >
-          <X className="size-3.5" />
-        </button>
+        />
       </div>
       {open && (
         <div className="pb-1.5">
-          <p className="px-3 pb-1.5 pl-9 text-xs text-muted-foreground">
+          <p className="px-3 pb-1.5 pl-[38px] text-xs text-muted-foreground">
             They stay as recorded, but DomBot can’t convert them into your
             currency. Change each to one of the 30 it converts.
           </p>
@@ -410,7 +478,7 @@ function UnconvertibleRow({
                     }
                     state={inHistory ? { fresh: true } : undefined}
                     onClick={onNavigate}
-                    className="flex items-center gap-2 py-1 pr-3 pl-9 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
+                    className="flex items-center gap-2 py-1 pr-3 pl-[38px] text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
                   >
                     <span className="min-w-0 flex-1 truncate font-mono">
                       {name}
@@ -450,23 +518,20 @@ function SaleRow({
   onNavigate: () => void;
 }) {
   const name = toUnicode(sale.name);
-  const what = `on ${market} ${sale.action ? SALE_ACTION[sale.action] : ''}`;
+  const what = sale.action ? SALE_ACTION[sale.action] : 'in progress';
   return (
-    <Link
+    <BellRow
+      icon={CircleDollarSign}
+      tone={SEVERITY_TEXT.high}
       to="/sales"
-      onClick={onNavigate}
-      className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
-      title={`${name} ${what}`}
+      onNavigate={onNavigate}
+      title={`${name} on ${market} ${what}`}
+      at={sale.soldOn ? Date.parse(sale.soldOn) : null}
     >
-      <span
-        className={cn('size-2 shrink-0 rounded-full', SEVERITY_DOT.high)}
-        aria-hidden
-      />
-      <Badge variant="outline">Sale</Badge>
-      <span className="min-w-0 flex-1 truncate">
-        <span className="font-mono">{name}</span>{' '}
-        <span className="text-muted-foreground">{what}</span>
+      <span className="font-mono">{name}</span>{' '}
+      <span className="text-muted-foreground">
+        {what} · {market}
       </span>
-    </Link>
+    </BellRow>
   );
 }
