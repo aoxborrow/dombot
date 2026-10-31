@@ -125,6 +125,11 @@ export interface DomainEvent {
   resolves?: string;
   /** A sync alert acknowledged with no action. */
   dismissed?: boolean;
+  /**
+   * removed: you marked it dropped: it left and no money came back (let go
+   * early, or moved somewhere DomBot doesn't sync). Counts as dismissed.
+   */
+  dropped?: boolean;
   /** sold: you marked the name handed over, though an account of yours
    * still shows it (the buyer took it at the same registrar, say). */
   transferred?: boolean;

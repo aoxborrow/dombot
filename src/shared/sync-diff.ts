@@ -86,11 +86,15 @@ export function resolvedIds(events: DomainEvent[]): Set<string> {
   return out;
 }
 
-/** An alert still waiting on you: not dismissed, not resolved. */
+/**
+ * An alert still waiting on you: not dismissed (or marked dropped), not
+ * resolved. Activity calls these new.
+ */
 export function isOpenAlert(e: DomainEvent, resolved: Set<string>): boolean {
   return (
     (e.type === DomainEventType.Removed || e.type === DomainEventType.Added) &&
     !e.dismissed &&
+    !e.dropped &&
     !resolved.has(e.id)
   );
 }
