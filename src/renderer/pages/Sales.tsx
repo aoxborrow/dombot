@@ -195,29 +195,29 @@ export default function Sales() {
   // The names pending sales have yet to hand over, as your registrar accounts
   // hold them now, for each row's Unlock. Where a registrar's list doesn't
   // say whether a name is locked, its detail is fetched (as the Domains
-  // table does), and an unlock lands there too.
+  // table does), and an unlock lands there too. A name in more than one
+  // account gets no Unlock: like Send auth code, DomBot won't guess which.
   const portfolio = useAppStore((s) => s.portfolio);
   const enriched = useAppStore((s) => s.enriched);
   const enrichVisible = useAppStore((s) => s.enrichVisible);
   const heldDomains = useMemo(() => {
     const pending = new Set(records.filter(isPending).map((r) => r.name));
-    return new Map(
-      portfolio
-        .filter(
-          (d) =>
-            !d.departed &&
-            d.source !== 'imported' &&
-            pending.has(toAscii(d.domainName)),
-        )
-        .map((d) => [toAscii(d.domainName), d]),
-    );
+    const held = new Map<string, Domain | null>();
+    for (const d of portfolio) {
+      const name = toAscii(d.domainName);
+      if (d.departed || d.source === 'imported' || !pending.has(name)) continue;
+      held.set(name, held.has(name) ? null : d);
+    }
+    return held;
   }, [records, portfolio]);
   useEffect(() => {
-    void enrichVisible([...heldDomains.values()]);
+    void enrichVisible(
+      [...heldDomains.values()].filter((d): d is Domain => d !== null),
+    );
   }, [heldDomains, enrichVisible]);
   const heldDomain = (r: SaleRecord): Domain | undefined => {
     const d = isPending(r) ? heldDomains.get(r.name) : undefined;
-    return d && (enriched[domainKey(d)] ?? d);
+    return d ? (enriched[domainKey(d)] ?? d) : undefined;
   };
 
   const pendingCount = useMemo(() => rows.filter(isPending).length, [rows]);
