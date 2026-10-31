@@ -124,7 +124,7 @@ export function SalesCards({
       <StatCard
         size="sm"
         icon={ShoppingBag}
-        accentClass="text-violet-500"
+        accentClass="text-violet-400"
         label={pendingView ? 'Pending sales' : 'Sales'}
         // Finished and under way; cancelled ones aren't sales.
         value={[
@@ -140,7 +140,7 @@ export function SalesCards({
         <StatCard
           size="sm"
           icon={Banknote}
-          accentClass="text-sky-500"
+          accentClass="text-sky-400"
           label="Value"
           value={value && c ? money(value.toFixed(2), c)! : dash}
         />
@@ -148,7 +148,7 @@ export function SalesCards({
         <StatCard
           size="sm"
           icon={Banknote}
-          accentClass="text-sky-500"
+          accentClass="text-sky-400"
           label="Gross"
           value={[
             {
@@ -177,7 +177,7 @@ export function SalesCards({
         <StatCard
           size="sm"
           icon={Hand}
-          accentClass="text-amber-500"
+          accentClass="text-amber-400"
           label="Needs action"
           // An auth code or payee details for the market.
           value={(waiting.authCode + waiting.payee).toLocaleString()}
@@ -187,7 +187,7 @@ export function SalesCards({
         <StatCard
           size="sm"
           icon={ArrowRightLeft}
-          accentClass="text-sky-500"
+          accentClass="text-sky-400"
           label="Awaiting transfer"
           // At the market, or a name still in your account.
           value={(waiting.market + waiting.held).toLocaleString()}
@@ -197,7 +197,7 @@ export function SalesCards({
         <StatCard
           size="sm"
           icon={Wallet}
-          accentClass="text-brand-500"
+          accentClass="text-brand-400"
           label="Net"
           value={[
             {
@@ -213,7 +213,7 @@ export function SalesCards({
         <StatCard
           size="sm"
           icon={TrendingUp}
-          accentClass="text-rose-500"
+          accentClass="text-rose-400"
           label="Profit"
           value={[
             {
@@ -231,7 +231,7 @@ export function SalesCards({
         <StatCard
           size="sm"
           icon={HandCoins}
-          accentClass="text-amber-500"
+          accentClass="text-amber-400"
           label="Fees"
           value={[
             {
@@ -250,7 +250,7 @@ export function SalesCards({
         <StatCard
           size="sm"
           icon={Wallet}
-          accentClass="text-brand-500"
+          accentClass="text-brand-400"
           label="Expected net"
           value={[
             {

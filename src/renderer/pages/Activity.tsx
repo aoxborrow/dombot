@@ -824,7 +824,7 @@ export default function Activity() {
           <StatCard
             size="sm"
             icon={Bell}
-            accentClass="text-amber-500"
+            accentClass="text-amber-400"
             label="Needs review"
             value={[
               {
@@ -837,7 +837,7 @@ export default function Activity() {
           <StatCard
             size="sm"
             icon={CirclePlus}
-            accentClass="text-brand-500"
+            accentClass="text-brand-400"
             label="Added"
             value={counts.added.toLocaleString()}
             onClick={() => showType('added')}
@@ -845,7 +845,7 @@ export default function Activity() {
           <StatCard
             size="sm"
             icon={CircleMinus}
-            accentClass="text-rose-500"
+            accentClass="text-rose-400"
             label="Removed"
             value={counts.removed.toLocaleString()}
             onClick={() => showType('removed')}
@@ -853,7 +853,7 @@ export default function Activity() {
           <StatCard
             size="sm"
             icon={Receipt}
-            accentClass="text-violet-500"
+            accentClass="text-violet-400"
             label="Sold"
             value={counts.sold.toLocaleString()}
             onClick={() => showType('sold')}

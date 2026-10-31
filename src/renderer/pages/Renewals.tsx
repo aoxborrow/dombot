@@ -402,7 +402,7 @@ export default function Renewals() {
         <StatCard
           size="sm"
           icon={Globe}
-          accentClass="text-blue-500"
+          accentClass="text-blue-400"
           label="Domains"
           value={[
             {
@@ -416,21 +416,21 @@ export default function Renewals() {
         <StatCard
           size="sm"
           icon={ChartColumn}
-          accentClass="text-sky-500"
+          accentClass="text-sky-400"
           label="Monthly avg"
           value={usd(monthly)}
         />
         <StatCard
           size="sm"
           icon={CalendarSync}
-          accentClass="text-brand-500"
+          accentClass="text-brand-400"
           label="Yearly"
           value={[{ value: usd(summary.yearly) }]}
         />
         <StatCard
           size="sm"
           icon={AlarmClock}
-          accentClass="text-amber-500"
+          accentClass="text-amber-400"
           label="Due, 30 days"
           value={[
             {
@@ -442,7 +442,7 @@ export default function Renewals() {
         <StatCard
           size="sm"
           icon={CalendarClock}
-          accentClass="text-orange-500"
+          accentClass="text-orange-400"
           label="Due, 90 days"
           value={[
             {

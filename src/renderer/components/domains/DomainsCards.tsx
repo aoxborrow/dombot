@@ -227,7 +227,7 @@ export function DomainsCards({
     <StatCard
       size="sm"
       icon={Tag}
-      accentClass="text-violet-500"
+      accentClass="text-violet-400"
       label="BIN priced"
       value={[
         {
@@ -249,14 +249,14 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={Archive}
-          accentClass="text-slate-500"
+          accentClass="text-slate-400"
           label="Archived"
           value={total.toLocaleString()}
         />
         <StatCard
           size="sm"
           icon={BadgeDollarSign}
-          accentClass="text-violet-500"
+          accentClass="text-violet-400"
           label="Sold"
           value={cards.sold.toLocaleString()}
           onClick={() => actions.onArchiveStatus(['sold'])}
@@ -264,7 +264,7 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={TimerOff}
-          accentClass="text-amber-500"
+          accentClass="text-amber-400"
           label="Expired"
           value={cards.expired.toLocaleString()}
           onClick={() => actions.onArchiveStatus(['expired'])}
@@ -272,7 +272,7 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={Trash2}
-          accentClass="text-rose-500"
+          accentClass="text-rose-400"
           label="Deleted or removed"
           value={(cards.deleted + cards.removed).toLocaleString()}
           onClick={() => actions.onArchiveStatus(['deleted', 'removed'])}
@@ -281,7 +281,7 @@ export function DomainsCards({
           <StatCard
             size="sm"
             icon={Store}
-            accentClass="text-sky-500"
+            accentClass="text-sky-400"
             label="Still listed"
             value={cards.stillListed.toLocaleString()}
             onClick={() => actions.onMarketStates(['active', 'pending'])}
@@ -296,7 +296,7 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={Store}
-          accentClass="text-brand-500"
+          accentClass="text-brand-400"
           label="Listed"
           value={[
             {
@@ -312,7 +312,7 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={EyeOff}
-          accentClass="text-slate-500"
+          accentClass="text-slate-400"
           label="Not listed"
           // Pending listings aren't live yet either.
           value={[
@@ -326,7 +326,7 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={TriangleAlert}
-          accentClass="text-rose-500"
+          accentClass="text-rose-400"
           label="Issues"
           value={[
             {
@@ -342,7 +342,7 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={ArrowUpDown}
-          accentClass="text-amber-500"
+          accentClass="text-amber-400"
           label="Discrepancies"
           // A market's price apart from your BIN price.
           value={[
@@ -359,7 +359,7 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={Eye}
-          accentClass="text-sky-500"
+          accentClass="text-sky-400"
           label="Views, 30 days"
           // Visits to the names' sale pages; leads only from Afternic.
           value={[
@@ -377,7 +377,7 @@ export function DomainsCards({
       <StatCard
         size="sm"
         icon={Globe}
-        accentClass="text-brand-500"
+        accentClass="text-brand-400"
         label="Domains"
         value={[
           {
@@ -391,7 +391,7 @@ export function DomainsCards({
       <StatCard
         size="sm"
         icon={CalendarClock}
-        accentClass="text-rose-500"
+        accentClass="text-rose-400"
         label="Expiring soon"
         value={[
           { value: cards.in30.toLocaleString(), unit: '/30d' },
@@ -404,7 +404,7 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={Store}
-          accentClass="text-sky-500"
+          accentClass="text-sky-400"
           label="For Sale"
           value={[
             {
@@ -419,7 +419,7 @@ export function DomainsCards({
       <StatCard
         size="sm"
         icon={Gem}
-        accentClass="text-emerald-500"
+        accentClass="text-emerald-400"
         label="BIN value"
         // The BIN prices added up; in the currency most of them use.
         value={[
