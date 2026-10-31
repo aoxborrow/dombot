@@ -1031,7 +1031,7 @@ export default function Domains() {
   // Edit details for an imported name.
   const [detailsFor, setDetailsFor] = useState<Domain | null>(null);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
-  // Mark as Sold for one name: the sale dialog, which takes the price.
+  // Record sale for one name: the sale dialog, which takes the price.
   const [markSoldFor, setMarkSoldFor] = useState<Domain | null>(null);
   // The ownership dialogs, for one name (row menu) or the selection.
   const [ownershipDialog, setOwnershipDialog] = useState<{
@@ -1574,6 +1574,13 @@ export default function Domains() {
       },
     });
   const purchaseOf = (d: Domain) => purchases[toAscii(d.domainName)];
+  /** What's recorded as paid for a name, for its menu's wording. */
+  const paidKind = (d: Domain) => {
+    const p = purchaseOf(d);
+    return p?.purchaseDate || p?.amount
+      ? (p.purchaseType ?? 'purchased')
+      : null;
+  };
   // TLD first in the Add filter menu, though never a default chip.
   const filterFields: FilterField[] = [
     listFilter(
@@ -2183,6 +2190,7 @@ export default function Domains() {
               onAssignFolder={(folderId) => applyFolders([d], folderId)}
               archive={archiveLabelOf(d)}
               sold={!!ownership.get(toAscii(d.domainName))?.sale}
+              paid={paidKind(d)}
               removable={d.departed === true || d.source === 'imported'}
               onMarkSold={() => openOwnership('sold', [d])}
               onDelete={() => openOwnership('delete', [d])}

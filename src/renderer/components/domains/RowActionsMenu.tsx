@@ -39,8 +39,9 @@ import type { MarketAction } from './MarketActionDialog';
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell):
  * for a name you own, a refresh, a Folder submenu, and the actions that
  * aren't a column (forwarding, renew, auth code); then, for every name,
- * Notes, Purchase details, and Mark as Sold (Edit sale once one is recorded;
- * undoing it is in that dialog). Delete ends the menu only for a
+ * Notes, Record purchase (Edit purchase or registration once one is
+ * recorded), and Record sale (Edit sale once one is recorded; undoing it is in
+ * that dialog). Delete ends the menu only for a
  * name no connected account holds (imported and Archive names): a name you
  * hold goes away by turning its auto-renew off (docs/owned-and-archive.md).
  * A name in Archive gets no registrar actions. Registrar-backed items the
@@ -64,6 +65,7 @@ export function RowActionsMenu({
   onAssignFolder,
   archive,
   sold,
+  paid,
   removable,
   onMarkSold,
   onDelete,
@@ -89,8 +91,10 @@ export function RowActionsMenu({
   onAssignFolder: (folderId: string | null) => void;
   /** Why the name is in Archive, or null while you own it. */
   archive: ArchiveLabel | null;
-  /** A sale is on record: Mark as Sold edits it. */
+  /** A sale is on record: Record sale edits it. */
   sold: boolean;
+  /** What's recorded as paid, if anything: Record purchase edits it. */
+  paid?: 'registered' | 'purchased' | null;
   /** No connected account holds it: Delete applies. */
   removable: boolean;
   onMarkSold: () => void;
@@ -220,9 +224,9 @@ export function RowActionsMenu({
             <DropdownMenuSeparator />
           </>
         )}
-        {/* Ownership, in the same order as on Activity. Purchase details and
-            Mark as Sold open with what's saved (and the name's notes), so
-            a sold name's Mark as Sold edits its sale. */}
+        {/* Ownership, in the same order as on Activity. Record purchase and
+            Record sale open with what's saved (and the name's notes), so
+            they edit what's recorded. */}
         <DropdownMenuItem
           onSelect={() => {
             keepFocus.current = true;
@@ -234,7 +238,12 @@ export function RowActionsMenu({
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onEditPurchase}>
           <Calculator className="text-muted-foreground" />
-          Purchase details<span className="-ml-[6px] opacity-50">…</span>
+          {paid === 'registered'
+            ? 'Edit registration'
+            : paid
+              ? 'Edit purchase'
+              : 'Record purchase'}
+          <span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
         {/* Pricing and the markets, in a section of their own. */}
         {archive === null && (
@@ -274,7 +283,7 @@ export function RowActionsMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={sold ? onEditSale : onMarkSold}>
           <Receipt className="text-muted-foreground" />
-          {sold ? 'Edit sale' : 'Mark as Sold'}
+          {sold ? 'Edit sale' : 'Record sale'}
           <span className="-ml-[6px] opacity-50">…</span>
         </DropdownMenuItem>
         {removable && (

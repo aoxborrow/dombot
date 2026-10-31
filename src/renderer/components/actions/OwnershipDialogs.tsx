@@ -13,7 +13,7 @@ const who = (items: { domainName: string }[]) =>
   items.length === 1 ? items[0].domainName : count(items.length);
 
 /**
- * Mark as Sold with no price, for several names at once. (One name gets the
+ * Record a sale with no price, for several names at once. (One name gets the
  * sale dialog, which takes the price.)
  */
 export function MarkSoldDialog({
@@ -29,13 +29,17 @@ export function MarkSoldDialog({
   const [date, setDate] = useState(todayInput);
   return (
     <ActionDialog
-      title="Mark as Sold"
+      title="Record sale"
       names={items.map((i) => i.domainName)}
       description="Records each sale, dated as below. A name still in one of your accounts stays in Owned as Sold until the buyer takes it. Add each price later from its row. Nothing changes at the registrar."
-      actionLabel="Mark as Sold"
+      actionLabel="Record sale"
       onConfirm={async () => {
         await markSold(items, date);
-        toast.success(`Marked ${who(items)} as Sold`);
+        toast.success(
+          items.length === 1
+            ? `Recorded the sale of ${items[0].domainName}`
+            : `Recorded ${items.length} sales`,
+        );
         onDone?.();
       }}
       onClose={onClose}
