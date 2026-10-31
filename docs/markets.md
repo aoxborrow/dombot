@@ -283,7 +283,11 @@ Following docs/storage-model.md:
   Dynadot and Namecheap). The field is in the record from the start; the
   Settings flow for it comes with the first such market.
 - **Sales become `sold` events.** A completed sale writes one `sold` event
-  (source `sync`, date `soldOn`, amount `price`, `currency`) unless one already
+  (source `sync`, date `soldOn`, amount `price`, `currency`), and so does one
+  whose name has moved: the market is on to the payout (`action: 'payout'`)
+  and sync saw the name leave your accounts, since no market backs out after
+  the transfer (a name you bought arrives rather than leaves, so the
+  purchases in a market's sales never qualify). Not if one already
   exists for that sale: the event carries `marketSale`, the sale's
   `market-sales` key (`src/core/services/markets/sale-events.ts`). A `sold`
   event you recorded yourself within 14 days of the sale is linked rather

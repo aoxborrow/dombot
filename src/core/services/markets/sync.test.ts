@@ -480,9 +480,10 @@ describe('sales as sold events', () => {
     ]);
     await connect();
     fake.sales = [
+      // Still at the transfer: no sold event yet, so the removal is answered.
       {
         ...sale('t1', 'going.com', '2026-10-26', 'in_progress'),
-        action: 'payout',
+        action: 'transfer',
       },
     ];
     await syncMarketAccount(ACCOUNT);
@@ -493,6 +494,36 @@ describe('sales as sold events', () => {
     expect(removal('left.com')?.dismissed).toBeUndefined();
     // Under way, so no sold event yet.
     expect(sold()).toEqual([]);
+  });
+
+  it('records a sale once its name has moved, not a purchase or a name you hold', async () => {
+    const left = (domain: string) =>
+      newEvent({
+        domain,
+        type: DomainEventType.Removed,
+        source: DomainEventSource.Sync,
+        accountId: 'dynadot',
+        date: '2026-10-27',
+        dismissed: true,
+      });
+    putEvents([left('moved.com'), left('kept.com')]);
+    held.add('kept.com');
+    await connect();
+    const payout = (id: string, name: string) => ({
+      ...sale(id, name, '2026-10-26', 'in_progress'),
+      action: 'payout' as const,
+    });
+    fake.sales = [
+      payout('t1', 'moved.com'),
+      // A purchase in the market's sales: it never left your accounts.
+      payout('t2', 'bought.com'),
+      // Back in an account (or never gone): not the buyer's yet.
+      payout('t3', 'kept.com'),
+    ];
+    await syncMarketAccount(ACCOUNT);
+    expect(sold().map((e) => [e.domain, e.date, e.source])).toEqual([
+      ['moved.com', '2026-10-26', 'sync'],
+    ]);
   });
 
   it('links your own sale of the name and fills in its price', async () => {
