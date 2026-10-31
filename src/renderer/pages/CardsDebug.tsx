@@ -48,8 +48,8 @@ const CARDS = [
     size="sm"
     icon={Store}
     accentClass="text-sky-400"
-    label="For Sale"
-    value={[{ value: '9,140', unit: '/10,251', words: '89% listed' }]}
+    label="Listed"
+    value={[{ value: '9,140', unit: '/10,251', words: '89% BIN priced' }]}
   />,
   <StatCard
     key="long-whole"
@@ -142,8 +142,8 @@ const BIG_CARDS = [
     size="sm"
     icon={Store}
     accentClass="text-sky-400"
-    label="For Sale"
-    value={[{ value: '91,140', unit: '/100,251', words: '91% listed' }]}
+    label="Listed"
+    value={[{ value: '91,140', unit: '/100,251', words: '91% BIN priced' }]}
   />,
   <StatCard
     key="value"

@@ -417,7 +417,7 @@ sits below the cards.
     than wrapped (`StatCard` value slots).
   - Owned: Domains (registrars), Expiring soon: names with auto-renew off
     expiring within 30 and 60 days, as two numbers ("2/30d 7/60d"); a
-    click sets Expiration and Auto-renew off, BIN priced, For Sale (names live on a market; opens Listings).
+    click sets Expiration and Auto-renew off, BIN priced, For sale (names live on a market; opens Listings).
   - Listings: Listed (live on a market), Not listed (with how many are
     pending), Issues (rejected or inactive), Discrepancies (a market
     price above or below your BIN), each setting the Markets filter. They

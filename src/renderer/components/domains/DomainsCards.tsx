@@ -405,11 +405,11 @@ export function DomainsCards({
           size="sm"
           icon={Store}
           accentClass="text-sky-400"
-          label="For Sale"
+          label="For sale"
+          // Not "/251": the page shows the total enough already.
           value={[
             {
               value: cards.listed.toLocaleString(),
-              unit: `/${total.toLocaleString()}`,
               words: `${pct(cards.listed, total)} listed`,
             },
           ]}
