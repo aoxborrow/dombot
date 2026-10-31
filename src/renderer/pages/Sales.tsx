@@ -300,7 +300,7 @@ export default function Sales() {
       .sort((a, b) => b.count - a.count);
   }, [records]);
 
-  // TLD first in the Add filter menu, though never a default chip.
+  // TLD first in the Filters menu, though never a default chip.
   const filterFields: FilterField[] = [
     listField(
       {

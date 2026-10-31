@@ -5,7 +5,7 @@ import { FilterBar, type FilterField, type ListField } from './FilterBar';
 import { SearchField, ViewSwitch } from './Toolbar';
 
 // A table page's toolbar, as on Domains and Activity: the page's main switch,
-// the search, then the filter chips and "+ Add filter", all wrapping together.
+// the search, then the filter chips and "Filters", all wrapping together.
 
 /** A checkbox-list filter field; `onChange` gets the new selection. */
 export function listField(

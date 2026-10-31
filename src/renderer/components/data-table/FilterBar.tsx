@@ -16,7 +16,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -24,7 +23,7 @@ import type { FilterOption } from './Toolbar';
 import { DomainTableScroll } from '../../lib/domain-table-scroll';
 import { FilterPlusIcon } from '../icons/FilterPlusIcon';
 
-// A table's filter bar: "+ Add filter" opens a menu of fields, and each field
+// A table's filter bar: "Filters" opens a menu of fields, and each field
 // in use becomes a chip (name | value | ×) whose dropdown edits it. Only the
 // filters you set take up room; there's no Reset, each chip clears itself.
 
@@ -74,7 +73,7 @@ function clearField(field: FilterField) {
   else field.onChange([]);
 }
 
-/** Lists (and the Add filter menu) longer than this get a search box. */
+/** Lists longer than this get a search box. */
 const SEARCHABLE = 8;
 
 // The filter green, from the design: the set chip's tint (with its dark
@@ -399,13 +398,13 @@ function FilterChip({
   );
 }
 
-// The Add filter button's box, and its labelled form's spacing.
+// The Filters button's box, and its labelled form's spacing.
 const ADD_FILTER_BOX =
   'inline-flex h-9 items-center rounded-md border border-dashed text-sm whitespace-nowrap';
 const ADD_FILTER_LABELLED = 'gap-1.5 pr-3 pl-[9px]';
 
 /**
- * The menu of fields, opened from "+ Add filter", or from the square "+"
+ * The menu of fields, opened from "Filters", or from the square "+"
  * when only that fits after the last chip. Both stay grey in every state. A checkbox
  * marks each field already showing as a chip: ticking one adds its chip and
  * opens it, unticking one removes its chip (as its × would) and leaves the
@@ -425,17 +424,12 @@ function AddFilter({
   onRemove: (key: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
   const picked = useRef(false);
   const choose = (key: string) => {
     picked.current = true;
     onPick(key);
   };
-  const q = query.trim().toLowerCase();
-  const shown = q
-    ? fields.filter((f) => f.label.toLowerCase().includes(q))
-    : fields;
-  // Labelled when "Add filter" fits on the line after the last chip, or when
+  // Labelled when "Filters" fits on the line after the last chip, or when
   // the button wraps to a line of its own anyway; the square only where it
   // keeps the button on the chips' line and the label wouldn't.
   const ref = useRef<HTMLButtonElement>(null);
@@ -467,20 +461,14 @@ function AddFilter({
   });
   return (
     <>
-      <DropdownMenu
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next);
-          if (!next) setQuery('');
-        }}
-      >
+      <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <button
             ref={ref}
             type="button"
             data-filter-add
-            aria-label="Add filter"
-            title={compact ? 'Add filter' : undefined}
+            aria-label="Filters"
+            title={compact ? 'Filters' : undefined}
             className={cn(
               // Grey: hover darkens the dashes and text like an empty chip's
               // (brightens them in dark mode); keyboard focus gets the app's
@@ -496,7 +484,7 @@ function AddFilter({
             )}
           >
             <FilterPlusIcon className="h-4 w-[17px]" />
-            {!compact && 'Add filter'}
+            {!compact && 'Filters'}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -513,31 +501,7 @@ function AddFilter({
             picked.current = false;
           }}
         >
-          <DropdownMenuLabel className="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-            Add filter
-          </DropdownMenuLabel>
-          {/* Only once there are enough fields to need it. */}
-          {fields.length > SEARCHABLE && (
-            <MenuSearch
-              value={query}
-              onChange={setQuery}
-              placeholder="Find a filter…"
-              onEnter={() => {
-                if (shown.length === 0) return;
-                const key = shown[0].key;
-                if (showing.has(key)) return onRemove(key);
-                choose(key);
-                setOpen(false);
-                setQuery('');
-              }}
-            />
-          )}
-          {shown.length === 0 && (
-            <div className="px-2 py-1.5 text-sm text-muted-foreground">
-              No matches
-            </div>
-          )}
-          {shown.map((f) => {
+          {fields.map((f) => {
             const Icon = f.icon;
             return (
               <DropdownMenuCheckboxItem
@@ -568,7 +532,7 @@ function AddFilter({
         )}
       >
         <FilterPlusIcon className="h-4 w-[17px]" />
-        Add filter
+        Filters
       </span>
     </>
   );
@@ -616,7 +580,7 @@ function rowOf(el: Element | null): HTMLElement | null {
  * The filter chips, then the add button. The presets start the row; every
  * filter added from the menu (a removed preset too) goes on the end.
  * Rendered inline (a fragment), so everything wraps with the toolbar around
- * it. The add button reads "Add filter" unless only a square "+" would fit
+ * it. The add button reads "Filters" unless only a square "+" would fit
  * after the last chip.
  *
  * Picking a field adds its chip with the value list open; unticking one in
@@ -766,7 +730,7 @@ export function FilterBar({
       next.delete(key);
       setRemovedPresets(next);
     }
-    // After the Add filter menu has closed, so the two don't fight over focus.
+    // After the Filters menu has closed, so the two don't fight over focus.
     requestAnimationFrame(() => setOpenKey(key));
   }
 

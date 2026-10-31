@@ -663,7 +663,7 @@ const VIEW_COLUMNS: Record<DomainsView, ColumnLayout> = {
 /**
  * Each view's default filter chips, in order, and which of them show only
  * while there's room (toolbarLayout): those go, the last first, before the
- * view switch takes a line of its own. TLD is in the Add filter menu only.
+ * view switch takes a line of its own. TLD is in the Filters menu only.
  */
 const VIEW_FILTERS: Record<
   DomainsView,
@@ -1526,7 +1526,7 @@ export default function Domains() {
     };
   }, [shown, folders, folderAssignments, archiveLabelOf, archiveView]);
 
-  // The filter bar's fields, in the Add filter menu's order (the order the
+  // The filter bar's fields, in the Filters menu's order (the order the
   // old filter buttons had). Each set field shows as a chip; clearing is per
   // chip.
   const currency = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
@@ -1570,7 +1570,7 @@ export default function Domains() {
       },
     });
   const purchaseOf = (d: Domain) => purchases[toAscii(d.domainName)];
-  // TLD first in the Add filter menu, though never a default chip.
+  // TLD first in the Filters menu, though never a default chip.
   const filterFields: FilterField[] = [
     listFilter(
       {
@@ -1743,7 +1743,7 @@ export default function Domains() {
           ),
         ]
       : []),
-    // Last in the Add filter menu: the least used.
+    // Last in the Filters menu: the least used.
     listFilter(
       {
         key: 'dns',
