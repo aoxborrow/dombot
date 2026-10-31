@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowUpRight,
-  BadgeDollarSign,
   Building2,
   CalendarCheck,
   Clock,
@@ -67,6 +66,7 @@ import { SaleApproveTransfer } from '../components/sales/SaleApproveTransfer';
 import { SaleAuthCode } from '../components/sales/SaleAuthCode';
 import { SaleUnlock } from '../components/sales/SaleUnlock';
 import { SalesCards, heldFor } from '../components/sales/SalesCards';
+import { EmptyState } from '../components/EmptyState';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -74,14 +74,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Empty as EmptyState,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty';
 import { cn } from '@/lib/utils';
 
 // The Sales tab (docs/sales-tab.md): every sale, from every source, one row
@@ -722,28 +714,11 @@ export default function Sales() {
     return (
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
         <h1 className="text-2xl font-bold sm:text-[32px]">Sales</h1>
-        <EmptyState className="rounded-md border border-dashed">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <BadgeDollarSign />
-            </EmptyMedia>
-            <EmptyTitle>No sales yet</EmptyTitle>
-            <EmptyDescription>
-              Every sale shows here: the ones a market reports, and the private
-              ones you record with Record sale on a name in Domains.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent className="flex-row justify-center">
-            <Button asChild variant="outline">
-              <Link to="/">Go to Domains</Link>
-            </Button>
-            {marketAccounts?.length === 0 && (
-              <Button asChild>
-                <Link to="/settings?tab=markets">Add a market account</Link>
-              </Button>
-            )}
-          </EmptyContent>
-        </EmptyState>
+        <EmptyState
+          boxed
+          title="No sales yet"
+          description="Market sales and private sales you record show up here."
+        />
       </div>
     );
   }
@@ -850,7 +825,7 @@ export default function Sales() {
         }
         empty={
           pendingOnly && !pendingCount
-            ? 'No sales pending: every sale has finished.'
+            ? 'No sales pending.'
             : 'No sales match the current filters.'
         }
       />

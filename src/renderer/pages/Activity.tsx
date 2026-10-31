@@ -48,6 +48,7 @@ import { needsReviewIds, unrecordedIds } from '../../shared/review';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { RegistrarLogo } from '../components/RegistrarLogo';
 import { StatCard, StatCardRow } from '../components/StatCard';
+import { EmptyState } from '../components/EmptyState';
 import { DomainLink } from '../components/domains/DomainLink';
 import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
@@ -1127,11 +1128,16 @@ export default function Activity() {
           !selected && isNew(r.event) ? NEW_ROW_TINT : undefined
         }
         empty={
-          reviewOnly && !hasActiveFilters
-            ? 'Every name that came or went is on the books.'
-            : events.length === 0
-              ? 'No activity yet. Arrivals, departures, and moves appear after an account’s second sync; purchases, sales, and settings changes as you make them.'
-              : 'No activity matches the current filters.'
+          reviewOnly && !hasActiveFilters ? (
+            'Nothing needs review.'
+          ) : events.length === 0 ? (
+            <EmptyState
+              title="No activity yet"
+              description="Domains that come and go appear after an account's second sync. Purchases, sales, and edits show up as you make them."
+            />
+          ) : (
+            'No activity matches the current filters.'
+          )
         }
       />
 

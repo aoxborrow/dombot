@@ -21,12 +21,10 @@ import {
   CircleCheck,
   CircleHelp,
   Globe,
-  Plug,
   RotateCw,
   Server,
   ShieldBan,
   ShieldCheck,
-  Upload,
 } from 'lucide-react';
 import type {
   Domain,
@@ -154,6 +152,7 @@ import {
   type LayoutColumn,
 } from '../components/data-table/column-layout';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
+import { EmptyState } from '../components/EmptyState';
 import { paginate, sortRows } from '../components/data-table/table-state';
 import { dateRangeField } from '../components/data-table/DateRangeFilter';
 import { type FilterField } from '../components/data-table/FilterBar';
@@ -2552,35 +2551,34 @@ export default function Domains() {
         }}
         empty={
           noneConfigured && importedList.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-4">
-              <div>
-                <p className="font-medium text-foreground">
-                  No registrars configured
-                </p>
-                <p className="mt-0.5">
-                  Add API credentials for a registrar to load your domains into
-                  this table, or import them from a spreadsheet.
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-2">
-                <Button onClick={() => navigate('/settings?tab=registrars')}>
-                  <Plug />
-                  Configure registrars
-                </Button>
-                <Button variant="outline" onClick={() => setImporting(true)}>
-                  <Upload />
-                  Import domains
-                </Button>
-              </div>
-            </div>
+            // The first screen of a fresh install: neither way in is on the
+            // page otherwise (Import hides in the Sync menu), so these two
+            // are the only empty state with buttons.
+            <EmptyState
+              title="No domains yet"
+              description="Add a registrar account to load your domains, or import them from a spreadsheet."
+            >
+              <Button onClick={() => navigate('/settings?tab=registrars')}>
+                Add registrar account
+              </Button>
+              <Button variant="outline" onClick={() => setImporting(true)}>
+                Import domains
+              </Button>
+            </EmptyState>
           ) : archiveView && archiveCount === 0 ? (
-            'Names you no longer have show up here: sold, expired, or gone from your accounts. To let a name go, turn its auto-renew off.'
+            <EmptyState
+              title="Archive is empty"
+              description="Names you sold or let expire end up here, along with any that left your accounts."
+            />
           ) : portfolio.length === 0 ? (
-            hasLoaded ? (
-              'No domains found in any configured registrar.'
-            ) : (
-              'Your domains show up here after the first sync.'
-            )
+            <EmptyState
+              title="No domains yet"
+              description={
+                hasLoaded
+                  ? "Your registrar accounts don't have any domains."
+                  : 'Your domains show up here after the first sync.'
+              }
+            />
           ) : (
             'No domains match the current filters.'
           )

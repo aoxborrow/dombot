@@ -172,7 +172,9 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        'flex min-h-36 min-w-0 flex-1 flex-col gap-[13px]',
+        // A container, so the empty-state row can size itself to the
+        // visible width (cqw) rather than the table's.
+        '@container flex min-h-36 min-w-0 flex-1 flex-col gap-[13px]',
         className,
       )}
     >
@@ -330,7 +332,12 @@ export function DataTable<T>({
                   colSpan={columns.length + (selection ? 1 : 0)}
                   className="h-40 text-center text-muted-foreground"
                 >
-                  {empty}
+                  {/* Pinned to the visible width, less the frame's border and
+                      the cell's padding, so it stays centred in view when the
+                      columns are wider than the screen. */}
+                  <div className="sticky left-0 w-[calc(100cqw-18px)]">
+                    {empty}
+                  </div>
                 </TableCell>
               </TableRow>
             )}
