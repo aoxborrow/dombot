@@ -659,9 +659,9 @@ export default function Activity() {
 
   // The name, what happened, where, and its details (or, for a row in Needs
   // review, its answers), then who and when, the date at the far right like
-  // a mail inbox's. Every column but Date is only as wide as its widest cell
-  // (w-0): Date takes the room left over, so the answers sit close to the
-  // name and stay in view in a narrow window, where Date goes off first.
+  // a mail inbox's. Every column but Details is only as wide as its widest
+  // cell (w-0), so Details takes the room left over and its answers stay in
+  // view in a narrow window, where Date goes off first.
   const columns: DataColumn<ActivityRow>[] = [
     {
       key: 'domain',
@@ -745,7 +745,7 @@ export default function Activity() {
       hideOnMobile: true,
       // A little more room on the left than the other columns, so text here
       // doesn't hug the rule; the answers' borders sit in it (ReviewActions).
-      headClassName: 'w-0 pl-3',
+      headClassName: 'pl-3',
       cellClassName: 'pl-3',
       // A row in Needs review has its answers here, where an arrival or a
       // departure has no details of its own.
@@ -804,6 +804,7 @@ export default function Activity() {
       key: 'date',
       label: 'Date',
       align: 'right',
+      headClassName: 'w-0',
       cell: ({ event: e }) => (
         <span
           className="font-mono text-muted-foreground tabular-nums"

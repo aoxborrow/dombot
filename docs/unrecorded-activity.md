@@ -109,9 +109,9 @@ view: the suggested answers as small buttons, styled like Sales' step
 buttons. An arrival or a departure has no details of its own, so the column
 is free for them. The columns read Domain, Activity (the event's type),
 Registrar, Details, Source, Date, with the date right-aligned at the far
-right like a mail inbox's. Every column but Date is only as wide as its
-widest cell, so Date takes the room left over: the answers sit close to the
-name, and in a narrow window Date and Source go off before they do. The row's ⋯ menu stays in the Domain cell with every
+right like a mail inbox's. Every column but Details is only as wide as its
+widest cell, so Details takes the room left over, and in a narrow window
+Date and Source go off before the answers do. The row's ⋯ menu stays in the Domain cell with every
 option.
 
 | Row                     | Inline                                           |
