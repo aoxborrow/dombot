@@ -6,10 +6,10 @@ import {
   CalendarClock,
   CalendarX,
   ChartLine,
-  CircleDashed,
   CircleOff,
   Globe,
   Receipt,
+  RefreshCwOff,
   Tag,
   Trash2,
   TriangleAlert,
@@ -46,6 +46,8 @@ const plural = (n: number, word: string) =>
 export interface DomainsCardActions {
   /** Expiring within `days`, auto-renew off. */
   onExpiring: (days: 30 | 60) => void;
+  /** Auto-renew off. */
+  onNotRenewing: () => void;
   /** The Markets filter set to these states (in the markets in play). */
   onMarketStates: (states: MarketStateChoice[]) => void;
   /** The Markets filter set to listings priced apart from your BIN. */
@@ -383,13 +385,19 @@ export function DomainsCards({
         ]}
         onClick={() => actions.onExpiring(cards.in30 ? 30 : 60)}
       />
-      {/* A placeholder, for a card to come. */}
       <StatCard
         size="sm"
-        icon={CircleDashed}
-        accentClass="text-slate-400"
-        label="Placeholder"
-        value="—"
+        icon={RefreshCwOff}
+        accentClass="text-amber-400"
+        label="Not renewing"
+        // Auto-renew off, of the names shown.
+        value={[
+          {
+            value: cards.renewOff.toLocaleString(),
+            words: pct(cards.renewOff, total),
+          },
+        ]}
+        onClick={actions.onNotRenewing}
       />
       {marketsOn && (
         <StatCard

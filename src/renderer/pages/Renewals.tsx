@@ -430,7 +430,7 @@ export default function Renewals() {
         <StatCard
           size="sm"
           icon={AlarmClock}
-          accentClass="text-amber-400"
+          accentClass="text-rose-400"
           label="Due, 30 days"
           value={[
             {
@@ -442,7 +442,7 @@ export default function Renewals() {
         <StatCard
           size="sm"
           icon={CalendarClock}
-          accentClass="text-orange-400"
+          accentClass="text-amber-400"
           label="Due, 90 days"
           value={[
             {

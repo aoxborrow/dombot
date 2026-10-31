@@ -2370,6 +2370,10 @@ export default function Domains() {
                 setAutoRenewFilter(['off']);
                 setPage(0);
               },
+              onNotRenewing: () => {
+                setAutoRenewFilter(['off']);
+                setPage(0);
+              },
               onMarketStates: (states) => {
                 setMarketsFilter({ ...marketsFilter, states });
                 setPage(0);
