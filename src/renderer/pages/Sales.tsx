@@ -195,8 +195,9 @@ export default function Sales() {
   // The names pending sales have yet to hand over, as your registrar accounts
   // hold them now, for each row's Unlock. Where a registrar's list doesn't
   // say whether a name is locked, its detail is fetched (as the Domains
-  // table does), and an unlock lands there too. A name in more than one
-  // account gets no Unlock: like Send auth code, DomBot won't guess which.
+  // table does), and an unlock lands there too; until then the row has no
+  // Unlock, rather than an Unlocked that may not be so. A name in more than
+  // one account gets none: like Send auth code, DomBot won't guess which.
   const portfolio = useAppStore((s) => s.portfolio);
   const enriched = useAppStore((s) => s.enriched);
   const enrichVisible = useAppStore((s) => s.enrichVisible);
@@ -217,7 +218,10 @@ export default function Sales() {
   }, [heldDomains, enrichVisible]);
   const heldDomain = (r: SaleRecord): Domain | undefined => {
     const d = isPending(r) ? heldDomains.get(r.name) : undefined;
-    return d ? (enriched[domainKey(d)] ?? d) : undefined;
+    if (!d) return undefined;
+    // A list with nameservers reports the lock too (enrichVisible's rule).
+    const detail = enriched[domainKey(d)];
+    return detail ?? (d.nameservers.length > 0 ? d : undefined);
   };
 
   const pendingCount = useMemo(() => rows.filter(isPending).length, [rows]);
@@ -593,6 +597,19 @@ export default function Sales() {
                     name={r.name}
                   />
                 )}
+              {/* The market has the code, through DomBot or not: a step
+                  done, shown until the sale finishes. */}
+              {r.step !== 'auth_code' && isUnderWay(r) && r.authCodeSent && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="-my-1 h-6 shrink-0 px-2 text-xs"
+                  disabled
+                  title="The market has the transfer auth code"
+                >
+                  Auth code sent
+                </Button>
+              )}
               {/* Handed over without leaving the registrar (an account change
                 there), or otherwise done: it stops waiting. */}
               {r.awaitingTransfer && r.eventId && (

@@ -56,7 +56,7 @@ export function SaleAuthCode({
           {state === 'sending'
             ? 'Sending…'
             : state === 'sent'
-              ? 'Sent'
+              ? 'Auth code sent'
               : 'Send auth code'}
         </Button>
       )}

@@ -248,7 +248,8 @@ saying so.
 - **`market_sales`** — sales, newest first: filter by `market`,
   `accountId`, `from`/`to` (sold on), `status`, `kind`, `nameContains`.
   Returns `totals` (price, commission, net per currency) over every match.
-  Never includes auth codes.
+  `authCodeSent` says whether the market has the auth code (null when it
+  hasn't said). Never includes auth codes.
 - **`market_stats_get`** — `accountId`, `days?`. Stored daily views and
   leads, with totals.
 - **`domain_stats_get`** — `domain`, `accountId?`, `days?` (default 30).

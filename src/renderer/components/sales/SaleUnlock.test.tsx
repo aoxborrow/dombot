@@ -45,8 +45,10 @@ describe('SaleUnlock', () => {
     expect(out).not.toContain('disabled=""');
   });
 
-  it('shows nothing once the name is unlocked', () => {
-    expect(html(domain({ locked: false }))).toBe('');
+  it('reads Unlocked, disabled, once the name is unlocked', () => {
+    const out = html(domain({ locked: false }));
+    expect(out).toContain('>Unlocked</button>');
+    expect(out).toContain('disabled=""');
   });
 
   it('is disabled, with the reason, where the API can’t unlock', () => {

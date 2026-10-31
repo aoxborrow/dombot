@@ -227,6 +227,12 @@ export interface MarketSale {
   paidOutOn: string | null;
   /** What the seller has to do next, when the market says. */
   action: 'auth_code' | 'transfer' | 'payee_details' | null;
+  /**
+   * Whether the market has the transfer auth code, sent through DomBot or
+   * not; null (or absent) when its read doesn't say: Afternic's sales list
+   * leaves the code out, its single sale has it. The code is never kept.
+   */
+  authCodeSent?: boolean | null;
 }
 
 /** One day for one name, or for an account (`name` null). */

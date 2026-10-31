@@ -313,7 +313,12 @@ export class DemoMarketAdapter {
       this.accountId,
       sales.map((s) =>
         s.id === saleId
-          ? { ...s, action: 'transfer', statusRaw: 'PENDING_TRANSFER' }
+          ? {
+              ...s,
+              action: 'transfer',
+              statusRaw: 'PENDING_TRANSFER',
+              authCodeSent: true,
+            }
           : s,
       ),
     );
@@ -666,6 +671,8 @@ export function seedDemoMarkets(
       installments: null,
       paidOutOn: null,
       action,
+      // Past the auth code step, the market has it.
+      authCodeSent: action === 'transfer' ? true : null,
     });
   };
   underWay(

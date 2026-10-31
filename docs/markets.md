@@ -482,7 +482,12 @@ can't unlock, and the name's detail is fetched where its registrar's list
 doesn't say), then Send auth code on a sale waiting for it, which reads
 the sale back so the row moves on to its next step without a sync. Two
 buttons rather than one: a registrar that can't give the code through its
-API may still unlock. Awaiting transfer (sold, and an account
+API may still unlock. A step done stays as a disabled button while the
+sale is pending: Unlocked once the name is, and Auth code sent once the
+market has the code, however it got there (`authCodeSent` on the sale:
+Afternic's single sale says, its list doesn't, so sync reads sales under
+way one by one until it does, and keeps the answer). Neither shows once
+the sale is done. Awaiting transfer (sold, and an account
 of yours still holds the name) is amber like a market's steps, with Mark
 complete: a buyer often takes the name at the same registrar, so nothing
 need change registrar, and marking it (`transferred` on the sold event)
