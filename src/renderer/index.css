@@ -2,16 +2,19 @@
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
-/* Dense table styling: on phones always, and anywhere under a `.compact`
-   ancestor (Settings → General → table density). */
+/* Dense table styling: on phones and tablets (under lg) always, and anywhere
+   under a `.compact` ancestor (Settings → General → table density). */
 @custom-variant compact {
   &:where(.compact, .compact *) {
     @slot;
   }
-  @media (width < 40rem) {
+  @media (width < 64rem) {
     @slot;
   }
 }
+/* A short window, like a laptop's: the page's vertical spacing tightens so
+   the table keeps more rows. Not on phones, which have their own spacing. */
+@custom-variant short (@media (width >= 40rem) and (height < 850px));
 
 :root {
   /* Render native scrollbars and form controls light; `.dark` flips it. */
