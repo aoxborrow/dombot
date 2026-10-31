@@ -31,12 +31,12 @@ the MCP tools and the CSV export read Owned and Archive from there.
 Every name you hold, synced or imported. Its state comes from what DomBot
 already knows; you never set it.
 
-| State    | When                                                                                    | Shown                                                      |
-| -------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Renewing | Auto-renew on                                                                           | Nothing extra                                              |
-| Expiring | Auto-renew off, expiry within 30 days                                                   | Nothing on the row (MCP's `expiring`; a card later)        |
-| Expired  | Past expiry, still in the account (grace, redemption)                                   | Expired / Grace / Redemption pill in the Expiration column |
-| Sold     | You recorded a sale, or one is under way at a market, and the buyer hasn't taken it yet | "Sold" pill (a market's sale says its step on hover)       |
+| State    | When                                                  | Shown                                                      |
+| -------- | ----------------------------------------------------- | ---------------------------------------------------------- |
+| Renewing | Auto-renew on                                         | Nothing extra                                              |
+| Expiring | Auto-renew off, expiry within 30 days                 | Nothing on the row (MCP's `expiring`; a card later)        |
+| Expired  | Past expiry, still in the account (grace, redemption) | Expired / Grace / Redemption pill in the Expiration column |
+| Sold     | You recorded a sale and the buyer hasn't taken it yet | "Sold" pill                                                |
 
 - **Expiring only inside 30 days.** A name with auto-renew off that expires
   in 2031, or even in three months, isn't news yet.
@@ -62,7 +62,7 @@ Names that left every account. The label comes from facts, in this order:
 
 | Label   | When                                                                            | Needs review         |
 | ------- | ------------------------------------------------------------------------------- | -------------------- |
-| Sold    | You recorded a sale (before or after it left), or it left during a market sale  | No                   |
+| Sold    | You recorded a sale (before or after it left)                                   | No                   |
 | Deleted | The registration lookup says it isn't registered (the rule in storage-model.md) | No                   |
 | Expired | It left after its last known expiry date (the `expires` on its `removed`)       | No                   |
 | Removed | It left before expiry, with no sale recorded                                    | Yes: Sold or Dismiss |
@@ -112,9 +112,10 @@ Archive from its expiry dates, with no status to set.
   show no Sold while its sale is under way and then land in Archive as
   Removed, asking for review. A sale under way (not a lease) of a name that
   didn't arrive on or after its sale day, which would be your own purchase in
-  the market's sales list, makes the name Sold-pending; if it leaves before
-  the market completes the sale, it's Sold in Archive. The `sold` event takes
-  over when sync writes it.
+  the market's sales list, counts as the name's sale: Sold-pending while you
+  hold it (the pill says the market's step on hover), Sold in Archive once it
+  leaves (or at once, for a name you added), and its removal needs no review.
+  The `sold` event takes over when sync writes it.
 - **Delete**, only for names no connected account holds: imported names and
   Archive names. In a bulk selection it shows how many it applies to
   ("Delete … 12 of 50"), the way Activity's bulk actions do.
