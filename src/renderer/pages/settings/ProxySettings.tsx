@@ -290,8 +290,7 @@ export default function ProxySettings() {
         <SettingsCard title="Used by">
           {users.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No accounts use the proxy yet. Turn on{' '}
-              <strong>Use fixed IP proxy</strong> in an account under
+              No accounts use the proxy yet. Turn it on for an account under
               Registrars.
             </p>
           ) : (

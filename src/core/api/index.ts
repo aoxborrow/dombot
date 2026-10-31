@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { DombotApi, DomainTarget } from '../../shared/ipc';
 import { clearAll, clearRegistrarCaches } from '../services/cache';
-import { applyDomainOp } from '../services/domain-ops';
+import { applyDomainOp, getTransferOut } from '../services/domain-ops';
 import {
   advanceMarketBulk,
   cancelBulk,
@@ -30,6 +30,7 @@ import {
   deleteDomains,
   deleteUserEvent,
   setAlertsDismissed,
+  setDeparturesDropped,
   setSaleTransferred,
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
@@ -397,6 +398,10 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
       ).id,
     ).getEmailForwarding(target.domainName);
   }),
+  // The pending sale's transfer-out, behind its Approve transfer. Live too.
+  getTransferOut: method(z.tuple([s.domainTarget]), async (target) =>
+    getTransferOut(target),
+  ),
 
   // ── Bulk jobs ─────────────────────────────────────────────────────────────
   startBulk: method(
@@ -617,6 +622,13 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     z.tuple([z.array(s.eventId).min(1).max(5000), z.boolean()]),
     async (ids, dismissed) => {
       setAlertsDismissed(ids, dismissed);
+      return listEvents();
+    },
+  ),
+  setDeparturesDropped: method(
+    z.tuple([z.array(s.eventId).min(1).max(5000), z.boolean()]),
+    async (ids, dropped) => {
+      setDeparturesDropped(ids, dropped);
       return listEvents();
     },
   ),

@@ -29,6 +29,9 @@ const fake = {
   salesSince: [] as (string | undefined)[],
   statsDays: [] as number[],
   asyncInsert: false,
+  /** What a single sale read says about the auth code, by sale id. */
+  saleCodes: new Map<string, boolean>(),
+  saleReads: [] as string[],
 };
 vi.mock('./registry', async () => {
   const { AFTERNIC_CONFIG_FIELDS } = await import('./afternic');
@@ -61,6 +64,14 @@ vi.mock('./registry', async () => {
         fake.salesSince.push(since);
         return fake.sales.map((s) => ({ ...s, accountId }));
       },
+      // The list never says whether Afternic has the auth code; one sale does.
+      getSale: async (id: string) => {
+        fake.saleReads.push(id);
+        const s = fake.sales.find((x) => x.id === id);
+        return s
+          ? { ...s, accountId, authCodeSent: fake.saleCodes.get(id) ?? false }
+          : null;
+      },
       accountStats: async (days: number) => {
         fake.statsDays.push(days);
         return fake.stats.map((d) => ({ ...d, accountId }));
@@ -84,6 +95,7 @@ const {
 const {
   marketAccountStats,
   marketListings,
+  marketSale,
   marketSales,
   putMarketListings,
   syncMarketAccount,
@@ -163,6 +175,8 @@ beforeEach(async () => {
     salesSince: [],
     asyncInsert: false,
     statsDays: [],
+    saleCodes: new Map(),
+    saleReads: [],
   });
   held.clear();
   vi.useFakeTimers();
@@ -238,6 +252,35 @@ describe('syncMarketAccount', () => {
     await syncMarketAccount(ACCOUNT);
     expect(fake.salesSince).toEqual([undefined, '2026-08-17']);
     expect(marketSales()).toHaveLength(1);
+  });
+
+  it('reads sales under way one by one until the market has the auth code', async () => {
+    await connect();
+    fake.sales = [
+      {
+        ...sale('t1', 'sold.com', '2026-10-27', 'in_progress'),
+        action: 'auth_code',
+      },
+      sale('t2', 'done.com', '2026-10-01'),
+    ];
+    await syncMarketAccount(ACCOUNT);
+    expect(fake.saleReads).toEqual(['t1']);
+    expect(marketSale(ACCOUNT, 't1')?.authCodeSent).toBe(false);
+
+    // The code went in (from anywhere): the list moves on and still doesn't
+    // say, the single read does.
+    fake.sales[0] = { ...fake.sales[0], action: 'transfer' };
+    fake.saleCodes.set('t1', true);
+    await syncMarketAccount(ACCOUNT);
+    expect(marketSale(ACCOUNT, 't1')).toMatchObject({
+      action: 'transfer',
+      authCodeSent: true,
+    });
+
+    // Known now, so the list's silence keeps it and no more reads.
+    await syncMarketAccount(ACCOUNT);
+    expect(fake.saleReads).toEqual(['t1', 't1']);
+    expect(marketSale(ACCOUNT, 't1')?.authCodeSent).toBe(true);
   });
 
   it('joins a sync already under way instead of reading twice', async () => {
@@ -416,6 +459,71 @@ describe('sales as sold events', () => {
     fake.sales = [sale('t1', 'back.com', '2022-06-01')];
     await syncMarketAccount(ACCOUNT);
     expect(sold()).toEqual([]);
+  });
+
+  it('answers a removal sync wrote before it knew of the sale under way', async () => {
+    putEvents([
+      newEvent({
+        domain: 'going.com',
+        type: DomainEventType.Removed,
+        source: DomainEventSource.Sync,
+        accountId: 'dynadot',
+        date: '2026-10-27',
+      }),
+      newEvent({
+        domain: 'left.com',
+        type: DomainEventType.Removed,
+        source: DomainEventSource.Sync,
+        accountId: 'dynadot',
+        date: '2026-10-27',
+      }),
+    ]);
+    await connect();
+    fake.sales = [
+      // Still at the transfer: no sold event yet, so the removal is answered.
+      {
+        ...sale('t1', 'going.com', '2026-10-26', 'in_progress'),
+        action: 'transfer',
+      },
+    ];
+    await syncMarketAccount(ACCOUNT);
+    const removal = (name: string) =>
+      listEvents().find((e) => e.domain === name && e.type === 'removed');
+    expect(removal('going.com')?.dismissed).toBe(true);
+    // No sale: still one to review.
+    expect(removal('left.com')?.dismissed).toBeUndefined();
+    // Under way, so no sold event yet.
+    expect(sold()).toEqual([]);
+  });
+
+  it('records a sale once its name has moved, not a purchase or a name you hold', async () => {
+    const left = (domain: string) =>
+      newEvent({
+        domain,
+        type: DomainEventType.Removed,
+        source: DomainEventSource.Sync,
+        accountId: 'dynadot',
+        date: '2026-10-27',
+        dismissed: true,
+      });
+    putEvents([left('moved.com'), left('kept.com')]);
+    held.add('kept.com');
+    await connect();
+    const payout = (id: string, name: string) => ({
+      ...sale(id, name, '2026-10-26', 'in_progress'),
+      action: 'payout' as const,
+    });
+    fake.sales = [
+      payout('t1', 'moved.com'),
+      // A purchase in the market's sales: it never left your accounts.
+      payout('t2', 'bought.com'),
+      // Back in an account (or never gone): not the buyer's yet.
+      payout('t3', 'kept.com'),
+    ];
+    await syncMarketAccount(ACCOUNT);
+    expect(sold().map((e) => [e.domain, e.date, e.source])).toEqual([
+      ['moved.com', '2026-10-26', 'sync'],
+    ]);
   });
 
   it('links your own sale of the name and fills in its price', async () => {

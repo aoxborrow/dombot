@@ -60,6 +60,7 @@ export const SALE_STEP_LABEL: Record<
   auth_code: 'Needs the auth code',
   transfer: 'Waiting on the transfer',
   payee_details: 'Needs payee details',
+  payout: 'Awaiting payout',
 };
 
 /** A record's status in a word or two. */

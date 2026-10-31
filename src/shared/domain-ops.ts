@@ -10,6 +10,7 @@ const REQUIRED_FEATURE: Partial<Record<DomainOpKind, string>> = {
   authCode: Feature.GetAuthCode,
   urlForwarding: Feature.SetDomainForwarding,
   emailForwarding: Feature.SetEmailForwarding,
+  approveTransfer: Feature.ApproveTransferOut,
 };
 
 /**
@@ -72,6 +73,7 @@ export const OP_LABEL: Record<DomainOpKind, string> = {
   emailForwarding: 'email forwarding',
   authCode: 'auth code',
   renew: 'renewal',
+  approveTransfer: 'transfer approval',
 };
 
 /**
@@ -114,6 +116,8 @@ export function opSummary(op: DomainOp): string {
       return 'Auth code retrieved';
     case 'renew':
       return `Renewed for ${op.years} year${op.years === 1 ? '' : 's'}`;
+    case 'approveTransfer':
+      return 'Transfer approved';
   }
 }
 

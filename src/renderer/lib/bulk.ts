@@ -93,6 +93,8 @@ export function bulkOpTitle(op: DomainOp): string {
       return 'Set email forwarding';
     case 'authCode':
       return 'Get auth codes';
+    case 'approveTransfer':
+      return 'Approve transfers';
     case 'renew':
       return `Renew for ${op.years} year${op.years === 1 ? '' : 's'}`;
   }
@@ -214,6 +216,7 @@ export function defaultBulkOp(
     case 'emailForwarding':
       return { kind, forwards: [], skipIfExisting: true };
     case 'authCode':
+    case 'approveTransfer':
       return { kind };
     case 'renew':
       return { kind, years: 1 };

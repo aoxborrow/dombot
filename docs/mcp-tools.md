@@ -66,7 +66,8 @@ take `refresh` to fetch live and write the result through.
     registration lookup says nobody holds it), `expired` (it left after its
     expiry) or `removed` (it left early with no sale; the one to review).
     `expiring`: owned, auto-renew off, expiring within 30 days.
-    `salePending`: a sale recorded on a name you still hold.
+    `salePending`: a sale recorded, or under way at a market, on a name you
+    still hold.
   - To let a name go, turn its auto-renew off with `domain_set_autorenew`, as
     in the app. Nothing you hold goes to Archive by hand.
   - Each row also carries what DomBot keeps for the name: `paid` (date,
@@ -81,15 +82,19 @@ false`, and `registrarLabel` when you typed a registrar DomBot doesn't
     account reports has `inAccount: false`, its last known registrar, and
     `null` for the settings an account reports. The `domain_*` tools can't act
     on it.
-- **`portfolio_alerts`** — what needs you, as the bell shows it: failed
-  registrar or market syncs (`sync-error`), names that left an account (`departure`, high
-  priority) and names that arrived (`arrival`, low). Most severe first, then
-  newest. `kind?`, `limit?`, `offset?`. Returns `{ total, counts, alerts }`;
-  each alert's `eventId` is what `resolves` and `portfolio_alert_dismiss`
-  take.
+- **`portfolio_alerts`** — what's new, as the bell shows it: failed
+  registrar or market syncs (`sync-error`), names that left an account
+  (`departure`) and names that arrived (`arrival`) that nobody has answered or
+  dismissed. Most severe first, then newest. `needsReview?` (`true`: instead
+  every arrival and departure Activity's Needs review lists, each with
+  `dismissed`; no sync errors), `kind?`, `limit?`, `offset?`. Returns
+  `{ total, counts, alerts }`; each alert's `eventId` is what `resolves` and
+  `portfolio_alert_dismiss` take.
 - **`portfolio_alert_dismiss`** — `alertIds[]`, `dismissed?` (default
-  `true`; `false` brings them back). Dismisses without recording anything.
-  Returns the ids still open.
+  `true`; `false` brings them back), `dropped?` (`true` marks departures
+  dropped instead, Archive's Dropped; `false` undoes it). Dismissing records
+  nothing: the alert stays in Needs review until its money is recorded.
+  Returns the ids still new.
 - **`portfolio_sync`** — re-sync every active account and return a
   per-account summary (counts, last sync, errors).
 
@@ -119,8 +124,8 @@ portfolio: synced, imported, or with history.
 
 - **`domain_history`** — every event for the name, oldest first, with its
   note and current `ownership` / `archiveLabel`. Each event has its `source`;
-  sync alerts (`added`, `removed`) also have `alert` (`open`, `dismissed` or
-  `resolved`) and `resolvedBy`. A settings change is `changed`, with its
+  sync alerts (`added`, `removed`) also have `alert` (`open`, `dismissed`,
+  `dropped` or `resolved`) and `resolvedBy`. A settings change is `changed`, with its
   `setting`, `after`, and `before` when DomBot knew it. The `domain_*` writes
   record theirs with `source: agent`.
 - **`domain_purchase_set`** — `date?`, `amount?`, `currency?`, `kind?`
@@ -191,6 +196,12 @@ Reads:
 - **`domain_url_forwarding_get`** — URL forwarding rules, including read-only
   `masked` ones.
 - **`domain_auth_code_get`** — the EPP/auth code. A secret.
+- **`domain_transfer_out_get`** — the latest outbound transfer: the request
+  a buyer's registrar made with the auth code. `{ domain, transferOut }`,
+  where `transferOut` is `null` or `status` (`pending` while it waits on
+  you, `approved`, `rejected`, `completed`, `cancelled`, `unknown`),
+  `rawStatus` (the registrar's label), `requestedAt`, `expiresAt` (when the
+  registrar lets it go unanswered) and `completedAt`. Read live.
 - **`domain_renewal_price`** — DomBot's estimated annual renewal price and
   where it came from: your manual price, a per-name quote, the account's TLD
   rate, or the base database. Not the registrar's live quote (that's
@@ -211,11 +222,13 @@ Writes:
   `temporary` or `permanent`). Replaces the whole set; an empty array clears
   it.
 - **`domain_renew`** — `years?` (default 1). Costs money.
+- **`domain_transfer_out_approve`** — releases a `pending` transfer-out to
+  the gaining registrar now. The domain leaves your account.
 - **`domain_set_folder`** — see [Folders](#folders). Local only, so it takes
   no `registrar` or `accountId`.
 
-Auto-renew, lock, privacy, nameservers, forwarding and renew run through the
-same dispatcher as the Domains table ([domain-editing.md](domain-editing.md)),
+Auto-renew, lock, privacy, nameservers, forwarding, renew and transfer
+approval run through the same dispatcher as the Domains table ([domain-editing.md](domain-editing.md)),
 so they're gated by what the registrar supports and return `{ accountId,
 registrar, success, status, message }`. `status` is `ok`, `failed`,
 `unsupported`, `skipped`, `rate-limited`, `cancelled`, or `unknown` when a
@@ -248,7 +261,8 @@ saying so.
 - **`market_sales`** — sales, newest first: filter by `market`,
   `accountId`, `from`/`to` (sold on), `status`, `kind`, `nameContains`.
   Returns `totals` (price, commission, net per currency) over every match.
-  Never includes auth codes.
+  `authCodeSent` says whether the market has the auth code (null when it
+  hasn't said). Never includes auth codes.
 - **`market_stats_get`** — `accountId`, `days?`. Stored daily views and
   leads, with totals.
 - **`domain_stats_get`** — `domain`, `accountId?`, `days?` (default 30).
@@ -310,7 +324,9 @@ decimal strings or numbers.
   rejected or stuck pending, and say so per name as `relisted`.
 - **`market_sale_auth_code_set`** — `accountId`, `saleId`, `authCode?`.
   Without a code, DomBot gets it from the registrar account that holds the
-  name. Never returned or stored.
+  name. Never returned or stored. The sale is read back after, so its next
+  step shows before a sync. The name needs unlocking too
+  (`domain_set_lock`).
 - **`market_sale_message_send`** — `accountId`, `saleId`, `message`. Reaches
   a person at the market.
 - **`market_settings_set`** — `accountId`, and the listing defaults to

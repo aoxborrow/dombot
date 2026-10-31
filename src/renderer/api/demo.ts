@@ -33,6 +33,10 @@ import { syncDomainTraffic } from '../../core/services/markets/traffic';
 import { localDay } from '../../shared/domain-events';
 import { rememberRegistrationLookups } from '../../core/services/registration-lookup';
 import { setNotes, setPurchase, setSale } from '../../core/services/purchases';
+import {
+  setAlertsDismissed,
+  setDeparturesDropped,
+} from '../../core/services/domain-history';
 import { setManualPrice } from '../../core/services/pricing';
 import { addImportedDomains } from '../../core/services/imported-domains';
 import { MemoryDocStore } from '../../core/storage/doc-store';
@@ -168,15 +172,17 @@ function stageSampleChanges(world: DemoWorld): void {
  * Some answered alerts and recorded purchases, so Activity shows history
  * beside what still needs review, and every Archive label shows: Sold (a
  * departure you sold), Deleted (one the lookup says nobody holds), Expired
- * (the lapse; see stageSampleChanges), and Removed (the rest, to review).
- * One name you still hold is Sold too, awaiting transfer.
+ * (the lapse; see stageSampleChanges), Dropped (one you marked dropped), and
+ * Removed (one you dismissed without saying why, so Needs review still lists
+ * it, just not as new). One name you still hold is Sold too, awaiting
+ * transfer.
  */
 function recordSampleHistory(): void {
   // A lapse records its expiry and needs no answer.
   const departures = listEvents().filter(
     (e) => e.type === 'removed' && !e.expires,
   );
-  const [sold, deleted] = departures;
+  const [sold, deleted, dismissed, dropped] = departures;
   if (sold) {
     setSale({
       domainName: sold.domain,
@@ -199,6 +205,8 @@ function recordSampleHistory(): void {
       },
     });
   }
+  if (dismissed) setAlertsDismissed([dismissed.id], true);
+  if (dropped) setDeparturesDropped([dropped.id], true);
   const owned = getMergedPortfolio().domains.map((d) => d.domainName);
   // Sold, and the buyer hasn't taken it yet: Owned with the Sold pill.
   if (owned[6]) {

@@ -27,6 +27,16 @@ import { Namespace } from '../storage/namespace';
 // purchases.ts; this is everything else.
 
 /**
+ * Names with a sale under way at a market, whose removal sync writes as
+ * answered. The markets module provides it: it imports this one (through
+ * the registrars), so this one can't import it.
+ */
+let sellingNames: () => ReadonlySet<string> = () => new Set();
+export function provideSellingNames(names: () => ReadonlySet<string>): void {
+  sellingNames = names;
+}
+
+/**
  * What each account's last successful sync saw, keyed by account id. Sync
  * compares against this, not the registrar cache, so "Clear cache" can't make
  * it miss a change; and it's exported, so it travels with `domain-events` and
@@ -94,6 +104,7 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
     trackedAccountIds(),
     now,
     newEvent,
+    sellingNames(),
   );
   const { newlyTracked } = diff;
   // An imported name an account now reports isn't a new arrival: sync takes it
@@ -271,6 +282,21 @@ export function setAlertsDismissed(ids: string[], dismissed: boolean): void {
     );
   if (alerts.length === 0) throw new Error('That alert no longer exists.');
   putEvents(alerts.map((e) => ({ ...e, dismissed, updatedAt: now })));
+}
+
+/**
+ * Mark departures dropped (it left and no money came back), or not after
+ * all, in one write. Dropped counts as dismissed and gives Archive its
+ * Dropped label; undoing it leaves `dismissed` as it was.
+ */
+export function setDeparturesDropped(ids: string[], dropped: boolean): void {
+  const now = Date.now();
+  const departures = ids
+    .map((id) => getEvent(id))
+    .filter((e): e is DomainEvent => e?.type === DomainEventType.Removed);
+  if (departures.length === 0)
+    throw new Error('That departure no longer exists.');
+  putEvents(departures.map((e) => ({ ...e, dropped, updatedAt: now })));
 }
 
 /** Mark a sale's name handed over to the buyer, or not after all. */

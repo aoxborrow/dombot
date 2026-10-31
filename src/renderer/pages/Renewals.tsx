@@ -43,12 +43,7 @@ import { DEFAULT_CURRENCY } from '../../shared/money';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from '@/components/ui/empty';
+import { EmptyState } from '../components/EmptyState';
 import {
   Table,
   TableBody,
@@ -143,6 +138,7 @@ export default function Renewals() {
     pricing,
     setManualPrice,
     domainEvents,
+    marketSales,
     registrationLookups,
   } = useAppStore();
 
@@ -155,8 +151,16 @@ export default function Renewals() {
         [...syncedDomains, ...importedRows(importedDomains, syncedDomains)],
         domainEvents,
         registrationLookups,
+        undefined,
+        marketSales,
       ).renewing,
-    [syncedDomains, importedDomains, domainEvents, registrationLookups],
+    [
+      syncedDomains,
+      importedDomains,
+      domainEvents,
+      marketSales,
+      registrationLookups,
+    ],
   );
   const accounts = useAppStore((s) => s.registrars);
   const multipleAccounts = useMemo(
@@ -369,15 +373,12 @@ export default function Renewals() {
     return (
       <div className="mx-auto w-full max-w-[1400px]">
         <PageHeader />
-        <Empty className="mt-6 rounded-lg border border-dashed">
-          <EmptyHeader>
-            <EmptyTitle>No portfolio loaded</EmptyTitle>
-            <EmptyDescription>
-              Load your domains on the Domains tab first — the renewals
-              dashboard is built from that portfolio.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <EmptyState
+          boxed
+          className="mt-6"
+          title="No domains yet"
+          description="Renewal costs show up here once your domains load."
+        />
       </div>
     );
   }

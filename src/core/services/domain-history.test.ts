@@ -14,6 +14,7 @@ import {
   recordRenewals,
   recordSync,
   setAlertsDismissed,
+  setDeparturesDropped,
 } from './domain-history';
 import { assignFolder, createFolder, getFolders } from './folders';
 import { clearAll } from './cache';
@@ -155,6 +156,38 @@ describe('domain history', () => {
     });
   });
 
+  it("answering an old arrival leaves a later holding's purchase alone", () => {
+    recordSync(holding([]));
+    const [first] = recordSync(holding(['a.com']));
+    recordSync(holding([]));
+    const [again] = recordSync(holding(['a.com']));
+    setPurchase({
+      domainName: 'a.com',
+      purchaseDate: '2025-01-01',
+      amount: '80',
+      currency: 'USD',
+      notes: '',
+      resolves: again.id,
+    });
+    // The first arrival's holding ended when the name left: a new record.
+    setPurchase({
+      domainName: 'a.com',
+      kind: 'registered',
+      purchaseDate: '2020-01-01',
+      amount: '9',
+      currency: 'USD',
+      notes: '',
+      resolves: first.id,
+    });
+    const paid = listEvents().filter(
+      (e) => e.type === 'purchased' || e.type === 'registered',
+    );
+    expect(paid.map((e) => [e.type, e.amount, e.resolves])).toEqual([
+      ['purchased', '80.00', again.id],
+      ['registered', '9.00', first.id],
+    ]);
+  });
+
   it('dismisses an alert and brings it back', () => {
     recordSync(holding([]));
     const [added] = recordSync(holding(['a.com']));
@@ -162,6 +195,21 @@ describe('domain history', () => {
     expect(listEvents()[0].dismissed).toBe(true);
     setAlertsDismissed([added.id], false);
     expect(listEvents()[0].dismissed).toBe(false);
+  });
+
+  it('marks a departure dropped and back, leaving dismissed alone', () => {
+    recordSync(holding(['a.com', 'b.com']));
+    const [removed] = recordSync(holding(['b.com']));
+    const [added] = recordSync(holding(['a.com', 'b.com', 'c.com']));
+    setDeparturesDropped([removed.id, added.id], true);
+    const byId = (id: string) => listEvents().find((e) => e.id === id)!;
+    expect(byId(removed.id)).toMatchObject({ dropped: true });
+    expect(byId(removed.id).dismissed).toBeUndefined();
+    // Only departures are dropped.
+    expect(byId(added.id).dropped).toBeUndefined();
+    setDeparturesDropped([removed.id], false);
+    expect(byId(removed.id).dropped).toBe(false);
+    expect(() => setDeparturesDropped([added.id], true)).toThrow();
   });
 
   it('Delete forgets everything about a name', async () => {

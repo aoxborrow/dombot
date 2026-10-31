@@ -21,12 +21,10 @@ import {
   CircleCheck,
   CircleHelp,
   Globe,
-  Plug,
   RotateCw,
   Server,
   ShieldBan,
   ShieldCheck,
-  Upload,
 } from 'lucide-react';
 import type {
   Domain,
@@ -64,6 +62,7 @@ import { useAppStore } from '../store/app';
 import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
 import { importedRows } from '../../shared/imported-domains';
 import { priceMoney } from '../lib/renewals';
+import { SALE_STEP_LABEL, saleSourceLabel } from '../lib/sales';
 import { nameserverGroup } from '../lib/nameservers';
 import {
   countFolders,
@@ -153,6 +152,7 @@ import {
   type LayoutColumn,
 } from '../components/data-table/column-layout';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
+import { EmptyState } from '../components/EmptyState';
 import { paginate, sortRows } from '../components/data-table/table-state';
 import { dateRangeField } from '../components/data-table/DateRangeFilter';
 import { type FilterField } from '../components/data-table/FilterBar';
@@ -387,6 +387,7 @@ const ARCHIVE_TITLE: Record<ArchiveLabel, string> = {
   sold: 'You recorded a sale',
   deleted: 'Not registered: the registration lookup found no holder',
   expired: 'Left your accounts after its expiry date',
+  dropped: 'Left your accounts before expiry, and you marked it dropped',
   removed: 'Left your accounts before expiry, with no sale recorded',
 };
 
@@ -489,12 +490,21 @@ function LifecycleBadge({
 }
 
 /**
- * Sold, beside the lifecycle pills: a sale is recorded and the buyer hasn't
- * taken the name yet, so it doubles as a reminder to finish the transfer.
- * (Expiring is worked out too, docs/owned-and-archive.md, but isn't shown on
- * the row: the Expires column's colour and the Auto-renew filter cover it.)
+ * Sold, beside the lifecycle pills: a sale is recorded, or under way at a
+ * market, and the buyer hasn't taken the name yet, so it doubles as a
+ * reminder to finish the transfer; a market's sale says where it's at on
+ * hover. (Expiring is worked out too, docs/owned-and-archive.md, but isn't
+ * shown on the row: the Expires column's colour and the Auto-renew filter
+ * cover it.)
  */
-function SoldBadge({ standing }: { standing: Standing }) {
+function SoldBadge({
+  standing,
+  underWay,
+}: {
+  standing: Standing;
+  /** "Afternic: Waiting on the transfer", for a sale under way. */
+  underWay?: string;
+}) {
   if (standing.archived) return null;
   const pill =
     'border-transparent px-1.5 py-0 text-[11px] compact:px-1 compact:text-[10px]';
@@ -503,6 +513,7 @@ function SoldBadge({ standing }: { standing: Standing }) {
       {standing.salePending && (
         <Badge
           className={cn(pill, 'bg-emerald-600 text-white dark:bg-emerald-700')}
+          title={underWay}
         >
           Sold
         </Badge>
@@ -941,6 +952,7 @@ export default function Domains() {
     marketListings,
     marketCatalog,
     marketTraffic,
+    marketSales,
     importedDomains,
     settings,
     domainEvents,
@@ -1004,8 +1016,8 @@ export default function Domains() {
   // Ownership per name, and each name's open "removed from registrar" alert (a
   // label chosen from the row closes it).
   const ownership = useMemo(
-    () => ownershipByDomain(domainEvents),
-    [domainEvents],
+    () => ownershipByDomain(domainEvents, marketSales),
+    [domainEvents, marketSales],
   );
   const openRemoval = useMemo(() => {
     const resolved = resolvedIds(domainEvents);
@@ -1033,7 +1045,7 @@ export default function Domains() {
   // Edit details for an imported name.
   const [detailsFor, setDetailsFor] = useState<Domain | null>(null);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
-  // Mark as Sold for one name: the sale dialog, which takes the price.
+  // Record sale for one name: the sale dialog, which takes the price.
   const [markSoldFor, setMarkSoldFor] = useState<Domain | null>(null);
   // The ownership dialogs, for one name (row menu) or the selection.
   const [ownershipDialog, setOwnershipDialog] = useState<{
@@ -1279,6 +1291,13 @@ export default function Domains() {
     (d: Domain): ArchiveLabel | null => standingOfRow(d).label,
     [standingOfRow],
   );
+  // Where a sale under way at a market is at, for the Sold badge's hover.
+  const saleUnderWay = (d: Domain): string | undefined => {
+    const sale = ownership.get(toAscii(d.domainName))?.marketSale;
+    if (!sale) return undefined;
+    const market = saleSourceLabel(sale.market, marketCatalog);
+    return `${market}: ${sale.action ? SALE_STEP_LABEL[sale.action] : 'in progress'}`;
+  };
 
   // Starts from ?q= so another page (Activity's Show in Domains) can open it
   // on one name, and follows it when a link changes it here (the bell).
@@ -1473,6 +1492,7 @@ export default function Domains() {
       sold: 0,
       deleted: 0,
       expired: 0,
+      dropped: 0,
       removed: 0,
     };
     const renew: Record<AutoRenewChoice, number> = {
@@ -1575,6 +1595,13 @@ export default function Domains() {
       },
     });
   const purchaseOf = (d: Domain) => purchases[toAscii(d.domainName)];
+  /** What's recorded as paid for a name, for its menu's wording. */
+  const paidKind = (d: Domain) => {
+    const p = purchaseOf(d);
+    return p?.purchaseDate || p?.amount
+      ? (p.purchaseType ?? 'purchased')
+      : null;
+  };
   // TLD first in the Filters menu, though never a default chip.
   const filterFields: FilterField[] = [
     listFilter(
@@ -2162,7 +2189,7 @@ export default function Domains() {
         <div className="flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-2">
             {col.render(d, portfolioRegistrarLabels)}
-            <SoldBadge standing={standingOfRow(d)} />
+            <SoldBadge standing={standingOfRow(d)} underWay={saleUnderWay(d)} />
           </span>
           <div className="flex items-center">
             <NotesButton
@@ -2188,6 +2215,7 @@ export default function Domains() {
               onAssignFolder={(folderId) => applyFolders([d], folderId)}
               archive={archiveLabelOf(d)}
               sold={!!ownership.get(toAscii(d.domainName))?.sale}
+              paid={paidKind(d)}
               removable={d.departed === true || d.source === 'imported'}
               onMarkSold={() => openOwnership('sold', [d])}
               onDelete={() => openOwnership('delete', [d])}
@@ -2523,35 +2551,34 @@ export default function Domains() {
         }}
         empty={
           noneConfigured && importedList.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-4">
-              <div>
-                <p className="font-medium text-foreground">
-                  No registrars configured
-                </p>
-                <p className="mt-0.5">
-                  Add API credentials for a registrar to load your domains into
-                  this table, or import them from a spreadsheet.
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-2">
-                <Button onClick={() => navigate('/settings?tab=registrars')}>
-                  <Plug />
-                  Configure registrars
-                </Button>
-                <Button variant="outline" onClick={() => setImporting(true)}>
-                  <Upload />
-                  Import domains
-                </Button>
-              </div>
-            </div>
+            // The first screen of a fresh install: neither way in is on the
+            // page otherwise (Import hides in the Sync menu), so these two
+            // are the only empty state with buttons.
+            <EmptyState
+              title="No domains yet"
+              description="Add a registrar account to load your domains, or import them from a spreadsheet."
+            >
+              <Button onClick={() => navigate('/settings?tab=registrars')}>
+                Add registrar account
+              </Button>
+              <Button variant="outline" onClick={() => setImporting(true)}>
+                Import domains
+              </Button>
+            </EmptyState>
           ) : archiveView && archiveCount === 0 ? (
-            'Names you no longer have show up here: sold, expired, or gone from your accounts. To let a name go, turn its auto-renew off.'
+            <EmptyState
+              title="Archive is empty"
+              description="Names you sold or let expire end up here, along with any that left your accounts."
+            />
           ) : portfolio.length === 0 ? (
-            hasLoaded ? (
-              'No domains found in any configured registrar.'
-            ) : (
-              'Your domains show up here after the first sync.'
-            )
+            <EmptyState
+              title="No domains yet"
+              description={
+                hasLoaded
+                  ? "Your registrar accounts don't have any domains."
+                  : 'Your domains show up here after the first sync.'
+              }
+            />
           ) : (
             'No domains match the current filters.'
           )

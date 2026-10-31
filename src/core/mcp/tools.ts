@@ -35,9 +35,10 @@ import {
 import { getManualPrices, setManualPrice } from '../services/pricing';
 import {
   setAlertsDismissed,
+  setDeparturesDropped,
   setSaleTransferred,
 } from '../services/domain-history';
-import { applyDomainOp } from '../services/domain-ops';
+import { applyDomainOp, getTransferOut } from '../services/domain-ops';
 import {
   eventsFor,
   listEvents,
@@ -49,6 +50,7 @@ import { dnsRecordLine, type SettingChange } from '../../shared/domain-changes';
 import {
   marketSyncFailures,
   notifications,
+  reviewAlerts,
   type SyncFailure,
 } from '../../shared/notifications';
 import {
@@ -91,7 +93,7 @@ import {
   type QueryResult,
 } from './portfolio-query';
 import { registerMarketTools } from './market-tools';
-import { marketListings } from '../services/markets/sync';
+import { marketListings, marketSales } from '../services/markets/sync';
 import { marketAccountViews } from '../services/markets/accounts';
 import { marketCatalog } from '../services/markets/registry';
 
@@ -172,7 +174,7 @@ function resolveRegistrar(
     }
     // A name that left your accounts is in Archive: syncing won't bring it
     // back, so say that instead.
-    const o = ownershipByDomain(eventsFor(key)).get(key);
+    const o = ownershipByDomain(eventsFor(key), marketSales()).get(key);
     const row = o && archiveRows(new Map([[key, o]]), [], null)[0];
     const label = row && standingOf(row, o, cachedRegistered().get(key)).label;
     if (label) {
@@ -393,7 +395,7 @@ const queryShape = {
     .enum(['owned', 'archive', 'all'])
     .optional()
     .describe(
-      'Which names to cover, like the Domains page’s Owned / Archive switch (default "owned"). "owned": names you hold, including ones whose auto-renew is off and ones you sold that the buyer hasn’t taken yet. "archive": names you no longer have; rows say why in `archiveLabel` (sold, deleted, expired, or removed). "all": both.',
+      'Which names to cover, like the Domains page’s Owned / Archive switch (default "owned"). "owned": names you hold, including ones whose auto-renew is off and ones you sold that the buyer hasn’t taken yet. "archive": names you no longer have; rows say why in `archiveLabel` (sold, deleted, expired, dropped, or removed). "all": both.',
     ),
   accountId,
   registrar: registrar.optional().describe('Only this registrar.'),
@@ -553,7 +555,7 @@ const queryShape = {
 function runQuery(args: QueryArgs): QueryResult {
   const { domains, fetchedAt, registrars, errors } = getMergedPortfolio();
   const { folders, assignments } = getFolders();
-  const ownership = ownershipByDomain(listEvents());
+  const ownership = ownershipByDomain(listEvents(), marketSales());
   // As on the Domains page: synced names, then imported names no account
   // reports, then names in Archive that neither covers (from the event log).
   const listed = [...domains, ...importedRows(getImportedDomains(), domains)];
@@ -696,7 +698,7 @@ function assertInPortfolio(domain: string): string {
 
 /** A name's Owned / Archive state, as portfolio_query rows report it. */
 function ownershipOf(key: string) {
-  const o = ownershipByDomain(eventsFor(key)).get(key);
+  const o = ownershipByDomain(eventsFor(key), marketSales()).get(key);
   const { domains } = getMergedPortfolio();
   const listed = [...domains, ...importedRows(getImportedDomains(), domains)];
   const row =
@@ -806,7 +808,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Query portfolio',
       description:
-        'List, search, and filter your whole portfolio — every configured registrar plus the names you imported — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (names you no longer have) or both. To let a name go, turn its auto-renew off with domain_set_autorenew; nothing you hold goes to Archive by hand. Filter by registrar, source (synced or imported), TLD, folder, name, nameserver, market listing, asking price (for sale or not, BIN price, minimum offer and floor, with ranges), auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort (including by estimated renewal price) and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel` (sold, deleted: the lookup says nobody holds it, expired: it left after expiry, or removed: it left early with no sale, the one to review), `expiring` (owned, auto-renew off, expiring within 30 days), `salePending` (a sale recorded on a name you still hold), `source` (`imported`: no connected account reports it), and `inAccount` (false for an imported name or an Archive name no account reports — the registrar-backed domain_* tools can’t act on those). Rows also carry what DomBot keeps per name: `paid` (date, amount, currency, registered or purchased), `sold`, `notes`, `askingPrice` (BIN price, minimum offer, floor), and `renewalPrice` (DomBot’s yearly estimate and its source, as domain_renewal_price). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, staleAccounts, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete; `staleAccounts` lists accounts whose own last sync is old even if another synced since (`stale` is true then too — registrar_sync just those, or portfolio_sync). Rows carry only the fields you need — call domain_get for a single domain’s full record.',
+        'List, search, and filter your whole portfolio — every configured registrar plus the names you imported — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (names you no longer have) or both. To let a name go, turn its auto-renew off with domain_set_autorenew; nothing you hold goes to Archive by hand. Filter by registrar, source (synced or imported), TLD, folder, name, nameserver, market listing, asking price (for sale or not, BIN price, minimum offer and floor, with ranges), auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort (including by estimated renewal price) and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel` (sold, deleted: the lookup says nobody holds it, expired: it left after expiry, dropped: it left early and you marked it dropped, or removed: it left early with no sale, the one to review), `expiring` (owned, auto-renew off, expiring within 30 days), `salePending` (a sale recorded on a name you still hold), `source` (`imported`: no connected account reports it), and `inAccount` (false for an imported name or an Archive name no account reports — the registrar-backed domain_* tools can’t act on those). Rows also carry what DomBot keeps per name: `paid` (date, amount, currency, registered or purchased), `sold`, `notes`, `askingPrice` (BIN price, minimum offer, floor), and `renewalPrice` (DomBot’s yearly estimate and its source, as domain_renewal_price). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, staleAccounts, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete; `staleAccounts` lists accounts whose own last sync is old even if another synced since (`stale` is true then too — registrar_sync just those, or portfolio_sync). Rows carry only the fields you need — call domain_get for a single domain’s full record.',
       inputSchema: queryShape,
       annotations: { readOnlyHint: true },
     },
@@ -933,10 +935,16 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'portfolio_alerts',
     {
-      title: 'List what needs review',
+      title: 'List alerts',
       description:
-        'What needs you, as the app’s bell shows it: registrar or market accounts whose last sync failed (`sync-error`), names that left an account (`departure`, high priority: did you sell it?), and names that arrived (`arrival`, low priority: what did you pay?). Most severe first, then newest. Answer a departure with domain_sale_set (or dismiss it) and an arrival with domain_purchase_set, passing the alert’s `eventId` as `resolves`; or dismiss alerts with portfolio_alert_dismiss. A sync error clears on the account’s next good sync. Local — no registrar calls. Returns { total, counts, alerts }: `total` counts the matching alerts before paging, `counts` every alert by kind.',
+        'What’s new, as the app’s bell shows it: registrar or market accounts whose last sync failed (`sync-error`), names that left an account (`departure`: did you sell it?), and names that arrived (`arrival`: what did you pay?) that nobody has answered or dismissed yet. Most severe first, then newest. With `needsReview: true`, instead every arrival and departure the Activity page’s Needs review lists: the new ones, and the dismissed ones still missing their money (`dismissed: true`); no sync errors. Answer a departure with domain_sale_set and an arrival with domain_purchase_set (`kind` registered or purchased), passing the alert’s `eventId` as `resolves`; mark a departure that brought no money dropped, or dismiss alerts, with portfolio_alert_dismiss. A sync error clears on the account’s next good sync. Local — no registrar calls. Returns { total, counts, alerts }: `total` counts the matching alerts before paging, `counts` every alert listed by kind.',
       inputSchema: {
+        needsReview: z
+          .boolean()
+          .optional()
+          .describe(
+            'true: every arrival and departure still missing its money, dismissed or not (default false: what’s new).',
+          ),
         kind: z
           .enum(['sync-error', 'departure', 'arrival'])
           .optional()
@@ -959,8 +967,10 @@ export function registerTools(server: McpServer): void {
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ kind, limit, offset }) => {
-      const all = notifications(listEvents(), syncFailures());
+    async ({ needsReview, kind, limit, offset }) => {
+      const all = needsReview
+        ? reviewAlerts(listEvents())
+        : notifications(listEvents(), syncFailures());
       const counts = { 'sync-error': 0, departure: 0, arrival: 0 };
       for (const n of all) counts[n.kind] += 1;
       const matching = kind ? all.filter((n) => n.kind === kind) : all;
@@ -978,7 +988,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Dismiss alerts',
       description:
-        'Dismiss sync alerts ("added" or "removed") without recording anything, as the app’s Dismiss review does, or bring them back with `dismissed: false`. Takes alert ids (`eventId`) from portfolio_alerts or domain_history; ids that aren’t alerts are skipped. A sync error can’t be dismissed. Local — no registrar calls. Returns which of the ids are still open.',
+        'Dismiss sync alerts ("added" or "removed") without recording anything, as the app’s Dismiss does, or bring them back with `dismissed: false`. A dismissed alert is no longer new, but stays in Needs review until its money is recorded. With `dropped: true`, instead mark departures dropped, as the app’s Mark dropped does: the name left and no money came back (let go early, or moved to a registrar DomBot doesn’t sync). That answers it for good and gives it Archive’s Dropped label; `dropped: false` undoes it. Takes alert ids (`eventId`) from portfolio_alerts or domain_history; ids that aren’t alerts (or, for `dropped`, departures) are skipped. A sync error can’t be dismissed. Local — no registrar calls. Returns which of the ids are still new.',
       inputSchema: {
         alertIds: z
           .array(z.string().max(40))
@@ -989,16 +999,25 @@ export function registerTools(server: McpServer): void {
           .boolean()
           .optional()
           .describe('false brings them back (default true).'),
+        dropped: z
+          .boolean()
+          .optional()
+          .describe(
+            'true marks departures dropped instead of dismissing; false undoes it.',
+          ),
       },
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
-    async ({ alertIds, dismissed }) => {
-      setAlertsDismissed(alertIds, dismissed ?? true);
+    async ({ alertIds, dismissed, dropped }) => {
+      if (dropped !== undefined) setDeparturesDropped(alertIds, dropped);
+      else setAlertsDismissed(alertIds, dismissed ?? true);
       const open = new Set(
         notifications(listEvents(), []).map((n) => n.eventId),
       );
       return localWrite({
-        dismissed: dismissed ?? true,
+        ...(dropped !== undefined
+          ? { dropped }
+          : { dismissed: dismissed ?? true }),
         stillOpen: alertIds.filter((id) => open.has(id)),
       });
     },
@@ -1559,7 +1578,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Get a domain’s history',
       description:
-        'For a single domain: everything DomBot recorded about it, oldest first — arrivals and departures seen by sync, moves between your accounts, renewals, purchases, sales, and settings changes (`changed`: its `setting` — autoRenew, privacy, lock, nameservers, urlForwarding, emailForwarding, dns, or contacts — with `after`, and `before` when DomBot knew it) — plus its note and its current Owned/Archive state. Each event says who recorded it (`source`: sync, user, import, lookup, agent, or bulk: a bulk job in the app). Sync alerts ("added" and "removed") carry `alert` (open, dismissed, or resolved) and `resolvedBy`, the id of the event that answered it. Works for names in Archive and names no account reports. Local — no registrar call.',
+        'For a single domain: everything DomBot recorded about it, oldest first — arrivals and departures seen by sync, moves between your accounts, renewals, purchases, sales, and settings changes (`changed`: its `setting` — autoRenew, privacy, lock, nameservers, urlForwarding, emailForwarding, dns, or contacts — with `after`, and `before` when DomBot knew it) — plus its note and its current Owned/Archive state. Each event says who recorded it (`source`: sync, user, import, lookup, agent, or bulk: a bulk job in the app). Sync alerts ("added" and "removed") carry `alert` (open, dismissed, dropped: a departure you marked dropped, or resolved) and `resolvedBy`, the id of the event that answered it. Works for names in Archive and names no account reports. Local — no registrar call.',
       inputSchema: { domain },
       annotations: { readOnlyHint: true },
     },
@@ -1588,9 +1607,11 @@ export function registerTools(server: McpServer): void {
                 ? null
                 : resolvedBy
                   ? 'resolved'
-                  : e.dismissed
-                    ? 'dismissed'
-                    : 'open',
+                  : e.dropped
+                    ? 'dropped'
+                    : e.dismissed
+                      ? 'dismissed'
+                      : 'open',
               resolvedBy,
             };
           }),
@@ -1990,6 +2011,49 @@ export function registerTools(server: McpServer): void {
       // A read: surface a non-ok outcome as the tool's error, as before.
       if (result.status !== 'ok') throw new Error(result.message);
       return json({ domain, authCode: result.data?.authCode });
+    },
+  );
+
+  server.registerTool(
+    'domain_transfer_out_get',
+    {
+      title: 'Get transfer out',
+      description:
+        "For a single domain: read its latest outbound transfer — the request another registrar made with the auth code, as when a sale's buyer takes the name. `status` is pending (waiting on you: approve it with domain_transfer_out_approve, or the registrar lets it go on its own around `expiresAt`), approved, rejected, completed, cancelled, or unknown; `rawStatus` is the registrar's own label. `transferOut` is null when there is none. Read live. Not supported by every registrar.",
+      inputSchema: { accountId, registrar: optionalRegistrar, domain },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ accountId, registrar, domain }) => {
+      const r = resolveRegistrar(domain, registrar, accountId);
+      const account = resolveDomainAccount(r, domain, accountId);
+      return json({
+        domain,
+        transferOut: await getTransferOut({
+          registrar: r,
+          domainName: domain,
+          accountId: account.id,
+        }),
+      });
+    },
+  );
+
+  server.registerTool(
+    'domain_transfer_out_approve',
+    {
+      title: 'Approve transfer out',
+      description:
+        "For a single domain: approve its pending outbound transfer (see domain_transfer_out_get), releasing it to the gaining registrar now instead of after the registrar's waiting period. The domain leaves your account. Not supported by every registrar.",
+      inputSchema: { accountId, registrar: optionalRegistrar, domain },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+    },
+    async ({ accountId, registrar, domain }) => {
+      const r = resolveRegistrar(domain, registrar, accountId);
+      const account = resolveDomainAccount(r, domain, accountId);
+      return domainOp(r, domain, { kind: 'approveTransfer' }, account.id);
     },
   );
 

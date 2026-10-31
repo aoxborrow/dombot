@@ -5,9 +5,8 @@ import {
   marketSyncFailures,
   notificationBadge,
   notifications,
-  reviewPriority,
+  reviewAlerts,
 } from './notifications';
-import { resolvedIds } from './sync-diff';
 
 const event = (patch: Partial<DomainEvent>): DomainEvent => ({
   id: 'E1',
@@ -21,18 +20,36 @@ const event = (patch: Partial<DomainEvent>): DomainEvent => ({
   ...patch,
 });
 
-describe('reviewPriority', () => {
-  it('is high for a departure, low for an arrival, null otherwise', () => {
-    const none = new Set<string>();
-    expect(reviewPriority(event({}), none)).toBe('high');
-    expect(reviewPriority(event({ type: 'added' }), none)).toBe('low');
-    expect(reviewPriority(event({ type: 'moved' }), none)).toBeNull();
-    expect(reviewPriority(event({ dismissed: true }), none)).toBeNull();
+describe('notifications', () => {
+  it('lists new arrivals and departures only', () => {
+    const none = (patch: Partial<DomainEvent>) =>
+      notifications([event(patch)], []).map((n) => n.kind);
+    expect(none({})).toEqual(['departure']);
+    expect(none({ type: 'added' })).toEqual(['arrival']);
+    expect(none({ type: 'moved' })).toEqual([]);
+    expect(none({ dismissed: true })).toEqual([]);
+    expect(none({ dropped: true })).toEqual([]);
     const events = [
       event({}),
       event({ id: 'E2', type: 'sold', source: 'user', resolves: 'E1' }),
     ];
-    expect(reviewPriority(events[0], resolvedIds(events))).toBeNull();
+    expect(notifications(events, [])).toEqual([]);
+  });
+});
+
+describe('reviewAlerts', () => {
+  it('lists Needs review, saying which are dismissed', () => {
+    const events = [
+      event({ type: 'added' }),
+      event({ id: 'E2', domain: 'b.com', dismissed: true, updatedAt: 2 }),
+      event({ id: 'E3', domain: 'c.com', dismissed: true }),
+    ];
+    expect(
+      reviewAlerts(events).map((n) => [n.eventId, n.kind, n.dismissed]),
+    ).toEqual([
+      ['E2', 'departure', true],
+      ['E1', 'arrival', false],
+    ]);
   });
 });
 

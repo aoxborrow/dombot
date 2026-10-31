@@ -10,6 +10,7 @@ export const ARCHIVE_LABEL: Record<ArchiveLabel, string> = {
   sold: 'Sold',
   deleted: 'Deleted',
   expired: 'Expired',
+  dropped: 'Dropped',
   removed: 'Removed',
 };
 

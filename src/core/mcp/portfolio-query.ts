@@ -156,8 +156,9 @@ export interface QueryRow {
   ownership: 'owned' | 'archive';
   /**
    * Why it's in Archive: `sold`, `deleted` (the lookup says nobody holds
-   * it), `expired` (it left after its expiry), or `removed` (it left early
-   * with no sale recorded; the one to review).
+   * it), `expired` (it left after its expiry), `dropped` (it left early and
+   * you marked it dropped), or `removed` (it left early with no sale
+   * recorded; the one to review).
    */
   archiveLabel: ArchiveLabel | null;
   /** Owned, auto-renew off, and expiring within 30 days. */

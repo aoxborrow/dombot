@@ -117,7 +117,9 @@ titled "Pricing"), `ListPrice` / `listPrices` in code, and the `Price`,
   Domains row), reviewing the arrival opens that purchase, and saving it
   closes the review.
 - **Big imports:** on Activity, filter to the import, select every row, and
-  use the bulk Dismiss review. The import result links straight there.
+  use the bulk Dismiss (or Record registration). The import result links
+  straight there. Dismissed names stay in Needs review until what you paid
+  is recorded.
 - **Source:** every added name writes `source: 'import'`, whether it came
   from a file or the Enter names tab, and Activity shows it as "Imported".
   DomBot doesn't tell the two apart.
@@ -359,7 +361,7 @@ renewal prices import as USD amounts.
   bundle import and the CSV import (`src/shared/list-prices.ts`).
 - **API:** `getListPrices` and `setListPrices`, through the method table.
 - **Domains table (Owned):** a BIN price column; clicking the cell opens the
-  Pricing editor, as the Paid cell opens Purchase details. The row menu and
+  Pricing editor, as the Paid cell opens the purchase dialog. The row menu and
   the bulk bar open the same editor for one name or the selection.
 - **Pricing filter (Owned):** For sale (any of a BIN price, minimum offer or
   floor), Has BIN price, Has min offer, Has floor price, and Not for sale

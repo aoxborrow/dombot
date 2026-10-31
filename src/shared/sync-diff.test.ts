@@ -218,6 +218,29 @@ describe('diffSync', () => {
     expect(early.events[0].dismissed).toBeUndefined();
   });
 
+  it('records a name leaving during a market sale with nothing to review', () => {
+    const before = [account('dynadot', ['a.com', 'b.com'])];
+    const after = [account('dynadot', [])];
+    const result = diffSync(
+      before,
+      after,
+      [],
+      new Set(['dynadot']),
+      NOW,
+      newEvent,
+      new Set(['a.com']),
+    );
+    expect(brief(result.events)).toEqual([
+      {
+        type: 'removed',
+        domain: 'a.com',
+        accountId: 'dynadot',
+        dismissed: true,
+      },
+      { type: 'removed', domain: 'b.com', accountId: 'dynadot' },
+    ]);
+  });
+
   it('keeps a Sold name labeled through a move and a purchase', () => {
     const sold = newEvent(
       { domain: 'a.com', type: 'sold', source: 'user', date: '2026-09-01' },

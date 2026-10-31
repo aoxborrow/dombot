@@ -49,6 +49,8 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.getUrlForwarding, target),
   getEmailForwarding: (target) =>
     ipcRenderer.invoke(IpcChannels.getEmailForwarding, target),
+  getTransferOut: (target) =>
+    ipcRenderer.invoke(IpcChannels.getTransferOut, target),
   startBulk: (targets, op) =>
     ipcRenderer.invoke(IpcChannels.startBulk, targets, op),
   cancelBulk: (jobId) => ipcRenderer.invoke(IpcChannels.cancelBulk, jobId),
@@ -207,6 +209,8 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.markSold, items, date),
   setAlertsDismissed: (ids, dismissed) =>
     ipcRenderer.invoke(IpcChannels.setAlertsDismissed, ids, dismissed),
+  setDeparturesDropped: (ids, dropped) =>
+    ipcRenderer.invoke(IpcChannels.setDeparturesDropped, ids, dropped),
   setSaleTransferred: (id, transferred) =>
     ipcRenderer.invoke(IpcChannels.setSaleTransferred, id, transferred),
   deleteUserEvent: (id) => ipcRenderer.invoke(IpcChannels.deleteUserEvent, id),

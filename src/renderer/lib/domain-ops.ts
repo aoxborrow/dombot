@@ -71,7 +71,9 @@ export function reportOpResult(op: DomainOp, result: DomainOpResult): boolean {
       toast.error(
         op.kind === 'authCode'
           ? `Couldn’t get the auth code for ${domainName}`
-          : `Couldn’t update ${OP_LABEL[op.kind]} for ${domainName}`,
+          : op.kind === 'approveTransfer'
+            ? `Couldn’t approve the transfer of ${domainName}`
+            : `Couldn’t update ${OP_LABEL[op.kind]} for ${domainName}`,
         { description: friendlyError(result.message) },
       );
       return false;

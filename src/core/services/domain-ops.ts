@@ -1,5 +1,6 @@
 import {
   AbortError,
+  Feature,
   NotImplementedError,
   OutcomeUnknownError,
   RateLimitError,
@@ -12,6 +13,7 @@ import type {
   DomainOpResult,
   DomainOpStatus,
   DomainTarget,
+  DomainTransferOut,
 } from '../../shared/ipc';
 import {
   expandTemplate,
@@ -287,6 +289,12 @@ async function settleUnknown(
       'failed',
       'The registrar did not return the auth code. It is safe to try again.',
     );
+  // Approving one that already went through is refused, nothing more.
+  if (op.kind === 'approveTransfer')
+    return done(
+      'failed',
+      'The registrar did not confirm the approval. It is safe to try again.',
+    );
   if (op.kind === 'urlForwarding' || op.kind === 'emailForwarding')
     return done('unknown', UNCONFIRMED);
   if (request.signal?.aborted) return done('unknown', UNCONFIRMED);
@@ -501,7 +509,48 @@ async function dispatch(
       ).provider.getAuthCode(domainName, request);
       return done('ok', opSummary(op), { data: { authCode } });
     }
+    case 'approveTransfer':
+      // Extended, like the auth code: reach through to the provider.
+      return fromResult(
+        await getRegistrarClient(
+          registrar,
+          accountId,
+        ).provider.approveTransferOut(domainName, request),
+      );
   }
+}
+
+/**
+ * A domain's latest outbound transfer, read live from the account that holds
+ * it (never cached): the request the buyer's registrar made with the auth
+ * code, behind the Sales page's Approve transfer. Null when the registrar has
+ * none on record. Throws when the registrar can't report one.
+ */
+export async function getTransferOut(
+  target: DomainTarget,
+  request: RequestOptions = {},
+): Promise<DomainTransferOut | null> {
+  if (!getRegistrarFeatures(target.registrar).includes(Feature.GetTransferOut))
+    throw new Error(
+      'This registrar doesn’t report transfers out through its API.',
+    );
+  const account = resolveDomainAccount(
+    target.registrar,
+    target.domainName,
+    target.accountId,
+  );
+  const transfer = await getRegistrarClient(
+    target.registrar,
+    account.id,
+  ).provider.getTransferOut(target.domainName, request);
+  if (!transfer) return null;
+  return {
+    status: transfer.status,
+    rawStatus: transfer.rawStatus,
+    requestedAt: transfer.requestedDate?.toISOString() ?? null,
+    expiresAt: transfer.expirationDate?.toISOString() ?? null,
+    completedAt: transfer.completedDate?.toISOString() ?? null,
+  };
 }
 
 function classify(err: unknown): DomainOpStatus {

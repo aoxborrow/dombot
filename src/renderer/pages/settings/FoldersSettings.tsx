@@ -28,12 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from '@/components/ui/empty';
+import { EmptyState } from '../../components/EmptyState';
 import { useAppStore } from '../../store/app';
 import { countFolders, folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../../components/icons/FolderIcon';
@@ -50,6 +45,7 @@ export default function FoldersSettings() {
   const portfolio = useAppStore((s) => s.portfolio);
   const importedDomains = useAppStore((s) => s.importedDomains);
   const domainEvents = useAppStore((s) => s.domainEvents);
+  const marketSales = useAppStore((s) => s.marketSales);
   const registrars = useAppStore((s) => s.registrars);
   const lookups = useAppStore((s) => s.registrationLookups);
   const createFolder = useAppStore((s) => s.createFolder);
@@ -63,7 +59,7 @@ export default function FoldersSettings() {
   // Each folder's names in Owned and in Archive: the Domains table's rows,
   // so an assignment left on a name DomBot no longer shows isn't counted.
   const counts = useMemo(() => {
-    const ownership = ownershipByDomain(domainEvents);
+    const ownership = ownershipByDomain(domainEvents, marketSales);
     const live = [...portfolio, ...importedRows(importedDomains, portfolio)];
     const rows = [...live, ...archiveRows(ownership, live, registrars)];
     const archived = (d: Domain) => {
@@ -76,6 +72,7 @@ export default function FoldersSettings() {
     portfolio,
     importedDomains,
     domainEvents,
+    marketSales,
     registrars,
     lookups,
     assignments,
@@ -105,14 +102,11 @@ export default function FoldersSettings() {
           New folder
         </Button>
         {folders.length === 0 ? (
-          <Empty className="rounded-md border border-dashed">
-            <EmptyHeader>
-              <EmptyTitle>No folders yet</EmptyTitle>
-              <EmptyDescription>
-                Create your first folder to start organizing your domains.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+          <EmptyState
+            boxed
+            title="No folders yet"
+            description="Folders group your domains so you can filter by them."
+          />
         ) : (
           <div className="flex flex-col gap-2.5">
             {folders.map((f) => (

@@ -155,12 +155,12 @@ export function setPurchase(
   const domain = assertDomainName(input.domainName);
   const date = parsePurchaseDate(input.purchaseDate ?? '');
   // Answering an arrival alert records a new holding, unless a purchase was
-  // already recorded since the name arrived (an import, or the Domains row):
-  // then it edits that one instead of adding a second. Otherwise edit the
-  // latest.
+  // already recorded since the name arrived (an import, or the Domains row)
+  // and before it next left: then it edits that one instead of adding a
+  // second. Otherwise edit the latest.
   const latest = holdings().get(domain)?.acquisition;
   const existing = input.resolves
-    ? latest && latest.id > input.resolves
+    ? latest && sameHolding(domain, input.resolves, latest.id)
       ? latest
       : undefined
     : latest;
@@ -184,6 +184,23 @@ export function setPurchase(
   else if (existing) deleteEvent(existing.id);
   setNameNote(domain, input.notes ?? '');
   return purchaseOf(domain);
+}
+
+/**
+ * Whether an event recorded after an arrival (`later`) belongs to that
+ * arrival's holding: no departure of the name between them.
+ */
+function sameHolding(domain: string, arrival: string, later: string): boolean {
+  return (
+    later > arrival &&
+    !listEvents().some(
+      (e) =>
+        e.domain === domain &&
+        e.type === DomainEventType.Removed &&
+        e.id > arrival &&
+        e.id < later,
+    )
+  );
 }
 
 /** One of a name's `sold` events, by id; an unknown id is an error. */

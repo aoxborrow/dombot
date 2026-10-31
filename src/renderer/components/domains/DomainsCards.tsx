@@ -105,6 +105,7 @@ export function DomainsCards({
         sold: 0,
         deleted: 0,
         expired: 0,
+        dropped: 0,
         removed: 0,
       };
       // Names you no longer have that a market still shows: to take down.
@@ -265,9 +266,10 @@ export function DomainsCards({
           size="sm"
           icon={CalendarX}
           accentClass="text-amber-400"
-          label="Expired"
-          value={cards.expired.toLocaleString()}
-          onClick={() => actions.onArchiveStatus(['expired'])}
+          // Both are names you let go: one lapsed, one left early.
+          label="Expired or dropped"
+          value={(cards.expired + cards.dropped).toLocaleString()}
+          onClick={() => actions.onArchiveStatus(['expired', 'dropped'])}
         />
         <StatCard
           size="sm"

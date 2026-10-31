@@ -34,12 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from '@/components/ui/empty';
+import { EmptyState } from '../../components/EmptyState';
 import { Card } from '@/components/ui/card';
 import {
   Collapsible,
@@ -219,15 +214,11 @@ function AddMarketMenu({
 
 function EmptyMarkets() {
   return (
-    <Empty className="rounded-md border border-dashed">
-      <EmptyHeader>
-        <EmptyTitle>No market accounts yet</EmptyTitle>
-        <EmptyDescription>
-          Add one to see which names are listed, at what prices, what sold, and
-          how much traffic they get.
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <EmptyState
+      boxed
+      title="No market accounts yet"
+      description="Add one to see your listings, sales, and traffic."
+    />
   );
 }
 

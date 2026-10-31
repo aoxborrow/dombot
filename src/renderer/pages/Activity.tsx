@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
@@ -8,9 +14,10 @@ import {
   CirclePlus,
   CalendarClock,
   ChevronDown,
+  CircleSlash,
+  ClipboardPen,
   Ellipsis,
   Flag,
-  Flame,
   Globe,
   History,
   Inbox,
@@ -25,22 +32,23 @@ import { toAscii, toUnicode } from '../../shared/domain-name';
 import { importedRows } from '../../shared/imported-domains';
 import { DomainEventType, type DomainEvent } from '../../shared/domain-events';
 import { SETTING_LABEL, SETTING_ORDER } from '../../shared/domain-changes';
-import type { RegistrarMeta, RegistrarName } from '../../shared/ipc';
+import type {
+  DomainPurchase,
+  RegistrarMeta,
+  RegistrarName,
+} from '../../shared/ipc';
 import { DEFAULT_CURRENCY, DEFAULT_NUMBER_FORMAT } from '../../shared/money';
-import {
-  notifications,
-  reviewPriority,
-  type ReviewPriority,
-} from '../../shared/notifications';
 import {
   archiveRows,
   ownershipByDomain,
   standingOf,
   type Ownership,
 } from '../../shared/ownership';
-import { resolvedIds } from '../../shared/sync-diff';
+import { needsReviewIds, unrecordedIds } from '../../shared/review';
+import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { RegistrarLogo } from '../components/RegistrarLogo';
 import { StatCard, StatCardRow } from '../components/StatCard';
+import { EmptyState } from '../components/EmptyState';
 import { DomainLink } from '../components/domains/DomainLink';
 import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
@@ -62,11 +70,14 @@ import {
   ToolbarSwitch,
   listField,
 } from '../components/data-table/FilterToolbar';
-import { PurchaseDialog } from '../components/domains/PurchaseDialog';
+import {
+  PurchaseDialog,
+  type AcquisitionSide,
+} from '../components/domains/PurchaseDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import { accountName } from '../lib/domain-history';
-import { REVIEW_ROW_TINT, SEVERITY_DOT } from '../lib/severity';
 import {
+  NEW_ROW_TINT,
   SOURCE_LABEL,
   VERB,
   alertDomain,
@@ -78,6 +89,11 @@ import {
   withinDays,
 } from '../lib/activity';
 import { usePreferences } from '../lib/preferences';
+import {
+  feeError,
+  registrationDay,
+  registrationFee,
+} from '../lib/registration';
 import { useAppStore } from '../store/app';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -89,11 +105,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { StickyNoteIcon } from '../components/icons/StickyNoteIcon';
-
-const PRIORITY_LABEL: Record<ReviewPriority, string> = {
-  high: 'High',
-  low: 'Low',
-};
 
 const DATE_OPTIONS = [7, 14, 30, 90, 180].map((days) => ({
   value: String(days),
@@ -132,13 +143,20 @@ type DialogState =
       kind: 'sold' | 'delete' | 'notes';
       rows: ActivityRow[];
     }
-  | { kind: 'purchase'; row: ActivityRow };
+  | {
+      kind: 'purchase';
+      row: ActivityRow;
+      side: AcquisitionSide;
+      /** Why the fee isn't filled in, from a one-click registration. */
+      note?: string;
+    };
 
 /**
  * Every domain event, newest first: what you recorded (purchases, sales,
  * labels) and what sync saw (arrivals, departures, moves). An alert you've
- * answered shows your answer in its place. Open alerts are tinted by priority
- * with a Dismiss beside "Needs review"; every row has a menu to record a sale
+ * answered shows your answer in its place. New alerts are highlighted like
+ * unread mail, and Needs review lists every arrival or departure still
+ * missing its money; every row has a menu to record a sale
  * or a purchase, or delete a name no account holds, and the same
  * actions work in bulk on a selection.
  */
@@ -155,6 +173,9 @@ export default function Activity() {
   );
   const settings = useAppStore((s) => s.settings);
   const setAlertsDismissed = useAppStore((s) => s.setAlertsDismissed);
+  const setDeparturesDropped = useAppStore((s) => s.setDeparturesDropped);
+  const savePurchase = useAppStore((s) => s.savePurchase);
+  const deleteUserEvent = useAppStore((s) => s.deleteUserEvent);
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const reviewOnly = params.get('review') === '1';
@@ -177,7 +198,6 @@ export default function Activity() {
   const [sources, setSources] = useState<string[]>([]);
   // Which settings changed (`changed` events only).
   const [changes, setChanges] = useState<string[]>([]);
-  const [priorities, setPriorities] = useState<string[]>([]);
   const [days, setDays] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -189,6 +209,8 @@ export default function Activity() {
   const [dialog, setDialog] = useState<DialogState | null>(null);
   // The row (by event id) whose notes editor is open.
   const [notesFor, setNotesFor] = useState<string | null>(null);
+  // Arrivals whose one-click registration is asking the registrar for its fee.
+  const [registering, setRegistering] = useState<Set<string>>(new Set());
   const purchases = useAppStore((s) => s.purchases);
   // "Last N days" is measured from when the page opened.
   const [openedAt] = useState(() => Date.now());
@@ -206,7 +228,6 @@ export default function Activity() {
       setAccounts([]);
       setSources([]);
       setChanges([]);
-      setPriorities([]);
       setDays([]);
       setPage(0);
       setSelected(new Set());
@@ -216,7 +237,22 @@ export default function Activity() {
   const resolved = useMemo(() => resolvedIds(events), [events]);
   const closedBy = useMemo(() => resolutions(events), [events]);
   const ownership = useMemo(() => ownershipByDomain(events), [events]);
-  const priorityOf = (e: DomainEvent) => reviewPriority(e, resolved);
+  // New: an alert nobody has answered or dismissed, highlighted like unread
+  // mail. Unrecorded: an arrival or departure still missing its money, what
+  // the answers are for. Needs review lists both (shared/review.ts).
+  const isNew = (e: DomainEvent) => isOpenAlert(e, resolved);
+  const unrecorded = useMemo(() => unrecordedIds(events), [events]);
+  const reviewIds = useMemo(
+    () => needsReviewIds(events, unrecorded),
+    [events, unrecorded],
+  );
+  /** An arrival with nothing paid on file: recording what you paid answers
+   *  it. (A new one with a purchase on file only needs dismissing.) */
+  const arrivalToRecord = (e: DomainEvent) =>
+    e.type === DomainEventType.Added && unrecorded.has(e.id);
+  /** A departure with no sale on file: a sale or Mark dropped answers it. */
+  const departureToRecord = (e: DomainEvent) =>
+    e.type === DomainEventType.Removed && unrecorded.has(e.id);
 
   // Your answer to an alert shows on the alert's row, not its own. (Sync's own
   // closures, a name coming back or a move, stay rows of their own.)
@@ -232,7 +268,6 @@ export default function Activity() {
       )
       .map((e): ActivityRow => ({ event: e, shown: answerOf(e) ?? e }));
   }, [events, closedBy]);
-  const reviewCount = useMemo(() => notifications(events, []).length, [events]);
 
   // Filter options, with counts over every event.
   const typeOptions = useMemo(() => {
@@ -291,24 +326,6 @@ export default function Activity() {
       count: counts.get(s),
     }));
   }, [allRows]);
-  const priorityOptions = useMemo(() => {
-    const counts = { high: 0, low: 0 };
-    for (const e of events) {
-      const p = reviewPriority(e, resolved);
-      if (p) counts[p] += 1;
-    }
-    return (['high', 'low'] as const).map((p) => ({
-      value: p,
-      label: PRIORITY_LABEL[p],
-      count: counts[p],
-      icon: (
-        <span
-          className={cn('m-1 size-2 rounded-full', SEVERITY_DOT[p])}
-          aria-hidden
-        />
-      ),
-    }));
-  }, [events, resolved]);
 
   // Date windows are cumulative, so their counts overlap (a change from 3
   // days ago counts in every window).
@@ -326,9 +343,7 @@ export default function Activity() {
   const hasActiveFilters =
     search.trim() !== '' ||
     importId !== null ||
-    [types, accounts, sources, changes, priorities, days].some(
-      (f) => f.length > 0,
-    );
+    [types, accounts, sources, changes, days].some((f) => f.length > 0);
 
   // When the import being shown was recorded.
   const importedAt = useMemo(() => {
@@ -361,13 +376,7 @@ export default function Activity() {
         return false;
       if (importId && e.importId !== importId && shown.importId !== importId)
         return false;
-      const priority = reviewPriority(e, resolved);
-      if (reviewOnly && !priority) return false;
-      if (
-        priorities.length > 0 &&
-        (!priority || !priorities.includes(priority))
-      )
-        return false;
+      if (reviewOnly && !reviewIds.has(e.id)) return false;
       if (types.length > 0 && !types.includes(shown.type)) return false;
       if (sources.length > 0 && !sources.includes(shown.source)) return false;
       if (
@@ -388,7 +397,6 @@ export default function Activity() {
         return false;
       return true;
     });
-    const rank = { high: 0, low: 1 };
     const valueOf = ({ event: e, shown }: ActivityRow): SortValue | null => {
       switch (sortKey) {
         case 'domain':
@@ -399,10 +407,6 @@ export default function Activity() {
           return accountName(registrars, e.accountId ?? e.toAccountId) ?? '';
         case 'source':
           return SOURCE_LABEL[shown.source];
-        case 'status': {
-          const p = reviewPriority(e, resolved);
-          return p ? rank[p] : 2;
-        }
         default:
           // The day it happened, then the order it was recorded.
           return `${eventDay(e)}|${e.id}`;
@@ -413,9 +417,8 @@ export default function Activity() {
     allRows,
     search,
     importId,
-    resolved,
+    reviewIds,
     reviewOnly,
-    priorities,
     types,
     sources,
     changes,
@@ -439,17 +442,16 @@ export default function Activity() {
   // Selection: any rows. State actions apply to each selected name once.
   // The cards over the table: what the rows the filters leave hold.
   const counts = useMemo(() => {
-    const n = { review: 0, high: 0, added: 0, removed: 0, sold: 0 };
+    const n = { review: 0, fresh: 0, added: 0, removed: 0, sold: 0 };
     for (const { event: e, shown } of rows) {
-      const p = reviewPriority(e, resolved);
-      if (p) n.review += 1;
-      if (p === 'high') n.high += 1;
+      if (reviewIds.has(e.id)) n.review += 1;
+      if (isOpenAlert(e, resolved)) n.fresh += 1;
       if (shown.type === 'added') n.added += 1;
       if (shown.type === 'removed') n.removed += 1;
       if (shown.type === 'sold') n.sold += 1;
     }
     return n;
-  }, [rows, resolved]);
+  }, [rows, reviewIds, resolved]);
   // A card that counts a type sets the Type filter to it.
   const showType = (type: string) => {
     setTypes([type]);
@@ -457,9 +459,13 @@ export default function Activity() {
   };
 
   const selectedRows = allRows.filter((r) => selected.has(r.event.id));
-  const openSelected = selectedRows
+  const newSelected = selectedRows.map((r) => r.event).filter(isNew);
+  const arrivalsSelected = selectedRows
     .map((r) => r.event)
-    .filter((e) => priorityOf(e));
+    .filter(arrivalToRecord);
+  const departuresSelected = selectedRows
+    .map((r) => r.event)
+    .filter(departureToRecord);
   const clearSelection = () => setSelected(new Set());
 
   const stateOf = (e: DomainEvent): Ownership | undefined =>
@@ -508,17 +514,139 @@ export default function Activity() {
   function dismiss(list: DomainEvent[]) {
     const ids = list.map((e) => e.id);
     const what =
-      list.length === 1 ? toUnicode(list[0].domain) : `${list.length} reviews`;
+      list.length === 1 ? toUnicode(list[0].domain) : `${list.length} alerts`;
     void setAlertsDismissed(ids, true).then(() => {
-      setSelected((current) => {
-        const next = new Set(current);
-        for (const id of ids) next.delete(id);
-        return next;
-      });
+      deselect(ids);
       toast.success(`Dismissed ${what}`, {
         action: {
           label: 'Undo',
           onClick: () => void setAlertsDismissed(ids, false),
+        },
+      });
+    });
+  }
+
+  const deselect = (ids: string[]) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
+
+  /**
+   * Save the registration that answers an arrival: the name's created date
+   * and its registrar's fee. Returns why it can't (no usable fee) instead.
+   */
+  async function saveRegistration(e: DomainEvent): Promise<string | null> {
+    const domain = alertDomain(e, domains, registrars);
+    const fee = await registrationFee(domain, registrars);
+    if ('note' in fee) return fee.note;
+    await savePurchase({
+      domainName: domain.domainName,
+      kind: 'registered',
+      resolves: e.id,
+      purchaseDate: registrationDay(domain.createdDate),
+      amount: fee.amount,
+      currency: fee.currency,
+      // The note belongs to the name: keep it.
+      notes: purchases[e.domain]?.notes ?? '',
+    });
+    return null;
+  }
+
+  /** Undo one-click registrations: delete the ones answering these arrivals. */
+  async function undoRegistrations(ids: string[]) {
+    const answering = new Set(ids);
+    for (const e of useAppStore.getState().domainEvents)
+      if (
+        e.type === DomainEventType.Registered &&
+        e.resolves &&
+        answering.has(e.resolves)
+      )
+        await deleteUserEvent(e.id);
+  }
+
+  /**
+   * Record registration, in one click: saved at the registrar's fee, with an
+   * Undo. With no usable fee it opens the dialog instead, saying why.
+   */
+  async function recordRegistration(row: ActivityRow) {
+    const e = row.event;
+    setRegistering((current) => new Set(current).add(e.id));
+    let note: string | null;
+    try {
+      note = await saveRegistration(e);
+    } catch (err) {
+      note = `DomBot couldn't get the fee (${feeError(err)}).`;
+    } finally {
+      setRegistering((current) => {
+        const next = new Set(current);
+        next.delete(e.id);
+        return next;
+      });
+    }
+    if (note) {
+      setDialog({ kind: 'purchase', row, side: 'registration', note });
+      return;
+    }
+    deselect([e.id]);
+    toast.success(`Recorded the registration of ${toUnicode(e.domain)}`, {
+      action: { label: 'Undo', onClick: () => void undoRegistrations([e.id]) },
+    });
+  }
+
+  /**
+   * Record registration for many arrivals, one registrar call each, in turn.
+   * Names with no usable fee are skipped and stay in Needs review.
+   */
+  async function recordRegistrations(list: DomainEvent[]) {
+    const n = list.length;
+    const id = toast.loading(`Recording ${n} registrations…`);
+    const saved: string[] = [];
+    let skipped = 0;
+    for (const e of list) {
+      try {
+        if (await saveRegistration(e)) skipped += 1;
+        else saved.push(e.id);
+      } catch {
+        skipped += 1;
+      }
+      toast.loading(
+        `Recording registrations… ${saved.length + skipped} of ${n}`,
+        { id },
+      );
+    }
+    deselect(saved);
+    const done = `Recorded ${saved.length} registration${saved.length === 1 ? '' : 's'}`;
+    const left = skipped
+      ? `${skipped} had no fee to record and still need review.`
+      : undefined;
+    (saved.length ? toast.success : toast.error)(done, {
+      id,
+      description: left,
+      ...(saved.length
+        ? {
+            action: {
+              label: 'Undo',
+              onClick: () => void undoRegistrations(saved),
+            },
+          }
+        : {}),
+    });
+  }
+
+  /** Mark departures dropped (no money came back), with an Undo. */
+  function markDropped(list: DomainEvent[], dropped = true) {
+    const ids = list.map((e) => e.id);
+    const what =
+      list.length === 1 ? toUnicode(list[0].domain) : `${list.length} names`;
+    void setDeparturesDropped(ids, dropped).then(() => {
+      deselect(ids);
+      if (!dropped) return;
+      toast.success(`Marked ${what} dropped`, {
+        action: {
+          label: 'Undo',
+          onClick: () => void setDeparturesDropped(ids, false),
         },
       });
     });
@@ -540,7 +668,24 @@ export default function Activity() {
       // with the name's sticky note (when it has one) just before it.
       cell: (row) => (
         <div className="flex items-center justify-between gap-2">
-          <DomainLink name={toUnicode(row.event.domain)} />
+          <div className="flex min-w-0 items-center gap-3">
+            <DomainLink name={toUnicode(row.event.domain)} />
+            {reviewIds.has(row.event.id) && (
+              <ReviewActions
+                event={row.event}
+                isNew={isNew(row.event)}
+                toRecord={unrecorded.has(row.event.id)}
+                registering={registering.has(row.event.id)}
+                onRegistration={() => void recordRegistration(row)}
+                onPurchase={() =>
+                  setDialog({ kind: 'purchase', row, side: 'purchase' })
+                }
+                onSale={() => setDialog({ kind: 'sold', rows: [row] })}
+                onDropped={() => markDropped([row.event])}
+                onDismiss={() => dismiss([row.event])}
+              />
+            )}
+          </div>
           <div className="flex items-center">
             <NotesButton
               domainName={toUnicode(row.event.domain)}
@@ -553,9 +698,12 @@ export default function Activity() {
             <RowMenu
               row={row}
               state={stateOf(row.event)}
-              needsReview={!!priorityOf(row.event)}
+              isNew={isNew(row.event)}
+              toRecord={unrecorded.has(row.event.id)}
+              paid={purchases[row.event.domain]}
               removable={!held(row.event)}
               onDialog={setDialog}
+              onDropped={(dropped) => markDropped([row.event], dropped)}
               onNotes={() => setNotesFor(row.event.id)}
               onDismiss={() => dismiss([row.event])}
               onShow={() => showInDomains(row.event)}
@@ -646,40 +794,6 @@ export default function Activity() {
         </span>
       ),
     },
-    {
-      key: 'status',
-      label: 'Status',
-      cellClassName: 'py-0! align-middle',
-      cell: ({ event: e }) => {
-        const priority = priorityOf(e);
-        if (!priority) return null;
-        return (
-          <span className="inline-flex items-center gap-1 whitespace-nowrap">
-            <span
-              className="inline-flex items-center gap-1.5 font-medium"
-              title={`${PRIORITY_LABEL[priority]} priority`}
-            >
-              <span
-                className={cn('size-2 rounded-full', SEVERITY_DOT[priority])}
-                aria-hidden
-              />
-              Needs review
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-6 text-muted-foreground hover:text-foreground"
-              aria-label={`Dismiss review of ${toUnicode(e.domain)}`}
-              title="Dismiss review"
-              onClick={() => dismiss([e])}
-            >
-              <X className="size-3.5" />
-            </Button>
-          </span>
-        );
-      },
-    },
   ];
 
   // The columns shown and their order, remembered on this device; the
@@ -722,17 +836,6 @@ export default function Activity() {
         plural: 'registrars',
       },
       setAccounts,
-    ),
-    listFilter(
-      {
-        key: 'priority',
-        label: 'Priority',
-        icon: Flame,
-        options: priorityOptions,
-        selected: priorities,
-        plural: 'priorities',
-      },
-      setPriorities,
     ),
     listFilter(
       {
@@ -829,7 +932,7 @@ export default function Activity() {
             value={[
               {
                 value: counts.review.toLocaleString(),
-                unit: counts.high ? `${counts.high} high` : undefined,
+                unit: counts.fresh ? `${counts.fresh} new` : undefined,
               },
             ]}
             onClick={() => setView(true)}
@@ -880,7 +983,7 @@ export default function Activity() {
                   id: 'review',
                   label: 'Needs review',
                   icon: Flag,
-                  count: reviewCount,
+                  count: reviewIds.size,
                   active: reviewOnly,
                   onClick: () => setView(true),
                 },
@@ -893,7 +996,7 @@ export default function Activity() {
             setPage(0);
           }}
           fields={filterFields}
-          presets={['account', 'priority', 'type']}
+          presets={['account', 'type']}
         />
 
         {selected.size > 0 && (
@@ -904,10 +1007,10 @@ export default function Activity() {
                   {selected.size}
                 </span>{' '}
                 selected
-                {openSelected.length < selected.size && (
+                {newSelected.length > 0 && (
                   <span className="font-normal text-muted-foreground">
                     {' '}
-                    · {openSelected.length} need review
+                    · {newSelected.length} new
                   </span>
                 )}
               </span>
@@ -939,20 +1042,34 @@ export default function Activity() {
                 />
                 <DropdownMenuSeparator />
                 <BulkItem
+                  icon={ClipboardPen}
+                  label="Record registration"
+                  count={arrivalsSelected.length}
+                  immediate
+                  onSelect={() => void recordRegistrations(arrivalsSelected)}
+                />
+                <BulkItem
                   icon={Receipt}
-                  label="Mark as Sold"
+                  label="Record sale"
                   count={unsoldOf(selectedRows).length}
                   onSelect={() =>
                     setDialog({ kind: 'sold', rows: selectedRows })
                   }
                 />
+                <BulkItem
+                  icon={CircleSlash}
+                  label="Mark dropped"
+                  count={departuresSelected.length}
+                  immediate
+                  onSelect={() => markDropped(departuresSelected)}
+                />
                 <DropdownMenuSeparator />
                 <BulkItem
                   icon={X}
-                  label="Dismiss review"
-                  count={openSelected.length}
+                  label="Dismiss"
+                  count={newSelected.length}
                   immediate
-                  onSelect={() => dismiss(openSelected)}
+                  onSelect={() => dismiss(newSelected)}
                 />
                 <DropdownMenuSeparator />
                 <BulkItem
@@ -1005,17 +1122,22 @@ export default function Activity() {
           rowLabel: (r) =>
             `Select ${toUnicode(r.event.domain)} ${VERB[r.shown.type]}`,
         }}
-        rowClassName={(r, selected) => {
-          // A selected row shows the selection, not its priority tint.
-          const p = !selected && priorityOf(r.event);
-          return p ? REVIEW_ROW_TINT[p] : undefined;
-        }}
+        // A new row is highlighted like unread mail; a selected one shows the
+        // selection instead.
+        rowClassName={(r, selected) =>
+          !selected && isNew(r.event) ? NEW_ROW_TINT : undefined
+        }
         empty={
-          reviewOnly && !hasActiveFilters
-            ? 'Nothing needs review.'
-            : events.length === 0
-              ? 'No activity yet. Arrivals, departures, and moves appear after an account’s second sync; purchases, sales, and settings changes as you make them.'
-              : 'No activity matches the current filters.'
+          reviewOnly && !hasActiveFilters ? (
+            'Nothing needs review.'
+          ) : events.length === 0 ? (
+            <EmptyState
+              title="No activity yet"
+              description="Domains that come and go appear after an account's second sync. Purchases, sales, and edits show up as you make them."
+            />
+          ) : (
+            'No activity matches the current filters.'
+          )
         }
       />
 
@@ -1044,10 +1166,15 @@ export default function Activity() {
         <PurchaseDialog
           domain={alertDomain(dialog.row.event, domains, registrars)}
           // An arrival you haven't answered: record it as a new purchase.
-          justRegistered={priorityOf(dialog.row.event) === 'low' || undefined}
+          side={dialog.side}
+          note={dialog.note}
+          // An arrival in Needs review: record it as a new holding.
           resolves={
-            priorityOf(dialog.row.event) === 'low'
-              ? dialog.row.event.id
+            arrivalToRecord(dialog.row.event) ? dialog.row.event.id : undefined
+          }
+          arrivedOn={
+            arrivalToRecord(dialog.row.event)
+              ? (dialog.row.event.date ?? undefined)
               : undefined
           }
           onSaved={clearSelection}
@@ -1098,33 +1225,51 @@ function AccountLabel({
 }
 
 /**
- * A row's "⋯" menu, in the same order as the Domains one: record a purchase
- * or a sale, dismiss its review, open it in Domains, or remove it from
- * DomBot. Dismiss on a row that doesn't need review is disabled; a sold
- * name's Mark as Sold edits its sale. Delete is only there for a
- * name no connected account holds.
+ * A row's "⋯" menu, with every option, in the words the inline answers use:
+ * notes, record what you paid (edit it once there is one), record a sale
+ * (edit it once there is one), mark a departure dropped (or undo it), dismiss
+ * a new row, open it in Domains, or remove a name no connected account holds
+ * from DomBot. The menu's Record registration opens the dialog, unlike the
+ * one-click inline answer.
  */
 function RowMenu({
   row,
   state,
-  needsReview,
+  isNew,
+  toRecord,
+  paid,
   removable,
   onDialog,
+  onDropped,
   onNotes,
   onDismiss,
   onShow,
 }: {
   row: ActivityRow;
   state: Ownership | undefined;
-  needsReview: boolean;
+  isNew: boolean;
+  /** In Needs review: the answers here record a new holding's money. */
+  toRecord: boolean;
+  /** What's saved for the name: a purchase or registration to edit. */
+  paid: DomainPurchase | undefined;
   removable: boolean;
   onDialog: (dialog: DialogState) => void;
+  onDropped: (dropped: boolean) => void;
   onNotes: () => void;
   onDismiss: () => void;
   onShow: () => void;
 }) {
-  const name = toUnicode(row.event.domain);
+  const e = row.event;
+  const name = toUnicode(e.domain);
   const set = (kind: 'sold' | 'delete') => onDialog({ kind, rows: [row] });
+  const acquire = (side: AcquisitionSide) =>
+    onDialog({ kind: 'purchase', row, side });
+  const arrival = e.type === DomainEventType.Added;
+  const departure = e.type === DomainEventType.Removed;
+  // An arrival in Needs review asks for a new record; otherwise the one on
+  // file is edited, when there is one.
+  const editing =
+    !(arrival && toRecord) && !!(paid?.purchaseDate || paid?.amount);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -1144,21 +1289,52 @@ function RowMenu({
           <StickyNoteIcon className="text-muted-foreground" />
           Notes…
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onDialog({ kind: 'purchase', row })}>
-          <Calculator className="text-muted-foreground" />
-          Purchase details…
-        </DropdownMenuItem>
+        {editing ? (
+          <DropdownMenuItem
+            onSelect={() =>
+              acquire(
+                paid?.purchaseType === 'registered'
+                  ? 'registration'
+                  : 'purchase',
+              )
+            }
+          >
+            <Calculator className="text-muted-foreground" />
+            {paid?.purchaseType === 'registered'
+              ? 'Edit registration…'
+              : 'Edit purchase…'}
+          </DropdownMenuItem>
+        ) : (
+          <>
+            <DropdownMenuItem onSelect={() => acquire('registration')}>
+              <ClipboardPen className="text-muted-foreground" />
+              Record registration…
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => acquire('purchase')}>
+              <Calculator className="text-muted-foreground" />
+              Record purchase…
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
-        {/* A sold name's Mark as Sold edits its sale. */}
+        {/* A sold name's Record sale edits its sale. */}
         <DropdownMenuItem onSelect={() => set('sold')}>
           <Receipt className="text-muted-foreground" />
-          {state?.sale ? 'Edit sale…' : 'Mark as Sold…'}
+          {state?.sale ? 'Edit sale…' : 'Record sale…'}
         </DropdownMenuItem>
+        {departure && (e.dropped || toRecord) && (
+          <DropdownMenuItem onSelect={() => onDropped(!e.dropped)}>
+            <CircleSlash className="text-muted-foreground" />
+            {e.dropped ? 'Undo dropped' : 'Mark dropped'}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={!needsReview} onSelect={onDismiss}>
-          <X className="text-muted-foreground" />
-          Dismiss review
-        </DropdownMenuItem>
+        {isNew && (
+          <DropdownMenuItem onSelect={onDismiss}>
+            <X className="text-muted-foreground" />
+            Dismiss
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={onShow}>
           <Globe className="text-muted-foreground" />
           Show in Domains
@@ -1177,6 +1353,93 @@ function RowMenu({
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * The suggested answers for a row in Needs review, right after the name:
+ * what you paid for an arrival (Record registration saves in one click), what
+ * became of a departure, and Dismiss last while it's new. A new row whose
+ * money is already on file only gets Dismiss. The "⋯" menu has every option,
+ * and is the only place for them on phones, where these don't fit beside the
+ * name.
+ */
+function ReviewActions({
+  event,
+  isNew,
+  toRecord,
+  registering,
+  onRegistration,
+  onPurchase,
+  onSale,
+  onDropped,
+  onDismiss,
+}: {
+  event: DomainEvent;
+  isNew: boolean;
+  /** Still missing its money: the answers apply. */
+  toRecord: boolean;
+  /** Record registration is asking the registrar for the fee. */
+  registering: boolean;
+  onRegistration: () => void;
+  onPurchase: () => void;
+  onSale: () => void;
+  onDropped: () => void;
+  onDismiss: () => void;
+}) {
+  const arrival = event.type === DomainEventType.Added;
+  return (
+    <span className="-my-1 hidden shrink-0 items-center gap-1 md:inline-flex">
+      {!toRecord ? null : arrival ? (
+        <>
+          <ReviewButton disabled={registering} onClick={onRegistration}>
+            {registering ? 'Recording…' : 'Record registration'}
+          </ReviewButton>
+          <ReviewButton onClick={onPurchase}>Record purchase…</ReviewButton>
+        </>
+      ) : (
+        <>
+          <ReviewButton onClick={onSale}>Record sale…</ReviewButton>
+          <ReviewButton onClick={onDropped}>Mark dropped</ReviewButton>
+        </>
+      )}
+      {isNew && (
+        <ReviewButton quiet onClick={onDismiss}>
+          Dismiss
+        </ReviewButton>
+      )}
+    </span>
+  );
+}
+
+function ReviewButton({
+  quiet = false,
+  disabled,
+  onClick,
+  children,
+}: {
+  /** Dismiss: text only, no border. */
+  quiet?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      variant={quiet ? 'ghost' : 'outline'}
+      size="xs"
+      disabled={disabled}
+      className={cn(
+        'font-normal',
+        quiet
+          ? 'text-muted-foreground hover:text-foreground'
+          : 'bg-background/60 dark:bg-input/20',
+      )}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
   );
 }
 

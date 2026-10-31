@@ -318,6 +318,7 @@ export function createHttpApi(): DombotApi {
     },
     getUrlForwarding: m('getUrlForwarding'),
     getEmailForwarding: m('getEmailForwarding'),
+    getTransferOut: m('getTransferOut'),
 
     startBulk: async (targets, op) => {
       const job = reviveJob(await call<BulkJob>('startBulk', [targets, op]))!;
@@ -437,6 +438,7 @@ export function createHttpApi(): DombotApi {
     getDomainEvents: m('getDomainEvents'),
     markSold: m('markSold'),
     setAlertsDismissed: m('setAlertsDismissed'),
+    setDeparturesDropped: m('setDeparturesDropped'),
     setSaleTransferred: m('setSaleTransferred'),
     deleteUserEvent: m('deleteUserEvent'),
     deleteDomains: m('deleteDomains'),

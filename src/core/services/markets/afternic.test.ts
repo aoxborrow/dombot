@@ -98,8 +98,16 @@ describe('saleFromAfternic', () => {
       installments: null,
       paidOutOn: '2026-10-13',
       action: null,
+      authCodeSent: true,
     });
     expect(JSON.stringify(sale)).not.toContain('not-a-real-code');
+  });
+
+  it('says nothing about the auth code when the read leaves it out', () => {
+    expect(
+      saleFromAfternic(toSale({ ...fx.saleBuyNow, authCode: undefined }), 'a')
+        .authCodeSent,
+    ).toBeNull();
   });
 
   it('maps a lease and a cancelled sale', () => {
@@ -128,6 +136,12 @@ describe('saleFromAfternic', () => {
     });
     expect(action('PENDING_TRANSFER').action).toBe('transfer');
     expect(action('AWAITING_PAYEE_UPDATE').action).toBe('payee_details');
+    // The name has moved: only the payout is left.
+    expect(action('CONFIRMED_TRANSFER')).toMatchObject({
+      status: 'in_progress',
+      action: 'payout',
+    });
+    expect(action('SCHEDULED_PAYOUT').action).toBe('payout');
     expect(action('LEASE_FULLY_PAID').status).toBe('completed');
   });
 });
@@ -250,6 +264,25 @@ describe('AfternicAdapter', () => {
       { field: 'leaseToOwn.enabled', asked: true, saved: false },
       { field: 'leaseToOwn.maxPayments', asked: 36, saved: 12 },
     ]);
+  });
+
+  it('reads one sale, saying whether Afternic has its auth code', async () => {
+    let code: string | null = null;
+    const { adapter: afternic, calls } = adapter(() => ({
+      ...fx.saleBuyNow,
+      status: 'AWAITING_AUTH_CODE',
+      authCode: code,
+    }));
+    const id = fx.saleBuyNow.transactionId;
+    expect(await afternic.getSale(id)).toMatchObject({
+      action: 'auth_code',
+      authCodeSent: false,
+    });
+    code = 'not-a-real-code';
+    const sale = await afternic.getSale(id);
+    expect(sale?.authCodeSent).toBe(true);
+    expect(JSON.stringify(sale)).not.toContain('not-a-real-code');
+    expect(calls).toEqual([`GET /sales/${id}`, `GET /sales/${id}`]);
   });
 
   it('fails an unsupported change without sending it, and sends the rest', async () => {

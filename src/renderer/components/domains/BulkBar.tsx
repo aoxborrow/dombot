@@ -293,7 +293,7 @@ export function BulkBar({
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => onOwnership('sold')}>
               <Receipt className="text-muted-foreground" />
-              Mark as Sold<span className="-ml-[6px] opacity-50">…</span>
+              Record sale<span className="-ml-[6px] opacity-50">…</span>
             </DropdownMenuItem>
             {removable > 0 && (
               <>

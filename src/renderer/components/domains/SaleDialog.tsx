@@ -159,7 +159,7 @@ export function SaleDialog({
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-md">
         <ActionHeader
-          title={mode === 'mark' ? 'Mark as Sold' : 'Edit sale'}
+          title={mode === 'mark' ? 'Record sale' : 'Edit sale'}
           names={[domain.domainName]}
         />
         <div className="flex flex-col gap-4">
@@ -248,7 +248,7 @@ export function SaleDialog({
             Cancel
           </Button>
           <Button type="button" disabled={saving} onClick={() => void save()}>
-            {mode === 'mark' ? 'Mark as Sold' : 'Save'}
+            {mode === 'mark' ? 'Record sale' : 'Save'}
           </Button>
         </DialogFooter>
       </DialogContent>
