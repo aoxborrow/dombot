@@ -4,7 +4,7 @@ import {
   ArrowUpRight,
   BadgeDollarSign,
   Building2,
-  CalendarClock,
+  CalendarCheck,
   Clock,
   Coins,
   Download,
@@ -319,7 +319,7 @@ export default function Sales() {
     dateRangeField({
       key: 'soldOn',
       label: 'Sold',
-      icon: CalendarClock,
+      icon: CalendarCheck,
       range: sold,
       presets: PAST_DATE_PRESETS,
       count: (range) =>

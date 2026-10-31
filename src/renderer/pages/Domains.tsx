@@ -13,7 +13,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
   Building2,
+  Calendar1,
+  CalendarCheck,
   CalendarClock,
+  CalendarPlus2,
   CircleCheck,
   CircleHelp,
   Globe,
@@ -1715,6 +1718,7 @@ export default function Domains() {
             setCreated,
             PAST_DATE_PRESETS,
             (d) => utcDay(d.createdDate),
+            Calendar1,
           ),
         ]),
     dateFilter(
@@ -1724,6 +1728,7 @@ export default function Domains() {
       setPurchased,
       PAST_DATE_PRESETS,
       (d) => purchaseOf(d)?.purchaseDate,
+      CalendarPlus2,
     ),
     ...(archiveView
       ? [
@@ -1734,6 +1739,7 @@ export default function Domains() {
             setSold,
             PAST_DATE_PRESETS,
             (d) => purchaseOf(d)?.saleDate,
+            CalendarCheck,
           ),
         ]
       : []),
