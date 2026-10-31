@@ -4,9 +4,12 @@ import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 /**
- * A headline number with a large faint icon behind it (Renewals, Sales). The
- * small size is the card rows' over the Domains and Sales tables (see
- * StatCardRow): on phones it shrinks to the label and value. A small card
+ * A headline number with a faded icon (Renewals, Sales). The small size is
+ * the card rows' over the Domains and Sales tables (see StatCardRow): on
+ * phones it shrinks to the label and value. The icon is always whole: from
+ * 210px wide (a container query, so it's the card's width, not the
+ * window's) it's 40px, centred on the right beside the text; narrower, it's
+ * 21px in the top-right corner and the number runs over it. A small card
  * with no hint has a bigger label and value in the same height. The value
  * can be several slots side by side, each a number with a small unit after
  * it: "6/30d  18/60d", or words a space apart, "251 7 registrars", which
@@ -29,7 +32,6 @@ export interface StatSlot {
 export function StatCard({
   icon: Icon,
   accentClass,
-  iconClassName,
   label,
   value,
   hint,
@@ -38,11 +40,8 @@ export function StatCard({
   onClick,
 }: {
   icon: LucideIcon;
-  /** Tailwind text-color for the background watermark (rendered at a low group
-   * opacity), e.g. "text-brand-500". */
+  /** Tailwind text-color for the icon, e.g. "text-brand-500". */
   accentClass: string;
-  /** Adjusts the corner icon, e.g. smaller so a bell's clapper shows. */
-  iconClassName?: string;
   label: string;
   value: string | StatSlot[];
   /** The line under the value; small cards may leave it out. */
@@ -54,7 +53,7 @@ export function StatCard({
   const sm = size === 'sm';
   const bare = sm && !hint;
   const className = cn(
-    'relative block overflow-hidden rounded-lg border bg-card text-left',
+    '@container relative block overflow-hidden rounded-lg border bg-card text-left',
     sm
       ? 'px-2 pt-1 pb-1.5 sm:px-3 sm:pt-[5px] sm:pb-[6px]'
       : 'px-4 pt-[9px] pb-[11px]',
@@ -65,20 +64,19 @@ export function StatCard({
     <>
       <Icon
         className={cn(
-          // Fade the whole shape as a group (opacity-[0.15]) rather than using a
-          // translucent stroke color — a semi-transparent stroke composites to
-          // bright spots wherever the icon's paths overlap.
-          'pointer-events-none absolute opacity-[0.15]',
-          sm
-            ? '-right-2 -bottom-3 size-[44px] sm:-right-3 sm:-bottom-4 sm:size-[64px]'
-            : '-right-4 -bottom-6 size-[123px]',
+          // Fade the whole shape as a group (opacity-30), the same at every
+          // size, rather than using a translucent stroke color — a
+          // semi-transparent stroke composites to bright spots wherever the
+          // icon's paths overlap. Narrow: 21px in the top-right corner, the
+          // number running over it.
+          'pointer-events-none absolute top-1 right-[5px] size-[21px] opacity-30 [stroke-width:1.75] sm:right-1.5',
+          // Wide: 40px, centred on the right, the text cut short before it.
+          '@min-[210px]:top-1/2 @min-[210px]:right-2.5 @min-[210px]:size-10 @min-[210px]:-translate-y-1/2 @min-[210px]:[stroke-width:1.5]',
           accentClass,
-          iconClassName,
         )}
-        strokeWidth={1.5}
         aria-hidden
       />
-      <div className="relative">
+      <div className="relative @min-[210px]:mr-11">
         <div
           className={cn(
             'truncate',

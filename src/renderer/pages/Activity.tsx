@@ -817,8 +817,6 @@ export default function Activity() {
             size="sm"
             icon={Bell}
             accentClass="text-amber-500"
-            // Smaller and higher, so the clapper isn't cut off.
-            iconClassName="bottom-0.5 size-[34px] sm:-right-2 sm:bottom-0.5 sm:size-[48px]"
             label="Needs review"
             value={[
               {
