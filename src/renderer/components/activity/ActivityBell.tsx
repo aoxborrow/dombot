@@ -19,7 +19,6 @@ import {
   notifications,
   type Notification,
 } from '../../../shared/notifications';
-import { SEVERITY_COUNT } from '../../lib/severity';
 import { accountName } from '../../lib/domain-history';
 import { syncProblems } from '../../lib/activity';
 import { timeAgo } from '../../lib/time';
@@ -96,11 +95,11 @@ export function ActivityBell() {
     (update ? 1 : 0) +
     (unconvertible.shown ? 1 : 0);
   // As the rows: red for a sync error, amber for a sale waiting on you, then
-  // plain for names to review, green for an update, gray for the currency
-  // note when it's all there is.
+  // plain for new names, green for an update, gray for the currency note when
+  // it's all there is.
   const countColor =
     badge?.severity === 'error'
-      ? SEVERITY_COUNT.error
+      ? 'bg-red-600 text-white dark:bg-red-500'
       : salesToAct.length
         ? 'bg-amber-500 text-black dark:bg-amber-400'
         : badge
@@ -108,7 +107,8 @@ export function ActivityBell() {
           : update
             ? 'bg-brand text-white'
             : 'bg-muted-foreground text-background';
-  const reviews = list.filter((n) => n.severity !== 'error').length;
+  // Names that came or went that nobody has answered: Activity's new rows.
+  const fresh = list.filter((n) => n.severity !== 'error').length;
   const close = () => setOpen(false);
 
   return (
@@ -151,10 +151,10 @@ export function ActivityBell() {
         <div className="flex items-center justify-between border-b px-3 py-2">
           <p className="text-sm font-medium">
             Notifications
-            {reviews > 0 && (
+            {fresh > 0 && (
               <span className="font-normal text-muted-foreground">
                 {' '}
-                · {reviews} need{reviews === 1 ? 's' : ''} review
+                · {fresh} new
               </span>
             )}
           </p>
