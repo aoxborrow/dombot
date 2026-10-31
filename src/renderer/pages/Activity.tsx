@@ -110,7 +110,7 @@ const DATE_OPTIONS = [7, 14, 30, 90, 180].map((days) => ({
   label: `Last ${days} days`,
 }));
 
-// The Type filter's order: a name's life, which also keeps each color
+// The Activity filter's order: a name's life, which also keeps each color
 // together (see EventTypeBadge): coming in (blue), renewed and moved
 // (indigo), sold (green), then gone (removed, then the grays).
 const TYPE_ORDER: DomainEvent['type'][] = [
@@ -451,7 +451,7 @@ export default function Activity() {
     }
     return n;
   }, [rows, reviewIds, resolved]);
-  // A card that counts a type sets the Type filter to it.
+  // A card that counts a type sets the Activity filter to it.
   const showType = (type: string) => {
     setTypes([type]);
     setPage(0);
@@ -657,10 +657,11 @@ export default function Activity() {
     navigate(`/?${next}`);
   }
 
-  // The name, when, what happened, where, and its details (or, for a row in
-  // Needs review, its answers), in the order Sales reads. Every column but
-  // Details is only as wide as its widest cell (w-0), so Details gets the
-  // rest and its answers stay in view in a narrow window.
+  // The name, what happened, where, and its details (or, for a row in Needs
+  // review, its answers), then who and when, the date at the far right like
+  // a mail inbox's. Every column but Date is only as wide as its widest cell
+  // (w-0): Date takes the room left over, so the answers sit close to the
+  // name and stay in view in a narrow window, where Date goes off first.
   const columns: DataColumn<ActivityRow>[] = [
     {
       key: 'domain',
@@ -697,19 +698,6 @@ export default function Activity() {
             />
           </div>
         </div>
-      ),
-    },
-    {
-      key: 'date',
-      label: 'Date',
-      headClassName: 'w-0',
-      cell: ({ event: e }) => (
-        <span
-          className="font-mono text-muted-foreground tabular-nums"
-          title={new Date(e.createdAt).toLocaleString()}
-        >
-          {e.date ?? '—'}
-        </span>
       ),
     },
     {
@@ -757,7 +745,7 @@ export default function Activity() {
       hideOnMobile: true,
       // A little more room on the left than the other columns, so text here
       // doesn't hug the rule; the answers' borders sit in it (ReviewActions).
-      headClassName: 'pl-3',
+      headClassName: 'w-0 pl-3',
       cellClassName: 'pl-3',
       // A row in Needs review has its answers here, where an arrival or a
       // departure has no details of its own.
@@ -812,6 +800,19 @@ export default function Activity() {
         </span>
       ),
     },
+    {
+      key: 'date',
+      label: 'Date',
+      align: 'right',
+      cell: ({ event: e }) => (
+        <span
+          className="font-mono text-muted-foreground tabular-nums"
+          title={new Date(e.createdAt).toLocaleString()}
+        >
+          {e.date ?? '—'}
+        </span>
+      ),
+    },
   ];
 
   // The columns shown and their order, remembered on this device; the
@@ -858,7 +859,7 @@ export default function Activity() {
     listFilter(
       {
         key: 'type',
-        label: 'Type',
+        label: 'Activity',
         icon: History,
         options: typeOptions,
         selected: types,

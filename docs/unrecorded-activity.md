@@ -52,8 +52,8 @@ other candidate, if Needs review still reads as an alarm in use.
   ones aren't. The switch shows the count: "Needs review 14".
 - **All** is every event, as today, with new rows highlighted too.
 - **The Priority filter goes,** and so does the Status column: the highlight
-  and the row's actions say everything it said. The Type filter already
-  separates arrivals from departures.
+  and the row's actions say everything it said. The Activity filter (once
+  Type) already separates arrivals from departures.
 - **Empty Needs review:** "Every name that came or went is on the books."
 
 ### New and needs review
@@ -107,10 +107,11 @@ pseudo-element.
 **Inline, in the Details column,** on every row needing review in either
 view: the suggested answers as small buttons, styled like Sales' step
 buttons. An arrival or a departure has no details of its own, so the column
-is free for them. The columns read Domain, Date, Activity (the event's
-type), Registrar, Details, Source; every column but Details is only as wide
-as its widest cell, so Details takes the rest and the answers stay in view
-in a narrow window. The row's ⋯ menu stays in the Domain cell with every
+is free for them. The columns read Domain, Activity (the event's type),
+Registrar, Details, Source, Date, with the date right-aligned at the far
+right like a mail inbox's. Every column but Date is only as wide as its
+widest cell, so Date takes the room left over: the answers sit close to the
+name, and in a narrow window Date and Source go off before they do. The row's ⋯ menu stays in the Domain cell with every
 option.
 
 | Row                     | Inline                                           |
