@@ -28,7 +28,10 @@ import { isDemo } from '../../lib/platform';
 import { useAppStore } from '../../store/app';
 import { ImportDomainsDialog } from '../../components/domains/ImportDomainsDialog';
 import { SettingsCard, SettingsField } from './SettingsCard';
-import { Download, Upload } from 'lucide-react';
+import { Download, RefreshCw, Upload } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useSyncState } from '../../lib/sync-state';
+import { timeAgo } from '../../lib/time';
 import { domainsCsvTemplate } from '../../../shared/domain-csv';
 import { exportAllDomains } from '../../lib/domain-export';
 
@@ -94,6 +97,8 @@ export default function DataSettings() {
         </p>
       </div>
 
+      <SyncAllRow />
+
       <SettingsCard title="Auto-sync">
         <SettingsField
           label="Sync frequency"
@@ -150,6 +155,47 @@ export default function DataSettings() {
           )}
         </div>
       </SettingsCard>
+    </div>
+  );
+}
+
+/**
+ * Sync every enabled account now, as Sync now on the Domains page does, with
+ * what that covers and when it last ran. Above the cards, where Registrars
+ * and Markets keep their own Sync all.
+ */
+function SyncAllRow() {
+  const { sync, syncing, disabled, title, accounts, lastSyncedAt } =
+    useSyncState();
+  const count = (n: number, noun: string) =>
+    `${n} ${noun} account${n === 1 ? '' : 's'}`;
+  const registrars = accounts.filter((a) => a.kind === 'registrar').length;
+  const markets = accounts.length - registrars;
+  const covers = [
+    registrars > 0 && count(registrars, 'registrar'),
+    markets > 0 && count(markets, 'market'),
+  ]
+    .filter(Boolean)
+    .join(' and ');
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <Button
+        variant="outline"
+        onClick={sync}
+        disabled={disabled}
+        title={title}
+      >
+        <RefreshCw className={cn(syncing && 'animate-spin')} />
+        {syncing ? 'Syncing…' : 'Sync all accounts'}
+      </Button>
+      {covers && (
+        <span className="text-sm text-muted-foreground">
+          {covers}
+          {lastSyncedAt !== null && !syncing && (
+            <> · last synced {timeAgo(lastSyncedAt)}</>
+          )}
+        </span>
+      )}
     </div>
   );
 }
