@@ -4,7 +4,7 @@ import {
   ArrowUpRight,
   BadgeDollarSign,
   Building2,
-  CalendarClock,
+  CalendarCheck,
   Clock,
   Coins,
   Download,
@@ -300,7 +300,8 @@ export default function Sales() {
       .sort((a, b) => b.count - a.count);
   }, [records]);
 
-  // TLD first in the Add filter menu, though never a default chip.
+  // TLD and Registrar first in the Filters menu, as on every table, though
+  // neither is a default chip.
   const filterFields: FilterField[] = [
     listField(
       {
@@ -316,10 +317,24 @@ export default function Sales() {
         setPage(0);
       },
     ),
+    listField(
+      {
+        key: 'registrar',
+        label: 'Registrar',
+        icon: Building2,
+        options: registrarOptions,
+        selected: registrarIds,
+        plural: 'registrars',
+      },
+      (next) => {
+        setRegistrarIds(next);
+        setPage(0);
+      },
+    ),
     dateRangeField({
       key: 'soldOn',
       label: 'Sold',
-      icon: CalendarClock,
+      icon: CalendarCheck,
       range: sold,
       presets: PAST_DATE_PRESETS,
       count: (range) =>
@@ -340,20 +355,6 @@ export default function Sales() {
       },
       (next) => {
         setSources(next);
-        setPage(0);
-      },
-    ),
-    listField(
-      {
-        key: 'registrar',
-        label: 'Registrar',
-        icon: Building2,
-        options: registrarOptions,
-        selected: registrarIds,
-        plural: 'registrars',
-      },
-      (next) => {
-        setRegistrarIds(next);
         setPage(0);
       },
     ),
@@ -753,8 +754,7 @@ export default function Sales() {
             setPage(0);
           }}
           fields={filterFields}
-          presets={['soldOn', 'source', 'registrar']}
-          presetsIfRoom={['registrar']}
+          presets={['soldOn', 'source']}
         >
           {undated > 0 && (
             <span className="text-xs text-muted-foreground">

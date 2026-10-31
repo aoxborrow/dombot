@@ -455,10 +455,10 @@ export default function Renewals() {
       </StatCardRow>
 
       {/* A toolbar over the chart and donuts, as over the other pages'
-          tables: the view first (a row of its own under lg, as there),
-          then the registrars. */}
+          tables: the view first, then the registrars, which wrap under it
+          only when they don't fit (and always on a phone). */}
       <div className="flex flex-wrap items-center gap-3.5">
-        <div className="max-lg:basis-full">{renewSwitch}</div>
+        <div className="max-sm:basis-full">{renewSwitch}</div>
         {registrarFilter}
       </div>
 

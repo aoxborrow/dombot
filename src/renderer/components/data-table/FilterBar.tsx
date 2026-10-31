@@ -11,11 +11,11 @@ import {
 } from 'react';
 import { ChevronDown, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toolbarLayout } from './toolbar-layout';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -23,7 +23,7 @@ import type { FilterOption } from './Toolbar';
 import { DomainTableScroll } from '../../lib/domain-table-scroll';
 import { FilterPlusIcon } from '../icons/FilterPlusIcon';
 
-// A table's filter bar: "+ Add filter" opens a menu of fields, and each field
+// A table's filter bar: "Filters" opens a menu of fields, and each field
 // in use becomes a chip (name | value | ×) whose dropdown edits it. Only the
 // filters you set take up room; there's no Reset, each chip clears itself.
 
@@ -73,7 +73,7 @@ function clearField(field: FilterField) {
   else field.onChange([]);
 }
 
-/** Lists (and the Add filter menu) longer than this get a search box. */
+/** Lists longer than this get a search box. */
 const SEARCHABLE = 8;
 
 // The filter green, from the design: the set chip's tint (with its dark
@@ -398,13 +398,13 @@ function FilterChip({
   );
 }
 
-// The Add filter button's box, and its labelled form's spacing.
+// The Filters button's box, and its labelled form's spacing.
 const ADD_FILTER_BOX =
   'inline-flex h-9 items-center rounded-md border border-dashed text-sm whitespace-nowrap';
 const ADD_FILTER_LABELLED = 'gap-1.5 pr-3 pl-[9px]';
 
 /**
- * The menu of fields, opened from "+ Add filter", or from the square "+"
+ * The menu of fields, opened from "Filters", or from the square "+"
  * when only that fits after the last chip. Both stay grey in every state. A checkbox
  * marks each field already showing as a chip: ticking one adds its chip and
  * opens it, unticking one removes its chip (as its × would) and leaves the
@@ -424,17 +424,12 @@ function AddFilter({
   onRemove: (key: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
   const picked = useRef(false);
   const choose = (key: string) => {
     picked.current = true;
     onPick(key);
   };
-  const q = query.trim().toLowerCase();
-  const shown = q
-    ? fields.filter((f) => f.label.toLowerCase().includes(q))
-    : fields;
-  // Labelled when "Add filter" fits on the line after the last chip, or when
+  // Labelled when "Filters" fits on the line after the last chip, or when
   // the button wraps to a line of its own anyway; the square only where it
   // keeps the button on the chips' line and the label wouldn't.
   const ref = useRef<HTMLButtonElement>(null);
@@ -466,19 +461,14 @@ function AddFilter({
   });
   return (
     <>
-      <DropdownMenu
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next);
-          if (!next) setQuery('');
-        }}
-      >
+      <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <button
             ref={ref}
             type="button"
-            aria-label="Add filter"
-            title={compact ? 'Add filter' : undefined}
+            data-filter-add
+            aria-label="Filters"
+            title={compact ? 'Filters' : undefined}
             className={cn(
               // Grey: hover darkens the dashes and text like an empty chip's
               // (brightens them in dark mode); keyboard focus gets the app's
@@ -494,7 +484,7 @@ function AddFilter({
             )}
           >
             <FilterPlusIcon className="h-4 w-[17px]" />
-            {!compact && 'Add filter'}
+            {!compact && 'Filters'}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -511,31 +501,7 @@ function AddFilter({
             picked.current = false;
           }}
         >
-          <DropdownMenuLabel className="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-            Add filter
-          </DropdownMenuLabel>
-          {/* Only once there are enough fields to need it. */}
-          {fields.length > SEARCHABLE && (
-            <MenuSearch
-              value={query}
-              onChange={setQuery}
-              placeholder="Find a filter…"
-              onEnter={() => {
-                if (shown.length === 0) return;
-                const key = shown[0].key;
-                if (showing.has(key)) return onRemove(key);
-                choose(key);
-                setOpen(false);
-                setQuery('');
-              }}
-            />
-          )}
-          {shown.length === 0 && (
-            <div className="px-2 py-1.5 text-sm text-muted-foreground">
-              No matches
-            </div>
-          )}
-          {shown.map((f) => {
+          {fields.map((f) => {
             const Icon = f.icon;
             return (
               <DropdownMenuCheckboxItem
@@ -566,7 +532,7 @@ function AddFilter({
         )}
       >
         <FilterPlusIcon className="h-4 w-[17px]" />
-        Add filter
+        Filters
       </span>
     </>
   );
@@ -594,6 +560,15 @@ function focusLeadingInput(e: React.FocusEvent<HTMLElement>) {
   if (first instanceof HTMLInputElement) first.focus({ preventScroll: true });
 }
 
+/** The search box's width as its row wraps it: its flex basis, or null when
+ *  it fills a line of its own (a phone's). */
+function searchWidth(search: Element | null | undefined, row: number) {
+  if (!(search instanceof HTMLElement)) return 0;
+  if (search.offsetWidth >= row - 1) return null;
+  const basis = getComputedStyle(search).flexBasis;
+  return basis.endsWith('px') ? parseFloat(basis) : search.offsetWidth;
+}
+
 function rowOf(el: Element | null): HTMLElement | null {
   let row = el?.parentElement ?? null;
   while (row && getComputedStyle(row).display === 'contents')
@@ -605,7 +580,7 @@ function rowOf(el: Element | null): HTMLElement | null {
  * The filter chips, then the add button. The presets start the row; every
  * filter added from the menu (a removed preset too) goes on the end.
  * Rendered inline (a fragment), so everything wraps with the toolbar around
- * it. The add button reads "Add filter" unless only a square "+" would fit
+ * it. The add button reads "Filters" unless only a square "+" would fit
  * after the last chip.
  *
  * Picking a field adds its chip with the value list open; unticking one in
@@ -619,18 +594,20 @@ export function FilterBar({
   presets = [],
   presetsIfRoom = [],
   variant = 'segmented',
+  onSwitchAbove,
 }: {
   /** Names this bar for the session's memory of removed presets. */
   id: string;
   fields: FilterField[];
   /** Keys of the fields always shown, in order, even when unset. */
   presets?: string[];
-  /** Of `presets`, the ones shown while unset only when they fit on the
-   *  row's first line, after the chip before them, with room for the
-   *  square add button. Checked again as the window resizes. */
+  /** Of `presets`, the ones shown while unset only when there's room
+   *  (toolbarLayout). Checked again as the row's width changes. */
   presetsIfRoom?: string[];
   /** The chips' look; see FilterChipVariant. */
   variant?: FilterChipVariant;
+  /** Told whether the toolbar's switch should go on a line of its own. */
+  onSwitchAbove?: (above: boolean) => void;
 }) {
   // Presets whose × was clicked this session.
   const [removed, setRemoved] = useState<Set<string>>(
@@ -644,8 +621,9 @@ export function FilterBar({
   );
   // The chip whose dropdown is open.
   const [openKey, setOpenKey] = useState<string | null>(null);
-  // presetsIfRoom that don't fit right now, and each one's width from when
-  // it last showed. Picking one from the menu shows it regardless.
+  // presetsIfRoom left out for room, and each preset's width with no value
+  // (or, until it's had none, when it first showed). Picking one from the
+  // menu shows it regardless.
   const [cramped, setCramped] = useState<Set<string>>(() => new Set());
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const widths = useRef(new Map<string, number>());
@@ -662,62 +640,75 @@ export function FilterBar({
     openKey !== f.key;
   const chips = placed.filter((f) => !(optional(f) && cramped.has(f.key)));
 
+  // The toolbar's layout (toolbarLayout): which if-room presets show, and
+  // whether the switch goes on a line of its own. Worked out from the
+  // row's starting state, each preset as wide as it is with no value, and
+  // again only when the row's width or the set of presets changes, or the
+  // switch gets wider than it has been at this width (its counts and
+  // options loading). So setting filters never moves the switch: chips
+  // that grow just wrap, and a switch whose counts follow the filters only
+  // narrows. A new width measures it afresh (a phone's fills the row).
+  const decided = useRef('');
+  const switchWidth = useRef({ at: 0, width: 0 });
   useLayoutEffect(() => {
     const row = rowOf(anchor.current);
-    if (!row || presetsIfRoom.length === 0) return;
+    if (!row) return;
     const update = () => {
-      const style = getComputedStyle(row);
-      const gap = parseFloat(style.columnGap) || 0;
-      const end =
-        row.getBoundingClientRect().right - parseFloat(style.paddingRight);
       // Hidden (a collapsed toolbar): nothing to measure.
       if (row.offsetWidth === 0) return;
-      const chipEl = (key: string) =>
-        row.querySelector<HTMLElement>(`[data-filter-chip="${key}"]`);
-      const start0 =
-        row.getBoundingClientRect().left + parseFloat(style.paddingLeft);
-      // The row's first line the chips can share: down to the bottom of its
-      // first item that isn't a row to itself (the search box, or past a
-      // view switch or a phone's full-width search, the first chip).
-      const first = Array.from(row.children).find((c) => {
-        const w = (c as HTMLElement).offsetWidth;
-        return w > 0 && w < end - start0 - 1;
-      }) as HTMLElement | undefined;
-      const firstBottom = first?.getBoundingClientRect().bottom ?? Infinity;
-      // Nothing before the chips on that line: they start at its edge.
-      const firstIsChip =
-        !!first?.querySelector('[data-filter-chip]') ||
-        !!first?.matches('[data-filter-chip]');
-      const next = new Set<string>();
-      for (const [i, f] of placed.entries()) {
-        if (!presetsIfRoom.includes(f.key) || !optional(f)) continue;
-        const el = chipEl(f.key);
-        if (el?.offsetWidth) widths.current.set(f.key, el.offsetWidth);
-        const width = widths.current.get(f.key);
-        // What it would follow: the chip before it that's showing, else
-        // the row's first item.
-        const prev =
-          placed
-            .slice(0, i)
-            .reverse()
-            .map((p) => (next.has(p.key) ? null : chipEl(p.key)))
-            .find((p) => p) ?? (firstIsChip ? undefined : first);
-        const height = (prev ?? first)?.offsetHeight;
-        if (!width || !height) continue;
-        const box = prev?.getBoundingClientRect();
-        const start = box ? box.right + gap : start0;
-        // Only on that line, with room for the square add button, which is
-        // as wide as a chip is tall.
-        const noRoom =
-          (box ? box.top : 0) >= firstBottom ||
-          start + width + gap + height > end + 0.5;
-        if (noRoom) next.add(f.key);
+      for (const f of placed) {
+        const el = row.querySelector<HTMLElement>(
+          `[data-filter-chip="${f.key}"]`,
+        );
+        if (
+          el?.offsetWidth &&
+          (summaryOf(f) === null || !widths.current.has(f.key))
+        )
+          widths.current.set(f.key, el.offsetWidth);
       }
+      const style = getComputedStyle(row);
+      const width =
+        row.clientWidth -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight);
+      const switchEl = row.querySelector('[data-toolbar-switch]')
+        ?.firstElementChild as HTMLElement | null | undefined;
+      const measured = switchEl?.offsetWidth ?? 0;
+      switchWidth.current =
+        switchWidth.current.at === width
+          ? { at: width, width: Math.max(switchWidth.current.width, measured) }
+          : { at: width, width: measured };
+      // The presets showing as chips: one whose field the page doesn't
+      // offer right now (Archive's Status, with nothing archived) has none.
+      const keys = order.filter((k) => presets.includes(k) && byKey.has(k));
+      const at = `${width}|${switchWidth.current.width}|${keys.join()}`;
+      if (at === decided.current) return;
+      const chips = keys.map((key) => ({
+        key,
+        width: widths.current.get(key) ?? 0,
+        ifRoom: presetsIfRoom.includes(key),
+      }));
+      // Not all measured yet (a preset that started with a value hidden).
+      if (chips.some((c) => !c.width)) return;
+      const search = row.querySelector('input[type="search"]')?.parentElement;
+      const add = row.querySelector<HTMLElement>('[data-filter-add]');
+      decided.current = at;
+      const layout = toolbarLayout({
+        width,
+        gap: parseFloat(style.columnGap) || 0,
+        switch: switchWidth.current.width,
+        search: searchWidth(search, width),
+        chips,
+        // Square: as wide as it is tall.
+        add: add?.offsetHeight ?? 0,
+      });
       setCramped((was) =>
-        was.size === next.size && [...next].every((k) => was.has(k))
+        was.size === layout.hidden.size &&
+        [...layout.hidden].every((k) => was.has(k))
           ? was
-          : next,
+          : layout.hidden,
       );
+      onSwitchAbove?.(layout.switchAbove);
     };
     update();
     const observer = new ResizeObserver(update);
@@ -739,7 +730,7 @@ export function FilterBar({
       next.delete(key);
       setRemovedPresets(next);
     }
-    // After the Add filter menu has closed, so the two don't fight over focus.
+    // After the Filters menu has closed, so the two don't fight over focus.
     requestAnimationFrame(() => setOpenKey(key));
   }
 
@@ -779,8 +770,8 @@ export function FilterBar({
           if (field) remove(field);
         }}
       />
-      {/* Finds the row the chips wrap in, for presetsIfRoom. After the add
-          button, which measures from the element before it. */}
+      {/* Finds the row the chips wrap in, for the toolbar's layout. After
+          the add button, which measures from the element before it. */}
       <span ref={anchor} hidden />
     </>
   );
