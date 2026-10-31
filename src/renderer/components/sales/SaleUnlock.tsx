@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { domainKey } from '../../../shared/account-key';
 import type { Domain, DomainOp } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
@@ -20,12 +21,19 @@ const UNLOCK: DomainOp = { kind: 'lock', locked: false };
  */
 export function SaleUnlock({ domain }: { domain: Domain }) {
   const applyDomainOp = useAppStore((s) => s.applyDomainOp);
-  const pending = useAppStore((s) => s.mutating[domainKey(domain)] ?? false);
+  // Another write on the name (an Approve transfer) holds this one back.
+  const busy = useAppStore((s) => s.mutating[domainKey(domain)] ?? false);
   const reason = useOpUnsupportedReason(domain.registrar, UNLOCK);
+  // Only this button's own write reads as Unlocking.
+  const [unlocking, setUnlocking] = useState(false);
 
   const unlock = () => {
+    setUnlocking(true);
     void applyDomainOp(targetOf(domain), UNLOCK, { locked: false }).then(
-      (result) => reportOpResult(UNLOCK, result),
+      (result) => {
+        setUnlocking(false);
+        reportOpResult(UNLOCK, result);
+      },
     );
   };
   return (
@@ -34,7 +42,7 @@ export function SaleUnlock({ domain }: { domain: Domain }) {
       variant="outline"
       // Short enough to sit in a table row without making it taller.
       className="-my-1 h-6 shrink-0 px-2 text-xs"
-      disabled={pending || !domain.locked || reason !== null}
+      disabled={busy || unlocking || !domain.locked || reason !== null}
       onClick={unlock}
       title={
         !domain.locked
@@ -43,7 +51,7 @@ export function SaleUnlock({ domain }: { domain: Domain }) {
             'Turn off the transfer lock at the registrar, so the buyer can take the name')
       }
     >
-      {pending ? 'Unlocking…' : domain.locked ? 'Unlock' : 'Unlocked'}
+      {unlocking ? 'Unlocking…' : domain.locked ? 'Unlock' : 'Unlocked'}
     </Button>
   );
 }
