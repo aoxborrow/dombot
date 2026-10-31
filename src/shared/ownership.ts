@@ -179,17 +179,17 @@ export function standingOf(
   registered?: boolean | null,
   now: number = Date.now(),
 ): Standing {
-  const sale = o?.sale ?? null;
+  // A sale recorded, or one under way at a market: either way it's sold
+  // (left during a market sale, the buyer took it).
+  const sale = o?.sale ?? o?.marketSale ?? null;
   if (d.departed) {
-    // Left during a sale under way: the buyer took it.
-    const label: ArchiveLabel =
-      sale || o?.marketSale
-        ? 'sold'
-        : registered === false
-          ? 'deleted'
-          : o?.removal?.expires
-            ? 'expired'
-            : 'removed';
+    const label: ArchiveLabel = sale
+      ? 'sold'
+      : registered === false
+        ? 'deleted'
+        : o?.removal?.expires
+          ? 'expired'
+          : 'removed';
     return { ...OWNED, archived: true, label };
   }
   const days = daysUntil(d.expirationDate, now);
@@ -205,7 +205,7 @@ export function standingOf(
   }
   return {
     ...OWNED,
-    salePending: !!sale || !!o?.marketSale,
+    salePending: !!sale,
     expiring:
       !d.autoRenew &&
       !d.autoRenewUnknown &&

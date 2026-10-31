@@ -144,7 +144,6 @@ type DialogState =
  */
 export default function Activity() {
   const events = useAppStore((s) => s.domainEvents);
-  const marketSales = useAppStore((s) => s.marketSales);
   const registrars = useAppStore((s) => s.registrars);
   const portfolio = useAppStore((s) => s.portfolio);
   const importedDomains = useAppStore((s) => s.importedDomains);
@@ -216,10 +215,7 @@ export default function Activity() {
 
   const resolved = useMemo(() => resolvedIds(events), [events]);
   const closedBy = useMemo(() => resolutions(events), [events]);
-  const ownership = useMemo(
-    () => ownershipByDomain(events, marketSales),
-    [events, marketSales],
-  );
+  const ownership = useMemo(() => ownershipByDomain(events), [events]);
   const priorityOf = (e: DomainEvent) => reviewPriority(e, resolved);
 
   // Your answer to an alert shows on the alert's row, not its own. (Sync's own

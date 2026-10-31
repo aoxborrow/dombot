@@ -131,6 +131,13 @@ describe('a market sale under way', () => {
     );
   });
 
+  it('moves a name you added to Archive as Sold, as a recorded sale does', () => {
+    const o = under([], [sale()]);
+    expect(standingOf(row({ source: 'imported' }), o, null, NOW)).toMatchObject(
+      { archived: true, label: 'sold' },
+    );
+  });
+
   it('leaves out leases, finished sales, and names that arrived since', () => {
     expect(under([], [sale({ kind: 'lease' })])).toBeUndefined();
     expect(under([], [sale({ status: 'completed' })])).toBeUndefined();
