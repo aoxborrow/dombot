@@ -19,7 +19,7 @@ import {
   notifications,
   type Notification,
 } from '../../../shared/notifications';
-import { SEVERITY_COUNT, SEVERITY_TEXT } from '../../lib/severity';
+import { SEVERITY_COUNT } from '../../lib/severity';
 import { accountName } from '../../lib/domain-history';
 import { syncProblems } from '../../lib/activity';
 import { timeAgo } from '../../lib/time';
@@ -27,6 +27,7 @@ import { useAppStore } from '../../store/app';
 import { useAvailableUpdate, useUpdates } from '../../lib/updates';
 import { useUnconvertible } from '../../lib/unconvertible';
 import type { UnconvertibleAmount } from '../../../shared/unconvertible';
+import { TYPE_TEXT } from './EventTypeBadge';
 import type { MarketSale } from '../../../shared/markets';
 import { cn } from '@/lib/utils';
 import {
@@ -94,15 +95,19 @@ export function ActivityBell() {
     salesToAct.length +
     (update ? 1 : 0) +
     (unconvertible.shown ? 1 : 0);
-  // The worst severity's color, green for an update, gray for the currency
+  // As the rows: red for a sync error, amber for a sale waiting on you, then
+  // plain for names to review, green for an update, gray for the currency
   // note when it's all there is.
-  const countColor = badge
-    ? SEVERITY_COUNT[badge.severity]
-    : salesToAct.length
-      ? SEVERITY_COUNT.high
-      : update
-        ? 'bg-brand text-white'
-        : 'bg-muted-foreground text-background';
+  const countColor =
+    badge?.severity === 'error'
+      ? SEVERITY_COUNT.error
+      : salesToAct.length
+        ? 'bg-amber-500 text-black dark:bg-amber-400'
+        : badge
+          ? 'bg-foreground text-background'
+          : update
+            ? 'bg-brand text-white'
+            : 'bg-muted-foreground text-background';
   const reviews = list.filter((n) => n.severity !== 'error').length;
   const close = () => setOpen(false);
 
@@ -256,6 +261,14 @@ export function ActivityBell() {
   );
 }
 
+// Red only for what's broken, amber for a sale waiting on you. Names that
+// arrived or left take their Activity Type colours (blue in, plain out): a
+// busy account can leave many, and none of them is an error.
+const TONE = {
+  error: 'text-red-600 dark:text-red-500',
+  sale: 'text-amber-500 dark:text-amber-400',
+};
+
 // Text starts 38px in: the 12px padding, the 16px icon and the 10px gap.
 // The currency list and "and N more" indent to match.
 const ROW =
@@ -371,7 +384,7 @@ function NotificationRow({
     return (
       <BellRow
         icon={CircleAlert}
-        tone={SEVERITY_TEXT.error}
+        tone={TONE.error}
         to={`/settings?tab=${settingsTab}`}
         onNavigate={onNavigate}
         title={n.message}
@@ -389,7 +402,7 @@ function NotificationRow({
   return (
     <BellRow
       icon={departure ? CircleMinus : CirclePlus}
-      tone={SEVERITY_TEXT[n.severity]}
+      tone={TYPE_TEXT[departure ? 'removed' : 'added']}
       to={`/activity?review=1&q=${encodeURIComponent(name)}`}
       // Activity clears its other filters so this name shows.
       state={{ fresh: true }}
@@ -522,7 +535,7 @@ function SaleRow({
   return (
     <BellRow
       icon={CircleDollarSign}
-      tone={SEVERITY_TEXT.high}
+      tone={TONE.sale}
       to="/sales"
       onNavigate={onNavigate}
       title={`${name} on ${market} ${what}`}

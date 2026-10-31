@@ -43,6 +43,20 @@ const TYPE_STYLE: Record<BadgeType, string> = {
   changed: KEPT,
 };
 
+/** The same colors as text, for an icon (the bell's). */
+export const TYPE_TEXT: Record<BadgeType, string> = {
+  added: 'text-blue-700 dark:text-blue-300',
+  registered: 'text-blue-700 dark:text-blue-300',
+  purchased: 'text-blue-700 dark:text-blue-300',
+  removed: 'text-foreground/70',
+  deleted: 'text-muted-foreground',
+  expired: 'text-muted-foreground',
+  sold: 'text-emerald-600 dark:text-emerald-400',
+  moved: 'text-indigo-600 dark:text-indigo-400',
+  renewed: 'text-indigo-600 dark:text-indigo-400',
+  changed: 'text-indigo-600 dark:text-indigo-400',
+};
+
 /** The same colors as a dot, for filter options. */
 const TYPE_DOT: Record<BadgeType, string> = {
   added: IN_DOT,

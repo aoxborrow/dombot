@@ -12,13 +12,6 @@ export const SEVERITY_DOT: Record<Severity, string> = {
   low: 'bg-yellow-500 dark:bg-yellow-400',
 };
 
-/** An icon or text in its severity's colour: the bell's row icons. */
-export const SEVERITY_TEXT: Record<Severity, string> = {
-  error: 'text-red-600 dark:text-red-500',
-  high: 'text-red-600 dark:text-red-500',
-  low: 'text-yellow-500 dark:text-yellow-400',
-};
-
 /** The bell's count bubble. */
 export const SEVERITY_COUNT: Record<Severity, string> = {
   error: 'bg-red-600 text-white dark:bg-red-500',
