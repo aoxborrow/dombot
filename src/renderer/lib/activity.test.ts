@@ -55,6 +55,11 @@ describe('event helpers', () => {
       ),
     ).toBe('$10.00 · 2 yr');
     expect(eventDetails(event({}), 'us', 'USD')).toBeNull();
+    // A departure that needs no answer says why.
+    expect(eventDetails(event({ expires: '2026-09-20' }), 'us', 'USD')).toBe(
+      'Expired 2026-09-20',
+    );
+    expect(eventDetails(event({ dropped: true }), 'us', 'USD')).toBe('Dropped');
   });
 
   it('shows an amount in another currency in yours on hover', () => {
