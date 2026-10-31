@@ -22,6 +22,7 @@ const fake = {
   relistFails: new Set<string>(),
   authCodes: [] as [string, string][],
   sales: [] as MarketSale[],
+  saleReadFails: false,
   batch: 500,
   asyncInsert: false,
   savedForSale: true,
@@ -111,8 +112,19 @@ vi.mock('./registry', async () => {
       },
       getListings: async (names: string[]) =>
         names.map((n) => ({ ...listingOf(n, accountId), status: 'active' })),
+      // Like Afternic, the sale moves on to the transfer once it has a code.
       setSaleAuthCode: async (saleId: string, code: string) => {
         fake.authCodes.push([saleId, code]);
+        fake.sales = fake.sales.map((s) =>
+          s.id === saleId
+            ? { ...s, statusRaw: 'PENDING_TRANSFER', action: 'transfer' }
+            : s,
+        );
+      },
+      getSale: async (saleId: string) => {
+        if (fake.saleReadFails) throw new Error('HTTP 503');
+        const s = fake.sales.find((x) => x.id === saleId);
+        return s ? { ...s, accountId } : null;
       },
     }),
   };
@@ -130,7 +142,7 @@ vi.mock('../domain-ops', () => ({
 }));
 
 const { connectMarketAccount } = await import('./accounts');
-const { marketListings, putMarketListings, syncMarketAccount } =
+const { marketListings, marketSale, putMarketListings, syncMarketAccount } =
   await import('./sync');
 const { setListPrices } = await import('../list-prices');
 const writes = await import('./writes');
@@ -157,6 +169,7 @@ beforeEach(async () => {
     relistFails: new Set(),
     authCodes: [],
     sales: [],
+    saleReadFails: false,
     batch: 500,
     asyncInsert: false,
     savedForSale: true,
@@ -346,6 +359,25 @@ describe('setSaleAuthCode', () => {
     await writes.setSaleAuthCode(ID, 'tx-1', 'typed');
     expect(applyDomainOp).not.toHaveBeenCalled();
     expect(fake.authCodes).toEqual([['tx-1', 'typed']]);
+  });
+
+  it('reads the sale back, so its next step shows before a sync', async () => {
+    expect(marketSale(ID, 'tx-1')?.action).toBe('auth_code');
+    await writes.setSaleAuthCode(ID, 'tx-1', 'typed');
+    expect(marketSale(ID, 'tx-1')).toMatchObject({
+      statusRaw: 'PENDING_TRANSFER',
+      action: 'transfer',
+    });
+  });
+
+  it('keeps the stored sale when reading it back fails', async () => {
+    fake.saleReadFails = true;
+    vi.spyOn(console, 'error').mockImplementationOnce(() => {});
+    await expect(
+      writes.setSaleAuthCode(ID, 'tx-1', 'typed'),
+    ).resolves.toMatchObject({ name: 'sold.com' });
+    expect(fake.authCodes).toEqual([['tx-1', 'typed']]);
+    expect(marketSale(ID, 'tx-1')?.action).toBe('auth_code');
   });
 
   it('says why when no account holds the name', async () => {

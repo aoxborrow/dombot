@@ -1069,7 +1069,7 @@ export function registerMarketWriteTools(server: McpServer): void {
     {
       title: 'Send a sale its auth code',
       description:
-        'Give a market sale the transfer auth code it is waiting for (market_sales rows with `action: "auth_code"`), or correct one sent before. Leave `authCode` out and DomBot gets it from the registrar account that holds the name, as domain_auth_code_get, and sends that. The code is never returned or stored.',
+        'Give a market sale the transfer auth code it is waiting for (market_sales rows with `action: "auth_code"`), or correct one sent before. Leave `authCode` out and DomBot gets it from the registrar account that holds the name, as domain_auth_code_get, and sends that. The code is never returned or stored. The buyer can’t take a locked name: unlock it with domain_set_lock too.',
       inputSchema: {
         accountId: requiredAccount,
         saleId: z

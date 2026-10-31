@@ -310,7 +310,9 @@ decimal strings or numbers.
   rejected or stuck pending, and say so per name as `relisted`.
 - **`market_sale_auth_code_set`** — `accountId`, `saleId`, `authCode?`.
   Without a code, DomBot gets it from the registrar account that holds the
-  name. Never returned or stored.
+  name. Never returned or stored. The sale is read back after, so its next
+  step shows before a sync. The name needs unlocking too
+  (`domain_set_lock`).
 - **`market_sale_message_send`** — `accountId`, `saleId`, `message`. Reaches
   a person at the market.
 - **`market_settings_set`** — `accountId`, and the listing defaults to

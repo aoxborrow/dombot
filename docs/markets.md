@@ -475,8 +475,14 @@ sale from every source:
 
 All or **Pending** (like Activity's Needs review; `?pending=1`): pending
 is a sale under way at a market or one awaiting transfer, and the tab's
-pill counts them. One row per sale, pending first, with Send auth code
-inline on a sale waiting for it. Awaiting transfer (sold, and an account
+pill counts them. One row per sale, pending first, with the seller's steps
+inline: Unlock on a pending sale whose name an account of yours holds
+locked (one click; disabled with the reason where the registrar's API
+can't unlock, and the name's detail is fetched where its registrar's list
+doesn't say), then Send auth code on a sale waiting for it, which reads
+the sale back so the row moves on to its next step without a sync. Two
+buttons rather than one: a registrar that can't give the code through its
+API may still unlock. Awaiting transfer (sold, and an account
 of yours still holds the name) is amber like a market's steps, with Mark
 complete: a buyer often takes the name at the same registrar, so nothing
 need change registrar, and marking it (`transferred` on the sold event)

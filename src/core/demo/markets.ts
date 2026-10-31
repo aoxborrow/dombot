@@ -220,6 +220,14 @@ export class DemoMarketAdapter {
     return this.world.sales.get(this.accountId) ?? [];
   }
 
+  async getSale(saleId: string): Promise<MarketSale | null> {
+    return (
+      (this.world.sales.get(this.accountId) ?? []).find(
+        (s) => s.id === saleId,
+      ) ?? null
+    );
+  }
+
   async accountStats(days: number): Promise<MarketStatsDay[]> {
     const span = this.market === 'sedo' ? Math.min(days, 31) : days;
     return Array.from({ length: span }, (_, i) => {
@@ -305,7 +313,7 @@ export class DemoMarketAdapter {
       this.accountId,
       sales.map((s) =>
         s.id === saleId
-          ? { ...s, action: null, statusRaw: 'TRANSFER_PENDING' }
+          ? { ...s, action: 'transfer', statusRaw: 'PENDING_TRANSFER' }
           : s,
       ),
     );
@@ -668,7 +676,7 @@ export function seedDemoMarkets(
     'auth_code',
   );
   underWay(take(), 5, 'in_progress', 'AWAITING_PAYEE_INFO', 'payee_details');
-  underWay(take(), 9, 'in_progress', 'TRANSFER_PENDING', 'transfer');
+  underWay(take(), 9, 'in_progress', 'PENDING_TRANSFER', 'transfer');
   underWay(take(), 140, 'cancelled', 'CANCELLED', null);
 }
 

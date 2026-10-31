@@ -129,6 +129,11 @@ export function marketSale(
   return sales.get(`${accountId}:${saleId}`);
 }
 
+/** Store a sale read back after a write, so it shows before a sync. */
+export function putMarketSale(sale: MarketSale): void {
+  void sales.set(saleKey(sale), sale);
+}
+
 /** Every recorded sale, newest first, whichever account sold it. */
 export function marketSales(): MarketSale[] {
   return Object.values(sales.all())

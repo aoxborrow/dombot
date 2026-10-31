@@ -17,7 +17,9 @@ import {
   Store,
   Undo2,
 } from 'lucide-react';
-import { toUnicode } from '../../shared/domain-name';
+import { domainKey } from '../../shared/account-key';
+import { toAscii, toUnicode } from '../../shared/domain-name';
+import type { Domain } from '../../shared/ipc';
 import { localDay } from '../../shared/domain-events';
 import {
   DEFAULT_CURRENCY,
@@ -62,6 +64,7 @@ import type { FilterField } from '../components/data-table/FilterBar';
 import { dateRangeField } from '../components/data-table/DateRangeFilter';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import { SaleAuthCode } from '../components/sales/SaleAuthCode';
+import { SaleUnlock } from '../components/sales/SaleUnlock';
 import { SalesCards, heldFor } from '../components/sales/SalesCards';
 import { Button } from '@/components/ui/button';
 import {
@@ -188,6 +191,34 @@ export default function Sales() {
       undated: byDate.undated,
     };
   }, [records, sold, sources, currencies, tlds, registrarIds, search]);
+
+  // The names pending sales have yet to hand over, as your registrar accounts
+  // hold them now, for each row's Unlock. Where a registrar's list doesn't
+  // say whether a name is locked, its detail is fetched (as the Domains
+  // table does), and an unlock lands there too.
+  const portfolio = useAppStore((s) => s.portfolio);
+  const enriched = useAppStore((s) => s.enriched);
+  const enrichVisible = useAppStore((s) => s.enrichVisible);
+  const heldDomains = useMemo(() => {
+    const pending = new Set(records.filter(isPending).map((r) => r.name));
+    return new Map(
+      portfolio
+        .filter(
+          (d) =>
+            !d.departed &&
+            d.source !== 'imported' &&
+            pending.has(toAscii(d.domainName)),
+        )
+        .map((d) => [toAscii(d.domainName), d]),
+    );
+  }, [records, portfolio]);
+  useEffect(() => {
+    void enrichVisible([...heldDomains.values()]);
+  }, [heldDomains, enrichVisible]);
+  const heldDomain = (r: SaleRecord): Domain | undefined => {
+    const d = isPending(r) ? heldDomains.get(r.name) : undefined;
+    return d && (enriched[domainKey(d)] ?? d);
+  };
 
   const pendingCount = useMemo(() => rows.filter(isPending).length, [rows]);
   const viewRows = useMemo(
@@ -518,60 +549,67 @@ export default function Sales() {
       key: 'status',
       label: 'Status',
       cellClassName: 'py-1',
-      cell: (r) => (
-        <span className="flex items-center justify-between gap-3">
-          <span
-            className={cn(
-              'inline-flex items-center gap-1.5 whitespace-nowrap',
-              r.status !== 'completed' && 'text-muted-foreground',
-              ((isUnderWay(r) && r.step) || r.awaitingTransfer) &&
-                'font-medium text-foreground',
-            )}
-          >
+      cell: (r) => {
+        const held = heldDomain(r);
+        return (
+          <span className="flex items-center justify-between gap-3">
             <span
               className={cn(
-                'size-2 rounded-full',
-                // Amber: something to do (a market's step, or a sold name
-                // still in your account to hand over).
-                isUnderWay(r)
-                  ? r.step
-                    ? 'bg-amber-500'
-                    : 'bg-sky-500'
-                  : r.status === 'cancelled'
-                    ? 'bg-muted-foreground/40'
-                    : r.awaitingTransfer
-                      ? 'bg-amber-500'
-                      : 'bg-brand',
+                'inline-flex items-center gap-1.5 whitespace-nowrap',
+                r.status !== 'completed' && 'text-muted-foreground',
+                ((isUnderWay(r) && r.step) || r.awaitingTransfer) &&
+                  'font-medium text-foreground',
               )}
-              aria-hidden
-            />
-            {saleStatusLabel(r)}
-          </span>
-          {r.step === 'auth_code' &&
-            r.marketAccountId &&
-            r.marketSaleId &&
-            liveMarketAccounts.has(r.marketAccountId) && (
-              <SaleAuthCode
-                accountId={r.marketAccountId}
-                saleId={r.marketSaleId}
-                name={r.name}
-              />
-            )}
-          {/* Handed over without leaving the registrar (an account change
-              there), or otherwise done: it stops waiting. */}
-          {r.awaitingTransfer && r.eventId && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="-my-1 h-6 shrink-0 px-2 text-xs"
-              title="The buyer has the name; stop showing this sale as waiting"
-              onClick={() => void setSaleTransferred(r.eventId!, true)}
             >
-              Mark complete
-            </Button>
-          )}
-        </span>
-      ),
+              <span
+                className={cn(
+                  'size-2 rounded-full',
+                  // Amber: something to do (a market's step, or a sold name
+                  // still in your account to hand over).
+                  isUnderWay(r)
+                    ? r.step
+                      ? 'bg-amber-500'
+                      : 'bg-sky-500'
+                    : r.status === 'cancelled'
+                      ? 'bg-muted-foreground/40'
+                      : r.awaitingTransfer
+                        ? 'bg-amber-500'
+                        : 'bg-brand',
+                )}
+                aria-hidden
+              />
+              {saleStatusLabel(r)}
+            </span>
+            {/* What you can do, in order: unlock the name, send its code. */}
+            <span className="flex items-start gap-1.5">
+              {held && <SaleUnlock domain={held} />}
+              {r.step === 'auth_code' &&
+                r.marketAccountId &&
+                r.marketSaleId &&
+                liveMarketAccounts.has(r.marketAccountId) && (
+                  <SaleAuthCode
+                    accountId={r.marketAccountId}
+                    saleId={r.marketSaleId}
+                    name={r.name}
+                  />
+                )}
+              {/* Handed over without leaving the registrar (an account change
+                there), or otherwise done: it stops waiting. */}
+              {r.awaitingTransfer && r.eventId && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="-my-1 h-6 shrink-0 px-2 text-xs"
+                  title="The buyer has the name; stop showing this sale as waiting"
+                  onClick={() => void setSaleTransferred(r.eventId!, true)}
+                >
+                  Mark complete
+                </Button>
+              )}
+            </span>
+          </span>
+        );
+      },
     },
     {
       key: 'paidOutOn',

@@ -41,6 +41,8 @@ export interface MarketAdapter {
   ): Promise<MarketWriteResult[]>;
   deleteListings(names: readonly string[]): Promise<MarketWriteResult[]>;
   allSales?(since?: string): Promise<MarketSale[]>;
+  /** One sale, or null when the market has no such sale. */
+  getSale?(saleId: string): Promise<MarketSale | null>;
   accountStats?(days: number): Promise<MarketStatsDay[]>;
   domainStats?(name: string, days: number): Promise<MarketStatsDay[]>;
   /**

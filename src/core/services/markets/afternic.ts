@@ -450,6 +450,11 @@ export class AfternicAdapter implements MarketAdapter, AfternicActions {
     return sales.map((s) => saleFromAfternic(s, this.accountId));
   }
 
+  async getSale(saleId: string): Promise<MarketSale | null> {
+    const sale = await this.client.getSale(saleId);
+    return sale ? saleFromAfternic(sale, this.accountId) : null;
+  }
+
   async accountStats(days: number): Promise<MarketStatsDay[]> {
     return statsFromAfternic(
       await this.client.getAccountStats({ days }),
