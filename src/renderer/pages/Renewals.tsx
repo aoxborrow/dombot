@@ -8,8 +8,8 @@ import {
   CalendarDays,
   CalendarSync,
   Globe,
-  RefreshCwOff,
   RotateCw,
+  Stamp,
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { importedRows } from '../../shared/imported-domains';
@@ -245,7 +245,7 @@ export default function Renewals() {
               Manual<span className="max-sm:hidden"> renew</span>
             </>
           ),
-          icon: RefreshCwOff,
+          icon: Stamp,
           count: manual.length,
           active: renewing === 'manual',
           onClick: () => setRenewing('manual'),
