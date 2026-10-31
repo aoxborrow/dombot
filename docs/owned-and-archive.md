@@ -50,8 +50,9 @@ already knows; you never set it.
   name, with the Sold and Imported pills. Expiring isn't a pill: the
   Expiration column's colour and the Auto-renew filter already show it on the row, and
   it's worked out for MCP and a future summary card.
-- **A new Auto-renew filter** (On, Off) beside Registrar, TLD and Folder.
-  There isn't one today, and it's how you see what you're letting go.
+- **A new Auto-renew filter** (On, Off, and Unknown for names you added
+  by hand) beside Registrar, TLD and Folder. There isn't one today, and
+  it's how you see what you're letting go.
 - **Imported names** use the auto-renew and expiry you entered. Unknown
   auto-renew is never Expiring.
 
