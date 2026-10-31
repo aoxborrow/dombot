@@ -1,6 +1,7 @@
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { useMemo, useState } from 'react';
+import { cn } from '@/lib/utils';
 import {
   AlarmClock,
   Building2,
@@ -10,6 +11,7 @@ import {
   Globe,
   RotateCw,
   Stamp,
+  type LucideIcon,
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { importedRows } from '../../shared/imported-domains';
@@ -120,6 +122,12 @@ function toSlices(
   }
   return slices;
 }
+
+// The stamp draws small in its box: a pixel bigger (13px of 12, 15 of 14
+// on phones) to sit level with the switch's other icons.
+const ManualIcon = function ManualIcon({ className }: { className?: string }) {
+  return <Stamp className={cn(className, 'scale-[1.083]')} />;
+} as LucideIcon;
 
 // The "Set prices manually" editor is hidden for now; the state and handlers
 // stay wired up so it can be switched back on later.
@@ -245,7 +253,7 @@ export default function Renewals() {
               Manual<span className="max-sm:hidden"> renew</span>
             </>
           ),
-          icon: Stamp,
+          icon: ManualIcon,
           count: manual.length,
           active: renewing === 'manual',
           onClick: () => setRenewing('manual'),
