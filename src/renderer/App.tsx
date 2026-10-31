@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { useEffect } from 'react';
 import {
   Navigate,
   Route,
@@ -45,11 +45,6 @@ import {
 import { useSyncState } from './lib/sync-state';
 import { ActivityBell } from './components/activity/ActivityBell';
 import { Toaster } from '@/components/ui/sonner';
-
-// Dev builds only: rows of cards for tuning their sizes (#/debug/cards).
-const CardsDebug = import.meta.env.DEV
-  ? lazy(() => import('./pages/CardsDebug'))
-  : null;
 
 /**
  * How each page shows as a header tab, by route: which metric its pill shows
@@ -240,16 +235,6 @@ export default function App() {
           {/* The Markets tab became Sales (docs/sales-tab.md). */}
           <Route path="/markets" element={<Navigate to="/sales" replace />} />
           <Route path="/settings" element={<Settings />} />
-          {CardsDebug && (
-            <Route
-              path="/debug/cards"
-              element={
-                <Suspense>
-                  <CardsDebug />
-                </Suspense>
-              }
-            />
-          )}
         </Routes>
       </main>
 

@@ -4,8 +4,7 @@ import { notifications } from '../../shared/notifications';
 import { compactMoney, leavesOut, summarize, wholeMoney } from './renewals';
 import { DEFAULT_CURRENCY } from '../../shared/money';
 import { importedRows } from '../../shared/imported-domains';
-import { toAscii } from '../../shared/domain-name';
-import { ownershipByDomain, standingOf } from '../../shared/ownership';
+import { ownedAndRenewing } from '../../shared/ownership';
 import { isPending, useSaleRecords } from './sales';
 
 export interface TabMetric {
@@ -43,29 +42,12 @@ export function useTabMetrics(): TabMetrics {
   const saleRecords = useSaleRecords();
 
   return useMemo(() => {
-    // The pages' own counts (docs/owned-and-archive.md): Domains shows the
-    // names in Owned, not the ones already in Archive; Renewals counts those
-    // less the ones you've sold that the buyer hasn't taken yet.
-    const ownership = ownershipByDomain(events);
-    const standings = [...synced, ...importedRows(importedDomains, synced)].map(
-      (d) => {
-        const key = toAscii(d.domainName);
-        return {
-          d,
-          st: standingOf(
-            d,
-            ownership.get(key),
-            registrationLookups[key]?.registered,
-          ),
-        };
-      },
+    // The pages' own counts (docs/owned-and-archive.md).
+    const { owned: portfolio, renewing } = ownedAndRenewing(
+      [...synced, ...importedRows(importedDomains, synced)],
+      events,
+      registrationLookups,
     );
-    const portfolio = standings
-      .filter(({ st }) => !st.archived)
-      .map(({ d }) => d);
-    const renewing = standings
-      .filter(({ st }) => !st.archived && !st.salePending)
-      .map(({ d }) => d);
     const n = portfolio.length.toLocaleString('en-US');
     const domains =
       portfolio.length > 0

@@ -27,6 +27,7 @@ import type {
   MarketListing,
 } from '../../../shared/markets';
 import type { ExchangeRates } from '../../../shared/exchange-rates';
+import { autoRenewChoice } from '../../lib/auto-renew';
 import { compactMoney, summarize, wholeMoney } from '../../lib/renewals';
 import { StatCard, StatCardRow } from '../StatCard';
 import { TagOffIcon } from '../icons/TagOffIcon';
@@ -177,25 +178,21 @@ export function DomainsCards({
     }
     let expiring = 0;
     let autoRenewing = 0;
-    let imported = 0;
     let listed = 0;
     const registrars = new Set<string>();
     for (const d of rows) {
       // Expiring and not renewing on its own (auto-renew off, or unknown
       // for a name you added): one auto-renew takes care of isn't a worry.
-      if ((d.autoRenewUnknown || !d.autoRenew) && expiresWithin(d))
-        expiring += 1;
-      // As the Auto-renew filter's On: unknown isn't on.
-      if (!d.autoRenewUnknown && d.autoRenew) autoRenewing += 1;
+      const renew = autoRenewChoice(d);
+      if (renew !== 'on' && expiresWithin(d)) expiring += 1;
+      if (renew === 'on') autoRenewing += 1;
       if (statesOf(d).includes('active')) listed += 1;
-      if (d.source === 'imported') imported += 1;
-      else if (d.registrar) registrars.add(d.registrar);
+      if (d.source !== 'imported' && d.registrar) registrars.add(d.registrar);
     }
     return {
       view,
       expiring,
       autoRenewing,
-      imported,
       listed,
       registrars: registrars.size,
     };
@@ -216,7 +213,7 @@ export function DomainsCards({
   const autoRenewCost = useMemo(
     () =>
       summarize(
-        rows.filter((d) => d.autoRenew && !d.autoRenewUnknown),
+        rows.filter((d) => autoRenewChoice(d) === 'on'),
         pricing,
         currency,
         fx,

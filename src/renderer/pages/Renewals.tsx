@@ -15,8 +15,7 @@ import {
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { importedRows } from '../../shared/imported-domains';
-import { toAscii } from '../../shared/domain-name';
-import { ownershipByDomain, standingOf } from '../../shared/ownership';
+import { ownedAndRenewing } from '../../shared/ownership';
 import { useAppStore } from '../store/app';
 import { StatCard, StatCardRow } from '../components/StatCard';
 import { ToolbarSwitch } from '../components/data-table/FilterToolbar';
@@ -150,21 +149,15 @@ export default function Renewals() {
   // The names in Owned (synced, and the ones you added by hand), less those
   // you've sold that the buyer hasn't taken yet. Archive is never counted
   // (docs/owned-and-archive.md).
-  const allDomains = useMemo(() => {
-    const ownership = ownershipByDomain(domainEvents);
-    return [
-      ...syncedDomains,
-      ...importedRows(importedDomains, syncedDomains),
-    ].filter((d) => {
-      const key = toAscii(d.domainName);
-      const st = standingOf(
-        d,
-        ownership.get(key),
-        registrationLookups[key]?.registered,
-      );
-      return !st.archived && !st.salePending;
-    });
-  }, [syncedDomains, importedDomains, domainEvents, registrationLookups]);
+  const allDomains = useMemo(
+    () =>
+      ownedAndRenewing(
+        [...syncedDomains, ...importedRows(importedDomains, syncedDomains)],
+        domainEvents,
+        registrationLookups,
+      ).renewing,
+    [syncedDomains, importedDomains, domainEvents, registrationLookups],
+  );
   const accounts = useAppStore((s) => s.registrars);
   const multipleAccounts = useMemo(
     () => multiAccountRegistrars(accounts, allDomains),
