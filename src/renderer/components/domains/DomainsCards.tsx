@@ -2,21 +2,20 @@ import { useMemo } from 'react';
 import {
   Archive,
   ArrowUpDown,
-  BadgeDollarSign,
+  Briefcase,
   CalendarClock,
-  Eye,
-  EyeOff,
-  Gem,
+  CalendarX,
+  ChartLine,
   Globe,
-  Store,
+  Receipt,
+  RotateCw,
   Tag,
-  TimerOff,
   Trash2,
   TriangleAlert,
 } from 'lucide-react';
 import { toAscii } from '../../../shared/domain-name';
 import type { ArchiveLabel } from '../../../shared/ownership';
-import type { Domain, ListPrice } from '../../../shared/ipc';
+import type { Domain, ListPrice, RenewalPricing } from '../../../shared/ipc';
 import {
   marketState,
   priceComparison,
@@ -27,8 +26,11 @@ import type {
   DomainTrafficTotals,
   MarketListing,
 } from '../../../shared/markets';
-import { compactMoney, wholeMoney } from '../../lib/renewals';
+import type { ExchangeRates } from '../../../shared/exchange-rates';
+import { autoRenewChoice } from '../../lib/auto-renew';
+import { compactMoney, summarize, wholeMoney } from '../../lib/renewals';
 import { StatCard, StatCardRow } from '../StatCard';
+import { TagOffIcon } from '../icons/TagOffIcon';
 
 // The cards above the Domains table (docs/markets.md, "Domains table and
 // actions"): up to five per view (fewer without a market account), most
@@ -44,8 +46,11 @@ const plural = (n: number, word: string) =>
   `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
 
 export interface DomainsCardActions {
-  /** Expiring within `days`, auto-renew off. */
-  onExpiring: (days: 30 | 60) => void;
+  /** Expiring within 30 days, not renewing on their own (auto-renew off
+   * or unknown). */
+  onExpiring: () => void;
+  /** Auto-renew on. */
+  onAutoRenew: () => void;
   /** The Markets filter set to these states (in the markets in play). */
   onMarketStates: (states: MarketStateChoice[]) => void;
   /** The Markets filter set to listings priced apart from your BIN. */
@@ -64,6 +69,9 @@ export function DomainsCards({
   traffic,
   expiresWithin,
   archiveLabelOf,
+  pricing,
+  currency,
+  fx,
   actions,
 }: {
   view: DomainsView;
@@ -76,9 +84,14 @@ export function DomainsCards({
   listPrices: Record<string, ListPrice>;
   /** Each name's market views and leads (30 and 365 days), where fetched. */
   traffic: Record<string, DomainTrafficTotals>;
-  /** Whether a name expires within 30 or 60 days (and hasn't yet). */
-  expiresWithin: (d: Domain, days: 30 | 60) => boolean;
+  /** Whether a name expires within 30 days (and hasn't yet). */
+  expiresWithin: (d: Domain) => boolean;
   archiveLabelOf: (d: Domain) => ArchiveLabel | null;
+  /** Each name's renewal price, for what the auto-renewing ones cost a
+   * year in your currency. */
+  pricing: Record<string, RenewalPricing>;
+  currency: string;
+  fx: ExchangeRates;
   actions: DomainsCardActions;
 }) {
   const cards = useMemo(() => {
@@ -163,31 +176,23 @@ export function DomainsCards({
         withTraffic,
       };
     }
-    // Expiring and not renewing: a name auto-renew will take care of isn't
-    // a worry.
-    let in30 = 0;
-    let in60 = 0;
-    let renewOff = 0;
-    let imported = 0;
+    let expiring = 0;
+    let autoRenewing = 0;
     let listed = 0;
     const registrars = new Set<string>();
     for (const d of rows) {
-      // As the Auto-renew filter's Off: unknown isn't off.
-      if (!d.autoRenewUnknown && !d.autoRenew) {
-        renewOff += 1;
-        if (expiresWithin(d, 30)) in30 += 1;
-        if (expiresWithin(d, 60)) in60 += 1;
-      }
+      // Expiring and not renewing on its own (auto-renew off, or unknown
+      // for a name you added): one auto-renew takes care of isn't a worry.
+      const renew = autoRenewChoice(d);
+      if (renew !== 'on' && expiresWithin(d)) expiring += 1;
+      if (renew === 'on') autoRenewing += 1;
       if (statesOf(d).includes('active')) listed += 1;
-      if (d.source === 'imported') imported += 1;
-      else if (d.registrar) registrars.add(d.registrar);
+      if (d.source !== 'imported' && d.registrar) registrars.add(d.registrar);
     }
     return {
       view,
-      in30,
-      in60,
-      renewOff,
-      imported,
+      expiring,
+      autoRenewing,
       listed,
       registrars: registrars.size,
     };
@@ -204,15 +209,24 @@ export function DomainsCards({
 
   const marketsOn = markets.length > 0;
   const total = rows.length;
-  // Names with a BIN price, and what they add up to in the currency most
-  // of them use (amounts are never converted).
+  // What the auto-renewing names cost a year, in your currency.
+  const autoRenewCost = useMemo(
+    () =>
+      summarize(
+        rows.filter((d) => autoRenewChoice(d) === 'on'),
+        pricing,
+        currency,
+        fx,
+      ),
+    [rows, pricing, currency, fx],
+  );
+  // What the BIN prices add up to, in the currency most of them use
+  // (amounts are never converted).
   const bin = useMemo(() => {
-    let priced = 0;
     const byCurrency = new Map<string, { sum: number; count: number }>();
     for (const d of rows) {
       const lp = listPrices[toAscii(d.domainName)];
       if (lp?.amount == null) continue;
-      priced += 1;
       const e = byCurrency.get(lp.currency) ?? { sum: 0, count: 0 };
       e.sum += Number(lp.amount);
       e.count += 1;
@@ -221,22 +235,8 @@ export function DomainsCards({
     const [currency, main] = [...byCurrency].sort(
       (a, b) => b[1].count - a[1].count,
     )[0] ?? [null, null];
-    return { priced, currency, sum: main?.sum ?? 0, count: main?.count ?? 0 };
+    return { currency, sum: main?.sum ?? 0, count: main?.count ?? 0 };
   }, [rows, listPrices]);
-  const binPricedCard = (
-    <StatCard
-      size="sm"
-      icon={Tag}
-      accentClass="text-violet-500"
-      label="BIN priced"
-      value={[
-        {
-          value: pct(bin.priced, total),
-          unit: `${bin.priced.toLocaleString()}/${plural(total, 'name')}`,
-        },
-      ]}
-    />
-  );
   // The words beside a card's number, or none.
   const words = (...parts: (string | false)[]) =>
     parts.filter(Boolean).join(' · ') || undefined;
@@ -249,22 +249,22 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={Archive}
-          accentClass="text-slate-500"
+          accentClass="text-slate-400"
           label="Archived"
           value={total.toLocaleString()}
         />
         <StatCard
           size="sm"
-          icon={BadgeDollarSign}
-          accentClass="text-violet-500"
+          icon={Receipt}
+          accentClass="text-violet-400"
           label="Sold"
           value={cards.sold.toLocaleString()}
           onClick={() => actions.onArchiveStatus(['sold'])}
         />
         <StatCard
           size="sm"
-          icon={TimerOff}
-          accentClass="text-amber-500"
+          icon={CalendarX}
+          accentClass="text-amber-400"
           label="Expired"
           value={cards.expired.toLocaleString()}
           onClick={() => actions.onArchiveStatus(['expired'])}
@@ -272,7 +272,7 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={Trash2}
-          accentClass="text-rose-500"
+          accentClass="text-rose-400"
           label="Deleted or removed"
           value={(cards.deleted + cards.removed).toLocaleString()}
           onClick={() => actions.onArchiveStatus(['deleted', 'removed'])}
@@ -280,8 +280,8 @@ export function DomainsCards({
         {marketsOn && (
           <StatCard
             size="sm"
-            icon={Store}
-            accentClass="text-sky-500"
+            icon={Tag}
+            accentClass="text-sky-400"
             label="Still listed"
             value={cards.stillListed.toLocaleString()}
             onClick={() => actions.onMarketStates(['active', 'pending'])}
@@ -295,8 +295,8 @@ export function DomainsCards({
       <StatCardRow>
         <StatCard
           size="sm"
-          icon={Store}
-          accentClass="text-brand-500"
+          icon={Tag}
+          accentClass="text-brand-400"
           label="Listed"
           value={[
             {
@@ -311,8 +311,8 @@ export function DomainsCards({
         />
         <StatCard
           size="sm"
-          icon={EyeOff}
-          accentClass="text-slate-500"
+          icon={TagOffIcon}
+          accentClass="text-slate-400"
           label="Not listed"
           // Pending listings aren't live yet either.
           value={[
@@ -326,7 +326,7 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={TriangleAlert}
-          accentClass="text-rose-500"
+          accentClass="text-rose-400"
           label="Issues"
           value={[
             {
@@ -342,7 +342,7 @@ export function DomainsCards({
         <StatCard
           size="sm"
           icon={ArrowUpDown}
-          accentClass="text-amber-500"
+          accentClass="text-amber-400"
           label="Discrepancies"
           // A market's price apart from your BIN price.
           value={[
@@ -358,8 +358,8 @@ export function DomainsCards({
         />
         <StatCard
           size="sm"
-          icon={Eye}
-          accentClass="text-sky-500"
+          icon={ChartLine}
+          accentClass="text-sky-400"
           label="Views, 30 days"
           // Visits to the names' sale pages; leads only from Afternic.
           value={[
@@ -377,7 +377,7 @@ export function DomainsCards({
       <StatCard
         size="sm"
         icon={Globe}
-        accentClass="text-brand-500"
+        accentClass="text-brand-400"
         label="Domains"
         value={[
           {
@@ -390,26 +390,42 @@ export function DomainsCards({
       />
       <StatCard
         size="sm"
-        icon={CalendarClock}
-        accentClass="text-rose-500"
-        label="Expiring soon"
+        icon={RotateCw}
+        accentClass="text-violet-400"
+        label="Auto-renew"
+        // The share of the names shown that renew on their own, and what
+        // those cost a year (the ones with a known price).
         value={[
-          { value: cards.in30.toLocaleString(), unit: '/30d' },
-          { value: cards.in60.toLocaleString(), unit: '/60d' },
+          {
+            value: pct(cards.autoRenewing, total),
+            words: autoRenewCost.priced
+              ? `${compactMoney(autoRenewCost.yearly, autoRenewCost.currency)}/yr`
+              : undefined,
+          },
         ]}
-        onClick={() => actions.onExpiring(cards.in30 ? 30 : 60)}
+        onClick={actions.onAutoRenew}
       />
-      {binPricedCard}
+      <StatCard
+        size="sm"
+        icon={CalendarClock}
+        accentClass="text-rose-400"
+        label="Expiring, 30 days"
+        // Off or unknown: either way, not renewing on its own.
+        value={[
+          { value: cards.expiring.toLocaleString(), words: 'auto-renew off' },
+        ]}
+        onClick={actions.onExpiring}
+      />
       {marketsOn && (
         <StatCard
           size="sm"
-          icon={Store}
-          accentClass="text-sky-500"
-          label="For Sale"
+          icon={Tag}
+          accentClass="text-sky-400"
+          label="For sale"
+          // Not "/251": the page shows the total enough already.
           value={[
             {
               value: cards.listed.toLocaleString(),
-              unit: `/${total.toLocaleString()}`,
               words: `${pct(cards.listed, total)} listed`,
             },
           ]}
@@ -418,9 +434,9 @@ export function DomainsCards({
       )}
       <StatCard
         size="sm"
-        icon={Gem}
-        accentClass="text-emerald-500"
-        label="BIN value"
+        icon={Briefcase}
+        accentClass="text-emerald-400"
+        label="Total BIN"
         // The BIN prices added up; in the currency most of them use.
         value={[
           {

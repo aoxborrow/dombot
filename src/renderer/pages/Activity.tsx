@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
-  Bell,
   Building2,
   Calculator,
   CircleMinus,
@@ -10,6 +9,7 @@ import {
   CalendarClock,
   ChevronDown,
   Ellipsis,
+  Flag,
   Flame,
   Globe,
   History,
@@ -823,8 +823,8 @@ export default function Activity() {
         <StatCardRow>
           <StatCard
             size="sm"
-            icon={Bell}
-            accentClass="text-amber-500"
+            icon={Flag}
+            accentClass="text-yellow-600 dark:text-yellow-400"
             label="Needs review"
             value={[
               {
@@ -837,7 +837,7 @@ export default function Activity() {
           <StatCard
             size="sm"
             icon={CirclePlus}
-            accentClass="text-brand-500"
+            accentClass="text-brand-400"
             label="Added"
             value={counts.added.toLocaleString()}
             onClick={() => showType('added')}
@@ -845,7 +845,7 @@ export default function Activity() {
           <StatCard
             size="sm"
             icon={CircleMinus}
-            accentClass="text-rose-500"
+            accentClass="text-rose-400"
             label="Removed"
             value={counts.removed.toLocaleString()}
             onClick={() => showType('removed')}
@@ -853,7 +853,7 @@ export default function Activity() {
           <StatCard
             size="sm"
             icon={Receipt}
-            accentClass="text-violet-500"
+            accentClass="text-violet-400"
             label="Sold"
             value={counts.sold.toLocaleString()}
             onClick={() => showType('sold')}
@@ -879,7 +879,7 @@ export default function Activity() {
                 {
                   id: 'review',
                   label: 'Needs review',
-                  icon: Bell,
+                  icon: Flag,
                   count: reviewCount,
                   active: reviewOnly,
                   onClick: () => setView(true),

@@ -4,6 +4,7 @@ import { notifications } from '../../shared/notifications';
 import { compactMoney, leavesOut, summarize, wholeMoney } from './renewals';
 import { DEFAULT_CURRENCY } from '../../shared/money';
 import { importedRows } from '../../shared/imported-domains';
+import { ownedAndRenewing } from '../../shared/ownership';
 import { isPending, useSaleRecords } from './sales';
 
 export interface TabMetric {
@@ -23,8 +24,8 @@ export interface TabMetrics {
 }
 
 /**
- * The headline number each top-level tab shows in its pill: Domains → portfolio
- * size, Renewals → known annual renewal spend, Sales → pending sales,
+ * The headline number each top-level tab shows in its pill: Domains → the
+ * names in Owned, Renewals → known annual renewal spend, Sales → pending sales,
  * Activity → alerts that need review (those two only when there are any). Settings has none: sync failures show in
  * the bell and the status bar. `null` hides the pill.
  */
@@ -33,6 +34,7 @@ export function useTabMetrics(): TabMetrics {
   const importedDomains = useAppStore((s) => s.importedDomains);
   const pricing = useAppStore((s) => s.pricing);
   const events = useAppStore((s) => s.domainEvents);
+  const registrationLookups = useAppStore((s) => s.registrationLookups);
   const currency = useAppStore(
     (s) => s.settings?.preferredCurrency ?? DEFAULT_CURRENCY,
   );
@@ -40,7 +42,12 @@ export function useTabMetrics(): TabMetrics {
   const saleRecords = useSaleRecords();
 
   return useMemo(() => {
-    const portfolio = [...synced, ...importedRows(importedDomains, synced)];
+    // The pages' own counts (docs/owned-and-archive.md).
+    const { owned: portfolio, renewing } = ownedAndRenewing(
+      [...synced, ...importedRows(importedDomains, synced)],
+      events,
+      registrationLookups,
+    );
     const n = portfolio.length.toLocaleString('en-US');
     const domains =
       portfolio.length > 0
@@ -50,7 +57,7 @@ export function useTabMetrics(): TabMetrics {
           }
         : null;
 
-    const summary = summarize(portfolio, pricing, currency, fx);
+    const summary = summarize(renewing, pricing, currency, fx);
     const leftOut = leavesOut(summary.leftOut);
     const renewals =
       summary.priced > 0
@@ -82,5 +89,14 @@ export function useTabMetrics(): TabMetrics {
         : null;
 
     return { domains, renewals, sales, activity };
-  }, [synced, importedDomains, pricing, events, currency, fx, saleRecords]);
+  }, [
+    synced,
+    importedDomains,
+    pricing,
+    events,
+    registrationLookups,
+    currency,
+    fx,
+    saleRecords,
+  ]);
 }

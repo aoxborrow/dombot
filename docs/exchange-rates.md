@@ -277,7 +277,7 @@ storage (`exchangeRates()`). Both get the same answers.
   can't convert is left out and counted. It backs MCP's
   `market_report_get`; the Markets page that showed it is gone (#213).
 - **Sales tab** ([sales-tab.md](sales-tab.md), #213), built:
-  - The cards (Sales, Gross, Net, Profit; Value on Pending) are in your
+  - The cards (Sales, Gross, Net, Profit; Pending value on Pending) are in your
     currency (`saleTotalsIn`, `src/shared/sales.ts`), each sale converted
     at its month's average. The line under them says how many were
     converted and from what, and which sales DomBot can't convert and left
