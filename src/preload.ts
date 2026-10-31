@@ -29,6 +29,7 @@ const api: DombotApi = {
   clearAllCaches: () => ipcRenderer.invoke(IpcChannels.clearAllCaches),
   getPortfolioPricing: () =>
     ipcRenderer.invoke(IpcChannels.getPortfolioPricing),
+  getExchangeRates: () => ipcRenderer.invoke(IpcChannels.getExchangeRates),
   getManualPrices: () => ipcRenderer.invoke(IpcChannels.getManualPrices),
   setManualPrice: (domain, price) =>
     ipcRenderer.invoke(IpcChannels.setManualPrice, domain, price),
@@ -206,6 +207,8 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.markSold, items, date),
   setAlertsDismissed: (ids, dismissed) =>
     ipcRenderer.invoke(IpcChannels.setAlertsDismissed, ids, dismissed),
+  setSaleTransferred: (id, transferred) =>
+    ipcRenderer.invoke(IpcChannels.setSaleTransferred, id, transferred),
   deleteUserEvent: (id) => ipcRenderer.invoke(IpcChannels.deleteUserEvent, id),
   deleteDomains: (domainNames) =>
     ipcRenderer.invoke(IpcChannels.deleteDomains, domainNames),

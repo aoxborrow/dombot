@@ -1,10 +1,12 @@
-import { useMemo, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
   Bell,
   Building2,
   Calculator,
+  CircleMinus,
+  CirclePlus,
   CalendarClock,
   ChevronDown,
   Ellipsis,
@@ -38,6 +40,7 @@ import {
 } from '../../shared/ownership';
 import { resolvedIds } from '../../shared/sync-diff';
 import { RegistrarLogo } from '../components/RegistrarLogo';
+import { StatCard, StatCardRow } from '../components/StatCard';
 import { DomainLink } from '../components/domains/DomainLink';
 import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
@@ -50,6 +53,8 @@ import {
   MarkSoldDialog,
 } from '../components/actions/OwnershipDialogs';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
+import { useColumnLayout } from '../components/data-table/ColumnPicker';
+import { applyColumnLayout } from '../components/data-table/column-layout';
 import { sortRows, type SortValue } from '../components/data-table/table-state';
 import { type FilterField } from '../components/data-table/FilterBar';
 import {
@@ -67,6 +72,7 @@ import {
   alertDomain,
   eventAccounts,
   eventDay,
+  eventConversion,
   eventDetails,
   resolutions,
   withinDays,
@@ -156,6 +162,7 @@ export default function Activity() {
   const importId = params.get('import');
   const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
+  const fx = useAppStore((s) => s.exchangeRates);
 
   // The search lives in the URL, so the bell can open Activity on one name.
   const search = useMemo(() => params.get('q') ?? '', [params]);
@@ -430,6 +437,25 @@ export default function Activity() {
   }
 
   // Selection: any rows. State actions apply to each selected name once.
+  // The cards over the table: what the rows the filters leave hold.
+  const counts = useMemo(() => {
+    const n = { review: 0, high: 0, added: 0, removed: 0, sold: 0 };
+    for (const { event: e, shown } of rows) {
+      const p = reviewPriority(e, resolved);
+      if (p) n.review += 1;
+      if (p === 'high') n.high += 1;
+      if (shown.type === 'added') n.added += 1;
+      if (shown.type === 'removed') n.removed += 1;
+      if (shown.type === 'sold') n.sold += 1;
+    }
+    return n;
+  }, [rows, resolved]);
+  // A card that counts a type sets the Type filter to it.
+  const showType = (type: string) => {
+    setTypes([type]);
+    setPage(0);
+  };
+
   const selectedRows = allRows.filter((r) => selected.has(r.event.id));
   const openSelected = selectedRows
     .map((r) => r.event)
@@ -508,6 +534,8 @@ export default function Activity() {
     {
       key: 'domain',
       label: 'Domain',
+      // First and always shown; the Columns picker moves and hides the rest.
+      locked: true,
       // The row's "⋯" menu, pinned to the cell's right edge like Domains',
       // with the name's sticky note (when it has one) just before it.
       cell: (row) => (
@@ -592,9 +620,15 @@ export default function Activity() {
       cell: ({ shown }) => {
         const details = eventDetails(shown, numberFormat, preferred);
         // A change can name several nameservers or rules: cut it short, with
-        // the whole of it on hover.
+        // the whole of it on hover. An amount in another currency than yours
+        // shows what it was worth in yours.
         return details ? (
-          <span className="block max-w-xs truncate" title={details}>
+          <span
+            className="block max-w-xs truncate"
+            title={
+              eventConversion(shown, numberFormat, preferred, fx) ?? details
+            }
+          >
             {details}
           </span>
         ) : (
@@ -647,6 +681,25 @@ export default function Activity() {
       },
     },
   ];
+
+  // The columns shown and their order, remembered on this device; the
+  // Columns button in the table's footer changes them.
+  const { layout: columnLayout, setLayout: setColumnLayout } = useColumnLayout(
+    'activity',
+    columns,
+  );
+  const shownColumnKeys = applyColumnLayout(columns, columnLayout)
+    .map((c) => c.key)
+    .join(' ');
+  // A sort whose column is hidden goes back to the default, or Domain when
+  // that's hidden too, so a header always shows the sort.
+  useEffect(() => {
+    const shown = new Set(shownColumnKeys.split(' '));
+    if (shown.has(sortKey)) return;
+    const useDefault = shown.has('date');
+    setSortKey(useDefault ? 'date' : 'domain');
+    setSortDir(useDefault ? 'desc' : 'asc');
+  }, [shownColumnKeys, sortKey]);
 
   // The filter bar's fields, in the Add filter menu's order (the order the
   // old filter dropdowns had).
@@ -757,17 +810,62 @@ export default function Activity() {
       <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
         {/* As tall as Domains' title row (its Sync button), so the toolbar
             lands in the same place on both pages. */}
-        <div className="min-h-9">
-          <h1 className="mt-1.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
+        <div className="mb-1 min-h-9">
+          <h1 className="mt-1.5 flex min-w-0 items-baseline gap-2.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
             Activity
+            {/* The view, as on Domains. */}
+            <span className="text-sm font-semibold uppercase tracking-wider text-brand sm:text-base">
+              {reviewOnly ? 'Needs review' : 'All'}
+            </span>
           </h1>
         </div>
 
+        <StatCardRow>
+          <StatCard
+            size="sm"
+            icon={Bell}
+            accentClass="text-amber-500"
+            label="Needs review"
+            value={[
+              {
+                value: counts.review.toLocaleString(),
+                unit: counts.high ? `${counts.high} high` : undefined,
+              },
+            ]}
+            onClick={() => setView(true)}
+          />
+          <StatCard
+            size="sm"
+            icon={CirclePlus}
+            accentClass="text-brand-500"
+            label="Added"
+            value={counts.added.toLocaleString()}
+            onClick={() => showType('added')}
+          />
+          <StatCard
+            size="sm"
+            icon={CircleMinus}
+            accentClass="text-rose-500"
+            label="Removed"
+            value={counts.removed.toLocaleString()}
+            onClick={() => showType('removed')}
+          />
+          <StatCard
+            size="sm"
+            icon={Receipt}
+            accentClass="text-violet-500"
+            label="Sold"
+            value={counts.sold.toLocaleString()}
+            onClick={() => showType('sold')}
+          />
+        </StatCardRow>
+
         <FilterToolbar
           id="activity"
+          // The default view first.
           switch={
-            // The default view first, as on Domains.
             <ToolbarSwitch
+              fillOnPhone
               label="Which activity to show"
               options={[
                 {
@@ -794,7 +892,6 @@ export default function Activity() {
             setSearch(value);
             setPage(0);
           }}
-          searchPlaceholder="Search domains…"
           fields={filterFields}
           presets={['account', 'priority', 'type']}
         />
@@ -877,6 +974,8 @@ export default function Activity() {
         className="mt-[13px]"
         rows={rows}
         columns={columns}
+        layout={columnLayout}
+        onLayoutChange={setColumnLayout}
         rowKey={(r) => r.event.id}
         sort={{ key: sortKey, dir: sortDir }}
         onSort={toggleSort}

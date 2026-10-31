@@ -273,6 +273,14 @@ export function setAlertsDismissed(ids: string[], dismissed: boolean): void {
   putEvents(alerts.map((e) => ({ ...e, dismissed, updatedAt: now })));
 }
 
+/** Mark a sale's name handed over to the buyer, or not after all. */
+export function setSaleTransferred(id: string, transferred: boolean): void {
+  const sale = getEvent(id);
+  if (sale?.type !== DomainEventType.Sold)
+    throw new Error('That sale no longer exists.');
+  putEvents([{ ...sale, transferred, updatedAt: Date.now() }]);
+}
+
 /** Undo a user event (a resolution recorded by mistake). Sync events stay. */
 export function deleteUserEvent(id: string): void {
   const event = getEvent(id);

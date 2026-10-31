@@ -7,7 +7,7 @@ import {
 } from '../storage/namespace';
 import { clearAll } from './cache';
 import { exportBundle, importBundle } from '../storage/bundle';
-import { listEvents } from './domain-events';
+import { listEvents, newEvent, putEvents } from './domain-events';
 import { getPurchases, setNotes, setPurchase, setSale } from './purchases';
 
 let store: MemoryDocStore;
@@ -20,6 +20,56 @@ beforeEach(async () => {
 });
 
 describe('purchases', () => {
+  it('stores fees on a sale, keeps them on an edit without them, and edits an earlier sale by id', () => {
+    const base = { domainName: 'a.com', notes: '', currency: 'USD' };
+    setSale({
+      ...base,
+      saleDate: '2024-01-02',
+      amount: '1000',
+      fees: '150',
+      mark: true,
+    });
+    expect(getPurchases()['a.com']).toMatchObject({
+      saleAmount: '1000.00',
+      saleFees: '150.00',
+    });
+    setSale({ ...base, saleDate: '2024-01-03', amount: '1200' });
+    expect(getPurchases()['a.com'].saleFees).toBe('150.00');
+    setSale({ ...base, saleDate: '2024-01-03', amount: '1200', fees: '' });
+    expect(getPurchases()['a.com'].saleFees).toBeUndefined();
+    expect(() =>
+      setSale({ ...base, saleDate: null, amount: '1', fees: '1.234' }),
+    ).toThrow();
+
+    // Bought back and sold again: the first sale is still editable.
+    const first = listEvents().find((e) => e.type === 'sold')!;
+    putEvents([
+      newEvent({
+        domain: 'a.com',
+        type: 'sold',
+        source: 'user',
+        date: '2025-01-01',
+        amount: '5000.00',
+        currency: 'USD',
+      }),
+    ]);
+    setSale({
+      ...base,
+      eventId: first.id,
+      saleDate: '2024-01-03',
+      amount: '1200',
+      fees: '0',
+    });
+    const sold = listEvents().filter((e) => e.type === 'sold');
+    expect(sold.map((e) => [e.amount, e.fees ?? null])).toEqual([
+      ['1200.00', '0.00'],
+      ['5000.00', null],
+    ]);
+    expect(() =>
+      setSale({ ...base, eventId: 'nope', saleDate: null, amount: '1' }),
+    ).toThrow('no longer recorded');
+  });
+
   it('records what an agent saves as the agent’s', () => {
     setPurchase(
       {
@@ -191,6 +241,55 @@ describe('purchases', () => {
         notes: '',
       }),
     ).toThrow(/no decimal/);
+  });
+
+  it('takes the 30 currencies, and keeps an older record’s own', async () => {
+    setPurchase({
+      domainName: 'old.com',
+      purchaseDate: '2021-03-04',
+      amount: '12',
+      currency: 'USD',
+      notes: '',
+    });
+    await flushWrites();
+    // A record from before the limit, in a currency DomBot can't convert.
+    const bundle = JSON.parse(exportBundle({ version: 't', platform: 't' }));
+    for (const e of Object.values(bundle.namespaces['domain-events']))
+      (e as { currency: string }).currency = 'TWD';
+    await importBundle(JSON.stringify(bundle));
+    expect(getPurchases()['old.com']).toMatchObject({ currency: 'TWD' });
+
+    // Edited in its own currency: fine.
+    setPurchase({
+      domainName: 'old.com',
+      purchaseDate: '2021-03-04',
+      amount: '15',
+      currency: 'TWD',
+      notes: '',
+    });
+    expect(getPurchases()['old.com']).toMatchObject({
+      amount: '15.00',
+      currency: 'TWD',
+    });
+    // A new amount in it, or a sale: refused.
+    expect(() =>
+      setPurchase({
+        domainName: 'new.com',
+        purchaseDate: null,
+        amount: '1',
+        currency: 'TWD',
+        notes: '',
+      }),
+    ).toThrow(/can't convert TWD/);
+    expect(() =>
+      setSale({
+        domainName: 'old.com',
+        saleDate: null,
+        amount: '100',
+        currency: 'TWD',
+        notes: '',
+      }),
+    ).toThrow(/can't convert TWD/);
   });
 
   it('clearing a purchase keeps the note and the sale', () => {

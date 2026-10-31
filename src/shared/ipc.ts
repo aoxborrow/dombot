@@ -5,6 +5,7 @@
  */
 
 import type { ReleaseFeed } from './releases';
+import type { RateRows } from './exchange-rates';
 import type {
   Domain as ProviderDomain,
   ConnectionResult,
@@ -156,6 +157,7 @@ export const IpcChannels = {
   getPortfolioPricing: 'pricing:getPortfolio',
   getManualPrices: 'pricing:getManualPrices',
   setManualPrice: 'pricing:setManualPrice',
+  getExchangeRates: 'rates:get',
   openExternal: 'app:openExternal',
   saveTextFile: 'app:saveTextFile',
   exportData: 'data:export',
@@ -225,6 +227,7 @@ export const IpcChannels = {
   getDomainEvents: 'domainEvents:list',
   markSold: 'domainEvents:markSold',
   setAlertsDismissed: 'domainEvents:setAlertsDismissed',
+  setSaleTransferred: 'domainEvents:setSaleTransferred',
   deleteUserEvent: 'domainEvents:deleteUserEvent',
   deleteDomains: 'domainEvents:deleteDomains',
   getRegistrationQuote: 'pricing:registrationQuote',
@@ -411,6 +414,8 @@ export interface DomainPurchase {
   saleDate?: string | null;
   saleAmount?: string | null;
   saleCurrency?: string | null;
+  /** The sale's fees, in `saleCurrency`; null when unknown. */
+  saleFees?: string | null;
 }
 
 /** One purchase record to save or import. `domainName` is not stored on the record. */
@@ -438,9 +443,13 @@ export interface OwnershipItem {
 
 export interface SaleInput {
   domainName: string;
+  /** The `sold` event to edit, for a sale before the latest (a buyback). */
+  eventId?: string;
   saleDate: string | null;
   amount: string | null;
   currency: string | null;
+  /** Fees, in `currency`; blank is unknown. Omitted keeps what's stored. */
+  fees?: string | null;
   notes: string;
   /** The sync `removed` alert this answers; closes it. */
   resolves?: string;
@@ -961,6 +970,9 @@ export interface DombotApi {
    *  Computed locally (base rates + TLD rates + Sync-captured quotes +
    *  manual overrides). */
   getPortfolioPricing: () => Promise<Record<string, RenewalPricing>>;
+  /** The exchange rates fetched since the shipped archive, keyed by month or
+   *  day; convert with `ExchangeRates` (docs/exchange-rates.md). */
+  getExchangeRates: () => Promise<RateRows>;
   /** Every manual renewal price, keyed by the normalized domain name, for
    *  names you own or not (the CSV export reads Archive names' prices here). */
   getManualPrices: () => Promise<Record<string, RenewalPriceInput>>;
@@ -1259,6 +1271,11 @@ export interface DombotApi {
   setAlertsDismissed: (
     ids: string[],
     dismissed: boolean,
+  ) => Promise<DomainEvent[]>;
+  /** Mark a sale's name handed over to the buyer, or not after all. */
+  setSaleTransferred: (
+    id: string,
+    transferred: boolean,
   ) => Promise<DomainEvent[]>;
   /** Undo one of your own events. Sync events can't be deleted. */
   deleteUserEvent: (id: string) => Promise<DomainEvent[]>;

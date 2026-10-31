@@ -4,7 +4,7 @@ import { getBaseRenewal } from './base-pricing';
 import { Namespace } from '../storage/namespace';
 import { isUniformTld } from '../../shared/tlds';
 import type { RenewalPriceInput, RenewalPricing } from '../../shared/ipc';
-import { toCurrencyCode } from '../../shared/currencies';
+import { toEntryCurrency } from '../../shared/currencies';
 import { parseCanonicalAmount } from '../../shared/money';
 import { toRenewalPrice, type RenewalPrice } from '../../shared/renewal-prices';
 import { RENEWAL_PRICES_NAMESPACE } from '../storage/names';
@@ -177,7 +177,8 @@ export function resolvePricing(
 }
 
 /** Sets or clears (null, or a zero amount) a manual annual renewal price for
- *  a domain, in any currency, whichever account holds it. */
+ *  a domain, whichever account holds it. The currency is one of the 30, or
+ *  the current price's left as it was. */
 export function setManualPrice(
   domain: string,
   price: RenewalPriceInput | null,
@@ -187,10 +188,9 @@ export function setManualPrice(
     void overrides.delete(key);
     return;
   }
-  const currency = toCurrencyCode(price.currency);
-  if (!currency) {
-    throw new Error(`Unknown currency ${price.currency.trim().toUpperCase()}.`);
-  }
+  const kept = toRenewalPrice(overrides.get(key))?.currency;
+  const currency = toEntryCurrency(price.currency, kept);
+  if (!currency) throw new Error('Choose a currency for the renewal price.');
   const amount = parseCanonicalAmount(price.amount, currency, 'Renewal price');
   if (amount === null || Number(amount) === 0) void overrides.delete(key);
   else void overrides.set(key, { amount, currency });

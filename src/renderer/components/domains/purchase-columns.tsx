@@ -10,6 +10,8 @@ type Labels = Record<string, string>;
 export interface PurchaseColumn {
   key: string;
   label: string;
+  /** A hover note on the header, marked with a small help icon. */
+  tooltip?: string;
   align?: 'left' | 'right';
   hideOnMobile?: boolean;
   render: (d: Domain, labels: Labels) => ReactNode;
@@ -96,7 +98,7 @@ export function PurchaseCell({
 
 /**
  * The purchase date. A click opens Purchase details. Archive shows this
- * all the time; Active shows it only while the Purchased filter is set.
+ * all the time; Owned shows it only while the Purchased filter is set.
  */
 export function purchaseDateColumn(
   purchases: Record<string, DomainPurchase>,

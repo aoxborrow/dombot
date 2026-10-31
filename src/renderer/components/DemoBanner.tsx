@@ -12,11 +12,11 @@ export default function DemoBanner() {
       className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-[7px] text-[13px] sm:px-6"
     >
       <FlaskConical
-        className="-mr-1 size-3.5 shrink-0 text-amber-600 dark:text-amber-500"
+        className="-mr-1 size-3.5 shrink-0 text-amber-500 dark:text-amber-500"
         aria-hidden
       />
       <p className="leading-snug text-foreground/60">
-        <span className="font-medium text-amber-600 dark:text-amber-500">
+        <span className="font-medium text-amber-500 dark:text-amber-500">
           Demo Mode
         </span>
         {/* The tagline is desktop-only (md+) and the DomBot.ai link sm+, so

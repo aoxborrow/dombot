@@ -111,7 +111,7 @@ export default function McpClientsSettings() {
                     : 'Approved agents can read and change your domains. The server only accepts connections from this computer.'}
             </p>
             {gated && (
-              <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+              <p className="mt-2 text-sm text-amber-500 dark:text-amber-400">
                 This deployment sits behind an external gate (Cloudflare Access
                 or a platform login), which MCP clients can&apos;t pass. For MCP
                 to work, the gate must exclude the MCP paths — see the

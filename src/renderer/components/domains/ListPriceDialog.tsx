@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { ActionHeader } from '../actions/ActionDialog';
-import { CurrencyPicker } from './CurrencyPicker';
 import { MoneyInput } from './MoneyInput';
 
 /**
@@ -116,25 +115,21 @@ export function ListPriceDialog({
               below.
             </p>
           )}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-            <PriceField
+          <PriceField
+            id="bin-price"
+            label="BIN price"
+            help={LIST_PRICE_HELP.amount}
+          >
+            <MoneyInput
+              whole
               id="bin-price"
-              label="BIN price"
-              help={LIST_PRICE_HELP.amount}
-            >
-              <MoneyInput
-                whole
-                id="bin-price"
-                currency={currency}
-                value={amount}
-                placeholder={placeholder}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </PriceField>
-            <PriceField label="Currency" help="For all three prices.">
-              <CurrencyPicker compact value={currency} onChange={setCurrency} />
-            </PriceField>
-          </div>
+              currency={currency}
+              onCurrencyChange={setCurrency}
+              value={amount}
+              placeholder={placeholder}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </PriceField>
           <div className="grid grid-cols-2 gap-3">
             <PriceField
               id="list-min-offer"

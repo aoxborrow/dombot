@@ -1,5 +1,20 @@
 # Sales tab
 
+Built 2026-10-29 in five stacked PRs (Domains columns and cards, sale
+records, the Sales view, cards over the table, demo and docs);
+docs/markets.md, "Sales tab", describes what shipped. One change from the
+plan below: there's no Overview. The Sales view is the whole tab, its cards
+total whatever the filters leave (which replaces the breakdown tables and
+the stat cards), and listing problems stay in Domains rather than a Needs
+attention list. Sales by month was dropped with the Overview. Open questions 1–3 were settled as:
+the tab shows with an empty state; sell-through keeps names listed as its
+denominator; the Domains cards hide on phones.
+
+Later the same PR split Domains into Owned, Listings and Archive views,
+each with its own cards (docs/markets.md, "Domains table and actions"), so
+the Domains cards described below (Listed, Sold, Net, Views) no longer
+exist; Sold and Net live only on the Sales tab.
+
 Plan (2026-10-29) to replace the Markets tab with a **Sales** tab, move
 per-name interest into the Domains table, and give Domains a few summary
 cards. Builds on the market work in PR #207 (docs/markets.md) and takes the
@@ -75,8 +90,10 @@ Two views, switched like Domains' Active / Archive:
   Private / Imported for sales you recorded), price, commission or fees,
   net, status (completed, in progress with its step, cancelled), paid out
   on. In-progress sales pin to the top with their actions.
-- **Filters:** date range (sale date), market / source, currency. Currencies
-  are never converted or summed together; totals show per currency.
+- **Filters:** date range (sale date), market / source, currency. Totals are
+  converted to your preferred currency
+  ([exchange-rates.md](exchange-rates.md)); the currency filter shows only
+  one currency's sales, in that currency.
 - **Totals and year grouping:** the yearly totals Markets shows today
   (sold, gross, commission, net, average), as a summary above the table or a
   grouping in it.
@@ -143,6 +160,8 @@ credit the author on the commits that do (`Co-Authored-By`).
 - Date filters on the sale date; all-time includes undated sales, a bounded
   range leaves them out and says how many.
 - Currency handling: never convert, never combine; totals per currency.
+  Since replaced by converting to your preferred currency
+  ([exchange-rates.md](exchange-rates.md)).
 - The monthly sale-value trend; breakdowns by market, TLD, registrar.
 - CSV export of the filtered records, with the shared CSV formula guard.
 - Holding period and realized ROI where purchase data exists.

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { DomainEvent } from '../../shared/domain-events';
+import { ExchangeRates } from '../../shared/exchange-rates';
 import { importedRows } from '../../shared/imported-domains';
 import {
   alertDomain,
   eventAccounts,
+  eventConversion,
   eventDay,
   eventDetails,
   withinDays,
@@ -53,6 +55,39 @@ describe('event helpers', () => {
       ),
     ).toBe('$10.00 · 2 yr');
     expect(eventDetails(event({}), 'us', 'USD')).toBeNull();
+  });
+
+  it('shows an amount in another currency in yours on hover', () => {
+    // 1 EUR = 1.2 USD in March 2024; October 2026 has only a day's rate.
+    const fx = new ExchangeRates(
+      { '2026-10-28': { rates: { USD: 1.1 } } },
+      new Map([['2024-03', { USD: 1.2 }]]),
+    );
+    const bought = event({
+      type: 'purchased',
+      date: '2024-03-15',
+      amount: '1200.00',
+      currency: 'EUR',
+    });
+    expect(eventConversion(bought, 'us', 'USD', fx)).toBe(
+      '€1,200.00 ≈ $1,440.00 at the March 2024 average (ECB)',
+    );
+    expect(
+      eventConversion(
+        { ...bought, type: 'renewed', date: '2026-10-29', years: 2 },
+        'us',
+        'USD',
+        fx,
+      ),
+    ).toBe(
+      '€1,200.00 ≈ $1,320.00 at the 28 Oct 2026 rate, until the October average is out (ECB) · 2 yr',
+    );
+    // In your currency, or with no amount: nothing to add.
+    expect(eventConversion(bought, 'us', 'EUR', fx)).toBeNull();
+    expect(eventConversion(event({}), 'us', 'USD', fx)).toBeNull();
+    expect(
+      eventConversion({ ...bought, currency: 'TWD' }, 'us', 'USD', fx),
+    ).toMatch(/\(DomBot can’t convert TWD\)$/);
   });
 });
 

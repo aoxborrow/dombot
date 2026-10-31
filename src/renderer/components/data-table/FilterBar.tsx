@@ -252,10 +252,7 @@ export function FilterDropdown({
         className="w-60"
         onCloseAutoFocus={(e) => e.preventDefault()}
         // Hand the panel's focus on to its search box, as the chip does.
-        onFocus={(e) => {
-          if (e.target === e.currentTarget)
-            e.currentTarget.querySelector('input')?.focus();
-        }}
+        onFocus={focusLeadingInput}
       >
         <ListMenu field={list} />
       </DropdownMenuContent>
@@ -392,11 +389,8 @@ function FilterChip({
         // Stay on the chip, not its trigger half, when the menu closes.
         onCloseAutoFocus={(e) => e.preventDefault()}
         // The menu focuses its own panel as it opens; hand that on to the
-        // panel's first field (a search box, Min), so typing lands there.
-        onFocus={(e) => {
-          if (e.target === e.currentTarget)
-            e.currentTarget.querySelector('input')?.focus();
-        }}
+        // panel's search box, so typing lands there.
+        onFocus={focusLeadingInput}
       >
         {field.kind === 'list' ? <ListMenu field={field} /> : field.content}
       </DropdownMenuContent>
@@ -585,6 +579,21 @@ const removedPresets = new Map<string, Set<string>>();
 
 /** The box a bar's chips wrap in: the nearest ancestor that lays out (a
  *  toolbar can be `display: contents`). */
+/**
+ * A filter panel focuses itself as it opens, and again when a click lands
+ * on its background. Hand that on to an input only when it's the panel's
+ * first control (a list's search box), and without scrolling: an input
+ * further down (Markets' and Pricing's price range) would pull the panel
+ * back to it on every click, so you couldn't scroll up past it.
+ */
+function focusLeadingInput(e: React.FocusEvent<HTMLElement>) {
+  if (e.target !== e.currentTarget) return;
+  const first = e.currentTarget.querySelector<HTMLElement>(
+    'input, button, select, textarea, [role^="menuitem"], [tabindex]:not([tabindex="-1"])',
+  );
+  if (first instanceof HTMLInputElement) first.focus({ preventScroll: true });
+}
+
 function rowOf(el: Element | null): HTMLElement | null {
   let row = el?.parentElement ?? null;
   while (row && getComputedStyle(row).display === 'contents')
@@ -617,9 +626,8 @@ export function FilterBar({
   /** Keys of the fields always shown, in order, even when unset. */
   presets?: string[];
   /** Of `presets`, the ones shown while unset only when they fit on the
-   *  line after the chip before them, with room for the square add button.
-   *  Decided once each, as the bar first lays out: resizing the window
-   *  later doesn't add or drop them. */
+   *  row's first line, after the chip before them, with room for the
+   *  square add button. Checked again as the window resizes. */
   presetsIfRoom?: string[];
   /** The chips' look; see FilterChipVariant. */
   variant?: FilterChipVariant;
@@ -639,8 +647,6 @@ export function FilterBar({
   // presetsIfRoom that don't fit right now, and each one's width from when
   // it last showed. Picking one from the menu shows it regardless.
   const [cramped, setCramped] = useState<Set<string>>(() => new Set());
-  // Each optional preset's verdict once made (true: no room), kept.
-  const decided = useRef(new Map<string, boolean>());
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const widths = useRef(new Map<string, number>());
   const anchor = useRef<HTMLSpanElement>(null);
@@ -668,28 +674,43 @@ export function FilterBar({
       if (row.offsetWidth === 0) return;
       const chipEl = (key: string) =>
         row.querySelector<HTMLElement>(`[data-filter-chip="${key}"]`);
+      const start0 =
+        row.getBoundingClientRect().left + parseFloat(style.paddingLeft);
+      // The row's first line the chips can share: down to the bottom of its
+      // first item that isn't a row to itself (the search box, or past a
+      // view switch or a phone's full-width search, the first chip).
+      const first = Array.from(row.children).find((c) => {
+        const w = (c as HTMLElement).offsetWidth;
+        return w > 0 && w < end - start0 - 1;
+      }) as HTMLElement | undefined;
+      const firstBottom = first?.getBoundingClientRect().bottom ?? Infinity;
+      // Nothing before the chips on that line: they start at its edge.
+      const firstIsChip =
+        !!first?.querySelector('[data-filter-chip]') ||
+        !!first?.matches('[data-filter-chip]');
       const next = new Set<string>();
       for (const [i, f] of placed.entries()) {
-        if (!presetsIfRoom.includes(f.key)) continue;
-        const verdict = decided.current.get(f.key);
-        if (verdict !== undefined) {
-          if (verdict) next.add(f.key);
-          continue;
-        }
+        if (!presetsIfRoom.includes(f.key) || !optional(f)) continue;
         const el = chipEl(f.key);
         if (el?.offsetWidth) widths.current.set(f.key, el.offsetWidth);
         const width = widths.current.get(f.key);
-        // The chip before it that's showing.
-        const prev = placed
-          .slice(0, i)
-          .reverse()
-          .map((p) => (next.has(p.key) ? null : chipEl(p.key)))
-          .find((p) => p);
-        if (!width || !prev) continue;
-        const start = prev.getBoundingClientRect().right + gap;
-        // The square add button is as wide as a chip is tall.
-        const noRoom = start + width + gap + prev.offsetHeight > end + 0.5;
-        decided.current.set(f.key, noRoom);
+        // What it would follow: the chip before it that's showing, else
+        // the row's first item.
+        const prev =
+          placed
+            .slice(0, i)
+            .reverse()
+            .map((p) => (next.has(p.key) ? null : chipEl(p.key)))
+            .find((p) => p) ?? (firstIsChip ? undefined : first);
+        const height = (prev ?? first)?.offsetHeight;
+        if (!width || !height) continue;
+        const box = prev?.getBoundingClientRect();
+        const start = box ? box.right + gap : start0;
+        // Only on that line, with room for the square add button, which is
+        // as wide as a chip is tall.
+        const noRoom =
+          (box ? box.top : 0) >= firstBottom ||
+          start + width + gap + height > end + 0.5;
         if (noRoom) next.add(f.key);
       }
       setCramped((was) =>

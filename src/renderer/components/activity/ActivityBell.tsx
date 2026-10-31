@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpCircle, History, X } from 'lucide-react';
+import { ArrowUpCircle, ChevronDown, Coins, History, X } from 'lucide-react';
 import { BellIcon } from '@heroicons/react/24/outline';
 import { toUnicode } from '../../../shared/domain-name';
 import {
@@ -14,10 +14,10 @@ import { syncProblems } from '../../lib/activity';
 import { timeAgo } from '../../lib/time';
 import { useAppStore } from '../../store/app';
 import { useAvailableUpdate, useUpdates } from '../../lib/updates';
+import { useUnconvertible } from '../../lib/unconvertible';
+import type { UnconvertibleAmount } from '../../../shared/unconvertible';
 import { EventTypeBadge } from './EventTypeBadge';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import type { MarketSale } from '../../../shared/markets';
 import { cn } from '@/lib/utils';
 import {
@@ -36,7 +36,8 @@ const SHOWN = 10;
  * tells you; the actions are on the Activity page, which a row opens filtered
  * to that name. The badge counts everything and takes the most severe color.
  * A newer DomBot release sits on top in green and counts toward the badge
- * until it's dismissed here; the next release brings it back.
+ * until it's dismissed here; the next release brings it back. Below it, a
+ * note lists amounts in currencies DomBot can't convert, until dismissed.
  */
 export function ActivityBell() {
   const events = useAppStore((s) => s.domainEvents);
@@ -90,14 +91,22 @@ export function ActivityBell() {
   const dismissUpdate = useUpdates((s) => s.dismiss);
   const update =
     available && available.latest.version !== dismissed ? available : null;
+  const unconvertible = useUnconvertible();
   const badge = notificationBadge(list);
-  const count = (badge?.count ?? 0) + salesToAct.length + (update ? 1 : 0);
-  // The worst severity's color, or green when the update is all there is.
+  const count =
+    (badge?.count ?? 0) +
+    salesToAct.length +
+    (update ? 1 : 0) +
+    (unconvertible.shown ? 1 : 0);
+  // The worst severity's color, green for an update, gray for the currency
+  // note when it's all there is.
   const countColor = badge
     ? SEVERITY_COUNT[badge.severity]
     : salesToAct.length
       ? SEVERITY_COUNT.high
-      : 'bg-brand text-white';
+      : update
+        ? 'bg-brand text-white'
+        : 'bg-muted-foreground text-background';
   const reviews = list.filter((n) => n.severity !== 'error').length;
   const close = () => setOpen(false);
 
@@ -195,12 +204,20 @@ export function ActivityBell() {
             </button>
           </div>
         )}
+        {unconvertible.shown && (
+          <UnconvertibleRow
+            items={unconvertible.items}
+            onDismiss={unconvertible.dismiss}
+            onNavigate={close}
+          />
+        )}
         {salesToAct.length > 0 && (
           <ul className="border-b py-1">
             {salesToAct.map((sale) => (
               <li key={`${sale.accountId}:${sale.id}`}>
                 <SaleRow
                   sale={sale}
+                  onNavigate={close}
                   market={
                     marketCatalog.find((m) => m.id === sale.market)?.name ??
                     sale.market
@@ -211,7 +228,9 @@ export function ActivityBell() {
           </ul>
         )}
         {list.length === 0 &&
-        (update || salesToAct.length > 0) ? null : list.length === 0 ? (
+        (update ||
+          salesToAct.length > 0 ||
+          unconvertible.shown) ? null : list.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">
             Nothing needs your attention.
           </p>
@@ -328,6 +347,102 @@ function NotificationRow({
   );
 }
 
+/**
+ * Amounts saved in currencies DomBot can't convert. Opens to a list of them:
+ * a purchase or sale links to the name's Activity, where its menu edits it;
+ * an asking or renewal price to its Domains row.
+ */
+function UnconvertibleRow({
+  items,
+  onDismiss,
+  onNavigate,
+}: {
+  items: UnconvertibleAmount[];
+  onDismiss: () => void;
+  onNavigate: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const n = items.length;
+  return (
+    <div className="border-b">
+      <div className="flex items-center hover:bg-foreground/5 dark:hover:bg-accent/50">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+          className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 text-left text-sm"
+        >
+          <Coins
+            className="size-4 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
+          <span className="min-w-0 flex-1 truncate">
+            <span className="font-medium">
+              {n} amount{n === 1 ? '' : 's'}
+            </span>{' '}
+            <span className="text-muted-foreground">
+              in currencies DomBot can’t convert
+            </span>
+          </span>
+          <ChevronDown
+            className={cn(
+              'size-3.5 shrink-0 text-muted-foreground transition-transform',
+              open && 'rotate-180',
+            )}
+            aria-hidden
+          />
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss the currency note"
+          title="Dismiss until there are more"
+          className="mx-1 shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+      {open && (
+        <div className="pb-1.5">
+          <p className="px-3 pb-1.5 pl-9 text-xs text-muted-foreground">
+            They stay as recorded, but DomBot can’t convert them into your
+            currency. Change each to one of the 30 it converts.
+          </p>
+          <ul className="max-h-48 overflow-y-auto">
+            {items.map((item) => {
+              const name = toUnicode(item.domain);
+              const inHistory =
+                item.kind === 'purchase' || item.kind === 'sale';
+              return (
+                <li key={`${item.domain}:${item.kind}`}>
+                  <Link
+                    to={
+                      inHistory
+                        ? `/activity?q=${encodeURIComponent(name)}`
+                        : `/?q=${encodeURIComponent(name)}`
+                    }
+                    state={inHistory ? { fresh: true } : undefined}
+                    onClick={onNavigate}
+                    className="flex items-center gap-2 py-1 pr-3 pl-9 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
+                  >
+                    <span className="min-w-0 flex-1 truncate font-mono">
+                      {name}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {item.kind[0].toUpperCase() + item.kind.slice(1)} ·{' '}
+                      {item.currency}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SALE_ACTION: Record<NonNullable<MarketSale['action']>, string> = {
   auth_code: 'needs the auth code',
   transfer: 'waiting on the transfer',
@@ -335,96 +450,37 @@ const SALE_ACTION: Record<NonNullable<MarketSale['action']>, string> = {
 };
 
 /**
- * A market sale waiting on you. One that needs the auth code can send it from
- * here: DomBot asks the registrar that holds the name for it and passes it
- * on, without showing or storing it.
+ * A market sale waiting on you. The bell only tells you: the row opens the
+ * Sales overview, which has the action (Send auth code and the rest).
  */
-function SaleRow({ sale, market }: { sale: MarketSale; market: string }) {
-  const loadMarkets = useAppStore((s) => s.loadMarkets);
-  const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle');
-  const [error, setError] = useState<string | null>(null);
-  // Shown once DomBot couldn't get the code itself: type it instead.
-  const [typing, setTyping] = useState(false);
-  const [code, setCode] = useState('');
+function SaleRow({
+  sale,
+  market,
+  onNavigate,
+}: {
+  sale: MarketSale;
+  market: string;
+  onNavigate: () => void;
+}) {
   const name = toUnicode(sale.name);
   const what = `on ${market} ${sale.action ? SALE_ACTION[sale.action] : ''}`;
-  const send = async (authCode?: string) => {
-    setState('sending');
-    setError(null);
-    try {
-      await window.api.setMarketSaleAuthCode(sale.accountId, sale.id, authCode);
-      setState('sent');
-      setTyping(false);
-      void loadMarkets();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setState('idle');
-      setTyping(true);
-    }
-  };
   return (
-    <div className="flex flex-col gap-1.5 px-3 py-1.5 text-sm">
-      <div className="flex items-center gap-2">
-        <span
-          className={cn('size-2 shrink-0 rounded-full', SEVERITY_DOT.high)}
-          aria-hidden
-        />
-        <Badge variant="outline">Sale</Badge>
-        <span className="min-w-0 flex-1 truncate" title={`${name} ${what}`}>
-          <span className="font-mono">{name}</span>{' '}
-          <span className="text-muted-foreground">{what}</span>
-        </span>
-        {sale.action === 'auth_code' && !typing && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 shrink-0"
-            disabled={state !== 'idle'}
-            onClick={() => void send()}
-            title="Get the code from the registrar that holds the name and send it to the market"
-          >
-            {state === 'sending'
-              ? 'Sending…'
-              : state === 'sent'
-                ? 'Sent'
-                : 'Send auth code'}
-          </Button>
-        )}
-      </div>
-      {error && (
-        <p role="alert" className="pl-4 text-xs text-destructive">
-          {error}
-        </p>
-      )}
-      {typing && (
-        <form
-          className="flex gap-2 pl-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (code.trim()) void send(code);
-          }}
-        >
-          <Input
-            className="h-7"
-            value={code}
-            placeholder="Auth code"
-            aria-label={`Auth code for ${name}`}
-            autoComplete="off"
-            spellCheck={false}
-            disabled={state === 'sending'}
-            onChange={(e) => setCode(e.target.value)}
-          />
-          <Button
-            type="submit"
-            size="sm"
-            className="h-7"
-            disabled={state === 'sending' || !code.trim()}
-          >
-            {state === 'sending' ? 'Sending…' : 'Send'}
-          </Button>
-        </form>
-      )}
-    </div>
+    <Link
+      to="/sales"
+      onClick={onNavigate}
+      className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
+      title={`${name} ${what}`}
+    >
+      <span
+        className={cn('size-2 shrink-0 rounded-full', SEVERITY_DOT.high)}
+        aria-hidden
+      />
+      <Badge variant="outline">Sale</Badge>
+      <span className="min-w-0 flex-1 truncate">
+        <span className="font-mono">{name}</span>{' '}
+        <span className="text-muted-foreground">{what}</span>
+      </span>
+    </Link>
   );
 }
 

@@ -1,5 +1,5 @@
 import type { ListPrice } from './ipc';
-import { toCurrencyCode } from './currencies';
+import { toCurrencyCode, toEntryCurrency } from './currencies';
 import { parseCanonicalAmount } from './money';
 
 // Your asking price for a name (docs/domain-import-export.md, "BIN price is
@@ -44,19 +44,22 @@ function amountOf(
 
 /**
  * The record to store for these fields, or null when every amount is blank
- * (the price is cleared). Throws when a field doesn't hold.
+ * (the price is cleared). Throws when a field doesn't hold. `entry` is for a
+ * price being entered, which must be in one of the 30 currencies unless it
+ * keeps the stored price's (`kept`); leave it out when reading a stored one.
  */
 export function toListPrice(
   fields: ListPriceFields,
   updatedAt: number,
+  entry?: { kept: string | null | undefined },
 ): ListPrice | null {
   const blank = [fields.amount, fields.minOffer, fields.floor].every(
     (v) => !v?.trim(),
   );
   if (blank) return null;
-  const currency = fields.currency?.trim()
-    ? toCurrencyCode(fields.currency)
-    : null;
+  const currency = entry
+    ? toEntryCurrency(fields.currency, entry.kept)
+    : toCurrencyCode(fields.currency ?? '');
   if (!currency) {
     throw new Error(
       fields.currency?.trim()

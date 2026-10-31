@@ -338,9 +338,31 @@ saved, so the Domains table shows it before the next sync.
 
 ## Domains table and actions
 
-- **A listing column per connected market** (Afternic, Atom, Sedo, …), in the slot
-  saved layouts call `listing`, so a name listed on two markets stays on one
-  line: the market's price (or "Offers") right-aligned in grey, and one
+Once a market account is connected, Domains has three views: **Owned**,
+**Listings** and **Archive** (`?view=listings`, `?view=archive`). Owned and
+Listings show the same names, the ones you hold, with different columns;
+Listings' count in the switch is how many of them are live on a market:
+
+- **Owned** keeps one **Listed** column for the markets: every connected
+  market's logo, always in the same order, in the colour its listing cell's
+  icon would have (below), or dim where the name isn't listed there. A
+  click on a logo opens that market's listing editor, as a listing cell
+  does in Listings. It has no per-market or
+  interest columns.
+- **Listings** has a column per market, Views, Leads and Searches, and
+  leaves the registration settings out (renewal, auto-renew, privacy, lock,
+  nameservers); Registrar and Expiration can be turned on. The Markets
+  filter is always on its toolbar, and the market columns show on phones
+  too.
+- Each view saves its own columns. Switching keeps the filters both views
+  have; Auto-renew and Created are Owned only.
+
+The heading names the view in green ("Domains OWNED"), since the switch
+sits below the cards.
+
+- **A listing column per connected market** (Afternic, Atom, Sedo, …) in
+  Listings, in the slot saved layouts call `listing`, so a name listed on
+  two markets stays on one line: the market's price (or "Offers") right-aligned in grey, and one
   status icon at the left: a soft check when live at your DomBot price, an
   amber circled arrow up or down when the market's price is above or below
   it, an eye-slash for visibility you control (inactive or hidden), a grey
@@ -348,8 +370,7 @@ saved, so the Domains table shows it before the next sync.
   when rejected, and a grey icon when sold or unknown. A price that isn't
   live is faded. The tooltip has
   the detail. A name can only be in one account per market, so each cell holds
-  one listing. A table with every market side by side may follow on the
-  Markets page.
+  one listing.
 - **A click on a listing cell edits that listing** on that market (or lists
   the name there, starting from its DomBot asking price). The editor shows
   only the fields the market has, read from its capabilities: a Buy Now
@@ -379,6 +400,89 @@ saved, so the Domains table shows it before the next sync.
   names.
 - Both sit directly beside Pricing in the row menu and the bulk bar; a
   Markets submenu returns when these menus are split into submenus.
+
+- **Views, Leads and Searches over 12 months** in Listings, sortable,
+  Leads breaking ties on Views: the names buyers look at most. Views and
+  leads add every market up (`getMarketTraffic().domains`); Searches are
+  GoDaddy's, sent only to Discount Domain Club Domain Pro members, as its
+  header's note says.
+- The view switch sits above the cards, as on Renewals (Sales and
+  Activity too), with the filters and Columns below.
+- **Cards** above the table add up the names it shows as filtered; a card
+  that matches a filter sets it. `StatCardRow` fills the width in priority
+  order: three cards, a fourth from lg, a fifth from xl, so they stay one
+  row; on phones two to a row (the first four), just label and number.
+  - Each card is two rows: the label, then a big number with a few words
+    beside it ("251 7 registrars", "60% 150/251 names"), cut short rather
+    than wrapped (`StatCard` value slots).
+  - Owned: Domains (registrars), Expiring soon: names with auto-renew off
+    expiring within 30 and 60 days, as two numbers ("2/30d 7/60d"); a
+    click sets Expiration and Auto-renew off, BIN priced, For Sale (names live on a market; opens Listings).
+  - Listings: Listed (live on a market), Not listed (with how many are
+    pending), Issues (rejected or inactive), Discrepancies (a market
+    price above or below your BIN), each setting the Markets filter. They
+    count the markets the Markets filter picks, so filtering to one market
+    gives that market's numbers. Views and leads stay in the columns: their
+    12-month window can't be changed, so a card of them would belong on a
+    dashboard.
+  - Archive: Sold, Expired, Deleted or removed (each sets Status), Still
+    listed (live or pending on a market: to take down). Just a label and a
+    number each, so both are bigger (a small `StatCard` with no hint).
+  - Without a market account, Owned and Archive have three.
+- Domains reads its view and the Markets and Pricing filters from the URL
+  (`src/renderer/lib/domains-link.ts`).
+- No offers or individual leads: Afternic's API dropped its per-name offer
+  count on 2026-10-28 and has only daily lead counts (docs/afternic-api.md),
+  and Sedo and Atom send none either.
+
+## Sales tab
+
+The Sales tab replaced the Markets page (docs/sales-tab.md); `/markets`
+redirects to it. It reads sale records (`src/shared/sales.ts`), one per
+sale from every source:
+
+- `sold` events, yours, imported, or market sync's; market sales joined
+  through the event's `marketSale` for commission, net, payout and the
+  next step; and market sales no event records yet (under way, cancelled,
+  or ones sync left unrecorded, like a sale before a buyback).
+- The acquisition (`registered` or `purchased`) before each sale for cost
+  and holding period, so a buyback starts a new holding. Drops, archives
+  and Owned / Archive labels play no part.
+- A recent sale of a name an account still holds is a sale awaiting
+  transfer, not an error.
+- Fees on a sale you record (the sale dialog, `domain_sale_set`): blank is
+  unknown, 0 none. Net is price less fees, or the market's net. A record
+  keeps its own currency; a cost paid in another is converted at the
+  purchase month's average (docs/exchange-rates.md). Partial totals say how
+  many sales they cover.
+
+All or **Pending** (like Activity's Needs review; `?pending=1`): pending
+is a sale under way at a market or one awaiting transfer, and the tab's
+pill counts them. One row per sale, pending first, with Send auth code
+inline on a sale waiting for it. Awaiting transfer (sold, and an account
+of yours still holds the name) is amber like a market's steps, with Mark
+complete: a buyer often takes the name at the same registrar, so nothing
+need change registrar, and marking it (`transferred` on the sold event)
+stops it waiting. Filters on the sale date (a bounded range leaves
+undated sales out and says how many), where, TLD, registrar and currency.
+Cards above the table add up what the view and filters leave: sales
+(finished and under way, with pending and cancelled), gross (with the
+average), net (with fees) and profit (with ROI); holding time stays in the
+table. On the Pending view, net and profit give way to what the pending
+sales wait on: Needs action (an auth code or payee details) and Awaiting
+transfer (at the market, or a name still in your account), and Gross to
+the pending sales' Value. Filtering by market, TLD or registrar gives
+that slice's totals, in your preferred currency (or the one the Currency
+filter picks), each sale in another converted at its month's average; the
+line under the cards says how many were, and leaves out (and counts) any in
+a currency DomBot can't convert. Rows keep their own amounts, with the
+conversion on hover, and sort by the converted value. CSV export; a row menu for the name's history,
+Edit sale (that sale, even an earlier one) and the market. The bell's sale
+alert links here. Listing problems (rejected, pending, below your price)
+stay in Domains, under the Markets filter.
+
+Sell-through is `sellThrough` (`src/shared/market-reports.ts`) over every
+sale: names sold in 12 months over names listed now plus those sold.
 
 ## Settings → Markets
 

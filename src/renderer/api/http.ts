@@ -277,6 +277,7 @@ export function createHttpApi(): DombotApi {
     exportData: m('exportData'),
     importData: m('importData'),
     getPortfolioPricing: m('getPortfolioPricing'),
+    getExchangeRates: m('getExchangeRates'),
     getManualPrices: m('getManualPrices'),
     setManualPrice: m('setManualPrice'),
 
@@ -436,6 +437,7 @@ export function createHttpApi(): DombotApi {
     getDomainEvents: m('getDomainEvents'),
     markSold: m('markSold'),
     setAlertsDismissed: m('setAlertsDismissed'),
+    setSaleTransferred: m('setSaleTransferred'),
     deleteUserEvent: m('deleteUserEvent'),
     deleteDomains: m('deleteDomains'),
     getRegistrationQuote: m('getRegistrationQuote'),

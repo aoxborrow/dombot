@@ -17,7 +17,7 @@ export interface Preferences {
    * and smaller type; phones always use it regardless. */
   density: 'normal' | 'compact';
   /** Each table's chosen columns and their order, by table id (e.g.
-   * `domains.active`). Fitted to the table's columns when it is drawn. */
+   * `domains.owned`). Fitted to the table's columns when it is drawn. */
   columnLayouts: Record<string, ColumnLayout>;
 }
 
@@ -73,6 +73,11 @@ export function parsePreferences(raw: string | null): Preferences {
   };
 }
 
+// Tables renamed since a layout was saved: the old id's layout carries over.
+const RENAMED_LAYOUTS: Record<string, string> = {
+  'domains.active': 'domains.owned',
+};
+
 /** Keeps entries shaped like a layout. Which keys are valid is up to each
  * table, which fits its entry to its columns when it draws. */
 function parseColumnLayouts(raw: unknown): Record<string, ColumnLayout> {
@@ -84,6 +89,10 @@ function parseColumnLayouts(raw: unknown): Record<string, ColumnLayout> {
     const l = layout as Partial<ColumnLayout> | null;
     if (l && strings(l.order) && strings(l.hidden))
       out[id] = { order: l.order, hidden: l.hidden };
+  }
+  for (const [from, to] of Object.entries(RENAMED_LAYOUTS)) {
+    if (out[from] && !out[to]) out[to] = out[from];
+    delete out[from];
   }
   return out;
 }

@@ -55,8 +55,10 @@ vi.mock('../services/pricing', () => ({
   setManualPrice: (...a: unknown[]) => setManualPrice(...a),
 }));
 const setAlertsDismissed = vi.fn();
+const setSaleTransferred = vi.fn();
 vi.mock('../services/domain-history', () => ({
   setAlertsDismissed: (...a: unknown[]) => setAlertsDismissed(...a),
+  setSaleTransferred: (...a: unknown[]) => setSaleTransferred(...a),
 }));
 const cachedRegistered = vi.fn(() => new Map<string, boolean>());
 vi.mock('../services/registration-lookup', () => ({
@@ -968,6 +970,17 @@ describe('history, purchases, sales and alerts', () => {
     });
   });
 
+  it('domain_sale_transferred_set marks the latest sale handed over', async () => {
+    const sale = event({ domain: 'a.com', type: 'sold', date: '2026-10-01' });
+    listEvents.mockReturnValue([sale]);
+    const out = await call('domain_sale_transferred_set', {
+      domain: 'a.com',
+      transferred: true,
+    });
+    expect(setSaleTransferred).toHaveBeenCalledWith(sale.id, true);
+    expect(out).toMatchObject({ domain: 'a.com', transferred: true });
+  });
+
   it('domain_sale_set marks a new sale, and edits one that already answers the alert', async () => {
     await call('domain_sale_set', {
       domain: 'a.com',
@@ -1002,6 +1015,25 @@ describe('history, purchases, sales and alerts', () => {
     const [input] = setSale.mock.lastCall!;
     expect(input).toMatchObject({ saleDate: '2026-10-01', amount: '5500' });
     expect(input).not.toHaveProperty('mark');
+  });
+
+  it('domain_sale_set with only fees keeps the sale’s price', async () => {
+    const sale = event({
+      domain: 'a.com',
+      type: 'sold',
+      date: '2026-10-01',
+      amount: '5000.00',
+      currency: 'USD',
+    });
+    holdings.mockReturnValue(new Map([['a.com', { sale }]]));
+    listEvents.mockReturnValue([sale]);
+    await call('domain_sale_set', { domain: 'a.com', fees: '250' });
+    expect(setSale.mock.lastCall![0]).toMatchObject({
+      saleDate: '2026-10-01',
+      amount: '5000.00',
+      currency: 'USD',
+      fees: '250',
+    });
   });
 
   it('domain_sale_set with remove deletes the sale on record', async () => {

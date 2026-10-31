@@ -2,6 +2,7 @@ import {
   Check,
   ChevronDown,
   CircleAlert,
+  Download,
   Plug2,
   RefreshCw,
   Upload,
@@ -91,7 +92,7 @@ export function SyncSplitButton({
         <span
           className={cn(
             'hidden text-xs text-muted-foreground sm:inline',
-            stale && 'text-amber-600 dark:text-amber-400',
+            stale && 'text-amber-500 dark:text-amber-400',
           )}
           title={`Last synced ${new Date(lastSyncedAt).toLocaleString()}`}
         >
@@ -181,10 +182,12 @@ export function SyncSplitButton({
               disabled={viewCount === 0}
               onSelect={onExportView}
             >
+              <Download />
               This view
               <Count n={viewCount} />
             </DropdownMenuItem>
             <DropdownMenuItem disabled={allCount === 0} onSelect={onExportAll}>
+              <Download />
               Everything
               <Count n={allCount} />
             </DropdownMenuItem>

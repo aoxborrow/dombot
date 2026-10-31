@@ -1,6 +1,7 @@
 import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
 import { create } from 'zustand';
+import { ExchangeRates } from '../../shared/exchange-rates';
 import type {
   ImportedDomain,
   ImportedDomainFields,
@@ -177,6 +178,10 @@ interface AppState {
   pricing: Record<string, RenewalPricing>;
   /** Re-read the whole-portfolio pricing map from main (local, no network). */
   loadPricing: () => Promise<void>;
+  /** The shipped archive plus the rates the host fetched since, for
+   *  converting totals into the preferred currency (docs/exchange-rates.md). */
+  exchangeRates: ExchangeRates;
+  loadExchangeRates: () => Promise<void>;
   setManualPrice: (
     domain: string,
     price: RenewalPriceInput | null,
@@ -270,6 +275,7 @@ interface AppState {
   /** Mark names Sold with no price, dated `date` (blank: today). */
   markSold: (items: OwnershipItem[], date?: string | null) => Promise<void>;
   setAlertsDismissed: (ids: string[], dismissed: boolean) => Promise<void>;
+  setSaleTransferred: (id: string, transferred: boolean) => Promise<void>;
   /** Undo one of your own events. */
   deleteUserEvent: (id: string) => Promise<void>;
   /** Delete: everything it holds about names no account holds. */
@@ -437,6 +443,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().loadPricing(),
       get().loadRegistrars(),
       get().loadMarkets(),
+      get().loadExchangeRates(),
     ]).then(() => undefined);
     // Before the first load there's nothing in view to overlay; the launch
     // hydrate path covers a fresh start.
@@ -533,6 +540,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       void get().loadPricing();
       void get().loadDomainEvents();
       void get().loadFolders();
+      void get().loadExchangeRates();
     } catch (err) {
       set({
         portfolioLoading: false,
@@ -682,6 +690,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadPricing: async () => {
     const pricing = await window.api.getPortfolioPricing();
     set({ pricing });
+  },
+  exchangeRates: new ExchangeRates(),
+  loadExchangeRates: async () => {
+    set({
+      exchangeRates: new ExchangeRates(await window.api.getExchangeRates()),
+    });
   },
   setManualPrice: async (domain, price) => {
     await window.api.setManualPrice(domain, price);
@@ -862,6 +876,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   markSold: async (items, date) => {
     set({ domainEvents: await window.api.markSold(items, date) });
     await get().loadPurchases();
+  },
+  setSaleTransferred: async (id, transferred) => {
+    set({
+      domainEvents: await window.api.setSaleTransferred(id, transferred),
+    });
   },
   setAlertsDismissed: async (ids, dismissed) => {
     set({ domainEvents: await window.api.setAlertsDismissed(ids, dismissed) });

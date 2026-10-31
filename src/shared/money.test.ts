@@ -5,7 +5,7 @@ import {
   parseCanonicalAmount,
   parseLocalizedAmount,
   parsePurchaseDate,
-  searchCurrencies,
+  currencyOptions,
 } from './money';
 
 describe('formatMoney', () => {
@@ -59,7 +59,7 @@ describe('parse amounts', () => {
   });
 });
 
-describe('dates and currency search', () => {
+describe('dates and currency choices', () => {
   it('accepts a real calendar day', () => {
     expect(parsePurchaseDate('2020-02-29')).toBe('2020-02-29');
     expect(parsePurchaseDate('')).toBeNull();
@@ -67,14 +67,33 @@ describe('dates and currency search', () => {
     expect(() => parsePurchaseDate('03/01/2020')).toThrow(/YYYY-MM-DD/);
   });
 
-  it('leads with the pinned currencies and searches by code or name', () => {
-    expect(
-      searchCurrencies('')
-        .slice(0, 5)
-        .map((c) => c.code),
-    ).toEqual(['USD', 'EUR', 'GBP', 'CNY', 'JPY']);
-    expect(searchCurrencies('US').some((c) => c.code === 'USD')).toBe(true);
-    expect(searchCurrencies('yen').map((c) => c.code)).toContain('JPY');
-    expect(searchCurrencies('yuan').map((c) => c.code)).toContain('CNY');
+  it('leads with the pinned currencies, then the rest by code', () => {
+    const codes = currencyOptions().map((c) => c.code);
+    expect(codes).toHaveLength(30);
+    expect(codes.slice(0, 6)).toEqual([
+      'USD',
+      'EUR',
+      'GBP',
+      'CNY',
+      'JPY',
+      'AUD',
+    ]);
+    expect(codes.at(-1)).toBe('ZAR');
+  });
+
+  it("narrows to a market's currencies, keeping the pinned order", () => {
+    expect(currencyOptions(['EUR', 'USD', 'GBP']).map((c) => c.code)).toEqual([
+      'USD',
+      'EUR',
+      'GBP',
+    ]);
+  });
+
+  it('adds a stored code outside the list at the end, once', () => {
+    expect(currencyOptions(undefined, 'TWD').at(-1)?.code).toBe('TWD');
+    expect(currencyOptions(undefined, 'USD')).toHaveLength(30);
+    expect(currencyOptions(['USD'], 'nope').map((c) => c.code)).toEqual([
+      'USD',
+    ]);
   });
 });

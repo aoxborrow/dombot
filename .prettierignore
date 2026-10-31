@@ -5,6 +5,7 @@ node_modules
 package-lock.json
 iana-registrars.json
 registrar-mapping.json
+exchange-rates.json
 temp
 .claude
 worker-configuration.d.ts

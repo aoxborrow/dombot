@@ -8,7 +8,7 @@
 import {
   CURRENCIES,
   CURRENCY_CODES,
-  WITHDRAWN_CURRENCIES,
+  RATE_CURRENCIES,
   type CurrencyCode,
 } from './currencies';
 
@@ -78,10 +78,6 @@ export function currencyInfo(code: string): CurrencyInfo | null {
   return currencies().find((c) => c.code === upper) ?? null;
 }
 
-export function isIsoCurrency(code: unknown): code is string {
-  return typeof code === 'string' && currencyInfo(code) !== null;
-}
-
 export function isNumberFormatId(id: unknown): id is NumberFormatId {
   return typeof id === 'string' && NUMBER_FORMATS.some((f) => f.id === id);
 }
@@ -90,46 +86,37 @@ export function numberFormatOf(id: NumberFormatId) {
   return NUMBER_FORMATS.find((f) => f.id === id) ?? NUMBER_FORMATS[0];
 }
 
+export function isPinnedCurrency(code: string): boolean {
+  return (PINNED_CURRENCIES as readonly string[]).includes(code);
+}
+
 /**
- * Currencies matching a search. An empty query leads with USD, EUR, GBP,
- * CNY, and JPY. Otherwise the code or an English name word must start with
- * the query ("US" → USD, "yen" → JPY, "yuan" → CNY).
+ * The currency dropdown's choices: `codes` (the 30 DomBot converts, unless a
+ * caller such as a market narrows them) with USD, EUR, GBP, CNY, and JPY
+ * first, then the rest by code. `current` is added at the end when it's a
+ * stored code outside them (a withdrawn one, or a record from before the
+ * list), so the dropdown can still show it.
  */
-export function searchCurrencies(query: string): CurrencyInfo[] {
-  const all = currencies();
-  const q = query.trim().toLowerCase();
-  if (!q) {
-    const pinned = PINNED_CURRENCIES.map((code) =>
-      all.find((c) => c.code === code),
-    ).filter((c): c is CurrencyInfo => c != null);
-    const rest = all
-      .filter(
-        (c) =>
-          !PINNED_CURRENCIES.includes(
-            c.code as (typeof PINNED_CURRENCIES)[number],
-          ),
-      )
-      .sort(
-        (a, b) =>
-          Number(WITHDRAWN_CURRENCIES.has(a.code)) -
-            Number(WITHDRAWN_CURRENCIES.has(b.code)) ||
-          a.code.localeCompare(b.code),
-      );
-    return [...pinned, ...rest];
-  }
-  return all
-    .filter((c) => {
-      if (c.code.toLowerCase().startsWith(q)) return true;
-      return c.name
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .some((word) => word.startsWith(q));
-    })
-    .sort((a, b) => {
-      const aCode = a.code.toLowerCase().startsWith(q) ? 0 : 1;
-      const bCode = b.code.toLowerCase().startsWith(q) ? 0 : 1;
-      return aCode - bCode || a.code.localeCompare(b.code);
-    });
+export function currencyOptions(
+  codes: readonly string[] = RATE_CURRENCIES,
+  current?: string,
+): CurrencyInfo[] {
+  const listed = codes
+    .map((code) => currencyInfo(code))
+    .filter((c): c is CurrencyInfo => c != null)
+    .sort(
+      (a, b) =>
+        pinnedRank(a.code) - pinnedRank(b.code) || a.code.localeCompare(b.code),
+    );
+  const extra = current ? currencyInfo(current) : null;
+  return extra && !listed.some((c) => c.code === extra.code)
+    ? [...listed, extra]
+    : listed;
+}
+
+function pinnedRank(code: string): number {
+  const i = (PINNED_CURRENCIES as readonly string[]).indexOf(code);
+  return i === -1 ? PINNED_CURRENCIES.length : i;
 }
 
 function groupDigits(intPart: string, group: string): string {

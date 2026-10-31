@@ -109,6 +109,11 @@ export interface DomainEvent {
   /** Canonical decimal ("19.99", "1500"); set together with `currency`. */
   amount?: string | null;
   currency?: CurrencyCode | null;
+  /**
+   * sold: what the sale cost you (commission, escrow, broker), in
+   * `currency`. Absent or null is unknown; "0" means none.
+   */
+  fees?: string | null;
   /** registered, purchased, renewed: the term in years. */
   years?: number | null;
   /**
@@ -120,6 +125,9 @@ export interface DomainEvent {
   resolves?: string;
   /** A sync alert acknowledged with no action. */
   dismissed?: boolean;
+  /** sold: you marked the name handed over, though an account of yours
+   * still shows it (the buyer took it at the same registrar, say). */
+  transferred?: boolean;
   /** The import that wrote it, if one did (docs/domain-import-export.md). */
   importId?: string;
   /**

@@ -1,10 +1,16 @@
 import { useEffect } from 'react';
-import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 import {
   CalendarClock,
   Globe,
   History,
-  Store,
+  Receipt,
   Menu,
   RefreshCw,
   Settings as SettingsIcon,
@@ -22,7 +28,7 @@ import { useAppStore } from './store/app';
 import Domains from './pages/Domains';
 import Renewals from './pages/Renewals';
 import Activity from './pages/Activity';
-import Markets from './pages/Markets';
+import Sales from './pages/Sales';
 import Settings from './pages/Settings';
 import ApprovalModal from './components/ApprovalModal';
 import DemoBanner from './components/DemoBanner';
@@ -52,7 +58,7 @@ const TAB_OPTIONS: Record<
   '/': { metric: 'domains', pillFrom: 'md' },
   '/renewals': { metric: 'renewals', pillFrom: 'lg' },
   '/activity': { metric: 'activity', pillFrom: 'lg' },
-  '/markets': { pillFrom: 'lg' },
+  '/sales': { metric: 'sales', pillFrom: 'lg' },
   '/settings': {
     pillFrom: 'lg',
     // The gear is drawn smaller than the other icons, so it's bumped up.
@@ -71,6 +77,7 @@ export default function App() {
   const loadSettings = useAppStore((s) => s.loadSettings);
   const loadPurchases = useAppStore((s) => s.loadPurchases);
   const loadListPrices = useAppStore((s) => s.loadListPrices);
+  const loadExchangeRates = useAppStore((s) => s.loadExchangeRates);
   const loadMarkets = useAppStore((s) => s.loadMarkets);
   const loadDomainEvents = useAppStore((s) => s.loadDomainEvents);
   const loadRegistrars = useAppStore((s) => s.loadRegistrars);
@@ -94,6 +101,7 @@ export default function App() {
     void loadSettings();
     void loadPurchases();
     void loadListPrices();
+    void loadExchangeRates();
     void loadMarkets();
     void loadDomainEvents();
     // The bell lists sync errors from any page.
@@ -103,6 +111,7 @@ export default function App() {
     loadSettings,
     loadPurchases,
     loadListPrices,
+    loadExchangeRates,
     loadMarkets,
     loadDomainEvents,
     loadRegistrars,
@@ -217,12 +226,14 @@ export default function App() {
           area between them scrolls when a page is taller. Its scrollbar gutter
           is always reserved so pages of different heights line up. The top 8px
           fades out, so scrolled content doesn't cut off hard at the tabs. */}
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] [mask-image:linear-gradient(to_bottom,transparent,black_8px)] px-4 pt-[22px] pb-4 sm:px-6 sm:pt-[31px]">
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] [mask-image:linear-gradient(to_bottom,transparent,black_8px)] px-4 pt-[18px] pb-4 sm:px-6 sm:pt-[27px]">
         <Routes>
           <Route path="/" element={<Domains />} />
           <Route path="/renewals" element={<Renewals />} />
           <Route path="/activity" element={<Activity />} />
-          <Route path="/markets" element={<Markets />} />
+          <Route path="/sales" element={<Sales />} />
+          {/* The Markets tab became Sales (docs/sales-tab.md). */}
+          <Route path="/markets" element={<Navigate to="/sales" replace />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
@@ -242,7 +253,7 @@ export default function App() {
 const NAV_ITEMS = [
   { to: '/', label: 'Domains', icon: Globe },
   { to: '/renewals', label: 'Renewals', icon: CalendarClock },
-  { to: '/markets', label: 'Markets', icon: Store },
+  { to: '/sales', label: 'Sales', icon: Receipt },
   { to: '/activity', label: 'Activity', icon: History },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ] as const;

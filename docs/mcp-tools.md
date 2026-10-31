@@ -135,6 +135,10 @@ portfolio: synced, imported, or with history.
   one no account holds is in Archive as Sold. `remove: true` deletes the sale
   on record (the app's Undo). Returns
   `{ domain, paid, sold, ownership, archiveLabel, salePending }`.
+- **`domain_sale_transferred_set`** — `transferred`. Marks the latest sale
+  handed over (the Sales tab's Mark complete) though an account still shows
+  the name, so it stops awaiting transfer; `false` undoes it. Returns
+  `{ domain, transferred }`.
 
 - **`domain_note_set`** — `notes`, replacing the note; `""` deletes it.
   Returns `{ domain, notes }`.
@@ -263,7 +267,7 @@ saying so.
   (`leads`, `views`), `minViews?`, `limit`, `offset`. Listed names ranked by
   stored views and leads, with `coverage`: per-name traffic is fetched a
   slice of names per sync.
-- **`market_report_get`** — the Markets page's report: sales by year and in
+- **`market_report_get`** — market sales by year and in
   total, sell-through over the last 12 months, and views and leads by month.
 
 `portfolio_query` also takes `listedOn` and `notListedOn` (a market id), to

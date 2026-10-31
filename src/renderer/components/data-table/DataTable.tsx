@@ -17,6 +17,7 @@ import {
 } from '../../lib/preferences';
 import { paginate, rangeKeys, type SortDir } from './table-state';
 import { applyColumnLayout, type ColumnLayout } from './column-layout';
+import { ColumnPicker } from './ColumnPicker';
 import { cn } from '@/lib/utils';
 import {
   SegmentedControl,
@@ -97,6 +98,7 @@ export function DataTable<T>({
   className,
   density: fixedDensity,
   layout,
+  onLayoutChange,
   forceVisible,
 }: {
   rows: T[];
@@ -120,6 +122,8 @@ export function DataTable<T>({
   density?: Preferences['density'];
   /** Which columns show and in what order (see ColumnPicker / useColumnLayout). */
   layout?: ColumnLayout;
+  /** With a `layout`: the Columns button goes in the footer, first. */
+  onLayoutChange?: (next: ColumnLayout) => void;
   /** Columns shown even while the layout hides them, e.g. one being filtered. */
   forceVisible?: readonly string[];
 }) {
@@ -161,7 +165,9 @@ export function DataTable<T>({
   };
 
   // The first data column reads as part of the checkbox column: no divider.
-  const firstCell = (i: number) => selection && i === 0 && 'border-l-0! pl-3';
+  // Without one (Sales), it gets more room on the left instead.
+  const firstCell = (i: number) =>
+    i === 0 && (selection ? 'border-l-0! pl-3' : 'pl-4');
 
   return (
     <div
@@ -180,8 +186,12 @@ export function DataTable<T>({
           // inline-level cell content (checkbox, switch, inline-flex spans)
           // from adding baseline descent under the line box. Column rules
           // sit between cells only: the outer cells' would double the frame's
-          // border, a darker strip just inside it.
-          'domain-table-scroll absolute inset-0 overflow-auto rounded-lg border [&_td]:border-x [&_td]:border-x-border/50 [&_th]:border-x [&_th]:border-x-border/50 [&_tr>*:first-child]:border-l-0 [&_tr>*:last-child]:border-r-0 [&_td]:py-3 [&_td>*]:align-top compact:[&_td]:py-[9px]',
+          // border, a darker strip just inside it. In the body each rule is
+          // the cell's own inset shadow on its right edge, not a border:
+          // Chrome doesn't paint a hovered row's background under the
+          // borders of a positioned cell (the cells with a click overlay),
+          // so their rules showed darker than the rest.
+          'domain-table-scroll absolute inset-0 overflow-auto rounded-lg border [&_td]:shadow-[inset_-1px_0_0_color-mix(in_oklab,var(--border)_50%,transparent)] [&_th]:border-x [&_th]:border-x-border/50 [&_tr>*:first-child]:border-l-0 [&_tr>*:last-child]:border-r-0 [&_tr>td:last-child]:shadow-none [&_td]:py-3 [&_td>*]:align-top compact:[&_td]:py-[9px]',
           density === 'compact' && 'compact',
         )}
       >
@@ -278,7 +288,7 @@ export function DataTable<T>({
                 >
                   {selection && (
                     // Compact rows: no 2px nudge down, or the box sits low.
-                    <TableCell className="w-0 border-r-0! pl-3 compact:[&>[role=checkbox]]:translate-y-0">
+                    <TableCell className="w-0 border-r-0! pl-3 shadow-none! compact:[&>[role=checkbox]]:translate-y-0">
                       <Checkbox
                         checked={isSelected}
                         onMouseDown={(e) => {
@@ -333,6 +343,25 @@ export function DataTable<T>({
           above the rows-per-page select (flex-col-reverse). */}
       <div className="flex shrink-0 flex-col-reverse gap-3 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
+          {/* Columns, then density, then rows per page; on phones only rows
+              per page (their table is compact and its columns fixed). */}
+          {layout && onLayoutChange && (
+            <div className="mr-3 max-sm:hidden">
+              <ColumnPicker
+                columns={allColumns}
+                layout={layout}
+                onChange={onLayoutChange}
+                forceVisible={forceVisible}
+                footer
+              />
+            </div>
+          )}
+          {!fixedDensity && (
+            <DensitySwitch
+              value={density}
+              onChange={(next) => setPreferences({ density: next })}
+            />
+          )}
           <span>Rows per page</span>
           <Select
             value={String(pageSize)}
@@ -354,12 +383,6 @@ export function DataTable<T>({
               </SelectGroup>
             </SelectContent>
           </Select>
-          {!fixedDensity && (
-            <DensitySwitch
-              value={density}
-              onChange={(next) => setPreferences({ density: next })}
-            />
-          )}
         </div>
 
         <div className="flex items-center justify-between gap-3 sm:justify-start">
@@ -421,7 +444,7 @@ const DENSITIES: SegmentedOption<Preferences['density']>[] = [
 ];
 
 /**
- * Row density beside Rows per page: a labelled icon pair for the same setting
+ * Row density, before Rows per page: a labelled icon pair for the same setting
  * as Settings → General (it's remembered). Hidden on phones, which are always
  * compact.
  */
@@ -433,7 +456,7 @@ function DensitySwitch({
   onChange: (value: Preferences['density']) => void;
 }) {
   return (
-    <div className="ml-3 flex items-center gap-2 max-sm:hidden">
+    <div className="mr-3 flex items-center gap-2 max-sm:hidden">
       <span id="density-label">Density</span>
       <SegmentedControl
         size="sm"

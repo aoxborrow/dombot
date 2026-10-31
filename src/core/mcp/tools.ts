@@ -33,7 +33,10 @@ import {
   setSale,
 } from '../services/purchases';
 import { getManualPrices, setManualPrice } from '../services/pricing';
-import { setAlertsDismissed } from '../services/domain-history';
+import {
+  setAlertsDismissed,
+  setSaleTransferred,
+} from '../services/domain-history';
 import { applyDomainOp } from '../services/domain-ops';
 import {
   eventsFor,
@@ -722,6 +725,7 @@ function moneyOf(key: string) {
             date: p.saleDate ?? null,
             amount: p.saleAmount ?? null,
             currency: p.saleCurrency ?? null,
+            fees: p.saleFees ?? null,
           }
         : null,
   };
@@ -739,6 +743,10 @@ function syncFailures() {
       at: r.sync.lastErrorAt,
     }));
 }
+
+/** Which currencies an amount may be in, for each tool that takes one. */
+const CURRENCY_HELP =
+  'One of the 30 currencies DomBot converts, the European Central Bank’s reference currencies (USD, EUR, GBP, JPY, CAD, AUD and others); an amount already stored in another currency may keep it.';
 
 const resolvesParam = z
   .string()
@@ -1283,7 +1291,9 @@ export function registerTools(server: McpServer): void {
           .string()
           .max(10)
           .optional()
-          .describe('ISO 4217 code, e.g. "USD". Required unless clearing.'),
+          .describe(
+            `ISO 4217 code, e.g. "USD". Required unless clearing. ${CURRENCY_HELP}`,
+          ),
       },
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
@@ -1330,7 +1340,9 @@ export function registerTools(server: McpServer): void {
           .string()
           .max(10)
           .optional()
-          .describe('ISO 4217 code, e.g. "USD" (default USD).'),
+          .describe(
+            `ISO 4217 code, e.g. "USD" (default USD). ${CURRENCY_HELP}`,
+          ),
       },
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
@@ -1367,7 +1379,9 @@ export function registerTools(server: McpServer): void {
           .max(10)
           .nullable()
           .optional()
-          .describe('ISO 4217 code, e.g. "USD". Required with an amount.'),
+          .describe(
+            `ISO 4217 code, e.g. "USD". Required with an amount. ${CURRENCY_HELP}`,
+          ),
         kind: z
           .enum(['registered', 'purchased'])
           .optional()
@@ -1418,13 +1432,25 @@ export function registerTools(server: McpServer): void {
           .max(40)
           .nullable()
           .optional()
-          .describe('A decimal in `currency`, e.g. "5000".'),
+          .describe(
+            'A decimal in `currency`, e.g. "5000" (default: unchanged on an edit; null clears it).',
+          ),
         currency: z
           .string()
           .max(10)
           .nullable()
           .optional()
-          .describe('ISO 4217 code, e.g. "USD". Required with an amount.'),
+          .describe(
+            `ISO 4217 code, e.g. "USD". Required with an amount (default: unchanged on an edit). ${CURRENCY_HELP}`,
+          ),
+        fees: z
+          .string()
+          .max(40)
+          .nullable()
+          .optional()
+          .describe(
+            'What the sale cost (commission, escrow, broker), a decimal in `currency`; "0" for none, null for unknown (default: unchanged).',
+          ),
         resolves: resolvesParam,
         remove: z
           .boolean()
@@ -1435,7 +1461,7 @@ export function registerTools(server: McpServer): void {
       },
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
-    async ({ domain, date, amount, currency, resolves, remove }) => {
+    async ({ domain, date, amount, currency, fees, resolves, remove }) => {
       const key = assertInPortfolio(domain);
       const existing = holdings().get(key)?.sale;
       const onRecord = !!ownershipByDomain(eventsFor(key)).get(key)?.sale;
@@ -1470,14 +1496,52 @@ export function registerTools(server: McpServer): void {
         {
           domainName: key,
           saleDate: date ?? (isNew ? localDay() : existing.date),
-          amount: amount ?? null,
-          currency: currency ?? null,
+          // Left out on an edit: unchanged, as the date is (so a fees-only
+          // call keeps the price).
+          amount:
+            amount !== undefined
+              ? amount
+              : isNew
+                ? null
+                : (existing.amount ?? null),
+          currency:
+            currency !== undefined
+              ? currency
+              : isNew
+                ? null
+                : (existing.currency ?? null),
+          ...(fees !== undefined ? { fees } : {}),
           notes: getPurchases()[key]?.notes ?? '',
           ...(isNew ? { mark: true, resolves } : {}),
         },
         DomainEventSource.Agent,
       );
       return localWrite({ domain: key, ...moneyOf(key), ...ownershipOf(key) });
+    },
+  );
+
+  server.registerTool(
+    'domain_sale_transferred_set',
+    {
+      title: 'Mark a sale handed over',
+      description:
+        'For a single domain: mark its latest sale complete — the buyer has the name — though one of your accounts still shows it (a buyer often takes a name at the same registrar, or sync hasn’t run), so the Sales tab stops showing it as awaiting transfer; `transferred: false` undoes that. DomBot-local — no registrar or marketplace call. Returns { domain, transferred }.',
+      inputSchema: {
+        domain,
+        transferred: z
+          .boolean()
+          .describe('true: handed over (Mark complete); false: undo.'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, transferred }) => {
+      const key = assertInPortfolio(domain);
+      const sale = eventsFor(key)
+        .filter((e) => e.type === DomainEventType.Sold)
+        .sort((a, b) => b.id.localeCompare(a.id))[0];
+      if (!sale) throw new Error(`"${domain}" has no sale on record.`);
+      setSaleTransferred(sale.id, transferred);
+      return localWrite({ domain: key, transferred });
     },
   );
 

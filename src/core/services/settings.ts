@@ -1,8 +1,8 @@
 import type { AppSettings } from '../../shared/ipc';
+import { isRateCurrency } from '../../shared/currencies';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
-  isIsoCurrency,
   isNumberFormatId,
 } from '../../shared/money';
 import { Namespace } from '../storage/namespace';
@@ -49,9 +49,12 @@ function normalize(raw: Partial<AppSettings>): AppSettings {
       typeof raw.mcpEnabled === 'boolean'
         ? raw.mcpEnabled
         : DEFAULTS.mcpEnabled,
-    preferredCurrency: isIsoCurrency(raw.preferredCurrency)
-      ? raw.preferredCurrency.trim().toUpperCase()
-      : DEFAULTS.preferredCurrency,
+    // One of the 30 DomBot converts; one saved before the limit reads as USD.
+    preferredCurrency:
+      typeof raw.preferredCurrency === 'string' &&
+      isRateCurrency(raw.preferredCurrency.trim().toUpperCase())
+        ? raw.preferredCurrency.trim().toUpperCase()
+        : DEFAULTS.preferredCurrency,
     numberFormat: isNumberFormatId(raw.numberFormat)
       ? raw.numberFormat
       : DEFAULTS.numberFormat,
