@@ -680,11 +680,12 @@ export function FilterBar({
   // whether the switch goes on a line of its own. Worked out from the
   // row's starting state, each preset as wide as it is with no value, and
   // again only when the row's width or the set of presets changes, or the
-  // switch gets wider than it has been (its counts and options loading).
-  // So setting filters never moves the switch: chips that grow just wrap,
-  // and a switch whose counts follow the filters only narrows.
+  // switch gets wider than it has been at this width (its counts and
+  // options loading). So setting filters never moves the switch: chips
+  // that grow just wrap, and a switch whose counts follow the filters only
+  // narrows. A new width measures it afresh (a phone's fills the row).
   const decided = useRef('');
-  const switchWidth = useRef(0);
+  const switchWidth = useRef({ at: 0, width: 0 });
   useLayoutEffect(() => {
     const row = rowOf(anchor.current);
     if (!row) return;
@@ -708,12 +709,15 @@ export function FilterBar({
         parseFloat(style.paddingRight);
       const switchEl = row.querySelector('[data-toolbar-switch]')
         ?.firstElementChild as HTMLElement | null | undefined;
-      switchWidth.current = Math.max(
-        switchWidth.current,
-        switchEl?.offsetWidth ?? 0,
-      );
-      const keys = order.filter((k) => presets.includes(k));
-      const at = `${width}|${switchWidth.current}|${keys.join()}`;
+      const measured = switchEl?.offsetWidth ?? 0;
+      switchWidth.current =
+        switchWidth.current.at === width
+          ? { at: width, width: Math.max(switchWidth.current.width, measured) }
+          : { at: width, width: measured };
+      // The presets showing as chips: one whose field the page doesn't
+      // offer right now (Archive's Status, with nothing archived) has none.
+      const keys = order.filter((k) => presets.includes(k) && byKey.has(k));
+      const at = `${width}|${switchWidth.current.width}|${keys.join()}`;
       if (at === decided.current) return;
       const chips = keys.map((key) => ({
         key,
@@ -728,7 +732,7 @@ export function FilterBar({
       const layout = toolbarLayout({
         width,
         gap: parseFloat(style.columnGap) || 0,
-        switch: switchWidth.current,
+        switch: switchWidth.current.width,
         search: searchWidth(search, width),
         chips,
         // Square: as wide as it is tall.
