@@ -152,7 +152,35 @@ describe('salesByYear', () => {
   });
 });
 
+describe('currency places', () => {
+  it('reports each currency in its own decimal places', () => {
+    const yen = {
+      ...sale('a.com', '2026-03-01', '150000'),
+      currency: 'JPY',
+    } as MarketSale;
+    const years = salesByYear([yen], 'JPY');
+    expect(years[0]).toMatchObject({ gross: '150000', average: '150000' });
+    expect(salesTotal(years, 'JPY')).toMatchObject({ gross: '150000' });
+    const fx = new ExchangeRates({}, new Map([['2026-03', { JPY: 160 }]]));
+    expect(convertedTotals([yen], 'EUR', fx).price).toBe('937.50');
+    expect(
+      convertedTotals(
+        [sale('b.com', '2026-03-01', '10')],
+        'JPY',
+        new ExchangeRates({}, new Map([['2026-03', { JPY: 160, USD: 1.25 }]])),
+      ).price,
+    ).toBe('1280');
+  });
+});
+
 describe('convertedTotals', () => {
+  it('counts a sale with no net as price less commission, as salesByYear does', () => {
+    const fx = new ExchangeRates({}, new Map([['2026-03', { USD: 1.25 }]]));
+    const noNet = sale('a.com', '2026-03-01', '100', 'completed', '20');
+    expect(convertedTotals([noNet], 'USD', fx).net).toBe('80.00');
+    expect(salesByYear([noNet], 'USD', fx)[0].net).toBe('80.00');
+  });
+
   it('sums every sale in one currency', () => {
     const fx = new ExchangeRates({}, new Map([['2026-03', { USD: 1.25 }]]));
     expect(

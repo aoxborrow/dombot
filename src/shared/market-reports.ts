@@ -1,3 +1,4 @@
+import { currencyDecimals, isCurrencyCode } from './currencies';
 import type { ExchangeRates } from './exchange-rates';
 import {
   searchesOf,
@@ -10,18 +11,26 @@ import {
 // by month, sell-through and search demand, from what market sync stored.
 // Pure, so the Markets page and the MCP tools compute the same numbers.
 //
-// Amounts are summed in cents, so totals are exact decimal strings. Money is
-// in one currency: a sale in another is converted at its own month's average
-// (docs/exchange-rates.md), and one DomBot can't convert is left out and
-// counted.
+// Amounts are summed in thousandths, enough for every currency's minor unit,
+// so totals are exact decimal strings in the currency's own places ("1500"
+// in yen, "1500.00" in dollars). Money is in one currency: a sale in another
+// is converted at its own month's average (docs/exchange-rates.md), and one
+// DomBot can't convert is left out and counted.
 
-const cents = (amount: string | null | undefined) =>
-  amount ? Math.round(Number(amount) * 100) : 0;
-const decimal = (n: number) => (n / 100).toFixed(2);
+const SCALE = 1000;
+const units = (amount: string | null | undefined) =>
+  amount ? Math.round(Number(amount) * SCALE) : 0;
+/** Thousandths as a decimal in the currency's places, rounded in its minor
+ *  units (so 989.045 is 989.05, not the float's 989.04). */
+function decimal(n: number, currency: string): string {
+  const places = isCurrencyCode(currency) ? currencyDecimals(currency) : 2;
+  const minor = Math.round(n / (SCALE / 10 ** places));
+  return (minor / 10 ** places).toFixed(places);
+}
 
-/** A sale's amounts in `currency`, in cents, or null when they can't be
- *  converted. Dated by `soldOn`; one with no date takes the newest rate. */
-function saleCents(
+/** A sale's amounts in `currency`, in thousandths, or null when they can't
+ *  be converted. Dated by `soldOn`; one with no date takes the newest rate. */
+function saleUnits(
   s: MarketSale,
   currency: string,
   fx: ExchangeRates | undefined,
@@ -29,14 +38,14 @@ function saleCents(
   of: (amount: string | null | undefined) => number;
   provisional: boolean;
 } | null {
-  if (s.currency === currency) return { of: cents, provisional: false };
+  if (s.currency === currency) return { of: units, provisional: false };
   const probe = fx?.convert(0, s.currency, currency, s.soldOn);
   if (!fx || !probe) return null;
   return {
     of: (amount) =>
       amount
         ? Math.round(
-            fx.convert(amount, s.currency, currency, s.soldOn)!.amount * 100,
+            fx.convert(amount, s.currency, currency, s.soldOn)!.amount * SCALE,
           )
         : 0,
     provisional: probe.provisional,
@@ -46,6 +55,14 @@ function saleCents(
 export interface CurrencyCount {
   currency: string;
   count: number;
+}
+
+/** What you were paid: the market's net, else price less commission. */
+function netOf(
+  s: MarketSale,
+  of: (amount: string | null | undefined) => number,
+): number {
+  return s.net != null ? of(s.net) : of(s.price) - of(s.commission);
 }
 
 function addCount(counts: CurrencyCount[], currency: string, n = 1): void {
@@ -112,15 +129,12 @@ export function salesByYear(
       leftOut: [],
     };
     if (s.status === 'completed') {
-      const money = saleCents(s, currency, fx);
+      const money = saleUnits(s, currency, fx);
       if (money) {
         y.sold++;
         y.gross += money.of(s.price);
         y.commission += money.of(s.commission);
-        y.net +=
-          s.net != null
-            ? money.of(s.net)
-            : money.of(s.price) - money.of(s.commission);
+        y.net += netOf(s, money.of);
         y.provisional ||= money.provisional;
       } else addCount(y.leftOut, s.currency);
     } else if (s.status === 'cancelled') y.cancelled++;
@@ -134,21 +148,22 @@ export function salesByYear(
       sold: y.sold,
       inProgress: y.inProgress,
       cancelled: y.cancelled,
-      gross: decimal(y.gross),
-      commission: decimal(y.commission),
-      net: decimal(y.net),
-      average: y.sold ? decimal(Math.round(y.gross / y.sold)) : null,
+      gross: decimal(y.gross, currency),
+      commission: decimal(y.commission, currency),
+      net: decimal(y.net, currency),
+      average: y.sold ? decimal(Math.round(y.gross / y.sold), currency) : null,
       provisional: y.provisional,
       leftOut: y.leftOut,
     }));
 }
 
-/** The whole history's totals, as one row. */
+/** The whole history's totals, as one row, in the years' `currency`. */
 export function salesTotal(
   years: readonly SalesYear[],
+  currency = 'USD',
 ): Omit<SalesYear, 'year'> {
   const sum = (f: 'gross' | 'commission' | 'net') =>
-    years.reduce((n, y) => n + cents(y[f]), 0);
+    years.reduce((n, y) => n + units(y[f]), 0);
   const sold = years.reduce((n, y) => n + y.sold, 0);
   const leftOut: CurrencyCount[] = [];
   for (const y of years)
@@ -157,10 +172,10 @@ export function salesTotal(
     sold,
     inProgress: years.reduce((n, y) => n + y.inProgress, 0),
     cancelled: years.reduce((n, y) => n + y.cancelled, 0),
-    gross: decimal(sum('gross')),
-    commission: decimal(sum('commission')),
-    net: decimal(sum('net')),
-    average: sold ? decimal(Math.round(sum('gross') / sold)) : null,
+    gross: decimal(sum('gross'), currency),
+    commission: decimal(sum('commission'), currency),
+    net: decimal(sum('net'), currency),
+    average: sold ? decimal(Math.round(sum('gross') / sold), currency) : null,
     provisional: years.some((y) => y.provisional),
     leftOut,
   };
@@ -177,7 +192,8 @@ export interface ConvertedTotals {
   leftOut: CurrencyCount[];
 }
 
-/** Price, commission and net over `sales`, all in `currency`. */
+/** Price, commission and net over `sales`, all in `currency`. A sale with no
+ *  net counts price less commission, as `salesByYear` does. */
 export function convertedTotals(
   sales: readonly MarketSale[],
   currency: string,
@@ -189,21 +205,21 @@ export function convertedTotals(
   let provisional = false;
   const leftOut: CurrencyCount[] = [];
   for (const s of sales) {
-    const money = saleCents(s, currency, fx);
+    const money = saleUnits(s, currency, fx);
     if (!money) {
       addCount(leftOut, s.currency);
       continue;
     }
     price += money.of(s.price);
     commission += money.of(s.commission);
-    net += money.of(s.net);
+    net += netOf(s, money.of);
     provisional ||= money.provisional;
   }
   return {
     currency,
-    price: decimal(price),
-    commission: decimal(commission),
-    net: decimal(net),
+    price: decimal(price, currency),
+    commission: decimal(commission, currency),
+    net: decimal(net, currency),
     provisional,
     leftOut,
   };
