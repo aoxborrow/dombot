@@ -2,13 +2,13 @@
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
-/* Dense table styling: on phones always, and anywhere under a `.compact`
-   ancestor (Settings → General → table density). */
+/* Dense table styling: on phones and tablets (under lg) always, and anywhere
+   under a `.compact` ancestor (Settings → General → table density). */
 @custom-variant compact {
   &:where(.compact, .compact *) {
     @slot;
   }
-  @media (width < 40rem) {
+  @media (width < 64rem) {
     @slot;
   }
 }
