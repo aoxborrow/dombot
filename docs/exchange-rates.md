@@ -48,7 +48,7 @@ Limited to the 30 (built):
 - The currency dropdown: a plain list of code and name,
   no search or symbols, with USD, EUR, GBP, CNY, JPY first. Beside an amount
   it sits inside the field (`MoneyInput`'s `onCurrencyChange`), so amount and
-  currency take one row in Purchase details, Mark as Sold, Pricing, the
+  currency take one row in the purchase and sale dialogs, Pricing, the
   market listing editor and the import's typed names. A market narrows it
   (Sedo: EUR, USD, GBP; Afternic and Atom show none). Settings and the
   import's default use it on its own (`CurrencyPicker`). A record already in
@@ -63,9 +63,9 @@ Limited to the 30 (built):
   reason, and isn't imported. The import API's row schema refuses one too.
 - Preferred currency (`src/core/services/settings.ts`): one saved outside the
   30 reads as USD.
-- Dialog defaults: Mark as Sold starts in the purchase's currency only when
-  it's one of the 30, and Just Registered doesn't fill a fee quoted outside
-  them.
+- Dialog defaults: Record sale starts in the purchase's currency only when
+  it's one of the 30, and Record registration doesn't fill a fee quoted
+  outside them (the one-click one opens the dialog instead).
 
 Not limited, because they aren't entered here:
 

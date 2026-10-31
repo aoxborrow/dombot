@@ -1,6 +1,7 @@
 # Needs review — getting names on the books
 
-Planned, not built. Agreed in conversation on 2026-10-30 and 2026-10-31.
+Built in [#224](https://github.com/aoxborrow/dombot/pull/224). Agreed in
+conversation on 2026-10-30 and 2026-10-31.
 
 When a name arrives in or leaves one of your accounts, DomBot asks about the
 money: what you paid for a name that arrived, what you got for one that left.
@@ -196,12 +197,12 @@ transferred it to a registrar DomBot doesn't sync, or it was pushed away.
   review. Undo clears it, and the row is as it was.
 - **Archive gets a Dropped label** for it, between Expired and Removed:
 
-  | Label   | When                                                       |
-  | ------- | ---------------------------------------------------------- |
-  | Sold    | You recorded a sale                                        |
-  | Deleted | The registration lookup says nobody holds it               |
-  | Expired | It left after its last known expiry                        |
-  | Dropped | It left before expiry and you marked it dropped            |
+  | Label   | When                                                         |
+  | ------- | ------------------------------------------------------------ |
+  | Sold    | You recorded a sale                                          |
+  | Deleted | The registration lookup says nobody holds it                 |
+  | Expired | It left after its last known expiry                          |
+  | Dropped | It left before expiry and you marked it dropped              |
   | Removed | It left before expiry and you haven't said why: needs review |
 
   `needsReview` in `src/shared/ownership.ts` stays true only for Removed.

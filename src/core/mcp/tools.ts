@@ -1578,7 +1578,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Get a domain’s history',
       description:
-        'For a single domain: everything DomBot recorded about it, oldest first — arrivals and departures seen by sync, moves between your accounts, renewals, purchases, sales, and settings changes (`changed`: its `setting` — autoRenew, privacy, lock, nameservers, urlForwarding, emailForwarding, dns, or contacts — with `after`, and `before` when DomBot knew it) — plus its note and its current Owned/Archive state. Each event says who recorded it (`source`: sync, user, import, lookup, agent, or bulk: a bulk job in the app). Sync alerts ("added" and "removed") carry `alert` (open, dismissed, or resolved) and `resolvedBy`, the id of the event that answered it. Works for names in Archive and names no account reports. Local — no registrar call.',
+        'For a single domain: everything DomBot recorded about it, oldest first — arrivals and departures seen by sync, moves between your accounts, renewals, purchases, sales, and settings changes (`changed`: its `setting` — autoRenew, privacy, lock, nameservers, urlForwarding, emailForwarding, dns, or contacts — with `after`, and `before` when DomBot knew it) — plus its note and its current Owned/Archive state. Each event says who recorded it (`source`: sync, user, import, lookup, agent, or bulk: a bulk job in the app). Sync alerts ("added" and "removed") carry `alert` (open, dismissed, dropped: a departure you marked dropped, or resolved) and `resolvedBy`, the id of the event that answered it. Works for names in Archive and names no account reports. Local — no registrar call.',
       inputSchema: { domain },
       annotations: { readOnlyHint: true },
     },
@@ -1607,9 +1607,11 @@ export function registerTools(server: McpServer): void {
                 ? null
                 : resolvedBy
                   ? 'resolved'
-                  : e.dismissed
-                    ? 'dismissed'
-                    : 'open',
+                  : e.dropped
+                    ? 'dropped'
+                    : e.dismissed
+                      ? 'dismissed'
+                      : 'open',
               resolvedBy,
             };
           }),

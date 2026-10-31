@@ -59,12 +59,13 @@ already knows; you never set it.
 
 Names that left every account. The label comes from facts, in this order:
 
-| Label   | When                                                                            | Needs review         |
-| ------- | ------------------------------------------------------------------------------- | -------------------- |
-| Sold    | You recorded a sale (before or after it left)                                   | No                   |
-| Deleted | The registration lookup says it isn't registered (the rule in storage-model.md) | No                   |
-| Expired | It left after its last known expiry date (the `expires` on its `removed`)       | No                   |
-| Removed | It left before expiry, with no sale recorded                                    | Yes: Sold or Dismiss |
+| Label   | When                                                                            | Needs review |
+| ------- | ------------------------------------------------------------------------------- | ------------ |
+| Sold    | You recorded a sale (before or after it left)                                   | No           |
+| Deleted | The registration lookup says it isn't registered (the rule in storage-model.md) | No           |
+| Expired | It left after its last known expiry date (the `expires` on its `removed`)       | No           |
+| Dropped | It left before expiry and you marked it dropped (`dropped` on its `removed`)    | No           |
+| Removed | It left before expiry, with no sale recorded                                    | Yes          |
 
 - **Expired needs no review.** A name that leaves after its expiry date lapsed,
   or the registrar's expired-domain auction took it. Either way it's gone and
@@ -74,8 +75,10 @@ Names that left every account. The label comes from facts, in this order:
   ([#105](https://github.com/aoxborrow/dombot/issues/105)) makes that one
   reliable path.
 - **Removed is the one question left.** A name that leaves early was
-  transferred out, pushed to another account, or sold. The review answers are
-  Sold (with the price) or Dismiss. Dismissed stays Removed.
+  transferred out, pushed to another account, or sold. The answers are Record
+  sale (with the price) or Mark dropped (no money came back); Dismiss only
+  marks it read, so a dismissed one stays Removed and in Activity's Needs
+  review ([unrecorded-activity.md](unrecorded-activity.md)).
 - **A name that comes back** to one of your accounts returns to Owned, as
   today (`added`).
 
@@ -112,7 +115,9 @@ Archive from its expiry dates, with no status to set.
 That's the whole list. **Gone:** Mark as Dropped and its date field, Archive,
 Move back to Owned (the only manual label left is a sale, and undoing it is
 part of the sale dialog), the Hidden folder, and Delete for held names. A held
-name's row menu ends at Mark as Sold, with no red item.
+name's row menu ends at Record sale, with no red item. (Mark dropped, on
+Activity, is a different thing: it answers a departure that already
+happened.)
 
 ## Renewals
 
@@ -150,7 +155,8 @@ No migration concerns: get the model right while there are few users.
   `builtInFolderName` go, along with every special case for them.
 - **Nothing new is stored but one field.** Expiring, Expired, Deleted and
   Sold-pending are all worked out when shown. `ArchiveLabel` is
-  `sold | deleted | expired | removed`. Expired needs the expiry a name had
+  `sold | deleted | expired | dropped | removed` (Dropped came later, with
+  [unrecorded-activity.md](unrecorded-activity.md)). Expired needs the expiry a name had
   when it left, which no record keeps once it's gone, so sync writes it on
   the `removed` (`expires`) when it had passed, and writes that removal
   already dismissed: a lapse has nothing to review.
@@ -176,7 +182,8 @@ No migration concerns: get the model right while there are few users.
 
 ## CSV import and export
 
-- **Export** `Status`: `Owned`, `Sold`, `Expired`, `Deleted`, `Removed`.
+- **Export** `Status`: `Owned`, `Sold`, `Expired`, `Deleted`, `Dropped`,
+  `Removed`.
 - **Import** `Status`: `Sold` records a sale as today. `Owned` and an empty
   cell write nothing. `Dropped`, `Expired`, `Deleted`, `Archived` and the other
   old words are accepted and ignored with a note ("DomBot works this out from

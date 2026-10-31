@@ -67,7 +67,10 @@ export function needsReviewIds(events: DomainEvent[]): Set<string> {
   for (const list of byDomain.values()) {
     list.sort((a, b) => a.id.localeCompare(b.id));
     list.forEach((e, i) => {
-      if (e.type !== DomainEventType.Added && e.type !== DomainEventType.Removed)
+      if (
+        e.type !== DomainEventType.Added &&
+        e.type !== DomainEventType.Removed
+      )
         return;
       if (isOpenAlert(e, resolved) || missingMoney(list, i, resolved))
         out.add(e.id);

@@ -138,6 +138,7 @@ interface DomainEvent {
   resolves?: string; // a user event closing a sync-detected one
   marketSale?: string; // sold: the market-sales key it came from (docs/markets.md)
   dismissed?: boolean; // sync alert acknowledged with no action
+  dropped?: boolean; // removed: you marked it dropped; counts as dismissed
   setting?: DomainSetting; // changed: autoRenew, privacy, lock, nameservers, …
   before?: boolean | string[]; // changed: the old value, when DomBot knew it
   after?: boolean | string[]; // changed: the new value
@@ -309,20 +310,31 @@ to let it go.
 
 A top-level **Activity** page (beside Domains and Renewals) lists every domain
 event in one table, newest first: date, domain, what happened, account(s),
-amount or setting changed, source (you, sync, import, lookup, agent, bulk), and
-status. It filters by event type, setting changed, domain, account, source,
-date range, and "Needs review", and reuses the Domains
+amount or setting changed, and source (you, sync, import, lookup, agent,
+bulk). It filters by event type, setting changed, domain, account, source, and
+date range; a switch shows All or Needs review
+([unrecorded-activity.md](unrecorded-activity.md)). It reuses the Domains
 table's sorting, paging, and sticky header. A domain's row menu gets "Activity",
 which opens the same table filtered to that name.
+
+- **New and Needs review.** A new row is an alert nobody has answered or
+  dismissed (`isOpenAlert`), highlighted like unread mail; the bell and the
+  Activity tab count them. Needs review (`needsReviewIds` in
+  `src/shared/review.ts`) lists every new one and every arrival or departure
+  still missing its money, dismissed or not: a departure is answered by a lapse,
+  a sale for that holding, or Mark dropped; an arrival by a registration or
+  purchase for its holding. An alert written already dismissed (no
+  `updatedAt`: an import of a lapsed name) is its writer's answer.
 
 - **One row per event.** A resolved alert keeps its outcome ("Sold", "Came
   back", "Dismissed") with Undo, so a misclick is visible and fixable; the
   resolving event is its own row too. Nothing disappears.
-- **Review actions inline.** `removed`: Sold, Dismiss.
-  `added`: Purchase details (the dialog offers the registration fee), Dismiss.
-  Both need review, but an arrival only asks what you paid, so it's the
-  lowest-priority alert (dismiss or ignore one you don't care about). `moved`
-  is info only.
+- **Answers inline.** On a row that needs review, right after the name:
+  `added`: Record registration (one click, at the registrar's fee) and Record
+  purchase…; `removed`: Record sale… and Mark dropped (`dropped` on the
+  event: it left and no money came back); and Dismiss while it's new. The ⋯
+  menu has every option, and the selection bar the one-click ones. `moved` is
+  info only.
 - **Your own actions are rows too** (purchases, sales, imports), so Activity is
   the ledger a financial dashboard
   ([#112](https://github.com/aoxborrow/dombot/issues/112)) would build on.
@@ -333,18 +345,17 @@ which opens the same table filtered to that name.
 ### The bell
 
 The header bell always opens a dropdown, and never goes away (it shows at zero
-too). It groups items by severity:
+too). Every row has one shape: an icon colored by how much it needs you, what
+happened, and when. In order: a new DomBot release (green), amounts in
+currencies DomBot can't convert (gray), market sales waiting on you (amber),
+registrar and market sync failures (red, the only red), then the names that
+left or arrived that are still new, in their Activity Type colors (blue in,
+plain out). It only tells you; the answers are on Activity.
 
-- **Error:** registrar sync failures, expired or rejected credentials.
-- **Needs review:** unresolved `removed` events, with their actions.
-- **Added:** unresolved `added` events, with their actions. The
-  lowest-priority alert: listed after departures, and never enough on their
-  own to color the badge.
-- **Info:** `moved` events and other recent results.
-
-Its badge counts errors plus review items and takes the color of the most
-severe one: red for errors, amber for departures, gray when only new names
-are waiting. "View all activity" opens the Activity page.
+Its header says "N new", and its badge counts everything, colored as the rows:
+red with a sync error, amber with a sale to act on, plain for names, green for
+an update. "View activity" opens Needs review, and a name's row opens it on
+that name.
 
 ## Imported domains and notes
 
@@ -498,7 +509,8 @@ import; today that's only `meta`. An unknown namespace in a file is skipped.
   settings beside its expiry, so sync writes `changed` with `source: 'sync'`.
 - **Bulk Record purchase** on Activity and Domains
   ([#148](https://github.com/aoxborrow/dombot/issues/148)). The other bulk
-  review actions (Mark as Sold, Dismiss review) are built.
+  answers (Record registration, Record sale, Mark dropped, Dismiss) are
+  built.
 - **Venues** ([#109](https://github.com/aoxborrow/dombot/issues/109)).
   `registered`, `purchased`, and `sold` get a `venueId`. The list is every
   registrar DomBot supports, then built-in marketplaces (Afternic, Sedo, …),
