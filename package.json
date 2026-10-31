@@ -30,6 +30,7 @@
     "test:watch": "vitest",
     "test:live": "vitest run -c vitest.live.config.ts",
     "pricing:build": "node scripts/build-base-pricing.mjs",
+    "rates:build": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/build-exchange-rates.mjs",
     "registrars:update": "node scripts/update-registrars.mjs",
     "site:dev": "vite site",
     "site:build": "vite build site",

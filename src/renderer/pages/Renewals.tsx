@@ -28,16 +28,17 @@ import {
 import {
   dueWithin,
   groupBy,
-  mainCurrency,
+  leavesOut,
   priceOf,
   summarize,
   tldOf,
   upcomingByMonth,
   wholeMoney,
-  type CurrencyTotal,
   type Group,
   type MonthBucket,
 } from '../lib/renewals';
+import { periodLabel } from '../../shared/exchange-rates';
+import { DEFAULT_CURRENCY } from '../../shared/money';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -259,18 +260,33 @@ export default function Renewals() {
     (portfolioLoadedAt !== null ||
       allDomains.some((d) => d.source === 'imported'));
 
-  // Prices keep their own currency and are never converted: the totals are in
-  // the currency most names renew in, and any others are listed beside them.
-  const currency = useMemo(
-    () => mainCurrency(portfolio, pricing),
-    [portfolio, pricing],
+  // Totals are in your preferred currency. A price in another one is
+  // converted at the newest exchange rate held (a renewal is ahead of you);
+  // one DomBot can't convert is left out and said so.
+  const currency = useAppStore(
+    (s) => s.settings?.preferredCurrency ?? DEFAULT_CURRENCY,
   );
+  const fx = useAppStore((s) => s.exchangeRates);
   const usd = (n: number) => wholeMoney(n, currency);
   const summary = useMemo(
-    () => summarize(portfolio, pricing, currency),
-    [portfolio, pricing, currency],
+    () => summarize(portfolio, pricing, currency, fx),
+    [portfolio, pricing, currency, fx],
   );
-  const othersNote = plusOthers(summary.others);
+  const leftOutNote = leavesOut(summary.leftOut);
+  // Under the cards when a price was converted or left out.
+  const conversionNote = useMemo(() => {
+    const notes: string[] = [];
+    if (summary.converted > 0) {
+      const period = fx.ratesFor(null)?.period;
+      notes.push(
+        `In ${currency}: ${summary.converted} converted from ${summary.convertedFrom.join(', ')}${
+          period ? ` at ${periodLabel(period)} (ECB)` : ''
+        }.`,
+      );
+    }
+    if (leftOutNote) notes.push(`${leftOutNote}.`);
+    return notes.length ? notes.join(' ') : null;
+  }, [summary, fx, currency, leftOutNote]);
   // By registrar, as the Registrar filter groups them: a name you added
   // with no registrar DomBot knows goes under the one you typed, or
   // Unknown, never a blank slice.
@@ -291,8 +307,9 @@ export default function Renewals() {
         importedLabels.get(key) ??
         registrarLabel(key, portfolioRegistrarLabels),
       currency,
+      fx,
     );
-  }, [portfolio, pricing, portfolioRegistrarLabels, currency]);
+  }, [portfolio, pricing, portfolioRegistrarLabels, currency, fx]);
   // Unknown isn't a registrar.
   const registrarCount = byRegistrar.filter(
     (g) => g.key !== importedRegistrarValue(''),
@@ -305,20 +322,21 @@ export default function Renewals() {
         (d) => tldOf(d.domainName),
         (t) => (t ? `.${t}` : '—'),
         currency,
+        fx,
       ),
-    [portfolio, pricing, currency],
+    [portfolio, pricing, currency, fx],
   );
   const months = useMemo(
-    () => upcomingByMonth(portfolio, pricing, 12, currency),
-    [portfolio, pricing, currency],
+    () => upcomingByMonth(portfolio, pricing, 12, currency, fx),
+    [portfolio, pricing, currency, fx],
   );
   const due30 = useMemo(
-    () => dueWithin(portfolio, pricing, 30, currency),
-    [portfolio, pricing, currency],
+    () => dueWithin(portfolio, pricing, 30, currency, fx),
+    [portfolio, pricing, currency, fx],
   );
   const due90 = useMemo(
-    () => dueWithin(portfolio, pricing, 90, currency),
-    [portfolio, pricing, currency],
+    () => dueWithin(portfolio, pricing, 90, currency, fx),
+    [portfolio, pricing, currency, fx],
   );
 
   // Donut slices: registrar and TLD, each by domain count and by yearly spend.
@@ -378,9 +396,9 @@ export default function Renewals() {
         }
       />
 
-      {/* Totals: the small two-row cards Domains and Sales have. Amounts in
-          another currency are left out of these; the chart lists them. */}
-      <StatCardRow>
+      {/* Totals: the small two-row cards Domains and Sales have, in your
+          currency. The line under them says what was converted or left out. */}
+      <StatCardRow {...(conversionNote ? { note: conversionNote } : {})}>
         <StatCard
           size="sm"
           icon={Globe}
@@ -407,9 +425,7 @@ export default function Renewals() {
           icon={CalendarSync}
           accentClass="text-brand-500"
           label="Yearly"
-          value={[
-            { value: usd(summary.yearly), unit: othersNote || undefined },
-          ]}
+          value={[{ value: usd(summary.yearly) }]}
         />
         <StatCard
           size="sm"
@@ -514,9 +530,9 @@ function PageHeader({ view }: { view?: string }) {
 
 // ── Monthly bar chart ────────────────────────────────────────────────────────
 
-/** Totals in other currencies, e.g. "+ €45 · + £12". */
-function plusOthers(others: CurrencyTotal[]): string {
-  return others.map((o) => `+ ${wholeMoney(o.yearly, o.currency)}`).join(' · ');
+/** "leaves out 2 renewals in TWD", for a hint after a dot; null stays null. */
+function lower(note: string | null): string | null {
+  return note && note[0].toLowerCase() + note.slice(1);
 }
 
 // The bars are all a single flat blue — the month labels already tell them
@@ -567,7 +583,7 @@ function MonthlyBarChart({
                     backgroundColor: BAR_COLOR,
                   }}
                   title={`${m.label}: ${usd(m.yearly)}${
-                    m.others.length ? ` ${plusOthers(m.others)}` : ''
+                    m.leftOut.length ? ` (${lower(leavesOut(m.leftOut))})` : ''
                   } · ${m.count} domain${m.count === 1 ? '' : 's'}`}
                 />
                 {m.yearly > 0 && (

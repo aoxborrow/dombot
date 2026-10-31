@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isRateCurrency } from '../../../shared/currencies';
 import { toAscii } from '../../../shared/domain-name';
 import type { Domain } from '../../../shared/ipc';
 import {
@@ -16,7 +17,6 @@ import { ActionHeader, todayInput } from '../actions/ActionDialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CurrencyPicker } from './CurrencyPicker';
 import { MoneyInput } from './MoneyInput';
 import {
   NOTES_MAX,
@@ -84,6 +84,8 @@ export function SaleDialog({
         )
       : '',
   );
+  // A new sale starts in the purchase's currency, when it's one of the 30.
+  const bought = existing?.currency;
   const [fees, setFees] = useState(
     sale?.saleFees
       ? formatAmountInput(
@@ -94,7 +96,7 @@ export function SaleDialog({
       : '',
   );
   const [currency, setCurrency] = useState(
-    sale?.saleCurrency ?? existing?.currency ?? preferred,
+    sale?.saleCurrency ?? (isRateCurrency(bought) ? bought : preferred),
   );
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -182,14 +184,11 @@ export function SaleDialog({
             <MoneyInput
               id="sale-amount"
               currency={currency}
+              onCurrencyChange={setCurrency}
               value={amount}
               placeholder={formatAmountInput('0', currency, formatId)}
               onChange={(e) => setAmount(e.target.value)}
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label>Currency</Label>
-            <CurrencyPicker value={currency} onChange={setCurrency} />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="sale-fees">Fees</Label>

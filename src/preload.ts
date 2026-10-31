@@ -29,6 +29,7 @@ const api: DombotApi = {
   clearAllCaches: () => ipcRenderer.invoke(IpcChannels.clearAllCaches),
   getPortfolioPricing: () =>
     ipcRenderer.invoke(IpcChannels.getPortfolioPricing),
+  getExchangeRates: () => ipcRenderer.invoke(IpcChannels.getExchangeRates),
   getManualPrices: () => ipcRenderer.invoke(IpcChannels.getManualPrices),
   setManualPrice: (domain, price) =>
     ipcRenderer.invoke(IpcChannels.setManualPrice, domain, price),

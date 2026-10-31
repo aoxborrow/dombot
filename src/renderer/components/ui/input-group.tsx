@@ -16,6 +16,8 @@ function InputGroup({ className, ...props }: React.ComponentProps<'div'>) {
       className={cn(
         'relative flex h-9 items-center rounded-md border border-input bg-transparent shadow-xs transition-[color,box-shadow] outline-none dark:bg-input/30',
         ' has-[[data-slot=input-group-control]:focus-visible]:ring-2 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50',
+        // A dropdown inside the group (MoneyInput's currency) lights it too.
+        'has-[[data-slot=select-trigger]:focus-visible]:ring-2 has-[[data-slot=select-trigger]:focus-visible]:ring-ring/50',
         'has-[[data-slot=input-group-control][aria-invalid=true]]:border-destructive has-[[data-slot=input-group-control][aria-invalid=true]]:ring-destructive/20',
         className,
       )}

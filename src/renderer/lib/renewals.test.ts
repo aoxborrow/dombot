@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ExchangeRates } from '../../shared/exchange-rates';
 import type { Domain, RenewalPricing } from '../../shared/ipc';
 import {
   dueWithin,
   groupBy,
+  leavesOut,
   summarize,
   tldOf,
   upcomingByMonth,
@@ -235,7 +237,7 @@ describe('dueWithin', () => {
     expect(dueWithin([at], {}, 10).count).toBe(1);
   });
 
-  it('lists renewals in other currencies beside the total', () => {
+  it('converts renewals in other currencies, and lists the ones it can’t', () => {
     const usd = domain({
       domainName: 'usd.com',
       renewalDate: new Date('2026-06-20'),
@@ -250,20 +252,37 @@ describe('dueWithin', () => {
       [eurKey]: { ...eurPrice, currency: 'EUR' },
     };
 
+    expect(dueWithin([usd, eur], pricing, 30, 'USD', fx)).toEqual({
+      count: 2,
+      yearly: 68.25,
+      leftOut: [],
+    });
+    expect(upcomingByMonth([usd, eur], pricing, 1, 'USD', fx)[0]).toMatchObject(
+      { count: 2, priced: 2, yearly: 68.25, leftOut: [] },
+    );
+
+    // Without rates, or in a currency outside the 30, it's left out.
     expect(dueWithin([usd, eur], pricing, 30)).toEqual({
       count: 2,
       yearly: 12,
-      others: [{ currency: 'EUR', count: 1, yearly: 45 }],
+      leftOut: [{ currency: 'EUR', count: 1, yearly: 45 }],
     });
-    const jun = upcomingByMonth([usd, eur], pricing, 1)[0];
-    expect(jun).toMatchObject({
-      count: 2,
-      priced: 2,
+    const twd = { ...pricing, [eurKey]: { ...eurPrice, currency: 'TWD' } };
+    expect(upcomingByMonth([usd, eur], twd, 1, 'USD', fx)[0]).toMatchObject({
       yearly: 12,
-      others: [{ currency: 'EUR', count: 1, yearly: 45 }],
+      leftOut: [{ currency: 'TWD', count: 1, yearly: 45 }],
     });
   });
 });
+
+// One rate: 1 EUR = 1.25 USD. Renewals are ahead, so they take the newest.
+const fx = new ExchangeRates(
+  {},
+  new Map([
+    ['2026-04', { USD: 1.1 }],
+    ['2026-05', { USD: 1.25 }],
+  ]),
+);
 
 describe('currencies', () => {
   const a = domain({ domainName: 'a.com', autoRenew: true });
@@ -274,20 +293,22 @@ describe('currencies', () => {
     return [key, { ...p, currency: 'EUR' }];
   };
 
-  it('totals the currency most names renew in and lists the rest', () => {
+  it('totals in your currency, converting the others at the newest rate', () => {
     const pricing = Object.fromEntries([
       price(a, 10),
       price(b, 20),
       inEur(c, 7),
     ]);
-    const s = summarize([a, b, c], pricing);
+    const s = summarize([a, b, c], pricing, 'USD', fx);
     expect(s).toMatchObject({
       currency: 'USD',
       priced: 3,
-      yearly: 30,
+      yearly: 38.75,
       yearlyAutoRenew: 10,
-      avgPerDomain: 15,
-      others: [{ currency: 'EUR', count: 1, yearly: 7 }],
+      avgPerDomain: 38.75 / 3,
+      converted: 1,
+      convertedFrom: ['EUR'],
+      leftOut: [],
     });
     expect(
       groupBy(
@@ -296,19 +317,45 @@ describe('currencies', () => {
         (d) => tldOf(d.domainName),
         (t) => t,
         'USD',
+        fx,
       ).map((g) => [g.key, g.yearly]),
     ).toEqual([
       ['com', 30],
-      ['de', 0],
+      ['de', 8.75],
     ]);
   });
 
-  it('switches to another currency when most names use it', () => {
+  it('totals in euros when they’re your currency', () => {
     const pricing = Object.fromEntries([inEur(a, 5), inEur(b, 6), price(c, 9)]);
-    expect(summarize([a, b, c], pricing)).toMatchObject({
+    expect(summarize([a, b, c], pricing, 'EUR', fx)).toMatchObject({
       currency: 'EUR',
-      yearly: 11,
-      others: [{ currency: 'USD', yearly: 9 }],
+      yearly: 18.2,
+      converted: 1,
+      convertedFrom: ['USD'],
     });
+  });
+
+  it('leaves out what it can’t convert, and says so', () => {
+    const [key, p] = price(c, 300);
+    const pricing = Object.fromEntries([
+      price(a, 10),
+      [key, { ...p, currency: 'TWD' }],
+    ]);
+    const s = summarize([a, b, c], pricing, 'USD', fx);
+    expect(s).toMatchObject({
+      priced: 2,
+      yearly: 10,
+      avgPerDomain: 10,
+      converted: 0,
+      leftOut: [{ currency: 'TWD', count: 1, yearly: 300 }],
+    });
+    expect(leavesOut(s.leftOut)).toBe('Leaves out 1 renewal in TWD');
+    expect(
+      leavesOut([
+        { currency: 'TWD', count: 2, yearly: 1 },
+        { currency: 'KES', count: 1, yearly: 1 },
+      ]),
+    ).toBe('Leaves out 3 renewals in KES, TWD');
+    expect(leavesOut([])).toBeNull();
   });
 });

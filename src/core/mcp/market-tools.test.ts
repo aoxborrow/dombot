@@ -238,6 +238,14 @@ describe('market tools', () => {
       commission: { USD: '21.00' },
       net: { USD: '1478.25' },
     });
+    expect(all.converted).toEqual({
+      currency: 'USD',
+      price: '1499.25',
+      commission: '21.00',
+      net: '1478.25',
+      provisional: false,
+      leftOut: [],
+    });
     const recent = await call('market_sales', { from: '2026-01-01' });
     expect(recent.rows.map((s: MarketSale) => s.name)).toEqual([
       'sold-one.com',
@@ -405,6 +413,7 @@ describe('report tools', () => {
 
   it('reports sales by year, sell-through and monthly traffic', async () => {
     const report = await call('market_report_get');
+    expect(report.currency).toBe('USD');
     expect(report.salesByYear.map((y: { year: string }) => y.year)).toEqual([
       '2026',
       '2025',

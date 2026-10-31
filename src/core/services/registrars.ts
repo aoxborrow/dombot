@@ -279,8 +279,10 @@ export async function getRegistrationQuote(
       return { amount: null, currency: 'USD' };
     throw err;
   }
-  const code = currencyInfo(pricing.currency ?? 'USD')?.code ?? 'USD';
-  const decimals = currencyInfo(code)?.decimals ?? 2;
+  // A code DomBot doesn't know is no price, not a price in dollars.
+  const info = currencyInfo(pricing.currency ?? 'USD');
+  if (!info) return { amount: null, currency: 'USD' };
+  const { code, decimals } = info;
   const registration = pricing.registration;
   if (
     typeof registration !== 'number' ||

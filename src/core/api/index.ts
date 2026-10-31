@@ -34,6 +34,10 @@ import {
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
 import { getReleaseFeed } from '../services/releases';
+import {
+  getExchangeRateRows,
+  refreshExchangeRates,
+} from '../services/exchange-rates';
 import { getListPrices, setListPrices } from '../services/list-prices';
 import {
   heldNames,
@@ -274,6 +278,7 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
 
   // ── Pricing ───────────────────────────────────────────────────────────────
   getPortfolioPricing: method(none, async () => getPortfolioPricing()),
+  getExchangeRates: method(none, async () => getExchangeRateRows()),
   getManualPrices: method(none, async () => getManualPrices()),
   setManualPrice: method(
     z.tuple([s.domainName, s.renewalPriceInput.nullable()]),
@@ -285,7 +290,15 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   // ── Registrars ────────────────────────────────────────────────────────────
   listPortfolio: method(
     z.tuple([z.boolean().optional()]),
-    async (refresh = true) => getPortfolio(refresh),
+    async (refresh = true) => {
+      if (!refresh) return getPortfolio(false);
+      // Rates beside the sync, so they never hold it up.
+      const [portfolio] = await Promise.all([
+        getPortfolio(true),
+        refreshExchangeRates(),
+      ]);
+      return portfolio;
+    },
   ),
   syncRegistrar: method(
     z.tuple([s.registrarName, s.accountId]),

@@ -9,6 +9,8 @@ import { ApiValidationError, coreMethods, invoke } from './index';
 import { domainOp, folderPatch } from './schemas';
 import { broadcastBulkFinished, broadcastPortfolioChanged } from '../events';
 import { IpcChannels, type BulkJob } from '../../shared/ipc';
+import { enableRateFetch, resetRateFetch } from '../services/exchange-rates';
+import { ExchangeRates } from '../../shared/exchange-rates';
 
 let store: MemoryDocStore;
 beforeEach(async () => {
@@ -133,6 +135,51 @@ describe('invoke', () => {
       detail: {},
       pricing: {},
     });
+  });
+
+  it('a full sync brings exchange rates up to date, and only a full one', async () => {
+    // Mid-month, a month after the archive's newest: the days are due.
+    const month = new Date(
+      Date.parse(`${new ExchangeRates().newestMonth}-15`) + 31 * 864e5,
+    )
+      .toISOString()
+      .slice(0, 7);
+    const day = `${month}-14`;
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(`${month}-15T12:00:00Z`));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          `<Cube><Cube time="${day}"><Cube currency="USD" rate="1.1"/></Cube></Cube>`,
+        ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    enableRateFetch();
+    try {
+      // A euro asking price in a USD portfolio needs converting.
+      await invoke('setListPrices', coreMethods.setListPrices, [
+        [
+          {
+            domainName: 'euro.com',
+            amount: '100',
+            minOffer: null,
+            floor: null,
+            currency: 'EUR',
+          },
+        ],
+      ]);
+      await invoke('listPortfolio', coreMethods.listPortfolio, [false]);
+      expect(fetchMock).not.toHaveBeenCalled();
+      await invoke('listPortfolio', coreMethods.listPortfolio, [true]);
+      expect(fetchMock).toHaveBeenCalled();
+      expect(
+        await invoke('getExchangeRates', coreMethods.getExchangeRates, []),
+      ).toEqual({ [day]: { rates: { USD: 1.1 } } });
+    } finally {
+      resetRateFetch();
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
   });
 });
 

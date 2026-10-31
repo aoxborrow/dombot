@@ -40,7 +40,8 @@ browser on an invented portfolio, no install and no account.
 - **Sales.** Every sale in one place: what the markets report, and the private
   and imported sales you record, with fees, net, holding period and profit
   where what you paid is known. Filter by date, market, TLD or registrar and
-  the totals above follow, per currency (never converted); export to CSV. A
+  the totals above follow, in your preferred currency (a sale in another is
+  converted at its month's average exchange rate); export to CSV. A
   sale waiting on the auth code sends it from the registrar in one click.
 - **Export.** One click exports the current (filtered, sorted) view to a
   spreadsheet-friendly CSV.

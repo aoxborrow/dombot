@@ -11,12 +11,14 @@ import { useAppStore } from '../store/app';
 
 /**
  * Every sale record (src/shared/sales.ts) from what the store holds: the
- * event log, market sales, and the names the registrar accounts hold now.
+ * event log, market sales, the names the registrar accounts hold now, and
+ * the exchange rates (a cost paid in another currency than the sale's).
  */
 export function useSaleRecords(): SaleRecord[] {
   const events = useAppStore((s) => s.domainEvents);
   const marketSales = useAppStore((s) => s.marketSales);
   const portfolio = useAppStore((s) => s.portfolio);
+  const fx = useAppStore((s) => s.exchangeRates);
   return useMemo(
     () =>
       buildSaleRecords({
@@ -28,8 +30,9 @@ export function useSaleRecords(): SaleRecord[] {
             .map((d) => toAscii(d.domainName)),
         ),
         today: localDay(),
+        fx,
       }),
-    [events, marketSales, portfolio],
+    [events, marketSales, portfolio, fx],
   );
 }
 

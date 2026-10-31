@@ -90,8 +90,10 @@ Two views, switched like Domains' Active / Archive:
   Private / Imported for sales you recorded), price, commission or fees,
   net, status (completed, in progress with its step, cancelled), paid out
   on. In-progress sales pin to the top with their actions.
-- **Filters:** date range (sale date), market / source, currency. Currencies
-  are never converted or summed together; totals show per currency.
+- **Filters:** date range (sale date), market / source, currency. Totals are
+  converted to your preferred currency
+  ([exchange-rates.md](exchange-rates.md)); the currency filter shows only
+  one currency's sales, in that currency.
 - **Totals and year grouping:** the yearly totals Markets shows today
   (sold, gross, commission, net, average), as a summary above the table or a
   grouping in it.
@@ -158,6 +160,8 @@ credit the author on the commits that do (`Co-Authored-By`).
 - Date filters on the sale date; all-time includes undated sales, a bounded
   range leaves them out and says how many.
 - Currency handling: never convert, never combine; totals per currency.
+  Since replaced by converting to your preferred currency
+  ([exchange-rates.md](exchange-rates.md)).
 - The monthly sale-value trend; breakdowns by market, TLD, registrar.
 - CSV export of the filtered records, with the shared CSV formula guard.
 - Holding period and realized ROI where purchase data exists.

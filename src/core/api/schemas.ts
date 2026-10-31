@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { registrars } from '@aoxborrow/registrar-client';
 import { FOLDER_COLORS } from '../../shared/ipc';
+import { isRateCurrency } from '../../shared/currencies';
 
 // Input schemas for the API method table (api/index.ts). Every method's
 // arguments are validated against one of these before a handler runs — the
@@ -121,7 +122,10 @@ export const purchaseInput = z
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const decimal = z.string().regex(/^\d{1,15}(\.\d{1,3})?$/);
-const currencyCode = z.string().regex(/^[A-Z]{3}$/);
+// One of the 30 DomBot converts: an import enters new amounts.
+const currencyCode = z.string().refine(isRateCurrency, {
+  message: 'Not one of the 30 currencies DomBot converts.',
+});
 
 export const importRow = z
   .object({
@@ -193,7 +197,7 @@ export const importedDomainFields = z
   })
   .strict();
 
-/** A manual yearly renewal price, in any currency. */
+/** A manual yearly renewal price; the service checks the currency. */
 export const renewalPriceInput = z
   .object({ amount: z.string().max(40), currency: z.string().max(10) })
   .strict();

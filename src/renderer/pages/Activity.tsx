@@ -72,6 +72,7 @@ import {
   alertDomain,
   eventAccounts,
   eventDay,
+  eventConversion,
   eventDetails,
   resolutions,
   withinDays,
@@ -161,6 +162,7 @@ export default function Activity() {
   const importId = params.get('import');
   const numberFormat = settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
+  const fx = useAppStore((s) => s.exchangeRates);
 
   // The search lives in the URL, so the bell can open Activity on one name.
   const search = useMemo(() => params.get('q') ?? '', [params]);
@@ -618,9 +620,15 @@ export default function Activity() {
       cell: ({ shown }) => {
         const details = eventDetails(shown, numberFormat, preferred);
         // A change can name several nameservers or rules: cut it short, with
-        // the whole of it on hover.
+        // the whole of it on hover. An amount in another currency than yours
+        // shows what it was worth in yours.
         return details ? (
-          <span className="block max-w-xs truncate" title={details}>
+          <span
+            className="block max-w-xs truncate"
+            title={
+              eventConversion(shown, numberFormat, preferred, fx) ?? details
+            }
+          >
             {details}
           </span>
         ) : (

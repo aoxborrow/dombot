@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpCircle, History, X } from 'lucide-react';
+import { ArrowUpCircle, ChevronDown, Coins, History, X } from 'lucide-react';
 import { BellIcon } from '@heroicons/react/24/outline';
 import { toUnicode } from '../../../shared/domain-name';
 import {
@@ -14,6 +14,8 @@ import { syncProblems } from '../../lib/activity';
 import { timeAgo } from '../../lib/time';
 import { useAppStore } from '../../store/app';
 import { useAvailableUpdate, useUpdates } from '../../lib/updates';
+import { useUnconvertible } from '../../lib/unconvertible';
+import type { UnconvertibleAmount } from '../../../shared/unconvertible';
 import { EventTypeBadge } from './EventTypeBadge';
 import { Badge } from '@/components/ui/badge';
 import type { MarketSale } from '../../../shared/markets';
@@ -34,7 +36,8 @@ const SHOWN = 10;
  * tells you; the actions are on the Activity page, which a row opens filtered
  * to that name. The badge counts everything and takes the most severe color.
  * A newer DomBot release sits on top in green and counts toward the badge
- * until it's dismissed here; the next release brings it back.
+ * until it's dismissed here; the next release brings it back. Below it, a
+ * note lists amounts in currencies DomBot can't convert, until dismissed.
  */
 export function ActivityBell() {
   const events = useAppStore((s) => s.domainEvents);
@@ -88,14 +91,22 @@ export function ActivityBell() {
   const dismissUpdate = useUpdates((s) => s.dismiss);
   const update =
     available && available.latest.version !== dismissed ? available : null;
+  const unconvertible = useUnconvertible();
   const badge = notificationBadge(list);
-  const count = (badge?.count ?? 0) + salesToAct.length + (update ? 1 : 0);
-  // The worst severity's color, or green when the update is all there is.
+  const count =
+    (badge?.count ?? 0) +
+    salesToAct.length +
+    (update ? 1 : 0) +
+    (unconvertible.shown ? 1 : 0);
+  // The worst severity's color, green for an update, gray for the currency
+  // note when it's all there is.
   const countColor = badge
     ? SEVERITY_COUNT[badge.severity]
     : salesToAct.length
       ? SEVERITY_COUNT.high
-      : 'bg-brand text-white';
+      : update
+        ? 'bg-brand text-white'
+        : 'bg-muted-foreground text-background';
   const reviews = list.filter((n) => n.severity !== 'error').length;
   const close = () => setOpen(false);
 
@@ -193,6 +204,13 @@ export function ActivityBell() {
             </button>
           </div>
         )}
+        {unconvertible.shown && (
+          <UnconvertibleRow
+            items={unconvertible.items}
+            onDismiss={unconvertible.dismiss}
+            onNavigate={close}
+          />
+        )}
         {salesToAct.length > 0 && (
           <ul className="border-b py-1">
             {salesToAct.map((sale) => (
@@ -210,7 +228,9 @@ export function ActivityBell() {
           </ul>
         )}
         {list.length === 0 &&
-        (update || salesToAct.length > 0) ? null : list.length === 0 ? (
+        (update ||
+          salesToAct.length > 0 ||
+          unconvertible.shown) ? null : list.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">
             Nothing needs your attention.
           </p>
@@ -324,6 +344,102 @@ function NotificationRow({
         </span>
       )}
     </Link>
+  );
+}
+
+/**
+ * Amounts saved in currencies DomBot can't convert. Opens to a list of them:
+ * a purchase or sale links to the name's Activity, where its menu edits it;
+ * an asking or renewal price to its Domains row.
+ */
+function UnconvertibleRow({
+  items,
+  onDismiss,
+  onNavigate,
+}: {
+  items: UnconvertibleAmount[];
+  onDismiss: () => void;
+  onNavigate: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const n = items.length;
+  return (
+    <div className="border-b">
+      <div className="flex items-center hover:bg-foreground/5 dark:hover:bg-accent/50">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+          className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 text-left text-sm"
+        >
+          <Coins
+            className="size-4 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
+          <span className="min-w-0 flex-1 truncate">
+            <span className="font-medium">
+              {n} amount{n === 1 ? '' : 's'}
+            </span>{' '}
+            <span className="text-muted-foreground">
+              in currencies DomBot can’t convert
+            </span>
+          </span>
+          <ChevronDown
+            className={cn(
+              'size-3.5 shrink-0 text-muted-foreground transition-transform',
+              open && 'rotate-180',
+            )}
+            aria-hidden
+          />
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss the currency note"
+          title="Dismiss until there are more"
+          className="mx-1 shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+      {open && (
+        <div className="pb-1.5">
+          <p className="px-3 pb-1.5 pl-9 text-xs text-muted-foreground">
+            They stay as recorded, but DomBot can’t convert them into your
+            currency. Change each to one of the 30 it converts.
+          </p>
+          <ul className="max-h-48 overflow-y-auto">
+            {items.map((item) => {
+              const name = toUnicode(item.domain);
+              const inHistory =
+                item.kind === 'purchase' || item.kind === 'sale';
+              return (
+                <li key={`${item.domain}:${item.kind}`}>
+                  <Link
+                    to={
+                      inHistory
+                        ? `/activity?q=${encodeURIComponent(name)}`
+                        : `/?q=${encodeURIComponent(name)}`
+                    }
+                    state={inHistory ? { fresh: true } : undefined}
+                    onClick={onNavigate}
+                    className="flex items-center gap-2 py-1 pr-3 pl-9 text-sm hover:bg-foreground/5 dark:hover:bg-accent/50"
+                  >
+                    <span className="min-w-0 flex-1 truncate font-mono">
+                      {name}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {item.kind[0].toUpperCase() + item.kind.slice(1)} ·{' '}
+                      {item.currency}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 

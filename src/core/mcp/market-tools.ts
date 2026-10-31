@@ -3,11 +3,14 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { localDay } from '../../shared/domain-events';
 import { toAscii } from '../../shared/domain-name';
 import {
+  convertedTotals,
   salesByYear,
   salesTotal,
   sellThrough,
   trafficByMonth,
 } from '../../shared/market-reports';
+import { exchangeRates } from '../services/exchange-rates';
+import { getSettings } from '../services/settings';
 import { storedTraffic, trafficTotals } from '../services/markets/traffic';
 import {
   activeMarketAccounts,
@@ -275,7 +278,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'Query market sales',
       description:
-        'Sales recorded from marketplaces, newest first, as last synced: `soldOn`, `status` (completed, in_progress, cancelled), `kind` (buy_now, lease, offer), `price`, `commission`, `net`, `currency`, lease `installments`, `paidOutOn`, and `action` (what the seller must do next: auth_code, transfer, payee_details). Never includes transfer auth codes. Returns { total, totals, rows }: `totals` sums price, commission and net per currency over every match, not just the page.',
+        'Sales recorded from marketplaces, newest first, as last synced: `soldOn`, `status` (completed, in_progress, cancelled), `kind` (buy_now, lease, offer), `price`, `commission`, `net`, `currency`, lease `installments`, `paidOutOn`, and `action` (what the seller must do next: auth_code, transfer, payee_details). Never includes transfer auth codes. Returns { total, totals, converted, rows }: `totals` sums price, commission and net per currency over every match, not just the page; `converted` is the same sums all in your preferred currency (`currency`), each sale converted at its month’s average exchange rate (ECB) and a sale with no net counted as price less commission (as market_report_get does), with `provisional` when a recent sale uses a recent rate until its month’s average is out and `leftOut` counting sales in a currency DomBot can’t convert.',
       inputSchema: {
         market: marketId,
         accountId,
@@ -322,6 +325,11 @@ export function registerMarketTools(server: McpServer): void {
           commission: totals(rows, 'commission'),
           net: totals(rows, 'net'),
         },
+        converted: convertedTotals(
+          rows,
+          getSettings().preferredCurrency,
+          exchangeRates(),
+        ),
         rows: rows.slice(start, start + (args.limit ?? 50)),
       });
     },
@@ -571,19 +579,23 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'Market report',
       description:
-        'The Markets page’s report, across enabled market accounts: sales by year (completed sales: count, gross, commission, net, average; in-progress and cancelled counted beside), all-time totals, sell-through over the last 12 months (sales ÷ names listed now plus those sold), and account views and leads by month. USD amounts as decimal strings.',
+        'The Markets page’s report, across enabled market accounts: sales by year (completed sales: count, gross, commission, net, average; in-progress and cancelled counted beside), all-time totals, sell-through over the last 12 months (sales ÷ names listed now plus those sold), and account views and leads by month. Amounts are decimal strings in your preferred currency (`currency`): a sale in another is converted at its month’s average exchange rate (ECB); a year is `provisional` when a recent sale uses a recent rate until its month’s average is out, and `leftOut` counts completed sales in a currency DomBot can’t convert, which aren’t in the money.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
     async () => {
       const ids = accountIds();
+      const currency = getSettings().preferredCurrency;
       const years = salesByYear(
         marketSales().filter((s) => ids.has(s.accountId)),
+        currency,
+        exchangeRates(),
       );
       const listings = marketListings().filter((l) => ids.has(l.accountId));
       return json({
+        currency,
         salesByYear: years,
-        salesTotal: salesTotal(years),
+        salesTotal: salesTotal(years, currency),
         sellThrough: sellThrough(
           marketSales().filter((s) => ids.has(s.accountId)),
           listings,

@@ -1,16 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import type { DomainEvent } from './domain-events';
+import { ExchangeRates } from './exchange-rates';
 import type { MarketSale } from './markets';
 import {
   buildSaleRecords,
   filterSaleRecords,
   groupSaleRecords,
   NO_SALE_FILTER,
+  recordIn,
   saleRecordsCsv,
   saleTld,
   saleTotals,
+  saleTotalsIn,
   salesByMonth,
 } from './sales';
+
+// 1 EUR = 1.25 USD in January 2025 and 1.2 in January 2026; February 2026
+// has only a day's rate (no average yet).
+const fx = new ExchangeRates(
+  { '2026-02-10': { rates: { USD: 1.3 } } },
+  new Map([
+    ['2025-01', { USD: 1.25 }],
+    ['2026-01', { USD: 1.2 }],
+  ]),
+);
 
 // Adapted from PR #183's sales-analytics tests (julianengel), plus market
 // sales and their join.
@@ -63,12 +76,14 @@ const build = (
   events: DomainEvent[],
   sales: MarketSale[] = [],
   held: string[] = [],
+  rates?: ExchangeRates,
 ) =>
   buildSaleRecords({
     events,
     marketSales: sales,
     held: new Set(held),
     today: '2026-03-01',
+    fx: rates,
   });
 
 describe('buildSaleRecords', () => {
@@ -133,9 +148,19 @@ describe('buildSaleRecords', () => {
     ]);
   });
 
-  it('only uses a cost in the sale’s currency', () => {
+  it('converts a cost paid in another currency at the purchase date', () => {
     const euro = { ...purchase, currency: 'EUR' as const };
-    expect(build([euro, sale])[0].cost).toBeNull();
+    expect(build([euro, sale], [], [], fx)[0]).toMatchObject({
+      cost: '125.00',
+      costPaid: { amount: '100.00', currency: 'EUR' },
+      profit: '775.00',
+    });
+    // Without rates, or in one DomBot can't convert, the cost is unknown.
+    expect(build([euro, sale])[0]).toMatchObject({ cost: null, profit: null });
+    const twd = { ...purchase, currency: 'TWD' as const };
+    expect(build([twd, sale], [], [], fx)[0].cost).toBeNull();
+    // In the sale's own currency, nothing's converted.
+    expect(build([purchase, sale], [], [], fx)[0].costPaid).toBeNull();
   });
 
   it('never makes up a holding period from an undated purchase', () => {
@@ -331,6 +356,74 @@ describe('totals and groups', () => {
       { month: '2026-02', sold: 0, gross: '0.00' },
       { month: '2026-03', sold: 0, gross: '0.00' },
     ]);
+    // With rates, the euro sale is in dollars too.
+    expect(
+      salesByMonth(build([sale, euro]), 'USD', '2026-01-15', 1, fx),
+    ).toEqual([{ month: '2026-01', sold: 2, gross: '1240.00' }]);
+  });
+});
+
+describe('totals in one currency', () => {
+  const euro = event('03', 'sold', '2026-01-02', '200.00', {
+    domain: 'euro.io',
+    currency: 'EUR',
+    fees: '20.00',
+  });
+  const recent = event('04', 'sold', '2026-02-12', '100.00', {
+    domain: 'recent.io',
+    currency: 'EUR',
+  });
+  const twd = event('05', 'sold', '2026-01-03', '9000', {
+    domain: 'twd.tw',
+    currency: 'TWD',
+  });
+
+  it('converts each sale at its month’s average, and says how many', () => {
+    const t = saleTotalsIn(build([sale, euro]), 'USD', fx);
+    expect(t).toMatchObject({
+      currency: 'USD',
+      sold: 2,
+      gross: '1240.00',
+      fees: '124.00',
+      net: '1116.00',
+      average: '620.00',
+      converted: 1,
+      convertedFrom: ['EUR'],
+      provisional: false,
+      leftOut: [],
+    });
+    // In euros, the dollar sale is the converted one.
+    expect(saleTotalsIn(build([sale, euro]), 'EUR', fx).gross).toBe('1033.33');
+  });
+
+  it('marks a recent rate provisional, and leaves out what it can’t convert', () => {
+    const t = saleTotalsIn(build([sale, recent, twd]), 'USD', fx);
+    expect(t).toMatchObject({
+      sold: 2,
+      gross: '1130.00',
+      provisional: true,
+      leftOut: [{ currency: 'TWD', count: 1 }],
+    });
+  });
+
+  it('keeps a record as it is in its own currency, or with no price', () => {
+    const [usd] = build([sale]);
+    expect(recordIn(usd, 'USD', fx)).toEqual({
+      record: usd,
+      provisional: false,
+    });
+    const [unpriced] = build([event('06', 'sold', '2026-01-05')]);
+    expect(recordIn(unpriced, 'EUR', fx)?.record).toBe(unpriced);
+    expect(recordIn(build([twd])[0], 'USD', fx)).toBeNull();
+  });
+
+  it('groups in one currency', () => {
+    expect(
+      groupSaleRecords(build([sale, euro]), () => 'all', {
+        currency: 'USD',
+        fx,
+      }).map((g) => [g.label, g.currency, g.sold, g.gross]),
+    ).toEqual([['all', 'USD', 2, '1240.00']]);
   });
 });
 

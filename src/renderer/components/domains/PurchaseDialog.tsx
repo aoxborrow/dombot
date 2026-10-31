@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isRateCurrency } from '../../../shared/currencies';
 import { toAscii } from '../../../shared/domain-name';
 import type { Domain, RegistrarName } from '../../../shared/ipc';
 import {
@@ -16,7 +17,6 @@ import { ActionHeader, todayInput } from '../actions/ActionDialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CurrencyPicker } from './CurrencyPicker';
 import { MoneyInput } from './MoneyInput';
 import {
   NOTES_MAX,
@@ -110,12 +110,18 @@ export function PurchaseDialog({
       );
       setDate(day);
       setRegistered(true);
+      const name =
+        registrars?.find((r) => r.name === domain.registrar)?.displayName ??
+        'This registrar';
       if (!quote.amount) {
-        const name =
-          registrars?.find((r) => r.name === domain.registrar)?.displayName ??
-          'This registrar';
         setFeeNote(
           `${name} doesn't report a registration fee. The date is filled in. Type the amount you paid.`,
+        );
+        return;
+      }
+      if (!isRateCurrency(quote.currency) && quote.currency !== currency) {
+        setFeeNote(
+          `${name} quotes the fee in ${quote.currency}, which DomBot can't convert. The date is filled in. Type the amount you paid.`,
         );
         return;
       }
@@ -214,15 +220,12 @@ export function PurchaseDialog({
               <MoneyInput
                 id="purchase-amount"
                 currency={currency}
+                onCurrencyChange={setCurrency}
                 value={amount}
                 placeholder={formatAmountInput('0', currency, formatId)}
                 onChange={(e) => setAmount(e.target.value)}
               />
             </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label>Currency</Label>
-            <CurrencyPicker value={currency} onChange={setCurrency} />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="purchase-notes">Notes</Label>

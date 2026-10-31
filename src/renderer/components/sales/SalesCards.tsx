@@ -8,7 +8,8 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react';
-import { saleTotals, type SaleRecord } from '../../../shared/sales';
+import type { ExchangeRates } from '../../../shared/exchange-rates';
+import { recordIn, saleTotalsIn, type SaleRecord } from '../../../shared/sales';
 import { cn } from '@/lib/utils';
 import { compactMoney } from '../../lib/renewals';
 import { isPending } from '../../lib/sales';
@@ -19,8 +20,10 @@ import { StatCard, StatCardRow } from '../StatCard';
 // slice's totals. In the table's column order: how many, gross (with the
 // average), net (with how many lack fees), profit (with ROI), then fees
 // (their share of the price) as a fifth from 1200px; holding time stays in the
-// table. One currency at a time: amounts are never converted or combined,
-// and a line under the cards says which sales another currency leaves out.
+// table. All in one currency, your preferred one (or the one the Currency
+// filter picks): a sale in another is converted at its month's average
+// (docs/exchange-rates.md), and the line under the cards says how many
+// were, and which sales DomBot couldn't convert and left out.
 // The Pending view swaps net and profit (nothing's paid yet) for what the
 // pending sales wait on: you, or the transfer.
 
@@ -37,66 +40,65 @@ export function heldFor(days: number): string {
 export function SalesCards({
   rows,
   pendingView,
+  currency,
+  fx,
   money,
 }: {
   /** The sales the table shows. */
   rows: readonly SaleRecord[];
   /** The Pending view: only unfinished sales. */
   pendingView: boolean;
+  /** What the totals are in. */
+  currency: string;
+  fx: ExchangeRates;
   money: (amount: string | null, currency: string | null) => string | null;
 }) {
-  const { t, count, others, pending, waiting, value, expected } =
-    useMemo(() => {
-      // The currency most sales are in; sales without a price still count
-      // as sales (the first card), just not toward the money.
-      const totals = saleTotals(rows)
-        .filter((x) => x.currency)
-        .sort((a, b) => b.sold + b.inProgress - (a.sold + a.inProgress));
-      const main = totals[0] ?? null;
-      return {
-        t: main,
-        count: rows.filter((r) => r.status !== 'cancelled').length,
-        others: totals
-          .filter((x) => x !== main)
-          .map((x) => ({
-            currency: x.currency,
-            count: x.sold + x.inProgress + x.cancelled,
-          })),
-        pending: rows.filter(isPending).length,
-        // What a pending sale waits on: you (a code or payee details for
-        // the market), or the name moving to the buyer.
-        waiting: {
-          authCode: rows.filter((r) => r.step === 'auth_code').length,
-          payee: rows.filter((r) => r.step === 'payee_details').length,
-          market: rows.filter((r) => r.step === 'transfer').length,
-          held: rows.filter((r) => r.awaitingTransfer).length,
+  const { t, count, pending, waiting, value, expected } = useMemo(() => {
+    // Each sale in `currency`; one DomBot can't convert is left out.
+    const converted = rows.flatMap((r) => {
+      const c = recordIn(r, currency, fx);
+      return c ? [c.record] : [];
+    });
+    return {
+      t: saleTotalsIn(rows, currency, fx),
+      // Sales without a price still count as sales (the first card), just
+      // not toward the money.
+      count: rows.filter((r) => r.status !== 'cancelled').length,
+      pending: rows.filter(isPending).length,
+      // What a pending sale waits on: you (a code or payee details for
+      // the market), or the name moving to the buyer.
+      waiting: {
+        authCode: rows.filter((r) => r.step === 'auth_code').length,
+        payee: rows.filter((r) => r.step === 'payee_details').length,
+        market: rows.filter((r) => r.step === 'transfer').length,
+        held: rows.filter((r) => r.awaitingTransfer).length,
+      },
+      // A pending sale's price, finished or not.
+      value: converted
+        .filter((r) => r.price !== null)
+        .reduce((n, r) => n + Number(r.price), 0),
+      // What you'd be paid: each net (price less fees), where the fees
+      // are known; how many aren't.
+      expected: converted.reduce(
+        (e, r) => {
+          if (r.price === null) return e;
+          const net =
+            r.net ??
+            (r.fees === null ? null : Number(r.price) - Number(r.fees));
+          return net === null
+            ? { ...e, unknown: e.unknown + 1 }
+            : { ...e, net: e.net + Number(net), known: e.known + 1 };
         },
-        // A pending sale's price, finished or not, in the main currency.
-        value: rows
-          .filter((r) => r.price !== null && r.currency === main?.currency)
-          .reduce((n, r) => n + Number(r.price), 0),
-        // What you'd be paid: each net (price less fees), where the fees
-        // are known; how many aren't.
-        expected: rows.reduce(
-          (e, r) => {
-            if (r.price === null || r.currency !== main?.currency) return e;
-            const net =
-              r.net ??
-              (r.fees === null ? null : Number(r.price) - Number(r.fees));
-            return net === null
-              ? { ...e, unknown: e.unknown + 1 }
-              : { ...e, net: e.net + Number(net), known: e.known + 1 };
-          },
-          { net: 0, known: 0, unknown: 0 },
-        ),
-      };
-    }, [rows]);
-  const c = t?.currency ?? null;
+        { net: 0, known: 0, unknown: 0 },
+      ),
+    };
+  }, [rows, currency, fx]);
+  const c = currency;
   const dash = '—';
   // Fees over what the buyers paid for the sales with both known.
-  const feeTotal = t?.feesCount ? Number(t.fees) : 0;
+  const feeTotal = t.feesCount ? Number(t.fees) : 0;
   const feeShare =
-    t?.netCount && feeTotal
+    t.netCount && feeTotal
       ? Math.round((feeTotal / (feeTotal + Number(t.net))) * 100)
       : null;
 
@@ -105,12 +107,16 @@ export function SalesCards({
       fifthAt={pendingView ? undefined : 2}
       note={
         <>
-          Totals for the filtered data below, in {c ?? 'one currency'}.
-          {others.length > 0 &&
-            ` ${others
+          Totals for the filtered data below, in {c}.
+          {t.converted > 0 &&
+            ` ${plural(t.converted, 'sale')} in ${t.convertedFrom.join(', ')} converted at ${
+              t.converted === 1 ? 'its' : 'each'
+            } month’s average (ECB)${t.provisional ? ', or a recent rate until it’s out' : ''}.`}
+          {t.leftOut.length > 0 &&
+            ` ${t.leftOut
               .map((o) => `${plural(o.count, 'sale')} in ${o.currency}`)
-              .join(', ')} left out; filter by Currency to see ${
-              others.length === 1 && others[0].count === 1 ? 'it' : 'them'
+              .join(', ')} left out: DomBot can’t convert ${
+              t.leftOut.length === 1 ? 'it' : 'them'
             }.`}
         </>
       }
@@ -146,18 +152,18 @@ export function SalesCards({
           label="Gross"
           value={[
             {
-              value: t?.grossCount ? money(t.gross, c)! : dash,
+              value: t.grossCount ? money(t.gross, c)! : dash,
               // With Fees beside it (from 1200px), the average; without,
               // the fees, so four cards still show them.
               unit: (
                 <>
-                  {t?.feesCount && c ? (
+                  {t.feesCount ? (
                     <span className="wide:hidden">
                       {compactMoney(feeTotal, c)} fees
                     </span>
                   ) : null}
-                  {t?.average && c ? (
-                    <span className={cn(t?.feesCount ? 'max-wide:hidden' : '')}>
+                  {t.average ? (
+                    <span className={cn(t.feesCount ? 'max-wide:hidden' : '')}>
                       {compactMoney(Number(t.average), c)} avg
                     </span>
                   ) : null}
@@ -195,7 +201,7 @@ export function SalesCards({
           label="Net"
           value={[
             {
-              value: t?.netCount ? money(t.net, c)! : dash,
+              value: t.netCount ? money(t.net, c)! : dash,
               // What the buyers paid that you kept.
               unit:
                 feeShare === null ? undefined : `${100 - feeShare}% of price`,
@@ -211,9 +217,9 @@ export function SalesCards({
           label="Profit"
           value={[
             {
-              value: t?.profitCount ? money(t.profit, c)! : dash,
+              value: t.profitCount ? money(t.profit, c)! : dash,
               unit:
-                t?.profitCount && t.roi !== null
+                t.profitCount && t.roi !== null
                   ? `${Math.round(t.roi * 100).toLocaleString()}% ROI`
                   : undefined,
             },
@@ -229,9 +235,9 @@ export function SalesCards({
           label="Fees"
           value={[
             {
-              value: t?.feesCount ? money(t.fees, c)! : dash,
+              value: t.feesCount ? money(t.fees, c)! : dash,
               unit:
-                t && t.feesCount < t.sold
+                t.feesCount < t.sold
                   ? `${t.sold - t.feesCount} missing`
                   : feeShare === null
                     ? undefined
@@ -249,8 +255,7 @@ export function SalesCards({
           value={[
             {
               // Blank, not 0, when no pending sale's net is known.
-              value:
-                c && expected.known ? money(expected.net.toFixed(2), c)! : dash,
+              value: expected.known ? money(expected.net.toFixed(2), c)! : dash,
               unit: expected.unknown
                 ? `${expected.unknown} without fees`
                 : undefined,

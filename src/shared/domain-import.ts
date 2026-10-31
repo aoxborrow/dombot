@@ -1,4 +1,8 @@
-import type { CurrencyCode } from './currencies';
+import {
+  isRateCurrency,
+  notConvertible,
+  type CurrencyCode,
+} from './currencies';
 import { wholeAmount } from './list-prices';
 import { detectDelimiter, parseCsv, unguardCell } from './csv';
 import {
@@ -265,6 +269,9 @@ function readRow(
     const currency =
       named[0] ?? stated ?? readCurrency(setup.defaults.currency, pref);
     if (!currency) throw new Error(`${label(fields[0])}: choose a currency.`);
+    // Stored codes outside the 30 still read, so the reason is specific.
+    if (!isRateCurrency(currency))
+      throw new Error(`${label(fields[0])}: ${notConvertible(currency)}`);
     const amounts: Partial<Record<ImportField, string>> = {};
     for (const [f, m] of read)
       if (m) amounts[f] = at(f, () => fitAmount(m.value, currency));

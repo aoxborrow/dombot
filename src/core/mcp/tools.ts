@@ -744,6 +744,10 @@ function syncFailures() {
     }));
 }
 
+/** Which currencies an amount may be in, for each tool that takes one. */
+const CURRENCY_HELP =
+  'One of the 30 currencies DomBot converts, the European Central Bank’s reference currencies (USD, EUR, GBP, JPY, CAD, AUD and others); an amount already stored in another currency may keep it.';
+
 const resolvesParam = z
   .string()
   .max(40)
@@ -1287,7 +1291,9 @@ export function registerTools(server: McpServer): void {
           .string()
           .max(10)
           .optional()
-          .describe('ISO 4217 code, e.g. "USD". Required unless clearing.'),
+          .describe(
+            `ISO 4217 code, e.g. "USD". Required unless clearing. ${CURRENCY_HELP}`,
+          ),
       },
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
@@ -1334,7 +1340,9 @@ export function registerTools(server: McpServer): void {
           .string()
           .max(10)
           .optional()
-          .describe('ISO 4217 code, e.g. "USD" (default USD).'),
+          .describe(
+            `ISO 4217 code, e.g. "USD" (default USD). ${CURRENCY_HELP}`,
+          ),
       },
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
@@ -1371,7 +1379,9 @@ export function registerTools(server: McpServer): void {
           .max(10)
           .nullable()
           .optional()
-          .describe('ISO 4217 code, e.g. "USD". Required with an amount.'),
+          .describe(
+            `ISO 4217 code, e.g. "USD". Required with an amount. ${CURRENCY_HELP}`,
+          ),
         kind: z
           .enum(['registered', 'purchased'])
           .optional()
@@ -1431,7 +1441,7 @@ export function registerTools(server: McpServer): void {
           .nullable()
           .optional()
           .describe(
-            'ISO 4217 code, e.g. "USD". Required with an amount (default: unchanged on an edit).',
+            `ISO 4217 code, e.g. "USD". Required with an amount (default: unchanged on an edit). ${CURRENCY_HELP}`,
           ),
         fees: z
           .string()
