@@ -64,8 +64,8 @@ export const DEFAULT_DEMO_SIZE = 250;
 const MAX_LABEL_REPEATS = 2;
 
 // ── the registrars in the demo ───────────────────────────────────────────────
-// Shares sum to 1. NameSilo, NameBright and Name.com are left unconfigured
-// so the settings page shows both states. Gandi is connected and also has a
+// Shares sum to 1. Name.com is left unconfigured so the settings page shows
+// both states. Gandi is connected and also has a
 // name you added by hand (api/demo.ts), so both kinds show side by side.
 // Namecheap has two accounts with account names, to show how siblings read.
 // A registrar's first account keeps the default id (the registrar name); a
@@ -77,7 +77,7 @@ const ACCOUNTS: (Omit<DemoAccount, 'id'> & { id?: string })[] = [
     registrar: 'godaddy',
     label: 'Default',
     credentials: { apiToken: 'demo_gd_3f9a1c7e2b4d5a6f8e1c9b7d3a2f4e6c' },
-    share: 0.33,
+    share: 0.28,
   },
   {
     registrar: 'porkbun',
@@ -86,7 +86,7 @@ const ACCOUNTS: (Omit<DemoAccount, 'id'> & { id?: string })[] = [
       apiKey: 'pk1_demo_0c7d5b3a9e1f2c4d6b8a0e2f4c6d8a1b',
       secretApiKey: 'sk1_demo_8a2b4c6d0e2f4a6b8c0d2e4f6a8b0c2d',
     },
-    share: 0.25,
+    share: 0.22,
   },
   {
     registrar: 'cloudflare',
@@ -95,7 +95,7 @@ const ACCOUNTS: (Omit<DemoAccount, 'id'> & { id?: string })[] = [
       apiToken: 'demo_cf_Zt7Qk9x2Lm4Pv8Rw1Ny6Hb3Jd5Fg0Sc',
       accountId: '0123456789abcdef0123456789abcdef',
     },
-    share: 0.17,
+    share: 0.15,
   },
   {
     registrar: 'dynadot',
@@ -104,7 +104,7 @@ const ACCOUNTS: (Omit<DemoAccount, 'id'> & { id?: string })[] = [
       apiKey: 'demo_dyn_7f3e9c1a5b2d8e4f',
       apiSecret: 'demo_dyn_secret_2b8d4f6a1c3e5a7b',
     },
-    share: 0.12,
+    share: 0.1,
   },
   {
     registrar: 'namecheap',
@@ -141,6 +141,27 @@ const ACCOUNTS: (Omit<DemoAccount, 'id'> & { id?: string })[] = [
     label: 'Default',
     credentials: { apiKey: 'demo_gandi_pat_6d1f3b8e2a4c7e9f0b5d' },
     share: 0.03,
+  },
+  {
+    registrar: 'namesilo',
+    label: 'Default',
+    credentials: { apiKey: 'demo_ns_4c8e2a6b0d9f1e3a5c7b' },
+    share: 0.05,
+  },
+  {
+    registrar: 'namebright',
+    label: 'Default',
+    credentials: {
+      clientId: 'demo-namebright',
+      clientSecret: 'demo_nb_secret_9e7c5a3b1d2f4a6c',
+    },
+    share: 0.03,
+  },
+  {
+    registrar: '101domain',
+    label: 'Default',
+    credentials: { apiKey: 'demo_101_2f6a0c4e8b1d3f5a7c9e' },
+    share: 0.04,
   },
 ];
 

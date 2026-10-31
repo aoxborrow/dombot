@@ -53,7 +53,7 @@ export function SalesCards({
   fx: ExchangeRates;
   money: (amount: string | null, currency: string | null) => string | null;
 }) {
-  const { t, pending, waiting, value, expected } = useMemo(() => {
+  const { t, count, pending, waiting, value, expected } = useMemo(() => {
     // Each sale in `currency`; one DomBot can't convert is left out.
     const converted = rows.flatMap((r) => {
       const c = recordIn(r, currency, fx);
@@ -61,6 +61,9 @@ export function SalesCards({
     });
     return {
       t: saleTotalsIn(rows, currency, fx),
+      // Sales without a price still count as sales (the first card), just
+      // not toward the money.
+      count: rows.filter((r) => r.status !== 'cancelled').length,
       pending: rows.filter(isPending).length,
       // What a pending sale waits on: you (a code or payee details for
       // the market), or the name moving to the buyer.
@@ -84,9 +87,9 @@ export function SalesCards({
             (r.fees === null ? null : Number(r.price) - Number(r.fees));
           return net === null
             ? { ...e, unknown: e.unknown + 1 }
-            : { ...e, net: e.net + Number(net) };
+            : { ...e, net: e.net + Number(net), known: e.known + 1 };
         },
-        { net: 0, unknown: 0 },
+        { net: 0, known: 0, unknown: 0 },
       ),
     };
   }, [rows, currency, fx]);
@@ -126,7 +129,7 @@ export function SalesCards({
         // Finished and under way; cancelled ones aren't sales.
         value={[
           {
-            value: (t.sold + t.inProgress).toLocaleString(),
+            value: count.toLocaleString(),
             unit:
               !pendingView && pending > 0 ? `${pending} pending` : undefined,
           },
@@ -251,7 +254,8 @@ export function SalesCards({
           label="Expected net"
           value={[
             {
-              value: value ? money(expected.net.toFixed(2), c)! : dash,
+              // Blank, not 0, when no pending sale's net is known.
+              value: expected.known ? money(expected.net.toFixed(2), c)! : dash,
               unit: expected.unknown
                 ? `${expected.unknown} without fees`
                 : undefined,

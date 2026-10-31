@@ -33,7 +33,10 @@ import {
   setSale,
 } from '../services/purchases';
 import { getManualPrices, setManualPrice } from '../services/pricing';
-import { setAlertsDismissed } from '../services/domain-history';
+import {
+  setAlertsDismissed,
+  setSaleTransferred,
+} from '../services/domain-history';
 import { applyDomainOp } from '../services/domain-ops';
 import {
   eventsFor,
@@ -1514,6 +1517,31 @@ export function registerTools(server: McpServer): void {
         DomainEventSource.Agent,
       );
       return localWrite({ domain: key, ...moneyOf(key), ...ownershipOf(key) });
+    },
+  );
+
+  server.registerTool(
+    'domain_sale_transferred_set',
+    {
+      title: 'Mark a sale handed over',
+      description:
+        'For a single domain: mark its latest sale complete — the buyer has the name — though one of your accounts still shows it (a buyer often takes a name at the same registrar, or sync hasn’t run), so the Sales tab stops showing it as awaiting transfer; `transferred: false` undoes that. DomBot-local — no registrar or marketplace call. Returns { domain, transferred }.',
+      inputSchema: {
+        domain,
+        transferred: z
+          .boolean()
+          .describe('true: handed over (Mark complete); false: undo.'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domain, transferred }) => {
+      const key = assertInPortfolio(domain);
+      const sale = eventsFor(key)
+        .filter((e) => e.type === DomainEventType.Sold)
+        .sort((a, b) => b.id.localeCompare(a.id))[0];
+      if (!sale) throw new Error(`"${domain}" has no sale on record.`);
+      setSaleTransferred(sale.id, transferred);
+      return localWrite({ domain: key, transferred });
     },
   );
 

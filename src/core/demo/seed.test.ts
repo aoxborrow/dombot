@@ -42,7 +42,7 @@ describe('generateDemoSeed', () => {
       );
     }
     expect(counts.get('godaddy')!).toBeGreaterThan(counts.get('porkbun')!);
-    expect(counts.has('namesilo')).toBe(false); // left unconfigured
+    expect(counts.has('namecom')).toBe(false); // left unconfigured
     // Namecheap shows two named accounts side by side.
     expect(
       seed.accounts

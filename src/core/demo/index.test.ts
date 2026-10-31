@@ -34,7 +34,7 @@ describe('installDemo', () => {
     expect(configured.sort()).toEqual(
       demo.seed.accounts.map((a) => a.registrar).sort(),
     );
-    expect(meta.find((m) => m.name === 'namesilo')!.configured).toBe(false);
+    expect(meta.find((m) => m.name === 'namecom')!.configured).toBe(false);
     expect(
       meta
         .filter((m) => m.name === 'namecheap')

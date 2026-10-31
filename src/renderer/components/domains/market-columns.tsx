@@ -139,13 +139,13 @@ function cellState(
   if (diff)
     return {
       icon: diff > 0 ? CircleArrowUp : CircleArrowDown,
-      className: 'text-amber-600 dark:text-amber-400',
+      className: 'text-amber-500 dark:text-amber-400',
       label: diff > 0 ? 'Above your price' : 'Below your price',
       faded: false,
     };
   return {
     icon: CircleCheck,
-    className: 'text-brand/70',
+    className: 'text-brand',
     label: 'Active',
     faded: false,
   };
@@ -347,9 +347,8 @@ export function marketColumns({
                     ? 'text-muted-foreground/30 group-hover:text-muted-foreground/70'
                     : state.faded && listing.status !== 'rejected'
                       ? [state.className, 'opacity-50 group-hover:opacity-90']
-                      : // Opacity, not brightness: a brighter amber or red
-                        // turns muddy.
-                        [state.className, 'opacity-80 group-hover:opacity-100'],
+                      : // Full colour, a touch brighter on hover.
+                        [state.className, 'group-hover:brightness-115'],
                 )}
               />
             );

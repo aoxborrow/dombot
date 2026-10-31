@@ -129,7 +129,7 @@ export function NameserversEditor({
             </li>
           ))}
           {parsed.warnings.map((m) => (
-            <li key={m} className="text-amber-600 dark:text-amber-400">
+            <li key={m} className="text-amber-500 dark:text-amber-400">
               {m}
             </li>
           ))}

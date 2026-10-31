@@ -91,7 +91,7 @@ export function FlagToggle({
     return (
       <span
         role="img"
-        className="mx-auto flex h-8 items-center justify-center text-muted-foreground"
+        className="mx-auto -my-2 flex h-8 items-center justify-center text-muted-foreground/50 compact:h-7"
         title="This registrar doesn’t report WHOIS privacy through its API."
         aria-label="WHOIS privacy: Not reported"
       >

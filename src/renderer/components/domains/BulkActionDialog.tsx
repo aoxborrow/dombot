@@ -844,12 +844,12 @@ function Buckets({
       />
       <Bucket
         label="Rules the registrar can’t take — held back"
-        tone="text-amber-600 dark:text-amber-400"
+        tone="text-amber-500 dark:text-amber-400"
         items={held.map((h) => ({ name: h.domain.domainName, note: h.reason }))}
       />
       <Bucket
         label="Not supported by the registrar"
-        tone="text-amber-600 dark:text-amber-400"
+        tone="text-amber-500 dark:text-amber-400"
         items={buckets.unsupported.map((s) => ({
           name: s.domain.domainName,
           note: s.reason,

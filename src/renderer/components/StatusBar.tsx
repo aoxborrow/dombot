@@ -137,7 +137,7 @@ function SyncStatus() {
     failed > 0
       ? 'text-destructive hover:text-destructive hover:brightness-125'
       : (enabled.length === 0 || synced < enabled.length) &&
-        'text-amber-600 hover:text-amber-600 hover:brightness-125 dark:text-amber-400 dark:hover:text-amber-400';
+        'text-amber-500 hover:text-amber-500 hover:brightness-125 dark:text-amber-400 dark:hover:text-amber-400';
 
   let light = (
     <span
@@ -202,7 +202,7 @@ function SyncStatus() {
         <span
           className={cn(
             '-ml-1.5',
-            isStale(lastSyncedAt) && 'text-amber-600 dark:text-amber-400',
+            isStale(lastSyncedAt) && 'text-amber-500 dark:text-amber-400',
           )}
           title={`Last synced ${new Date(lastSyncedAt).toLocaleString()}`}
         >

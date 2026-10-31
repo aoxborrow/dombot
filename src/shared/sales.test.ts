@@ -194,8 +194,22 @@ describe('buildSaleRecords', () => {
   });
 
   it('works net out again when you recorded a different price', () => {
-    const linked = { ...sale, amount: '1100.00', marketSale: 'acc:t1' };
+    const linked = {
+      ...sale,
+      amount: '1100.00',
+      fees: undefined,
+      marketSale: 'acc:t1',
+    };
     expect(build([linked], [marketSale()])[0].net).toBe('900.00');
+  });
+
+  it('keeps the fees you recorded over the market commission', () => {
+    const linked = { ...sale, marketSale: 'acc:t1' };
+    expect(build([linked], [marketSale()])[0]).toMatchObject({
+      fees: '100.00',
+      net: '900.00',
+      feesEstimated: false,
+    });
   });
 
   it('lists market sales no event records: in progress, cancelled, bought back', () => {
