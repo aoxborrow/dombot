@@ -12,6 +12,9 @@
     @slot;
   }
 }
+/* A short window, like a laptop's: the page's vertical spacing tightens so
+   the table keeps more rows. Not on phones, which have their own spacing. */
+@custom-variant short (@media (width >= 40rem) and (height < 850px));
 
 :root {
   /* Render native scrollbars and form controls light; `.dark` flips it. */

@@ -172,7 +172,7 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        'flex min-h-36 min-w-0 flex-1 flex-col gap-[13px]',
+        'flex min-h-36 min-w-0 flex-1 flex-col gap-[13px] short:gap-[9px]',
         className,
       )}
     >
