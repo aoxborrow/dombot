@@ -139,12 +139,40 @@ export async function installDemo(
       .filter((r) => registrars[r.registrar].features.includes('getAuthCode'))
       .map((r) => r.domainName),
   );
+  const approvesTransfer = (name: string) => {
+    const record = world.get(name);
+    return (
+      !!record &&
+      registrars[record.registrar].features.includes('approveTransferOut')
+    );
+  };
   seedDemoMarkets(
     markets,
     seed.records.map((r) => r.domainName),
     seed.askingPrices,
     (name) => authCodeNames.has(name),
+    approvesTransfer,
   );
+  // The sale at its transfer step: the buyer's registrar has asked for the
+  // name, and its registrar holds it for you to answer (Approve transfer).
+  // A transfer only gets this far on an unlocked name.
+  const transferring = markets.sales
+    .get('demo-afternic')
+    ?.find((s) => s.action === 'transfer');
+  const record = transferring && world.get(transferring.name);
+  if (record && approvesTransfer(record.domainName)) {
+    const day = 24 * 60 * 60 * 1000;
+    record.locked = false;
+    record.transferOut = {
+      status: 'pending',
+      // As Dynadot reports a pending one: "None", and no expiry date.
+      rawStatus: 'None',
+      id: `demo-${record.domainName}`,
+      requestedDate: new Date(markets.now - 2 * day),
+      expirationDate: null,
+      completedDate: null,
+    };
+  }
   configureMarketFactory(demoMarketFactory(markets));
   const connected = new Set(marketAccountViews().map((a) => a.id));
   for (const a of DEMO_MARKET_ACCOUNTS) {

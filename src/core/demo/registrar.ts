@@ -21,6 +21,7 @@ import {
   type RequestOptions,
   type TldPricing,
   type TransferDomainInput,
+  type TransferOut,
 } from '@aoxborrow/registrar-client';
 import { getBaseRenewal } from '../services/base-pricing';
 
@@ -56,6 +57,8 @@ export interface DemoDomainRecord {
   domainForwards: DomainForward[];
   dnssec: DnssecStatus;
   authCode: string;
+  /** The buyer's registrar asking for the name; absent when nobody has. */
+  transferOut?: TransferOut;
 }
 
 const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
@@ -286,6 +289,55 @@ export class DemoRegistrar implements Registrar {
       'getAuthCode',
       opts,
       () => this.record(domainName).authCode,
+    );
+  }
+
+  getTransferOut(
+    domainName: string,
+    opts?: RequestOptions,
+  ): Promise<TransferOut | null> {
+    return this.call('getTransferOut', opts, () => {
+      const t = this.record(domainName).transferOut;
+      return t ? { ...t } : null;
+    });
+  }
+
+  approveTransferOut(
+    domainName: string,
+    opts?: RequestOptions,
+  ): Promise<OperationResult> {
+    return this.call('approveTransferOut', opts, () =>
+      this.answerTransferOut(domainName, true),
+    );
+  }
+
+  rejectTransferOut(
+    domainName: string,
+    opts?: RequestOptions,
+  ): Promise<OperationResult> {
+    return this.call('rejectTransferOut', opts, () =>
+      this.answerTransferOut(domainName, false),
+    );
+  }
+
+  // The answer sticks; the name stays put until a sync would see it gone.
+  private answerTransferOut(
+    domainName: string,
+    approve: boolean,
+  ): OperationResult {
+    const record = this.record(domainName);
+    if (record.transferOut?.status !== 'pending')
+      return {
+        success: false,
+        message: `No transfer-out of ${domainName} to answer`,
+      };
+    record.transferOut = {
+      ...record.transferOut,
+      status: approve ? 'approved' : 'rejected',
+      rawStatus: approve ? 'Approved' : 'Denied',
+    };
+    return this.ok(
+      `Transfer of ${domainName} ${approve ? 'approved' : 'rejected'}`,
     );
   }
 

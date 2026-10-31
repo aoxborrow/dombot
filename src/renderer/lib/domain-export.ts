@@ -27,7 +27,7 @@ export function allDomainRows(): Domain[] {
       : d,
   );
   const imported = importedRows(s.importedDomains, s.portfolio);
-  const ownership = ownershipByDomain(s.domainEvents);
+  const ownership = ownershipByDomain(s.domainEvents, s.marketSales);
   return [
     ...synced,
     ...imported,
@@ -39,7 +39,7 @@ export function allDomainRows(): Domain[] {
 export async function exportAllDomains(): Promise<number | null> {
   const s = useAppStore.getState();
   const rows = allDomainRows();
-  const ownership = ownershipByDomain(s.domainEvents);
+  const ownership = ownershipByDomain(s.domainEvents, s.marketSales);
   const csv = domainsToCsv(rows, {
     registrarLabels: s.portfolioRegistrarLabels,
     folders: s.folders,

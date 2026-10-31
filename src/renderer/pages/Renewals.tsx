@@ -143,6 +143,7 @@ export default function Renewals() {
     pricing,
     setManualPrice,
     domainEvents,
+    marketSales,
     registrationLookups,
   } = useAppStore();
 
@@ -155,8 +156,16 @@ export default function Renewals() {
         [...syncedDomains, ...importedRows(importedDomains, syncedDomains)],
         domainEvents,
         registrationLookups,
+        undefined,
+        marketSales,
       ).renewing,
-    [syncedDomains, importedDomains, domainEvents, registrationLookups],
+    [
+      syncedDomains,
+      importedDomains,
+      domainEvents,
+      marketSales,
+      registrationLookups,
+    ],
   );
   const accounts = useAppStore((s) => s.registrars);
   const multipleAccounts = useMemo(

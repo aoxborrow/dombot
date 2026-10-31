@@ -278,7 +278,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'Query market sales',
       description:
-        'Sales recorded from marketplaces, newest first, as last synced: `soldOn`, `status` (completed, in_progress, cancelled), `kind` (buy_now, lease, offer), `price`, `commission`, `net`, `currency`, lease `installments`, `paidOutOn`, and `action` (what the seller must do next: auth_code, transfer, payee_details). Never includes transfer auth codes. Returns { total, totals, converted, rows }: `totals` sums price, commission and net per currency over every match, not just the page; `converted` is the same sums all in your preferred currency (`currency`), each sale converted at its month’s average exchange rate (ECB) and a sale with no net counted as price less commission (as market_report_get does), with `provisional` when a recent sale uses a recent rate until its month’s average is out and `leftOut` counting sales in a currency DomBot can’t convert.',
+        'Sales recorded from marketplaces, newest first, as last synced: `soldOn`, `status` (completed, in_progress, cancelled), `kind` (buy_now, lease, offer), `price`, `commission`, `net`, `currency`, lease `installments`, `paidOutOn`, `action` (where a sale under way is at: auth_code and payee_details wait on you, transfer and payout on others), and `authCodeSent` (the market has the transfer auth code; null when it hasn’t said). Never includes transfer auth codes. Returns { total, totals, converted, rows }: `totals` sums price, commission and net per currency over every match, not just the page; `converted` is the same sums all in your preferred currency (`currency`), each sale converted at its month’s average exchange rate (ECB) and a sale with no net counted as price less commission (as market_report_get does), with `provisional` when a recent sale uses a recent rate until its month’s average is out and `leftOut` counting sales in a currency DomBot can’t convert.',
       inputSchema: {
         market: marketId,
         accountId,
@@ -1069,7 +1069,7 @@ export function registerMarketWriteTools(server: McpServer): void {
     {
       title: 'Send a sale its auth code',
       description:
-        'Give a market sale the transfer auth code it is waiting for (market_sales rows with `action: "auth_code"`), or correct one sent before. Leave `authCode` out and DomBot gets it from the registrar account that holds the name, as domain_auth_code_get, and sends that. The code is never returned or stored.',
+        'Give a market sale the transfer auth code it is waiting for (market_sales rows with `action: "auth_code"`), or correct one sent before. Leave `authCode` out and DomBot gets it from the registrar account that holds the name, as domain_auth_code_get, and sends that. The code is never returned or stored. The buyer can’t take a locked name: unlock it with domain_set_lock too.',
       inputSchema: {
         accountId: requiredAccount,
         saleId: z

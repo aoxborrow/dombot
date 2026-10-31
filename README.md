@@ -42,7 +42,9 @@ browser on an invented portfolio, no install and no account.
   where what you paid is known. Filter by date, market, TLD or registrar and
   the totals above follow, in your preferred currency (a sale in another is
   converted at its month's average exchange rate); export to CSV. A
-  sale waiting on the auth code sends it from the registrar in one click.
+  sale waiting on the auth code unlocks the name and sends the code from the
+  registrar in two clicks, and where the registrar holds the buyer's
+  transfer for you to answer (Dynadot), one more approves it.
 - **Export.** One click exports the current (filtered, sorted) view to a
   spreadsheet-friendly CSV.
 - **Instant, offline-friendly launch.** The whole portfolio is cached on disk

@@ -13,6 +13,7 @@ import type {
   DomainForwardHttps,
   EmailForward,
   RegistrarName,
+  TransferOutStatus,
 } from '@aoxborrow/registrar-client';
 import type { NumberFormatId } from './money';
 import type { DomainEvent } from './domain-events';
@@ -150,6 +151,7 @@ export const IpcChannels = {
   applyDomainOp: 'domain:apply',
   getUrlForwarding: 'domain:getUrlForwarding',
   getEmailForwarding: 'domain:getEmailForwarding',
+  getTransferOut: 'domain:getTransferOut',
   startBulk: 'bulk:start',
   cancelBulk: 'bulk:cancel',
   getBulkJob: 'bulk:get',
@@ -724,9 +726,27 @@ export type DomainOp =
       skipIfExisting?: boolean;
     }
   | { kind: 'authCode' }
-  | { kind: 'renew'; years: number };
+  | { kind: 'renew'; years: number }
+  /** Release a pending transfer-out (see `DomainTransferOut`) now. */
+  | { kind: 'approveTransfer' };
 
 export type DomainOpKind = DomainOp['kind'];
+
+/**
+ * A domain's outbound transfer as its registrar reports it: the request the
+ * gaining registrar made with the auth code. While it's `pending` the
+ * registrar holds the name for the owner to answer (Dynadot five days)
+ * before letting it go on its own. Dates are ISO timestamps.
+ */
+export interface DomainTransferOut {
+  status: TransferOutStatus;
+  /** The registrar's own label for it. */
+  rawStatus: string;
+  requestedAt: string | null;
+  /** When the request lapses or the registrar releases it unanswered. */
+  expiresAt: string | null;
+  completedAt: string | null;
+}
 
 export interface DomainTarget {
   accountId?: string;
@@ -1028,6 +1048,9 @@ export interface DombotApi {
   getUrlForwarding: (target: DomainTarget) => Promise<DomainForward[]>;
   /** A domain's current email forwarding rules, read live (not cached). */
   getEmailForwarding: (target: DomainTarget) => Promise<EmailForward[]>;
+  /** A domain's latest outbound transfer, read live (not cached); null when
+   *  there is none. Rejects when the registrar can't report one. */
+  getTransferOut: (target: DomainTarget) => Promise<DomainTransferOut | null>;
 
   // Bulk jobs
   /** Start applying `op` to every target. Rejects if a job is already running.

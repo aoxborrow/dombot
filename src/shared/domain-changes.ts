@@ -128,6 +128,7 @@ export function opChange(
       );
     case 'authCode':
     case 'renew':
+    case 'approveTransfer':
       return null;
   }
 }

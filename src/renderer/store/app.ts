@@ -16,6 +16,7 @@ import type {
   DomainOpResult,
   DomainPurchase,
   DomainTarget,
+  DomainTransferOut,
   DomainEvent,
   OwnershipItem,
   PurchaseInput,
@@ -169,6 +170,14 @@ interface AppState {
     op: DomainOp,
     optimistic?: Partial<Domain>,
   ) => Promise<DomainOpResult>;
+
+  // Outbound transfers read for pending sales' names, keyed like `enriched`:
+  // whether the buyer's registrar has asked for the name (Sales' Approve
+  // transfer). Read live, never persisted; null when there is none.
+  transfersOut: Record<string, DomainTransferOut | null>;
+  /** Read one name's transfer-out into `transfersOut`. A failed read stores
+   *  nothing, so the row shows no Approve transfer. */
+  loadTransferOut: (target: DomainTarget) => Promise<void>;
 
   // Annual renewal pricing, keyed by `${registrar}:${domainName}`. Backs the
   // Renewals dashboard and the Domains renewal column. Computed in main from
@@ -602,6 +611,17 @@ export const useAppStore = create<AppState>((set, get) => ({
         delete mutating[key];
         return { mutating };
       });
+    }
+  },
+  transfersOut: {},
+  loadTransferOut: async (target) => {
+    try {
+      const transfer = await window.api.getTransferOut(target);
+      set((s) => ({
+        transfersOut: { ...s.transfersOut, [domainKey(target)]: transfer },
+      }));
+    } catch {
+      // Shown as nothing to approve.
     }
   },
   enrichVisible: async (domains, force = false) => {
