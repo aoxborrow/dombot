@@ -190,7 +190,9 @@ export function saleFromAfternic(
     paidOutOn: day(s.disbursedAt),
     action: saleAction(s.status),
     // The auth code stays out: it's sensitive, and the registrar can always
-    // give a fresh one.
+    // give a fresh one. Only whether the market has one is kept; the sales
+    // list leaves it out, so there a missing code says nothing.
+    authCodeSent: s.authCode ? true : null,
   };
 }
 
@@ -452,7 +454,13 @@ export class AfternicAdapter implements MarketAdapter, AfternicActions {
 
   async getSale(saleId: string): Promise<MarketSale | null> {
     const sale = await this.client.getSale(saleId);
-    return sale ? saleFromAfternic(sale, this.accountId) : null;
+    // The single sale does carry the code, so here a missing one is a no.
+    return sale
+      ? {
+          ...saleFromAfternic(sale, this.accountId),
+          authCodeSent: !!sale.authCode,
+        }
+      : null;
   }
 
   async accountStats(days: number): Promise<MarketStatsDay[]> {

@@ -60,6 +60,9 @@ const SALES_OVERLAP_DAYS = 45;
 /** Stats read on an account's first sync, then on later ones. */
 const FIRST_STATS_DAYS = 365;
 const LATER_STATS_DAYS = 7;
+/** Sales under way read one by one per sync, for whether the market has
+ *  the auth code (its list doesn't say). */
+const UNDER_WAY_READS = 20;
 /** How long a listing the market is still checking stays pending. */
 const PENDING_KEEP_DAYS = 7;
 const UNCONFIRMED_NOTE = 'Not listed after a week';
@@ -261,7 +264,35 @@ async function runMarketSync(accountId: string): Promise<void> {
             .slice(0, 10)
         : undefined;
       const read = await adapter.allSales(since);
-      void sales.setMany(read.map((s) => [`${accountId}:${s.id}`, s]));
+      // A list that doesn't say whether the market has a sale's auth code
+      // keeps what an earlier read of the sale found.
+      void sales.setMany(
+        read.map((s) => {
+          const key = `${accountId}:${s.id}`;
+          const sent = s.authCodeSent ?? sales.get(key)?.authCodeSent ?? null;
+          return [key, { ...s, authCodeSent: sent }];
+        }),
+      );
+      // Only a market's single sale says whether it has the auth code, so
+      // sales under way are read one by one until it does. One that fails
+      // keeps what was stored.
+      if (caps.saleAuthCode && adapter.getSale) {
+        const underWay = accountSales(accountId)
+          .filter(
+            (s) =>
+              (s.status === 'in_progress' || s.status === 'unknown') &&
+              (s.authCodeSent !== true || s.action === 'auth_code'),
+          )
+          .slice(0, UNDER_WAY_READS);
+        for (const s of underWay) {
+          try {
+            const fresh = await adapter.getSale(s.id);
+            if (fresh) void sales.set(saleKey(fresh), fresh);
+          } catch (err) {
+            console.error('[markets] reading a sale under way failed', err);
+          }
+        }
+      }
       // The same sale kept from an account since removed (the account was
       // reconnected under a new id) is this one now: drop the old record so
       // it isn't counted twice. Every sale this account has is compared, not

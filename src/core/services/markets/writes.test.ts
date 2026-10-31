@@ -117,7 +117,12 @@ vi.mock('./registry', async () => {
         fake.authCodes.push([saleId, code]);
         fake.sales = fake.sales.map((s) =>
           s.id === saleId
-            ? { ...s, statusRaw: 'PENDING_TRANSFER', action: 'transfer' }
+            ? {
+                ...s,
+                statusRaw: 'PENDING_TRANSFER',
+                action: 'transfer',
+                authCodeSent: true,
+              }
             : s,
         );
       },
@@ -367,6 +372,7 @@ describe('setSaleAuthCode', () => {
     expect(marketSale(ID, 'tx-1')).toMatchObject({
       statusRaw: 'PENDING_TRANSFER',
       action: 'transfer',
+      authCodeSent: true,
     });
   });
 

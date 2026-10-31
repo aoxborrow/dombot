@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DomainEvent } from './domain-events';
 import type { Domain, RegistrarMeta } from './ipc';
+import type { MarketSale } from './markets';
 import {
   IMPORTED_ARCHIVE_DAYS,
   archiveRows,
@@ -60,6 +61,7 @@ describe('ownershipByDomain', () => {
       sale: sold,
       removal: null,
       lastAccountId: 'porkbun',
+      marketSale: null,
     });
   });
 
@@ -85,6 +87,72 @@ describe('ownershipByDomain', () => {
         }),
       ])?.removal,
     ).toBeNull();
+  });
+});
+
+describe('a market sale under way', () => {
+  const sale = (patch: Partial<MarketSale> = {}): MarketSale => ({
+    market: 'afternic',
+    accountId: 'afternic-1',
+    id: 'tx-1',
+    name: 'a.com',
+    soldOn: '2026-10-28',
+    status: 'in_progress',
+    statusRaw: 'PENDING_TRANSFER',
+    kind: 'buy_now',
+    price: '2499',
+    commission: null,
+    commissionEstimated: false,
+    net: null,
+    currency: 'USD',
+    installments: null,
+    paidOutOn: null,
+    action: 'transfer',
+    ...patch,
+  });
+  const under = (events: DomainEvent[], sales: MarketSale[]) =>
+    ownershipByDomain(events, sales).get('a.com');
+
+  it('makes a name you hold Sold, out of renewals', () => {
+    const o = under([], [sale()]);
+    expect(o?.marketSale?.id).toBe('tx-1');
+    expect(standingOf(row(), o, null, NOW)).toMatchObject({
+      archived: false,
+      salePending: true,
+    });
+    const { renewing } = ownedAndRenewing([row()], [], {}, NOW, [sale()]);
+    expect(renewing).toEqual([]);
+  });
+
+  it('is Sold, not Removed, once the name has left', () => {
+    const o = under([event({ type: 'removed', date: '2026-10-30' })], [sale()]);
+    expect(standingOf(row({ departed: true }), o, null, NOW).label).toBe(
+      'sold',
+    );
+  });
+
+  it('leaves out leases, finished sales, and names that arrived since', () => {
+    expect(under([], [sale({ kind: 'lease' })])).toBeUndefined();
+    expect(under([], [sale({ status: 'completed' })])).toBeUndefined();
+    expect(under([], [sale({ status: 'cancelled' })])).toBeUndefined();
+    // The market's sales include your purchases: the name came to you.
+    expect(
+      under([event({ type: 'added', date: '2026-10-28' })], [sale()])
+        ?.marketSale,
+    ).toBeNull();
+    // Arrived long before it sold: a sale.
+    expect(
+      under([event({ type: 'added', date: '2020-01-01' })], [sale()])
+        ?.marketSale?.id,
+    ).toBe('tx-1');
+  });
+
+  it('gives way to the sold event once the market completes it', () => {
+    const sold = event({ type: 'sold', source: 'sync' });
+    expect(under([sold], [sale()])).toMatchObject({
+      sale: sold,
+      marketSale: null,
+    });
   });
 });
 
