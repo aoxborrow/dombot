@@ -73,7 +73,7 @@ export default function GeneralSettings() {
         <SettingsField
           label="Density"
           htmlFor="pref-density"
-          description="Row spacing and text size. Phones always use the compact layout."
+          description="Row spacing and text size. Phones, tablets and narrow windows always use the compact layout."
         >
           <div>
             <Select

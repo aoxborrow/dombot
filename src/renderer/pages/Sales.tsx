@@ -768,8 +768,8 @@ export default function Sales() {
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
-      <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1">
-        <div className="mb-1 flex min-h-9 items-start justify-between gap-4">
+      <div className="-m-1 flex min-h-0 flex-col gap-[13px] overflow-y-auto p-1 short:gap-[9px]">
+        <div className="mb-1 flex min-h-9 items-start justify-between gap-4 short:mb-0">
           <h1 className="mt-1.5 flex min-w-0 items-baseline gap-2.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
             Sales
             {/* The view, as on Domains. */}
