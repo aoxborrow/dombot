@@ -334,8 +334,10 @@ export function DataTable<T>({
                 >
                   {/* Pinned to the visible width, less the frame's border and
                       the cell's padding, so it stays centred in view when the
-                      columns are wider than the screen. */}
-                  <div className="sticky left-0 w-[calc(100cqw-18px)]">
+                      columns are wider than the screen. A plain sentence (no
+                      matches) is the size of an EmptyState title; an EmptyState
+                      sets its own sizes. */}
+                  <div className="sticky left-0 w-[calc(100cqw-18px)] text-lg">
                     {empty}
                   </div>
                 </TableCell>

@@ -34,7 +34,11 @@ export function EmptyState({
       className={cn(
         // Table cells don't wrap; this does.
         'whitespace-normal',
-        boxed ? 'rounded-md border border-dashed' : 'p-0 md:p-0',
+        // In a table, room above and below so a tall one (with buttons)
+        // doesn't crowd the column names.
+        boxed
+          ? 'rounded-md border border-dashed'
+          : 'px-0 py-10 md:px-0 md:py-10',
         className,
       )}
     >
