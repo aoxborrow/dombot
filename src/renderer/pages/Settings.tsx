@@ -12,7 +12,8 @@ import GeneralSettings from './settings/GeneralSettings';
 import RegistrarsSettings from './settings/RegistrarsSettings';
 import MarketsSettings from './settings/MarketsSettings';
 import McpClientsSettings from './settings/McpClientsSettings';
-import DataSettings from './settings/DataSettings';
+import SyncSettings from './settings/SyncSettings';
+import ImportExportSettings from './settings/ImportExportSettings';
 import FoldersSettings from './settings/FoldersSettings';
 import ProxySettings from './settings/ProxySettings';
 import AboutSettings from './settings/AboutSettings';
@@ -25,7 +26,8 @@ const SECTIONS = [
   { value: 'registrars', label: 'Registrars' },
   { value: 'markets', label: 'Markets' },
   { value: 'proxy', label: 'Proxy' },
-  { value: 'data', label: 'Sync' },
+  { value: 'sync', label: 'Sync' },
+  { value: 'import-export', label: 'Import/Export' },
   { value: 'folders', label: 'Folders' },
   { value: 'mcp', label: 'MCP' },
   { value: 'about', label: 'About' },
@@ -116,8 +118,11 @@ export default function Settings() {
           <TabsContent value="mcp">
             <McpClientsSettings />
           </TabsContent>
-          <TabsContent value="data">
-            <DataSettings />
+          <TabsContent value="sync">
+            <SyncSettings />
+          </TabsContent>
+          <TabsContent value="import-export">
+            <ImportExportSettings />
           </TabsContent>
           <TabsContent value="about">
             <AboutSettings />

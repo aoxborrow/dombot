@@ -1,11 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { CircleAlert, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../store/app';
-import { timeAgo } from '../lib/time';
-import { isStale, staleAccounts, useSyncState } from '../lib/sync-state';
+import { syncSummary, useSyncState, type SyncLevel } from '../lib/sync-state';
+import { SYNC_TONE, SyncStatusLabel, SyncTime } from './SyncStatus';
 import { ModeToggle } from './mode-toggle';
 import {
   isDemo,
@@ -84,22 +83,26 @@ export default function StatusBar() {
   );
 }
 
+/** A warning keeps its colour on hover, a touch brighter. */
+const TONE_HOVER: Record<SyncLevel, string> = {
+  ok: '',
+  warn: 'hover:text-amber-500 hover:brightness-125 dark:hover:text-amber-400',
+  error: 'hover:text-destructive hover:brightness-125',
+};
+
 /**
  * The sync status, with one light for all of it: how many enabled registrar
- * and market accounts synced (a link to Settings → Registrars, or Markets
- * when that's where the trouble is) and when. Syncing itself is on the
- * Domains page and in Settings (and the menu on phones). Red
- * with an alert icon when an account failed, amber while some haven't synced
- * yet or not in over a week. The time is the latest sync of any account, amber only once
- * even that is old. Below lg the words shorten so they clear the
- * centered theme toggle.
+ * and market accounts synced (a link to Settings → Sync, which lists any
+ * that need you) and when. Syncing itself is on the Domains page and in
+ * Settings (and the menu on phones). Red with an alert icon when an account
+ * failed, amber while some haven't synced yet or not in over a week. The
+ * time is the latest sync of any account, amber only once even that is old.
+ * Below lg the words shorten so they clear the centered theme toggle.
  */
 function SyncStatus() {
   const navigate = useNavigate();
-  const registrars = useAppStore((s) => s.registrars);
-  const marketAccounts = useAppStore((s) => s.marketAccounts);
   const state = useSyncState();
-  const { syncing, lastSyncedAt, accounts: enabled, unit } = state;
+  const { syncing, lastSyncedAt, accounts, unit, loaded } = state;
 
   // The desktop app menu's Sync Now does what the Domains page's Sync does,
   // or says why it can't (just synced, a bulk job running, nothing set up).
@@ -119,109 +122,24 @@ function SyncStatus() {
   );
 
   // Hidden until both kinds of account are known, so the count doesn't jump.
-  if (registrars === null || marketAccounts === null) return null;
+  if (!loaded) return null;
 
-  // Only enabled accounts count: a disabled one keeps its credentials but
-  // never syncs. One counts as synced when its last sync succeeded within the
-  // staleness window; syncing one account doesn't vouch for the others.
-  const staleOnes = staleAccounts(enabled);
-  const stale = staleOnes.length;
-  const failedOnes = enabled.filter((a) => a.lastError != null);
-  const failed = failedOnes.length;
-  const unsynced = enabled.filter(
-    (a) => a.lastSyncedAt == null && a.lastError == null,
-  );
-  const synced = enabled.length - failed - stale - unsynced.length;
-  const one = (n: number) => (n === 1 ? unit.replace(/s$/, '') : unit);
-  // The Settings tab with the trouble: failures first, then stale or unsynced
-  // accounts; with none, Registrars, unless markets are all there is.
-  const trouble = [failedOnes, staleOnes, unsynced].find((l) => l.length > 0);
-  const tab = trouble
-    ? trouble.some((a) => a.kind === 'registrar')
-      ? 'registrars'
-      : 'markets'
-    : enabled.length > 0 && enabled.every((a) => a.kind === 'market')
-      ? 'markets'
-      : 'registrars';
-  const open = `open ${tab === 'markets' ? 'market' : 'registrar'} settings`;
-  const tone =
-    failed > 0
-      ? 'text-destructive hover:text-destructive hover:brightness-125'
-      : (enabled.length === 0 || synced < enabled.length) &&
-        'text-amber-500 hover:text-amber-500 hover:brightness-125 dark:text-amber-400 dark:hover:text-amber-400';
-
-  let light = (
-    <span
-      className={cn(
-        'size-2 rounded-full',
-        enabled.length > 0 && synced === enabled.length
-          ? 'bg-brand'
-          : 'bg-amber-500 dark:bg-amber-400',
-      )}
-      aria-hidden
-    />
-  );
-  if (syncing)
-    light = <RefreshCw className="size-3 animate-spin" aria-hidden />;
-  else if (failed > 0) light = <CircleAlert className="size-3.5" aria-hidden />;
-
-  const label = syncing
-    ? 'Syncing…'
-    : enabled.length === 0
-      ? `No ${unit} to sync`
-      : failed > 0
-        ? `${failed} of ${enabled.length} ${one(enabled.length)} failed`
-        : stale > 0
-          ? `${stale} of ${enabled.length} ${one(enabled.length)} stale`
-          : `${synced}/${enabled.length} ${unit} synced`;
-  const short = syncing
-    ? 'Syncing…'
-    : enabled.length === 0
-      ? `No ${unit}`
-      : failed > 0
-        ? `${failed} failed`
-        : stale > 0
-          ? `${stale} stale`
-          : `${synced}/${enabled.length} synced`;
-
+  const summary = syncSummary(accounts, unit);
   return (
     <div className="flex items-center gap-3">
       <button
         type="button"
-        onClick={() => navigate(`/settings?tab=${tab}`)}
+        onClick={() => navigate('/settings?tab=sync')}
         className={cn(
           'inline-flex items-center gap-1.5 rounded-sm hover:text-foreground',
-          !syncing && tone,
+          !syncing && [SYNC_TONE[summary.level], TONE_HOVER[summary.level]],
         )}
-        title={
-          enabled.length === 0
-            ? `No ${unit} set up — ${open}`
-            : failed > 0
-              ? `${failed} ${one(failed)} failed to sync — ${open}`
-              : stale > 0
-                ? `${stale} ${one(stale)} not synced in over a week — ${open}`
-                : synced === enabled.length
-                  ? `All ${unit} synced — ${open}`
-                  : `${enabled.length - synced} ${one(enabled.length - synced)} not synced yet — ${open}`
-        }
+        title={`${summary.title} — open sync settings`}
       >
-        {light}
-        <span className="hidden lg:inline">{label}</span>
-        <span className="lg:hidden">{short}</span>
+        <SyncStatusLabel summary={summary} syncing={syncing} short />
       </button>
-      {lastSyncedAt !== null && enabled.length > 0 && !syncing && (
-        <span
-          className={cn(
-            '-ml-1.5',
-            isStale(lastSyncedAt) && 'text-amber-500 dark:text-amber-400',
-          )}
-          title={`Last synced ${new Date(lastSyncedAt).toLocaleString()}`}
-        >
-          <span aria-hidden className="mr-1.5 text-muted-foreground">
-            ·
-          </span>
-          {timeAgo(lastSyncedAt)}
-        </span>
+      {lastSyncedAt !== null && summary.total > 0 && !syncing && (
+        <SyncTime at={lastSyncedAt} className="-ml-1.5" />
       )}
     </div>
   );

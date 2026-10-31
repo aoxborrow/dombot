@@ -42,30 +42,42 @@ export function marketAccountTitle(market: string, label: string): string {
   return label && label !== market ? `${market} · ${label}` : market;
 }
 
+/** A market account's name as its card shows it, from the catalog. */
+export function marketAccountName(
+  account: MarketAccountView,
+  catalog: MarketInfo[],
+): string {
+  return marketAccountTitle(
+    catalog.find((m) => m.id === account.market)?.name ?? account.market,
+    account.label,
+  );
+}
+
 /**
- * Enabled market accounts whose last sync failed. A market sync error leads
- * with the account's label, which the failure's own account name repeats, so
- * that's dropped from the message.
+ * A market account's last sync error, if any. It leads with the account's
+ * label, which wherever it's shown already names the account, so that's
+ * dropped.
  */
+export function marketSyncError(account: MarketAccountView): string | null {
+  const error = account.sync?.lastError;
+  if (!error) return null;
+  const prefix = `${account.label}: `;
+  return error.startsWith(prefix) ? error.slice(prefix.length) : error;
+}
+
+/** Enabled market accounts whose last sync failed. */
 export function marketSyncFailures(
   accounts: MarketAccountView[] | null,
   catalog: MarketInfo[],
 ): SyncFailure[] {
   return (accounts ?? [])
     .filter((a) => a.configured && a.enabled && a.sync?.lastError)
-    .map((a) => {
-      const error = a.sync!.lastError!;
-      const prefix = `${a.label}: `;
-      return {
-        accountId: a.id,
-        account: marketAccountTitle(
-          catalog.find((m) => m.id === a.market)?.name ?? a.market,
-          a.label,
-        ),
-        message: error.startsWith(prefix) ? error.slice(prefix.length) : error,
-        at: a.sync!.at,
-      };
-    });
+    .map((a) => ({
+      accountId: a.id,
+      account: marketAccountName(a, catalog),
+      message: marketSyncError(a)!,
+      at: a.sync!.at,
+    }));
 }
 
 export interface Notification {

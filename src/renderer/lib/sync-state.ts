@@ -1,8 +1,10 @@
 import { useEffect, useReducer } from 'react';
 import { toast } from 'sonner';
 import type { RegistrarMeta } from '../../shared/ipc';
-import type { MarketAccountView } from '../../shared/markets';
+import type { MarketAccountView, MarketInfo } from '../../shared/markets';
+import { marketAccountName, marketSyncError } from '../../shared/notifications';
 import { useAppStore } from '../store/app';
+import { accountName } from './domain-history';
 import { isDemo } from './platform';
 import { multiAccountRegistrars } from './registrar-accounts';
 
@@ -23,6 +25,9 @@ export function isStale(fetchedAt: number): boolean {
 /** One account a Sync covers, registrar or market alike. */
 export interface SyncAccount {
   kind: 'registrar' | 'market';
+  id: string;
+  /** As its card names it. */
+  name: string;
   /** Its last good sync (ms epoch), or null when it never synced. */
   lastSyncedAt: number | null;
   lastError: string | null;
@@ -36,12 +41,15 @@ export interface SyncAccount {
 export function syncAccounts(
   registrars: RegistrarMeta[] | null,
   markets: MarketAccountView[] | null,
+  catalog: MarketInfo[] = [],
 ): SyncAccount[] {
   return [
     ...(registrars ?? [])
       .filter((r) => r.configured && r.enabled)
       .map((r) => ({
         kind: 'registrar' as const,
+        id: r.accountId ?? r.name,
+        name: accountName(registrars, r.accountId ?? r.name) ?? r.displayName,
         lastSyncedAt: r.sync.lastSyncedAt,
         lastError: r.sync.lastError,
       })),
@@ -49,9 +57,11 @@ export function syncAccounts(
       .filter((a) => a.configured && a.enabled)
       .map((a) => ({
         kind: 'market' as const,
+        id: a.id,
+        name: marketAccountName(a, catalog),
         // A market account's `at` is its last attempt, good or not.
         lastSyncedAt: a.sync && a.sync.lastError == null ? a.sync.at : null,
-        lastError: a.sync?.lastError ?? null,
+        lastError: marketSyncError(a),
       })),
   ];
 }
@@ -78,6 +88,87 @@ export function syncUnit(
     multiAccountRegistrars(registrars ?? []).size > 0
     ? 'accounts'
     : 'registrars';
+}
+
+/** How one account's sync stands: failed, good but over a week old, never
+ * synced, or synced. */
+export function accountSyncState(
+  a: SyncAccount,
+): 'failed' | 'stale' | 'unsynced' | 'synced' {
+  if (a.lastError != null) return 'failed';
+  if (a.lastSyncedAt == null) return 'unsynced';
+  return isStale(a.lastSyncedAt) ? 'stale' : 'synced';
+}
+
+/** Green when every account synced, red when one failed, amber otherwise. */
+export type SyncLevel = 'ok' | 'warn' | 'error';
+
+export interface SyncSummary {
+  total: number;
+  synced: number;
+  failed: number;
+  stale: number;
+  level: SyncLevel;
+  /** "14/14 accounts synced", "1 of 14 accounts failed", … */
+  label: string;
+  /** The same in a word or two, for a narrow status bar. */
+  short: string;
+  /** A sentence for a tooltip. */
+  title: string;
+}
+
+/**
+ * How the accounts' syncs stand, in one light and a few words: the status
+ * bar's and Settings → Sync's. An account counts as synced when its last
+ * sync succeeded within the staleness window; syncing one account doesn't
+ * vouch for the others.
+ */
+export function syncSummary(
+  accounts: SyncAccount[],
+  unit: 'accounts' | 'registrars',
+): SyncSummary {
+  const count = (state: ReturnType<typeof accountSyncState>) =>
+    accounts.filter((a) => accountSyncState(a) === state).length;
+  const total = accounts.length;
+  const failed = count('failed');
+  const stale = count('stale');
+  const synced = count('synced');
+  const one = (n: number) => (n === 1 ? unit.replace(/s$/, '') : unit);
+  const level: SyncLevel =
+    failed > 0 ? 'error' : total > 0 && synced === total ? 'ok' : 'warn';
+  return {
+    total,
+    synced,
+    failed,
+    stale,
+    level,
+    label:
+      total === 0
+        ? `No ${unit} to sync`
+        : failed > 0
+          ? `${failed} of ${total} ${one(total)} failed`
+          : stale > 0
+            ? `${stale} of ${total} ${one(total)} stale`
+            : `${synced}/${total} ${unit} synced`,
+    short:
+      total === 0
+        ? `No ${unit}`
+        : failed > 0
+          ? `${failed} failed`
+          : stale > 0
+            ? `${stale} stale`
+            : `${synced}/${total} synced`,
+    title:
+      total === 0
+        ? `No ${unit} set up`
+        : failed > 0
+          ? `${failed} ${one(failed)} failed to sync`
+          : stale > 0
+            ? `${stale} ${one(stale)} not synced in over a week`
+            : synced === total
+              ? `All ${unit} synced`
+              : `${total - synced} ${one(total - synced)} not synced yet`,
+  };
 }
 
 /** Still within the cooldown window after the last sync. */
@@ -167,10 +258,11 @@ export function useSyncState() {
   const portfolioErrors = useAppStore((s) => s.portfolioErrors);
   const registrars = useAppStore((s) => s.registrars);
   const marketAccounts = useAppStore((s) => s.marketAccounts);
+  const marketCatalog = useAppStore((s) => s.marketCatalog);
   // A sync mid-job would race the job's per-row cache patches for no benefit.
   const bulkRunning = useAppStore((s) => s.bulk?.status === 'running');
 
-  const accounts = syncAccounts(registrars, marketAccounts);
+  const accounts = syncAccounts(registrars, marketAccounts, marketCatalog);
   const unit = syncUnit(registrars, accounts);
   const noneConfigured =
     registrars !== null &&
@@ -268,6 +360,8 @@ export function useSyncState() {
     /** The accounts a Sync covers, and what to call them in a count. */
     accounts,
     unit,
+    /** Both kinds of account have loaded, so counts won't jump. */
+    loaded: registrars !== null && marketAccounts !== null,
     // A whole-portfolio failure, or one/more accounts that failed in the last
     // pull — surfaced as a compact error state alongside the last-synced time.
     failed: portfolioError != null,

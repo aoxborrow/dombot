@@ -10,8 +10,8 @@ Dynadot, Namecheap, …), marketplace exports (Afternic, Sedo, Efty, …), the
 exports of an earlier portfolio app, and a pasted list of names. A name no
 connected account reports becomes an **imported domain**: it shows in Owned or
 Archive, Renewals, and Activity, takes folders, notes, prices, and history
-like a synced name, survives Clear cache, and travels in the Settings → Sync
-backup. You match columns, then review every change before anything is
+like a synced name, survives Clear cache, and travels in the Settings →
+Import/Export backup. You match columns, then review every change before anything is
 written; a bad row is reported and skipped, never stopping the rest.
 
 What it doesn't do:
@@ -585,7 +585,7 @@ importDomains(
   bulk bar exports the selection.
 - **Domains empty state:** Import domains beside Configure registrars, so
   DomBot is useful before any API key is added.
-- **Settings → Sync:** a card with Import domains, Export all domains, and
+- **Settings → Import/Export:** a card with Import domains, Export all domains, and
   Download template (`dombot-domains-template.csv`).
 - **Activity:** an import filter (`/activity?import=<id>`), reached from the
   import's result.
