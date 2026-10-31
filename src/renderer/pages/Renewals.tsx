@@ -5,8 +5,8 @@ import {
   AlarmClock,
   Building2,
   CalendarClock,
+  CalendarDays,
   CalendarSync,
-  ChartColumn,
   Globe,
   IterationCw,
   RefreshCwOff,
@@ -415,7 +415,7 @@ export default function Renewals() {
         />
         <StatCard
           size="sm"
-          icon={ChartColumn}
+          icon={CalendarDays}
           accentClass="text-sky-400"
           label="Monthly avg"
           value={usd(monthly)}

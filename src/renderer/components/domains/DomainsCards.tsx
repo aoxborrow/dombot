@@ -4,14 +4,13 @@ import {
   ArrowUpDown,
   Briefcase,
   CalendarClock,
+  CalendarX,
   ChartLine,
   CircleDashed,
   CircleOff,
   Globe,
   Receipt,
-  Store,
   Tag,
-  TimerOff,
   Trash2,
   TriangleAlert,
 } from 'lucide-react';
@@ -248,7 +247,7 @@ export function DomainsCards({
         />
         <StatCard
           size="sm"
-          icon={TimerOff}
+          icon={CalendarX}
           accentClass="text-amber-400"
           label="Expired"
           value={cards.expired.toLocaleString()}
@@ -280,7 +279,7 @@ export function DomainsCards({
       <StatCardRow>
         <StatCard
           size="sm"
-          icon={Store}
+          icon={Tag}
           accentClass="text-brand-400"
           label="Listed"
           value={[
