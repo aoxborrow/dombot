@@ -45,46 +45,52 @@ export function SalesCards({
   pendingView: boolean;
   money: (amount: string | null, currency: string | null) => string | null;
 }) {
-  const { t, others, pending, waiting, value, expected } = useMemo(() => {
-    const totals = saleTotals(rows).filter((x) => x.currency);
-    const main = totals.find((x) => x.sold) ?? totals[0] ?? null;
-    return {
-      t: main,
-      others: totals
-        .filter((x) => x !== main)
-        .map((x) => ({
-          currency: x.currency,
-          count: x.sold + x.inProgress + x.cancelled,
-        })),
-      pending: rows.filter(isPending).length,
-      // What a pending sale waits on: you (a code or payee details for
-      // the market), or the name moving to the buyer.
-      waiting: {
-        authCode: rows.filter((r) => r.step === 'auth_code').length,
-        payee: rows.filter((r) => r.step === 'payee_details').length,
-        market: rows.filter((r) => r.step === 'transfer').length,
-        held: rows.filter((r) => r.awaitingTransfer).length,
-      },
-      // A pending sale's price, finished or not, in the main currency.
-      value: rows
-        .filter((r) => r.price !== null && r.currency === main?.currency)
-        .reduce((n, r) => n + Number(r.price), 0),
-      // What you'd be paid: each net (price less fees), where the fees
-      // are known; how many aren't.
-      expected: rows.reduce(
-        (e, r) => {
-          if (r.price === null || r.currency !== main?.currency) return e;
-          const net =
-            r.net ??
-            (r.fees === null ? null : Number(r.price) - Number(r.fees));
-          return net === null
-            ? { ...e, unknown: e.unknown + 1 }
-            : { ...e, net: e.net + Number(net) };
+  const { t, count, others, pending, waiting, value, expected } =
+    useMemo(() => {
+      // The currency most sales are in; sales without a price still count
+      // as sales (the first card), just not toward the money.
+      const totals = saleTotals(rows)
+        .filter((x) => x.currency)
+        .sort((a, b) => b.sold + b.inProgress - (a.sold + a.inProgress));
+      const main = totals[0] ?? null;
+      return {
+        t: main,
+        count: rows.filter((r) => r.status !== 'cancelled').length,
+        others: totals
+          .filter((x) => x !== main)
+          .map((x) => ({
+            currency: x.currency,
+            count: x.sold + x.inProgress + x.cancelled,
+          })),
+        pending: rows.filter(isPending).length,
+        // What a pending sale waits on: you (a code or payee details for
+        // the market), or the name moving to the buyer.
+        waiting: {
+          authCode: rows.filter((r) => r.step === 'auth_code').length,
+          payee: rows.filter((r) => r.step === 'payee_details').length,
+          market: rows.filter((r) => r.step === 'transfer').length,
+          held: rows.filter((r) => r.awaitingTransfer).length,
         },
-        { net: 0, unknown: 0 },
-      ),
-    };
-  }, [rows]);
+        // A pending sale's price, finished or not, in the main currency.
+        value: rows
+          .filter((r) => r.price !== null && r.currency === main?.currency)
+          .reduce((n, r) => n + Number(r.price), 0),
+        // What you'd be paid: each net (price less fees), where the fees
+        // are known; how many aren't.
+        expected: rows.reduce(
+          (e, r) => {
+            if (r.price === null || r.currency !== main?.currency) return e;
+            const net =
+              r.net ??
+              (r.fees === null ? null : Number(r.price) - Number(r.fees));
+            return net === null
+              ? { ...e, unknown: e.unknown + 1 }
+              : { ...e, net: e.net + Number(net), known: e.known + 1 };
+          },
+          { net: 0, known: 0, unknown: 0 },
+        ),
+      };
+    }, [rows]);
   const c = t?.currency ?? null;
   const dash = '—';
   // Fees over what the buyers paid for the sales with both known.
@@ -117,7 +123,7 @@ export function SalesCards({
         // Finished and under way; cancelled ones aren't sales.
         value={[
           {
-            value: ((t?.sold ?? 0) + (t?.inProgress ?? 0)).toLocaleString(),
+            value: count.toLocaleString(),
             unit:
               !pendingView && pending > 0 ? `${pending} pending` : undefined,
           },
@@ -242,7 +248,9 @@ export function SalesCards({
           label="Expected net"
           value={[
             {
-              value: c && value ? money(expected.net.toFixed(2), c)! : dash,
+              // Blank, not 0, when no pending sale's net is known.
+              value:
+                c && expected.known ? money(expected.net.toFixed(2), c)! : dash,
               unit: expected.unknown
                 ? `${expected.unknown} without fees`
                 : undefined,
