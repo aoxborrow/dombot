@@ -92,7 +92,7 @@ export function SyncSplitButton({
         <span
           className={cn(
             'hidden text-xs text-muted-foreground sm:inline',
-            stale && 'text-amber-600 dark:text-amber-400',
+            stale && 'text-amber-500 dark:text-amber-400',
           )}
           title={`Last synced ${new Date(lastSyncedAt).toLocaleString()}`}
         >

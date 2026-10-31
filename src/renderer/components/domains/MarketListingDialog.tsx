@@ -603,7 +603,7 @@ function Outcome({
       )}
       {r && r.adjusted.length > 0 && (
         <p className="flex items-start gap-2">
-          <CircleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
+          <CircleAlert className="mt-0.5 size-4 shrink-0 text-amber-500" />
           <span>
             {where} saved{' '}
             {r.adjusted

@@ -860,7 +860,7 @@ function expiryColor(days: number | null): string {
   if (days === null) return 'text-muted-foreground';
   if (days < 0) return 'text-red-700 dark:text-red-500';
   if (days <= 30) return 'text-orange-500 dark:text-orange-375';
-  if (days <= 60) return 'text-yellow-600 dark:text-yellow-400';
+  if (days <= 60) return 'text-flag-off dark:text-yellow-400';
   return 'text-foreground';
 }
 

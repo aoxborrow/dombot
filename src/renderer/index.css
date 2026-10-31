@@ -33,8 +33,8 @@
   --brand: var(--color-brand-500);
   /* Domains table "needs attention" state — auto-renew off, privacy off,
      unlocked — a warm yellow that sits apart from the brand green switches
-     and from the warm expiry ramp. A shade deeper/more golden on white. */
-  --flag-off: #d69800;
+     and from the warm expiry ramp. Bright on white too, not brownish. */
+  --flag-off: #eba70c;
   /* Domains table: a cell that acts as one button, on hover (see below). */
   --cell-hover: var(--color-brand-100);
   --secondary: oklch(0.97 0 0);

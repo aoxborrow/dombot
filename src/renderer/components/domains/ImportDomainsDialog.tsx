@@ -137,7 +137,7 @@ const RESULT_STYLE: Record<ImportOutcome['result'] | 'error', string> = {
 const hasWarnings = (r: ReviewRow) =>
   r.result !== 'error' && r.problems.length > 0;
 
-const WARNING_STYLE = 'border-amber-500/40 text-amber-600 dark:text-amber-400';
+const WARNING_STYLE = 'border-amber-500/40 text-amber-500 dark:text-amber-400';
 
 /** Filter chips: the result's colors, outlined, and solid when chosen. */
 const CHIP_STYLE: Record<Filter, { outline: string; solid: string }> = {
@@ -1477,7 +1477,7 @@ function NewFolders({ names }: { names: string[] }) {
       className={cn(
         'tabular-nums',
         names.length > 0 && 'font-medium text-foreground',
-        many && 'text-amber-600 dark:text-amber-400',
+        many && 'text-amber-500 dark:text-amber-400',
       )}
     >
       {names.length.toLocaleString('en-US')}
@@ -1499,7 +1499,7 @@ function NewFolders({ names }: { names: string[] }) {
           type="button"
           className={cn(
             'inline-flex items-center gap-1 whitespace-nowrap underline decoration-dotted underline-offset-4 hover:text-foreground',
-            many && 'text-amber-600 dark:text-amber-400',
+            many && 'text-amber-500 dark:text-amber-400',
           )}
         >
           {many && <CircleAlert className="size-3.5" aria-hidden />}
@@ -1773,7 +1773,7 @@ function ReviewTable({
               'flex max-w-72 items-start gap-1.5 text-xs',
               r.result === 'error'
                 ? 'text-destructive'
-                : 'text-amber-600 dark:text-amber-400',
+                : 'text-amber-500 dark:text-amber-400',
             )}
             title={r.problems.join('\n')}
           >

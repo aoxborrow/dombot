@@ -263,7 +263,7 @@ export default function ProxySettings() {
               className={
                 test.matches
                   ? 'mt-3 flex items-start gap-1.5 text-sm text-brand'
-                  : 'mt-3 flex items-start gap-1.5 text-sm text-amber-600 dark:text-amber-400'
+                  : 'mt-3 flex items-start gap-1.5 text-sm text-amber-500 dark:text-amber-400'
               }
             >
               {test.matches ? (

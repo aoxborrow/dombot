@@ -693,7 +693,7 @@ function AccountCard({
             )}
           >
             {deferred ? (
-              <Clock className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <Clock className="mt-0.5 size-4 shrink-0 text-amber-500 dark:text-amber-400" />
             ) : (
               <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
             )}
@@ -1352,8 +1352,8 @@ function SyncStatus({
     // Rate limited with a retry scheduled: waiting, not broken.
     return (
       <span className="flex items-center gap-1.5">
-        <Clock className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-        <span className="text-[13px] font-medium text-amber-600 dark:text-amber-400">
+        <Clock className="size-3.5 shrink-0 text-amber-500 dark:text-amber-400" />
+        <span className="text-[13px] font-medium text-amber-500 dark:text-amber-400">
           Sync deferred
         </span>
       </span>
@@ -1397,7 +1397,7 @@ function SyncStatus({
       <span
         className={cn(
           'whitespace-nowrap text-[13px] font-medium',
-          old ? 'text-amber-600 dark:text-amber-400' : 'text-brand',
+          old ? 'text-amber-500 dark:text-amber-400' : 'text-brand',
         )}
       >
         Last synced {timeAgo(lastSyncedAt)}
