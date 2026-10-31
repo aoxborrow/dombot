@@ -63,6 +63,7 @@ import {
 import type { FilterField } from '../components/data-table/FilterBar';
 import { dateRangeField } from '../components/data-table/DateRangeFilter';
 import { SaleDialog } from '../components/domains/SaleDialog';
+import { SaleApproveTransfer } from '../components/sales/SaleApproveTransfer';
 import { SaleAuthCode } from '../components/sales/SaleAuthCode';
 import { SaleUnlock } from '../components/sales/SaleUnlock';
 import { SalesCards, heldFor } from '../components/sales/SalesCards';
@@ -193,11 +194,12 @@ export default function Sales() {
   }, [records, sold, sources, currencies, tlds, registrarIds, search]);
 
   // The names pending sales have yet to hand over, as your registrar accounts
-  // hold them now, for each row's Unlock. Where a registrar's list doesn't
-  // say whether a name is locked, its detail is fetched (as the Domains
-  // table does), and an unlock lands there too; until then the row has no
-  // Unlock, rather than an Unlocked that may not be so. A name in more than
-  // one account gets none: like Send auth code, DomBot won't guess which.
+  // hold them now, for each row's Unlock and Approve transfer. Where a
+  // registrar's list doesn't say whether a name is locked, its detail is
+  // fetched (as the Domains table does), and an unlock lands there too;
+  // until then the row has no Unlock, rather than an Unlocked that may not
+  // be so. A name in more than one account gets neither: like Send auth
+  // code, DomBot won't guess which.
   const portfolio = useAppStore((s) => s.portfolio);
   const enriched = useAppStore((s) => s.enriched);
   const enrichVisible = useAppStore((s) => s.enrichVisible);
@@ -588,7 +590,8 @@ export default function Sales() {
               />
               {saleStatusLabel(r)}
             </span>
-            {/* What you can do, in order: unlock the name, send its code. */}
+            {/* What you can do, in order: unlock the name, send its code,
+                approve the buyer's transfer. */}
             <span className="flex items-start gap-1.5">
               {held && <SaleUnlock domain={held} />}
               {r.step === 'auth_code' &&
@@ -617,6 +620,7 @@ export default function Sales() {
                     Auth code sent
                   </Button>
                 )}
+              {held && <SaleApproveTransfer domain={held} />}
               {/* Handed over without leaving the registrar (an account change
                 there), or otherwise done: it stops waiting. */}
               {r.awaitingTransfer && r.eventId && (

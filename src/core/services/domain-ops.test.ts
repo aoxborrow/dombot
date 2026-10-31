@@ -22,6 +22,8 @@ const setLockCached = vi.fn();
 const setNameserversCached = vi.fn();
 const renewDomainCached = vi.fn();
 const getAuthCode = vi.fn();
+const getTransferOut = vi.fn();
+const approveTransferOut = vi.fn();
 const getDomainForwarding = vi.fn();
 const setDomainForwarding = vi.fn();
 const getEmailForwarding = vi.fn();
@@ -35,7 +37,7 @@ const patchCachedDomain = vi.fn();
 const getRegistrarClient = vi.fn((name: string) => {
   void name;
   return {
-    provider: { getAuthCode },
+    provider: { getAuthCode, getTransferOut, approveTransferOut },
     getDomainForwarding,
     setDomainForwarding,
     getEmailForwarding,
@@ -85,7 +87,7 @@ vi.mock('./domain-events', () => ({
 }));
 
 // Imported after the mocks are registered.
-import { applyDomainOp } from './domain-ops';
+import { applyDomainOp, getTransferOut as readTransferOut } from './domain-ops';
 
 // dynadot has no entry in KNOWN_GAPS, so with a full feature list nothing is
 // gated up front — every op reaches the dispatcher.
@@ -93,6 +95,8 @@ const ALL_FEATURES = [
   'getAuthCode',
   'setDomainForwarding',
   'setEmailForwarding',
+  'getTransferOut',
+  'approveTransferOut',
 ];
 const target: DomainTarget = {
   registrar: 'dynadot',
@@ -108,7 +112,7 @@ beforeEach(() => {
   getRegistrarFeatures.mockReturnValue(ALL_FEATURES);
   // Re-establish the client shape after clearAllMocks reset the factory.
   getRegistrarClient.mockReturnValue({
-    provider: { getAuthCode },
+    provider: { getAuthCode, getTransferOut, approveTransferOut },
     getDomainForwarding,
     setDomainForwarding,
     getEmailForwarding,
@@ -765,5 +769,90 @@ describe('applyDomainOp — the history it writes', () => {
     expect(r.status).toBe('ok');
     expect(saved()[0]).toMatchObject({ after: false });
     expect(saved()[0]).not.toHaveProperty('before');
+  });
+});
+
+describe('applyDomainOp — approveTransfer', () => {
+  it('approves through the provider: no patch, no history', async () => {
+    approveTransferOut.mockResolvedValue(
+      ok('Transfer of example.com approved'),
+    );
+    const r = await applyDomainOp(target, { kind: 'approveTransfer' });
+    expect(approveTransferOut).toHaveBeenCalledWith(
+      'example.com',
+      expect.anything(),
+    );
+    expect(r).toMatchObject({
+      status: 'ok',
+      message: 'Transfer of example.com approved',
+    });
+    expect(r.patch).toBeUndefined();
+    expect(putEvents).not.toHaveBeenCalled();
+    expect(broadcastPortfolioChanged).toHaveBeenCalled();
+  });
+
+  it('keeps the registrar’s refusal', async () => {
+    approveTransferOut.mockResolvedValue(
+      fail('No transfer-out of example.com to answer'),
+    );
+    const r = await applyDomainOp(target, { kind: 'approveTransfer' });
+    expect(r).toMatchObject({
+      status: 'failed',
+      message: 'No transfer-out of example.com to answer',
+    });
+  });
+
+  it('is unsupported, with no call, where the registrar can’t approve', async () => {
+    getRegistrarFeatures.mockReturnValue(['getAuthCode']);
+    const r = await applyDomainOp(target, { kind: 'approveTransfer' });
+    expect(r.status).toBe('unsupported');
+    expect(r.message).toMatch(/doesn.t offer transfer approval/i);
+    expect(approveTransferOut).not.toHaveBeenCalled();
+  });
+
+  it('treats a lost approval as safe to repeat', async () => {
+    approveTransferOut.mockRejectedValue(
+      new OutcomeUnknownError('may or may not have been applied', {
+        feature: 'approveTransferOut',
+      }),
+    );
+    const r = await applyDomainOp(target, { kind: 'approveTransfer' });
+    expect(r.status).toBe('failed');
+    expect(r.message).toMatch(/safe to try again/);
+    expect(getDomainDetail).not.toHaveBeenCalled();
+  });
+});
+
+describe('getTransferOut', () => {
+  it('reads the provider’s transfer-out with ISO dates', async () => {
+    getTransferOut.mockResolvedValue({
+      status: 'pending',
+      rawStatus: 'Waiting For Approval',
+      id: '423',
+      requestedDate: new Date('2026-10-29T12:00:00Z'),
+      expirationDate: new Date('2026-11-03T12:00:00Z'),
+      completedDate: null,
+    });
+    expect(await readTransferOut(target)).toEqual({
+      status: 'pending',
+      rawStatus: 'Waiting For Approval',
+      requestedAt: '2026-10-29T12:00:00.000Z',
+      expiresAt: '2026-11-03T12:00:00.000Z',
+      completedAt: null,
+    });
+    expect(getTransferOut).toHaveBeenCalledWith('example.com', {});
+  });
+
+  it('is null when the registrar has none', async () => {
+    getTransferOut.mockResolvedValue(null);
+    expect(await readTransferOut(target)).toBeNull();
+  });
+
+  it('throws, with no call, where the registrar can’t report one', async () => {
+    getRegistrarFeatures.mockReturnValue(['getAuthCode']);
+    await expect(readTransferOut(target)).rejects.toThrow(
+      /doesn.t report transfers out/,
+    );
+    expect(getTransferOut).not.toHaveBeenCalled();
   });
 });

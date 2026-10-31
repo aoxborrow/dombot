@@ -18,18 +18,18 @@ features are on every provider's `features` list even when the method throws
 gate the UI; DomBot keeps the known gaps itself (see
 [Capability gating](#capability-gating)).
 
-| Registrar  | Auto-renew |  Privacy  | Lock | Nameservers | Renew | URL fwd | Email fwd | Auth code |
-| ---------- | :--------: | :-------: | :--: | :---------: | :---: | :-----: | :-------: | :-------: |
-| Cloudflare |     ✗¹     |     ✓     |  ✗¹  |     ✗¹      |  ✗¹   |    ✓    |     ✓     |     ✗     |
-| Dynadot    |     ✓      |     ✓     |  ✓   |      ✓      |   ✓   |    ✓    |     ✓     |     ✓     |
-| Gandi      |     ✓      |    ✓²     |  ✓   |      ✓      |   ✓   |   ✓³    |     ✓     |     ✓     |
-| GoDaddy    |     ✓      | off only⁴ |  ✓   |      ✓      |   ✓   |   ✗⁵    |     ✗     |     ✓     |
-| NameBright |     ✓      |     ✓     |  ✓   |     ✓⁶      |  ✓⁶   |    ✗    |     ✗     |     ✓     |
-| Namecheap  |     ✓      |    ✓¹²    |  ✓   |      ✓      |   ✓   |    ✓    |     ✓     |     ✗     |
-| Name.com   |     ✓      |     ✓     |  ✓   |      ✓      |   ✓   |    ✗    |     ✗     |     ✓     |
-| NameSilo   |     ✓      |     ✓     |  ✓   |      ✓      |   ✓   |   ✓⁷    |    ✓⁸     |    ✗⁹     |
-| Porkbun    |     ✓      |    ✗¹⁰    | ✗¹⁰  |      ✓      |  ✓¹¹  |    ✓    |     ✗     |     ✗     |
-| Spaceship  |     ✓      |     ✓     |  ✓   |      ✓      |   ✓   |    ✗    |     ✗     |     ✓     |
+| Registrar  | Auto-renew |  Privacy  | Lock | Nameservers | Renew | URL fwd | Email fwd | Auth code | Transfer out |
+| ---------- | :--------: | :-------: | :--: | :---------: | :---: | :-----: | :-------: | :-------: | :----------: |
+| Cloudflare |     ✗¹     |     ✓     |  ✗¹  |     ✗¹      |  ✗¹   |    ✓    |     ✓     |     ✗     |      ✗       |
+| Dynadot    |     ✓      |     ✓     |  ✓   |      ✓      |   ✓   |    ✓    |     ✓     |     ✓     |     ✓¹³      |
+| Gandi      |     ✓      |    ✓²     |  ✓   |      ✓      |   ✓   |   ✓³    |     ✓     |     ✓     |      ✗       |
+| GoDaddy    |     ✓      | off only⁴ |  ✓   |      ✓      |   ✓   |   ✗⁵    |     ✗     |     ✓     |      ✗       |
+| NameBright |     ✓      |     ✓     |  ✓   |     ✓⁶      |  ✓⁶   |    ✗    |     ✗     |     ✓     |      ✗       |
+| Namecheap  |     ✓      |    ✓¹²    |  ✓   |      ✓      |   ✓   |    ✓    |     ✓     |     ✗     |      ✗       |
+| Name.com   |     ✓      |     ✓     |  ✓   |      ✓      |   ✓   |    ✗    |     ✗     |     ✓     |      ✗       |
+| NameSilo   |     ✓      |     ✓     |  ✓   |      ✓      |   ✓   |   ✓⁷    |    ✓⁸     |    ✗⁹     |      ✗       |
+| Porkbun    |     ✓      |    ✗¹⁰    | ✗¹⁰  |      ✓      |  ✓¹¹  |    ✓    |     ✗     |     ✗     |      ✗       |
+| Spaceship  |     ✓      |     ✓     |  ✓   |      ✓      |   ✓   |    ✗    |     ✗     |     ✓     |      ✗       |
 
 1. Cloudflare's Registrar API has no post-registration update endpoint for
    these; the provider rejects with `NotImplementedError`.
@@ -49,6 +49,11 @@ gate the UI; DomBot keeps the known gaps itself (see
     registry-minimum term; premium renewals unsupported via API.
 12. Toggles the domain's WhoisGuard subscription; a domain without one throws
     (surfaces as `failed`, not `unsupported`).
+13. Reading and approving a pending outbound transfer (the buyer's registrar
+    asking for the name), on the Sales page and over MCP; see
+    [Transfers out](#transfers-out). GoDaddy (v2, needs a customer ID), Gandi,
+    and Name.com (reject only) have endpoints registrar-client doesn't use yet;
+    the rest leave it to their dashboard or the transfer email.
 
 ## How a write runs
 
@@ -143,7 +148,8 @@ export function unsupportedReason(
 ```
 
 `unsupportedReason` first checks the extended-feature requirement (auth code →
-`getAuthCode`, forwarding → `set…Forwarding`), then the gap map. The renderer
+`getAuthCode`, forwarding → `set…Forwarding`, transfer approval →
+`approveTransferOut`), then the gap map. The renderer
 uses it to disable controls (with the reason as the tooltip) and to bucket a
 bulk selection; the bulk runner uses it to mark items `unsupported` without a
 network call. A `NotImplementedError` the map didn't predict is still
@@ -159,6 +165,24 @@ copy is redacted. The bulk results table offers copy-all and a CSV export
 whose confirmation says plainly that the file contains transfer secrets.
 Locked domains still return a code at most registrars; the dialog notes that
 the domain must be unlocked before a transfer will go through.
+
+## Transfers out
+
+When a buyer's registrar requests a sold name with its auth code, the
+registrar holding it waits for the owner to answer before letting it go on
+its own (Dynadot: five days). `getTransferOut(target)` in
+`src/core/services/domain-ops.ts` reads that request live from the account
+(never cached; `null` when there is none), and the `approveTransfer` op
+releases it now through the dispatcher. Approving changes no setting DomBot
+tracks, so it patches nothing and writes no history; the sale records the
+handover. A lost approval is reported as safe to repeat: the registrar
+refuses one that already went through.
+
+The Sales page reads it for each pending sale's held name whose registrar
+can report one, and shows **Approve transfer** while it's `pending`
+([markets.md](markets.md#sales-tab)). The MCP tools are
+`domain_transfer_out_get` and `domain_transfer_out_approve`. Rejecting isn't
+offered yet, though registrar-client can (`rejectTransferOut`).
 
 ## Forwarding isn't cached
 

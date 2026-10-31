@@ -63,6 +63,7 @@ export const domainOp = z.discriminatedUnion('kind', [
     kind: z.literal('renew'),
     years: z.number().int().min(1).max(10),
   }),
+  z.object({ kind: z.literal('approveTransfer') }),
 ]);
 
 export const folderColor = z.enum(FOLDER_COLORS as [string, ...string[]]);

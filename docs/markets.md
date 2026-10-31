@@ -491,11 +491,16 @@ sale is pending: Unlocked once the name is, and Auth code sent once the
 market has the code, however it got there (`authCodeSent` on the sale:
 Afternic's single sale says, its list doesn't, so sync reads sales under
 way one by one until it does, and keeps the answer). Neither shows once
-the sale is done. Once the name has moved, the market's
-transfer-confirmed and payout statuses (Afternic's `CONFIRMED_TRANSFER`,
-`PENDING_PAYOUT`, `SCHEDULED_PAYOUT`) read Awaiting payout, with no buttons;
-every sale not finished has an amber dot. Awaiting transfer (sold, and an account
-of yours still holds the name) is amber like a market's steps, with Mark
+the sale is done. Then Approve transfer, once the buyer's registrar has
+asked for the name and the registrar holding it is waiting on you (Dynadot
+holds it five days): read live for each held name whose registrar reports
+transfers out, and one click releases it now
+([domain-editing.md](domain-editing.md#transfers-out)). Once the name has
+moved, the market's transfer-confirmed and payout statuses (Afternic's
+`CONFIRMED_TRANSFER`, `PENDING_PAYOUT`, `SCHEDULED_PAYOUT`) read Awaiting
+payout, with no buttons; every sale not finished has an amber dot. Awaiting
+transfer (sold, and an account of yours still holds the name) is amber like
+a market's steps, with Mark
 complete: a buyer often takes the name at the same registrar, so nothing
 need change registrar, and marking it (`transferred` on the sold event)
 stops it waiting. Filters on the sale date (a bounded range leaves

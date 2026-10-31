@@ -108,8 +108,10 @@ vi.mock('../services/markets/sync', async (importOriginal) => ({
 }));
 
 const applyDomainOp = vi.fn();
+const getTransferOut = vi.fn();
 vi.mock('../services/domain-ops', () => ({
   applyDomainOp: (...a: unknown[]) => applyDomainOp(...a),
+  getTransferOut: (...a: unknown[]) => getTransferOut(...a),
 }));
 
 type FolderStub = {
@@ -716,6 +718,49 @@ describe('end-to-end handlers', () => {
     await expect(
       call('domain_auth_code_get', { domain: 'a.com' }),
     ).rejects.toThrow('no api');
+  });
+
+  it('domain_transfer_out_get reads the transfer-out from the holding account', async () => {
+    findRegistrarsForDomain.mockReturnValue(['dynadot']);
+    const transferOut = {
+      status: 'pending',
+      rawStatus: 'Waiting For Approval',
+      requestedAt: '2026-10-29T00:00:00.000Z',
+      expiresAt: '2026-11-03T00:00:00.000Z',
+      completedAt: null,
+    };
+    getTransferOut.mockResolvedValue(transferOut);
+    const out = await call('domain_transfer_out_get', { domain: 'a.com' });
+    expect(out).toEqual({ domain: 'a.com', transferOut });
+    expect(getTransferOut).toHaveBeenCalledWith(
+      expect.objectContaining({ registrar: 'dynadot', domainName: 'a.com' }),
+    );
+  });
+
+  it('domain_transfer_out_get returns null when there is none', async () => {
+    findRegistrarsForDomain.mockReturnValue(['dynadot']);
+    getTransferOut.mockResolvedValue(null);
+    const out = await call('domain_transfer_out_get', { domain: 'a.com' });
+    expect(out).toEqual({ domain: 'a.com', transferOut: null });
+  });
+
+  it('domain_transfer_out_approve runs the approveTransfer op as the agent', async () => {
+    findRegistrarsForDomain.mockReturnValue(['dynadot']);
+    applyDomainOp.mockResolvedValue({
+      status: 'ok',
+      message: 'Transfer of a.com approved',
+    });
+    const out = await call('domain_transfer_out_approve', { domain: 'a.com' });
+    expect(applyDomainOp).toHaveBeenCalledWith(
+      expect.anything(),
+      { kind: 'approveTransfer' },
+      { source: 'agent' },
+    );
+    expect(out).toMatchObject({
+      success: true,
+      status: 'ok',
+      message: 'Transfer of a.com approved',
+    });
   });
 });
 

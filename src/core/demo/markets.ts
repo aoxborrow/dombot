@@ -497,6 +497,8 @@ export function seedDemoMarkets(
   asking: Readonly<Record<string, DemoAskingPrice>> = {},
   /** Names whose registrar can hand over an auth code. */
   givesAuthCode: (name: string) => boolean = () => true,
+  /** Names whose registrar can approve a transfer-out. */
+  approvesTransfer: (name: string) => boolean = () => true,
   seed = 7,
 ): void {
   const r = rng(seed);
@@ -636,7 +638,8 @@ export function seedDemoMarkets(
 
   // Sales under way on names you hold, one at each step, and one that fell
   // through. The auth code one is on a name whose registrar can produce
-  // one, so Send auth code goes through.
+  // one, so Send auth code goes through; the transfer one, where it can, on
+  // a name whose registrar can approve the buyer's transfer.
   const onAfternic = [...world.account('demo-afternic').values()].filter(
     (l) => l.price && l.status === 'active',
   );
@@ -683,7 +686,13 @@ export function seedDemoMarkets(
     'auth_code',
   );
   underWay(take(), 5, 'in_progress', 'AWAITING_PAYEE_INFO', 'payee_details');
-  underWay(take(), 9, 'in_progress', 'PENDING_TRANSFER', 'transfer');
+  underWay(
+    take(approvesTransfer) ?? take(),
+    9,
+    'in_progress',
+    'PENDING_TRANSFER',
+    'transfer',
+  );
   underWay(take(), 140, 'cancelled', 'CANCELLED', null);
 }
 

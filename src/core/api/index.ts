@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { DombotApi, DomainTarget } from '../../shared/ipc';
 import { clearAll, clearRegistrarCaches } from '../services/cache';
-import { applyDomainOp } from '../services/domain-ops';
+import { applyDomainOp, getTransferOut } from '../services/domain-ops';
 import {
   advanceMarketBulk,
   cancelBulk,
@@ -397,6 +397,10 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
       ).id,
     ).getEmailForwarding(target.domainName);
   }),
+  // The pending sale's transfer-out, behind its Approve transfer. Live too.
+  getTransferOut: method(z.tuple([s.domainTarget]), async (target) =>
+    getTransferOut(target),
+  ),
 
   // ── Bulk jobs ─────────────────────────────────────────────────────────────
   startBulk: method(
