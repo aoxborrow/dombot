@@ -171,6 +171,18 @@ describe('standingOf', () => {
         'removed',
       );
     });
+
+    it('is Dropped when it left early and you marked it dropped', () => {
+      expect(label([event({ type: 'removed', dropped: true })])).toBe(
+        'dropped',
+      );
+      // A lapse is still Expired.
+      expect(
+        label([
+          event({ type: 'removed', expires: '2026-10-01', dropped: true }),
+        ]),
+      ).toBe('expired');
+    });
   });
 
   describe('an imported name', () => {

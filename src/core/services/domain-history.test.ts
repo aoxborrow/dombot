@@ -14,6 +14,7 @@ import {
   recordRenewals,
   recordSync,
   setAlertsDismissed,
+  setDeparturesDropped,
 } from './domain-history';
 import { assignFolder, createFolder, getFolders } from './folders';
 import { clearAll } from './cache';
@@ -162,6 +163,21 @@ describe('domain history', () => {
     expect(listEvents()[0].dismissed).toBe(true);
     setAlertsDismissed([added.id], false);
     expect(listEvents()[0].dismissed).toBe(false);
+  });
+
+  it('marks a departure dropped and back, leaving dismissed alone', () => {
+    recordSync(holding(['a.com', 'b.com']));
+    const [removed] = recordSync(holding(['b.com']));
+    const [added] = recordSync(holding(['a.com', 'b.com', 'c.com']));
+    setDeparturesDropped([removed.id, added.id], true);
+    const byId = (id: string) => listEvents().find((e) => e.id === id)!;
+    expect(byId(removed.id)).toMatchObject({ dropped: true });
+    expect(byId(removed.id).dismissed).toBeUndefined();
+    // Only departures are dropped.
+    expect(byId(added.id).dropped).toBeUndefined();
+    setDeparturesDropped([removed.id], false);
+    expect(byId(removed.id).dropped).toBe(false);
+    expect(() => setDeparturesDropped([added.id], true)).toThrow();
   });
 
   it('Delete forgets everything about a name', async () => {

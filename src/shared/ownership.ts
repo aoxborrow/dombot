@@ -13,14 +13,17 @@ import type { Domain, RegistrarMeta, RegistrationLookup } from './ipc';
 /**
  * Why a name is in Archive, in the order they're checked: you recorded a
  * sale; the lookup says nobody holds it; it left after its expiry; it left
- * early with no sale recorded (the one that asks for review).
+ * early and you marked it dropped; it left early with no sale recorded (the
+ * one that asks for review).
  */
-export type ArchiveLabel = 'sold' | 'deleted' | 'expired' | 'removed';
+export type ArchiveLabel =
+  'sold' | 'deleted' | 'expired' | 'dropped' | 'removed';
 
 export const ARCHIVE_LABELS: readonly ArchiveLabel[] = [
   'sold',
   'deleted',
   'expired',
+  'dropped',
   'removed',
 ];
 
@@ -135,7 +138,9 @@ export function standingOf(
         ? 'deleted'
         : o?.removal?.expires
           ? 'expired'
-          : 'removed';
+          : o?.removal?.dropped
+            ? 'dropped'
+            : 'removed';
     return { ...OWNED, archived: true, label };
   }
   const days = daysUntil(d.expirationDate, now);

@@ -207,6 +207,8 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.markSold, items, date),
   setAlertsDismissed: (ids, dismissed) =>
     ipcRenderer.invoke(IpcChannels.setAlertsDismissed, ids, dismissed),
+  setDeparturesDropped: (ids, dropped) =>
+    ipcRenderer.invoke(IpcChannels.setDeparturesDropped, ids, dropped),
   setSaleTransferred: (id, transferred) =>
     ipcRenderer.invoke(IpcChannels.setSaleTransferred, id, transferred),
   deleteUserEvent: (id) => ipcRenderer.invoke(IpcChannels.deleteUserEvent, id),

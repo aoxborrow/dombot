@@ -384,6 +384,7 @@ const ARCHIVE_TITLE: Record<ArchiveLabel, string> = {
   sold: 'You recorded a sale',
   deleted: 'Not registered: the registration lookup found no holder',
   expired: 'Left your accounts after its expiry date',
+  dropped: 'Left your accounts before expiry, and you marked it dropped',
   removed: 'Left your accounts before expiry, with no sale recorded',
 };
 
@@ -1470,6 +1471,7 @@ export default function Domains() {
       sold: 0,
       deleted: 0,
       expired: 0,
+      dropped: 0,
       removed: 0,
     };
     const renew: Record<AutoRenewChoice, number> = {

@@ -30,6 +30,7 @@ import {
   deleteDomains,
   deleteUserEvent,
   setAlertsDismissed,
+  setDeparturesDropped,
   setSaleTransferred,
 } from '../services/domain-history';
 import { listEvents } from '../services/domain-events';
@@ -617,6 +618,13 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     z.tuple([z.array(s.eventId).min(1).max(5000), z.boolean()]),
     async (ids, dismissed) => {
       setAlertsDismissed(ids, dismissed);
+      return listEvents();
+    },
+  ),
+  setDeparturesDropped: method(
+    z.tuple([z.array(s.eventId).min(1).max(5000), z.boolean()]),
+    async (ids, dropped) => {
+      setDeparturesDropped(ids, dropped);
       return listEvents();
     },
   ),

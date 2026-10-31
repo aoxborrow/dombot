@@ -55,9 +55,11 @@ vi.mock('../services/pricing', () => ({
   setManualPrice: (...a: unknown[]) => setManualPrice(...a),
 }));
 const setAlertsDismissed = vi.fn();
+const setDeparturesDropped = vi.fn();
 const setSaleTransferred = vi.fn();
 vi.mock('../services/domain-history', () => ({
   setAlertsDismissed: (...a: unknown[]) => setAlertsDismissed(...a),
+  setDeparturesDropped: (...a: unknown[]) => setDeparturesDropped(...a),
   setSaleTransferred: (...a: unknown[]) => setSaleTransferred(...a),
 }));
 const cachedRegistered = vi.fn(() => new Map<string, boolean>());
@@ -1198,6 +1200,39 @@ describe('history, purchases, sales and alerts', () => {
       limit: 1,
     })) as { total: number; alerts: unknown[] };
     expect(page.total).toBe(1);
+  });
+
+  it('portfolio_alerts with needsReview lists dismissed ones too', async () => {
+    const arrival = event({ domain: 'new.com' });
+    const dismissed = event({
+      domain: 'gone.com',
+      type: 'removed',
+      dismissed: true,
+      updatedAt: 9,
+    });
+    listEvents.mockReturnValue([arrival, dismissed]);
+    const out = (await call('portfolio_alerts', { needsReview: true })) as {
+      counts: Record<string, number>;
+      alerts: { kind: string; eventId: string; dismissed: boolean }[];
+    };
+    // No sync errors in this list.
+    expect(out.counts).toEqual({ 'sync-error': 0, departure: 1, arrival: 1 });
+    expect(out.alerts.map((a) => [a.kind, a.eventId, a.dismissed])).toEqual([
+      ['departure', dismissed.id, true],
+      ['arrival', arrival.id, false],
+    ]);
+  });
+
+  it('portfolio_alert_dismiss marks departures dropped', async () => {
+    const a = event({ domain: 'gone.com', type: 'removed' });
+    listEvents.mockReturnValue([a]);
+    const out = await call('portfolio_alert_dismiss', {
+      alertIds: [a.id],
+      dropped: true,
+    });
+    expect(setDeparturesDropped).toHaveBeenCalledWith([a.id], true);
+    expect(setAlertsDismissed).not.toHaveBeenCalled();
+    expect(out).toEqual({ dropped: true, stillOpen: [a.id] });
   });
 
   it('portfolio_alert_dismiss dismisses and reports what is still open', async () => {

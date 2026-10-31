@@ -273,6 +273,21 @@ export function setAlertsDismissed(ids: string[], dismissed: boolean): void {
   putEvents(alerts.map((e) => ({ ...e, dismissed, updatedAt: now })));
 }
 
+/**
+ * Mark departures dropped (it left and no money came back), or not after
+ * all, in one write. Dropped counts as dismissed and gives Archive its
+ * Dropped label; undoing it leaves `dismissed` as it was.
+ */
+export function setDeparturesDropped(ids: string[], dropped: boolean): void {
+  const now = Date.now();
+  const departures = ids
+    .map((id) => getEvent(id))
+    .filter((e): e is DomainEvent => e?.type === DomainEventType.Removed);
+  if (departures.length === 0)
+    throw new Error('That departure no longer exists.');
+  putEvents(departures.map((e) => ({ ...e, dropped, updatedAt: now })));
+}
+
 /** Mark a sale's name handed over to the buyer, or not after all. */
 export function setSaleTransferred(id: string, transferred: boolean): void {
   const sale = getEvent(id);
