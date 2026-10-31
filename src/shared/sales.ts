@@ -225,12 +225,20 @@ function toRecord(
   const price = event?.amount ?? sale?.price ?? null;
   // A market's figures hold only while the event's currency is the market's.
   const fromMarket = sale && sale.currency === currency ? sale : null;
-  const fees = fromMarket ? fromMarket.commission : (event?.fees ?? null);
+  // Fees you recorded win over the market's commission.
+  const ownFees = event?.fees != null;
+  const fees = ownFees
+    ? event!.fees!
+    : fromMarket
+      ? fromMarket.commission
+      : null;
   const priceUnits = units(price);
   const feeUnits = units(fees);
-  // The market's net, unless you've recorded a different price since.
+  // The market's net, unless you've recorded a different price or fees.
   const net =
-    fromMarket?.net != null && units(fromMarket.price) === priceUnits
+    !ownFees &&
+    fromMarket?.net != null &&
+    units(fromMarket.price) === priceUnits
       ? fromMarket.net
       : priceUnits !== null && feeUnits !== null
         ? decimal(priceUnits - feeUnits, currency)
@@ -268,7 +276,7 @@ function toRecord(
     currency,
     price,
     fees,
-    feesEstimated: fromMarket?.commissionEstimated ?? false,
+    feesEstimated: !ownFees && (fromMarket?.commissionEstimated ?? false),
     net,
     paidOutOn: sale?.paidOutOn ?? null,
     installments: sale?.installments ?? null,

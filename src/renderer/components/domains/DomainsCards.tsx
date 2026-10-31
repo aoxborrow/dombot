@@ -113,6 +113,8 @@ export function DomainsCards({
       let inactive = 0;
       let above = 0;
       let below = 0;
+      let issues = 0;
+      let apart = 0;
       // Listed names with a BIN price; views and leads over 30 days.
       let listedPriced = 0;
       let views = 0;
@@ -135,10 +137,14 @@ export function DomainsCards({
         if (states.includes('pending')) pending += 1;
         if (states.includes('rejected')) rejected += 1;
         if (states.includes('inactive')) inactive += 1;
+        // A name counts once in a headline, however many markets flag it.
+        if (states.includes('rejected') || states.includes('inactive'))
+          issues += 1;
         const mine = listPrices[toAscii(d.domainName)];
         const prices = listingsOf(d).map((l) => priceComparison(l, mine));
         if (prices.includes('above')) above += 1;
         if (prices.includes('below')) below += 1;
+        if (prices.includes('above') || prices.includes('below')) apart += 1;
       }
       return {
         view,
@@ -149,6 +155,8 @@ export function DomainsCards({
         inactive,
         above,
         below,
+        issues,
+        apart,
         listedPriced,
         views,
         leads,
@@ -322,7 +330,7 @@ export function DomainsCards({
           label="Issues"
           value={[
             {
-              value: (cards.rejected + cards.inactive).toLocaleString(),
+              value: cards.issues.toLocaleString(),
               unit: words(
                 !!cards.rejected && `${cards.rejected} rejected`,
                 !!cards.inactive && `${cards.inactive} inactive`,
@@ -339,7 +347,7 @@ export function DomainsCards({
           // A market's price apart from your BIN price.
           value={[
             {
-              value: (cards.above + cards.below).toLocaleString(),
+              value: cards.apart.toLocaleString(),
               unit: words(
                 !!cards.above && `${cards.above} above`,
                 !!cards.below && `${cards.below} below`,
