@@ -59,6 +59,8 @@ const setSaleTransferred = vi.fn();
 vi.mock('../services/domain-history', () => ({
   setAlertsDismissed: (...a: unknown[]) => setAlertsDismissed(...a),
   setSaleTransferred: (...a: unknown[]) => setSaleTransferred(...a),
+  // Market sync hands over its names under sale when it loads.
+  provideSellingNames: () => {},
 }));
 const cachedRegistered = vi.fn(() => new Map<string, boolean>());
 vi.mock('../services/registration-lookup', () => ({
