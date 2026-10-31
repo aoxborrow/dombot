@@ -8,7 +8,6 @@ import { useAppStore } from '../store/app';
 import { timeAgo } from '../lib/time';
 import { isStale, staleAccounts, useSyncState } from '../lib/sync-state';
 import { ModeToggle } from './mode-toggle';
-import { CardStyleToggle } from './card-style-toggle';
 import {
   isDemo,
   isLocalWeb,
@@ -80,12 +79,6 @@ export default function StatusBar() {
         bare
         className="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 sm:inline-flex"
       />
-      {/* Just right of the theme toggle (64px wide), so that stays centred.
-          The bar is full on phones, where the choice shows, so there it
-          floats just above the bar. */}
-      {import.meta.env.DEV && (
-        <CardStyleToggle className="fixed right-2 bottom-10 z-50 rounded-md border bg-background p-0.5 shadow-sm sm:absolute sm:top-1/2 sm:right-auto sm:bottom-auto sm:left-[calc(50%+44px)] sm:z-auto sm:-translate-y-1/2 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none" />
-      )}
 
       <SyncStatus />
     </footer>
@@ -144,7 +137,7 @@ function SyncStatus() {
     failed > 0
       ? 'text-destructive hover:text-destructive hover:brightness-125'
       : (enabled.length === 0 || synced < enabled.length) &&
-        'text-amber-600 hover:text-amber-600 hover:brightness-125 dark:text-amber-400 dark:hover:text-amber-400';
+        'text-amber-500 hover:text-amber-500 hover:brightness-125 dark:text-amber-400 dark:hover:text-amber-400';
 
   let light = (
     <span
@@ -209,7 +202,7 @@ function SyncStatus() {
         <span
           className={cn(
             '-ml-1.5',
-            isStale(lastSyncedAt) && 'text-amber-600 dark:text-amber-400',
+            isStale(lastSyncedAt) && 'text-amber-500 dark:text-amber-400',
           )}
           title={`Last synced ${new Date(lastSyncedAt).toLocaleString()}`}
         >
