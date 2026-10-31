@@ -9,14 +9,14 @@ import {
   CircleOff,
   Globe,
   Receipt,
-  RefreshCwOff,
+  ShieldCheck,
   Tag,
   Trash2,
   TriangleAlert,
 } from 'lucide-react';
 import { toAscii } from '../../../shared/domain-name';
 import type { ArchiveLabel } from '../../../shared/ownership';
-import type { Domain, ListPrice } from '../../../shared/ipc';
+import type { Domain, ListPrice, RenewalPricing } from '../../../shared/ipc';
 import {
   marketState,
   priceComparison,
@@ -27,7 +27,8 @@ import type {
   DomainTrafficTotals,
   MarketListing,
 } from '../../../shared/markets';
-import { compactMoney, wholeMoney } from '../../lib/renewals';
+import type { ExchangeRates } from '../../../shared/exchange-rates';
+import { compactMoney, summarize, wholeMoney } from '../../lib/renewals';
 import { StatCard, StatCardRow } from '../StatCard';
 
 // The cards above the Domains table (docs/markets.md, "Domains table and
@@ -46,8 +47,8 @@ const plural = (n: number, word: string) =>
 export interface DomainsCardActions {
   /** Expiring within `days`, auto-renew off. */
   onExpiring: (days: 30 | 60) => void;
-  /** Auto-renew off. */
-  onNotRenewing: () => void;
+  /** Auto-renew on. */
+  onAutoRenew: () => void;
   /** The Markets filter set to these states (in the markets in play). */
   onMarketStates: (states: MarketStateChoice[]) => void;
   /** The Markets filter set to listings priced apart from your BIN. */
@@ -66,6 +67,9 @@ export function DomainsCards({
   traffic,
   expiresWithin,
   archiveLabelOf,
+  pricing,
+  currency,
+  fx,
   actions,
 }: {
   view: DomainsView;
@@ -81,6 +85,11 @@ export function DomainsCards({
   /** Whether a name expires within 30 or 60 days (and hasn't yet). */
   expiresWithin: (d: Domain, days: 30 | 60) => boolean;
   archiveLabelOf: (d: Domain) => ArchiveLabel | null;
+  /** Each name's renewal price, for what the auto-renewing ones cost a
+   * year in your currency. */
+  pricing: Record<string, RenewalPricing>;
+  currency: string;
+  fx: ExchangeRates;
   actions: DomainsCardActions;
 }) {
   const cards = useMemo(() => {
@@ -169,17 +178,17 @@ export function DomainsCards({
     // a worry.
     let in30 = 0;
     let in60 = 0;
-    let renewOff = 0;
+    let autoRenewing = 0;
     let imported = 0;
     let listed = 0;
     const registrars = new Set<string>();
     for (const d of rows) {
-      // As the Auto-renew filter's Off: unknown isn't off.
+      // As the Auto-renew filter's Off and On: unknown is neither.
       if (!d.autoRenewUnknown && !d.autoRenew) {
-        renewOff += 1;
         if (expiresWithin(d, 30)) in30 += 1;
         if (expiresWithin(d, 60)) in60 += 1;
       }
+      if (!d.autoRenewUnknown && d.autoRenew) autoRenewing += 1;
       if (statesOf(d).includes('active')) listed += 1;
       if (d.source === 'imported') imported += 1;
       else if (d.registrar) registrars.add(d.registrar);
@@ -188,7 +197,7 @@ export function DomainsCards({
       view,
       in30,
       in60,
-      renewOff,
+      autoRenewing,
       imported,
       listed,
       registrars: registrars.size,
@@ -206,6 +215,17 @@ export function DomainsCards({
 
   const marketsOn = markets.length > 0;
   const total = rows.length;
+  // What the auto-renewing names cost a year, in your currency.
+  const autoRenewCost = useMemo(
+    () =>
+      summarize(
+        rows.filter((d) => d.autoRenew && !d.autoRenewUnknown),
+        pricing,
+        currency,
+        fx,
+      ),
+    [rows, pricing, currency, fx],
+  );
   // What the BIN prices add up to, in the currency most of them use
   // (amounts are never converted).
   const bin = useMemo(() => {
@@ -387,17 +407,20 @@ export function DomainsCards({
       />
       <StatCard
         size="sm"
-        icon={RefreshCwOff}
-        accentClass="text-amber-400"
-        label="Not renewing"
-        // Auto-renew off, of the names shown.
+        icon={ShieldCheck}
+        accentClass="text-violet-400"
+        label="Auto-renew"
+        // The share of the names shown that renew on their own, and what
+        // those cost a year (the ones with a known price).
         value={[
           {
-            value: cards.renewOff.toLocaleString(),
-            words: pct(cards.renewOff, total),
+            value: pct(cards.autoRenewing, total),
+            words: autoRenewCost.priced
+              ? `${compactMoney(autoRenewCost.yearly, autoRenewCost.currency)}/yr`
+              : undefined,
           },
         ]}
-        onClick={actions.onNotRenewing}
+        onClick={actions.onAutoRenew}
       />
       {marketsOn && (
         <StatCard

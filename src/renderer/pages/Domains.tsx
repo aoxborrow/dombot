@@ -922,6 +922,7 @@ export default function Domains() {
     enrichVisible,
     loadAllDetail,
     pricing,
+    exchangeRates,
     folders,
     folderAssignments,
     assignFolder,
@@ -2363,6 +2364,9 @@ export default function Domains() {
             traffic={marketTraffic.domains}
             expiresWithin={expiresWithin}
             archiveLabelOf={archiveLabelOf}
+            pricing={pricing}
+            currency={currency}
+            fx={exchangeRates}
             actions={{
               // The names the card counts: expiring, auto-renew off.
               onExpiring: (days) => {
@@ -2370,8 +2374,8 @@ export default function Domains() {
                 setAutoRenewFilter(['off']);
                 setPage(0);
               },
-              onNotRenewing: () => {
-                setAutoRenewFilter(['off']);
+              onAutoRenew: () => {
+                setAutoRenewFilter(['on']);
                 setPage(0);
               },
               onMarketStates: (states) => {

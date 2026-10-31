@@ -10,12 +10,12 @@ import {
   CalendarClock,
   ChevronDown,
   Ellipsis,
+  Flag,
   Flame,
   Globe,
   History,
   Inbox,
   Receipt,
-  SearchAlert,
   SlidersHorizontal,
   Trash2,
   Upload,
@@ -824,7 +824,7 @@ export default function Activity() {
         <StatCardRow>
           <StatCard
             size="sm"
-            icon={SearchAlert}
+            icon={Flag}
             accentClass="text-yellow-400"
             label="Needs review"
             value={[
