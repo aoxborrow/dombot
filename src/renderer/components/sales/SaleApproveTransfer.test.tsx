@@ -70,6 +70,15 @@ describe('SaleApproveTransfer', () => {
     expect(out).toContain('left alone, Dynadot lets it go on 2026-11-0');
   });
 
+  it('estimates the release from the request when no date is reported', () => {
+    state.transfersOut = {
+      'dynadot:sold.com': transfer({ rawStatus: 'None', expiresAt: null }),
+    };
+    expect(html()).toContain(
+      'left alone, Dynadot lets it go around 2026-11-03',
+    );
+  });
+
   it('shows nothing before the read, or with no request', () => {
     expect(html()).toBe('');
     state.transfersOut = { 'dynadot:sold.com': null };

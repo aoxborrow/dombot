@@ -165,10 +165,11 @@ export async function installDemo(
     record.locked = false;
     record.transferOut = {
       status: 'pending',
-      rawStatus: 'Waiting For Approval',
+      // As Dynadot reports a pending one: "None", and no expiry date.
+      rawStatus: 'None',
       id: `demo-${record.domainName}`,
       requestedDate: new Date(markets.now - 2 * day),
-      expirationDate: new Date(markets.now + 3 * day),
+      expirationDate: null,
       completedDate: null,
     };
   }

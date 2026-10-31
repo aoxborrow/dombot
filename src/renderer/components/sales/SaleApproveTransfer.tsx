@@ -8,6 +8,9 @@ import { reportOpResult, targetOf } from '../../lib/domain-ops';
 import { Button } from '@/components/ui/button';
 
 const APPROVE: DomainOp = { kind: 'approveTransfer' };
+// How long a registrar may hold an unanswered transfer before releasing it
+// (ICANN's limit), for when it reports no date of its own (Dynadot doesn't).
+const RELEASE_AFTER_MS = 5 * 24 * 60 * 60 * 1000;
 
 /**
  * Approve transfer, for a sale whose buyer's registrar has asked for the
@@ -48,7 +51,9 @@ export function SaleApproveTransfer({ domain }: { domain: Domain }) {
   };
   const by = transfer?.expiresAt
     ? `on ${localDay(Date.parse(transfer.expiresAt))}`
-    : 'in a few days';
+    : transfer?.requestedAt
+      ? `around ${localDay(Date.parse(transfer.requestedAt) + RELEASE_AFTER_MS)}`
+      : 'in a few days';
   return (
     <Button
       size="sm"
