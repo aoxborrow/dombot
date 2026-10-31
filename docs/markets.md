@@ -134,7 +134,7 @@ interface MarketSale {
   } | null;
   paidOutOn: string | null;
   /** What the seller has to do next, when the market says (auth code, …). */
-  action: 'auth_code' | 'transfer' | 'payee_details' | null;
+  action: 'auth_code' | 'transfer' | 'payee_details' | 'payout' | null;
 }
 
 /** One day for one name, or for an account (name null). */
@@ -487,7 +487,10 @@ sale is pending: Unlocked once the name is, and Auth code sent once the
 market has the code, however it got there (`authCodeSent` on the sale:
 Afternic's single sale says, its list doesn't, so sync reads sales under
 way one by one until it does, and keeps the answer). Neither shows once
-the sale is done. Awaiting transfer (sold, and an account
+the sale is done. Once the name has moved, the market's
+transfer-confirmed and payout statuses (Afternic's `CONFIRMED_TRANSFER`,
+`PENDING_PAYOUT`, `SCHEDULED_PAYOUT`) read Awaiting payout, with no buttons;
+every sale not finished has an amber dot. Awaiting transfer (sold, and an account
 of yours still holds the name) is amber like a market's steps, with Mark
 complete: a buyer often takes the name at the same registrar, so nothing
 need change registrar, and marking it (`transferred` on the sold event)

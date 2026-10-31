@@ -142,6 +142,11 @@ function saleAction(status: SaleStatus | null): MarketSale['action'] {
     case 'AWAITING_PAYEE_INFO':
     case 'AWAITING_PAYEE_UPDATE':
       return 'payee_details';
+    // The name has moved: only the money is left.
+    case 'CONFIRMED_TRANSFER':
+    case 'PENDING_PAYOUT':
+    case 'SCHEDULED_PAYOUT':
+      return 'payout';
     default:
       return null;
   }

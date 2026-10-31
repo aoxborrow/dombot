@@ -57,6 +57,7 @@ export function ActivityBell() {
     [registrars, marketAccounts, marketCatalog],
   );
   // Market sales waiting on you: an auth code, a transfer, payee details.
+  // Not the payout: nothing's left for you to do.
   // Only for accounts still connected: a removed account's sales stay in
   // history, but there's no account to act through.
   const salesToAct = useMemo(
@@ -65,7 +66,8 @@ export function ActivityBell() {
         (s) =>
           marketIds.has(s.accountId) &&
           s.status === 'in_progress' &&
-          s.action !== null,
+          s.action !== null &&
+          s.action !== 'payout',
       ),
     [marketSales, marketIds],
   );
@@ -434,6 +436,7 @@ const SALE_ACTION: Record<NonNullable<MarketSale['action']>, string> = {
   auth_code: 'needs the auth code',
   transfer: 'waiting on the transfer',
   payee_details: 'needs your payee details',
+  payout: 'waiting on the payout',
 };
 
 /**
