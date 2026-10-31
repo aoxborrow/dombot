@@ -402,7 +402,7 @@ export default function Renewals() {
         <StatCard
           size="sm"
           icon={Globe}
-          accentClass="text-blue-400"
+          accentClass="text-brand-400"
           label="Domains"
           value={[
             {
@@ -423,7 +423,7 @@ export default function Renewals() {
         <StatCard
           size="sm"
           icon={CalendarSync}
-          accentClass="text-brand-400"
+          accentClass="text-violet-400"
           label="Yearly"
           value={[{ value: usd(summary.yearly) }]}
         />

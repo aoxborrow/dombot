@@ -15,7 +15,7 @@ import {
   History,
   Inbox,
   Receipt,
-  Search,
+  SearchAlert,
   SlidersHorizontal,
   Trash2,
   Upload,
@@ -824,7 +824,7 @@ export default function Activity() {
         <StatCardRow>
           <StatCard
             size="sm"
-            icon={Search}
+            icon={SearchAlert}
             accentClass="text-yellow-400"
             label="Needs review"
             value={[
