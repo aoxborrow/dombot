@@ -106,6 +106,16 @@ Archive from its expiry dates, with no status to set.
   sync already writes that removal as dismissed for a name you've labeled
   (`src/shared/sync-diff.ts`). The pill doubles as a reminder to finish the
   transfer. Undo deletes the sale.
+- **A market sale under way counts too.** Sync writes a market sale's `sold`
+  event only once the market completes it (it could still be cancelled), and
+  Afternic completes one after the transfer, so without this a name would
+  show no Sold while its sale is under way and then land in Archive as
+  Removed, asking for review. A sale under way (not a lease) of a name that
+  didn't arrive on or after its sale day, which would be your own purchase in
+  the market's sales list, counts as the name's sale: Sold-pending while you
+  hold it (the pill says the market's step on hover), Sold in Archive once it
+  leaves (or at once, for a name you added), and its removal needs no review.
+  The `sold` event takes over when sync writes it.
 - **Delete**, only for names no connected account holds: imported names and
   Archive names. In a bulk selection it shows how many it applies to
   ("Delete … 12 of 50"), the way Activity's bulk actions do.
@@ -169,7 +179,8 @@ No migration concerns: get the model right while there are few users.
   name stays in Owned until it leaves.
 - **`portfolio_query`**: `archiveLabel` is `sold`, `deleted`, `expired` or
   `removed`. Rows gain `expiring` (Owned, auto-renew off, within 30 days) and
-  `salePending` (a sale recorded on a name you still hold). `hidden` and the
+  `salePending` (a sale recorded, or under way at a market, on a name you
+  still hold). `hidden` and the
   "Hidden" folder filter go. The `autoRenew` filter already exists.
 - **Folder tools** lose the built-in Hidden folder.
 - **Agents let a name go** with `domain_set_autorenew`, the same as you.

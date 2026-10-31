@@ -66,7 +66,8 @@ take `refresh` to fetch live and write the result through.
     registration lookup says nobody holds it), `expired` (it left after its
     expiry) or `removed` (it left early with no sale; the one to review).
     `expiring`: owned, auto-renew off, expiring within 30 days.
-    `salePending`: a sale recorded on a name you still hold.
+    `salePending`: a sale recorded, or under way at a market, on a name you
+    still hold.
   - To let a name go, turn its auto-renew off with `domain_set_autorenew`, as
     in the app. Nothing you hold goes to Archive by hand.
   - Each row also carries what DomBot keeps for the name: `paid` (date,
@@ -248,7 +249,8 @@ saying so.
 - **`market_sales`** — sales, newest first: filter by `market`,
   `accountId`, `from`/`to` (sold on), `status`, `kind`, `nameContains`.
   Returns `totals` (price, commission, net per currency) over every match.
-  Never includes auth codes.
+  `authCodeSent` says whether the market has the auth code (null when it
+  hasn't said). Never includes auth codes.
 - **`market_stats_get`** — `accountId`, `days?`. Stored daily views and
   leads, with totals.
 - **`domain_stats_get`** — `domain`, `accountId?`, `days?` (default 30).
@@ -310,7 +312,9 @@ decimal strings or numbers.
   rejected or stuck pending, and say so per name as `relisted`.
 - **`market_sale_auth_code_set`** — `accountId`, `saleId`, `authCode?`.
   Without a code, DomBot gets it from the registrar account that holds the
-  name. Never returned or stored.
+  name. Never returned or stored. The sale is read back after, so its next
+  step shows before a sync. The name needs unlocking too
+  (`domain_set_lock`).
 - **`market_sale_message_send`** — `accountId`, `saleId`, `message`. Reaches
   a person at the market.
 - **`market_settings_set`** — `accountId`, and the listing defaults to

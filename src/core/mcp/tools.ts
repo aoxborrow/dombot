@@ -91,7 +91,7 @@ import {
   type QueryResult,
 } from './portfolio-query';
 import { registerMarketTools } from './market-tools';
-import { marketListings } from '../services/markets/sync';
+import { marketListings, marketSales } from '../services/markets/sync';
 import { marketAccountViews } from '../services/markets/accounts';
 import { marketCatalog } from '../services/markets/registry';
 
@@ -172,7 +172,7 @@ function resolveRegistrar(
     }
     // A name that left your accounts is in Archive: syncing won't bring it
     // back, so say that instead.
-    const o = ownershipByDomain(eventsFor(key)).get(key);
+    const o = ownershipByDomain(eventsFor(key), marketSales()).get(key);
     const row = o && archiveRows(new Map([[key, o]]), [], null)[0];
     const label = row && standingOf(row, o, cachedRegistered().get(key)).label;
     if (label) {
@@ -553,7 +553,7 @@ const queryShape = {
 function runQuery(args: QueryArgs): QueryResult {
   const { domains, fetchedAt, registrars, errors } = getMergedPortfolio();
   const { folders, assignments } = getFolders();
-  const ownership = ownershipByDomain(listEvents());
+  const ownership = ownershipByDomain(listEvents(), marketSales());
   // As on the Domains page: synced names, then imported names no account
   // reports, then names in Archive that neither covers (from the event log).
   const listed = [...domains, ...importedRows(getImportedDomains(), domains)];
@@ -696,7 +696,7 @@ function assertInPortfolio(domain: string): string {
 
 /** A name's Owned / Archive state, as portfolio_query rows report it. */
 function ownershipOf(key: string) {
-  const o = ownershipByDomain(eventsFor(key)).get(key);
+  const o = ownershipByDomain(eventsFor(key), marketSales()).get(key);
   const { domains } = getMergedPortfolio();
   const listed = [...domains, ...importedRows(getImportedDomains(), domains)];
   const row =

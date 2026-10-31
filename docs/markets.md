@@ -134,7 +134,7 @@ interface MarketSale {
   } | null;
   paidOutOn: string | null;
   /** What the seller has to do next, when the market says (auth code, …). */
-  action: 'auth_code' | 'transfer' | 'payee_details' | null;
+  action: 'auth_code' | 'transfer' | 'payee_details' | 'payout' | null;
 }
 
 /** One day for one name, or for an account (name null). */
@@ -283,7 +283,11 @@ Following docs/storage-model.md:
   Dynadot and Namecheap). The field is in the record from the start; the
   Settings flow for it comes with the first such market.
 - **Sales become `sold` events.** A completed sale writes one `sold` event
-  (source `sync`, date `soldOn`, amount `price`, `currency`) unless one already
+  (source `sync`, date `soldOn`, amount `price`, `currency`), and so does one
+  whose name has moved: the market is on to the payout (`action: 'payout'`)
+  and sync saw the name leave your accounts, since no market backs out after
+  the transfer (a name you bought arrives rather than leaves, so the
+  purchases in a market's sales never qualify). Not if one already
   exists for that sale: the event carries `marketSale`, the sale's
   `market-sales` key (`src/core/services/markets/sale-events.ts`). A `sold`
   event you recorded yourself within 14 days of the sale is linked rather
@@ -475,8 +479,22 @@ sale from every source:
 
 All or **Pending** (like Activity's Needs review; `?pending=1`): pending
 is a sale under way at a market or one awaiting transfer, and the tab's
-pill counts them. One row per sale, pending first, with Send auth code
-inline on a sale waiting for it. Awaiting transfer (sold, and an account
+pill counts them. One row per sale, pending first, with the seller's steps
+inline: Unlock on a pending sale whose name an account of yours holds
+locked (one click; disabled with the reason where the registrar's API
+can't unlock, and the name's detail is fetched where its registrar's list
+doesn't say), then Send auth code on a sale waiting for it, which reads
+the sale back so the row moves on to its next step without a sync. Two
+buttons rather than one: a registrar that can't give the code through its
+API may still unlock. A step done stays as a disabled button while the
+sale is pending: Unlocked once the name is, and Auth code sent once the
+market has the code, however it got there (`authCodeSent` on the sale:
+Afternic's single sale says, its list doesn't, so sync reads sales under
+way one by one until it does, and keeps the answer). Neither shows once
+the sale is done. Once the name has moved, the market's
+transfer-confirmed and payout statuses (Afternic's `CONFIRMED_TRANSFER`,
+`PENDING_PAYOUT`, `SCHEDULED_PAYOUT`) read Awaiting payout, with no buttons;
+every sale not finished has an amber dot. Awaiting transfer (sold, and an account
 of yours still holds the name) is amber like a market's steps, with Mark
 complete: a buyer often takes the name at the same registrar, so nothing
 need change registrar, and marking it (`transferred` on the sold event)

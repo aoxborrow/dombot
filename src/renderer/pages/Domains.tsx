@@ -64,6 +64,7 @@ import { useAppStore } from '../store/app';
 import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
 import { importedRows } from '../../shared/imported-domains';
 import { priceMoney } from '../lib/renewals';
+import { SALE_STEP_LABEL, saleSourceLabel } from '../lib/sales';
 import { nameserverGroup } from '../lib/nameservers';
 import {
   countFolders,
@@ -489,12 +490,21 @@ function LifecycleBadge({
 }
 
 /**
- * Sold, beside the lifecycle pills: a sale is recorded and the buyer hasn't
- * taken the name yet, so it doubles as a reminder to finish the transfer.
- * (Expiring is worked out too, docs/owned-and-archive.md, but isn't shown on
- * the row: the Expires column's colour and the Auto-renew filter cover it.)
+ * Sold, beside the lifecycle pills: a sale is recorded, or under way at a
+ * market, and the buyer hasn't taken the name yet, so it doubles as a
+ * reminder to finish the transfer; a market's sale says where it's at on
+ * hover. (Expiring is worked out too, docs/owned-and-archive.md, but isn't
+ * shown on the row: the Expires column's colour and the Auto-renew filter
+ * cover it.)
  */
-function SoldBadge({ standing }: { standing: Standing }) {
+function SoldBadge({
+  standing,
+  underWay,
+}: {
+  standing: Standing;
+  /** "Afternic: Waiting on the transfer", for a sale under way. */
+  underWay?: string;
+}) {
   if (standing.archived) return null;
   const pill =
     'border-transparent px-1.5 py-0 text-[11px] compact:px-1 compact:text-[10px]';
@@ -503,6 +513,7 @@ function SoldBadge({ standing }: { standing: Standing }) {
       {standing.salePending && (
         <Badge
           className={cn(pill, 'bg-emerald-600 text-white dark:bg-emerald-700')}
+          title={underWay}
         >
           Sold
         </Badge>
@@ -941,6 +952,7 @@ export default function Domains() {
     marketListings,
     marketCatalog,
     marketTraffic,
+    marketSales,
     importedDomains,
     settings,
     domainEvents,
@@ -1004,8 +1016,8 @@ export default function Domains() {
   // Ownership per name, and each name's open "removed from registrar" alert (a
   // label chosen from the row closes it).
   const ownership = useMemo(
-    () => ownershipByDomain(domainEvents),
-    [domainEvents],
+    () => ownershipByDomain(domainEvents, marketSales),
+    [domainEvents, marketSales],
   );
   const openRemoval = useMemo(() => {
     const resolved = resolvedIds(domainEvents);
@@ -1279,6 +1291,13 @@ export default function Domains() {
     (d: Domain): ArchiveLabel | null => standingOfRow(d).label,
     [standingOfRow],
   );
+  // Where a sale under way at a market is at, for the Sold badge's hover.
+  const saleUnderWay = (d: Domain): string | undefined => {
+    const sale = ownership.get(toAscii(d.domainName))?.marketSale;
+    if (!sale) return undefined;
+    const market = saleSourceLabel(sale.market, marketCatalog);
+    return `${market}: ${sale.action ? SALE_STEP_LABEL[sale.action] : 'in progress'}`;
+  };
 
   // Starts from ?q= so another page (Activity's Show in Domains) can open it
   // on one name, and follows it when a link changes it here (the bell).
@@ -2162,7 +2181,7 @@ export default function Domains() {
         <div className="flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-2">
             {col.render(d, portfolioRegistrarLabels)}
-            <SoldBadge standing={standingOfRow(d)} />
+            <SoldBadge standing={standingOfRow(d)} underWay={saleUnderWay(d)} />
           </span>
           <div className="flex items-center">
             <NotesButton

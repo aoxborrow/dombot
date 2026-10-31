@@ -62,6 +62,8 @@ export interface SaleRecord {
   status: SaleStatus;
   /** What the seller has to do next, while a market sale is under way. */
   step: MarketSale['action'];
+  /** The market says it has the transfer auth code, however it got it. */
+  authCodeSent: boolean;
   kind: MarketSale['kind'];
   currency: string | null;
   /** Canonical decimal; null when unknown. */
@@ -295,6 +297,7 @@ function toRecord(
     marketSaleId: sale?.id ?? null,
     status: event && !sale ? 'completed' : (sale?.status ?? 'completed'),
     step: sale && sale.status !== 'completed' ? sale.action : null,
+    authCodeSent: sale?.authCodeSent === true,
     kind: sale?.kind ?? 'unknown',
     currency,
     price,

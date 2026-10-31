@@ -16,8 +16,9 @@ import {
 } from '../domain-events';
 
 // Market sales as `sold` events (docs/markets.md, "Storage"). A completed
-// sale writes one `sold` event, or links to the one you recorded yourself,
-// and never twice: the event carries the sale's `market-sales` key.
+// sale, or one whose name has moved to the buyer (the payout's all that's
+// left), writes one `sold` event, or links to the one you recorded
+// yourself, and never twice: the event carries the sale's `market-sales` key.
 //
 // Owned or Archive goes by the order events were recorded, not their dates,
 // so a sale written today counts as the name's latest state whatever day it
@@ -96,11 +97,26 @@ export function recordSaleEvents(
     const key = saleKey(sale);
     if (recorded.has(key)) continue;
     const soldOn = sale.soldOn;
-    if (sale.status !== 'completed' || !soldOn) {
+    if (!soldOn) {
       result.skipped++;
       continue;
     }
     const events = eventsFor(sale.name);
+    // Done once the market completes it, or once the transfer has gone
+    // through: the market's on to the payout and sync saw the name leave
+    // your accounts. (The market's sales include your purchases, and a name
+    // you bought arrives rather than leaves.) No market backs out by then.
+    const moved =
+      sale.action === 'payout' &&
+      !held.has(sale.name) &&
+      events.some(
+        (e) =>
+          e.type === DomainEventType.Removed && !!e.date && e.date >= soldOn,
+      );
+    if (sale.status !== 'completed' && !moved) {
+      result.skipped++;
+      continue;
+    }
     const boughtBack = events.some(
       (e) => ACQUISITION_TYPES.has(e.type) && e.date && e.date > soldOn,
     );
@@ -159,6 +175,30 @@ export function recordSaleEvents(
   }
   if (writes.length) putEvents(writes);
   return result;
+}
+
+/**
+ * Answers the open "removed" alerts of names with a sale under way: the
+ * buyer took the name. Registrar sync writes such a removal answered when
+ * it knows of the sale; this catches one it wrote before the market sync
+ * that brought the sale. Returns how many it answered.
+ */
+export function answerRemovalsOfSales(
+  selling: ReadonlySet<string>,
+  now = Date.now(),
+): number {
+  if (!selling.size) return 0;
+  const events = listEvents();
+  const resolved = resolvedIds(events);
+  const open = events.filter(
+    (e) =>
+      e.type === DomainEventType.Removed &&
+      selling.has(e.domain) &&
+      isOpenAlert(e, resolved),
+  );
+  if (open.length)
+    putEvents(open.map((e) => ({ ...e, dismissed: true, updatedAt: now })));
+  return open.length;
 }
 
 /** The sale id in a `market-sales` key (`${accountId}:${saleId}`). */

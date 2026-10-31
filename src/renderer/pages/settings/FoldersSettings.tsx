@@ -50,6 +50,7 @@ export default function FoldersSettings() {
   const portfolio = useAppStore((s) => s.portfolio);
   const importedDomains = useAppStore((s) => s.importedDomains);
   const domainEvents = useAppStore((s) => s.domainEvents);
+  const marketSales = useAppStore((s) => s.marketSales);
   const registrars = useAppStore((s) => s.registrars);
   const lookups = useAppStore((s) => s.registrationLookups);
   const createFolder = useAppStore((s) => s.createFolder);
@@ -63,7 +64,7 @@ export default function FoldersSettings() {
   // Each folder's names in Owned and in Archive: the Domains table's rows,
   // so an assignment left on a name DomBot no longer shows isn't counted.
   const counts = useMemo(() => {
-    const ownership = ownershipByDomain(domainEvents);
+    const ownership = ownershipByDomain(domainEvents, marketSales);
     const live = [...portfolio, ...importedRows(importedDomains, portfolio)];
     const rows = [...live, ...archiveRows(ownership, live, registrars)];
     const archived = (d: Domain) => {
@@ -76,6 +77,7 @@ export default function FoldersSettings() {
     portfolio,
     importedDomains,
     domainEvents,
+    marketSales,
     registrars,
     lookups,
     assignments,

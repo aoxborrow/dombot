@@ -142,6 +142,11 @@ function saleAction(status: SaleStatus | null): MarketSale['action'] {
     case 'AWAITING_PAYEE_INFO':
     case 'AWAITING_PAYEE_UPDATE':
       return 'payee_details';
+    // The name has moved: only the money is left.
+    case 'CONFIRMED_TRANSFER':
+    case 'PENDING_PAYOUT':
+    case 'SCHEDULED_PAYOUT':
+      return 'payout';
     default:
       return null;
   }
@@ -190,7 +195,9 @@ export function saleFromAfternic(
     paidOutOn: day(s.disbursedAt),
     action: saleAction(s.status),
     // The auth code stays out: it's sensitive, and the registrar can always
-    // give a fresh one.
+    // give a fresh one. Only whether the market has one is kept; the sales
+    // list leaves it out, so there a missing code says nothing.
+    authCodeSent: s.authCode ? true : null,
   };
 }
 
@@ -448,6 +455,17 @@ export class AfternicAdapter implements MarketAdapter, AfternicActions {
   async allSales(since?: string): Promise<MarketSale[]> {
     const sales = await this.client.allSales(since ? { from: since } : {});
     return sales.map((s) => saleFromAfternic(s, this.accountId));
+  }
+
+  async getSale(saleId: string): Promise<MarketSale | null> {
+    const sale = await this.client.getSale(saleId);
+    // The single sale does carry the code, so here a missing one is a no.
+    return sale
+      ? {
+          ...saleFromAfternic(sale, this.accountId),
+          authCodeSent: !!sale.authCode,
+        }
+      : null;
   }
 
   async accountStats(days: number): Promise<MarketStatsDay[]> {

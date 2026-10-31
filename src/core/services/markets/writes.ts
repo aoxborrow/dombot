@@ -22,6 +22,7 @@ import {
   marketListings,
   marketSale,
   putMarketListings,
+  putMarketSale,
 } from './sync';
 
 // Writes to market accounts (docs/markets.md): list, reprice, delist and
@@ -389,7 +390,8 @@ function registrarHolding(name: string): RegistrarName {
 /**
  * Give a sale its transfer auth code. Without one, DomBot asks the registrar
  * account that holds the name for it. The code is sent to the market and
- * never stored.
+ * never stored. The sale is read back after, so it moves on to its next step
+ * now rather than at the next sync.
  */
 export async function setSaleAuthCode(
   accountId: string,
@@ -421,6 +423,15 @@ export async function setSaleAuthCode(
     }
   }
   await adapter.setSaleAuthCode(saleId, code);
+  // The code went through either way: a failed read keeps the stored sale
+  // until the next sync.
+  try {
+    const fresh = await adapter.getSale?.(saleId);
+    if (fresh) putMarketSale(fresh);
+  } catch (err) {
+    console.error('[markets] reading the sale back failed', err);
+  }
+  broadcastPortfolioChanged();
   return { name: sale.name, fetched };
 }
 
