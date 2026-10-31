@@ -25,10 +25,10 @@ const SECTIONS = [
   { value: 'general', label: 'General' },
   { value: 'registrars', label: 'Registrars' },
   { value: 'markets', label: 'Markets' },
-  { value: 'proxy', label: 'Proxy' },
   { value: 'sync', label: 'Sync' },
   { value: 'import-export', label: 'Import/Export' },
   { value: 'folders', label: 'Folders' },
+  { value: 'proxy', label: 'Proxy' },
   { value: 'mcp', label: 'MCP' },
   { value: 'about', label: 'About' },
 ] as const;
