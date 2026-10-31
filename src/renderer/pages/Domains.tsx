@@ -1594,22 +1594,8 @@ export default function Domains() {
       },
       setRegistrar,
     ),
-    // Archive: status, then the folder each name had. Owned: the folder.
-    ...(archiveView && archiveCount > 0
-      ? [
-          listFilter(
-            {
-              key: 'status',
-              label: 'Status',
-              icon: Archive,
-              options: archiveStatusOptions,
-              selected: status,
-              plural: 'statuses',
-            },
-            setStatus,
-          ),
-        ]
-      : []),
+    // TLD, Registrar and Folder first, as on every table; then, on
+    // Archive, the status.
     ...(!archiveView || archiveCount > 0
       ? [
           listFilter(
@@ -1622,6 +1608,21 @@ export default function Domains() {
               plural: 'folders',
             },
             setFolder,
+          ),
+        ]
+      : []),
+    ...(archiveView && archiveCount > 0
+      ? [
+          listFilter(
+            {
+              key: 'status',
+              label: 'Status',
+              icon: Archive,
+              options: archiveStatusOptions,
+              selected: status,
+              plural: 'statuses',
+            },
+            setStatus,
           ),
         ]
       : []),

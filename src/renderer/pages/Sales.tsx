@@ -300,7 +300,8 @@ export default function Sales() {
       .sort((a, b) => b.count - a.count);
   }, [records]);
 
-  // TLD first in the Filters menu, though never a default chip.
+  // TLD and Registrar first in the Filters menu, as on every table, though
+  // neither is a default chip.
   const filterFields: FilterField[] = [
     listField(
       {
@@ -313,6 +314,20 @@ export default function Sales() {
       },
       (next) => {
         setTlds(next);
+        setPage(0);
+      },
+    ),
+    listField(
+      {
+        key: 'registrar',
+        label: 'Registrar',
+        icon: Building2,
+        options: registrarOptions,
+        selected: registrarIds,
+        plural: 'registrars',
+      },
+      (next) => {
+        setRegistrarIds(next);
         setPage(0);
       },
     ),
@@ -340,20 +355,6 @@ export default function Sales() {
       },
       (next) => {
         setSources(next);
-        setPage(0);
-      },
-    ),
-    listField(
-      {
-        key: 'registrar',
-        label: 'Registrar',
-        icon: Building2,
-        options: registrarOptions,
-        selected: registrarIds,
-        plural: 'registrars',
-      },
-      (next) => {
-        setRegistrarIds(next);
         setPage(0);
       },
     ),
