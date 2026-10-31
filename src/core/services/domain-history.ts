@@ -27,6 +27,16 @@ import { Namespace } from '../storage/namespace';
 // purchases.ts; this is everything else.
 
 /**
+ * Names with a sale under way at a market, whose removal sync writes as
+ * answered. The markets module provides it: it imports this one (through
+ * the registrars), so this one can't import it.
+ */
+let sellingNames: () => ReadonlySet<string> = () => new Set();
+export function provideSellingNames(names: () => ReadonlySet<string>): void {
+  sellingNames = names;
+}
+
+/**
  * What each account's last successful sync saw, keyed by account id. Sync
  * compares against this, not the registrar cache, so "Clear cache" can't make
  * it miss a change; and it's exported, so it travels with `domain-events` and
@@ -94,6 +104,7 @@ export function recordSync(after: AccountHoldings[]): DomainEvent[] {
     trackedAccountIds(),
     now,
     newEvent,
+    sellingNames(),
   );
   const { newlyTracked } = diff;
   // An imported name an account now reports isn't a new arrival: sync takes it

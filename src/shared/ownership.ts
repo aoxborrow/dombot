@@ -112,6 +112,20 @@ export function ownershipByDomain(
   return out;
 }
 
+/**
+ * Names with a market sale under way, by {@link ownershipByDomain}'s rule:
+ * one leaving your accounts is the buyer taking it, not one to review.
+ */
+export function namesSelling(
+  events: DomainEvent[],
+  marketSales: readonly MarketSale[],
+): Set<string> {
+  const out = new Set<string>();
+  for (const [name, o] of ownershipByDomain(events, marketSales))
+    if (o.marketSale) out.add(name);
+  return out;
+}
+
 /** Where a row stands: Owned with its derived states, or Archive and why. */
 export interface Standing {
   archived: boolean;

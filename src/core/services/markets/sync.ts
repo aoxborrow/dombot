@@ -6,6 +6,7 @@ import {
   type MarketStatsDay,
 } from '../../../shared/markets';
 import { localDay } from '../../../shared/domain-events';
+import { namesSelling } from '../../../shared/ownership';
 import { broadcastPortfolioChanged } from '../../events';
 import {
   MARKET_LISTINGS_NAMESPACE,
@@ -13,6 +14,8 @@ import {
   MARKET_STATS_NAMESPACE,
 } from '../../storage/names';
 import { Namespace } from '../../storage/namespace';
+import { listEvents } from '../domain-events';
+import { provideSellingNames } from '../domain-history';
 import { getCachedPortfolio } from '../registrars';
 import {
   activeMarketAccounts,
@@ -23,7 +26,12 @@ import {
   onMarketAccountRemoved,
   setMarketSyncState,
 } from './accounts';
-import { dropSaleEvents, recordSaleEvents, saleKey } from './sale-events';
+import {
+  answerRemovalsOfSales,
+  dropSaleEvents,
+  recordSaleEvents,
+  saleKey,
+} from './sale-events';
 import {
   dropAccountTraffic,
   snapshotSearches,
@@ -67,6 +75,10 @@ const UNDER_WAY_READS = 20;
 const PENDING_KEEP_DAYS = 7;
 const UNCONFIRMED_NOTE = 'Not listed after a week';
 const VERIFYING_NOTE = 'Waiting on ownership checks';
+
+// A name that leaves an account during a sale under way is the buyer
+// taking it: registrar sync writes that removal answered, not for review.
+provideSellingNames(() => namesSelling(listEvents(), marketSales()));
 
 const enabledIds = () => new Set(activeMarketAccounts().map((a) => a.id));
 
@@ -315,6 +327,7 @@ async function runMarketSync(accountId: string): Promise<void> {
       recordSaleEvents(all.filter(isShownSale), heldNames(), localDay(), {
         liveAccounts: live,
       });
+      answerRemovalsOfSales(namesSelling(listEvents(), marketSales()));
     }
 
     if (caps.accountStats && adapter.accountStats) {
