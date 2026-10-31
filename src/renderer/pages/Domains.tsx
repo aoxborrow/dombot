@@ -678,7 +678,7 @@ const VIEW_FILTERS: Record<
     ifRoom: ['folder'],
   },
   archive: {
-    presets: ['registrar', 'status', 'folder', 'expirationDate'],
+    presets: ['registrar', 'status', 'expirationDate'],
     ifRoom: ['expirationDate'],
   },
 };
