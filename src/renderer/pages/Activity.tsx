@@ -15,6 +15,7 @@ import {
   History,
   Inbox,
   Receipt,
+  ScanSearch,
   SlidersHorizontal,
   Trash2,
   Upload,
@@ -823,7 +824,7 @@ export default function Activity() {
         <StatCardRow>
           <StatCard
             size="sm"
-            icon={Bell}
+            icon={ScanSearch}
             accentClass="text-amber-400"
             label="Needs review"
             value={[

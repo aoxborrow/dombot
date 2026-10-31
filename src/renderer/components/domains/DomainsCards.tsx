@@ -2,12 +2,13 @@ import { useMemo } from 'react';
 import {
   Archive,
   ArrowUpDown,
-  BadgeDollarSign,
+  Briefcase,
   CalendarClock,
-  Eye,
-  EyeOff,
-  Gem,
+  ChartLine,
+  CircleDashed,
+  CircleOff,
   Globe,
+  Receipt,
   Store,
   Tag,
   TimerOff,
@@ -204,15 +205,13 @@ export function DomainsCards({
 
   const marketsOn = markets.length > 0;
   const total = rows.length;
-  // Names with a BIN price, and what they add up to in the currency most
-  // of them use (amounts are never converted).
+  // What the BIN prices add up to, in the currency most of them use
+  // (amounts are never converted).
   const bin = useMemo(() => {
-    let priced = 0;
     const byCurrency = new Map<string, { sum: number; count: number }>();
     for (const d of rows) {
       const lp = listPrices[toAscii(d.domainName)];
       if (lp?.amount == null) continue;
-      priced += 1;
       const e = byCurrency.get(lp.currency) ?? { sum: 0, count: 0 };
       e.sum += Number(lp.amount);
       e.count += 1;
@@ -221,22 +220,8 @@ export function DomainsCards({
     const [currency, main] = [...byCurrency].sort(
       (a, b) => b[1].count - a[1].count,
     )[0] ?? [null, null];
-    return { priced, currency, sum: main?.sum ?? 0, count: main?.count ?? 0 };
+    return { currency, sum: main?.sum ?? 0, count: main?.count ?? 0 };
   }, [rows, listPrices]);
-  const binPricedCard = (
-    <StatCard
-      size="sm"
-      icon={Tag}
-      accentClass="text-violet-400"
-      label="BIN priced"
-      value={[
-        {
-          value: pct(bin.priced, total),
-          unit: `${bin.priced.toLocaleString()}/${plural(total, 'name')}`,
-        },
-      ]}
-    />
-  );
   // The words beside a card's number, or none.
   const words = (...parts: (string | false)[]) =>
     parts.filter(Boolean).join(' · ') || undefined;
@@ -255,7 +240,7 @@ export function DomainsCards({
         />
         <StatCard
           size="sm"
-          icon={BadgeDollarSign}
+          icon={Receipt}
           accentClass="text-violet-400"
           label="Sold"
           value={cards.sold.toLocaleString()}
@@ -280,7 +265,7 @@ export function DomainsCards({
         {marketsOn && (
           <StatCard
             size="sm"
-            icon={Store}
+            icon={Tag}
             accentClass="text-sky-400"
             label="Still listed"
             value={cards.stillListed.toLocaleString()}
@@ -311,7 +296,7 @@ export function DomainsCards({
         />
         <StatCard
           size="sm"
-          icon={EyeOff}
+          icon={CircleOff}
           accentClass="text-slate-400"
           label="Not listed"
           // Pending listings aren't live yet either.
@@ -358,7 +343,7 @@ export function DomainsCards({
         />
         <StatCard
           size="sm"
-          icon={Eye}
+          icon={ChartLine}
           accentClass="text-sky-400"
           label="Views, 30 days"
           // Visits to the names' sale pages; leads only from Afternic.
@@ -399,11 +384,18 @@ export function DomainsCards({
         ]}
         onClick={() => actions.onExpiring(cards.in30 ? 30 : 60)}
       />
-      {binPricedCard}
+      {/* A placeholder, for a card to come. */}
+      <StatCard
+        size="sm"
+        icon={CircleDashed}
+        accentClass="text-slate-400"
+        label="Placeholder"
+        value="—"
+      />
       {marketsOn && (
         <StatCard
           size="sm"
-          icon={Store}
+          icon={Tag}
           accentClass="text-sky-400"
           label="For sale"
           // Not "/251": the page shows the total enough already.
@@ -418,9 +410,9 @@ export function DomainsCards({
       )}
       <StatCard
         size="sm"
-        icon={Gem}
+        icon={Briefcase}
         accentClass="text-emerald-400"
-        label="BIN value"
+        label="Total BIN"
         // The BIN prices added up; in the currency most of them use.
         value={[
           {

@@ -417,7 +417,9 @@ sits below the cards.
     than wrapped (`StatCard` value slots).
   - Owned: Domains (registrars), Expiring soon: names with auto-renew off
     expiring within 30 and 60 days, as two numbers ("2/30d 7/60d"); a
-    click sets Expiration and Auto-renew off, BIN priced, For sale (names live on a market; opens Listings).
+    click sets Expiration and Auto-renew off, a placeholder for a card to
+    come, For sale (names live on a market; opens Listings), Total BIN (the
+    BIN prices added up, with the average).
   - Listings: Listed (live on a market), Not listed (with how many are
     pending), Issues (rejected or inactive), Discrepancies (a market
     price above or below your BIN), each setting the Markets filter. They
@@ -470,8 +472,8 @@ Cards above the table add up what the view and filters leave: sales
 average), net (with fees) and profit (with ROI); holding time stays in the
 table. On the Pending view, net and profit give way to what the pending
 sales wait on: Needs action (an auth code or payee details) and Awaiting
-transfer (at the market, or a name still in your account), and Gross to
-the pending sales' Value. Filtering by market, TLD or registrar gives
+transfer (at the market, or a name still in your account), then Gross to
+their Pending value and, as a fifth, Expected net. Filtering by market, TLD or registrar gives
 that slice's totals, in your preferred currency (or the one the Currency
 filter picks), each sale in another converted at its month's average; the
 line under the cards says how many were, and leaves out (and counts) any in
