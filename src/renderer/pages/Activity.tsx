@@ -808,7 +808,7 @@ export default function Activity() {
     setSortDir(useDefault ? 'desc' : 'asc');
   }, [shownColumnKeys, sortKey]);
 
-  // The filter bar's fields, in the Add filter menu's order (the order the
+  // The filter bar's fields, in the Filters menu's order (the order the
   // old filter dropdowns had).
   const listFilter = (
     field: Parameters<typeof listField>[0],

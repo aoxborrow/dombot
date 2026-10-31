@@ -14,7 +14,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
   Building2,
+  Calendar1,
+  CalendarCheck,
   CalendarClock,
+  CalendarPlus2,
   CircleCheck,
   CircleHelp,
   Globe,
@@ -661,8 +664,8 @@ const VIEW_COLUMNS: Record<DomainsView, ColumnLayout> = {
 
 /**
  * Each view's default filter chips, in order, and which of them show only
- * while they fit on the toolbar's first line. TLD is in the Add filter menu
- * only.
+ * while there's room (toolbarLayout): those go, the last first, before the
+ * view switch takes a line of its own. TLD is in the Filters menu only.
  */
 const VIEW_FILTERS: Record<
   DomainsView,
@@ -677,8 +680,8 @@ const VIEW_FILTERS: Record<
     ifRoom: ['folder'],
   },
   archive: {
-    presets: ['registrar', 'status', 'folder', 'expirationDate'],
-    ifRoom: ['folder', 'expirationDate'],
+    presets: ['registrar', 'status', 'expirationDate'],
+    ifRoom: ['expirationDate'],
   },
 };
 
@@ -1530,7 +1533,7 @@ export default function Domains() {
     };
   }, [shown, folders, folderAssignments, archiveLabelOf, archiveView]);
 
-  // The filter bar's fields, in the Add filter menu's order (the order the
+  // The filter bar's fields, in the Filters menu's order (the order the
   // old filter buttons had). Each set field shows as a chip; clearing is per
   // chip.
   const currency = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
@@ -1581,7 +1584,7 @@ export default function Domains() {
       ? (p.purchaseType ?? 'purchased')
       : null;
   };
-  // TLD first in the Add filter menu, though never a default chip.
+  // TLD first in the Filters menu, though never a default chip.
   const filterFields: FilterField[] = [
     listFilter(
       {
@@ -1605,22 +1608,8 @@ export default function Domains() {
       },
       setRegistrar,
     ),
-    // Archive: status, then the folder each name had. Owned: the folder.
-    ...(archiveView && archiveCount > 0
-      ? [
-          listFilter(
-            {
-              key: 'status',
-              label: 'Status',
-              icon: Archive,
-              options: archiveStatusOptions,
-              selected: status,
-              plural: 'statuses',
-            },
-            setStatus,
-          ),
-        ]
-      : []),
+    // TLD, Registrar and Folder first, as on every table; then, on
+    // Archive, the status.
     ...(!archiveView || archiveCount > 0
       ? [
           listFilter(
@@ -1633,6 +1622,21 @@ export default function Domains() {
               plural: 'folders',
             },
             setFolder,
+          ),
+        ]
+      : []),
+    ...(archiveView && archiveCount > 0
+      ? [
+          listFilter(
+            {
+              key: 'status',
+              label: 'Status',
+              icon: Archive,
+              options: archiveStatusOptions,
+              selected: status,
+              plural: 'statuses',
+            },
+            setStatus,
           ),
         ]
       : []),
@@ -1729,6 +1733,7 @@ export default function Domains() {
             setCreated,
             PAST_DATE_PRESETS,
             (d) => utcDay(d.createdDate),
+            Calendar1,
           ),
         ]),
     dateFilter(
@@ -1738,6 +1743,7 @@ export default function Domains() {
       setPurchased,
       PAST_DATE_PRESETS,
       (d) => purchaseOf(d)?.purchaseDate,
+      CalendarPlus2,
     ),
     ...(archiveView
       ? [
@@ -1748,10 +1754,11 @@ export default function Domains() {
             setSold,
             PAST_DATE_PRESETS,
             (d) => purchaseOf(d)?.saleDate,
+            CalendarCheck,
           ),
         ]
       : []),
-    // Last in the Add filter menu: the least used.
+    // Last in the Filters menu: the least used.
     listFilter(
       {
         key: 'dns',

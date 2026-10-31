@@ -90,8 +90,10 @@ Two views, switched like Domains' Active / Archive:
   Private / Imported for sales you recorded), price, commission or fees,
   net, status (completed, in progress with its step, cancelled), paid out
   on. In-progress sales pin to the top with their actions.
-- **Filters:** date range (sale date), market / source, currency. Totals are
-  converted to your preferred currency
+- **Filters:** TLD, registrar, date range (sale date, Sold), market /
+  source (Where), currency. Sold and Where show from the start; the rest
+  are in the Filters menu, TLD and Registrar first as on every table.
+  Totals are converted to your preferred currency
   ([exchange-rates.md](exchange-rates.md)); the currency filter shows only
   one currency's sales, in that currency.
 - **Totals and year grouping:** the yearly totals Markets shows today

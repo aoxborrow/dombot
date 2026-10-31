@@ -1,11 +1,11 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FilterBar, type FilterField, type ListField } from './FilterBar';
 import { SearchField, ViewSwitch } from './Toolbar';
 
 // A table page's toolbar, as on Domains and Activity: the page's main switch,
-// the search, then the filter chips and "+ Add filter", all wrapping together.
+// the search, then the filter chips and "Filters", all wrapping together.
 
 /** A checkbox-list filter field; `onChange` gets the new selection. */
 export function listField(
@@ -131,6 +131,8 @@ export function FilterToolbar({
   children?: ReactNode;
   className?: string;
 }) {
+  // Whether the switch goes on a line of its own (FilterBar works it out).
+  const [switchAbove, setSwitchAbove] = useState(false);
   return (
     <div
       className={cn(
@@ -139,9 +141,17 @@ export function FilterToolbar({
         className,
       )}
     >
-      {/* Before the search from lg; narrower, on a row of its own above
-          it, still on the left (a phone's fills that row). */}
-      {viewSwitch && <div className="max-lg:basis-full">{viewSwitch}</div>}
+      {/* Before the search while it and the default chips fit beside it;
+          otherwise on a line of its own above them, still on the left. A
+          phone's always is, and fills it. */}
+      {viewSwitch && (
+        <div
+          data-toolbar-switch
+          className={cn('max-sm:basis-full', switchAbove && 'basis-full')}
+        >
+          {viewSwitch}
+        </div>
+      )}
       <SearchField
         value={search}
         onChange={onSearch}
@@ -156,6 +166,7 @@ export function FilterToolbar({
         presets={presets}
         presetsIfRoom={presetsIfRoom}
         variant="flat"
+        onSwitchAbove={setSwitchAbove}
       />
       {children}
     </div>

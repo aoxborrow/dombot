@@ -366,7 +366,13 @@ Listings' count in the switch is how many of them are live on a market:
   have; Auto-renew and Created are Owned only.
 
 The heading names the view in green ("Domains OWNED"), since the switch
-sits below the cards.
+sits below the cards. The switch leads the toolbar, on one line with the
+search and the default filters while they fit; otherwise the if-room
+filters (Pricing and Expiration on Owned) go first, and then the switch
+takes a line of its own above them. That's worked out from the toolbar's
+starting state (`toolbarLayout`), so setting filters never moves it.
+Every table's Filters menu starts with TLD, Registrar and Folder, where it
+has them.
 
 - **A listing column per connected market** (Afternic, Atom, Sedo, …) in
   Listings, in the slot saved layouts call `listing`, so a name listed on
