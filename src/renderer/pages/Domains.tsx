@@ -659,8 +659,8 @@ const VIEW_COLUMNS: Record<DomainsView, ColumnLayout> = {
 
 /**
  * Each view's default filter chips, in order, and which of them show only
- * while they fit on the toolbar's first line. TLD is in the Add filter menu
- * only.
+ * while there's room (toolbarLayout): those go, the last first, before the
+ * view switch takes a line of its own. TLD is in the Add filter menu only.
  */
 const VIEW_FILTERS: Record<
   DomainsView,

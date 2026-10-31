@@ -753,8 +753,7 @@ export default function Sales() {
             setPage(0);
           }}
           fields={filterFields}
-          presets={['soldOn', 'source', 'registrar']}
-          presetsIfRoom={['registrar']}
+          presets={['soldOn', 'source']}
         >
           {undated > 0 && (
             <span className="text-xs text-muted-foreground">
