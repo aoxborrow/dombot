@@ -412,7 +412,7 @@ export function DomainsCards({
         size="sm"
         icon={CalendarClock}
         accentClass="text-rose-400"
-        label="Expiring soon (<30d)"
+        label="Expiring, 30 days"
         // Off or unknown: either way, not renewing on its own.
         value={[
           { value: cards.expiring.toLocaleString(), words: 'auto-renew off' },
