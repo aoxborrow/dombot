@@ -191,6 +191,12 @@ Reads:
 - **`domain_url_forwarding_get`** — URL forwarding rules, including read-only
   `masked` ones.
 - **`domain_auth_code_get`** — the EPP/auth code. A secret.
+- **`domain_transfer_out_get`** — the latest outbound transfer: the request
+  a buyer's registrar made with the auth code. `{ domain, transferOut }`,
+  where `transferOut` is `null` or `status` (`pending` while it waits on
+  you, `approved`, `rejected`, `completed`, `cancelled`, `unknown`),
+  `rawStatus` (the registrar's label), `requestedAt`, `expiresAt` (when the
+  registrar lets it go unanswered) and `completedAt`. Read live.
 - **`domain_renewal_price`** — DomBot's estimated annual renewal price and
   where it came from: your manual price, a per-name quote, the account's TLD
   rate, or the base database. Not the registrar's live quote (that's
@@ -211,11 +217,13 @@ Writes:
   `temporary` or `permanent`). Replaces the whole set; an empty array clears
   it.
 - **`domain_renew`** — `years?` (default 1). Costs money.
+- **`domain_transfer_out_approve`** — releases a `pending` transfer-out to
+  the gaining registrar now. The domain leaves your account.
 - **`domain_set_folder`** — see [Folders](#folders). Local only, so it takes
   no `registrar` or `accountId`.
 
-Auto-renew, lock, privacy, nameservers, forwarding and renew run through the
-same dispatcher as the Domains table ([domain-editing.md](domain-editing.md)),
+Auto-renew, lock, privacy, nameservers, forwarding, renew and transfer
+approval run through the same dispatcher as the Domains table ([domain-editing.md](domain-editing.md)),
 so they're gated by what the registrar supports and return `{ accountId,
 registrar, success, status, message }`. `status` is `ok`, `failed`,
 `unsupported`, `skipped`, `rate-limited`, `cancelled`, or `unknown` when a

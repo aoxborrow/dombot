@@ -482,7 +482,11 @@ can't unlock, and the name's detail is fetched where its registrar's list
 doesn't say), then Send auth code on a sale waiting for it, which reads
 the sale back so the row moves on to its next step without a sync. Two
 buttons rather than one: a registrar that can't give the code through its
-API may still unlock. Awaiting transfer (sold, and an account
+API may still unlock. Then Approve transfer, once the buyer's registrar has
+asked for the name and the registrar holding it is waiting on you (Dynadot
+holds it five days): read live for each held name whose registrar reports
+transfers out, and one click releases it now
+([domain-editing.md](domain-editing.md#transfers-out)). Awaiting transfer (sold, and an account
 of yours still holds the name) is amber like a market's steps, with Mark
 complete: a buyer often takes the name at the same registrar, so nothing
 need change registrar, and marking it (`transferred` on the sold event)

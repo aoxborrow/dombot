@@ -49,6 +49,8 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.getUrlForwarding, target),
   getEmailForwarding: (target) =>
     ipcRenderer.invoke(IpcChannels.getEmailForwarding, target),
+  getTransferOut: (target) =>
+    ipcRenderer.invoke(IpcChannels.getTransferOut, target),
   startBulk: (targets, op) =>
     ipcRenderer.invoke(IpcChannels.startBulk, targets, op),
   cancelBulk: (jobId) => ipcRenderer.invoke(IpcChannels.cancelBulk, jobId),

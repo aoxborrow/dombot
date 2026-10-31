@@ -37,7 +37,7 @@ import {
   setAlertsDismissed,
   setSaleTransferred,
 } from '../services/domain-history';
-import { applyDomainOp } from '../services/domain-ops';
+import { applyDomainOp, getTransferOut } from '../services/domain-ops';
 import {
   eventsFor,
   listEvents,
@@ -1990,6 +1990,49 @@ export function registerTools(server: McpServer): void {
       // A read: surface a non-ok outcome as the tool's error, as before.
       if (result.status !== 'ok') throw new Error(result.message);
       return json({ domain, authCode: result.data?.authCode });
+    },
+  );
+
+  server.registerTool(
+    'domain_transfer_out_get',
+    {
+      title: 'Get transfer out',
+      description:
+        "For a single domain: read its latest outbound transfer — the request another registrar made with the auth code, as when a sale's buyer takes the name. `status` is pending (waiting on you: approve it with domain_transfer_out_approve, or the registrar lets it go on its own around `expiresAt`), approved, rejected, completed, cancelled, or unknown; `rawStatus` is the registrar's own label. `transferOut` is null when there is none. Read live. Not supported by every registrar.",
+      inputSchema: { accountId, registrar: optionalRegistrar, domain },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ accountId, registrar, domain }) => {
+      const r = resolveRegistrar(domain, registrar, accountId);
+      const account = resolveDomainAccount(r, domain, accountId);
+      return json({
+        domain,
+        transferOut: await getTransferOut({
+          registrar: r,
+          domainName: domain,
+          accountId: account.id,
+        }),
+      });
+    },
+  );
+
+  server.registerTool(
+    'domain_transfer_out_approve',
+    {
+      title: 'Approve transfer out',
+      description:
+        "For a single domain: approve its pending outbound transfer (see domain_transfer_out_get), releasing it to the gaining registrar now instead of after the registrar's waiting period. The domain leaves your account. Not supported by every registrar.",
+      inputSchema: { accountId, registrar: optionalRegistrar, domain },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+    },
+    async ({ accountId, registrar, domain }) => {
+      const r = resolveRegistrar(domain, registrar, accountId);
+      const account = resolveDomainAccount(r, domain, accountId);
+      return domainOp(r, domain, { kind: 'approveTransfer' }, account.id);
     },
   );
 
