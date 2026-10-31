@@ -134,7 +134,7 @@ interface MarketSale {
   } | null;
   paidOutOn: string | null;
   /** What the seller has to do next, when the market says (auth code, …). */
-  action: 'auth_code' | 'transfer' | 'payee_details' | null;
+  action: 'auth_code' | 'transfer' | 'payee_details' | 'payout' | null;
 }
 
 /** One day for one name, or for an account (name null). */
@@ -491,9 +491,12 @@ the sale is done. Then Approve transfer, once the buyer's registrar has
 asked for the name and the registrar holding it is waiting on you (Dynadot
 holds it five days): read live for each held name whose registrar reports
 transfers out, and one click releases it now
-([domain-editing.md](domain-editing.md#transfers-out)). Awaiting transfer
-(sold, and an account of yours still holds the name) is amber like a
-market's steps, with Mark
+([domain-editing.md](domain-editing.md#transfers-out)). Once the name has
+moved, the market's transfer-confirmed and payout statuses (Afternic's
+`CONFIRMED_TRANSFER`, `PENDING_PAYOUT`, `SCHEDULED_PAYOUT`) read Awaiting
+payout, with no buttons; every sale not finished has an amber dot. Awaiting
+transfer (sold, and an account of yours still holds the name) is amber like
+a market's steps, with Mark
 complete: a buyer often takes the name at the same registrar, so nothing
 need change registrar, and marking it (`transferred` on the sold event)
 stops it waiting. Filters on the sale date (a bounded range leaves

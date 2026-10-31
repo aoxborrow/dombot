@@ -556,7 +556,10 @@ export default function Sales() {
       label: 'Status',
       cellClassName: 'py-1',
       cell: (r) => {
-        const held = heldDomain(r);
+        // Once the name has moved (only the payout's left), the steps are
+        // behind it: the status says so, without their buttons.
+        const moved = r.step === 'payout';
+        const held = moved ? undefined : heldDomain(r);
         return (
           <span className="flex items-center justify-between gap-3">
             <span
@@ -570,12 +573,10 @@ export default function Sales() {
               <span
                 className={cn(
                   'size-2 rounded-full',
-                  // Amber: something to do (a market's step, or a sold name
-                  // still in your account to hand over).
+                  // Amber: not finished (under way at the market, or a sold
+                  // name still in your account to hand over).
                   isUnderWay(r)
-                    ? r.step
-                      ? 'bg-amber-500'
-                      : 'bg-sky-500'
+                    ? 'bg-amber-500'
                     : r.status === 'cancelled'
                       ? 'bg-muted-foreground/40'
                       : r.awaitingTransfer
@@ -602,17 +603,20 @@ export default function Sales() {
                 )}
               {/* The market has the code, through DomBot or not: a step
                   done, shown until the sale finishes. */}
-              {r.step !== 'auth_code' && isUnderWay(r) && r.authCodeSent && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="-my-1 h-6 shrink-0 px-2 text-xs"
-                  disabled
-                  title="The market has the transfer auth code"
-                >
-                  Auth code sent
-                </Button>
-              )}
+              {r.step !== 'auth_code' &&
+                !moved &&
+                isUnderWay(r) &&
+                r.authCodeSent && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="-my-1 h-6 shrink-0 px-2 text-xs"
+                    disabled
+                    title="The market has the transfer auth code"
+                  >
+                    Auth code sent
+                  </Button>
+                )}
               {held && <SaleApproveTransfer domain={held} />}
               {/* Handed over without leaving the registrar (an account change
                 there), or otherwise done: it stops waiting. */}

@@ -136,6 +136,12 @@ describe('saleFromAfternic', () => {
     });
     expect(action('PENDING_TRANSFER').action).toBe('transfer');
     expect(action('AWAITING_PAYEE_UPDATE').action).toBe('payee_details');
+    // The name has moved: only the payout is left.
+    expect(action('CONFIRMED_TRANSFER')).toMatchObject({
+      status: 'in_progress',
+      action: 'payout',
+    });
+    expect(action('SCHEDULED_PAYOUT').action).toBe('payout');
     expect(action('LEASE_FULLY_PAID').status).toBe('completed');
   });
 });
