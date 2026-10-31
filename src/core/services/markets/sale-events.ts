@@ -161,6 +161,30 @@ export function recordSaleEvents(
   return result;
 }
 
+/**
+ * Answers the open "removed" alerts of names with a sale under way: the
+ * buyer took the name. Registrar sync writes such a removal answered when
+ * it knows of the sale; this catches one it wrote before the market sync
+ * that brought the sale. Returns how many it answered.
+ */
+export function answerRemovalsOfSales(
+  selling: ReadonlySet<string>,
+  now = Date.now(),
+): number {
+  if (!selling.size) return 0;
+  const events = listEvents();
+  const resolved = resolvedIds(events);
+  const open = events.filter(
+    (e) =>
+      e.type === DomainEventType.Removed &&
+      selling.has(e.domain) &&
+      isOpenAlert(e, resolved),
+  );
+  if (open.length)
+    putEvents(open.map((e) => ({ ...e, dismissed: true, updatedAt: now })));
+  return open.length;
+}
+
 /** The sale id in a `market-sales` key (`${accountId}:${saleId}`). */
 function saleIdOf(key: string): string {
   return key.slice(key.indexOf(':') + 1);

@@ -111,6 +111,8 @@ export function diffSync(
   tracked: ReadonlySet<string>,
   now: number,
   newEvent: (fields: NewEvent, now: number) => DomainEvent,
+  /** Names with a market sale under way (ownership's `namesSelling`). */
+  selling: ReadonlySet<string> = new Set(),
 ): SyncDiff {
   const date = localDay(now);
   const prev = new Map(before.map((h) => [h.accountId, h]));
@@ -311,8 +313,11 @@ export function diffSync(
       type: DomainEventType.Removed,
       accountId: left.accountId,
       ...lapsed,
-      // Sold, or lapsed: nothing left to review.
-      ...(disposed.has(left.name) || lapsed.expires ? { dismissed: true } : {}),
+      // Sold (or selling at a market: the buyer took it), or lapsed:
+      // nothing left to review.
+      ...(disposed.has(left.name) || selling.has(left.name) || lapsed.expires
+        ? { dismissed: true }
+        : {}),
     });
   }
 

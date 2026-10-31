@@ -566,7 +566,7 @@ export default function Sales() {
               className={cn(
                 'inline-flex items-center gap-1.5 whitespace-nowrap',
                 r.status !== 'completed' && 'text-muted-foreground',
-                ((isUnderWay(r) && r.step) || r.awaitingTransfer) &&
+                ((isUnderWay(r) && r.step && !moved) || r.awaitingTransfer) &&
                   'font-medium text-foreground',
               )}
             >
@@ -574,14 +574,17 @@ export default function Sales() {
                 className={cn(
                   'size-2 rounded-full',
                   // Amber: not finished (under way at the market, or a sold
-                  // name still in your account to hand over).
-                  isUnderWay(r)
-                    ? 'bg-amber-500'
-                    : r.status === 'cancelled'
-                      ? 'bg-muted-foreground/40'
-                      : r.awaitingTransfer
-                        ? 'bg-amber-500'
-                        : 'bg-brand',
+                  // name still in your account to hand over). A green ring
+                  // once the name has moved: done but for the money.
+                  moved
+                    ? 'border-[1.5px] border-brand'
+                    : isUnderWay(r)
+                      ? 'bg-amber-500'
+                      : r.status === 'cancelled'
+                        ? 'bg-muted-foreground/40'
+                        : r.awaitingTransfer
+                          ? 'bg-amber-500'
+                          : 'bg-brand',
                 )}
                 aria-hidden
               />
@@ -841,7 +844,7 @@ export default function Sales() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         rowClassName={(r) =>
-          (isUnderWay(r) && r.step) || r.awaitingTransfer
+          (isUnderWay(r) && r.step && r.step !== 'payout') || r.awaitingTransfer
             ? 'bg-amber-500/[0.06]'
             : undefined
         }

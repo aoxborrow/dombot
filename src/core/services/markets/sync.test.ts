@@ -461,6 +461,40 @@ describe('sales as sold events', () => {
     expect(sold()).toEqual([]);
   });
 
+  it('answers a removal sync wrote before it knew of the sale under way', async () => {
+    putEvents([
+      newEvent({
+        domain: 'going.com',
+        type: DomainEventType.Removed,
+        source: DomainEventSource.Sync,
+        accountId: 'dynadot',
+        date: '2026-10-27',
+      }),
+      newEvent({
+        domain: 'left.com',
+        type: DomainEventType.Removed,
+        source: DomainEventSource.Sync,
+        accountId: 'dynadot',
+        date: '2026-10-27',
+      }),
+    ]);
+    await connect();
+    fake.sales = [
+      {
+        ...sale('t1', 'going.com', '2026-10-26', 'in_progress'),
+        action: 'payout',
+      },
+    ];
+    await syncMarketAccount(ACCOUNT);
+    const removal = (name: string) =>
+      listEvents().find((e) => e.domain === name && e.type === 'removed');
+    expect(removal('going.com')?.dismissed).toBe(true);
+    // No sale: still one to review.
+    expect(removal('left.com')?.dismissed).toBeUndefined();
+    // Under way, so no sold event yet.
+    expect(sold()).toEqual([]);
+  });
+
   it('links your own sale of the name and fills in its price', async () => {
     putEvents([
       newEvent({
