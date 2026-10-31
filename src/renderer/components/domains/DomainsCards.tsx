@@ -45,8 +45,9 @@ const plural = (n: number, word: string) =>
   `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
 
 export interface DomainsCardActions {
-  /** Expiring within `days`, auto-renew off. */
-  onExpiring: (days: 30 | 60) => void;
+  /** Expiring within 30 days, not renewing on their own (auto-renew off
+   * or unknown). */
+  onExpiring: () => void;
   /** Auto-renew on. */
   onAutoRenew: () => void;
   /** The Markets filter set to these states (in the markets in play). */
@@ -82,8 +83,8 @@ export function DomainsCards({
   listPrices: Record<string, ListPrice>;
   /** Each name's market views and leads (30 and 365 days), where fetched. */
   traffic: Record<string, DomainTrafficTotals>;
-  /** Whether a name expires within 30 or 60 days (and hasn't yet). */
-  expiresWithin: (d: Domain, days: 30 | 60) => boolean;
+  /** Whether a name expires within 30 days (and hasn't yet). */
+  expiresWithin: (d: Domain) => boolean;
   archiveLabelOf: (d: Domain) => ArchiveLabel | null;
   /** Each name's renewal price, for what the auto-renewing ones cost a
    * year in your currency. */
@@ -174,20 +175,17 @@ export function DomainsCards({
         withTraffic,
       };
     }
-    // Expiring and not renewing: a name auto-renew will take care of isn't
-    // a worry.
-    let in30 = 0;
-    let in60 = 0;
+    let expiring = 0;
     let autoRenewing = 0;
     let imported = 0;
     let listed = 0;
     const registrars = new Set<string>();
     for (const d of rows) {
-      // As the Auto-renew filter's Off and On: unknown is neither.
-      if (!d.autoRenewUnknown && !d.autoRenew) {
-        if (expiresWithin(d, 30)) in30 += 1;
-        if (expiresWithin(d, 60)) in60 += 1;
-      }
+      // Expiring and not renewing on its own (auto-renew off, or unknown
+      // for a name you added): one auto-renew takes care of isn't a worry.
+      if ((d.autoRenewUnknown || !d.autoRenew) && expiresWithin(d))
+        expiring += 1;
+      // As the Auto-renew filter's On: unknown isn't on.
       if (!d.autoRenewUnknown && d.autoRenew) autoRenewing += 1;
       if (statesOf(d).includes('active')) listed += 1;
       if (d.source === 'imported') imported += 1;
@@ -195,8 +193,7 @@ export function DomainsCards({
     }
     return {
       view,
-      in30,
-      in60,
+      expiring,
       autoRenewing,
       imported,
       listed,
@@ -415,12 +412,9 @@ export function DomainsCards({
         size="sm"
         icon={CalendarClock}
         accentClass="text-rose-400"
-        label="Expiring soon"
-        value={[
-          { value: cards.in30.toLocaleString(), unit: '/30d' },
-          { value: cards.in60.toLocaleString(), unit: '/60d' },
-        ]}
-        onClick={() => actions.onExpiring(cards.in30 ? 30 : 60)}
+        label="Expiring, 30 days"
+        value={cards.expiring.toLocaleString()}
+        onClick={actions.onExpiring}
       />
       {marketsOn && (
         <StatCard

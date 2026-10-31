@@ -17,8 +17,8 @@ import {
   CircleCheck,
   CircleHelp,
   Globe,
-  IterationCw,
   Plug,
+  RotateCw,
   Server,
   ShieldBan,
   ShieldCheck,
@@ -1468,13 +1468,13 @@ export default function Domains() {
     };
     let renewOn = 0;
     let renewOff = 0;
+    let renewUnknown = 0;
     for (const d of shown) {
       const label = archiveLabelOf(d);
       if (label) status[label] += 1;
-      else if (!d.autoRenewUnknown) {
-        if (d.autoRenew) renewOn += 1;
-        else renewOff += 1;
-      }
+      else if (d.autoRenewUnknown) renewUnknown += 1;
+      else if (d.autoRenew) renewOn += 1;
+      else renewOff += 1;
     }
     const opts = folders.map((f) => ({
       value: f.id,
@@ -1512,6 +1512,10 @@ export default function Domains() {
       autoRenewOptions: [
         { value: 'on', label: 'On', count: renewOn },
         { value: 'off', label: 'Off', count: renewOff },
+        // A name you added, whose registrar DomBot can't ask.
+        ...(renewUnknown
+          ? [{ value: 'unknown', label: 'Unknown', count: renewUnknown }]
+          : []),
       ],
       ownedCount: sum(counts.owned),
       archiveCount: sum(counts.archive),
@@ -1691,7 +1695,7 @@ export default function Domains() {
             {
               key: 'autoRenew',
               label: 'Auto-renew',
-              icon: IterationCw,
+              icon: RotateCw,
               options: autoRenewOptions,
               selected: autoRenewFilter,
               plural: 'values',
@@ -1849,8 +1853,7 @@ export default function Domains() {
     : listingMarkets;
   // The same days the Expiration filter's shortcuts pick.
   const expiresWithin = useCallback(
-    (d: Domain, days: 30 | 60) =>
-      matchesExpiration(d, presetRange(days === 30 ? 'next30' : 'next60')),
+    (d: Domain) => matchesExpiration(d, presetRange('next30')),
     [],
   );
 
@@ -1934,9 +1937,12 @@ export default function Domains() {
         );
         if (folder.length > 0 && !folder.includes(bucket)) return false;
         if (ownedView && autoRenewFilter.length > 0) {
-          if (d.autoRenewUnknown) return false;
-          if (!autoRenewFilter.includes(d.autoRenew ? 'on' : 'off'))
-            return false;
+          const renew = d.autoRenewUnknown
+            ? 'unknown'
+            : d.autoRenew
+              ? 'on'
+              : 'off';
+          if (!autoRenewFilter.includes(renew)) return false;
         }
       }
       return true;
@@ -2368,10 +2374,11 @@ export default function Domains() {
             currency={currency}
             fx={exchangeRates}
             actions={{
-              // The names the card counts: expiring, auto-renew off.
-              onExpiring: (days) => {
-                setExpires(presetRange(days === 30 ? 'next30' : 'next60'));
-                setAutoRenewFilter(['off']);
+              // The names the card counts: expiring within 30 days, not
+              // renewing on their own.
+              onExpiring: () => {
+                setExpires(presetRange('next30'));
+                setAutoRenewFilter(['off', 'unknown']);
                 setPage(0);
               },
               onAutoRenew: () => {
