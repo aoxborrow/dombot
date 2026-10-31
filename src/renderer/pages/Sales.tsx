@@ -730,7 +730,7 @@ export default function Sales() {
             <EmptyTitle>No sales yet</EmptyTitle>
             <EmptyDescription>
               Every sale shows here: the ones a market reports, and the private
-              ones you record with Mark as Sold on a name in Domains.
+              ones you record with Record sale on a name in Domains.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent className="flex-row justify-center">

@@ -82,15 +82,19 @@ false`, and `registrarLabel` when you typed a registrar DomBot doesn't
     account reports has `inAccount: false`, its last known registrar, and
     `null` for the settings an account reports. The `domain_*` tools can't act
     on it.
-- **`portfolio_alerts`** — what needs you, as the bell shows it: failed
-  registrar or market syncs (`sync-error`), names that left an account (`departure`, high
-  priority) and names that arrived (`arrival`, low). Most severe first, then
-  newest. `kind?`, `limit?`, `offset?`. Returns `{ total, counts, alerts }`;
-  each alert's `eventId` is what `resolves` and `portfolio_alert_dismiss`
-  take.
+- **`portfolio_alerts`** — what's new, as the bell shows it: failed
+  registrar or market syncs (`sync-error`), names that left an account
+  (`departure`) and names that arrived (`arrival`) that nobody has answered or
+  dismissed. Most severe first, then newest. `needsReview?` (`true`: instead
+  every arrival and departure Activity's Needs review lists, each with
+  `dismissed`; no sync errors), `kind?`, `limit?`, `offset?`. Returns
+  `{ total, counts, alerts }`; each alert's `eventId` is what `resolves` and
+  `portfolio_alert_dismiss` take.
 - **`portfolio_alert_dismiss`** — `alertIds[]`, `dismissed?` (default
-  `true`; `false` brings them back). Dismisses without recording anything.
-  Returns the ids still open.
+  `true`; `false` brings them back), `dropped?` (`true` marks departures
+  dropped instead, Archive's Dropped; `false` undoes it). Dismissing records
+  nothing: the alert stays in Needs review until its money is recorded.
+  Returns the ids still new.
 - **`portfolio_sync`** — re-sync every active account and return a
   per-account summary (counts, last sync, errors).
 
@@ -120,8 +124,8 @@ portfolio: synced, imported, or with history.
 
 - **`domain_history`** — every event for the name, oldest first, with its
   note and current `ownership` / `archiveLabel`. Each event has its `source`;
-  sync alerts (`added`, `removed`) also have `alert` (`open`, `dismissed` or
-  `resolved`) and `resolvedBy`. A settings change is `changed`, with its
+  sync alerts (`added`, `removed`) also have `alert` (`open`, `dismissed`,
+  `dropped` or `resolved`) and `resolvedBy`. A settings change is `changed`, with its
   `setting`, `after`, and `before` when DomBot knew it. The `domain_*` writes
   record theirs with `source: agent`.
 - **`domain_purchase_set`** — `date?`, `amount?`, `currency?`, `kind?`

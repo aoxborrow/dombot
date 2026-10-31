@@ -229,6 +229,7 @@ export const IpcChannels = {
   getDomainEvents: 'domainEvents:list',
   markSold: 'domainEvents:markSold',
   setAlertsDismissed: 'domainEvents:setAlertsDismissed',
+  setDeparturesDropped: 'domainEvents:setDeparturesDropped',
   setSaleTransferred: 'domainEvents:setSaleTransferred',
   deleteUserEvent: 'domainEvents:deleteUserEvent',
   deleteDomains: 'domainEvents:deleteDomains',
@@ -1295,6 +1296,11 @@ export interface DombotApi {
   setAlertsDismissed: (
     ids: string[],
     dismissed: boolean,
+  ) => Promise<DomainEvent[]>;
+  /** Mark departures dropped (no money came back), or not after all. */
+  setDeparturesDropped: (
+    ids: string[],
+    dropped: boolean,
   ) => Promise<DomainEvent[]>;
   /** Mark a sale's name handed over to the buyer, or not after all. */
   setSaleTransferred: (

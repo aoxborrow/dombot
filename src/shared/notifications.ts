@@ -1,10 +1,11 @@
 import { DomainEventType, type DomainEvent } from './domain-events';
 import type { MarketAccountView, MarketInfo } from './markets';
+import { needsReviewIds } from './review';
 import { isOpenAlert, resolvedIds } from './sync-diff';
 
-// What needs you now: open sync alerts at their review priority, plus accounts
+// What needs you now: new sync alerts at their review priority, plus accounts
 // whose sync failed. Derived from the event log and each account's sync
-// status, never stored. The bell, the Activity page, and later MCP read it.
+// status, never stored. The bell, the Activity tab, and MCP read it.
 
 /** How urgently an open alert needs you. */
 export type ReviewPriority = 'high' | 'low';
@@ -13,20 +14,6 @@ export type ReviewPriority = 'high' | 'low';
 export type Severity = 'error' | ReviewPriority;
 
 const RANK: Record<Severity, number> = { error: 0, high: 1, low: 2 };
-
-/**
- * An event's review priority, or null when it needs nothing (answered,
- * dismissed, or not an alert). A name that left needs a decision (sold?
- * dropped?); a name that arrived only asks what you paid. `resolved` is
- * `resolvedIds(events)`.
- */
-export function reviewPriority(
-  e: DomainEvent,
-  resolved: Set<string>,
-): ReviewPriority | null {
-  if (!isOpenAlert(e, resolved)) return null;
-  return e.type === DomainEventType.Removed ? 'high' : 'low';
-}
 
 /** An account whose last sync failed, with its name for display. */
 export interface SyncFailure {
@@ -94,6 +81,35 @@ export interface Notification {
   message: string;
 }
 
+/** An arrival or departure as a notification, at its type's priority. */
+function eventAlert(e: DomainEvent): Notification {
+  const departure = e.type === DomainEventType.Removed;
+  return {
+    id: e.id,
+    severity: departure ? 'high' : 'low',
+    kind: departure ? 'departure' : 'arrival',
+    at: e.createdAt,
+    accountId: e.accountId ?? null,
+    domain: e.domain,
+    eventId: e.id,
+    message: departure ? 'Removed from an account' : 'Added to an account',
+  };
+}
+
+/**
+ * Most severe first, then newest. One sync stamps all its events with the
+ * same time, so ties fall back to the id: event ids are ULIDs, which sort in
+ * the order they were made.
+ */
+function bySeverity<T extends Notification>(list: T[]): T[] {
+  return list.sort(
+    (a, b) =>
+      RANK[a.severity] - RANK[b.severity] ||
+      (b.at ?? 0) - (a.at ?? 0) ||
+      (b.eventId ?? '').localeCompare(a.eventId ?? ''),
+  );
+}
+
 /** Everything that needs you: most severe first, then newest first. */
 export function notifications(
   events: DomainEvent[],
@@ -110,28 +126,24 @@ export function notifications(
     message: `${f.account}: ${f.message}`,
   }));
   const resolved = resolvedIds(events);
-  for (const e of events) {
-    const priority = reviewPriority(e, resolved);
-    if (!priority) continue;
-    const departure = priority === 'high';
-    out.push({
-      id: e.id,
-      severity: priority,
-      kind: departure ? 'departure' : 'arrival',
-      at: e.createdAt,
-      accountId: e.accountId ?? null,
-      domain: e.domain,
-      eventId: e.id,
-      message: departure ? 'Removed from an account' : 'Added to an account',
-    });
-  }
-  // One sync stamps all its events with the same time, so ties fall back to
-  // the id: event ids are ULIDs, which sort in the order they were made.
-  return out.sort(
-    (a, b) =>
-      RANK[a.severity] - RANK[b.severity] ||
-      (b.at ?? 0) - (a.at ?? 0) ||
-      (b.eventId ?? '').localeCompare(a.eventId ?? ''),
+  for (const e of events) if (isOpenAlert(e, resolved)) out.push(eventAlert(e));
+  return bySeverity(out);
+}
+
+/**
+ * Every arrival and departure Activity's Needs review lists (shared/review.ts),
+ * departures first, newest first. `dismissed`: no longer new, but still
+ * missing its money.
+ */
+export function reviewAlerts(
+  events: DomainEvent[],
+): (Notification & { dismissed: boolean })[] {
+  const ids = needsReviewIds(events);
+  const resolved = resolvedIds(events);
+  return bySeverity(
+    events
+      .filter((e) => ids.has(e.id))
+      .map((e) => ({ ...eventAlert(e), dismissed: !isOpenAlert(e, resolved) })),
   );
 }
 

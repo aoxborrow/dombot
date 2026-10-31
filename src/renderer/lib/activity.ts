@@ -22,6 +22,14 @@ import type { MarketAccountView, MarketInfo } from '../../shared/markets';
 // "Activity and alerts"): what needs review, what went wrong, and how to say
 // what each event means.
 
+/**
+ * A new row on Activity, like unread mail: a faint brand tint and a 3px bar
+ * down its left edge. The bar is the first cell's inset shadow, important so
+ * it wins over the checkbox cell's `shadow-none!` (the table's column rules).
+ */
+export const NEW_ROW_TINT =
+  'bg-brand/[0.06] hover:bg-brand/[0.1] [&>td:first-child]:shadow-[inset_3px_0_0_var(--color-brand)]!';
+
 /** An account whose last sync failed (see shared/notifications.ts). */
 export type SyncProblem = SyncFailure;
 

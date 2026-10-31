@@ -388,6 +388,7 @@ const ARCHIVE_TITLE: Record<ArchiveLabel, string> = {
   sold: 'You recorded a sale',
   deleted: 'Not registered: the registration lookup found no holder',
   expired: 'Left your accounts after its expiry date',
+  dropped: 'Left your accounts before expiry, and you marked it dropped',
   removed: 'Left your accounts before expiry, with no sale recorded',
 };
 
@@ -1045,7 +1046,7 @@ export default function Domains() {
   // Edit details for an imported name.
   const [detailsFor, setDetailsFor] = useState<Domain | null>(null);
   const [saleFor, setSaleFor] = useState<Domain | null>(null);
-  // Mark as Sold for one name: the sale dialog, which takes the price.
+  // Record sale for one name: the sale dialog, which takes the price.
   const [markSoldFor, setMarkSoldFor] = useState<Domain | null>(null);
   // The ownership dialogs, for one name (row menu) or the selection.
   const [ownershipDialog, setOwnershipDialog] = useState<{
@@ -1492,6 +1493,7 @@ export default function Domains() {
       sold: 0,
       deleted: 0,
       expired: 0,
+      dropped: 0,
       removed: 0,
     };
     const renew: Record<AutoRenewChoice, number> = {
@@ -1594,6 +1596,13 @@ export default function Domains() {
       },
     });
   const purchaseOf = (d: Domain) => purchases[toAscii(d.domainName)];
+  /** What's recorded as paid for a name, for its menu's wording. */
+  const paidKind = (d: Domain) => {
+    const p = purchaseOf(d);
+    return p?.purchaseDate || p?.amount
+      ? (p.purchaseType ?? 'purchased')
+      : null;
+  };
   // TLD first in the Filters menu, though never a default chip.
   const filterFields: FilterField[] = [
     listFilter(
@@ -2207,6 +2216,7 @@ export default function Domains() {
               onAssignFolder={(folderId) => applyFolders([d], folderId)}
               archive={archiveLabelOf(d)}
               sold={!!ownership.get(toAscii(d.domainName))?.sale}
+              paid={paidKind(d)}
               removable={d.departed === true || d.source === 'imported'}
               onMarkSold={() => openOwnership('sold', [d])}
               onDelete={() => openOwnership('delete', [d])}

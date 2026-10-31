@@ -438,6 +438,7 @@ export function createHttpApi(): DombotApi {
     getDomainEvents: m('getDomainEvents'),
     markSold: m('markSold'),
     setAlertsDismissed: m('setAlertsDismissed'),
+    setDeparturesDropped: m('setDeparturesDropped'),
     setSaleTransferred: m('setSaleTransferred'),
     deleteUserEvent: m('deleteUserEvent'),
     deleteDomains: m('deleteDomains'),

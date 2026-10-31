@@ -63,7 +63,7 @@ export function PurchaseCell({
   align = 'left',
   title,
   empty = false,
-  editLabel = 'Purchase details',
+  editLabel = 'Edit purchase',
   children,
 }: {
   domain: Domain;
@@ -97,7 +97,7 @@ export function PurchaseCell({
 }
 
 /**
- * The purchase date. A click opens Purchase details. Archive shows this
+ * The purchase date. A click opens the purchase dialog. Archive shows this
  * all the time; Owned shows it only while the Purchased filter is set.
  */
 export function purchaseDateColumn(
@@ -123,7 +123,7 @@ export function purchaseDateColumn(
           domain={d}
           onEdit={onEdit}
           empty={!date}
-          editLabel="Purchase details"
+          editLabel="Edit purchase"
         >
           {text}
         </PurchaseCell>
@@ -169,7 +169,7 @@ export function purchaseAmountColumn(
           onEdit={onEdit}
           align="right"
           empty={!text}
-          editLabel="Purchase details"
+          editLabel="Edit purchase"
         >
           {shown}
         </PurchaseCell>

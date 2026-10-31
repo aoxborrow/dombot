@@ -76,7 +76,7 @@ export function useTabMetrics(): TabMetrics {
       open > 0
         ? {
             value: open.toLocaleString('en-US'),
-            title: `${open.toLocaleString('en-US')} need${open === 1 ? 's' : ''} review`,
+            title: `${open.toLocaleString('en-US')} new`,
           }
         : null;
 
