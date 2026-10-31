@@ -246,7 +246,7 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
     On/off settings are booleans; lists (nameservers, forwarding rules, DNS
     records, contact roles) are short readable lines.
   - **Never alerts.** They don't need review and don't change Owned /
-    Archive. Activity shows them as **Changed**, with a **Change** filter by
+    Archive. Activity shows them as **Changed**, with a **Changes** filter by
     setting.
 - **CSV import edits, it doesn't append.** A purchase in an imported row
   updates the name's current purchase or registration in place (type, date,
