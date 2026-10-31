@@ -8,8 +8,8 @@ import {
   CalendarDays,
   CalendarSync,
   Globe,
-  IterationCw,
   RefreshCwOff,
+  RotateCw,
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { importedRows } from '../../shared/imported-domains';
@@ -232,7 +232,7 @@ export default function Renewals() {
         {
           id: 'auto',
           label: 'Auto-renew',
-          icon: IterationCw,
+          icon: RotateCw,
           count: autoRenewing.length,
           active: renewing === 'auto',
           onClick: () => setRenewing('auto'),

@@ -9,7 +9,7 @@ import {
   CircleOff,
   Globe,
   Receipt,
-  ShieldCheck,
+  RotateCw,
   Tag,
   Trash2,
   TriangleAlert,
@@ -396,18 +396,7 @@ export function DomainsCards({
       />
       <StatCard
         size="sm"
-        icon={CalendarClock}
-        accentClass="text-rose-400"
-        label="Expiring soon"
-        value={[
-          { value: cards.in30.toLocaleString(), unit: '/30d' },
-          { value: cards.in60.toLocaleString(), unit: '/60d' },
-        ]}
-        onClick={() => actions.onExpiring(cards.in30 ? 30 : 60)}
-      />
-      <StatCard
-        size="sm"
-        icon={ShieldCheck}
+        icon={RotateCw}
         accentClass="text-violet-400"
         label="Auto-renew"
         // The share of the names shown that renew on their own, and what
@@ -421,6 +410,17 @@ export function DomainsCards({
           },
         ]}
         onClick={actions.onAutoRenew}
+      />
+      <StatCard
+        size="sm"
+        icon={CalendarClock}
+        accentClass="text-rose-400"
+        label="Expiring soon"
+        value={[
+          { value: cards.in30.toLocaleString(), unit: '/30d' },
+          { value: cards.in60.toLocaleString(), unit: '/60d' },
+        ]}
+        onClick={() => actions.onExpiring(cards.in30 ? 30 : 60)}
       />
       {marketsOn && (
         <StatCard

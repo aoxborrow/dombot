@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
-  Bell,
   Building2,
   Calculator,
   CircleMinus,
@@ -825,7 +824,7 @@ export default function Activity() {
           <StatCard
             size="sm"
             icon={Flag}
-            accentClass="text-yellow-400"
+            accentClass="text-yellow-600 dark:text-yellow-400"
             label="Needs review"
             value={[
               {
@@ -880,7 +879,7 @@ export default function Activity() {
                 {
                   id: 'review',
                   label: 'Needs review',
-                  icon: Bell,
+                  icon: Flag,
                   count: reviewCount,
                   active: reviewOnly,
                   onClick: () => setView(true),

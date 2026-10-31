@@ -415,12 +415,12 @@ sits below the cards.
   - Each card is two rows: the label, then a big number with a few words
     beside it ("251 7 registrars", "60% 150/251 names"), cut short rather
     than wrapped (`StatCard` value slots).
-  - Owned: Domains (registrars), Expiring soon: names with auto-renew off
-    expiring within 30 and 60 days, as two numbers ("2/30d 7/60d"); a
-    click sets Expiration and Auto-renew off, Auto-renew (the share of names
-    renewing on their own, with what they cost a year; a click sets
-    Auto-renew on), For sale (names live on a market; opens Listings), Total BIN (the
-    BIN prices added up, with the average).
+  - Owned: Domains (registrars); Auto-renew (the share of names renewing
+    on their own, with what they cost a year; a click sets Auto-renew on);
+    Expiring soon (names with auto-renew off expiring within 30 and 60
+    days, as two numbers, "2/30d 7/60d"; a click sets Expiration and
+    Auto-renew off); For sale (names live on a market; opens Listings);
+    Total BIN (the BIN prices added up, with the average).
   - Listings: Listed (live on a market), Not listed (with how many are
     pending), Issues (rejected or inactive), Discrepancies (a market
     price above or below your BIN), each setting the Markets filter. They
