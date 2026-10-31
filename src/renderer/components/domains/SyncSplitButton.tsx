@@ -5,6 +5,7 @@ import {
   Download,
   Plug2,
   RefreshCw,
+  Store,
   Upload,
 } from 'lucide-react';
 import { useRef } from 'react';
@@ -34,21 +35,20 @@ function Count({ n }: { n: number }) {
 
 /**
  * The Domains header's data actions: "Sync now" joined to a chevron that opens
- * the rest (registrar settings, import, CSV export). The sync half follows the
+ * the rest (registrar and market settings, import, CSV export). Sync now
+ * covers every enabled registrar and market account. The sync half follows the
  * shared sync state: green when a sync can start, otherwise neutral — spinning
  * mid-sync, "Synced" for the minute after one, and plain when a bulk job or
  * missing setup blocks it, where a click explains instead of syncing. The chevron stays usable throughout.
  * On phones the sync half drops to its icon.
  */
 export function SyncSplitButton({
-  registrarCount,
   viewCount,
   allCount,
   onImport,
   onExportView,
   onExportAll,
 }: {
-  registrarCount: number;
   /** Rows in the current filtered view / in the whole list, for export. */
   viewCount: number;
   allCount: number;
@@ -71,7 +71,10 @@ export function SyncSplitButton({
     lastSyncedAt,
     stale,
     partialFail,
+    accounts,
+    unit,
   } = useSyncState();
+  const hasMarkets = accounts.some((a) => a.kind === 'market');
   // Can't sync right now, and not because one is running: a click says why
   // instead of syncing. Either way the button goes neutral rather than fading.
   const blocked = disabled && !syncing;
@@ -154,10 +157,10 @@ export function SyncSplitButton({
             <DropdownMenuItem disabled={disabled} onSelect={sync}>
               <RefreshCw className={cn(syncing && 'animate-spin')} />
               {syncing ? 'Syncing…' : 'Sync now'}
-              {(shortReason ?? registrarCount > 0) && (
+              {(shortReason ?? accounts.length > 0) && (
                 <span className="ml-auto text-xs text-muted-foreground">
                   {shortReason ??
-                    `${registrarCount} registrar${registrarCount === 1 ? '' : 's'}`}
+                    `${accounts.length} ${accounts.length === 1 ? unit.replace(/s$/, '') : unit}`}
                 </span>
               )}
             </DropdownMenuItem>
@@ -169,6 +172,14 @@ export function SyncSplitButton({
               <Plug2 className="-mx-px size-[18px]" />
               Registrar settings…
             </DropdownMenuItem>
+            {hasMarkets && (
+              <DropdownMenuItem
+                onSelect={() => navigate('/settings?tab=markets')}
+              >
+                <Store />
+                Market settings…
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onImport}>
               <Upload />

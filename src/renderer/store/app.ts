@@ -251,6 +251,12 @@ interface AppState {
   loadMarkets: () => Promise<void>;
   /** Swap in the accounts a market API call returned, and reload listings. */
   setMarketAccounts: (accounts: MarketAccountView[]) => Promise<void>;
+  /** Every enabled market account is syncing (Sync now, or Settings →
+   * Markets' Sync all); one account's own sync shows on its card alone. */
+  marketsSyncing: boolean;
+  /** Sync every enabled market account, then reload what they hold. A failed
+   * account records its error on its card instead of throwing. */
+  syncMarkets: () => Promise<void>;
 
   /** Asking prices keyed by normalized domain name. */
   listPrices: Record<string, ListPrice>;
@@ -505,8 +511,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       detailAllLoading: false,
       selected: new Set(),
     });
-    // Imported names aren't cache: re-read their prices.
-    await get().loadPricing();
+    // Imported names aren't cache: re-read their prices. Market listings
+    // were cache: re-read what's left.
+    await Promise.all([get().loadPricing(), get().loadMarkets()]);
   },
 
   loadPortfolio: async () => {
@@ -839,6 +846,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       window.api.getMarketSales(),
     ]);
     set({ marketListings: byDomain(listings), marketSales: sales });
+  },
+  marketsSyncing: false,
+  syncMarkets: async () => {
+    set({ marketsSyncing: true });
+    try {
+      await withSyncTimeout(window.api.syncMarketAccount());
+      // Traffic too, and the sold events a sync records.
+      await Promise.all([get().loadMarkets(), get().loadDomainEvents()]);
+    } finally {
+      set({ marketsSyncing: false });
+    }
   },
   listPrices: {},
   loadListPrices: async () => {

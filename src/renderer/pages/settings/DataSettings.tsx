@@ -46,10 +46,11 @@ const INTERVAL_OPTIONS: { label: string; minutes: number }[] = [
 const DEFAULT_INTERVAL_MINUTES = 1440;
 
 /**
- * Data & cache settings. DomBot caches your portfolio, per-domain detail, and
- * renewal prices on disk (timestamped) so the app opens fully populated with no
- * network calls. This tab also controls the background sync
- * that keeps that cache fresh, and clearing the cache.
+ * Data & cache settings. DomBot caches your portfolio, per-domain detail,
+ * renewal prices, and market listings on disk (timestamped) so the app opens
+ * fully populated with no network calls. This tab also controls the background
+ * sync of every registrar and market account that keeps that cache fresh, and
+ * clearing the cache.
  */
 export default function DataSettings() {
   const clearAllCaches = useAppStore((s) => s.clearAllCaches);
@@ -87,9 +88,9 @@ export default function DataSettings() {
       <div>
         <h2 className="text-2xl font-bold">Sync</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          DomBot keeps a copy of your portfolio and refreshes it from the
-          registrars on a schedule, so it opens instantly and registrar APIs
-          aren&apos;t hit more often than needed.
+          DomBot keeps a copy of your portfolio and refreshes it from your
+          registrars and markets on a schedule, so it opens instantly and their
+          APIs aren&apos;t hit more often than needed.
         </p>
       </div>
 
@@ -97,7 +98,7 @@ export default function DataSettings() {
         <SettingsField
           label="Sync frequency"
           htmlFor="auto-sync-interval"
-          description="How often DomBot re-syncs your whole portfolio in the background. Larger portfolios may prefer a longer interval or Off."
+          description="How often DomBot re-syncs every registrar and market account in the background, registrars first. Larger portfolios may prefer a longer interval or Off."
         >
           <div className="flex items-center gap-3">
             <Select
@@ -117,8 +118,7 @@ export default function DataSettings() {
             </Select>
             {interval === 0 && (
               <span className="text-sm text-muted-foreground">
-                Auto-sync is off — refresh manually or via the agent’s sync
-                tools.
+                Auto-sync is off — use Sync now, or the agent’s sync tools.
               </span>
             )}
           </div>
@@ -131,9 +131,9 @@ export default function DataSettings() {
 
       <SettingsCard title="Cached data" contentClassName="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
-          Clear the cached portfolio and start over. Your saved registrar
-          credentials, manual prices, and folders are kept. The next “Sync
-          domains” re-fetches everything fresh.
+          Clear the cached portfolio and market listings and start over. Your
+          saved registrar and market keys, manual prices, and folders are kept.
+          The next Sync now re-fetches everything fresh.
         </p>
         <div className="flex items-center gap-3">
           <Button

@@ -1,4 +1,5 @@
 import { accountNumber, accountTitle } from '../../shared/account-label';
+import { syncProblems } from '../lib/activity';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { parseDomainsLink } from '../lib/domains-link';
 import {
@@ -910,7 +911,6 @@ export default function Domains() {
   const {
     portfolio,
     portfolioErrors,
-    portfolioRegistrars,
     portfolioRegistrarLabels,
     portfolioError,
     portfolioLoadedAt,
@@ -961,6 +961,11 @@ export default function Domains() {
     return marketCatalog.map((m) => m.id).filter((id) => connected.has(id));
   }, [marketCatalog, marketAccounts]);
   const marketId = marketIds.length === 1 ? marketIds[0] : null;
+  // Market accounts whose last sync failed, for the line under Sync.
+  const marketSyncProblems = useMemo(
+    () => syncProblems(null, marketAccounts, marketCatalog),
+    [marketAccounts, marketCatalog],
+  );
   const marketLabel =
     (marketId && marketCatalog.find((m) => m.id === marketId)?.name) ||
     'Markets';
@@ -2286,8 +2291,11 @@ export default function Domains() {
   }));
 
   // Sync failures, in red under the Sync button: the whole sync, or which
-  // accounts failed (their errors are on their cards in Settings → Registrars).
-  const syncErrors = (portfolioError || portfolioErrors.length > 0) && (
+  // accounts failed (their errors are on their cards in Settings → Registrars
+  // or Markets).
+  const syncErrors = (portfolioError ||
+    portfolioErrors.length > 0 ||
+    marketSyncProblems.length > 0) && (
     <div className="flex flex-col items-end gap-0.5 text-right text-xs text-destructive">
       {portfolioError && <p>Sync failed: {portfolioError}</p>}
       {portfolioErrors.length > 0 && (
@@ -2307,6 +2315,17 @@ export default function Domains() {
             className="whitespace-nowrap underline underline-offset-4"
           >
             Registrar settings
+          </Link>
+        </p>
+      )}
+      {marketSyncProblems.length > 0 && (
+        <p>
+          {marketSyncProblems.map((p) => p.account).join(', ')} failed to sync ·{' '}
+          <Link
+            to="/settings?tab=markets"
+            className="whitespace-nowrap underline underline-offset-4"
+          >
+            Market settings
           </Link>
         </p>
       )}
@@ -2330,7 +2349,6 @@ export default function Domains() {
           </h1>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
             <SyncSplitButton
-              registrarCount={portfolioRegistrars.length}
               viewCount={nameCount(filtered)}
               allCount={nameCount(shown)}
               onImport={() => setImporting(true)}

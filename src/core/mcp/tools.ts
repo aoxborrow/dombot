@@ -46,7 +46,11 @@ import {
 } from '../services/domain-events';
 import { changeEvent } from '../services/domain-changes';
 import { dnsRecordLine, type SettingChange } from '../../shared/domain-changes';
-import { notifications } from '../../shared/notifications';
+import {
+  marketSyncFailures,
+  notifications,
+  type SyncFailure,
+} from '../../shared/notifications';
 import {
   DomainEventSource,
   DomainEventType,
@@ -88,6 +92,8 @@ import {
 } from './portfolio-query';
 import { registerMarketTools } from './market-tools';
 import { marketListings } from '../services/markets/sync';
+import { marketAccountViews } from '../services/markets/accounts';
+import { marketCatalog } from '../services/markets/registry';
 
 // Serialize a service result as a pretty-printed JSON text block — the simplest
 // MCP tool payload. (Dates become ISO strings via JSON.stringify.)
@@ -731,17 +737,20 @@ function moneyOf(key: string) {
   };
 }
 
-/** Accounts whose last sync failed, for the needs-review list (as the bell's
- *  syncProblems). */
-function syncFailures() {
-  return getRegistrarMetadata()
-    .filter((r) => r.configured && r.enabled && r.sync.lastError)
-    .map((r) => ({
-      accountId: r.accountId ?? r.name,
-      account: r.accountLabel ?? r.name,
-      message: r.sync.lastError!,
-      at: r.sync.lastErrorAt,
-    }));
+/** Registrar and market accounts whose last sync failed, for the
+ *  needs-review list (as the bell's syncProblems). */
+function syncFailures(): SyncFailure[] {
+  return [
+    ...getRegistrarMetadata()
+      .filter((r) => r.configured && r.enabled && r.sync.lastError)
+      .map((r) => ({
+        accountId: r.accountId ?? r.name,
+        account: r.accountLabel ?? r.name,
+        message: r.sync.lastError!,
+        at: r.sync.lastErrorAt,
+      })),
+    ...marketSyncFailures(marketAccountViews(), marketCatalog()),
+  ];
 }
 
 /** Which currencies an amount may be in, for each tool that takes one. */
@@ -926,7 +935,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'List what needs review',
       description:
-        'What needs you, as the app’s bell shows it: accounts whose last sync failed (`sync-error`), names that left an account (`departure`, high priority: did you sell it?), and names that arrived (`arrival`, low priority: what did you pay?). Most severe first, then newest. Answer a departure with domain_sale_set (or dismiss it) and an arrival with domain_purchase_set, passing the alert’s `eventId` as `resolves`; or dismiss alerts with portfolio_alert_dismiss. A sync error clears on the account’s next good sync. Local — no registrar calls. Returns { total, counts, alerts }: `total` counts the matching alerts before paging, `counts` every alert by kind.',
+        'What needs you, as the app’s bell shows it: registrar or market accounts whose last sync failed (`sync-error`), names that left an account (`departure`, high priority: did you sell it?), and names that arrived (`arrival`, low priority: what did you pay?). Most severe first, then newest. Answer a departure with domain_sale_set (or dismiss it) and an arrival with domain_purchase_set, passing the alert’s `eventId` as `resolves`; or dismiss alerts with portfolio_alert_dismiss. A sync error clears on the account’s next good sync. Local — no registrar calls. Returns { total, counts, alerts }: `total` counts the matching alerts before paging, `counts` every alert by kind.',
       inputSchema: {
         kind: z
           .enum(['sync-error', 'departure', 'arrival'])

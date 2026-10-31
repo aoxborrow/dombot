@@ -82,7 +82,7 @@ false`, and `registrarLabel` when you typed a registrar DomBot doesn't
     `null` for the settings an account reports. The `domain_*` tools can't act
     on it.
 - **`portfolio_alerts`** — what needs you, as the bell shows it: failed
-  syncs (`sync-error`), names that left an account (`departure`, high
+  registrar or market syncs (`sync-error`), names that left an account (`departure`, high
   priority) and names that arrived (`arrival`, low). Most severe first, then
   newest. `kind?`, `limit?`, `offset?`. Returns `{ total, counts, alerts }`;
   each alert's `eventId` is what `resolves` and `portfolio_alert_dismiss`

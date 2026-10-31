@@ -1,4 +1,3 @@
-import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -86,9 +85,10 @@ export default function StatusBar() {
 }
 
 /**
- * The sync status, with one light for all of it: how many enabled accounts
- * synced (a link to Settings → Registrars) and when. Syncing itself is on the
- * Domains page and in Settings → Registrars (and the menu on phones). Red
+ * The sync status, with one light for all of it: how many enabled registrar
+ * and market accounts synced (a link to Settings → Registrars, or Markets
+ * when that's where the trouble is) and when. Syncing itself is on the
+ * Domains page and in Settings (and the menu on phones). Red
  * with an alert icon when an account failed, amber while some haven't synced
  * yet or not in over a week. The time is the latest sync of any account, amber only once
  * even that is old. Below lg the words shorten so they clear the
@@ -97,8 +97,9 @@ export default function StatusBar() {
 function SyncStatus() {
   const navigate = useNavigate();
   const registrars = useAppStore((s) => s.registrars);
+  const marketAccounts = useAppStore((s) => s.marketAccounts);
   const state = useSyncState();
-  const { syncing, lastSyncedAt } = state;
+  const { syncing, lastSyncedAt, accounts: enabled, unit } = state;
 
   // The desktop app menu's Sync Now does what the Domains page's Sync does,
   // or says why it can't (just synced, a bulk job running, nothing set up).
@@ -117,22 +118,32 @@ function SyncStatus() {
     [],
   );
 
-  // Hidden until the registrar metadata is known.
-  if (registrars === null) return null;
+  // Hidden until both kinds of account are known, so the count doesn't jump.
+  if (registrars === null || marketAccounts === null) return null;
 
   // Only enabled accounts count: a disabled one keeps its credentials but
   // never syncs. One counts as synced when its last sync succeeded within the
   // staleness window; syncing one account doesn't vouch for the others.
-  const enabled = registrars.filter((r) => r.configured && r.enabled);
-  const unit =
-    multiAccountRegistrars(registrars).size > 0 ? 'accounts' : 'registrars';
-  const stale = staleAccounts(enabled).length;
-  const synced =
-    enabled.filter(
-      (r) => r.sync.lastSyncedAt != null && r.sync.lastError == null,
-    ).length - stale;
-  const failed = enabled.filter((r) => r.sync.lastError != null).length;
+  const staleOnes = staleAccounts(enabled);
+  const stale = staleOnes.length;
+  const failedOnes = enabled.filter((a) => a.lastError != null);
+  const failed = failedOnes.length;
+  const unsynced = enabled.filter(
+    (a) => a.lastSyncedAt == null && a.lastError == null,
+  );
+  const synced = enabled.length - failed - stale - unsynced.length;
   const one = (n: number) => (n === 1 ? unit.replace(/s$/, '') : unit);
+  // The Settings tab with the trouble: failures first, then stale or unsynced
+  // accounts; with none, Registrars, unless markets are all there is.
+  const trouble = [failedOnes, staleOnes, unsynced].find((l) => l.length > 0);
+  const tab = trouble
+    ? trouble.some((a) => a.kind === 'registrar')
+      ? 'registrars'
+      : 'markets'
+    : enabled.length > 0 && enabled.every((a) => a.kind === 'market')
+      ? 'markets'
+      : 'registrars';
+  const open = `open ${tab === 'markets' ? 'market' : 'registrar'} settings`;
   const tone =
     failed > 0
       ? 'text-destructive hover:text-destructive hover:brightness-125'
@@ -177,21 +188,21 @@ function SyncStatus() {
     <div className="flex items-center gap-3">
       <button
         type="button"
-        onClick={() => navigate('/settings?tab=registrars')}
+        onClick={() => navigate(`/settings?tab=${tab}`)}
         className={cn(
           'inline-flex items-center gap-1.5 rounded-sm hover:text-foreground',
           !syncing && tone,
         )}
         title={
           enabled.length === 0
-            ? `No ${unit} set up — open registrar settings`
+            ? `No ${unit} set up — ${open}`
             : failed > 0
-              ? `${failed} ${one(failed)} failed to sync — open registrar settings`
+              ? `${failed} ${one(failed)} failed to sync — ${open}`
               : stale > 0
-                ? `${stale} ${one(stale)} not synced in over a week — open registrar settings`
+                ? `${stale} ${one(stale)} not synced in over a week — ${open}`
                 : synced === enabled.length
-                  ? `All ${unit} synced — open registrar settings`
-                  : `${enabled.length - synced} ${one(enabled.length - synced)} not synced yet — open registrar settings`
+                  ? `All ${unit} synced — ${open}`
+                  : `${enabled.length - synced} ${one(enabled.length - synced)} not synced yet — ${open}`
         }
       >
         {light}

@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
 import { MarketLogo } from '../../components/RegistrarLogo';
 import { timeAgo } from '../../lib/time';
+import { useSyncState } from '../../lib/sync-state';
 import {
   DEFAULT_LEASE_MONTHS,
   leaseCommissionDiscount,
@@ -91,6 +92,9 @@ export default function MarketsSettings() {
   }, [loadMarkets]);
 
   const loaded = accounts !== null && catalog.length > 0;
+  const enabledCount = (accounts ?? []).filter(
+    (a) => a.enabled && a.configured,
+  ).length;
   const infoFor = (account: MarketAccountView) =>
     catalog.find((m) => m.id === account.market);
   const startDraft = (market: MarketInfo) =>
@@ -108,13 +112,18 @@ export default function MarketsSettings() {
       </div>
 
       <div className="flex flex-col gap-3">
+        {/* As on Registrars: Sync all on the left (it acts on the cards
+            below), the page's main action on the right. */}
         {loaded && (
-          <div className="flex justify-end">
-            <AddMarketMenu
-              catalog={catalog}
-              disabled={draft !== null}
-              onPick={startDraft}
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            {enabledCount > 1 && <SyncAllButton />}
+            <div className="ml-auto">
+              <AddMarketMenu
+                catalog={catalog}
+                disabled={draft !== null}
+                onPick={startDraft}
+              />
+            </div>
           </div>
         )}
         {loadError && (
@@ -138,6 +147,34 @@ export default function MarketsSettings() {
         {loaded && accounts.length === 0 && !draft && <EmptyMarkets />}
       </div>
     </div>
+  );
+}
+
+/**
+ * Syncs every enabled market account at once (Sync now on the Domains page
+ * adds the registrars). Each card shows Syncing… while it runs, and a toast
+ * sums up the result.
+ */
+function SyncAllButton() {
+  const { syncMarkets, marketsSyncing, syncing, bulkRunning } = useSyncState();
+  return (
+    <Button
+      variant="outline"
+      onClick={syncMarkets}
+      disabled={syncing || bulkRunning}
+      title={
+        bulkRunning
+          ? 'A bulk action is running — sync when it finishes'
+          : 'Sync every enabled market account'
+      }
+    >
+      <RefreshCw className={cn(marketsSyncing && 'animate-spin')} />
+      {marketsSyncing ? 'Syncing…' : 'Sync all'}
+      {/* Room for the full label beside Add from sm up. */}
+      {!marketsSyncing && (
+        <span className="-ml-1 hidden sm:inline">markets</span>
+      )}
+    </Button>
   );
 }
 
@@ -410,6 +447,11 @@ function MarketCard({
   account: MarketAccountView;
 }) {
   const setMarketAccounts = useAppStore((s) => s.setMarketAccounts);
+  // A Sync now or Sync all covers every enabled account.
+  const syncingAll =
+    useAppStore((s) => s.marketsSyncing) &&
+    account.enabled &&
+    account.configured;
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState<Values>({});
   const [original, setOriginal] = useState<Values>({});
@@ -470,8 +512,9 @@ function MarketCard({
   const changed = Object.keys({ ...original, ...values }).some(
     (k) => (original[k] ?? '') !== (values[k]?.trim() ?? ''),
   );
+  const syncing = busy === 'sync' || syncingAll;
   const syncFailed =
-    account.enabled && busy !== 'sync' && account.sync?.lastError != null;
+    account.enabled && !syncing && account.sync?.lastError != null;
   const title = account.label;
 
   return (
@@ -510,7 +553,7 @@ function MarketCard({
             aria-hidden
             className="order-last flex min-w-0 basis-full pl-[32px] text-left @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0"
           >
-            <SyncLine account={account} syncing={busy === 'sync'} />
+            <SyncLine account={account} syncing={syncing} />
           </CollapsibleTrigger>
 
           <DropdownMenu
@@ -547,7 +590,7 @@ function MarketCard({
             >
               {account.enabled && (
                 <DropdownMenuItem
-                  disabled={busy !== null}
+                  disabled={busy !== null || syncingAll}
                   onSelect={() =>
                     void run('sync', () =>
                       window.api.syncMarketAccount(account.id),

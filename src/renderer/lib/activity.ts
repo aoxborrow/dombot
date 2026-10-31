@@ -12,7 +12,11 @@ import {
 } from '../../shared/exchange-rates';
 import { changeText } from '../../shared/domain-changes';
 import { accountName } from './domain-history';
-import type { SyncFailure } from '../../shared/notifications';
+import {
+  marketSyncFailures,
+  type SyncFailure,
+} from '../../shared/notifications';
+import type { MarketAccountView, MarketInfo } from '../../shared/markets';
 
 // Helpers for the Activity page and the header bell (docs/storage-model.md,
 // "Activity and alerts"): what needs review, what went wrong, and how to say
@@ -21,18 +25,24 @@ import type { SyncFailure } from '../../shared/notifications';
 /** An account whose last sync failed (see shared/notifications.ts). */
 export type SyncProblem = SyncFailure;
 
-/** Accounts whose last sync failed. */
+/** Accounts whose last sync failed: registrar accounts, then market ones. */
 export function syncProblems(
   registrars: RegistrarMeta[] | null,
+  markets: MarketAccountView[] | null = null,
+  catalog: MarketInfo[] = [],
 ): SyncProblem[] {
-  return (registrars ?? [])
-    .filter((r) => r.configured && r.enabled && r.sync.lastError)
-    .map((r) => ({
-      accountId: r.accountId ?? r.name,
-      account: accountName(registrars, r.accountId ?? r.name) ?? r.displayName,
-      message: r.sync.lastError!,
-      at: r.sync.lastErrorAt,
-    }));
+  return [
+    ...(registrars ?? [])
+      .filter((r) => r.configured && r.enabled && r.sync.lastError)
+      .map((r) => ({
+        accountId: r.accountId ?? r.name,
+        account:
+          accountName(registrars, r.accountId ?? r.name) ?? r.displayName,
+        message: r.sync.lastError!,
+        at: r.sync.lastErrorAt,
+      })),
+    ...marketSyncFailures(markets, catalog),
+  ];
 }
 
 /** The event that resolved each alert, by the alert's id. */

@@ -1,4 +1,5 @@
 import { DomainEventType, type DomainEvent } from './domain-events';
+import type { MarketAccountView, MarketInfo } from './markets';
 import { isOpenAlert, resolvedIds } from './sync-diff';
 
 // What needs you now: open sync alerts at their review priority, plus accounts
@@ -34,6 +35,37 @@ export interface SyncFailure {
   message: string;
   /** When the sync failed (ms epoch), if known. */
   at?: number | null;
+}
+
+/** "Afternic", or "Afternic · Business" when the account has its own name. */
+export function marketAccountTitle(market: string, label: string): string {
+  return label && label !== market ? `${market} · ${label}` : market;
+}
+
+/**
+ * Enabled market accounts whose last sync failed. A market sync error leads
+ * with the account's label, which the failure's own account name repeats, so
+ * that's dropped from the message.
+ */
+export function marketSyncFailures(
+  accounts: MarketAccountView[] | null,
+  catalog: MarketInfo[],
+): SyncFailure[] {
+  return (accounts ?? [])
+    .filter((a) => a.configured && a.enabled && a.sync?.lastError)
+    .map((a) => {
+      const error = a.sync!.lastError!;
+      const prefix = `${a.label}: `;
+      return {
+        accountId: a.id,
+        account: marketAccountTitle(
+          catalog.find((m) => m.id === a.market)?.name ?? a.market,
+          a.label,
+        ),
+        message: error.startsWith(prefix) ? error.slice(prefix.length) : error,
+        at: a.sync!.at,
+      };
+    });
 }
 
 export interface Notification {
