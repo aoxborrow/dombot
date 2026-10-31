@@ -113,6 +113,9 @@ end of the row with every option.
 | An arrival (`added`)    | Record registration · Record purchase… · Dismiss |
 | A departure (`removed`) | Record sale… · Mark dropped · Dismiss            |
 
+- **Only rows still missing their money get answers.** A new arrival whose
+  purchase is already on file (recorded on Domains, say) gets Dismiss alone,
+  so Record registration never edits or doubles a record that's there.
 - **Dismiss is last,** and only on new rows: a dismissed row has nothing to
   dismiss. It marks the row read (`dismissed: true`) with an Undo toast, as
   today.

@@ -53,9 +53,12 @@ function missingMoney(
   return !holdingHas(list, i, ACQUISITION_TYPES, DomainEventType.Removed);
 }
 
-/** Ids of the events Needs review lists: every new alert, and every
- *  arrival or departure still missing its money. */
-export function needsReviewIds(events: DomainEvent[]): Set<string> {
+/**
+ * Ids of the arrivals and departures still missing their money, dismissed or
+ * not: the rows Activity's answers (Record registration, Record sale, Mark
+ * dropped) are for. A new alert whose money is already on file isn't one.
+ */
+export function unrecordedIds(events: DomainEvent[]): Set<string> {
   const resolved = resolvedIds(events);
   const byDomain = new Map<string, DomainEvent[]>();
   for (const e of events) {
@@ -72,9 +75,22 @@ export function needsReviewIds(events: DomainEvent[]): Set<string> {
         e.type !== DomainEventType.Removed
       )
         return;
-      if (isOpenAlert(e, resolved) || missingMoney(list, i, resolved))
-        out.add(e.id);
+      if (missingMoney(list, i, resolved)) out.add(e.id);
     });
   }
+  return out;
+}
+
+/**
+ * Ids of the events Needs review lists: every new alert, and every arrival or
+ * departure still missing its money. Pass `unrecorded` when you have it.
+ */
+export function needsReviewIds(
+  events: DomainEvent[],
+  unrecorded: Set<string> = unrecordedIds(events),
+): Set<string> {
+  const resolved = resolvedIds(events);
+  const out = new Set(unrecorded);
+  for (const e of events) if (isOpenAlert(e, resolved)) out.add(e.id);
   return out;
 }

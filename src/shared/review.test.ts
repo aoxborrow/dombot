@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DomainEvent } from './domain-events';
-import { needsReviewIds } from './review';
+import { needsReviewIds, unrecordedIds } from './review';
 import { isOpenAlert, resolvedIds } from './sync-diff';
 
 const event = (id: string, patch: Partial<DomainEvent>): DomainEvent => ({
@@ -110,13 +110,26 @@ describe('needsReviewIds', () => {
   });
 
   it('keeps a new arrival even with a purchase on record', () => {
-    // Still unread, so still highlighted and counted until you dismiss it.
-    expect(
-      ids([
-        event('E1', { type: 'purchased', source: 'user' }),
-        event('E2', { type: 'added' }),
-      ]),
-    ).toEqual(['E2']);
+    // Still unread, so still highlighted and counted until you dismiss it,
+    // but its money is on file: nothing to record.
+    const events = [
+      event('E1', { type: 'purchased', source: 'user' }),
+      event('E2', { type: 'added' }),
+    ];
+    expect(ids(events)).toEqual(['E2']);
+    expect([...unrecordedIds(events)]).toEqual([]);
+  });
+
+  it('counts an old arrival as unrecorded beside a later holding paid for', () => {
+    const events = [
+      event('E1', { type: 'added', ...dismissedByYou }),
+      event('E2', { ...dismissedByYou }),
+      event('E3', { type: 'added' }),
+      event('E4', { type: 'purchased', source: 'user', resolves: 'E3' }),
+    ];
+    // E1's holding ended at E2; E4 pays for E3's. E2 is a departure with no
+    // sale, so it still asks too.
+    expect([...unrecordedIds(events)].sort()).toEqual(['E1', 'E2']);
   });
 });
 

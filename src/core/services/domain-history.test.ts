@@ -156,6 +156,38 @@ describe('domain history', () => {
     });
   });
 
+  it("answering an old arrival leaves a later holding's purchase alone", () => {
+    recordSync(holding([]));
+    const [first] = recordSync(holding(['a.com']));
+    recordSync(holding([]));
+    const [again] = recordSync(holding(['a.com']));
+    setPurchase({
+      domainName: 'a.com',
+      purchaseDate: '2025-01-01',
+      amount: '80',
+      currency: 'USD',
+      notes: '',
+      resolves: again.id,
+    });
+    // The first arrival's holding ended when the name left: a new record.
+    setPurchase({
+      domainName: 'a.com',
+      kind: 'registered',
+      purchaseDate: '2020-01-01',
+      amount: '9',
+      currency: 'USD',
+      notes: '',
+      resolves: first.id,
+    });
+    const paid = listEvents().filter(
+      (e) => e.type === 'purchased' || e.type === 'registered',
+    );
+    expect(paid.map((e) => [e.type, e.amount, e.resolves])).toEqual([
+      ['purchased', '80.00', again.id],
+      ['registered', '9.00', first.id],
+    ]);
+  });
+
   it('dismisses an alert and brings it back', () => {
     recordSync(holding([]));
     const [added] = recordSync(holding(['a.com']));

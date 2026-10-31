@@ -82,14 +82,10 @@ export function PurchaseDialog({
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
   const record = purchases[toAscii(domain.domainName)];
   // Answering an arrival records a new holding: start blank rather than from
-  // the previous purchase, unless one was recorded since the name arrived (an
-  // import): then it's that purchase, and saving edits it. The note belongs
-  // to the name, so it still shows.
-  const existing = resolves
-    ? record?.acquisitionId && record.acquisitionId > resolves
-      ? record
-      : undefined
-    : record;
+  // the latest purchase. Activity only answers arrivals with nothing paid on
+  // file for their holding, so any newer purchase is a later holding's. The
+  // note belongs to the name, so it still shows.
+  const existing = resolves ? undefined : record;
 
   const recorded = !!(existing?.purchaseDate || existing?.amount);
   const savedSide: AcquisitionSide | null = recorded

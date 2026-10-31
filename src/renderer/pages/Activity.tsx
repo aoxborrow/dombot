@@ -44,7 +44,7 @@ import {
   standingOf,
   type Ownership,
 } from '../../shared/ownership';
-import { needsReviewIds } from '../../shared/review';
+import { needsReviewIds, unrecordedIds } from '../../shared/review';
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { RegistrarLogo } from '../components/RegistrarLogo';
 import { StatCard, StatCardRow } from '../components/StatCard';
@@ -237,16 +237,21 @@ export default function Activity() {
   const closedBy = useMemo(() => resolutions(events), [events]);
   const ownership = useMemo(() => ownershipByDomain(events), [events]);
   // New: an alert nobody has answered or dismissed, highlighted like unread
-  // mail. Needs review: every new one, and every arrival or departure still
-  // missing its money (shared/review.ts).
+  // mail. Unrecorded: an arrival or departure still missing its money, what
+  // the answers are for. Needs review lists both (shared/review.ts).
   const isNew = (e: DomainEvent) => isOpenAlert(e, resolved);
-  const reviewIds = useMemo(() => needsReviewIds(events), [events]);
-  /** An arrival in Needs review: recording what you paid answers it. */
+  const unrecorded = useMemo(() => unrecordedIds(events), [events]);
+  const reviewIds = useMemo(
+    () => needsReviewIds(events, unrecorded),
+    [events, unrecorded],
+  );
+  /** An arrival with nothing paid on file: recording what you paid answers
+   *  it. (A new one with a purchase on file only needs dismissing.) */
   const arrivalToRecord = (e: DomainEvent) =>
-    e.type === DomainEventType.Added && reviewIds.has(e.id);
-  /** A departure in Needs review: a sale or Mark dropped answers it. */
+    e.type === DomainEventType.Added && unrecorded.has(e.id);
+  /** A departure with no sale on file: a sale or Mark dropped answers it. */
   const departureToRecord = (e: DomainEvent) =>
-    e.type === DomainEventType.Removed && reviewIds.has(e.id);
+    e.type === DomainEventType.Removed && unrecorded.has(e.id);
 
   // Your answer to an alert shows on the alert's row, not its own. (Sync's own
   // closures, a name coming back or a move, stay rows of their own.)
@@ -668,6 +673,7 @@ export default function Activity() {
               <ReviewActions
                 event={row.event}
                 isNew={isNew(row.event)}
+                toRecord={unrecorded.has(row.event.id)}
                 registering={registering.has(row.event.id)}
                 onRegistration={() => void recordRegistration(row)}
                 onPurchase={() =>
@@ -692,7 +698,7 @@ export default function Activity() {
               row={row}
               state={stateOf(row.event)}
               isNew={isNew(row.event)}
-              toRecord={reviewIds.has(row.event.id)}
+              toRecord={unrecorded.has(row.event.id)}
               paid={purchases[row.event.domain]}
               removable={!held(row.event)}
               onDialog={setDialog}
@@ -1347,13 +1353,15 @@ function RowMenu({
 /**
  * The suggested answers for a row in Needs review, right after the name:
  * what you paid for an arrival (Record registration saves in one click), what
- * became of a departure, and Dismiss last while it's new. The "⋯" menu has
- * every option, and is the only place for them on phones, where these don't
- * fit beside the name.
+ * became of a departure, and Dismiss last while it's new. A new row whose
+ * money is already on file only gets Dismiss. The "⋯" menu has every option,
+ * and is the only place for them on phones, where these don't fit beside the
+ * name.
  */
 function ReviewActions({
   event,
   isNew,
+  toRecord,
   registering,
   onRegistration,
   onPurchase,
@@ -1363,6 +1371,8 @@ function ReviewActions({
 }: {
   event: DomainEvent;
   isNew: boolean;
+  /** Still missing its money: the answers apply. */
+  toRecord: boolean;
   /** Record registration is asking the registrar for the fee. */
   registering: boolean;
   onRegistration: () => void;
@@ -1374,7 +1384,7 @@ function ReviewActions({
   const arrival = event.type === DomainEventType.Added;
   return (
     <span className="-my-1 hidden shrink-0 items-center gap-1 md:inline-flex">
-      {arrival ? (
+      {!toRecord ? null : arrival ? (
         <>
           <ReviewButton disabled={registering} onClick={onRegistration}>
             {registering ? 'Recording…' : 'Record registration'}
