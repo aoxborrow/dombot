@@ -66,7 +66,8 @@ take `refresh` to fetch live and write the result through.
     registration lookup says nobody holds it), `expired` (it left after its
     expiry) or `removed` (it left early with no sale; the one to review).
     `expiring`: owned, auto-renew off, expiring within 30 days.
-    `salePending`: a sale recorded on a name you still hold.
+    `salePending`: a sale recorded, or under way at a market, on a name you
+    still hold.
   - To let a name go, turn its auto-renew off with `domain_set_autorenew`, as
     in the app. Nothing you hold goes to Archive by hand.
   - Each row also carries what DomBot keeps for the name: `paid` (date,

@@ -93,11 +93,16 @@ vi.mock('../services/registrars', () => ({
   syncRegistrar: vi.fn(),
 }));
 
-// Market storage isn't hydrated here: only the accounts the alerts read.
+// Market storage isn't hydrated here: only the accounts the alerts read,
+// and the sales under way that ownership reads (none).
 const marketAccountViews = vi.fn((): unknown[] => []);
 vi.mock('../services/markets/accounts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/markets/accounts')>()),
   marketAccountViews: () => marketAccountViews(),
+}));
+vi.mock('../services/markets/sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/markets/sync')>()),
+  marketSales: () => [],
 }));
 
 const applyDomainOp = vi.fn();

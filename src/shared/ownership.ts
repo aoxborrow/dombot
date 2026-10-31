@@ -1,6 +1,7 @@
 import { DomainEventType, type DomainEvent } from './domain-events';
 import { toAscii, toUnicode } from './domain-name';
 import type { Domain, RegistrarMeta, RegistrationLookup } from './ipc';
+import type { MarketSale } from './markets';
 
 // Owned or Archive (docs/owned-and-archive.md). Archive holds only names you
 // no longer have; nothing you hold goes there by hand. What's stored is the
@@ -9,6 +10,8 @@ import type { Domain, RegistrarMeta, RegistrationLookup } from './ipc';
 // is worked out from those, the row, and the registration lookup. Events are
 // taken in the order they were recorded (their ids), so marking a name Sold
 // today counts after the sync that saw it, whatever sale date you type.
+// A market sale still under way counts as a sale too: sync writes its `sold`
+// event only once the market completes it, often after the name has left.
 
 /**
  * Why a name is in Archive, in the order they're checked: you recorded a
@@ -42,20 +45,34 @@ export interface Ownership {
   removal: DomainEvent | null;
   /** The account it was last seen in, for showing an Archive row. */
   lastAccountId: string | null;
+  /**
+   * A market sale of the name still under way, with no `sold` event yet
+   * (sync writes one when the market completes it).
+   */
+  marketSale: MarketSale | null;
 }
 
-/** Each name's ownership, for every name with at least one event. */
+const noOwnership = (): Ownership => ({
+  sale: null,
+  removal: null,
+  lastAccountId: null,
+  marketSale: null,
+});
+
+/**
+ * Each name's ownership, for every name with at least one event or a market
+ * sale under way. A lease isn't one (the buyer's still paying), nor is a
+ * sale of a name that arrived in an account on or after its sale day: the
+ * market's sales include your purchases (docs/afternic-api-issues.md).
+ */
 export function ownershipByDomain(
   events: DomainEvent[],
+  marketSales: readonly MarketSale[] = [],
 ): Map<string, Ownership> {
   const out = new Map<string, Ownership>();
   const sorted = [...events].sort((a, b) => a.id.localeCompare(b.id));
   for (const e of sorted) {
-    const o: Ownership = out.get(e.domain) ?? {
-      sale: null,
-      removal: null,
-      lastAccountId: null,
-    };
+    const o: Ownership = out.get(e.domain) ?? noOwnership();
     const account = e.toAccountId ?? e.accountId ?? null;
     if (account) o.lastAccountId = account;
     if (e.type === DomainEventType.Sold) {
@@ -72,6 +89,26 @@ export function ownershipByDomain(
     // Purchases, registrations, and renewals don't change ownership.
     out.set(e.domain, o);
   }
+  const arrived = new Map<string, string>();
+  for (const e of events) {
+    if (
+      e.date &&
+      (e.type === DomainEventType.Added ||
+        e.type === DomainEventType.Registered ||
+        e.type === DomainEventType.Purchased) &&
+      e.date > (arrived.get(e.domain) ?? '')
+    )
+      arrived.set(e.domain, e.date);
+  }
+  for (const m of marketSales) {
+    if (m.status !== 'in_progress' && m.status !== 'unknown') continue;
+    if (m.kind === 'lease' || !m.soldOn) continue;
+    const name = toAscii(m.name);
+    if ((arrived.get(name) ?? '') >= m.soldOn) continue;
+    const o = out.get(name) ?? noOwnership();
+    if (o.sale) continue;
+    out.set(name, { ...o, marketSale: m });
+  }
   return out;
 }
 
@@ -80,7 +117,8 @@ export interface Standing {
   archived: boolean;
   /** Set exactly when `archived`. */
   label: ArchiveLabel | null;
-  /** Owned, with a sale recorded: the buyer hasn't taken it yet. */
+  /** Owned, with a sale recorded or under way at a market: the buyer
+   *  hasn't taken it yet. */
   salePending: boolean;
   /** Owned, auto-renew off, expiring within {@link EXPIRING_DAYS}. */
   expiring: boolean;
@@ -129,13 +167,15 @@ export function standingOf(
 ): Standing {
   const sale = o?.sale ?? null;
   if (d.departed) {
-    const label: ArchiveLabel = sale
-      ? 'sold'
-      : registered === false
-        ? 'deleted'
-        : o?.removal?.expires
-          ? 'expired'
-          : 'removed';
+    // Left during a sale under way: the buyer took it.
+    const label: ArchiveLabel =
+      sale || o?.marketSale
+        ? 'sold'
+        : registered === false
+          ? 'deleted'
+          : o?.removal?.expires
+            ? 'expired'
+            : 'removed';
     return { ...OWNED, archived: true, label };
   }
   const days = daysUntil(d.expirationDate, now);
@@ -151,7 +191,7 @@ export function standingOf(
   }
   return {
     ...OWNED,
-    salePending: !!sale,
+    salePending: !!sale || !!o?.marketSale,
     expiring:
       !d.autoRenew &&
       !d.autoRenewUnknown &&
@@ -172,8 +212,9 @@ export function ownedAndRenewing(
   events: DomainEvent[],
   lookups: Record<string, RegistrationLookup | null>,
   now: number = Date.now(),
+  marketSales: readonly MarketSale[] = [],
 ): { owned: Domain[]; renewing: Domain[] } {
-  const ownership = ownershipByDomain(events);
+  const ownership = ownershipByDomain(events, marketSales);
   const owned: Domain[] = [];
   const renewing: Domain[] = [];
   for (const d of domains) {

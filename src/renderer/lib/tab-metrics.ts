@@ -34,6 +34,7 @@ export function useTabMetrics(): TabMetrics {
   const importedDomains = useAppStore((s) => s.importedDomains);
   const pricing = useAppStore((s) => s.pricing);
   const events = useAppStore((s) => s.domainEvents);
+  const marketSales = useAppStore((s) => s.marketSales);
   const registrationLookups = useAppStore((s) => s.registrationLookups);
   const currency = useAppStore(
     (s) => s.settings?.preferredCurrency ?? DEFAULT_CURRENCY,
@@ -47,6 +48,8 @@ export function useTabMetrics(): TabMetrics {
       [...synced, ...importedRows(importedDomains, synced)],
       events,
       registrationLookups,
+      undefined,
+      marketSales,
     );
     const n = portfolio.length.toLocaleString('en-US');
     const domains =
@@ -94,6 +97,7 @@ export function useTabMetrics(): TabMetrics {
     importedDomains,
     pricing,
     events,
+    marketSales,
     registrationLookups,
     currency,
     fx,
