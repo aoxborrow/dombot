@@ -1,5 +1,10 @@
-import { Children, Fragment, type CSSProperties, type ReactNode } from 'react';
-import type { LucideIcon } from 'lucide-react';
+import {
+  Children,
+  Fragment,
+  type ComponentType,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
@@ -43,7 +48,8 @@ export function StatCard({
   to,
   onClick,
 }: {
-  icon: LucideIcon;
+  /** A lucide icon, or one of ours drawn like one (components/icons). */
+  icon: ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
   /** Tailwind text-color for the icon, e.g. "text-brand-400". */
   accentClass: string;
   label: string;

@@ -6,7 +6,6 @@ import {
   CalendarClock,
   CalendarX,
   ChartLine,
-  CircleOff,
   Globe,
   Receipt,
   RotateCw,
@@ -30,6 +29,7 @@ import type {
 import type { ExchangeRates } from '../../../shared/exchange-rates';
 import { compactMoney, summarize, wholeMoney } from '../../lib/renewals';
 import { StatCard, StatCardRow } from '../StatCard';
+import { TagOffIcon } from '../icons/TagOffIcon';
 
 // The cards above the Domains table (docs/markets.md, "Domains table and
 // actions"): up to five per view (fewer without a market account), most
@@ -314,7 +314,7 @@ export function DomainsCards({
         />
         <StatCard
           size="sm"
-          icon={CircleOff}
+          icon={TagOffIcon}
           accentClass="text-slate-400"
           label="Not listed"
           // Pending listings aren't live yet either.
@@ -412,7 +412,7 @@ export function DomainsCards({
         size="sm"
         icon={CalendarClock}
         accentClass="text-rose-400"
-        label="Expiring < 30 days"
+        label="Expiring soon (<30d)"
         // Off or unknown: either way, not renewing on its own.
         value={[
           { value: cards.expiring.toLocaleString(), words: 'auto-renew off' },
