@@ -45,12 +45,7 @@ import { timeAgo } from '../../lib/time';
 import { isStale, useSyncState } from '../../lib/sync-state';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from '@/components/ui/empty';
+import { EmptyState } from '../../components/EmptyState';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -303,15 +298,11 @@ function AddAccountMenu({
 /** Nothing connected yet: Add registrar account above is the way in. */
 function EmptyRegistrars() {
   return (
-    <Empty className="rounded-md border border-dashed">
-      <EmptyHeader>
-        <EmptyTitle>No registrar accounts yet</EmptyTitle>
-        <EmptyDescription>
-          Add one to load its domains. You can add more accounts, including
-          several at the same registrar, at any time.
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <EmptyState
+      boxed
+      title="No registrar accounts yet"
+      description="Add one to load its domains."
+    />
   );
 }
 

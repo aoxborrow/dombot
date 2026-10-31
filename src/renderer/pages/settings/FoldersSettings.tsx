@@ -28,12 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from '@/components/ui/empty';
+import { EmptyState } from '../../components/EmptyState';
 import { useAppStore } from '../../store/app';
 import { countFolders, folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../../components/icons/FolderIcon';
@@ -107,14 +102,11 @@ export default function FoldersSettings() {
           New folder
         </Button>
         {folders.length === 0 ? (
-          <Empty className="rounded-md border border-dashed">
-            <EmptyHeader>
-              <EmptyTitle>No folders yet</EmptyTitle>
-              <EmptyDescription>
-                Create your first folder to start organizing your domains.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+          <EmptyState
+            boxed
+            title="No folders yet"
+            description="Folders group your domains so you can filter by them."
+          />
         ) : (
           <div className="flex flex-col gap-2.5">
             {folders.map((f) => (

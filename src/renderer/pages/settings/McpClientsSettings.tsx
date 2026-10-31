@@ -151,7 +151,7 @@ export default function McpClientsSettings() {
       <SettingsCard title="Paired clients">
         {clients.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No clients paired yet. Connect one and approve it to see it here.
+            No clients paired yet. Connect one and approve it when asked.
           </p>
         ) : (
           <ul className="flex flex-col">
