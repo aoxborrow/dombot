@@ -1,4 +1,4 @@
-import { Archive, Globe, Store } from 'lucide-react';
+import { Archive, Globe, Tag } from 'lucide-react';
 import { ToolbarSwitch } from '../data-table/FilterToolbar';
 import type { DomainsView } from './DomainsCards';
 
@@ -45,7 +45,7 @@ export function OwnershipSwitch({
               {
                 id: 'listings',
                 label: 'Listings',
-                icon: Store,
+                icon: Tag,
                 count: listedCount,
                 active: view === 'listings',
                 onClick: () => onView('listings'),

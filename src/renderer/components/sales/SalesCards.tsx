@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
 import {
   ArrowRightLeft,
-  Banknote,
-  Hand,
-  HandCoins,
-  ShoppingBag,
+  CircleDollarSign,
+  Clock,
+  Coins,
+  Gem,
+  Receipt,
   TrendingUp,
+  TriangleAlert,
   Wallet,
 } from 'lucide-react';
 import type { ExchangeRates } from '../../../shared/exchange-rates';
@@ -24,8 +26,9 @@ import { StatCard, StatCardRow } from '../StatCard';
 // filter picks): a sale in another is converted at its month's average
 // (docs/exchange-rates.md), and the line under the cards says how many
 // were, and which sales DomBot couldn't convert and left out.
-// The Pending view swaps net and profit (nothing's paid yet) for what the
-// pending sales wait on: you, or the transfer.
+// The Pending view swaps gross, net and profit (nothing's paid yet) for
+// what the pending sales wait on, you or the transfer, then what they're
+// worth: their price and, as a fifth, the net expected.
 
 const plural = (n: number, word: string) =>
   `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
@@ -123,8 +126,8 @@ export function SalesCards({
     >
       <StatCard
         size="sm"
-        icon={ShoppingBag}
-        accentClass="text-violet-500"
+        icon={pendingView ? Clock : Receipt}
+        accentClass="text-violet-400"
         label={pendingView ? 'Pending sales' : 'Sales'}
         // Finished and under way; cancelled ones aren't sales.
         value={[
@@ -135,20 +138,11 @@ export function SalesCards({
           },
         ]}
       />
-      {pendingView ? (
-        // Gross counts finished sales; most pending ones aren't yet.
+      {!pendingView && (
         <StatCard
           size="sm"
-          icon={Banknote}
-          accentClass="text-sky-500"
-          label="Value"
-          value={value && c ? money(value.toFixed(2), c)! : dash}
-        />
-      ) : (
-        <StatCard
-          size="sm"
-          icon={Banknote}
-          accentClass="text-sky-500"
+          icon={CircleDollarSign}
+          accentClass="text-sky-400"
           label="Gross"
           value={[
             {
@@ -176,8 +170,8 @@ export function SalesCards({
       {pendingView && (
         <StatCard
           size="sm"
-          icon={Hand}
-          accentClass="text-amber-500"
+          icon={TriangleAlert}
+          accentClass="text-amber-400"
           label="Needs action"
           // An auth code or payee details for the market.
           value={(waiting.authCode + waiting.payee).toLocaleString()}
@@ -187,17 +181,27 @@ export function SalesCards({
         <StatCard
           size="sm"
           icon={ArrowRightLeft}
-          accentClass="text-sky-500"
+          accentClass="text-sky-400"
           label="Awaiting transfer"
           // At the market, or a name still in your account.
           value={(waiting.market + waiting.held).toLocaleString()}
+        />
+      )}
+      {pendingView && (
+        // Gross counts finished sales; most pending ones aren't yet.
+        <StatCard
+          size="sm"
+          icon={Gem}
+          accentClass="text-sky-400"
+          label="Pending value"
+          value={value && c ? money(value.toFixed(2), c)! : dash}
         />
       )}
       {!pendingView && (
         <StatCard
           size="sm"
           icon={Wallet}
-          accentClass="text-brand-500"
+          accentClass="text-brand-400"
           label="Net"
           value={[
             {
@@ -213,7 +217,7 @@ export function SalesCards({
         <StatCard
           size="sm"
           icon={TrendingUp}
-          accentClass="text-rose-500"
+          accentClass="text-rose-400"
           label="Profit"
           value={[
             {
@@ -230,8 +234,8 @@ export function SalesCards({
       {!pendingView && (
         <StatCard
           size="sm"
-          icon={HandCoins}
-          accentClass="text-amber-500"
+          icon={Coins}
+          accentClass="text-amber-400"
           label="Fees"
           value={[
             {
@@ -250,7 +254,7 @@ export function SalesCards({
         <StatCard
           size="sm"
           icon={Wallet}
-          accentClass="text-brand-500"
+          accentClass="text-brand-400"
           label="Expected net"
           value={[
             {

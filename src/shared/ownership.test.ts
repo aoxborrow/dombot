@@ -4,6 +4,7 @@ import type { Domain, RegistrarMeta } from './ipc';
 import {
   IMPORTED_ARCHIVE_DAYS,
   archiveRows,
+  ownedAndRenewing,
   ownershipByDomain,
   removalExpiry,
   standingOf,
@@ -254,5 +255,49 @@ describe('archiveRows', () => {
         departed: true,
       }),
     ]);
+  });
+});
+
+describe('ownedAndRenewing', () => {
+  const names = (ds: Domain[]) => ds.map((d) => d.domainName);
+  const kept = row({ domainName: 'kept.com' });
+  // Sold, and the buyer hasn't taken it: still yours, but it won't renew.
+  const sold = row({ domainName: 'a.com' });
+  const events = [event({ type: 'sold', source: 'user' })];
+  // A name you added, long past its expiry: in Archive as Expired.
+  const lapsed = row({
+    domainName: 'lapsed.net',
+    source: 'imported',
+    autoRenewUnknown: true,
+    expirationDate: inDays(-(IMPORTED_ARCHIVE_DAYS + 1)),
+  });
+  // A name you added that RDAP says no one holds: in Archive as Deleted.
+  const gone = row({ domainName: 'gone.org', source: 'imported' });
+  const lookups = {
+    'gone.org': {
+      registered: false,
+      registrar: null,
+      created: null,
+      expires: null,
+      checkedAt: new Date(NOW).toISOString(),
+    },
+  };
+
+  it('counts Owned without Archive, and renewing without pending sales', () => {
+    const { owned, renewing } = ownedAndRenewing(
+      [kept, sold, lapsed, gone],
+      events,
+      lookups,
+      NOW,
+    );
+    expect(names(owned)).toEqual(['kept.com', 'a.com']);
+    expect(names(renewing)).toEqual(['kept.com']);
+  });
+
+  it('keeps a name you added until it has been expired a while', () => {
+    const recent = { ...lapsed, expirationDate: inDays(-1) };
+    const { owned, renewing } = ownedAndRenewing([recent], [], {}, NOW);
+    expect(names(owned)).toEqual(['lapsed.net']);
+    expect(names(renewing)).toEqual(['lapsed.net']);
   });
 });

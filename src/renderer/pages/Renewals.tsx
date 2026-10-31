@@ -1,20 +1,21 @@
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
 import { domainKey } from '../../shared/account-key';
 import { useMemo, useState } from 'react';
+import { cn } from '@/lib/utils';
 import {
   AlarmClock,
   Building2,
   CalendarClock,
+  CalendarDays,
   CalendarSync,
-  ChartColumn,
   Globe,
-  IterationCw,
-  RefreshCwOff,
+  RotateCw,
+  Stamp,
+  type LucideIcon,
 } from 'lucide-react';
 import type { Domain } from '../../shared/ipc';
 import { importedRows } from '../../shared/imported-domains';
-import { toAscii } from '../../shared/domain-name';
-import { ownershipByDomain, standingOf } from '../../shared/ownership';
+import { ownedAndRenewing } from '../../shared/ownership';
 import { useAppStore } from '../store/app';
 import { StatCard, StatCardRow } from '../components/StatCard';
 import { ToolbarSwitch } from '../components/data-table/FilterToolbar';
@@ -121,6 +122,12 @@ function toSlices(
   return slices;
 }
 
+// The stamp draws small in its box: a pixel bigger (13px of 12, 15 of 14
+// on phones) to sit level with the switch's other icons.
+const ManualIcon = function ManualIcon({ className }: { className?: string }) {
+  return <Stamp className={cn(className, 'scale-[1.083]')} />;
+} as LucideIcon;
+
 // The "Set prices manually" editor is hidden for now; the state and handlers
 // stay wired up so it can be switched back on later.
 const MANUAL_PRICING_ENABLED = false;
@@ -142,21 +149,15 @@ export default function Renewals() {
   // The names in Owned (synced, and the ones you added by hand), less those
   // you've sold that the buyer hasn't taken yet. Archive is never counted
   // (docs/owned-and-archive.md).
-  const allDomains = useMemo(() => {
-    const ownership = ownershipByDomain(domainEvents);
-    return [
-      ...syncedDomains,
-      ...importedRows(importedDomains, syncedDomains),
-    ].filter((d) => {
-      const key = toAscii(d.domainName);
-      const st = standingOf(
-        d,
-        ownership.get(key),
-        registrationLookups[key]?.registered,
-      );
-      return !st.archived && !st.salePending;
-    });
-  }, [syncedDomains, importedDomains, domainEvents, registrationLookups]);
+  const allDomains = useMemo(
+    () =>
+      ownedAndRenewing(
+        [...syncedDomains, ...importedRows(importedDomains, syncedDomains)],
+        domainEvents,
+        registrationLookups,
+      ).renewing,
+    [syncedDomains, importedDomains, domainEvents, registrationLookups],
+  );
   const accounts = useAppStore((s) => s.registrars);
   const multipleAccounts = useMemo(
     () => multiAccountRegistrars(accounts, allDomains),
@@ -232,7 +233,7 @@ export default function Renewals() {
         {
           id: 'auto',
           label: 'Auto-renew',
-          icon: IterationCw,
+          icon: RotateCw,
           count: autoRenewing.length,
           active: renewing === 'auto',
           onClick: () => setRenewing('auto'),
@@ -245,7 +246,7 @@ export default function Renewals() {
               Manual<span className="max-sm:hidden"> renew</span>
             </>
           ),
-          icon: RefreshCwOff,
+          icon: ManualIcon,
           count: manual.length,
           active: renewing === 'manual',
           onClick: () => setRenewing('manual'),
@@ -402,7 +403,7 @@ export default function Renewals() {
         <StatCard
           size="sm"
           icon={Globe}
-          accentClass="text-blue-500"
+          accentClass="text-brand-400"
           label="Domains"
           value={[
             {
@@ -415,22 +416,22 @@ export default function Renewals() {
         />
         <StatCard
           size="sm"
-          icon={ChartColumn}
-          accentClass="text-sky-500"
+          icon={CalendarDays}
+          accentClass="text-sky-400"
           label="Monthly avg"
           value={usd(monthly)}
         />
         <StatCard
           size="sm"
           icon={CalendarSync}
-          accentClass="text-brand-500"
+          accentClass="text-violet-400"
           label="Yearly"
           value={[{ value: usd(summary.yearly) }]}
         />
         <StatCard
           size="sm"
           icon={AlarmClock}
-          accentClass="text-amber-500"
+          accentClass="text-rose-400"
           label="Due, 30 days"
           value={[
             {
@@ -442,7 +443,7 @@ export default function Renewals() {
         <StatCard
           size="sm"
           icon={CalendarClock}
-          accentClass="text-orange-500"
+          accentClass="text-amber-400"
           label="Due, 90 days"
           value={[
             {

@@ -18,8 +18,8 @@ import {
   CircleCheck,
   CircleHelp,
   Globe,
-  IterationCw,
   Plug,
+  RotateCw,
   Server,
   ShieldBan,
   ShieldCheck,
@@ -75,6 +75,7 @@ import {
 } from '../lib/domain-ops';
 import { FolderIcon } from '../components/icons/FolderIcon';
 import { FolderOffIcon } from '../components/icons/FolderOffIcon';
+import { autoRenewChoice, type AutoRenewChoice } from '../lib/auto-renew';
 import { FolderMenuItems } from '../components/domains/FolderMenuItems';
 import { OwnershipSwitch } from '../components/domains/OwnershipSwitch';
 import {
@@ -922,6 +923,7 @@ export default function Domains() {
     enrichVisible,
     loadAllDetail,
     pricing,
+    exchangeRates,
     folders,
     folderAssignments,
     assignFolder,
@@ -1470,15 +1472,15 @@ export default function Domains() {
       expired: 0,
       removed: 0,
     };
-    let renewOn = 0;
-    let renewOff = 0;
+    const renew: Record<AutoRenewChoice, number> = {
+      on: 0,
+      off: 0,
+      unknown: 0,
+    };
     for (const d of shown) {
       const label = archiveLabelOf(d);
       if (label) status[label] += 1;
-      else if (!d.autoRenewUnknown) {
-        if (d.autoRenew) renewOn += 1;
-        else renewOff += 1;
-      }
+      else renew[autoRenewChoice(d)] += 1;
     }
     const opts = folders.map((f) => ({
       value: f.id,
@@ -1514,8 +1516,12 @@ export default function Domains() {
       folderOptions: opts,
       archiveStatusOptions: statusOptions,
       autoRenewOptions: [
-        { value: 'on', label: 'On', count: renewOn },
-        { value: 'off', label: 'Off', count: renewOff },
+        { value: 'on', label: 'On', count: renew.on },
+        { value: 'off', label: 'Off', count: renew.off },
+        // A name you added, whose registrar DomBot can't ask.
+        ...(renew.unknown
+          ? [{ value: 'unknown', label: 'Unknown', count: renew.unknown }]
+          : []),
       ],
       ownedCount: sum(counts.owned),
       archiveCount: sum(counts.archive),
@@ -1695,7 +1701,7 @@ export default function Domains() {
             {
               key: 'autoRenew',
               label: 'Auto-renew',
-              icon: IterationCw,
+              icon: RotateCw,
               options: autoRenewOptions,
               selected: autoRenewFilter,
               plural: 'values',
@@ -1853,8 +1859,7 @@ export default function Domains() {
     : listingMarkets;
   // The same days the Expiration filter's shortcuts pick.
   const expiresWithin = useCallback(
-    (d: Domain, days: 30 | 60) =>
-      matchesExpiration(d, presetRange(days === 30 ? 'next30' : 'next60')),
+    (d: Domain) => matchesExpiration(d, presetRange('next30')),
     [],
   );
 
@@ -1937,11 +1942,12 @@ export default function Domains() {
           folders,
         );
         if (folder.length > 0 && !folder.includes(bucket)) return false;
-        if (ownedView && autoRenewFilter.length > 0) {
-          if (d.autoRenewUnknown) return false;
-          if (!autoRenewFilter.includes(d.autoRenew ? 'on' : 'off'))
-            return false;
-        }
+        if (
+          ownedView &&
+          autoRenewFilter.length > 0 &&
+          !autoRenewFilter.includes(autoRenewChoice(d))
+        )
+          return false;
       }
       return true;
     });
@@ -2381,11 +2387,19 @@ export default function Domains() {
             traffic={marketTraffic.domains}
             expiresWithin={expiresWithin}
             archiveLabelOf={archiveLabelOf}
+            pricing={pricing}
+            currency={currency}
+            fx={exchangeRates}
             actions={{
-              // The names the card counts: expiring, auto-renew off.
-              onExpiring: (days) => {
-                setExpires(presetRange(days === 30 ? 'next30' : 'next60'));
-                setAutoRenewFilter(['off']);
+              // The names the card counts: expiring within 30 days, not
+              // renewing on their own.
+              onExpiring: () => {
+                setExpires(presetRange('next30'));
+                setAutoRenewFilter(['off', 'unknown']);
+                setPage(0);
+              },
+              onAutoRenew: () => {
+                setAutoRenewFilter(['on']);
                 setPage(0);
               },
               onMarketStates: (states) => {

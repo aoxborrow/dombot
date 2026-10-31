@@ -1,6 +1,6 @@
 import { DomainEventType, type DomainEvent } from './domain-events';
 import { toAscii, toUnicode } from './domain-name';
-import type { Domain, RegistrarMeta } from './ipc';
+import type { Domain, RegistrarMeta, RegistrationLookup } from './ipc';
 
 // Owned or Archive (docs/owned-and-archive.md). Archive holds only names you
 // no longer have; nothing you hold goes there by hand. What's stored is the
@@ -159,6 +159,31 @@ export function standingOf(
       days >= 0 &&
       days <= EXPIRING_DAYS,
   };
+}
+
+/**
+ * Of `domains` (the synced ones and the ones you added), those in Owned,
+ * not already in Archive: what the Domains page and its tab count. And of
+ * those, the ones that still renew, less the names you've sold that the
+ * buyer hasn't taken yet: what the Renewals page and its tab add up.
+ */
+export function ownedAndRenewing(
+  domains: Domain[],
+  events: DomainEvent[],
+  lookups: Record<string, RegistrationLookup | null>,
+  now: number = Date.now(),
+): { owned: Domain[]; renewing: Domain[] } {
+  const ownership = ownershipByDomain(events);
+  const owned: Domain[] = [];
+  const renewing: Domain[] = [];
+  for (const d of domains) {
+    const key = toAscii(d.domainName);
+    const st = standingOf(d, ownership.get(key), lookups[key]?.registered, now);
+    if (st.archived) continue;
+    owned.push(d);
+    if (!st.salePending) renewing.push(d);
+  }
+  return { owned, renewing };
 }
 
 /** An Archive label that still wants an answer from you. */
