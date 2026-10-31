@@ -327,7 +327,8 @@ export type CredentialValues = Record<string, string>;
  */
 export interface AppSettings {
   /**
-   * Background portfolio-sync interval in minutes; `0` disables auto-sync.
+   * Background sync interval for every registrar and market account, in
+   * minutes; `0` disables auto-sync.
    * Applied live when changed. See services/auto-sync.ts. `DOMBOT_SYNC_INTERVAL_MINUTES`,
    * when set, overrides this (a dev/testing escape hatch).
    */

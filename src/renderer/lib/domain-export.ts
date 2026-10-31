@@ -11,7 +11,7 @@ import {
 import { useAppStore } from '../store/app';
 import { accountName } from './domain-history';
 
-// "Export all domains" from outside the Domains page (Settings → Sync): the
+// "Export all domains" from outside the Domains page (Settings → Import/Export): the
 // same rows the page lists, Owned and Archive, in the DomBot CSV.
 
 /** Every name DomBot lists: synced (with any loaded detail), imported, and Archive. */

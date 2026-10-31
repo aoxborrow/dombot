@@ -53,20 +53,7 @@ export function ActivityBell() {
     [marketAccounts],
   );
   const problems = useMemo(
-    () => [
-      ...syncProblems(registrars),
-      ...(marketAccounts ?? [])
-        .filter((a) => a.enabled && a.configured && a.sync?.lastError)
-        .map((a) => ({
-          accountId: a.id,
-          account: marketAccountTitle(
-            marketCatalog.find((m) => m.id === a.market)?.name ?? a.market,
-            a.label,
-          ),
-          message: a.sync!.lastError!,
-          at: a.sync!.at,
-        })),
-    ],
+    () => syncProblems(registrars, marketAccounts, marketCatalog),
     [registrars, marketAccounts, marketCatalog],
   );
   // Market sales waiting on you: an auth code, a transfer, payee details.
@@ -482,9 +469,4 @@ function SaleRow({
       </span>
     </Link>
   );
-}
-
-/** "Afternic", or "Afternic · Business" when the account has its own name. */
-function marketAccountTitle(market: string, label: string): string {
-  return label && label !== market ? `${market} · ${label}` : market;
 }

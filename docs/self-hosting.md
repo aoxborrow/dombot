@@ -190,10 +190,11 @@ alongside Cloudflare's own builds, or every push deploys twice.
 - **Updating** depends on how you set up: see
   [fork](#recommended-fork-it-then-connect-it),
   [Deploy button](#the-deploy-button) or [CLI](#the-cli-way).
-- **Backups and moving**: Settings → Sync → **Export data** writes everything
-  (registrar keys, portfolio, folders, prices, settings, MCP pairings) to one
-  JSON file, optionally sealed with a passphrase (in your browser, so the
-  passphrase never leaves it); **Import data** replaces the
+- **Backups and moving**: Settings → Import/Export → **Export data** writes
+  everything (registrar and market keys, portfolio, folders, prices,
+  settings, MCP pairings) to one JSON file, optionally sealed with a
+  passphrase (in your browser, so the passphrase never leaves it);
+  **Restore from file** replaces the
   instance's contents with a file. This is how you move from the desktop app
   to your instance, and the only backup for data whose key you could lose.
 - **Rotating the root key**: `DOMBOT_SECRET` can't simply be replaced — the

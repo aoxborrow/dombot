@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { Download, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -12,144 +13,33 @@ import {
 import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   MAX_BUNDLE_BYTES,
   isSealedBundle,
   openBundle,
   sealBundle,
 } from '../../../shared/bundle-seal';
+import { domainsCsvTemplate } from '../../../shared/domain-csv';
 import { isDemo } from '../../lib/platform';
-import { useAppStore } from '../../store/app';
+import { exportAllDomains } from '../../lib/domain-export';
 import { ImportDomainsDialog } from '../../components/domains/ImportDomainsDialog';
 import { SettingsCard, SettingsField } from './SettingsCard';
-import { Download, Upload } from 'lucide-react';
-import { domainsCsvTemplate } from '../../../shared/domain-csv';
-import { exportAllDomains } from '../../lib/domain-export';
-
-/** Auto-sync interval choices (minutes). `0` disables the background sync. */
-const INTERVAL_OPTIONS: { label: string; minutes: number }[] = [
-  { label: 'Every hour', minutes: 60 },
-  { label: 'Every 6 hours', minutes: 360 },
-  { label: 'Every 12 hours', minutes: 720 },
-  { label: 'Every 24 hours', minutes: 1440 },
-  { label: 'Every 48 hours', minutes: 2880 },
-  { label: 'Every 7 days', minutes: 10080 },
-  { label: 'Off', minutes: 0 },
-];
-
-const DEFAULT_INTERVAL_MINUTES = 1440;
 
 /**
- * Data & cache settings. DomBot caches your portfolio, per-domain detail, and
- * renewal prices on disk (timestamped) so the app opens fully populated with no
- * network calls. This tab also controls the background sync
- * that keeps that cache fresh, and clearing the cache.
+ * Getting data in and out of DomBot: your domains as a spreadsheet, and a
+ * backup of everything it stores.
  */
-export default function DataSettings() {
-  const clearAllCaches = useAppStore((s) => s.clearAllCaches);
-  const settings = useAppStore((s) => s.settings);
-  const loadSettings = useAppStore((s) => s.loadSettings);
-  const setAutoSyncInterval = useAppStore((s) => s.setAutoSyncInterval);
-  const [clearing, setClearing] = useState(false);
-  const [cleared, setCleared] = useState(false);
-
-  useEffect(() => {
-    void loadSettings();
-  }, [loadSettings]);
-
-  const onClear = async () => {
-    setClearing(true);
-    setCleared(false);
-    try {
-      await clearAllCaches();
-      setCleared(true);
-    } finally {
-      setClearing(false);
-    }
-  };
-
-  const stored = settings?.autoSyncIntervalMinutes ?? null;
-  // A value that isn't a preset (only reachable outside the UI) shows as the
-  // default rather than an empty select.
-  const interval =
-    stored != null && !INTERVAL_OPTIONS.some((o) => o.minutes === stored)
-      ? DEFAULT_INTERVAL_MINUTES
-      : stored;
-
+export default function ImportExportSettings() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-2xl font-bold">Sync</h2>
+        <h2 className="text-2xl font-bold">Import/Export</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          DomBot keeps a copy of your portfolio and refreshes it from the
-          registrars on a schedule, so it opens instantly and registrar APIs
-          aren&apos;t hit more often than needed.
+          Bring domains in from a spreadsheet or export them, and back up
+          everything DomBot stores to keep a copy or move to another DomBot.
         </p>
       </div>
-
-      <SettingsCard title="Auto-sync">
-        <SettingsField
-          label="Sync frequency"
-          htmlFor="auto-sync-interval"
-          description="How often DomBot re-syncs your whole portfolio in the background. Larger portfolios may prefer a longer interval or Off."
-        >
-          <div className="flex items-center gap-3">
-            <Select
-              value={interval == null ? undefined : String(interval)}
-              onValueChange={(v) => void setAutoSyncInterval(Number(v))}
-            >
-              <SelectTrigger id="auto-sync-interval" className="w-52">
-                <SelectValue placeholder="Loading…" />
-              </SelectTrigger>
-              <SelectContent>
-                {INTERVAL_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.minutes} value={String(opt.minutes)}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {interval === 0 && (
-              <span className="text-sm text-muted-foreground">
-                Auto-sync is off — refresh manually or via the agent’s sync
-                tools.
-              </span>
-            )}
-          </div>
-        </SettingsField>
-      </SettingsCard>
-
       <SpreadsheetCard />
-      <ExportCard />
-      <ImportCard />
-
-      <SettingsCard title="Cached data" contentClassName="flex flex-col gap-4">
-        <p className="text-sm text-muted-foreground">
-          Clear the cached portfolio and start over. Your saved registrar
-          credentials, manual prices, and folders are kept. The next “Sync
-          domains” re-fetches everything fresh.
-        </p>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="destructive"
-            onClick={() => void onClear()}
-            disabled={clearing}
-          >
-            {clearing ? 'Clearing…' : 'Clear cache'}
-          </Button>
-          {cleared && (
-            <span className="text-sm text-muted-foreground">
-              Cache cleared.
-            </span>
-          )}
-        </div>
-      </SettingsCard>
+      <BackupCard />
     </div>
   );
 }
@@ -219,10 +109,23 @@ function SpreadsheetCard() {
 }
 
 /**
- * Backup of the whole store as one JSON file. Optionally sealed with a
- * passphrase, since the file holds registrar API keys.
+ * A backup of everything DomBot stores, and the way back: one card, since
+ * the file Export writes is the file Restore reads.
  */
-function ExportCard() {
+function BackupCard() {
+  return (
+    <SettingsCard title="Backup" contentClassName="flex flex-col gap-5">
+      <ExportSection />
+      <RestoreSection />
+    </SettingsCard>
+  );
+}
+
+/**
+ * The whole store as one JSON file. Optionally sealed with a passphrase,
+ * since the file holds registrar and market API keys.
+ */
+function ExportSection() {
   const [exportPass, setExportPass] = useState('');
   const [exporting, setExporting] = useState(false);
 
@@ -247,13 +150,14 @@ function ExportCard() {
   };
 
   return (
-    <SettingsCard title="Export" contentClassName="flex flex-col gap-3">
+    <section className="flex flex-col gap-3">
+      <h3 className="text-sm font-medium">Export</h3>
       <p className="text-sm text-muted-foreground">
-        Export everything — registrar keys, portfolio, imported domains,
-        folders, prices, BIN prices, history, settings, and MCP pairings — as
-        one JSON file. Use it as a backup or to move to another DomBot. Leave
-        the passphrase blank and anyone who opens the file can read your
-        registrar API keys. Type one and the file is locked: Import asks for
+        Export everything — registrar and market keys, portfolio, imported
+        domains, folders, prices, BIN prices, history, settings, and MCP
+        pairings — as one JSON file. Use it as a backup or to move to another
+        DomBot. Leave the passphrase blank and anyone who opens the file can
+        read your API keys. Type one and the file is locked: Restore asks for
         that same passphrase, and DomBot does not keep a copy. If you forget it,
         the backup cannot be opened.
       </p>
@@ -275,15 +179,12 @@ function ExportCard() {
           {exporting ? 'Exporting…' : 'Export data'}
         </Button>
       </div>
-    </SettingsCard>
+    </section>
   );
 }
 
-/**
- * Restore a full backup, or bring in purchase fields from a spreadsheet.
- * The full import replaces the store. The spreadsheet does not.
- */
-function ImportCard() {
+/** Restore a backup, which replaces the store. */
+function RestoreSection() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<{
     name: string;
@@ -316,7 +217,7 @@ function ImportCard() {
         : pending.text;
       const { namespaces, entries } = await window.api.importData(text);
       toast.success(
-        `Imported ${entries} item${entries === 1 ? '' : 's'} across ${namespaces} section${namespaces === 1 ? '' : 's'}`,
+        `Restored ${entries} item${entries === 1 ? '' : 's'} across ${namespaces} section${namespaces === 1 ? '' : 's'}`,
       );
       setPending(null);
       // Every screen holds derived state; a reload is the honest refresh.
@@ -329,36 +230,33 @@ function ImportCard() {
   };
 
   return (
-    <SettingsCard title="Import" contentClassName="flex flex-col gap-5">
-      <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
-          Import replaces everything stored here with a backup file: registrar
-          keys, the saved domain list, imported domains, folders, prices, BIN
-          prices, history, settings, and MCP pairings. It does not contact your
-          registrars. The next Sync does. Names in the file that an account no
-          longer has will leave the list then, and names an account has that the
-          file does not will appear. Purchase records are kept either way,
-          including for names that are not in the list.
-        </p>
-        <div>
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".json,application/json"
-            className="hidden"
-            onChange={(e) => {
-              void onPick(e.target.files?.[0]);
-              e.target.value = '';
-            }}
-          />
-          <Button
-            variant="outline"
-            disabled={isDemo()}
-            onClick={() => fileInput.current?.click()}
-          >
-            Import data…
-          </Button>
-        </div>
+    <section className="flex flex-col gap-3 border-t pt-5">
+      <h3 className="text-sm font-medium">Restore</h3>
+      <p className="text-sm text-muted-foreground">
+        Restore replaces everything stored here with a backup file. It does not
+        contact your registrars or markets. The next Sync does. Names in the
+        file that an account no longer has will leave the list then, and names
+        an account has that the file does not will appear. Purchase records are
+        kept either way, including for names that are not in the list.
+      </p>
+      <div>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={(e) => {
+            void onPick(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
+        <Button
+          variant="outline"
+          disabled={isDemo()}
+          onClick={() => fileInput.current?.click()}
+        >
+          Restore from file…
+        </Button>
       </div>
 
       <Dialog
@@ -369,10 +267,11 @@ function ImportCard() {
           <DialogHeader>
             <DialogTitle>Replace all data?</DialogTitle>
             <DialogDescription>
-              Everything currently stored — registrar keys, portfolio, folders,
-              prices, settings, MCP pairings — will be replaced with the
-              contents of <span className="font-mono">{pending?.name}</span>.
-              This can&apos;t be undone; export first if you want a copy.
+              Everything currently stored — registrar and market keys,
+              portfolio, folders, prices, settings, MCP pairings — will be
+              replaced with the contents of{' '}
+              <span className="font-mono">{pending?.name}</span>. This
+              can&apos;t be undone; export first if you want a copy.
             </DialogDescription>
           </DialogHeader>
           {pending?.sealed && (
@@ -404,11 +303,11 @@ function ImportCard() {
               onClick={() => void onImport()}
               disabled={importing || (pending?.sealed && !importPass)}
             >
-              {importing ? 'Importing…' : 'Replace and import'}
+              {importing ? 'Restoring…' : 'Replace and restore'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </SettingsCard>
+    </section>
   );
 }

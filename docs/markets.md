@@ -296,7 +296,15 @@ Following docs/storage-model.md:
 
 - One sync per enabled market account, on the registrar schedule (Settings →
   Sync), sharing each market's per-account rate limit with everything else on
-  that key.
+  that key. Auto-sync runs the market accounts after the registrars, so a
+  sale's "still held?" check sees the fresh portfolio.
+- Sync now (the Domains page, the status bar's desktop menu, the phone menu)
+  does the same: registrars, then every enabled market account. The status
+  bar counts both kinds and links to Settings → Sync, which has Sync all
+  accounts and lists any account that failed, is stale or never synced.
+  Failures from either kind also go to the bell, the line under Sync now and
+  `portfolio_alerts`. Settings → Registrars and Settings → Markets each have
+  a Sync all for their own accounts.
 - Listings: `allListings()` each time; an incomplete or torn read keeps the
   previous snapshot rather than dropping names.
 - Sales: full history once, then from the newest `soldOn` minus a week.

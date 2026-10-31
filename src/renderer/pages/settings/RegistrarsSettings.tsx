@@ -231,13 +231,24 @@ export default function RegistrarsSettings() {
 }
 
 /**
- * Syncs every enabled account at once, like the status bar's Sync. Each card
- * shows Syncing… while it runs, and a toast sums up the result.
+ * Syncs every enabled registrar account at once (Sync now on the Domains page
+ * adds the market accounts). Each card shows Syncing… while it runs, and a
+ * toast sums up the result.
  */
 function SyncAllButton() {
-  const { sync, syncing, disabled, title } = useSyncState();
+  const {
+    syncRegistrars,
+    registrarsSyncing: syncing,
+    disabled,
+    title,
+  } = useSyncState();
   return (
-    <Button variant="outline" onClick={sync} disabled={disabled} title={title}>
+    <Button
+      variant="outline"
+      onClick={syncRegistrars}
+      disabled={disabled}
+      title={title}
+    >
       <RefreshCw className={cn(syncing && 'animate-spin')} />
       {syncing ? 'Syncing…' : 'Sync all'}
       {/* Room for the full label beside Add from sm up. */}

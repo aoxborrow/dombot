@@ -141,8 +141,8 @@ recommended. Both, plus the CLI and putting it behind Cloudflare Access, are in
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/aoxborrow/dombot)
 
-Moving from the desktop app: **Settings → Sync → Export data**, then import
-the file on your instance.
+Moving from the desktop app: **Settings → Import/Export → Export data**, then
+restore the file on your instance.
 
 ---
 

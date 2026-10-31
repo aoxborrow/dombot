@@ -240,6 +240,18 @@ describe('syncMarketAccount', () => {
     expect(marketSales()).toHaveLength(1);
   });
 
+  it('joins a sync already under way instead of reading twice', async () => {
+    await connect();
+    fake.sales = [sale('t1', 'gone.com', '2026-10-01')];
+    const first = syncMarketAccount(ACCOUNT);
+    expect(syncMarketAccount(ACCOUNT)).toBe(first);
+    await first;
+    expect(fake.salesSince).toEqual([undefined]);
+    // Once it's done, the next one runs.
+    await syncMarketAccount(ACCOUNT);
+    expect(fake.salesSince).toEqual([undefined, '2026-08-17']);
+  });
+
   it('reads a year of stats first, then a week, merged by day', async () => {
     await connect();
     const day = (date: string, views: number) =>

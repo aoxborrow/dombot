@@ -93,6 +93,13 @@ vi.mock('../services/registrars', () => ({
   syncRegistrar: vi.fn(),
 }));
 
+// Market storage isn't hydrated here: only the accounts the alerts read.
+const marketAccountViews = vi.fn((): unknown[] => []);
+vi.mock('../services/markets/accounts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/markets/accounts')>()),
+  marketAccountViews: () => marketAccountViews(),
+}));
+
 const applyDomainOp = vi.fn();
 vi.mock('../services/domain-ops', () => ({
   applyDomainOp: (...a: unknown[]) => applyDomainOp(...a),
@@ -1143,18 +1150,49 @@ describe('history, purchases, sales and alerts', () => {
         sync: { lastError: 'Bad key', lastErrorAt: 5 },
       },
     ]);
+    // A market account's failure sits with the registrar ones; a disabled
+    // account's doesn't count.
+    marketAccountViews.mockReturnValueOnce([
+      {
+        id: 'mkt-1',
+        market: 'sedo',
+        label: 'Sedo',
+        enabled: true,
+        configured: true,
+        sync: { at: 4, lastError: 'Sedo: Login failed' },
+      },
+      {
+        id: 'mkt-2',
+        market: 'afternic',
+        label: 'Old',
+        enabled: false,
+        configured: true,
+        sync: { at: 3, lastError: 'Old: Bad key' },
+      },
+    ]);
     const out = (await call('portfolio_alerts')) as {
       total: number;
       counts: Record<string, number>;
-      alerts: { kind: string; eventId: string | null; message: string }[];
+      alerts: {
+        kind: string;
+        eventId: string | null;
+        accountId: string | null;
+        message: string;
+      }[];
     };
-    expect(out.counts).toEqual({ 'sync-error': 1, departure: 1, arrival: 1 });
+    expect(out.counts).toEqual({ 'sync-error': 2, departure: 1, arrival: 1 });
     expect(out.alerts.map((a) => [a.kind, a.eventId])).toEqual([
+      ['sync-error', null],
       ['sync-error', null],
       ['departure', departure.id],
       ['arrival', arrival.id],
     ]);
     expect(out.alerts[0].message).toBe('Main: Bad key');
+    // The market's error doesn't repeat the account's name.
+    expect(out.alerts[1]).toMatchObject({
+      accountId: 'mkt-1',
+      message: 'Sedo: Login failed',
+    });
     const page = (await call('portfolio_alerts', {
       kind: 'arrival',
       limit: 1,

@@ -10,7 +10,8 @@ import { isBulkRunning } from './bulk-jobs';
 import { syncMarkets } from './markets/sync';
 import { refreshExchangeRates } from './exchange-rates';
 
-// Periodic background portfolio sync. The UI never auto-refreshes on staleness
+// Periodic background sync of every registrar, then every market account.
+// The UI never auto-refreshes on staleness
 // (the user hits Sync), but an MCP-only user may never open the window, so the
 // cache the MCP tools serve would otherwise only refresh when an agent
 // explicitly calls portfolio_sync / registrar_sync. This timer keeps that cache
@@ -20,7 +21,7 @@ import { refreshExchangeRates } from './exchange-rates';
 // The interval is the `autoSyncIntervalMinutes` setting (default 24h; 0
 // disables), adjustable live in Settings → Sync. DOMBOT_SYNC_INTERVAL_MINUTES,
 // when set, overrides the setting (a dev/testing escape hatch). Conservative by
-// design — one pass across every configured registrar is real API traffic.
+// design — one pass across every configured account is real API traffic.
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let inFlight = false;

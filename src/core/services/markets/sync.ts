@@ -175,11 +175,26 @@ function heldNames(): Set<string> {
   );
 }
 
+/** Syncs under way, by account id. */
+const inFlight = new Map<string, Promise<void>>();
+
 /**
  * Sync one market account. Never throws: a failure is recorded on the
- * account (and shown on its card), keeping what the last sync found.
+ * account (and shown on its card), keeping what the last sync found. A sync
+ * already under way for the account (auto-sync, Sync now, its card) is
+ * joined rather than run again alongside it.
  */
-export async function syncMarketAccount(accountId: string): Promise<void> {
+export function syncMarketAccount(accountId: string): Promise<void> {
+  const running = inFlight.get(accountId);
+  if (running) return running;
+  const sync = runMarketSync(accountId).finally(() =>
+    inFlight.delete(accountId),
+  );
+  inFlight.set(accountId, sync);
+  return sync;
+}
+
+async function runMarketSync(accountId: string): Promise<void> {
   const account = marketAccount(accountId);
   const previous = getMarketSyncState(accountId);
   // Notes that earlier versions wrote at connect time and that the card now
