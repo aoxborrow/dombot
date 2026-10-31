@@ -657,34 +657,22 @@ export default function Activity() {
     navigate(`/?${next}`);
   }
 
+  // The name, when, what happened, where, and its details (or, for a row in
+  // Needs review, its answers), in the order Sales reads. Every column but
+  // Details is only as wide as its widest cell (w-0), so Details gets the
+  // rest and its answers stay in view in a narrow window.
   const columns: DataColumn<ActivityRow>[] = [
     {
       key: 'domain',
       label: 'Domain',
       // First and always shown; the Columns picker moves and hides the rest.
       locked: true,
+      headClassName: 'w-0',
       // The row's "⋯" menu, pinned to the cell's right edge like Domains',
       // with the name's sticky note (when it has one) just before it.
       cell: (row) => (
         <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-3">
-            <DomainLink name={toUnicode(row.event.domain)} />
-            {reviewIds.has(row.event.id) && (
-              <ReviewActions
-                event={row.event}
-                isNew={isNew(row.event)}
-                toRecord={unrecorded.has(row.event.id)}
-                registering={registering.has(row.event.id)}
-                onRegistration={() => void recordRegistration(row)}
-                onPurchase={() =>
-                  setDialog({ kind: 'purchase', row, side: 'purchase' })
-                }
-                onSale={() => setDialog({ kind: 'sold', rows: [row] })}
-                onDropped={() => markDropped([row.event])}
-                onDismiss={() => dismiss([row.event])}
-              />
-            )}
-          </div>
+          <DomainLink name={toUnicode(row.event.domain)} />
           <div className="flex items-center">
             <NotesButton
               domainName={toUnicode(row.event.domain)}
@@ -714,6 +702,7 @@ export default function Activity() {
     {
       key: 'date',
       label: 'Date',
+      headClassName: 'w-0',
       cell: ({ event: e }) => (
         <span
           className="font-mono text-muted-foreground tabular-nums"
@@ -725,15 +714,17 @@ export default function Activity() {
     },
     {
       key: 'type',
-      label: 'Type',
-      // Like Status: no vertical padding, centered, so the badge (taller than
-      // a line of text) doesn't make the row taller than Domains'.
+      label: 'Activity',
+      headClassName: 'w-0',
+      // No vertical padding, centered, so the badge (taller than a line of
+      // text) doesn't make the row taller than Domains'.
       cellClassName: 'py-0!',
       cell: ({ shown }) => <EventTypeBadge type={shown.type} />,
     },
     {
       key: 'account',
       label: 'Registrar',
+      headClassName: 'w-0',
       cell: ({ event: e }) =>
         // A move from no account is sync taking over an imported name.
         e.type === DomainEventType.Moved && !e.fromAccountId ? (
@@ -764,22 +755,49 @@ export default function Activity() {
       label: 'Details',
       sortable: false,
       hideOnMobile: true,
-      cell: ({ shown }) => {
+      // A little more room on the left than the other columns, so text here
+      // doesn't hug the rule; the answers' borders sit in it (ReviewActions).
+      headClassName: 'pl-3',
+      cellClassName: 'pl-3',
+      // A row in Needs review has its answers here, where an arrival or a
+      // departure has no details of its own.
+      cell: (row) => {
+        const { event: e, shown } = row;
         const details = eventDetails(shown, numberFormat, preferred);
+        const actions = reviewIds.has(e.id) && (
+          <ReviewActions
+            event={e}
+            isNew={isNew(e)}
+            toRecord={unrecorded.has(e.id)}
+            registering={registering.has(e.id)}
+            onRegistration={() => void recordRegistration(row)}
+            onPurchase={() =>
+              setDialog({ kind: 'purchase', row, side: 'purchase' })
+            }
+            onSale={() => setDialog({ kind: 'sold', rows: [row] })}
+            onDropped={() => markDropped([e])}
+            onDismiss={() => dismiss([e])}
+          />
+        );
         // A change can name several nameservers or rules: cut it short, with
         // the whole of it on hover. An amount in another currency than yours
         // shows what it was worth in yours.
-        return details ? (
-          <span
-            className="block max-w-xs truncate"
-            title={
-              eventConversion(shown, numberFormat, preferred, fx) ?? details
-            }
-          >
-            {details}
+        return (
+          <span className="flex items-center gap-3">
+            {details ? (
+              <span
+                className="block max-w-64 truncate"
+                title={
+                  eventConversion(shown, numberFormat, preferred, fx) ?? details
+                }
+              >
+                {details}
+              </span>
+            ) : (
+              !actions && <span className="text-muted-foreground/50">—</span>
+            )}
+            {actions}
           </span>
-        ) : (
-          <span className="text-muted-foreground/50">—</span>
         );
       },
     },
@@ -787,6 +805,7 @@ export default function Activity() {
       key: 'source',
       label: 'Source',
       hideOnMobile: true,
+      headClassName: 'w-0',
       cell: ({ shown }) => (
         <span className="whitespace-nowrap text-muted-foreground">
           {SOURCE_LABEL[shown.source]}
@@ -1223,8 +1242,7 @@ function AccountLabel({
  * notes, record what you paid (edit it once there is one), record a sale
  * (edit it once there is one), mark a departure dropped (or undo it), dismiss
  * a new row, open it in Domains, or remove a name no connected account holds
- * from DomBot. The menu's Record registration opens the dialog, unlike the
- * one-click inline answer.
+ * from DomBot.
  */
 function RowMenu({
   row,
@@ -1351,12 +1369,12 @@ function RowMenu({
 }
 
 /**
- * The suggested answers for a row in Needs review, right after the name:
- * what you paid for an arrival (Record registration saves in one click), what
- * became of a departure, and Dismiss last while it's new. A new row whose
- * money is already on file only gets Dismiss. The "⋯" menu has every option,
- * and is the only place for them on phones, where these don't fit beside the
- * name.
+ * The suggested answers for a row in Needs review, in its Details, the
+ * one-click answer first: Record registration (saved at the registrar's fee)
+ * or Record purchase… for an arrival, Mark dropped or Record sale… for a
+ * departure, and Dismiss last while it's new. A new row whose money is
+ * already on file only gets Dismiss. The "⋯" menu has every option, and is
+ * the only place for them on phones, where these don't fit.
  */
 function ReviewActions({
   event,
@@ -1383,7 +1401,9 @@ function ReviewActions({
 }) {
   const arrival = event.type === DomainEventType.Added;
   return (
-    <span className="-my-1 hidden shrink-0 items-center gap-1 md:inline-flex">
+    // Pulled left a little when they lead the cell, so the buttons' text,
+    // not their borders, lines up with the details on other rows.
+    <span className="hidden shrink-0 items-center gap-1.5 first:-ml-1 md:flex">
       {!toRecord ? null : arrival ? (
         <>
           <ReviewButton disabled={registering} onClick={onRegistration}>
@@ -1393,12 +1413,13 @@ function ReviewActions({
         </>
       ) : (
         <>
-          <ReviewButton onClick={onSale}>Record sale…</ReviewButton>
           <ReviewButton onClick={onDropped}>Mark dropped</ReviewButton>
+          <ReviewButton onClick={onSale}>Record sale…</ReviewButton>
         </>
       )}
       {isNew && (
         <ReviewButton quiet onClick={onDismiss}>
+          <X className="size-3" />
           Dismiss
         </ReviewButton>
       )}
@@ -1412,23 +1433,23 @@ function ReviewButton({
   onClick,
   children,
 }: {
-  /** Dismiss: text only, no border. */
+  /** Dismiss: an outline with no fill, so the answers stand out. */
   quiet?: boolean;
   disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
+  // The size of Sales' step buttons.
   return (
     <Button
       type="button"
-      variant={quiet ? 'ghost' : 'outline'}
-      size="xs"
+      variant="outline"
+      size="sm"
       disabled={disabled}
       className={cn(
-        'font-normal',
-        quiet
-          ? 'text-muted-foreground hover:text-foreground'
-          : 'bg-background/60 dark:bg-input/20',
+        '-my-1 h-6 shrink-0 px-2 text-xs',
+        quiet &&
+          'gap-1 bg-transparent text-muted-foreground shadow-none hover:text-foreground has-[>svg]:pr-2 has-[>svg]:pl-1.5 dark:bg-transparent',
       )}
       onClick={onClick}
     >

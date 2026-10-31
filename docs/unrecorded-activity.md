@@ -16,8 +16,8 @@ and puts the answers on the row:
   arrival or departure still missing its money, dismissed or not.
 - **New rows are highlighted, like unread mail.** The bell and the Activity
   tab count them. Dismiss marks one read; it stays in Needs review.
-- **The answers sit in the row,** right after the domain: Record
-  registration, Record purchase, Record sale, Mark dropped, Dismiss.
+- **The answers sit in the row's Details,** the one-click one first:
+  Record registration, Record purchase…, Mark dropped, Record sale…, Dismiss.
 - **Registration and purchase are recorded separately,** in one dialog with
   a Registration | Purchase toggle.
 
@@ -104,14 +104,23 @@ pseudo-element.
 
 ## Row actions
 
-**Inline, right after the domain name,** on every row needing review in either
-view: the suggested answers as small buttons. The row's ⋯ menu stays at the
-end of the row with every option.
+**Inline, in the Details column,** on every row needing review in either
+view: the suggested answers as small buttons, styled like Sales' step
+buttons. An arrival or a departure has no details of its own, so the column
+is free for them. The columns read Domain, Date, Activity (the event's
+type), Registrar, Details, Source; every column but Details is only as wide
+as its widest cell, so Details takes the rest and the answers stay in view
+in a narrow window. The row's ⋯ menu stays in the Domain cell with every
+option.
 
 | Row                     | Inline                                           |
 | ----------------------- | ------------------------------------------------ |
 | An arrival (`added`)    | Record registration · Record purchase… · Dismiss |
-| A departure (`removed`) | Record sale… · Mark dropped · Dismiss            |
+| A departure (`removed`) | Mark dropped · Record sale… · Dismiss            |
+
+The one-click answer comes first, with no "…"; the one that opens a dialog
+follows it. Dismiss is an outline with no fill and an ✕, so the answers stand
+out from it.
 
 - **Only rows still missing their money get answers.** A new arrival whose
   purchase is already on file (recorded on Domains, say) gets Dismiss alone,
@@ -126,13 +135,16 @@ end of the row with every option.
   An Undo toast follows. When there's no usable price (none reported,
   or in a currency DomBot can't convert), the click opens the Record
   registration dialog with that note instead of saving a blank amount.
-  Revisit if one click feels wrong in use.
 - **Record purchase… and Record sale…** open their dialogs, filled in as
   today, and resolve the alert on save.
 - **Mark dropped** is one click with an Undo toast: the name left and no money
   came back. See [Mark dropped](#mark-dropped).
-- **On phones** the inline buttons don't fit beside the name; the ⋯ menu has
-  them all.
+- **A name that left after its expiry never asks.** Sync records the lapse
+  (`expires` on the `removed`, Archive's Expired) and writes it already
+  dismissed, so it isn't in Needs review. Its Details say "Expired
+  2026-09-30", and a departure you marked says "Dropped", so the row shows
+  why it has no answers.
+- **On phones** the inline buttons don't fit; the ⋯ menu has them all.
 
 ### The ⋯ menu
 
