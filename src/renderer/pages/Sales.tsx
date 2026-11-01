@@ -63,8 +63,12 @@ import type { FilterField } from '../components/data-table/FilterBar';
 import { dateRangeField } from '../components/data-table/DateRangeFilter';
 import { SaleDialog } from '../components/domains/SaleDialog';
 import { SaleApproveTransfer } from '../components/sales/SaleApproveTransfer';
-import { SaleAuthCode } from '../components/sales/SaleAuthCode';
-import { SaleUnlock } from '../components/sales/SaleUnlock';
+import {
+  SaleAuthCode,
+  pastedAuthCodeFrom,
+} from '../components/sales/SaleAuthCode';
+import { SaleStepButton } from '../components/sales/SaleStepButton';
+import { SaleUnlock, waitsForUnlock } from '../components/sales/SaleUnlock';
 import { SalesCards, heldFor } from '../components/sales/SalesCards';
 import { EmptyState } from '../components/EmptyState';
 import { Button } from '@/components/ui/button';
@@ -583,7 +587,9 @@ export default function Sales() {
               {saleStatusLabel(r)}
             </span>
             {/* What you can do, in order: unlock the name, send its code,
-                approve the buyer's transfer. */}
+                approve the buyer's transfer. Every step the row can take
+                shows from the start; one waits, disabled, until the step
+                before it is done. */}
             <span className="flex items-start gap-1.5">
               {held && <SaleUnlock domain={held} />}
               {r.step === 'auth_code' &&
@@ -594,6 +600,15 @@ export default function Sales() {
                     accountId={r.marketAccountId}
                     saleId={r.marketSaleId}
                     name={r.name}
+                    pasteFrom={pastedAuthCodeFrom(
+                      heldDomains.get(r.name),
+                      registrars,
+                    )}
+                    waitingOn={
+                      waitsForUnlock(held, registrars)
+                        ? 'Unlock the name first: the buyer’s registrar can’t take it while it’s locked'
+                        : null
+                    }
                   />
                 )}
               {/* The market has the code, through DomBot or not: a step
@@ -602,29 +617,23 @@ export default function Sales() {
                 !moved &&
                 isUnderWay(r) &&
                 r.authCodeSent && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="-my-1 h-6 shrink-0 px-2 text-xs"
+                  <SaleStepButton
                     disabled
                     title="The market has the transfer auth code"
                   >
                     Auth code sent
-                  </Button>
+                  </SaleStepButton>
                 )}
               {held && <SaleApproveTransfer domain={held} />}
               {/* Handed over without leaving the registrar (an account change
                 there), or otherwise done: it stops waiting. */}
               {r.awaitingTransfer && r.eventId && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="-my-1 h-6 shrink-0 px-2 text-xs"
+                <SaleStepButton
                   title="The buyer has the name; stop showing this sale as waiting"
                   onClick={() => void setSaleTransferred(r.eventId!, true)}
                 >
                   Mark complete
-                </Button>
+                </SaleStepButton>
               )}
             </span>
           </span>

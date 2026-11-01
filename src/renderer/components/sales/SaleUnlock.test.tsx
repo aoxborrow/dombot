@@ -18,7 +18,7 @@ vi.mock('react', async (importOriginal) => {
   const react = await importOriginal<typeof import('react')>();
   return { ...react, useState: (init: unknown) => [clicked || init, vi.fn()] };
 });
-const { SaleUnlock } = await import('./SaleUnlock');
+const { SaleUnlock, waitsForUnlock } = await import('./SaleUnlock');
 
 const domain = (patch: Partial<Domain> = {}): Domain => ({
   registrar: 'dynadot',
@@ -89,5 +89,28 @@ describe('SaleUnlock', () => {
     const out = html(domain({ locked: false }));
     expect(out).toContain('>Unlocked</button>');
     expect(out).not.toContain('Unlocking…');
+  });
+});
+
+describe('waitsForUnlock', () => {
+  const dynadot = {
+    name: 'dynadot',
+    features: [],
+  } as unknown as RegistrarMeta;
+  const porkbun = {
+    name: 'porkbun',
+    features: [],
+  } as unknown as RegistrarMeta;
+
+  it('holds the next steps while DomBot can unlock a locked name', () => {
+    expect(waitsForUnlock(domain(), [dynadot])).toBe(true);
+    expect(waitsForUnlock(domain({ locked: false }), [dynadot])).toBe(false);
+  });
+
+  it('doesn’t hold them where the API can’t unlock, or the name is unknown', () => {
+    expect(waitsForUnlock(domain({ registrar: 'porkbun' }), [porkbun])).toBe(
+      false,
+    );
+    expect(waitsForUnlock(undefined, [dynadot])).toBe(false);
   });
 });

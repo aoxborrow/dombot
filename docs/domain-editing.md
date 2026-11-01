@@ -179,8 +179,10 @@ handover. A lost approval is reported as safe to repeat: the registrar
 refuses one that already went through.
 
 The Sales page reads it for each pending sale's held name whose registrar
-can report one, and shows **Approve transfer** while it's `pending`
-([markets.md](markets.md#sales-tab)). The MCP tools are
+can report one (on the row's first showing and after each sync of the
+account), and shows **Approve transfer** from the start: disabled until the
+request is `pending`, then enabled, then **Transfer approved** once approved
+or completed ([markets.md](markets.md#sales-tab)). The MCP tools are
 `domain_transfer_out_get` and `domain_transfer_out_approve`. Rejecting isn't
 offered yet, though registrar-client can (`rejectTransferOut`).
 
