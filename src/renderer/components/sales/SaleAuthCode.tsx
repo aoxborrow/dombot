@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { toUnicode } from '../../../shared/domain-name';
 import type { Domain, DomainOp, RegistrarMeta } from '../../../shared/ipc';
@@ -60,6 +60,7 @@ export function SaleAuthCode({
   // Once DomBot couldn't get the code itself: paste it instead.
   const [typing, setTyping] = useState(false);
   const [code, setCode] = useState('');
+  const input = useRef<HTMLInputElement>(null);
   const send = async (authCode?: string) => {
     setState('sending');
     setFailed(false);
@@ -114,13 +115,17 @@ export function SaleAuthCode({
       }
       onSubmit={(e) => {
         e.preventDefault();
+        // Send stays on with the box empty, so the box reads as the step;
+        // empty, it only puts you in the box.
         if (code.trim()) void send(code);
+        else input.current?.focus();
       }}
     >
       <Input
+        ref={input}
         className="-my-1 h-6 w-32 px-2 py-0 text-xs md:text-xs"
         value={code}
-        placeholder="Auth code"
+        placeholder="Paste auth code"
         aria-label={`Auth code for ${toUnicode(name)}`}
         aria-invalid={failed || undefined}
         autoComplete="off"
@@ -131,10 +136,7 @@ export function SaleAuthCode({
           setFailed(false);
         }}
       />
-      <SaleStepButton
-        type="submit"
-        disabled={busy || waitingOn !== null || !code.trim()}
-      >
+      <SaleStepButton type="submit" disabled={busy || waitingOn !== null}>
         {busy ? 'Sending…' : 'Send'}
       </SaleStepButton>
     </form>

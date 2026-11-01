@@ -33,6 +33,9 @@ describe('SaleAuthCode', () => {
     const out = html({ pasteFrom: 'Namecheap' });
     expect(out).toContain('<input');
     expect(out).toContain('>Send</button>');
+    // On while the box is empty, so the box reads as the step.
+    expect(out).not.toContain('disabled=""');
+    expect(out).toContain('placeholder="Paste auth code"');
     expect(out).not.toContain('Send auth code');
     expect(out).toContain(
       'Paste the auth code from Namecheap to send it to the market',
