@@ -639,7 +639,9 @@ export function seedDemoMarkets(
   // Sales under way on names you hold, one at each step, and one that fell
   // through. The auth code one is on a name whose registrar can produce
   // one, so Send auth code goes through; the transfer one, where it can, on
-  // a name whose registrar can approve the buyer's transfer.
+  // a name whose registrar can approve the buyer's transfer. A second waits
+  // on the auth code where the registrar can't produce one, so its row takes
+  // the code pasted in.
   const onAfternic = [...world.account('demo-afternic').values()].filter(
     (l) => l.price && l.status === 'active',
   );
@@ -694,6 +696,14 @@ export function seedDemoMarkets(
     'transfer',
   );
   underWay(take(), 140, 'cancelled', 'CANCELLED', null);
+  // Last, so the sales above keep their names.
+  underWay(
+    take((name) => !givesAuthCode(name)),
+    3,
+    'in_progress',
+    'AWAITING_AUTH_CODE',
+    'auth_code',
+  );
 }
 
 /** A factory for registry.configureMarketFactory over one world. */

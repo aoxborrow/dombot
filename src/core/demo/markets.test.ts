@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { Feature, registrars } from '@aoxborrow/registrar-client';
 import { MemoryDocStore } from '../storage/doc-store';
 import { configureStore, hydrateStores } from '../storage/namespace';
 import { getPortfolio } from '../services/registrars';
@@ -80,15 +81,40 @@ describe('demo markets', () => {
     ).toEqual(
       expect.arrayContaining(['auth_code', 'payee_details', 'transfer']),
     );
-    expect(sales.filter((s) => s.action === 'auth_code')).toHaveLength(1);
+    // Twice at the auth code: fetched from the registrar, or pasted in.
+    expect(sales.filter((s) => s.action === 'auth_code')).toHaveLength(2);
     expect(sales.filter((s) => s.status === 'cancelled')).toHaveLength(1);
   });
 
+  // The two sales waiting on the auth code, by whether the registrar holding
+  // the name can produce it.
+  const waitingOnCode = () => {
+    const registrarOf = (name: string) =>
+      demo.seed.records.find((r) => r.domainName === name)!.registrar;
+    const waiting = marketSales().filter((s) => s.action === 'auth_code');
+    const gives = (name: string) =>
+      registrars[registrarOf(name)].features.includes(Feature.GetAuthCode);
+    return {
+      fetched: waiting.find((s) => gives(s.name))!,
+      pasted: waiting.find((s) => !gives(s.name))!,
+    };
+  };
+
   it('sends the waiting sale its auth code from the registrar', async () => {
-    const waiting = marketSales().find((s) => s.action === 'auth_code')!;
+    const { fetched } = waitingOnCode();
     await expect(
-      setSaleAuthCode(waiting.accountId, waiting.id),
-    ).resolves.toEqual({ name: waiting.name, fetched: true });
+      setSaleAuthCode(fetched.accountId, fetched.id),
+    ).resolves.toEqual({ name: fetched.name, fetched: true });
+  });
+
+  it('takes the code pasted in where the registrar can’t produce it', async () => {
+    const { pasted } = waitingOnCode();
+    await expect(setSaleAuthCode(pasted.accountId, pasted.id)).rejects.toThrow(
+      `Couldn't get the auth code for ${pasted.name}`,
+    );
+    await expect(
+      setSaleAuthCode(pasted.accountId, pasted.id, 'PASTED-CODE'),
+    ).resolves.toEqual({ name: pasted.name, fetched: false });
   });
 
   it('holds a new Sedo name pending and caps Afternic lease months', async () => {

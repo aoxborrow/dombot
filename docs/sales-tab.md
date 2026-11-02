@@ -199,8 +199,8 @@ sales too.
 The demo (`src/core/demo/markets.ts`, `src/renderer/api/demo.ts`) needs:
 
 - a sale at each step: needs the auth code (on a name at a registrar that
-  can produce one: GoDaddy or Porkbun), payee details, transfer, completed,
-  cancelled;
+  can produce one, and again on one at a registrar that can't, where the code
+  is pasted in), payee details, transfer, completed, cancelled;
 - a few private and imported sales beside the market ones, some with fees;
 - purchases on most sold names, so holding period and ROI show.
 
