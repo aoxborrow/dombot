@@ -1257,7 +1257,7 @@ function HelpText({ text }: { text: string }) {
     i % 2 === 1 ? (
       <code
         key={i}
-        className="rounded bg-muted px-1 py-px font-mono text-[0.92em] text-foreground"
+        className="rounded bg-muted px-1 py-px font-mono text-[0.92em] text-foreground/75"
       >
         {part}
       </code>

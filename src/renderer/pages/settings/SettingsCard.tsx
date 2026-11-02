@@ -85,16 +85,14 @@ export function SettingsHelp({
 }) {
   return (
     <div className="mb-4 flex flex-col gap-2">
-      <p className="text-[13px] leading-relaxed text-muted-foreground">
-        {summary}
-      </p>
+      <p className="text-sm leading-relaxed text-muted-foreground">{summary}</p>
       {links.length > 0 && (
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {links.map((link) => (
             <SettingsExternalLink
               key={link.url}
               url={link.url}
-              className="text-[13px]"
+              className="text-sm"
             >
               {link.label}
             </SettingsExternalLink>

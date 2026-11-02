@@ -10,10 +10,11 @@ import {
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type {
-  MarketAccountView,
-  MarketId,
-  MarketInfo,
+import {
+  SEARCH_DATA_FLAG,
+  type MarketAccountView,
+  type MarketId,
+  type MarketInfo,
 } from '../../../shared/markets';
 import {
   DEFAULT_VERIFICATION,
@@ -978,37 +979,36 @@ function MarketAccountSummary({
   return (
     <div className="overflow-hidden rounded-md border text-sm">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b bg-muted/40 px-3 py-2">
-        <h3 className="font-medium">{market.name} account</h3>
+        <h3 className="font-medium">{market.name} Account Settings</h3>
         {settingsUrl && (
           <SettingsExternalLink url={settingsUrl} className="text-[13px]">
-            Change on {market.name}
+            Open {market.name}
           </SettingsExternalLink>
         )}
       </div>
       {/* Each setting beside its value, in two columns: the setting muted,
           its value in the text colour. */}
       <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 px-3 py-2.5">
-        {flags.map((flag) => (
-          <SummaryRow key={flag.label} label={flag.label}>
-            <span
-              className={cn(
-                'flex items-center gap-2',
-                !flag.on && 'text-muted-foreground',
-              )}
-            >
+        {flags.map((flag) =>
+          // The API doesn't say the membership level; search counts, which
+          // only Domain Pro gets, say whether it's that one.
+          flag.label === SEARCH_DATA_FLAG ? (
+            <SummaryRow key={flag.label} label="Discount Domain Club">
               <span
-                aria-hidden
-                className={cn(
-                  'size-2 shrink-0 rounded-full',
-                  flag.on
-                    ? 'bg-emerald-500'
-                    : 'border border-muted-foreground/60',
-                )}
-              />
-              {flag.on ? 'Yes' : 'No'}
-            </span>
-          </SummaryRow>
-        ))}
+                className={cn(!flag.on && 'text-muted-foreground')}
+                title={`Read from whether ${market.name} sends search counts, which only Domain Pro members get; its API doesn’t say the level.`}
+              >
+                {flag.on ? 'Domain Pro' : 'Not Domain Pro'}
+              </span>
+            </SummaryRow>
+          ) : (
+            <SummaryRow key={flag.label} label={flag.label}>
+              <span className={cn(!flag.on && 'text-muted-foreground')}>
+                {flag.on ? 'Yes' : 'No'}
+              </span>
+            </SummaryRow>
+          ),
+        )}
         {lease && (
           <SummaryRow label="Lease To Own">
             <span className={cn(!lease.enabled && 'text-muted-foreground')}>

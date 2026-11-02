@@ -555,10 +555,11 @@ the control, all stacked), and its selects fit their content:
 2. The **Ownership Verification ID** and **Preferred Verification Method**
    right after them, with no heading of their own (see "Ownership
    verification" below).
-3. **A small read-only <Market> account card,** where the market has
-   anything to show: what the account has (`MarketSyncState.status`, such as
-   Afternic's Discount Domain Club Domain Pro, which decides whether search
-   counts come back; sync keeps it current) and, for Afternic, its Lease To
+3. **A small read-only "<Market> Account Settings" card,** where the market
+   has anything to show: what the account has (`MarketSyncState.status`:
+   for Afternic, "Discount Domain Club: Domain Pro" or "Not Domain Pro",
+   read from whether search counts come back, which only Domain Pro gets;
+   the API doesn't say the level; sync keeps it current) and, for Afternic, its Lease To
    Own defaults (on or off, and the Maximum Lease Period with its commission
    discount), read from `/accountSettings`. A new listing in DomBot's
    listing editor starts from those defaults. They're changed on Afternic
