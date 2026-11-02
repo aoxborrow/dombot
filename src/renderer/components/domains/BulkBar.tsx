@@ -279,21 +279,21 @@ export function BulkBar({
                       Delist<span className="-ml-[6px] opacity-50">…</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      disabled={Boolean(marketReasons?.applyVerification)}
-                      title={marketReasons?.applyVerification ?? undefined}
-                      onSelect={() => onMarket('applyVerification')}
+                      disabled={Boolean(marketReasons?.verificationTxt)}
+                      title={marketReasons?.verificationTxt ?? undefined}
+                      onSelect={() => onMarket('verificationTxt')}
                     >
                       <ShieldCheck className="text-muted-foreground" />
-                      Apply ownership verification
+                      Ownership verification TXT
                       <span className="-ml-[6px] opacity-50">…</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      disabled={Boolean(marketReasons?.requestVerification)}
-                      title={marketReasons?.requestVerification ?? undefined}
-                      onSelect={() => onMarket('requestVerification')}
+                      disabled={Boolean(marketReasons?.recheckOwnership)}
+                      title={marketReasons?.recheckOwnership ?? undefined}
+                      onSelect={() => onMarket('recheckOwnership')}
                     >
                       <ScanSearch className="text-muted-foreground" />
-                      Request ownership verification
+                      Recheck ownership
                       <span className="-ml-[6px] opacity-50">…</span>
                     </DropdownMenuItem>
                   </>

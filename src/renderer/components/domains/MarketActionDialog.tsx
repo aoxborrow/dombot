@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { CircleAlert, CircleCheck } from 'lucide-react';
 import { toAscii } from '../../../shared/domain-name';
-import type { Domain } from '../../../shared/ipc';
+import type { Domain, DomainTarget } from '../../../shared/ipc';
 import type {
   MarketAccountView,
   MarketBulkJob,
   MarketWriteResult,
 } from '../../../shared/markets';
+import { txtValueOf } from '../../lib/ownership-verification';
 import { useAppStore } from '../../store/app';
 import { MarketLogo } from '../RegistrarLogo';
 import type { VerificationAction } from './OwnershipVerificationDialog';
@@ -26,8 +27,11 @@ import { Field, FieldLabel } from '@/components/ui/field';
 // the bulk bar (docs/markets.md). Listing pushes the asking prices you set in
 // DomBot (BIN price, minimum offer, floor), so DomBot stays where you price,
 // to every market account you tick at once; a listing that was stuck also
-// gets the market's checks re-run (Afternic's relist). Delisting works the
-// same way, starting from the markets that list the names.
+// gets the market's checks re-run (Afternic's relist). Listing can also add
+// the ticked markets' ownership verification TXT records first: a bulk job
+// started alongside, not waited on, since the markets check on their own.
+// Delisting works the same way, starting from the markets that list the
+// names.
 
 /** Listing actions, which this dialog runs. */
 export type ListingAction = 'list' | 'delist';
@@ -83,7 +87,14 @@ export function MarketActionDialog({
   const listings = useAppStore((s) => s.marketListings);
   const listPrices = useAppStore((s) => s.listPrices);
   const loadMarkets = useAppStore((s) => s.loadMarkets);
+  const bulk = useAppStore((s) => s.bulk);
+  const startBulk = useAppStore((s) => s.startBulk);
   const enabled = accounts.filter((a) => a.enabled && a.configured);
+  const [addTxt, setAddTxt] = useState(false);
+  // How starting the TXT job went: null until listing ran with it ticked.
+  const [txtJob, setTxtJob] = useState<
+    { names: number } | { error: string } | null
+  >(null);
   const [running, setRunning] = useState(false);
   const [job, setJob] = useState<MarketBulkJob | null>(null);
   const [perAccount, setPerAccount] = useState<
@@ -157,8 +168,38 @@ export function MarketActionDialog({
     return jobResults(current);
   };
 
+  // The TXT records the ticked accounts ask for, on the priced names a
+  // registrar account holds.
+  const txtValues = [
+    ...new Set(chosen.filter((a) => a.verificationId).map(txtValueOf)),
+  ];
+  const txtTargets: DomainTarget[] = domains
+    .filter(
+      (d) =>
+        !d.departed &&
+        d.source !== 'imported' &&
+        priced.includes(toAscii(d.domainName)),
+    )
+    .map((d) => ({
+      registrar: d.registrar as DomainTarget['registrar'],
+      accountId: d.accountId,
+      domainName: d.domainName,
+    }));
+  const offerTxt = action === 'list' && txtValues.length > 0;
+  const bulkBusy = bulk?.status === 'running';
+
   const run = async () => {
     setRunning(true);
+    // The TXT records go in the background, beside the listing, which
+    // doesn't wait for them: the markets check on their own.
+    if (offerTxt && addTxt && txtTargets.length) {
+      try {
+        await startBulk(txtTargets, { kind: 'txtRecords', values: txtValues });
+        setTxtJob({ names: txtTargets.length });
+      } catch (err) {
+        setTxtJob({ error: errorMessage(err) });
+      }
+    }
     // One account at a time: each has its own rate limit and its own reasons
     // to refuse a name, so one market failing doesn't stop the rest. A market
     // that writes one name per call (Atom) runs as a market bulk job.
@@ -277,6 +318,26 @@ export function MarketActionDialog({
                 </span>
               )}
             </p>
+            {offerTxt && (
+              <label className="flex cursor-pointer items-start gap-2.5">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={addTxt && !bulkBusy}
+                  disabled={bulkBusy || txtTargets.length === 0}
+                  onCheckedChange={(on) => setAddTxt(on === true)}
+                />
+                <span>
+                  Add ownership verification TXT records first
+                  <span className="block text-muted-foreground">
+                    {bulkBusy
+                      ? 'Another bulk action is running; wait for it to finish.'
+                      : txtTargets.length === 0
+                        ? 'No registrar account holds these names.'
+                        : 'At each name’s registrar, in the background; the listing doesn’t wait for them.'}
+                  </span>
+                </span>
+              </label>
+            )}
             {jobAccounts.length > 0 && !job && (
               <p className="text-muted-foreground">
                 {jobAccounts.map(whereOf).join(' and ')}{' '}
@@ -297,6 +358,19 @@ export function MarketActionDialog({
           </div>
         ) : (
           <div className="flex max-h-[50vh] flex-col gap-5 overflow-y-auto">
+            {txtJob && (
+              <p
+                className={
+                  'error' in txtJob
+                    ? 'text-sm text-destructive'
+                    : 'text-sm text-muted-foreground'
+                }
+              >
+                {'error' in txtJob
+                  ? `The TXT records didn’t start: ${txtJob.error}`
+                  : `Adding ownership verification TXT records to ${names(txtJob.names)} in the background; the bar above the table shows its progress.`}
+              </p>
+            )}
             {perAccount.map(({ account: a, results: rs, error: err }) => (
               <section key={a.id} className="flex flex-col gap-2">
                 {!only && (
@@ -406,7 +480,7 @@ function Results({
       {pending.length > 0 && (
         <p className="text-muted-foreground">
           {names(pending.length)} pending. {where} lists a name once it can
-          verify you own it: use Apply ownership verification from the Domains
+          verify you own it: use Ownership verification TXT from the Domains
           table, or verify it on {where}.
         </p>
       )}

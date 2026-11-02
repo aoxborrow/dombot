@@ -131,7 +131,7 @@ export function opChange(
     case 'authCode':
     case 'renew':
     case 'approveTransfer':
-    case 'txtRecord':
+    case 'txtRecords':
       return null;
   }
 }

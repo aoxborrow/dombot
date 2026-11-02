@@ -425,10 +425,16 @@ describe('market write tools', () => {
     expect(fake.relisted).toEqual([[['beta.io'], 'RESYNC']]);
   });
 
-  it('saves the verification ID and applies it at the registrar', async () => {
+  it('saves the verification ID and adds its TXT record at the registrar', async () => {
     await expect(
       call('domain_verification_apply', { domain: 'alpha.com' }),
-    ).rejects.toThrow(/Save the account’s Ownership Verification ID/);
+    ).rejects.toThrow(/No market account has an Ownership Verification ID/);
+    await expect(
+      call('domain_verification_apply', {
+        domain: 'alpha.com',
+        accountIds: [ID],
+      }),
+    ).rejects.toThrow(/has no Ownership Verification ID/);
     await expect(
       call('market_verification_set', { accountId: ID, value: 'nope' }),
     ).rejects.toThrow(/isn’t Afternic’s Domain Ownership Record/);
@@ -437,39 +443,27 @@ describe('market write tools', () => {
       accountId: ID,
       value: ' "verification-Abc123.ns101.verify.hn." ',
     });
-    expect(saved.verification).toEqual({ id: 'Abc123', method: 'txt' });
-    expect((await call('market_list')).accounts[0].verification).toEqual({
-      id: 'Abc123',
-      method: 'txt',
-    });
+    expect(saved.verificationId).toBe('Abc123');
+    const [listed] = (await call('market_list')).accounts;
+    expect(listed.verificationId).toBe('Abc123');
+    expect(listed.verificationNameservers).toEqual([
+      'ns1.afternic.com',
+      'ns2.afternic.com',
+      'verification-Abc123.ns101.verify.hn',
+    ]);
 
     const txt = await call('domain_verification_apply', {
       domain: 'alpha.com',
     });
     expect(txt).toMatchObject({
-      method: 'txt',
+      accountIds: [ID],
       registrar: 'dynadot',
       success: true,
-    });
-    await call('domain_verification_apply', {
-      domain: 'alpha.com',
-      method: 'nameservers',
     });
     expect(fake.applied).toEqual([
       {
         target: { registrar: 'dynadot', domainName: 'alpha.com' },
-        op: { kind: 'txtRecord', value: 'afternic-verification-Abc123' },
-      },
-      {
-        target: { registrar: 'dynadot', domainName: 'alpha.com' },
-        op: {
-          kind: 'nameservers',
-          nameservers: [
-            'ns1.afternic.com',
-            'ns2.afternic.com',
-            'verification-Abc123.ns101.verify.hn',
-          ],
-        },
+        op: { kind: 'txtRecords', values: ['afternic-verification-Abc123'] },
       },
     ]);
     await expect(

@@ -14,6 +14,7 @@ import { getSettings } from '../services/settings';
 import { storedTraffic, trafficTotals } from '../services/markets/traffic';
 import {
   activeMarketAccounts,
+  listMarketAccounts,
   marketAccount,
   marketAccountViews,
   marketAdapter,
@@ -21,7 +22,6 @@ import {
 } from '../services/markets/accounts';
 import { applyDomainOp } from '../services/domain-ops';
 import { findRegistrarsForDomain } from '../services/registrars';
-import type { DomainOp } from '../../shared/ipc';
 import {
   verificationHelp,
   verificationNameservers,
@@ -129,7 +129,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'List market accounts',
       description:
-        'List every connected marketplace account (Afternic, Atom, Sedo) with its `accountId`, `market`, `label`, whether it is `configured` and `enabled`, its last `sync` (when, listing and sale counts, any error), its ownership `verification` (the saved ID and the method domain_verification_apply uses; null until set), and what its market supports (`capabilities`). No secrets. Start here before the other market_* tools.',
+        'List every connected marketplace account (Afternic, Atom, Sedo) with its `accountId`, `market`, `label`, whether it is `configured` and `enabled`, its last `sync` (when, listing and sale counts, any error), its `verificationId` (the saved Ownership Verification ID, null until set) and `verificationNameservers` (the nameservers to point a name at for this market, with Afternic’s NS3 once the ID is saved; set them with domain_nameservers_set), and what its market supports (`capabilities`). No secrets. Start here before the other market_* tools.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -142,7 +142,11 @@ export function registerMarketTools(server: McpServer): void {
           configured: a.configured,
           enabled: a.enabled,
           sync: a.sync,
-          verification: a.verification ?? null,
+          verificationId: a.verificationId ?? null,
+          verificationNameservers: verificationNameservers(
+            marketInfo(a.market),
+            a.verificationId ?? null,
+          ),
           capabilities: marketInfo(a.market).capabilities,
         })),
       }),
@@ -974,9 +978,9 @@ export function registerMarketWriteTools(server: McpServer): void {
   server.registerTool(
     'domain_listing_verify',
     {
-      title: 'Request ownership verification',
+      title: 'Recheck ownership',
       description:
-        'Request ownership verification: ask the market to check now that you own a listed name, instead of waiting for its own check. Changes no DNS (set that up first with domain_verification_apply). Afternic relists the name, which re-runs its checks; Atom checks DNS, one request per account every 12 hours (sooner, it fails saying a check is in progress). Sedo has no such call and says so. Returns the listing as read back afterwards; its status may take a while to change.',
+        'Recheck ownership: ask the market to check now that you own a listed name, instead of waiting for its own check. Changes no DNS (add the TXT records first with domain_verification_apply). Afternic relists the name, which re-runs its checks; Atom checks DNS, one request per account every 12 hours (sooner, it fails saying a check is in progress). Sedo has no such call and says so. Returns the listing as read back afterwards; its status may take a while to change.',
       inputSchema: { domain: z.string().min(1).max(253), accountId },
       annotations: { idempotentHint: true },
     },
@@ -991,40 +995,45 @@ export function registerMarketWriteTools(server: McpServer): void {
   server.registerTool(
     'domain_verification_apply',
     {
-      title: 'Apply ownership verification',
+      title: 'Add ownership verification TXT records',
       description:
-        'Apply ownership verification: set a name up so a market can verify you own it, by changing its DNS at the registrar that holds it. The market isn’t contacted (ask it to check with domain_listing_verify). `txt` adds a TXT record holding the market account’s verification value at the name’s root and keeps every other record; it’s skipped when the name’s DNS isn’t at its registrar or the record is already there, and needs the account’s Ownership Verification ID (market_verification_set). `nameservers` replaces the name’s nameservers with the market’s (Afternic’s pair plus the account’s NS3 when its ID is saved), which ends any website or email on it. Leave `method` out for the account’s default.',
+        'Ownership verification TXT: add market accounts’ ownership verification TXT records at a name’s root, at the registrar that holds it, keeping every other record, in one write. The markets aren’t contacted (ask them to check with domain_listing_verify). `accountIds` defaults to every enabled market account with an Ownership Verification ID saved (market_verification_set). Skipped when the name’s DNS isn’t at its registrar, or the records are already there. For a market’s nameservers instead, use domain_nameservers_set with the account’s `verificationNameservers` from market_list.',
       inputSchema: {
         domain: z.string().min(1).max(253),
-        accountId,
-        method: z
-          .enum(['txt', 'nameservers'])
+        accountIds: z
+          .array(z.string().max(64))
+          .min(1)
+          .max(20)
           .optional()
-          .describe('TXT record, or the market’s nameservers.'),
+          .describe('Market accounts from market_list.'),
       },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: true,
+        destructiveHint: false,
         idempotentHint: true,
       },
     },
-    async ({ domain, accountId: id, method }) => {
-      const account = marketAccount(listingAccount(domain, id));
-      const info = marketInfo(account.market);
-      const vid = account.verification?.id ?? null;
-      const how = method ?? account.verification?.method ?? 'txt';
-      if (how === 'txt' && !vid) {
+    async ({ domain, accountIds }) => {
+      const accounts = accountIds
+        ? accountIds.map((id) => marketAccount(id))
+        : listMarketAccounts().filter((a) => a.enabled && a.verificationId);
+      const missing = accounts.find((a) => !a.verificationId);
+      if (missing) {
+        const info = marketInfo(missing.market);
         throw new Error(
-          `Save the account’s Ownership Verification ID first with market_verification_set: ${info.name} calls it its ${verificationHelp(info.id).term} (${verificationHelp(info.id).url}).`,
+          `${info.name} (${missing.label}) has no Ownership Verification ID; save it with market_verification_set: ${info.name} calls it its ${verificationHelp(info.id).term} (${verificationHelp(info.id).url}).`,
         );
       }
-      const op: DomainOp =
-        how === 'txt'
-          ? { kind: 'txtRecord', value: verificationTxt(info.id, vid!) }
-          : {
-              kind: 'nameservers',
-              nameservers: verificationNameservers(info, vid),
-            };
+      if (accounts.length === 0) {
+        throw new Error(
+          'No market account has an Ownership Verification ID saved; save one with market_verification_set.',
+        );
+      }
+      const values = [
+        ...new Set(
+          accounts.map((a) => verificationTxt(a.market, a.verificationId!)),
+        ),
+      ];
       const held = findRegistrarsForDomain(domain);
       if (held.length !== 1) {
         throw new Error(
@@ -1035,12 +1044,11 @@ export function registerMarketWriteTools(server: McpServer): void {
       }
       const r = await applyDomainOp(
         { registrar: held[0], domainName: toAscii(domain) },
-        op,
+        { kind: 'txtRecords', values },
         { source: DomainEventSource.Agent },
       );
       return json({
-        accountId: account.id,
-        method: how,
+        accountIds: accounts.map((a) => a.id),
         registrar: held[0],
         success: r.status === 'ok',
         status: r.status,
@@ -1052,21 +1060,20 @@ export function registerMarketWriteTools(server: McpServer): void {
   server.registerTool(
     'market_verification_set',
     {
-      title: 'Set a market account’s ownership verification',
+      title: 'Set a market account’s Ownership Verification ID',
       description:
-        'Save a market account’s Ownership Verification ID, which domain_verification_apply uses: paste the value as the market shows it (Afternic’s Domain Ownership Record, TXT or NS3; Sedo’s Domain Ownership Verification ID; Atom’s TXT Code) and DomBot reads the ID out of it. An empty value clears it. `method` is the one domain_verification_apply uses by default (default txt). Kept in DomBot; the market isn’t contacted.',
+        'Save a market account’s Ownership Verification ID, which domain_verification_apply and the account’s `verificationNameservers` use: paste the value as the market shows it (Afternic’s Domain Ownership Record, TXT or NS3; Sedo’s Domain Ownership Verification ID; Atom’s TXT Code) and DomBot reads the ID out of it. An empty value clears it. Kept in DomBot; the market isn’t contacted.',
       inputSchema: {
         accountId: requiredAccount,
         value: z.string().max(500),
-        method: z.enum(['txt', 'nameservers']).optional(),
       },
       annotations: { idempotentHint: true },
     },
-    async ({ accountId: id, value, method }) => {
-      await setMarketVerification(id, value, method ?? 'txt');
+    async ({ accountId: id, value }) => {
+      await setMarketVerification(id, value);
       return json({
         accountId: id,
-        verification: marketAccount(id).verification ?? null,
+        verificationId: marketAccount(id).verificationId ?? null,
       });
     },
   );

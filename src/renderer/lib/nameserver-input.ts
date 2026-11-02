@@ -1,7 +1,12 @@
 // Pure helpers behind the nameservers editor: parsing/validating the pasted
 // text, and deriving the preset list from the portfolio. No React, no IPC.
 
-import type { MarketInfo } from '../../shared/markets';
+import {
+  defaultMarketNameservers,
+  type MarketAccountView,
+  type MarketInfo,
+} from '../../shared/markets';
+import { verificationNameservers } from '../../shared/market-verification';
 import { nameserverGroup } from './nameservers';
 
 /** Registries cap the delegation at 13 nameservers. */
@@ -79,6 +84,8 @@ export interface NameserverPreset {
   /** e.g. "cloudflare.com · 120 domains" or "Recent · dyna-ns.net". */
   label: string;
   nameservers: string[];
+  /** A market's own set: listed first, under Markets. */
+  market?: boolean;
 }
 
 /** Label for a set: its first host's provider group, or the host itself. */
@@ -138,4 +145,51 @@ export function nameserverPresets(
     });
   }
   return out;
+}
+
+/**
+ * A preset per connected market account, for pointing a name at the market
+ * (docs/markets.md, "Ownership verification"): its pair, and for Afternic
+ * the account's NS3 once its Ownership Verification ID is saved. Accounts
+ * of one market are told apart by name.
+ */
+export function marketNameserverPresets(
+  accounts: readonly Pick<
+    MarketAccountView,
+    'id' | 'market' | 'label' | 'enabled' | 'verificationId'
+  >[],
+  markets: readonly Pick<MarketInfo, 'id' | 'name' | 'nameservers'>[],
+): NameserverPreset[] {
+  const enabled = accounts.filter((a) => a.enabled);
+  const out: NameserverPreset[] = [];
+  for (const a of enabled) {
+    const info = markets.find((m) => m.id === a.market);
+    if (!info) continue;
+    const nameservers = verificationNameservers(info, a.verificationId ?? null);
+    if (nameservers.length === 0) continue;
+    const several = enabled.filter((b) => b.market === a.market).length > 1;
+    const name = several ? `${info.name} (${a.label})` : info.name;
+    out.push({
+      key: `market:${a.id}`,
+      label:
+        nameservers.length > defaultMarketNameservers(info).length
+          ? `${name}, with your NS3`
+          : name,
+      nameservers,
+      market: true,
+    });
+  }
+  return out;
+}
+
+/** Market presets first; the other presets without the sets they repeat. */
+export function withMarketPresets(
+  market: readonly NameserverPreset[],
+  rest: readonly NameserverPreset[],
+): NameserverPreset[] {
+  const shown = new Set(market.map((p) => nameserverSetKey(p.nameservers)));
+  return [
+    ...market,
+    ...rest.filter((p) => !shown.has(nameserverSetKey(p.nameservers))),
+  ];
 }

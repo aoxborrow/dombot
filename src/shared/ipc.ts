@@ -30,7 +30,6 @@ import type {
   MarketTraffic,
   MarketWriteResult,
 } from './markets';
-import type { VerificationMethod } from './market-verification';
 
 export type { DomainEvent, DomainNote } from './domain-events';
 
@@ -733,11 +732,12 @@ export type DomainOp =
   /** Release a pending transfer-out (see `DomainTransferOut`) now. */
   | { kind: 'approveTransfer' }
   /**
-   * Add a TXT record at the name's root (TTL 3600), keeping every other
-   * record: Apply ownership verification. Skipped when the name's DNS isn't
-   * at its registrar, or the record is already there.
+   * Add TXT records at the name's root (TTL 3600), keeping every other
+   * record, in one write: Ownership verification TXT…, one value per market
+   * account. Skipped when the name's DNS isn't at its registrar, or every
+   * record is already there.
    */
-  | { kind: 'txtRecord'; value: string };
+  | { kind: 'txtRecords'; values: string[] };
 
 export type DomainOpKind = DomainOp['kind'];
 
@@ -1222,14 +1222,13 @@ export interface DombotApi {
     label: string,
   ) => Promise<MarketAccountView[]>;
   /**
-   * Save an account's ownership verification: the ID read out of the value
-   * pasted (blank clears it) and the method Apply offers first. Rejects a
-   * value that isn't the market's, saying what to copy.
+   * Save an account's Ownership Verification ID, read out of the value
+   * pasted (blank clears it). Rejects a value that isn't the market's,
+   * saying what to copy.
    */
   setMarketVerification: (
     accountId: string,
     pasted: string,
-    method: VerificationMethod,
   ) => Promise<MarketAccountView[]>;
   /** Turning an account on syncs it. */
   setMarketAccountEnabled: (
@@ -1271,8 +1270,8 @@ export interface DombotApi {
     mode?: 'RESYNC' | 'REACTIVATE',
   ) => Promise<MarketWriteResult[]>;
   /**
-   * Request ownership verification: ask the market to check these listed
-   * names now (Afternic's relist, Atom's verify DNS). Changes no DNS.
+   * Recheck ownership: ask the market to check these listed names now
+   * (Afternic's relist, Atom's verify DNS). Changes no DNS.
    */
   requestMarketVerification: (
     accountId: string,

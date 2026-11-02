@@ -7,38 +7,9 @@ import {
 
 // Ownership verification (docs/markets.md, "Ownership verification"): the
 // value each market gives an account to prove it owns a name, read out of
-// whatever the user pastes, and what Apply ownership verification sets with
-// it. Pure: Settings shows it, main applies it.
-
-/** How Apply proves a name: a TXT record, or the market's nameservers. */
-export type VerificationMethod = 'txt' | 'nameservers';
-
-/** In the order DomBot offers them: TXT first. */
-export const VERIFICATION_METHODS: readonly VerificationMethod[] = [
-  'txt',
-  'nameservers',
-];
-
-/** How a method reads in Settings and Apply. */
-export function verificationMethodLabel(
-  method: VerificationMethod,
-  marketName: string,
-): string {
-  return method === 'txt' ? 'TXT record' : `${marketName} nameservers`;
-}
-
-/** A market account's verification setting, on its `market-accounts` record. */
-export interface MarketVerification {
-  /** The account's ID, as read out of what was pasted. */
-  id: string | null;
-  /** Preselected in Apply ownership verification. */
-  method: VerificationMethod;
-}
-
-export const DEFAULT_VERIFICATION: MarketVerification = {
-  id: null,
-  method: 'txt',
-};
+// whatever the user pastes, and what DomBot sets with it: the TXT record
+// (Ownership verification TXT…) and the market's nameservers (a preset in
+// the nameserver editor). Pure: Settings shows it, main applies it.
 
 interface VerificationInfo {
   /** What the market calls the value. */

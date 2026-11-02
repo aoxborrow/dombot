@@ -179,8 +179,7 @@ export async function installDemo(
   for (const a of DEMO_MARKET_ACCOUNTS) {
     if (connected.has(a.id)) continue;
     await connectMarketAccount(a.market, { ...a.credentials }, a.label, a.id);
-    if ('verification' in a)
-      await setMarketVerification(a.id, a.verification, 'txt');
+    if ('verification' in a) await setMarketVerification(a.id, a.verification);
   }
 
   await flushWrites();

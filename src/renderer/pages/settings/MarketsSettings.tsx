@@ -17,14 +17,10 @@ import {
   type MarketInfo,
 } from '../../../shared/markets';
 import {
-  DEFAULT_VERIFICATION,
-  VERIFICATION_METHODS,
   parseVerificationId,
   verificationHelp,
-  verificationMethodLabel,
   verificationNameserver,
   verificationTxt,
-  type VerificationMethod,
 } from '../../../shared/market-verification';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
@@ -36,13 +32,6 @@ import {
   useLeaseDefaults,
   type LeaseDefaults,
 } from '../../lib/lease-to-own';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '../../components/EmptyState';
 import { Card } from '@/components/ui/card';
@@ -523,23 +512,15 @@ function MarketCard({
 
   // Ownership verification, kept in DomBot. The field shows what the market
   // shows (the TXT value); null means untouched.
-  const savedVerification = account.verification ?? DEFAULT_VERIFICATION;
-  const shownVerification = savedVerification.id
-    ? verificationTxt(market.id, savedVerification.id)
+  const savedVerificationId = account.verificationId ?? null;
+  const shownVerification = savedVerificationId
+    ? verificationTxt(market.id, savedVerificationId)
     : '';
   const [verifyValue, setVerifyValue] = useState<string | null>(null);
   // The key was refused: saving again retries it, changed or not.
   const [keyRefused, setKeyRefused] = useState(false);
-  const [verifyMethod, setVerifyMethod] = useState<VerificationMethod | null>(
-    null,
-  );
-  const verification = {
-    value: verifyValue ?? shownVerification,
-    method: verifyMethod ?? savedVerification.method,
-  };
-  const verificationChanged =
-    verification.value.trim() !== shownVerification ||
-    verification.method !== savedVerification.method;
+  const verification = verifyValue ?? shownVerification;
+  const verificationChanged = verification.trim() !== shownVerification;
 
   const dirty = changed || verificationChanged;
 
@@ -553,7 +534,7 @@ function MarketCard({
     setError(null);
     try {
       if (verificationChanged) {
-        parseVerificationId(market.id, verification.value, market.name);
+        parseVerificationId(market.id, verification, market.name);
       }
     } catch (err) {
       setError(errorMessage(err));
@@ -577,11 +558,9 @@ function MarketCard({
       if (verificationChanged) {
         views = await window.api.setMarketVerification(
           account.id,
-          verification.value,
-          verification.method,
+          verification,
         );
         setVerifyValue(null);
-        setVerifyMethod(null);
       }
       if (views) await setMarketAccounts(views);
       toast.success(
@@ -769,15 +748,13 @@ function MarketCard({
                     setValues((current) => ({ ...current, [name]: value }))
                   }
                 />
-                <VerificationFields
+                <VerificationField
                   market={market}
                   idPrefix={account.id}
-                  value={verification.value}
-                  method={verification.method}
-                  savedId={savedVerification.id}
+                  value={verification}
+                  savedId={savedVerificationId}
                   disabled={busy !== null}
                   onValue={setVerifyValue}
-                  onMethod={setVerifyMethod}
                 />
               </FieldGroup>
             </div>
@@ -870,87 +847,57 @@ function MarketCard({
 }
 
 /**
- * The account's ownership verification (docs/markets.md, "Ownership
+ * The account's Ownership Verification ID (docs/markets.md, "Ownership
  * verification"): the value the market gives the account, pasted whole and
- * read on save, and the method Apply ownership verification offers first.
+ * read on save, for Ownership verification TXT… and Afternic's NS3 preset.
  * Labelled the same for every market; the help says where the market keeps
  * it.
  */
-function VerificationFields({
+function VerificationField({
   market,
   idPrefix,
   value,
-  method,
   savedId,
   disabled,
   onValue,
-  onMethod,
 }: {
   market: MarketInfo;
   idPrefix: string;
   value: string;
-  method: VerificationMethod;
   savedId: string | null;
   disabled: boolean;
   onValue: (value: string) => void;
-  onMethod: (method: VerificationMethod) => void;
 }) {
   const help = verificationHelp(market.id);
   const ns3 = verificationNameserver(market.id, savedId);
   return (
-    <>
-      <SettingsField
-        htmlFor={`${idPrefix}-verification`}
-        label="Ownership Verification ID"
-        description={
-          <>
-            {help.path}.{' '}
-            <SettingsExternalLink url={help.url}>
-              Open {market.name}
-            </SettingsExternalLink>
-          </>
-        }
-      >
-        <Input
-          id={`${idPrefix}-verification`}
-          value={value}
-          autoComplete="off"
-          spellCheck={false}
-          className="font-mono"
-          disabled={disabled}
-          onChange={(e) => onValue(e.target.value)}
-        />
-        {ns3 && (
-          <p className="text-xs break-all text-muted-foreground">
-            NS3: <span className="font-mono">{ns3}</span>
-          </p>
-        )}
-      </SettingsField>
-      <SettingsField
-        htmlFor={`${idPrefix}-verification-method`}
-        label="Preferred Verification Method"
-      >
-        {/* Fits its content: the field stretches its direct children. */}
-        <div>
-          <Select
-            value={method}
-            disabled={disabled}
-            onValueChange={(v) => onMethod(v as VerificationMethod)}
-          >
-            <SelectTrigger id={`${idPrefix}-verification-method`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {VERIFICATION_METHODS.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {verificationMethodLabel(m, market.name)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </SettingsField>
-    </>
+    <SettingsField
+      htmlFor={`${idPrefix}-verification`}
+      label="Ownership Verification ID"
+      description={
+        <>
+          {help.path}.{' '}
+          <SettingsExternalLink url={help.url}>
+            Open {market.name}
+          </SettingsExternalLink>
+        </>
+      }
+    >
+      <Input
+        id={`${idPrefix}-verification`}
+        value={value}
+        autoComplete="off"
+        spellCheck={false}
+        className="font-mono"
+        disabled={disabled}
+        onChange={(e) => onValue(e.target.value)}
+      />
+      {ns3 && (
+        <p className="text-xs break-all text-muted-foreground">
+          NS3: <span className="font-mono">{ns3}</span>
+        </p>
+      )}
+    </SettingsField>
   );
 }
 

@@ -569,7 +569,7 @@ function Outcome({
       {r?.pending && (
         <p className="text-muted-foreground">
           Pending: {where} lists it once it can verify you own the name. Use
-          Apply ownership verification from the Domains table, or verify it on{' '}
+          Ownership verification TXT from the Domains table, or verify it on{' '}
           {where}.
         </p>
       )}

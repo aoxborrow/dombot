@@ -65,8 +65,8 @@ export const domainOp = z.discriminatedUnion('kind', [
   }),
   z.object({ kind: z.literal('approveTransfer') }),
   z.object({
-    kind: z.literal('txtRecord'),
-    value: z.string().trim().min(1).max(255),
+    kind: z.literal('txtRecords'),
+    values: z.array(z.string().trim().min(1).max(255)).min(1).max(20),
   }),
 ]);
 
@@ -322,7 +322,6 @@ export const marketBulkOp = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('delete') }),
 ]);
 export const relistMode = z.enum(['RESYNC', 'REACTIVATE']);
-export const verificationMethod = z.enum(['txt', 'nameservers']);
 /** A pasted verification value: generous, since it's trimmed and parsed. */
 export const verificationValue = z.string().max(500);
 export const marketListingDefaults = z

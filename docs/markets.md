@@ -552,9 +552,8 @@ the control, all stacked), and its selects fit their content:
    (encrypted, never sent anywhere but the market). DomBot's sync notes and
    market-specific notes (Sedo's partner access, Atom's API access) sit
    above them.
-2. The **Ownership Verification ID** and **Preferred Verification Method**
-   right after them, with no heading of their own (see "Ownership
-   verification" below).
+2. The **Ownership Verification ID** right after them, with no heading of its
+   own (see "Ownership verification" below).
 3. **A small read-only "<Market> Account Settings" card,** where the market
    has anything to show: what the account has (`MarketSyncState.status`:
    for Afternic, "Discount Domain Club: Domain Pro" or "Not Domain Pro",
@@ -577,8 +576,8 @@ sale waiting on an auth code.
 
 ## Ownership verification
 
-**First part built (settings, Apply and Request on selected names), the rest
-planned.** Every market checks that you own a name before its listing goes
+**First part built (the ID setting, TXT records, market nameserver presets,
+Recheck, and TXT records while listing), tracking planned.** Every market checks that you own a name before its listing goes
 live or for sale, and the APIs mostly don't report it or offer a way to
 complete it. Afternic keeps a listing `PENDING` until it has verified the
 name. Sedo lists a new name not for sale, refuses to change that (`E3124`),
@@ -588,7 +587,9 @@ check now.
 
 ### The ways markets verify
 
-DomBot offers two methods, always in this order:
+DomBot sets up the two methods in different places: TXT records with
+**Ownership verification TXT…**, nameservers in the nameserver editor (a
+market's set is one of its presets).
 
 | Method             | What DomBot sets                                                      | Afternic                                                             | Sedo                      | Atom               |
 | ------------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------- | ------------------ |
@@ -637,9 +638,9 @@ What each costs:
 
 ### Settings (built)
 
-The ownership verification fields of each market account's card (see
+The Ownership Verification ID field of each market account's card (see
 "Settings → Markets") is saved on the `market-accounts` record as
-`verification: { id, method }`; it isn't a secret.
+`verificationId`; it isn't a secret.
 
 - **Ownership Verification ID**, labelled the same for every market. The help
   under the label is the market's menu path to it, and a link to the page:
@@ -657,35 +658,43 @@ The ownership verification fields of each market account's card (see
   either value and the card then shows its NS3, to check against Afternic's
   page. Sedo's and Atom's are 40 hex characters. A value cut short ("…") is
   refused, saying to use the copy button.
-- **Preferred Verification Method:** TXT record or the market's nameservers,
-  TXT unless you change it. It preselects the method in Apply.
 
-### Apply and Request are different actions (built)
+### Setting it up, and asking for a check (built)
 
-Two actions, kept apart everywhere: the Domains bulk bar and row menu, the
-MCP tools and the code.
+Separate actions, kept apart everywhere: the Domains bulk bar and row menu,
+the MCP tools and the code. Each multi-select one works like "List at your
+prices": every market account it can act on, ticked to start, and nothing
+for the ones it can't.
 
-- **Apply ownership verification…** is DomBot's own change to the names' DNS,
-  through the registrar account that holds each one. The market isn't
-  contacted. You pick the market account and the method (its default
-  preselected; TXT needs the ID saved), and it runs as a bulk job, with
+- **Ownership verification TXT…** adds each ticked market account's TXT
+  record at the root of the selected names, through the registrar account
+  that holds each one. The markets aren't contacted. It offers only enabled
+  accounts with an Ownership Verification ID saved (none saved: the menu item
+  says to save one in Settings → Markets). It runs as a bulk job, with
   progress, per-name results and Activity history:
-  - **TXT record** is a domain op of its own (`txtRecord`). For each name it
-    reads the nameservers from the registrar first and skips the name when
-    its DNS isn't there (another DNS host, or a market's nameservers), since
-    a record in the registrar's zone would do nothing. Then it reads the
-    records, skips the name if the record is already there, adds it at the
-    root with TTL 3600 and writes the full set back. Registrars that can't
-    write SRV or CAA records refuse the write rather than drop them. Activity
-    shows it as a DNS change ("DNS: 4 records → 5 records").
-  - **Market nameservers** is the nameservers op with the market's set
-    (Afternic's three when the ID is saved, else its pair). The dialog says
-    what the names stop doing first.
-  - Nothing records what was applied. Each run checks before it changes
+  - The write is one domain op (`txtRecords`, a list of values). For each
+    name it reads the nameservers from the registrar first and skips the name
+    when its DNS isn't there (another DNS host, or a market's nameservers),
+    since records in the registrar's zone would do nothing. Then it reads the
+    records, adds the ones missing at the root with TTL 3600 and writes the
+    full set back once; a name with every record already there is skipped.
+    Registrars that can't write SRV or CAA records refuse the write rather
+    than drop them. Activity shows it as one DNS change ("DNS: 4 records → 6
+    records").
+  - Nothing records what was added. Each run checks before it changes
     anything, so running it twice does no harm.
-- **Request ownership verification…** asks the market to run its own check
-  now, for the selected names listed on that account. It changes nothing in
-  DNS.
+- **A market's nameservers** are a preset in the nameserver editor, the row
+  editor and the bulk Nameservers dialog alike: a **Markets** group first,
+  one per enabled market account (Afternic's pair with your NS3 once its ID
+  is saved, Sedo's parking pair, Atom's pair), then your recent and most
+  common sets, without the sets the Markets group already shows. Every
+  nameserver change, preset or not, shows one warning ("any website or email
+  stops working unless the new nameservers serve it") and has a red button.
+- **Recheck ownership…** asks each ticked market to check now that you own
+  the selected names it lists. It changes nothing in DNS. It offers only
+  markets that can be asked (never Sedo: none of its API calls asks for a
+  check, and it checks on its own), with the ones that list any of the names
+  ticked; results show per account.
   - **Afternic:** relist with `RESYNC` ("Re-trigger the listing process", up
     to 500 names a call). Updating a listing doesn't re-run Afternic's checks
     but relisting does (docs/afternic-api.md); whether that includes the
@@ -694,17 +703,18 @@ MCP tools and the code.
     and answers the next, for any name, "DNS check Request in progress"
     (seen live, docs/atom-api.md), so DomBot sends one name at a time and
     stops there. Whether one request checks every pending name isn't known.
-  - **Sedo:** shown but unavailable: none of its API calls asks for a check,
-    and it checks on its own.
 
-### Choosing a method when listing (next)
+### TXT records while listing (built)
 
-Listing names on a market asks how to verify them: the methods that market
-accepts, with the account's preferred method preselected, plus **Don't change
-DNS** to skip it. Picking a method runs Apply on the names being listed, then
-Request where the market has one. There's no setting to verify on every
-listing: the right method depends on the name (one with a website or email
-shouldn't move nameservers), so the default only preselects the choice.
+"List at your prices" has **Add ownership verification TXT records first**,
+shown when a ticked market account has an Ownership Verification ID, and off
+until you tick it. On List, DomBot starts the TXT job for those accounts on
+the priced names a registrar account holds, in the background (the bulk bar
+shows it), and pushes the prices at once: it doesn't wait, since the markets
+check on their own and Recheck can ask sooner. There's no setting to do this
+on every listing; it's the dialog's choice each time. Moving a name to a
+market's nameservers stays a nameserver edit: it ends whatever the name did
+before, which shouldn't happen as a side effect of listing.
 
 ### Tracking which names are set up (next, then later)
 
@@ -784,11 +794,11 @@ DomBot something. Ideas:
 
 ### Build order
 
-1. **Built:** the settings, and Apply and Request on selected names in the
-   Domains table and as MCP tools.
-2. **Next:** choosing a method when listing, and tracking phase 1 (from the
-   nameservers DomBot already has), with the mark in the listing cells, the
-   account card's count and the filter.
+1. **Built:** the ID setting, Ownership verification TXT…, the market
+   nameserver presets, Recheck ownership…, TXT records while listing, and the
+   MCP tools.
+2. **Next:** tracking phase 1 (from the nameservers DomBot already has), with
+   the mark in the listing cells, the account card's count and the filter.
 3. **Later:** tracking phase 2, checking TXT records.
 
 Each market declares its nameservers next to its client
@@ -840,10 +850,11 @@ capability:
 | `market_categories_get`        | —                     | Atom, Sedo     |
 | `market_payments_get`          | `parkingEarnings`     | Sedo           |
 
-`domain_listing_verify` is Request ownership verification (Atom's verify DNS,
-Afternic's relist with `RESYNC`). Apply is `domain_verification_apply`, and
-an account's verification value is set with `market_verification_set`; both
-work for every market (see Ownership verification).
+`domain_listing_verify` is Recheck ownership (Atom's verify DNS, Afternic's
+relist with `RESYNC`). `domain_verification_apply` adds market accounts'
+ownership verification TXT records, `market_verification_set` saves an
+account's ID, and `market_list` gives each account's `verificationNameservers`
+for `domain_nameservers_set` (see Ownership verification).
 
 Anything that spends money takes `confirmSpend: true`; anything that reaches
 a person (a sale message) says so in its description.

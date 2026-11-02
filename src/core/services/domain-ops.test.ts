@@ -866,10 +866,10 @@ describe('getTransferOut', () => {
   });
 });
 
-describe('applyDomainOp — txtRecord (Apply ownership verification)', () => {
+describe('applyDomainOp — txtRecords (Ownership verification TXT…)', () => {
   const op: DomainOp = {
-    kind: 'txtRecord',
-    value: 'afternic-verification-Abc123',
+    kind: 'txtRecords',
+    values: ['afternic-verification-Abc123'],
   };
   const records = [
     { type: 'A', name: '@', value: '203.0.113.7', ttl: 600 },
@@ -929,6 +929,31 @@ describe('applyDomainOp — txtRecord (Apply ownership verification)', () => {
       message: 'Already has the TXT record',
     });
     expect(setDnsRecords).not.toHaveBeenCalled();
+  });
+
+  it('adds only the records that are missing, in one write', async () => {
+    getNameservers.mockResolvedValue(['ns1.dynadot.com']);
+    getDnsRecords.mockResolvedValue([
+      ...records,
+      { type: 'TXT', name: '@', value: 'afternic-verification-Abc123' },
+    ]);
+    setDnsRecords.mockResolvedValue(ok());
+    const r = await applyDomainOp(target, {
+      kind: 'txtRecords',
+      values: ['afternic-verification-Abc123', 'sedo-id-0123'],
+    });
+    expect(r).toMatchObject({
+      status: 'ok',
+      message: 'Added a TXT record (1 already there)',
+    });
+    expect(setDnsRecords).toHaveBeenCalledTimes(1);
+    const written = setDnsRecords.mock.calls[0][1] as { value: string }[];
+    expect(written.map((w) => w.value)).toEqual([
+      '203.0.113.7',
+      'v=spf1 -all',
+      'afternic-verification-Abc123',
+      'sedo-id-0123',
+    ]);
   });
 
   it('settles a lost response by re-reading the records', async () => {

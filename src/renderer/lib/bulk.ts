@@ -95,8 +95,8 @@ export function bulkOpTitle(op: DomainOp): string {
       return 'Get auth codes';
     case 'approveTransfer':
       return 'Approve transfers';
-    case 'txtRecord':
-      return 'Add TXT record';
+    case 'txtRecords':
+      return 'Add ownership verification TXT records';
     case 'renew':
       return `Renew for ${op.years} year${op.years === 1 ? '' : 's'}`;
   }
@@ -107,6 +107,7 @@ export function isRiskyOp(op: DomainOp): boolean {
   return (
     (op.kind === 'lock' && !op.locked) ||
     (op.kind === 'privacy' && !op.enabled) ||
+    op.kind === 'nameservers' ||
     op.kind === 'renew'
   );
 }
@@ -220,8 +221,8 @@ export function defaultBulkOp(
     case 'authCode':
     case 'approveTransfer':
       return { kind };
-    case 'txtRecord':
-      return { kind, value: '' };
+    case 'txtRecords':
+      return { kind, values: [] };
     case 'renew':
       return { kind, years: 1 };
   }

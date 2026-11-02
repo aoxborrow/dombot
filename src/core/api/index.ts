@@ -498,9 +498,9 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     },
   ),
   setMarketVerification: method(
-    z.tuple([s.marketAccountId, s.verificationValue, s.verificationMethod]),
-    async (id, pasted, verificationMethod) => {
-      await setMarketVerification(id, pasted, verificationMethod);
+    z.tuple([s.marketAccountId, s.verificationValue]),
+    async (id, pasted) => {
+      await setMarketVerification(id, pasted);
       return marketAccountViews();
     },
   ),

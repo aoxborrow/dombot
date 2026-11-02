@@ -1,6 +1,5 @@
 import type { CurrencyCode } from './currencies';
 import type { RegistrarConfigField } from './ipc';
-import type { MarketVerification } from './market-verification';
 
 // The shared market model (docs/markets.md). Each market's client speaks its
 // own API in its own types; an adapter per market
@@ -388,8 +387,8 @@ export interface MarketAccount {
   enabled: boolean;
   /** A registrar account whose key this market account uses (Atom, later). */
   registrarAccountId?: string | null;
-  /** Ownership verification: the account's ID and the method Apply offers first. */
-  verification?: MarketVerification | null;
+  /** The account's Ownership Verification ID, as read out of what was pasted. */
+  verificationId?: string | null;
   createdAt: number;
 }
 
