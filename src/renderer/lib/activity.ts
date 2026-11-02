@@ -98,13 +98,20 @@ export function eventAccounts(e: DomainEvent): string[] {
   );
 }
 
-/** "$2,500 · 2 yr", "Auto-renew: on → off", or null when there's nothing to say. */
+/**
+ * "$2,500 · 2 yr", "Auto-renew: on → off", what became of a departure that
+ * needs no answer ("Expired 2026-09-30", a lapse; "Dropped", marked), or null
+ * when there's nothing to say.
+ */
 export function eventDetails(
   e: DomainEvent,
   numberFormat: NumberFormatId,
   preferredCurrency: string,
 ): string | null {
   if (e.type === DomainEventType.Changed) return changeText(e);
+  if (e.type === DomainEventType.Removed && e.dropped) return 'Dropped';
+  if (e.type === DomainEventType.Removed && e.expires)
+    return `Expired ${e.expires}`;
   const parts: string[] = [];
   if (e.amount && e.currency)
     parts.push(
