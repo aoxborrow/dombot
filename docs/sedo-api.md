@@ -402,9 +402,9 @@ Checked live on 2026-10-28 against an account with 43 listings
   keeps a name it listed pending while Sedo shows it not for sale, and says
   on the account card to finish verification on sedo.com.
   Sedo accepts verification by its nameservers, a TXT record holding the
-  account's verification ID, or a CNAME from that ID to `verify.sedo.com.`;
-  DomBot's plan for doing this itself is in markets.md, "Ownership
-  verification".
+  account's verification ID, or a CNAME from that ID to `verify.sedo.com.`.
+  DomBot's plan for doing this itself (nameservers or TXT, not the CNAME)
+  is in markets.md, "Ownership verification".
 - **Once verified, Sedo puts the name up for sale itself.** domainio.com was
   listed at 5,000 USD and Sedo's TXT ID added to its DNS at 05:00 UTC on
   2026-10-28; by 06:35 UTC it was for sale at that price, with nothing sent

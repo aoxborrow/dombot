@@ -68,8 +68,8 @@ Sedo into the Afternic PR (#197).
   and its old Squadhelp pair are declared in
   `src/core/markets/atom/nameservers.ts`, and the Nameservers filter names
   them.
-- **Planned:** verify DNS in the app, as the last step of ownership
-  verification for every market (markets.md). Not planned: buttons for
+- **Planned:** verify DNS in the app, as Request ownership verification
+  after DomBot applies a method (markets.md, "Ownership verification"). Not planned: buttons for
   Atom's discounts, and warnings about Atom's exclusivity, which Atom
   enforces itself; a name can be listed on several markets whatever its
   nameservers.
