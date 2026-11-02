@@ -92,7 +92,7 @@ export function SettingsHelp({
             <SettingsExternalLink
               key={link.url}
               url={link.url}
-              className="text-sm"
+              className="text-[13px]"
             >
               {link.label}
             </SettingsExternalLink>
