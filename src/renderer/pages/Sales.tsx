@@ -556,8 +556,10 @@ export default function Sales() {
         // behind it: the status says so, without their buttons.
         const moved = r.step === 'payout';
         const held = moved ? undefined : heldDomain(r);
+        // The buttons follow the status, as Activity's answers follow the
+        // details.
         return (
-          <span className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-3">
             <span
               className={cn(
                 'inline-flex items-center gap-1.5 whitespace-nowrap',
