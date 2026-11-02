@@ -16,7 +16,6 @@ import {
   X,
   CircleX,
   Redo,
-  Ribbon,
 } from 'lucide-react';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
@@ -36,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { StickyNoteIcon } from '../icons/StickyNoteIcon';
+import { CertificateIcon } from '../icons/CertificateIcon';
 import { CashIcon } from '../icons/CashIcon';
 import type { MarketAction } from './MarketActionDialog';
 
@@ -283,7 +283,7 @@ export function BulkBar({
                       title={marketReasons?.verificationTxt ?? undefined}
                       onSelect={() => onMarket('verificationTxt')}
                     >
-                      <Ribbon className="text-muted-foreground" />
+                      <CertificateIcon className="text-muted-foreground" />
                       Ownership verification TXT
                       <span className="-ml-[6px] opacity-50">…</span>
                     </DropdownMenuItem>
