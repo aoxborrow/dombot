@@ -568,8 +568,9 @@ function Outcome({
       </p>
       {r?.pending && (
         <p className="text-muted-foreground">
-          Pending: {where} lists it once it can verify you own the name. Point
-          its nameservers at {where}&apos;s, or verify it there.
+          Pending: {where} lists it once it can verify you own the name. Use
+          Apply ownership verification from the Domains table, or verify it on{' '}
+          {where}.
         </p>
       )}
       {r?.relisted && (

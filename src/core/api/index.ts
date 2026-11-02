@@ -94,6 +94,7 @@ import {
   deleteMarketListings,
   pushAskingPrices,
   relistMarketListings,
+  requestMarketVerification,
   sendSaleMessage,
   setMarketListingDefaults,
   setSaleAuthCode,
@@ -111,6 +112,7 @@ import {
   marketAccountViews,
   removeMarketAccount,
   renameMarketAccount,
+  setMarketVerification,
   saveMarketCredentials,
   setMarketAccountEnabled,
 } from '../services/markets/accounts';
@@ -495,6 +497,13 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
       return marketAccountViews();
     },
   ),
+  setMarketVerification: method(
+    z.tuple([s.marketAccountId, s.verificationValue, s.verificationMethod]),
+    async (id, pasted, verificationMethod) => {
+      await setMarketVerification(id, pasted, verificationMethod);
+      return marketAccountViews();
+    },
+  ),
   setMarketAccountEnabled: method(
     z.tuple([s.marketAccountId, z.boolean()]),
     async (id, enabled) => {
@@ -563,6 +572,10 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   relistMarketListings: method(
     z.tuple([s.marketAccountId, s.marketNames, s.relistMode.optional()]),
     async (id, names, mode) => relistMarketListings(id, names, mode),
+  ),
+  requestMarketVerification: method(
+    z.tuple([s.marketAccountId, s.marketNames]),
+    async (id, names) => requestMarketVerification(id, names),
   ),
   setMarketSaleAuthCode: method(
     z.tuple([

@@ -110,6 +110,9 @@ function refusal(
   return null;
 }
 
+/** When each demo account last asked Atom for a DNS check. */
+const dnsChecks = new Map<string, number>();
+
 /** One demo market account, behaving like its market. */
 export class DemoMarketAdapter {
   readonly capabilities: MarketCapabilities;
@@ -296,6 +299,25 @@ export class DemoMarketAdapter {
     });
   }
 
+  // Atom's: one DNS check per account every 12 hours, which goes through
+  // straight away here and lists a pending name.
+
+  async verifyDns(name: string): Promise<MarketWriteResult> {
+    const key = name.toLowerCase();
+    const last = dnsChecks.get(this.accountId);
+    if (last !== undefined && Date.now() - last < 12 * 60 * 60 * 1000) {
+      return refused(
+        key,
+        'DNS check Request in progress, please try again after 12 hrs',
+      );
+    }
+    dnsChecks.set(this.accountId, Date.now());
+    const l = this.mine.get(key);
+    if (l?.status === 'pending')
+      this.mine.set(l.name, { ...l, status: 'active', statusRaw: 'Active' });
+    return ok(this.mine.get(key) ?? null, key);
+  }
+
   async getListingDefaults(): Promise<AfternicAccountSettings> {
     return this.world.settings.get(this.accountId) ?? DEFAULT_SETTINGS;
   }
@@ -425,6 +447,8 @@ export const DEMO_MARKET_ACCOUNTS = [
     market: 'afternic',
     label: 'Afternic',
     credentials: { apiKey: 'demo-key', apiSecret: 'demo-secret' },
+    // Obviously fake, in each market's format; Sedo's is left for you.
+    verification: 'afternic-verification-DemoOwnership7Id',
   },
   {
     id: 'demo-sedo',
@@ -442,6 +466,7 @@ export const DEMO_MARKET_ACCOUNTS = [
     market: 'atom',
     label: 'Atom',
     credentials: { apiToken: 'demo-token', userId: '00000' },
+    verification: '0000000000000000000000000000000000000de0',
   },
 ] as const;
 

@@ -15,6 +15,8 @@ import {
   Trash2,
   X,
   CircleX,
+  ScanSearch,
+  ShieldCheck,
 } from 'lucide-react';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
@@ -275,6 +277,24 @@ export function BulkBar({
                     >
                       <CircleX className="text-muted-foreground" />
                       Delist<span className="-ml-[6px] opacity-50">…</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={Boolean(marketReasons?.applyVerification)}
+                      title={marketReasons?.applyVerification ?? undefined}
+                      onSelect={() => onMarket('applyVerification')}
+                    >
+                      <ShieldCheck className="text-muted-foreground" />
+                      Apply ownership verification
+                      <span className="-ml-[6px] opacity-50">…</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={Boolean(marketReasons?.requestVerification)}
+                      title={marketReasons?.requestVerification ?? undefined}
+                      onSelect={() => onMarket('requestVerification')}
+                    >
+                      <ScanSearch className="text-muted-foreground" />
+                      Request ownership verification
+                      <span className="-ml-[6px] opacity-50">…</span>
                     </DropdownMenuItem>
                   </>
                 )}

@@ -5,6 +5,10 @@ import type {
   MarketSyncState,
 } from '../../../shared/markets';
 import {
+  parseVerificationId,
+  type VerificationMethod,
+} from '../../../shared/market-verification';
+import {
   MARKET_ACCOUNTS_NAMESPACE,
   MARKET_CREDENTIALS_NAMESPACE,
   MARKET_LAST_SYNC_NAMESPACE,
@@ -154,6 +158,28 @@ export async function renameMarketAccount(
   await accounts.set(id, {
     ...account,
     label: cleanLabel(label, account.market),
+  });
+}
+
+/**
+ * Save an account's ownership verification setting: the ID read out of the
+ * value pasted (blank clears it), and the method Apply offers first. Throws,
+ * saying what to copy, when the value isn't the market's.
+ */
+export async function setMarketVerification(
+  id: string,
+  pasted: string,
+  method: VerificationMethod,
+): Promise<void> {
+  const account = marketAccount(id);
+  const verificationId = parseVerificationId(
+    account.market,
+    pasted,
+    marketInfo(account.market).name,
+  );
+  await accounts.set(id, {
+    ...account,
+    verification: { id: verificationId, method },
   });
 }
 

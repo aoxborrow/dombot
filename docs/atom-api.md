@@ -506,7 +506,8 @@ parameter anyway, in case another market grows one):
 
 - **`domain_listing_discount_set`**: a temporary discount (`amount`, 0 to
   clear). Atom only.
-- **`domain_listing_verify`**: ask the market to re-check DNS. Atom only.
+- **`domain_listing_verify`**: ask the market to re-check DNS (Request
+  ownership verification; Afternic relists instead).
 - **`domain_listing_boost`**: `kind` (`standard`, `super`), requires
   `confirmSpend: true`; the description says it spends credits.
 - **`market_categories_get`**: the category lists for `category` values.

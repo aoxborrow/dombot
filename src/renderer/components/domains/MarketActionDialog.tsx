@@ -9,6 +9,7 @@ import type {
 } from '../../../shared/markets';
 import { useAppStore } from '../../store/app';
 import { MarketLogo } from '../RegistrarLogo';
+import type { VerificationAction } from './OwnershipVerificationDialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -28,7 +29,10 @@ import { Field, FieldLabel } from '@/components/ui/field';
 // gets the market's checks re-run (Afternic's relist). Delisting works the
 // same way, starting from the markets that list the names.
 
-export type MarketAction = 'list' | 'delist';
+/** Listing actions, which this dialog runs. */
+export type ListingAction = 'list' | 'delist';
+/** Every market action a row or the bulk bar offers. */
+export type MarketAction = ListingAction | VerificationAction;
 
 /**
  * More names than this on a market that writes one name per call (Atom) run
@@ -70,7 +74,7 @@ export function MarketActionDialog({
   domains,
   onClose,
 }: {
-  action: MarketAction;
+  action: ListingAction;
   domains: Domain[];
   onClose: () => void;
 }) {
@@ -363,7 +367,7 @@ function Results({
   where,
 }: {
   results: MarketWriteResult[];
-  action: MarketAction;
+  action: ListingAction;
   where: string;
 }) {
   const ok = results.filter((r) => r.ok);
@@ -402,8 +406,8 @@ function Results({
       {pending.length > 0 && (
         <p className="text-muted-foreground">
           {names(pending.length)} pending. {where} lists a name once it can
-          verify you own it: point its nameservers at {where}&apos;s, or verify
-          it there.
+          verify you own it: use Apply ownership verification from the Domains
+          table, or verify it on {where}.
         </p>
       )}
       {adjusted.length > 0 && (

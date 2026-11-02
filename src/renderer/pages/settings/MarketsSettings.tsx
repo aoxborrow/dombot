@@ -12,6 +12,15 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MarketAccountView, MarketInfo } from '../../../shared/markets';
+import {
+  DEFAULT_VERIFICATION,
+  VERIFICATION_METHODS,
+  verificationHelp,
+  verificationMethodLabel,
+  verificationNameserver,
+  verificationTxt,
+  type VerificationMethod,
+} from '../../../shared/market-verification';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
 import { MarketLogo } from '../../components/RegistrarLogo';
@@ -48,7 +57,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -668,6 +682,11 @@ function MarketCard({
               lease={lease && lease.enabled !== null ? lease : null}
             />
           )}
+          <OwnershipVerificationSettings
+            key={`${account.id}:${account.verification?.id ?? ''}:${account.verification?.method ?? ''}`}
+            account={account}
+            market={market}
+          />
           <div className="flex flex-col gap-3">
             {account.sync?.notes.map((note) => (
               <p key={note} className="text-sm text-muted-foreground">
@@ -779,6 +798,124 @@ function MarketCard({
         </ConfirmDialog>
       )}
     </Card>
+  );
+}
+
+/**
+ * The account's ownership verification, kept in DomBot (docs/markets.md,
+ * "Ownership verification"): the value the market gives the account, pasted
+ * whole and read on save, and the method Apply ownership verification offers
+ * first. The field is labelled the same for every market; its help says what
+ * the market calls it and where it is.
+ */
+function OwnershipVerificationSettings({
+  account,
+  market,
+}: {
+  account: MarketAccountView;
+  market: MarketInfo;
+}) {
+  const setMarketAccounts = useAppStore((s) => s.setMarketAccounts);
+  const saved = account.verification ?? DEFAULT_VERIFICATION;
+  // The field shows what the market shows: the TXT value.
+  const shown = saved.id ? verificationTxt(market.id, saved.id) : '';
+  const [value, setValue] = useState(shown);
+  const [method, setMethod] = useState<VerificationMethod>(saved.method);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const help = verificationHelp(market.id);
+  const ns3 = verificationNameserver(market.id, saved.id);
+  const dirty = value.trim() !== shown || method !== saved.method;
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await setMarketAccounts(
+        await window.api.setMarketVerification(account.id, value, method),
+      );
+      toast.success(`Saved your ${market.name} ownership verification.`);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-md border">
+      <div className="flex items-start justify-between gap-3 rounded-t-md bg-muted/40 px-3 py-2">
+        <div>
+          <h3 className="text-sm font-medium">Ownership verification</h3>
+          <p className="text-xs text-muted-foreground">
+            Kept in DomBot, for Apply ownership verification on the Domains
+            page.
+          </p>
+        </div>
+        <Button size="sm" disabled={!dirty || busy} onClick={() => void save()}>
+          {busy ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+      <div className="flex flex-col gap-4 px-3 py-3">
+        <Field>
+          <FieldLabel htmlFor={`${account.id}-verification`}>
+            Ownership Verification ID
+          </FieldLabel>
+          <Input
+            id={`${account.id}-verification`}
+            value={value}
+            autoComplete="off"
+            spellCheck={false}
+            className="font-mono text-xs md:text-xs"
+            disabled={busy}
+            onChange={(e) => setValue(e.target.value)}
+          />
+          <FieldDescription>
+            On {market.name}, {help.where}{' '}
+            <a
+              href={help.url}
+              className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+              onClick={(e) => {
+                e.preventDefault();
+                void window.api.openExternal(help.url);
+              }}
+            >
+              Open {market.name}
+              <ExternalLink className="size-3.5" />
+            </a>
+          </FieldDescription>
+          {ns3 && (
+            <p className="text-xs break-all text-muted-foreground">
+              Its nameserver (NS3):{' '}
+              <span className="font-mono text-foreground">{ns3}</span>
+            </p>
+          )}
+        </Field>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
+          <span>Apply with</span>
+          <Select
+            value={method}
+            onValueChange={(v) => setMethod(v as VerificationMethod)}
+          >
+            <SelectTrigger aria-label="Apply with" className="h-8 w-68">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              {VERIFICATION_METHODS.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {verificationMethodLabel(m, market.name)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {error && (
+        <p role="alert" className="px-3 pb-2.5 text-xs text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 

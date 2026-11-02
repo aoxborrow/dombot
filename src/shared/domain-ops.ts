@@ -74,6 +74,7 @@ export const OP_LABEL: Record<DomainOpKind, string> = {
   authCode: 'auth code',
   renew: 'renewal',
   approveTransfer: 'transfer approval',
+  txtRecord: 'TXT record',
 };
 
 /**
@@ -118,6 +119,8 @@ export function opSummary(op: DomainOp): string {
       return `Renewed for ${op.years} year${op.years === 1 ? '' : 's'}`;
     case 'approveTransfer':
       return 'Transfer approved';
+    case 'txtRecord':
+      return 'TXT record added';
   }
 }
 

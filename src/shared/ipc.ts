@@ -30,6 +30,7 @@ import type {
   MarketTraffic,
   MarketWriteResult,
 } from './markets';
+import type { VerificationMethod } from './market-verification';
 
 export type { DomainEvent, DomainNote } from './domain-events';
 
@@ -207,6 +208,7 @@ export const IpcChannels = {
   listMarketAccounts: 'markets:listAccounts',
   connectMarketAccount: 'markets:connectAccount',
   renameMarketAccount: 'markets:renameAccount',
+  setMarketVerification: 'markets:setVerification',
   setMarketAccountEnabled: 'markets:setEnabled',
   getMarketCredentials: 'markets:getCredentials',
   saveMarketCredentials: 'markets:saveCredentials',
@@ -219,6 +221,7 @@ export const IpcChannels = {
   pushMarketPrices: 'markets:pushPrices',
   deleteMarketListings: 'markets:deleteListings',
   relistMarketListings: 'markets:relist',
+  requestMarketVerification: 'markets:requestVerification',
   startMarketBulk: 'markets:bulkStart',
   advanceMarketBulk: 'markets:bulkAdvance',
   cancelMarketBulk: 'markets:bulkCancel',
@@ -728,7 +731,13 @@ export type DomainOp =
   | { kind: 'authCode' }
   | { kind: 'renew'; years: number }
   /** Release a pending transfer-out (see `DomainTransferOut`) now. */
-  | { kind: 'approveTransfer' };
+  | { kind: 'approveTransfer' }
+  /**
+   * Add a TXT record at the name's root (TTL 3600), keeping every other
+   * record: Apply ownership verification. Skipped when the name's DNS isn't
+   * at its registrar, or the record is already there.
+   */
+  | { kind: 'txtRecord'; value: string };
 
 export type DomainOpKind = DomainOp['kind'];
 
@@ -1212,6 +1221,16 @@ export interface DombotApi {
     accountId: string,
     label: string,
   ) => Promise<MarketAccountView[]>;
+  /**
+   * Save an account's ownership verification: the ID read out of the value
+   * pasted (blank clears it) and the method Apply offers first. Rejects a
+   * value that isn't the market's, saying what to copy.
+   */
+  setMarketVerification: (
+    accountId: string,
+    pasted: string,
+    method: VerificationMethod,
+  ) => Promise<MarketAccountView[]>;
   /** Turning an account on syncs it. */
   setMarketAccountEnabled: (
     accountId: string,
@@ -1250,6 +1269,14 @@ export interface DombotApi {
     accountId: string,
     names: string[],
     mode?: 'RESYNC' | 'REACTIVATE',
+  ) => Promise<MarketWriteResult[]>;
+  /**
+   * Request ownership verification: ask the market to check these listed
+   * names now (Afternic's relist, Atom's verify DNS). Changes no DNS.
+   */
+  requestMarketVerification: (
+    accountId: string,
+    names: string[],
   ) => Promise<MarketWriteResult[]>;
   /**
    * Start a market bulk job, for writes too large to wait on (markets that

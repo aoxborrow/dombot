@@ -249,8 +249,9 @@ Listings, sales and account stats are read from what market sync stored;
 saying so.
 
 - **`market_list`** — every market account: `accountId`, `market`, `label`,
-  `configured`, `enabled`, its last `sync`, and the market's `capabilities`.
-  No secrets.
+  `configured`, `enabled`, its last `sync`, its ownership `verification`
+  (saved ID and default method), and the market's `capabilities`. No
+  secrets.
 - **`market_sync`** — `accountId?`. Re-reads listings, sales and stats from
   one account or every enabled one. Completed sales become `sold` events.
 - **`market_listings`** — your listings across accounts: filter by `market`,
@@ -337,9 +338,21 @@ Atom only (each fails saying so on markets without it):
 - **`domain_listing_discount_set`** — `domain`, `accountId?`, `amount`
   (whole dollars off, at most 30% of the price; null clears). Lasts until
   Atom resets discounts on Monday.
-- **`domain_listing_verify`** — `domain`, `accountId?`. Asks Atom to check
-  the name's nameservers or TXT record now; once per account every 12
-  hours.
+- **`domain_listing_verify`** — `domain`, `accountId?`. Request ownership
+  verification: asks the market to check a listed name now, changing no
+  DNS. Afternic relists it (`RESYNC`); Atom checks its nameservers or TXT
+  record, once per account every 12 hours. Sedo has no such call.
+- **`domain_verification_apply`** — `domain`, `accountId?`, `method?`
+  (`txt` or `nameservers`; default the account's). Apply ownership
+  verification: changes the name's DNS at the registrar that holds it so
+  the market can verify it. `txt` adds the account's TXT record at the root
+  and keeps the rest (skipped when the name's DNS isn't at its registrar,
+  or the record is there); `nameservers` sets the market's (Afternic's pair
+  plus the account's NS3).
+- **`market_verification_set`** — `accountId`, `value`, `method?`. Saves the
+  account's Ownership Verification ID, read out of the value as the market
+  shows it (blank clears), and the method `domain_verification_apply` uses
+  by default. Kept in DomBot.
 - **`market_grading_submit`** — `accountId`, `domains[]`. Atom's AI grading
   (brand fit, Premium fit); **`market_grading_get`** — `accountId`,
   `page?`, `brandFitOnly?` reads the results.

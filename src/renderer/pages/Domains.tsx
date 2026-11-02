@@ -96,6 +96,7 @@ import {
   MarketActionDialog,
   type MarketAction,
 } from '../components/domains/MarketActionDialog';
+import { OwnershipVerificationDialog } from '../components/domains/OwnershipVerificationDialog';
 import {
   isMarketColumnKey,
   listingColumnKey,
@@ -999,6 +1000,7 @@ export default function Domains() {
     const notListed = one
       ? `Not listed on ${where}`
       : `None of these are listed on ${where}`;
+    const held = domains.some((d) => !d.departed && d.source !== 'imported');
     return {
       list: priced
         ? null
@@ -1006,6 +1008,12 @@ export default function Domains() {
           ? 'Set an asking price with Pricing first'
           : 'None of these have an asking price; set one with Pricing first',
       delist: listed ? null : notListed,
+      applyVerification: held
+        ? null
+        : one
+          ? 'No registrar account holds it'
+          : 'No registrar account holds any of these',
+      requestVerification: listed ? null : notListed,
     };
   };
   const [marketAction, setMarketAction] = useState<{
@@ -2630,13 +2638,24 @@ export default function Domains() {
           onClose={() => setListingFor(null)}
         />
       )}
-      {marketAction && (
-        <MarketActionDialog
-          action={marketAction.action}
-          domains={marketAction.domains}
-          onClose={() => setMarketAction(null)}
-        />
-      )}
+      {marketAction &&
+        (marketAction.action === 'list' || marketAction.action === 'delist' ? (
+          <MarketActionDialog
+            action={marketAction.action}
+            domains={marketAction.domains}
+            onClose={() => setMarketAction(null)}
+          />
+        ) : (
+          <OwnershipVerificationDialog
+            action={marketAction.action}
+            domains={marketAction.domains}
+            onClose={() => setMarketAction(null)}
+            onStarted={(op, jobId) => {
+              setMarketAction(null);
+              setBulkDialog({ op, jobId });
+            }}
+          />
+        ))}
       {bulkNotesFor && (
         <BulkNotesDialog
           domainNames={bulkNotesFor.map((d) => d.domainName)}
