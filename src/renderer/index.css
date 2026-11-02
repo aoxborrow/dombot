@@ -13,7 +13,8 @@
   }
 }
 /* A short window, like a laptop's: the page's vertical spacing tightens so
-   the table keeps more rows. Not on phones, which have their own spacing. */
+   the table keeps more rows, with the title row 16px from the tabs above and
+   the cards below. Not on phones, which have their own spacing. */
 @custom-variant short (@media (width >= 40rem) and (height < 850px));
 
 :root {

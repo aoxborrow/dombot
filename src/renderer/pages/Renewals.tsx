@@ -516,7 +516,7 @@ export default function Renewals() {
 /** The title, and the view beside it: the same height and type as the other pages' title rows. */
 function PageHeader({ view }: { view?: string }) {
   return (
-    <div className="mb-1 min-h-9 short:mb-0">
+    <div className="mb-1 min-h-9 short:mb-[7px]">
       <h1 className="mt-1.5 flex min-w-0 items-baseline gap-2.5 text-2xl font-bold leading-none sm:mt-0.5 sm:text-[32px]">
         Renewals
         {/* The view, as on Domains. */}
