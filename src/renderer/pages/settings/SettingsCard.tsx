@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
@@ -43,6 +44,66 @@ export const SETTINGS_LINK =
 
 /** The same, with room for a trailing icon (an external link's arrow). */
 export const SETTINGS_ICON_LINK = `inline-flex items-center gap-1 ${SETTINGS_LINK}`;
+
+/**
+ * A link out of the app in settings help, with its arrow. `target="_blank"`
+ * hands the URL to the main process's window-open handler, which opens it in
+ * the system browser (and a new tab on the web).
+ */
+export function SettingsExternalLink({
+  url,
+  children,
+  className,
+}: {
+  url: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className={cn(SETTINGS_ICON_LINK, className)}
+    >
+      {children}
+      <ExternalLink className="size-3 shrink-0" aria-hidden />
+    </a>
+  );
+}
+
+/**
+ * The help at the top of an account card (registrars and markets): a short
+ * summary, then its links on a line of their own.
+ */
+export function SettingsHelp({
+  summary,
+  links,
+}: {
+  summary: ReactNode;
+  links: readonly { label: string; url: string }[];
+}) {
+  return (
+    <div className="mb-4 flex flex-col gap-2">
+      <p className="text-[13px] leading-relaxed text-muted-foreground">
+        {summary}
+      </p>
+      {links.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {links.map((link) => (
+            <SettingsExternalLink
+              key={link.url}
+              url={link.url}
+              className="text-[13px]"
+            >
+              {link.label}
+            </SettingsExternalLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * One input in a settings card: a label, an optional description under it,

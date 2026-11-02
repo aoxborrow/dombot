@@ -17,7 +17,6 @@ import {
   Clock,
   Copy,
   Ellipsis,
-  ExternalLink,
   Pencil,
   Plus,
   Power,
@@ -32,10 +31,7 @@ import type {
   RegistrarDefinition,
   RegistrarMeta,
 } from '../../../shared/ipc';
-import {
-  REGISTRAR_HELP,
-  type HelpLink as HelpLinkData,
-} from '../../../shared/registrar-help';
+import { REGISTRAR_HELP } from '../../../shared/registrar-help';
 import { cn } from '@/lib/utils';
 import { RegistrarLogo } from '../../components/RegistrarLogo';
 import { useAppStore } from '../../store/app';
@@ -71,11 +67,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  SETTINGS_ICON_LINK,
-  SETTINGS_LINK,
-  SettingsField,
-} from './SettingsCard';
+import { SETTINGS_LINK, SettingsField, SettingsHelp } from './SettingsCard';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 /** Until when a card's expand toggle is ignored. A click outside an open
@@ -1061,18 +1053,10 @@ function DraftAccountCard({
 function RegistrarHelp({ provider }: { provider: RegistrarDefinition }) {
   const help = REGISTRAR_HELP[provider.name];
   return (
-    <div className="mb-4 flex flex-col gap-2">
-      <p className="text-[13px] leading-relaxed text-muted-foreground">
-        <HelpText text={help.summary} />
-      </p>
-      {help.links.length > 0 && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          {help.links.map((link) => (
-            <HelpLink key={link.url} link={link} />
-          ))}
-        </div>
-      )}
-    </div>
+    <SettingsHelp
+      summary={<HelpText text={help.summary} />}
+      links={help.links}
+    />
   );
 }
 
@@ -1280,25 +1264,6 @@ function HelpText({ text }: { text: string }) {
     ) : (
       part
     ),
-  );
-}
-
-/**
- * A real external link in the help copy. `target="_blank"` hands the URL to the
- * main process's window-open handler, which opens it in the system browser and
- * denies the in-app window.
- */
-function HelpLink({ link }: { link: HelpLinkData }) {
-  return (
-    <a
-      href={link.url}
-      target="_blank"
-      rel="noreferrer"
-      className={cn(SETTINGS_ICON_LINK, 'text-[13px]')}
-    >
-      {link.label}
-      <ExternalLink className="size-3 shrink-0" aria-hidden />
-    </a>
   );
 }
 

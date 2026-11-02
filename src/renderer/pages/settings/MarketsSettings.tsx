@@ -3,7 +3,6 @@ import {
   ChevronDown,
   CircleX,
   Ellipsis,
-  ExternalLink,
   Pencil,
   Plus,
   Power,
@@ -62,7 +61,11 @@ import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { SETTINGS_ICON_LINK, SettingsField } from './SettingsCard';
+import {
+  SettingsExternalLink,
+  SettingsField,
+  SettingsHelp,
+} from './SettingsCard';
 import { CardSection } from '../../components/CardSection';
 
 // Settings → Markets (docs/markets.md): one card per connected marketplace
@@ -237,20 +240,10 @@ function EmptyMarkets() {
 /** Where to get keys, and the market's own note about them. */
 function MarketHelp({ market }: { market: MarketInfo }) {
   return (
-    <p className="mb-4 text-[13px] leading-relaxed text-muted-foreground">
-      {market.helpText}{' '}
-      <a
-        href={market.keysUrl}
-        className={SETTINGS_ICON_LINK}
-        onClick={(e) => {
-          e.preventDefault();
-          void window.api.openExternal(market.keysUrl);
-        }}
-      >
-        Open {market.website}
-        <ExternalLink className="size-3" />
-      </a>
-    </p>
+    <SettingsHelp
+      summary={market.helpText}
+      links={[{ label: `Open ${market.name}`, url: market.keysUrl }]}
+    />
   );
 }
 
@@ -963,17 +956,9 @@ function VerificationFields({
         description={
           <>
             {help.path}.{' '}
-            <a
-              href={help.url}
-              className={SETTINGS_ICON_LINK}
-              onClick={(e) => {
-                e.preventDefault();
-                void window.api.openExternal(help.url);
-              }}
-            >
+            <SettingsExternalLink url={help.url}>
               Open {market.name}
-              <ExternalLink className="size-3" />
-            </a>
+            </SettingsExternalLink>
           </>
         }
       >
