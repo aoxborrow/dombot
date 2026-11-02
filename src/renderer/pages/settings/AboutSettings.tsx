@@ -123,7 +123,15 @@ export default function AboutSettings() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-lg font-semibold">
-              DomBot {current ?? '…'}
+              DomBot{' '}
+              {/* A dev build's commit reads as code, set apart from the name. */}
+              {current && isDevVersion(current) ? (
+                <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[15px] font-medium">
+                  {current}
+                </span>
+              ) : (
+                (current ?? '…')
+              )}
               {appInfo && (
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
                   {isDemo()
