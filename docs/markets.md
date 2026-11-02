@@ -389,6 +389,9 @@ has them.
   live is faded. The tooltip has
   the detail. A name can only be in one account per market, so each cell holds
   one listing.
+  Planned: a small ownership verification mark beside the price, also in the
+  empty cell of a name priced in DomBot but not listed there yet (see
+  Ownership verification, "Tracking which names are set up").
 - **A click on a listing cell edits that listing** on that market (or lists
   the name there, starting from its DomBot asking price). The editor shows
   only the fields the market has, read from its capabilities: a Buy Now
@@ -646,14 +649,27 @@ shouldn't move nameservers), so the default only preselects the choice.
 
 ### Tracking which names are set up
 
-DomBot should know, for every name and every connected market account,
-whether the name is already set up to verify: so the list flow can say so,
-the account card can count what's missing, and a filter can find it. It
-applies once the market account is connected, and for an account's own
-nameserver or TXT record, once its verification ID is entered. A name a
-market already shows as live or for sale counts as verified, whatever DNS
-says, so tracking matters most for pending listings and names about to be
-listed.
+DomBot should know, for every name it might sell and every connected market
+account, whether the name is already set up to verify, so the list flow can
+say so before it changes anything. It applies once the market account is
+connected, and for an account's own nameserver or TXT record, once its
+verification ID is entered. A name a market already shows as live or for sale
+counts as verified, whatever DNS says, so tracking matters most for pending
+listings and names about to be listed.
+
+**Only names that might be sold.** A name qualifies once it's listed on any
+market, or has an asking price, minimum offer or floor in DomBot
+(`domain-list-prices`). Names with neither get no status and are never
+checked: they may never be for sale, and in a large portfolio they're most of
+it. A name joins as soon as it's priced or listed somewhere.
+
+**Where it shows:** in Listings, next to the price in each market's listing
+cell, as a small mark: set up (and how, in the tooltip, with when it was
+checked), not set up, or unknown. A name priced in DomBot but not listed on
+that market yet shows it in the otherwise empty cell, so you can see it
+before listing. A live listing needs no mark; its status icon already says
+the market verified it. The account card counts what's not set up, and a
+filter finds it.
 
 **Phase 1: from nameservers DomBot already has.** No new requests: it's
 worked out from data sync and enrichment hold, and redone when a name's
@@ -687,7 +703,7 @@ DomBot something. Ideas:
   fill in nameservers phase 1 doesn't know yet.
 - **A background queue, not part of Sync now:** a few lookups in flight,
   resumable, never ahead of anything the user is doing.
-- **Only the names that need it,** most urgent first: right after Apply, and
+- **Of the names that qualify, only those that need it,** most urgent first: right after Apply, and
   when the user asks (Check now on selected names); names listed and still
   pending at a market; names about to be listed (the list flow checks the
   ones it's offering). Names whose nameservers already settle it, and names
