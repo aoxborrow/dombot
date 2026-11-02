@@ -51,17 +51,23 @@ import { Toaster } from '@/components/ui/sonner';
  * How each page shows as a header tab, by route: which metric its pill shows
  * (a key of useTabMetrics) and how it compacts in narrower windows. Pages
  * themselves are listed in NAV_ITEMS.
+ *
+ * As the window narrows the pills go first, then labels, so the bell always
+ * stays on screen: under 1024px the Renewals, Sales and Activity pills, under
+ * 800px the Domains pill, under 768px the Settings label (the gear alone),
+ * under 660px the Activity label, and under 640px the hamburger takes over.
+ * Each step is sized for large counts ("12,345" domains, "CA$12.3k" a year).
  */
 const TAB_OPTIONS: Record<
   string,
   { metric?: keyof TabMetrics } & Omit<TabProps, 'icon' | 'label' | 'metric'>
 > = {
-  '/': { metric: 'domains', pillFrom: 'md' },
+  '/': { metric: 'domains', pillFrom: '800px' },
   '/renewals': { metric: 'renewals', pillFrom: 'lg' },
-  '/activity': { metric: 'activity', pillFrom: 'lg' },
+  '/activity': { metric: 'activity', pillFrom: 'lg', iconOnlyBelow: '660px' },
   '/sales': { metric: 'sales', pillFrom: 'lg' },
   '/settings': {
-    pillFrom: 'lg',
+    iconOnlyBelow: 'md',
     // The gear is drawn smaller than the other icons, so it's bumped up.
     iconClassName: 'size-[17px]',
   },
