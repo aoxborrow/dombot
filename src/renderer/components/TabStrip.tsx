@@ -5,43 +5,44 @@ import { cn } from '@/lib/utils';
 import type { TabMetric } from '../lib/tab-metrics';
 
 /**
- * Below this breakpoint a tab drops its label (icon only) or its pill, so the
- * strip still fits narrower windows: Tailwind's md (768px) and lg (1024px),
- * plus two in-between widths for the app header's steps (App.tsx's
- * TAB_OPTIONS). Listed as whole class strings so Tailwind picks them up.
+ * Below this breakpoint a tab drops its label (icon only), its icon (label
+ * only) or its pill, so the strip still fits narrower windows: Tailwind's md
+ * (768px) and lg (1024px), plus an in-between width for the app header's
+ * Domains pill (App.tsx's TAB_OPTIONS). Listed as whole class strings so
+ * Tailwind picks them up.
  */
-type Breakpoint = '660px' | 'md' | '800px' | 'lg';
+type Breakpoint = 'md' | '800px' | 'lg';
 
 const LABEL_FROM: Record<Breakpoint, string> = {
-  '660px': 'hidden min-[660px]:inline',
   md: 'hidden md:inline',
   '800px': 'hidden min-[800px]:inline',
   lg: 'hidden lg:inline',
 };
 // Icon-only tabs get even padding, a touch wider than the labeled default.
 const ICON_ONLY_PAD: Record<Breakpoint, string> = {
-  '660px': 'max-[660px]:px-3.5',
   md: 'max-md:px-3.5',
   '800px': 'max-[800px]:px-3.5',
   lg: 'max-lg:px-3.5',
 };
+const ICON_FROM: Record<Breakpoint, string> = {
+  md: 'hidden md:block',
+  '800px': 'hidden min-[800px]:block',
+  lg: 'hidden lg:block',
+};
 // Where the label shows, the icon is pulled 2px toward it; the gap alone
 // leaves it loose.
 const ICON_TIGHTEN: Record<Breakpoint, string> = {
-  '660px': 'min-[660px]:-mr-0.5',
   md: 'md:-mr-0.5',
   '800px': 'min-[800px]:-mr-0.5',
   lg: 'lg:-mr-0.5',
 };
 // The no-pill padding (see tabClass) for the widths where pillFrom hides it.
 const NO_PILL_PAD: Record<Breakpoint, string> = {
-  '660px': 'max-[660px]:pr-4',
   md: 'max-md:pr-4',
   '800px': 'max-[800px]:pr-4',
   lg: 'max-lg:pr-4',
 };
 const PILL_FROM: Record<Breakpoint, string> = {
-  '660px': 'hidden min-[660px]:inline-flex',
   md: 'hidden md:inline-flex',
   '800px': 'hidden min-[800px]:inline-flex',
   lg: 'hidden lg:inline-flex',
@@ -89,6 +90,8 @@ export interface TabProps {
   metric?: TabMetric | null;
   /** Hide the label below this breakpoint; the icon alone stays. Needs an icon. */
   iconOnlyBelow?: Breakpoint;
+  /** Hide the icon below this breakpoint; the label alone stays. */
+  labelOnlyBelow?: Breakpoint;
   /** Hide the pill below this breakpoint. */
   pillFrom?: Breakpoint;
   className?: string;
@@ -101,8 +104,12 @@ const tabClass = (
     metric,
     pillFrom,
     iconOnlyBelow,
+    labelOnlyBelow,
     className,
-  }: Pick<TabProps, 'metric' | 'pillFrom' | 'iconOnlyBelow' | 'className'>,
+  }: Pick<
+    TabProps,
+    'metric' | 'pillFrom' | 'iconOnlyBelow' | 'labelOnlyBelow' | 'className'
+  >,
 ) =>
   cn(
     // A 4px gap between neighbouring tabs shows the bar between them.
@@ -113,8 +120,10 @@ const tabClass = (
     // Wherever a tab shows no pill, 4px more on the right so it doesn't read
     // short beside tabs that end in one.
     !metric ? 'pr-4 xl:pr-[22px]' : pillFrom && NO_PILL_PAD[pillFrom],
-    // Icon-only tabs keep even padding (applied last, so it wins).
+    // Icon-only and label-only tabs keep even padding (applied last, so it
+    // wins).
     iconOnlyBelow && ICON_ONLY_PAD[iconOnlyBelow],
+    labelOnlyBelow && ICON_ONLY_PAD[labelOnlyBelow],
     className,
   );
 
@@ -123,6 +132,7 @@ function TabContent({
   label,
   metric,
   iconOnlyBelow,
+  labelOnlyBelow,
   pillFrom,
   iconClassName,
 }: TabProps) {
@@ -134,6 +144,7 @@ function TabContent({
           className={cn(
             'size-[15px] shrink-0 opacity-80',
             iconOnlyBelow ? ICON_TIGHTEN[iconOnlyBelow] : '-mr-0.5',
+            labelOnlyBelow && ICON_FROM[labelOnlyBelow],
             iconClassName,
           )}
         />
