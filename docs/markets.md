@@ -564,81 +564,127 @@ sale waiting on an auth code.
 
 ## Ownership verification
 
-**Planned, not built.** Every market checks that you own a name before its
-listing goes live or for sale, and the APIs mostly don't report it or offer a
-way to complete it. Afternic keeps a listing `PENDING` until it has verified
-the name. Sedo lists a new name not for sale, refuses to change that
-(`E3124`), and shows it under "Ownership Verification Pending" on sedo.com
-(seen live, docs/sedo-api.md). Atom checks DNS "at random intervals" unless
-asked to check now.
+**First part built (settings, Apply and Request on selected names), the rest
+planned.** Every market checks that you own a name before its listing goes
+live or for sale, and the APIs mostly don't report it or offer a way to
+complete it. Afternic keeps a listing `PENDING` until it has verified the
+name. Sedo lists a new name not for sale, refuses to change that (`E3124`),
+and shows it under "Ownership Verification Pending" on sedo.com (seen live,
+docs/sedo-api.md). Atom checks DNS "at random intervals" unless asked to
+check now.
 
 ### The ways markets verify
 
-| Method             | What you set                                                 | Afternic                            | Sedo                      | Atom               |
-| ------------------ | ------------------------------------------------------------ | ----------------------------------- | ------------------------- | ------------------ |
-| Market nameservers | The name's nameservers, to the market's shared pair          | `ns1/ns2.afternic.com`              | `ns1/ns2.sedoparking.com` | `ns1/ns2.atom.com` |
-| Account nameserver | A third nameserver, assigned to your account, beside the two | `verification-<ID>.ns101.verify.hn` | —                         | —                  |
-| TXT record         | A TXT record holding your account's verification ID          | `afternic-verification-<ID>`        | the bare ID               | the bare ID        |
+DomBot offers two methods, always in this order:
+
+| Method             | What DomBot sets                                                      | Afternic                                                             | Sedo                      | Atom               |
+| ------------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------- | ------------------ |
+| TXT record         | A TXT record at the name's root holding the account's value, TTL 3600 | `afternic-verification-<ID>`                                         | the ID                    | the ID             |
+| Market nameservers | The name's nameservers, replaced with the market's                    | `ns1/ns2.afternic.com` and `verification-<ID>.ns101.verify.hn` (NS3) | `ns1/ns2.sedoparking.com` | `ns1/ns2.atom.com` |
 
 Sedo also takes a CNAME from the ID to `verify.sedo.com.`. DomBot leaves it
 out: anywhere DomBot can add a CNAME it can add the TXT record, which does the
 same.
 
-Each market gives one verification ID per account, shown only in its
+Afternic's NS3 goes in only together with Afternic's own pair, in the same
+change, and DomBot never removes it later. Its host doesn't answer DNS at all
+(checked 2026-11-02: it resolves to web servers, and DNS queries to them time
+out over UDP and TCP), so Afternic only looks for it in the delegation. Beside
+a name's own nameservers it would be a dead third nameserver that slows some
+lookups; beside Afternic's pair, for a sales lander, that doesn't matter. The
+guides that describe it pair it with `ns1/ns2.afternic.com` the same way, and
+GoDaddy's announcement says Afternic asks for it when another account already
+lists the name: Afternic's shared pair alone can't say which account owns it.
+
+Each market gives one verification value per account, shown only in its
 dashboard. None of the APIs return it (Afternic's account settings are
 lander, intake style, lease-to-own, lander options and self-broker, checked
 against its OpenAPI spec; Atom's spec has no account endpoint, only verify
-DNS), so the user copies it into DomBot. Afternic's account nameserver goes in
-as NS3 beside the name's own pair, so the name keeps its DNS host.
+DNS), so the user copies it into DomBot.
 
 What each costs:
 
-- **Market nameservers** hand the name's DNS to the market, which then serves
-  its lander or parked page. That ends whatever the name did before: a
-  website, or email (domainio.com, for one, forwards mail through ImprovMX).
-  Some features need it anyway: Afternic's lander and Fast Transfer, Atom
-  Premium.
-- **Shared nameservers don't prove ownership on their own.** Anyone can
-  point a name at a market's shared pair, so for a name another account
-  already lists, only an account nameserver or a TXT record settles it. Seen
-  with domanio.com on Sedo (2026-10-28): pointing it at
-  `ns1/ns2.sedoparking.com` left it in the other account, and DomBot moved
-  it back to 101domain's nameservers to add Sedo's TXT ID instead.
 - **A TXT record** leaves DNS where it is and adds one record. It needs the
-  name's DNS hosted at a registrar account DomBot is connected to, and every
+  name's DNS hosted at the registrar account that holds it, and every
   existing record kept: registrar DNS APIs mostly replace the whole record
   set, so DomBot reads, adds and writes back (done by hand on domainio.com,
   2026-10-28: Sedo's TXT ID added beside its A, MX and SPF records). A
   registrar or DNS host only manages records while the name uses its
   nameservers (101domain says `NAMESERVERS_NOT_LOCAL`), so a name pointed at
   a market's nameservers has to move back before it can take a TXT record.
+- **Market nameservers** hand the name's DNS to the market, which then serves
+  its lander or parked page. That ends whatever the name did before: a
+  website, or email (domainio.com, for one, forwards mail through ImprovMX).
+- **Shared nameservers don't prove ownership on their own.** Anyone can
+  point a name at a market's shared pair, so for a name another account
+  already lists, only a TXT record (or Afternic's NS3) settles it. Seen with
+  domanio.com on Sedo (2026-10-28): pointing it at `ns1/ns2.sedoparking.com`
+  left it in the other account, and DomBot moved it back to 101domain's
+  nameservers to add Sedo's TXT ID instead.
 
-### Apply and Request are different actions
+### Settings (built)
 
-Two actions, kept apart everywhere: in the Domains table, the list flow, the
-MCP tools and the code. Neither name is final.
+Each market account's card in Settings → Markets has an **Ownership
+verification** part, between what the market holds and how DomBot connects.
+It's saved on the `market-accounts` record as `verification: { id, method }`;
+it isn't a secret.
 
-- **Apply ownership verification** is DomBot's own change to the name's
-  DNS, made through the registrar account that holds it: point the
-  nameservers at the market, add the account nameserver, or add the TXT
-  record (read, add, write back). The market isn't contacted. It reports per
-  name: done, DNS not hosted at the registrar, registrar not connected, or
-  the registrar has no DNS API. Changing nameservers asks first and says
-  what the name will stop doing.
-- **Request ownership verification** asks the market to run its own check
-  now. It changes nothing in DNS.
-  - **Atom:** verify DNS, one request per account every 12 hours, for any
-    name (seen live, docs/atom-api.md).
+- **Ownership Verification ID**, labelled the same for every market. The help
+  text says what the market calls it and where it is:
+  - Afternic: the **Domain Ownership Record** on Ownership Settings
+    (<https://www.afternic.com/account/ownership>). Paste the TXT Record or
+    the Nameserver (NS3).
+  - Sedo: the **Domain Ownership Verification ID** ("Your personal ID") under
+    My Domains → Domain Ownership Verification
+    (<https://sedo.com/member/ownership_verification.php>).
+  - Atom: the **TXT Code** beside your User ID on your account details
+    (<https://www.atom.com/dashboard/account/details>). The page shortens it,
+    so use its copy button.
+- You paste the whole value as the market shows it; DomBot reads the ID out
+  of it on save. Spaces, quotes and a trailing dot are dropped. Afternic takes
+  either value and the card then shows both, to check against Afternic's page.
+  Sedo's and Atom's are 40 hex characters. A value cut short ("…") is refused.
+- **Default method:** TXT record or the market's nameservers, TXT unless you
+  change it. It preselects the method in Apply.
+
+### Apply and Request are different actions (built)
+
+Two actions, kept apart everywhere: the Domains bulk bar and row menu, the
+MCP tools and the code.
+
+- **Apply ownership verification…** is DomBot's own change to the names' DNS,
+  through the registrar account that holds each one. The market isn't
+  contacted. You pick the market account and the method (its default
+  preselected; TXT needs the ID saved), and it runs as a bulk job, with
+  progress, per-name results and Activity history:
+  - **TXT record** is a domain op of its own (`txtRecord`). For each name it
+    reads the nameservers from the registrar first and skips the name when
+    its DNS isn't there (another DNS host, or a market's nameservers), since
+    a record in the registrar's zone would do nothing. Then it reads the
+    records, skips the name if the record is already there, adds it at the
+    root with TTL 3600 and writes the full set back. Registrars that can't
+    write SRV or CAA records refuse the write rather than drop them. Activity
+    shows it as a DNS change ("DNS: 4 records → 5 records").
+  - **Market nameservers** is the nameservers op with the market's set
+    (Afternic's three when the ID is saved, else its pair). The dialog says
+    what the names stop doing first.
+  - Nothing records what was applied. Each run checks before it changes
+    anything, so running it twice does no harm.
+- **Request ownership verification…** asks the market to run its own check
+  now, for the selected names listed on that account. It changes nothing in
+  DNS.
   - **Afternic:** relist with `RESYNC` ("Re-trigger the listing process", up
     to 500 names a call). Updating a listing doesn't re-run Afternic's checks
     but relisting does (docs/afternic-api.md); whether that includes the
     ownership check on a pending name isn't confirmed live yet.
-  - **Sedo:** none of its API calls asks for a check; it checks on its own.
+  - **Atom:** verify DNS. Atom takes one request per account every 12 hours
+    and answers the next, for any name, "DNS check Request in progress"
+    (seen live, docs/atom-api.md), so DomBot sends one name at a time and
+    stops there. Whether one request checks every pending name isn't known.
+  - **Sedo:** shown but unavailable: none of its API calls asks for a check,
+    and it checks on its own.
 
-  After Apply, DomBot sends one Request for the batch where the market has
-  it, not one per name.
-
-### Choosing a method when listing
+### Choosing a method when listing (next)
 
 Listing names on a market asks how to verify them: the methods that market
 accepts, with the account's default method preselected, plus **Don't change
@@ -647,7 +693,7 @@ Request where the market has one. There's no setting to verify on every
 listing: the right method depends on the name (one with a website or email
 shouldn't move nameservers), so the default only preselects the choice.
 
-### Tracking which names are set up
+### Tracking which names are set up (next, then later)
 
 DomBot should know, for every name it might sell and every connected market
 account, whether the name is already set up to verify, so the list flow can
@@ -723,30 +769,25 @@ DomBot something. Ideas:
   names. The Worker has a per-invocation subrequest limit, so it works
   through the queue in batches across runs.
 
-### What DomBot will need
+### Build order
 
-- **Settings, per market account** (stored on the `market-accounts` record;
-  they aren't secrets): the verification ID, the account nameserver where
-  the market assigns one, and the default method for listing. Settings shows
-  only the fields that market's methods need.
-- **Capabilities, per market:** which methods it accepts, its nameservers,
-  and whether it has Request (`verifyDns` on Atom; `relist` on Afternic). Each market
-  already declares its nameservers next to its client
-  (`src/core/markets/<market>/nameservers.ts`), published in the catalog as
-  `MarketInfo.nameservers`; the Nameservers filter groups by them, and
-  `defaultMarketNameservers` gives the pair to point a name at. Afternic's
-  account nameserver can be listed as a pattern
-  (`verification-*.ns101.verify.hn`) so the filter recognizes it.
-- **Both actions on selected names** in the Domains table, and as separate
-  MCP tools: `domain_listing_verify` is Request (Atom's built; Afternic's would relist), and Apply
-  gets a tool of its own.
-- **Verification tracking** (above): phase 1 with the rest, phase 2 later.
-- **Status:** a name stays `pending` until the market puts it up for sale
-  (already the case for Sedo, `asyncInsert`), and the account card says how
-  many are waiting.
+1. **Built:** the settings, and Apply and Request on selected names in the
+   Domains table and as MCP tools.
+2. **Next:** choosing a method when listing, and tracking phase 1 (from the
+   nameservers DomBot already has), with the mark in the listing cells, the
+   account card's count and the filter.
+3. **Later:** tracking phase 2, checking TXT records.
+
+Each market declares its nameservers next to its client
+(`src/core/markets/<market>/nameservers.ts`), published in the catalog as
+`MarketInfo.nameservers`; the Nameservers filter groups by them, and
+`defaultMarketNameservers` gives the pair to point a name at. Status stays as
+it is: a name is `pending` until the market puts it up for sale (already the
+case for Sedo, `asyncInsert`).
 
 Open: whether a TXT record can be removed once a market has verified a name,
-and how each market reports a failed check.
+how each market reports a failed check, whether Afternic's `RESYNC` re-runs
+the ownership check, and whether one Atom request checks every pending name.
 
 ## MCP
 
@@ -772,23 +813,24 @@ Sales and stats: `market_sales`, `market_sale_get`, `market_stats_get`,
 Market-only actions, each with a `market` parameter and gated by a
 capability:
 
-| Tool                           | Capability        | Market     |
-| ------------------------------ | ----------------- | ---------- |
-| `market_sale_auth_code_set`    | `saleAuthCode`    | Afternic   |
-| `market_sale_message_send`     | `saleMessages`    | Afternic   |
-| `market_settings_get`/`_set`   | `accountSettings` | Afternic   |
-| `market_listings_relist`       | `relist`          | Afternic   |
-| `domain_listing_discount_set`  | `discount`        | Atom       |
-| `domain_listing_verify`        | `verifyDns`       | Atom       |
-| `domain_listing_boost`         | `spends`          | Atom       |
-| `market_grading_submit`/`_get` | —                 | Atom       |
-| `domain_appraisal_get`         | —                 | Atom       |
-| `market_categories_get`        | —                 | Atom, Sedo |
-| `market_payments_get`          | `parkingEarnings` | Sedo       |
+| Tool                           | Capability            | Market         |
+| ------------------------------ | --------------------- | -------------- |
+| `market_sale_auth_code_set`    | `saleAuthCode`        | Afternic       |
+| `market_sale_message_send`     | `saleMessages`        | Afternic       |
+| `market_settings_get`/`_set`   | `accountSettings`     | Afternic       |
+| `market_listings_relist`       | `relist`              | Afternic       |
+| `domain_listing_discount_set`  | `discount`            | Atom           |
+| `domain_listing_verify`        | `verifyDns`, `relist` | Atom, Afternic |
+| `domain_listing_boost`         | `spends`              | Atom           |
+| `market_grading_submit`/`_get` | —                     | Atom           |
+| `domain_appraisal_get`         | —                     | Atom           |
+| `market_categories_get`        | —                     | Atom, Sedo     |
+| `market_payments_get`          | `parkingEarnings`     | Sedo           |
 
-`domain_listing_verify` is Request ownership verification (Atom's verify DNS
-today; Afternic's would relist with `RESYNC`); Apply will be a separate tool
-for every market (see Ownership verification).
+`domain_listing_verify` is Request ownership verification (Atom's verify DNS,
+Afternic's relist with `RESYNC`). Apply is `domain_verification_apply`, and
+an account's verification value is set with `market_verification_set`; both
+work for every market (see Ownership verification).
 
 Anything that spends money takes `confirmSpend: true`; anything that reaches
 a person (a sale message) says so in its description.
@@ -807,8 +849,9 @@ a person (a sale message) says so in its description.
    (2026-10-28). Atom's API access needs approval and 500+ listings; Sedo
    needs a partner ID and sign key. Atom also brought market bulk jobs (see "Bulk writes"). Status and
    what's left: atom-api.md, "Status"; sedo-api.md.
-5. **Ownership verification** for every market: planned above, not built.
-   Checking TXT records (tracking phase 2) comes after the rest.
+5. **Ownership verification** for every market: settings, Apply and Request
+   built; choosing a method when listing and tracking come next (see
+   Ownership verification, "Build order").
 
 ## Open questions
 
