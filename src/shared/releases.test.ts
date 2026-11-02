@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   compareVersions,
+  isDevVersion,
   parseReleaseFeed,
   releasesNewerThan,
 } from './releases';
@@ -65,5 +66,12 @@ describe('releasesNewerThan', () => {
     expect(releasesNewerThan(releases, '1.4.0').map((r) => r.version)).toEqual([
       '1.5.0',
     ]);
+  });
+
+  it('lists none for a dev build (the demo, built from main)', () => {
+    const releases = parseReleaseFeed({ releases: [{ tag: 'v1.5.0' }] });
+    expect(releasesNewerThan(releases, 'dev+a1b2c3d')).toEqual([]);
+    expect(releasesNewerThan(releases, 'dev')).toEqual([]);
+    expect(isDevVersion('1.5.0')).toBe(false);
   });
 });

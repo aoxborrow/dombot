@@ -75,10 +75,18 @@ export function parseReleaseFeed(json: unknown): Release[] {
   return out.sort((a, b) => compareVersions(b.version, a.version));
 }
 
-/** Releases newer than `version`, newest first. */
+/** A build from main between releases (`dev+a1b2c3d`, the demo), not a
+ *  release version. */
+export function isDevVersion(version: string): boolean {
+  return /^dev(\+|$)/.test(version);
+}
+
+/** Releases newer than `version`, newest first. None for a dev build, which
+ *  is ahead of every release. */
 export function releasesNewerThan(
   releases: Release[],
   version: string,
 ): Release[] {
+  if (isDevVersion(version)) return [];
   return releases.filter((r) => compareVersions(r.version, version) > 0);
 }
