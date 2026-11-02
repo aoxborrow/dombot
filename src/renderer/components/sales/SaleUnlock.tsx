@@ -1,15 +1,31 @@
 import { useState } from 'react';
 import { domainKey } from '../../../shared/account-key';
-import type { Domain, DomainOp } from '../../../shared/ipc';
+import type { Domain, DomainOp, RegistrarMeta } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import {
+  opUnsupportedReason,
   reportOpResult,
   targetOf,
   useOpUnsupportedReason,
 } from '../../lib/domain-ops';
-import { Button } from '@/components/ui/button';
+import { SaleStepButton } from './SaleStepButton';
 
 const UNLOCK: DomainOp = { kind: 'lock', locked: false };
+
+/**
+ * Whether the sale's next steps wait for Unlock: the name is locked and
+ * DomBot can unlock it. Where the registrar's API can't, they don't wait, so
+ * you can unlock at the registrar and carry on.
+ */
+export function waitsForUnlock(
+  domain: Domain | undefined,
+  registrars: RegistrarMeta[] | null,
+): boolean {
+  return (
+    !!domain?.locked &&
+    opUnsupportedReason(registrars, domain.registrar, UNLOCK) === null
+  );
+}
 
 /**
  * Unlock, for a pending sale whose name is still in a registrar account of
@@ -37,11 +53,7 @@ export function SaleUnlock({ domain }: { domain: Domain }) {
     );
   };
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      // Short enough to sit in a table row without making it taller.
-      className="-my-1 h-6 shrink-0 px-2 text-xs"
+    <SaleStepButton
       disabled={busy || unlocking || !domain.locked || reason !== null}
       onClick={unlock}
       title={
@@ -52,6 +64,6 @@ export function SaleUnlock({ domain }: { domain: Domain }) {
       }
     >
       {unlocking ? 'Unlocking…' : domain.locked ? 'Unlock' : 'Unlocked'}
-    </Button>
+    </SaleStepButton>
   );
 }

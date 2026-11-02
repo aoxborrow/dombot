@@ -484,9 +484,14 @@ inline: Unlock on a pending sale whose name an account of yours holds
 locked (one click; disabled with the reason where the registrar's API
 can't unlock, and the name's detail is fetched where its registrar's list
 doesn't say), then Send auth code on a sale waiting for it, which reads
-the sale back so the row moves on to its next step without a sync. Two
-buttons rather than one: a registrar that can't give the code through its
-API may still unlock. A step done stays as a disabled button while the
+the sale back so the row moves on to its next step without a sync. Where
+DomBot can't get the code (the registrar's API doesn't give codes out:
+Namecheap, NameSilo, Porkbun, Cloudflare, 101domain; or no one account of
+yours holds the name), the step is a box to paste it into, with Send, from
+the start; a fetch that fails turns into the same box. Box and button are
+as short as the row's other steps, and what went wrong is a toast, so the
+row keeps its height. Two buttons rather than one: a registrar that can't
+give the code through its API may still unlock. A step done stays as a disabled button while the
 sale is pending: Unlocked once the name is, and Auth code sent once the
 market has the code, however it got there (`authCodeSent` on the sale:
 Afternic's single sale says, its list doesn't, so sync reads sales under
@@ -494,8 +499,15 @@ way one by one until it does, and keeps the answer). Neither shows once
 the sale is done. Then Approve transfer, once the buyer's registrar has
 asked for the name and the registrar holding it is waiting on you (Dynadot
 holds it five days): read live for each held name whose registrar reports
-transfers out, and one click releases it now
-([domain-editing.md](domain-editing.md#transfers-out)). Once the name has
+transfers out, again after each sync of its account, and one click
+releases it now, reading Transfer approved
+([domain-editing.md](domain-editing.md#transfers-out)). Every step the row
+can take shows from the start, in order, and one waits, disabled with the
+reason on hover, until the step before it is done: Send auth code until
+the name is unlocked (where DomBot can unlock it; where the registrar's API
+can't, it doesn't wait, so you can unlock there), and Approve transfer
+until the buyer's registrar asks (Dynadot only, the one registrar whose API
+reports transfers out). Once the name has
 moved, the market's transfer-confirmed and payout statuses (Afternic's
 `CONFIRMED_TRANSFER`, `PENDING_PAYOUT`, `SCHEDULED_PAYOUT`) read Awaiting
 payout, with no buttons; every sale not finished has an amber dot. Awaiting
