@@ -398,7 +398,8 @@ has them.
   price (empty for offers only), then Afternic's minimum offer, floor and
   lease-to-own (on or off, and the most monthly payments: 3, 6, 9, 12, then
   every 6 to 60, each showing its payment; a new listing starts from the
-  account's own defaults, which Afternic doesn't apply to API listings); Sedo's currency and minimum offer; Atom's price alone. Save
+  account's lease-to-own defaults, read from Afternic's account settings);
+  Sedo's currency and minimum offer; Atom's price alone. Save
   sends only the fields you changed straight to the market
   (`writeMarketListings`), makes a hidden listing visible (there's no "not
   for sale" mode in the app), re-runs a stuck listing's checks where the
@@ -554,21 +555,20 @@ the control, all stacked), and its selects fit their content:
 2. The **Ownership Verification ID** and **Preferred Verification Method**
    right after them, with no heading of their own (see "Ownership
    verification" below).
-3. **<Market> account settings,** where the market has any, under a
-   `CardSection` heading (a title with a line under it and a line of
-   subtext, never a box of its own): what the market holds, read through its
-   API. What the account has shows read-only (`MarketSyncState.status`, such
-   as Afternic's Discount Domain Club Domain Pro, which decides whether search
-   counts come back; sync keeps it current). Account settings
-   (`accountSettings`) are editable and saved back to the market: Afternic's
-   lander (Buy Now, price request or custom) and Lease To Own defaults
-   (enable or disable installments, Maximum Lease Period with Afternic's
-   commission discount for each length), side by side where there's room, as
-   a partial update (`setMarketListingDefaults`).
+3. **A small read-only <Market> account card,** where the market has
+   anything to show: what the account has (`MarketSyncState.status`, such as
+   Afternic's Discount Domain Club Domain Pro, which decides whether search
+   counts come back; sync keeps it current) and, for Afternic, its Lease To
+   Own defaults (on or off, and the Maximum Lease Period with its commission
+   discount), read from `/accountSettings`. A new listing in DomBot's
+   listing editor starts from those defaults. They're changed on Afternic
+   (the card links to <https://www.afternic.com/account/lander>, which also
+   has the lander), not in DomBot; the MCP tools `market_settings_get` and
+   `market_settings_set` still read and write them.
 
 Save tests a changed key first, so a refused one saves nothing; then it
-saves the verification ID, then the market's settings. A verification value
-that isn't the market's stops it before anything is saved.
+saves the verification ID. A verification value that isn't the market's
+stops it before anything is saved.
 
 The demo connects one account on each market over an in-memory world
 (`src/core/demo/markets.ts`), with listings, a year of traffic, sales, and a

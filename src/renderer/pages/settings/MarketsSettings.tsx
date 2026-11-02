@@ -10,7 +10,11 @@ import {
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { MarketAccountView, MarketInfo } from '../../../shared/markets';
+import type {
+  MarketAccountView,
+  MarketId,
+  MarketInfo,
+} from '../../../shared/markets';
 import {
   DEFAULT_VERIFICATION,
   VERIFICATION_METHODS,
@@ -27,12 +31,8 @@ import { MarketLogo } from '../../components/RegistrarLogo';
 import { timeAgo } from '../../lib/time';
 import { useSyncState } from '../../lib/sync-state';
 import {
-  DEFAULT_LEASE_MONTHS,
   leaseCommissionDiscount,
-  leaseMonthOptions,
   useLeaseDefaults,
-  LANDER_STYLES,
-  type LanderStyle,
   type LeaseDefaults,
 } from '../../lib/lease-to-own';
 import {
@@ -66,7 +66,6 @@ import {
   SettingsField,
   SettingsHelp,
 } from './SettingsCard';
-import { CardSection } from '../../components/CardSection';
 
 // Settings → Markets (docs/markets.md): one card per connected marketplace
 // account, built like the registrar cards. Everything a card shows comes from
@@ -541,33 +540,12 @@ function MarketCard({
     verification.value.trim() !== shownVerification ||
     verification.method !== savedVerification.method;
 
-  // The account's own settings on the market (Afternic's lander and
-  // lease-to-own), as read, as saved since, and as edited.
-  const [savedLease, setSavedLease] = useState<LeaseDefaults | null>(null);
-  const leaseBase =
-    savedLease ?? (lease && lease.enabled !== null ? lease : null);
-  const [leaseEdits, setLeaseEdits] = useState<Partial<LeaseDefaults>>({});
-  const leaseDraft: LeaseDefaults | null = leaseBase && {
-    enabled: leaseEdits.enabled ?? leaseBase.enabled ?? false,
-    months: leaseEdits.months ?? leaseBase.months ?? DEFAULT_LEASE_MONTHS,
-    lander: leaseEdits.lander ?? leaseBase.lander,
-  };
-  const landerChanged =
-    !!leaseBase &&
-    !!leaseDraft?.lander &&
-    leaseDraft.lander !== leaseBase.lander;
-  const leaseChanged =
-    !!leaseBase &&
-    !!leaseDraft &&
-    (leaseDraft.enabled !== leaseBase.enabled ||
-      (!!leaseDraft.enabled && leaseDraft.months !== leaseBase.months));
-  const dirty = changed || verificationChanged || landerChanged || leaseChanged;
+  const dirty = changed || verificationChanged;
 
   /**
    * One Save for the whole card: the key (tested first, so a refused one
-   * saves nothing), then the verification ID, then the market's own
-   * settings. A verification value that isn't the market's stops it before
-   * anything is saved.
+   * saves nothing), then the verification ID. A verification value that
+   * isn't the market's stops it before anything is saved.
    */
   const save = async () => {
     setBusy('save');
@@ -603,25 +581,6 @@ function MarketCard({
         );
         setVerifyValue(null);
         setVerifyMethod(null);
-      }
-      if (leaseDraft && (landerChanged || leaseChanged)) {
-        // Only what changed: the rest of the account's settings stay as they
-        // are (a partial update).
-        await window.api.setMarketListingDefaults(account.id, {
-          ...(landerChanged ? { intakeStyle: leaseDraft.lander! } : {}),
-          ...(leaseChanged
-            ? leaseDraft.enabled
-              ? { leasingEnabled: true, maxLeasePeriod: leaseDraft.months! }
-              : { leasingEnabled: false }
-            : {}),
-        });
-        setSavedLease({
-          ...leaseDraft,
-          months: leaseDraft.enabled
-            ? leaseDraft.months
-            : (leaseBase?.months ?? null),
-        });
-        setLeaseEdits({});
       }
       if (views) await setMarketAccounts(views);
       toast.success(
@@ -821,24 +780,13 @@ function MarketCard({
                 />
               </FieldGroup>
             </div>
-            {(account.sync?.status?.length || leaseDraft) && (
-              <CardSection
-                title={`${market.name} account settings`}
-                description={`Read from your ${market.name} account${
-                  leaseDraft ? '; saving changes them there' : ''
-                }.`}
-              >
-                <AccountSettingsFields
-                  idPrefix={account.id}
-                  marketName={market.name}
-                  flags={account.sync?.status ?? []}
-                  lease={leaseDraft}
-                  disabled={busy !== null}
-                  onChange={(patch) =>
-                    setLeaseEdits((current) => ({ ...current, ...patch }))
-                  }
-                />
-              </CardSection>
+            {(account.sync?.status?.length ||
+              (lease && lease.enabled !== null)) && (
+              <MarketAccountSummary
+                market={market}
+                flags={account.sync?.status ?? []}
+                lease={lease && lease.enabled !== null ? lease : null}
+              />
             )}
             <div className="flex flex-col gap-3">
               <div>
@@ -1014,38 +962,45 @@ function SettingRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
+    <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
       <span>{label}</span>
       <div className="flex items-center gap-2">{children}</div>
     </div>
   );
 }
 
+/** Where a market's own account settings are changed, when DomBot only shows them. */
+const ACCOUNT_SETTINGS_URL: Partial<Record<MarketId, string>> = {
+  afternic: 'https://www.afternic.com/account/lander',
+};
+
 /**
- * What the market account itself holds, read through its API: what the
- * account has (read-only, e.g. Discount Domain Club Domain Pro), and its
- * settings (Afternic's lander and lease-to-own defaults), saved back to the
- * market with the card's Save. Lease-to-own applies to listings created on
- * the market itself; DomBot sends lease-to-own with every listing it creates.
+ * What the market account itself holds, read through its API and shown
+ * read-only: what the account has (Discount Domain Club Domain Pro, from
+ * sync), and its lease-to-own defaults (Afternic's account settings), which
+ * a new listing in DomBot starts from. They're changed on the market.
  */
-function AccountSettingsFields({
-  idPrefix,
-  marketName,
+function MarketAccountSummary({
+  market,
   flags,
   lease,
-  disabled,
-  onChange,
 }: {
-  idPrefix: string;
-  marketName: string;
+  market: MarketInfo;
   flags: { label: string; on: boolean }[];
   lease: LeaseDefaults | null;
-  disabled: boolean;
-  onChange: (patch: Partial<LeaseDefaults>) => void;
 }) {
-  const months = lease?.months ?? DEFAULT_LEASE_MONTHS;
+  const settingsUrl = ACCOUNT_SETTINGS_URL[market.id];
+  const months = lease?.months ?? null;
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5 rounded-md border px-3 py-2.5 text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 className="font-medium">{market.name} account</h3>
+        {settingsUrl && (
+          <SettingsExternalLink url={settingsUrl} className="text-[13px]">
+            Change on {market.name}
+          </SettingsExternalLink>
+        )}
+      </div>
       {flags.map((flag) => (
         <SettingRow key={flag.label} label={flag.label}>
           <span
@@ -1069,86 +1024,24 @@ function AccountSettingsFields({
       ))}
       {lease && (
         <>
-          <div className="flex flex-wrap gap-x-6 gap-y-4 pt-2">
-            {lease.lander !== null && (
-              <SettingsField
-                htmlFor={`${idPrefix}-lander`}
-                label="Lander for new listings"
-                className="w-auto"
-              >
-                <Select
-                  value={lease.lander}
-                  disabled={disabled}
-                  onValueChange={(v) => onChange({ lander: v as LanderStyle })}
-                >
-                  <SelectTrigger id={`${idPrefix}-lander`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(
-                      Object.entries(LANDER_STYLES) as [LanderStyle, string][]
-                    ).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </SettingsField>
-            )}
-            <SettingsField
-              htmlFor={`${idPrefix}-lease`}
-              label="Lease To Own"
-              className="w-auto"
-            >
-              <Select
-                value={lease.enabled ? 'on' : 'off'}
-                disabled={disabled}
-                onValueChange={(v) => onChange({ enabled: v === 'on' })}
-              >
-                <SelectTrigger id={`${idPrefix}-lease`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="off">Disable installments</SelectItem>
-                  <SelectItem value="on">Enable installments</SelectItem>
-                </SelectContent>
-              </Select>
-            </SettingsField>
-            <SettingsField
-              htmlFor={`${idPrefix}-lease-months`}
-              label="Maximum Lease Period"
-              className="w-auto"
-            >
-              <Select
-                value={String(months)}
-                disabled={disabled || !lease.enabled}
-                onValueChange={(v) => onChange({ months: Number(v) })}
-              >
-                <SelectTrigger id={`${idPrefix}-lease-months`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {leaseMonthOptions(months).map((m) => (
-                    <SelectItem key={m} value={String(m)}>
-                      {m} months
-                      {leaseCommissionDiscount(m) > 0 && (
-                        <span className="text-muted-foreground">
-                          {' '}
-                          · {leaseCommissionDiscount(m)}% discount
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </SettingsField>
-          </div>
-          <p className="pt-1 text-xs text-muted-foreground">
-            These apply to listings created from now on. Installments need a Buy
-            Now price between $495 and $5,000,000; if a price is too low for the
-            maximum lease period, {marketName} sets it as close as it can.
-          </p>
+          <SettingRow label="Lease To Own">
+            <span className={cn(!lease.enabled && 'text-muted-foreground')}>
+              {lease.enabled ? 'On' : 'Off'}
+            </span>
+          </SettingRow>
+          {lease.enabled && months !== null && (
+            <SettingRow label="Maximum Lease Period">
+              <span>
+                {months} months
+                {leaseCommissionDiscount(months) > 0 && (
+                  <span className="text-muted-foreground">
+                    {' '}
+                    · {leaseCommissionDiscount(months)}% discount
+                  </span>
+                )}
+              </span>
+            </SettingRow>
+          )}
         </>
       )}
     </div>

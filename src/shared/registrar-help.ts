@@ -53,7 +53,7 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
   cloudflare: {
     summary:
       'A user API token with the account-level Registrar permission (Read ' +
-      'and Edit), plus the ID of the account that holds your domains.',
+      'and Edit).',
     links: [
       {
         label: 'Create an API token',
@@ -151,7 +151,7 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
 
   namecom: {
     summary:
-      'Use your Name.com username and a production API token. If your account uses two-step verification, enable API Access in its security settings.',
+      'A production API token. If your account uses two-step verification, enable API Access in its security settings.',
     links: [
       {
         label: 'API token settings',

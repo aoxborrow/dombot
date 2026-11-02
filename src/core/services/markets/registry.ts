@@ -49,7 +49,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       website: 'afternic.com',
       keysUrl: 'https://www.afternic.com/account/profile',
       helpText:
-        'Create an API key under Account Profile → Security → API Keys on Afternic, and paste both the key and the secret.',
+        'Create an API key under Account Profile → Security → API Keys on Afternic.',
       configFields: AFTERNIC_CONFIG_FIELDS,
       capabilities: AFTERNIC_CAPABILITIES,
       nameservers: AFTERNIC_NAMESERVERS,
@@ -64,8 +64,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       name: 'Atom',
       website: 'atom.com',
       keysUrl: 'https://www.atom.com/dashboard/seller/api-access',
-      helpText:
-        'Request API access under Dashboard → API Access on atom.com, then paste the API token and the user ID shown with it.',
+      helpText: 'Request API access under Dashboard → API Access on atom.com.',
       configFields: ATOM_CONFIG_FIELDS,
       capabilities: ATOM_CAPABILITIES,
       nameservers: ATOM_NAMESERVERS,
@@ -81,7 +80,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       website: 'sedo.com',
       keysUrl: 'https://sedo.com/',
       helpText:
-        'Sedo’s API needs a partner ID and sign key, which Sedo grants on request (ask Sedo support for API access), plus your Sedo username and password. Sedo’s API has no sales, so record Sedo sales by hand or import Sedo’s CSV export.',
+        'Sedo grants API access (a partner ID and sign key) on request: ask Sedo support. Sedo’s API has no sales, so record Sedo sales by hand or import Sedo’s CSV export.',
       configFields: SEDO_CONFIG_FIELDS,
       capabilities: SEDO_CAPABILITIES,
       nameservers: SEDO_NAMESERVERS,

@@ -455,7 +455,7 @@ export const DEMO_MARKET_ACCOUNTS = [
     market: 'sedo',
     label: 'Sedo',
     credentials: {
-      partnerId: '00000',
+      partnerId: '12345',
       signKey: 'demo-sign-key',
       username: 'demo',
       password: 'demo',
@@ -465,7 +465,7 @@ export const DEMO_MARKET_ACCOUNTS = [
     id: 'demo-atom',
     market: 'atom',
     label: 'Atom',
-    credentials: { apiToken: 'demo-token', userId: '00000' },
+    credentials: { apiToken: 'demo-token', userId: '1234567' },
     verification: 'de30de30de30de30de30de30de30de30de30de30',
   },
 ] as const;
