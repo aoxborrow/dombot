@@ -1028,7 +1028,7 @@ function TypedTab({
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="import-bin-price">BIN price</Label>
+          <Label htmlFor="import-bin-price">BIN Price</Label>
           <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
             {LIST_PRICE_HELP.amount}
           </p>
@@ -1043,7 +1043,7 @@ function TypedTab({
           />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="import-min-offer">Minimum offer</Label>
+          <Label htmlFor="import-min-offer">Minimum Offer</Label>
           <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
             {LIST_PRICE_HELP.minOffer}
           </p>
@@ -1057,7 +1057,7 @@ function TypedTab({
           />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="import-floor">Floor price</Label>
+          <Label htmlFor="import-floor">Floor Price</Label>
           <p className="-mt-1 min-h-8 text-xs text-muted-foreground">
             {LIST_PRICE_HELP.floor}
           </p>
@@ -1279,7 +1279,7 @@ function MatchStep({
           </Select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Purchase type</Label>
+          <Label className="text-xs">Purchase Type</Label>
           <Select
             value={setup.defaults.purchaseType ?? NONE}
             onValueChange={(v) =>

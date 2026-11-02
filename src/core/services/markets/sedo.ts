@@ -64,11 +64,11 @@ export const SEDO_CAPABILITIES: MarketCapabilities = {
 
 export const SEDO_CONFIG_FIELDS: MarketConfigField[] = [
   { name: 'partnerId', label: 'Partner ID', type: 'text', required: true },
-  { name: 'signKey', label: 'Sign key', type: 'password', required: true },
-  { name: 'username', label: 'Sedo username', type: 'text', required: true },
+  { name: 'signKey', label: 'Sign Key', type: 'password', required: true },
+  { name: 'username', label: 'Sedo Username', type: 'text', required: true },
   {
     name: 'password',
-    label: 'Sedo password',
+    label: 'Sedo Password',
     type: 'password',
     required: true,
   },

@@ -198,7 +198,7 @@ export default function ProxySettings() {
               </p>
             </SettingsField>
             <SettingsField
-              label="Proxy IPv4 address"
+              label="Proxy IPv4 Address"
               htmlFor="proxy-egress-ip"
               description={
                 <>

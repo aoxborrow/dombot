@@ -373,7 +373,7 @@ function DraftMarketCard({
           />
           <Field>
             <FieldLabel htmlFor="new-market-label">
-              Account name (optional)
+              Account Name (optional)
             </FieldLabel>
             <Input
               id="new-market-label"
@@ -851,7 +851,7 @@ function MarketCard({
         >
           <Field>
             <FieldLabel htmlFor={`${account.id}-label`}>
-              Account name
+              Account Name
             </FieldLabel>
             <Input
               id={`${account.id}-label`}

@@ -355,7 +355,7 @@ export function MarketListingDialog({
                 {caps.minOffer && (
                   <Field
                     id="market-min-offer"
-                    label="Minimum offer"
+                    label="Minimum Offer"
                     help={LIST_PRICE_HELP.minOffer}
                   >
                     <MoneyInput
@@ -371,7 +371,7 @@ export function MarketListingDialog({
                 {caps.floor && (
                   <Field
                     id="market-floor"
-                    label="Floor price"
+                    label="Floor Price"
                     help={LIST_PRICE_HELP.floor}
                   >
                     <MoneyInput

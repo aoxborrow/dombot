@@ -206,7 +206,7 @@ export function OwnershipVerificationDialog({
           <div className="flex flex-col gap-4 text-sm">
             {usable.length > 1 && (
               <Field>
-                <FieldLabel>Market account</FieldLabel>
+                <FieldLabel>Market Account</FieldLabel>
                 <Select
                   value={accountId}
                   onValueChange={(id) => {
@@ -214,7 +214,7 @@ export function OwnershipVerificationDialog({
                     setChosen(null);
                   }}
                 >
-                  <SelectTrigger aria-label="Market account" className="w-full">
+                  <SelectTrigger aria-label="Market Account" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

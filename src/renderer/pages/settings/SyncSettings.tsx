@@ -95,7 +95,7 @@ export default function SyncSettings() {
 
       <SettingsCard title="Auto-sync">
         <SettingsField
-          label="Sync frequency"
+          label="Sync Frequency"
           htmlFor="auto-sync-interval"
           description="How often DomBot re-syncs every registrar and market account in the background, registrars first. Larger portfolios may prefer a longer interval or Off."
         >

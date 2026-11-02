@@ -61,8 +61,8 @@ export const AFTERNIC_CAPABILITIES: MarketCapabilities = {
 };
 
 export const AFTERNIC_CONFIG_FIELDS: MarketConfigField[] = [
-  { name: 'apiKey', label: 'API key', type: 'password', required: true },
-  { name: 'apiSecret', label: 'API secret', type: 'password', required: true },
+  { name: 'apiKey', label: 'API Key', type: 'password', required: true },
+  { name: 'apiSecret', label: 'API Secret', type: 'password', required: true },
 ];
 
 // Reading

@@ -806,7 +806,7 @@ function AccountCard({
           }}
         >
           <Field>
-            <FieldLabel htmlFor={`${id}-account-name`}>Account name</FieldLabel>
+            <FieldLabel htmlFor={`${id}-account-name`}>Account Name</FieldLabel>
             <Input
               id={`${id}-account-name`}
               autoFocus
@@ -989,7 +989,7 @@ function DraftAccountCard({
           />
           <SettingsField
             htmlFor={`${idPrefix}-account-name`}
-            label="Account name"
+            label="Account Name"
             description="Optional. Tells accounts at the same registrar apart."
           >
             <Input
