@@ -15,6 +15,7 @@ import type { MarketAccountView, MarketInfo } from '../../../shared/markets';
 import {
   DEFAULT_VERIFICATION,
   VERIFICATION_METHODS,
+  parseVerificationId,
   verificationHelp,
   verificationMethodLabel,
   verificationNameserver,
@@ -66,6 +67,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { CardSection } from '../../components/CardSection';
 
 // Settings → Markets (docs/markets.md): one card per connected marketplace
 // account, built like the registrar cards. Everything a card shows comes from
@@ -240,6 +242,15 @@ function EmptyMarkets() {
 function MarketHelp({ market }: { market: MarketInfo }) {
   return (
     <p className="mb-4 text-sm text-muted-foreground">
+      <MarketHelpText market={market} />
+    </p>
+  );
+}
+
+/** The same, inline: a card section's subtext. */
+function MarketHelpText({ market }: { market: MarketInfo }) {
+  return (
+    <>
       {market.helpText}{' '}
       <a
         href={market.keysUrl}
@@ -250,9 +261,9 @@ function MarketHelp({ market }: { market: MarketInfo }) {
         }}
       >
         Open {market.website}
-        <ExternalLink className="size-3.5" />
+        <ExternalLink className="size-3" />
       </a>
-    </p>
+    </>
   );
 }
 
@@ -517,6 +528,120 @@ function MarketCard({
   const changed = Object.keys({ ...original, ...values }).some(
     (k) => (original[k] ?? '') !== (values[k]?.trim() ?? ''),
   );
+
+  // Ownership verification, kept in DomBot. The field shows what the market
+  // shows (the TXT value); null means untouched.
+  const savedVerification = account.verification ?? DEFAULT_VERIFICATION;
+  const shownVerification = savedVerification.id
+    ? verificationTxt(market.id, savedVerification.id)
+    : '';
+  const [verifyValue, setVerifyValue] = useState<string | null>(null);
+  // The key was refused: saving again retries it, changed or not.
+  const [keyRefused, setKeyRefused] = useState(false);
+  const [verifyMethod, setVerifyMethod] = useState<VerificationMethod | null>(
+    null,
+  );
+  const verification = {
+    value: verifyValue ?? shownVerification,
+    method: verifyMethod ?? savedVerification.method,
+  };
+  const verificationChanged =
+    verification.value.trim() !== shownVerification ||
+    verification.method !== savedVerification.method;
+
+  // The account's own settings on the market (Afternic's lander and
+  // lease-to-own), as read, as saved since, and as edited.
+  const [savedLease, setSavedLease] = useState<LeaseDefaults | null>(null);
+  const leaseBase =
+    savedLease ?? (lease && lease.enabled !== null ? lease : null);
+  const [leaseEdits, setLeaseEdits] = useState<Partial<LeaseDefaults>>({});
+  const leaseDraft: LeaseDefaults | null = leaseBase && {
+    enabled: leaseEdits.enabled ?? leaseBase.enabled ?? false,
+    months: leaseEdits.months ?? leaseBase.months ?? DEFAULT_LEASE_MONTHS,
+    lander: leaseEdits.lander ?? leaseBase.lander,
+  };
+  const landerChanged =
+    !!leaseBase &&
+    !!leaseDraft?.lander &&
+    leaseDraft.lander !== leaseBase.lander;
+  const leaseChanged =
+    !!leaseBase &&
+    !!leaseDraft &&
+    (leaseDraft.enabled !== leaseBase.enabled ||
+      (!!leaseDraft.enabled && leaseDraft.months !== leaseBase.months));
+  const dirty = changed || verificationChanged || landerChanged || leaseChanged;
+
+  /**
+   * One Save for the whole card: the key (tested first, so a refused one
+   * saves nothing), then the verification ID, then the market's own
+   * settings. A verification value that isn't the market's stops it before
+   * anything is saved.
+   */
+  const save = async () => {
+    setBusy('save');
+    setError(null);
+    try {
+      if (verificationChanged) {
+        parseVerificationId(market.id, verification.value, market.name);
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(null);
+      return;
+    }
+    let views: MarketAccountView[] | null = null;
+    try {
+      if (changed || keyRefused) {
+        try {
+          views = await window.api.saveMarketCredentials(account.id, values);
+          setOriginal(values);
+          setKeyRefused(false);
+        } catch (err) {
+          setKeyRefused(true);
+          throw new Error(
+            `${errorMessage(err)} Nothing was saved; the account keeps its key.`,
+          );
+        }
+      }
+      if (verificationChanged) {
+        views = await window.api.setMarketVerification(
+          account.id,
+          verification.value,
+          verification.method,
+        );
+        setVerifyValue(null);
+        setVerifyMethod(null);
+      }
+      if (leaseDraft && (landerChanged || leaseChanged)) {
+        // Only what changed: the rest of the account's settings stay as they
+        // are (a partial update).
+        await window.api.setMarketListingDefaults(account.id, {
+          ...(landerChanged ? { intakeStyle: leaseDraft.lander! } : {}),
+          ...(leaseChanged
+            ? leaseDraft.enabled
+              ? { leasingEnabled: true, maxLeasePeriod: leaseDraft.months! }
+              : { leasingEnabled: false }
+            : {}),
+        });
+        setSavedLease({
+          ...leaseDraft,
+          months: leaseDraft.enabled
+            ? leaseDraft.months
+            : (leaseBase?.months ?? null),
+        });
+        setLeaseEdits({});
+      }
+      if (views) await setMarketAccounts(views);
+      toast.success(
+        `Saved ${market.name}${account.label !== market.name ? ` · ${account.label}` : ''}.`,
+      );
+    } catch (err) {
+      setError(errorMessage(err));
+      setOpen(true);
+    } finally {
+      setBusy(null);
+    }
+  };
   const syncing = busy === 'sync' || syncingAll;
   const syncFailed =
     account.enabled && !syncing && account.sync?.lastError != null;
@@ -667,50 +792,23 @@ function MarketCard({
           </div>
         )}
 
-        <CollapsibleContent className="flex flex-col gap-6 border-t px-5 py-4">
-          {/* What the market itself holds, read through its API (and, for
-              settings, saved back there), in a box of its own apart from
-              what DomBot keeps. */}
-          {(account.sync?.status?.length ||
-            (lease && lease.enabled !== null)) && (
-            <MarketAccountSettings
-              // Remounts once the settings arrive, after the flags.
-              key={`${account.id}:${lease ? 'loaded' : 'loading'}`}
-              accountId={account.id}
-              marketName={market.name}
-              flags={account.sync?.status ?? []}
-              lease={lease && lease.enabled !== null ? lease : null}
-            />
-          )}
-          <OwnershipVerificationSettings
-            key={`${account.id}:${account.verification?.id ?? ''}:${account.verification?.method ?? ''}`}
-            account={account}
-            market={market}
-          />
-          <div className="flex flex-col gap-3">
+        <CollapsibleContent className="border-t px-5 py-4">
+          <form
+            className="flex flex-col gap-7"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void save();
+            }}
+          >
             {account.sync?.notes.map((note) => (
               <p key={note} className="text-sm text-muted-foreground">
                 {note}
               </p>
             ))}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void run('save', () =>
-                  window.api.saveMarketCredentials(account.id, values),
-                ).then((ok) => {
-                  if (ok) setOriginal(values);
-                  // The key is tested before it's saved, so a refused one
-                  // changes nothing: say so.
-                  else
-                    setError(
-                      (e) =>
-                        `${e} Nothing was saved; the account keeps its key.`,
-                    );
-                });
-              }}
+            <CardSection
+              title="API credentials"
+              description={<MarketHelpText market={market} />}
             >
-              <MarketHelp market={market} />
               <FieldGroup className="gap-4">
                 <CredentialFields
                   market={market}
@@ -722,14 +820,49 @@ function MarketCard({
                   }
                 />
               </FieldGroup>
-              <div className="mt-5 flex flex-wrap items-center gap-3">
+            </CardSection>
+            <CardSection
+              title="Ownership verification"
+              description="For Apply ownership verification on the Domains page."
+            >
+              <VerificationFields
+                market={market}
+                idPrefix={account.id}
+                value={verification.value}
+                method={verification.method}
+                savedId={savedVerification.id}
+                disabled={busy !== null}
+                onValue={setVerifyValue}
+                onMethod={setVerifyMethod}
+              />
+            </CardSection>
+            {(account.sync?.status?.length || leaseDraft) && (
+              <CardSection
+                title={`${market.name} account settings`}
+                description={`Read from your ${market.name} account${
+                  leaseDraft ? '; saving changes them there' : ''
+                }.`}
+              >
+                <AccountSettingsFields
+                  marketName={market.name}
+                  flags={account.sync?.status ?? []}
+                  lease={leaseDraft}
+                  disabled={busy !== null}
+                  onChange={(patch) =>
+                    setLeaseEdits((current) => ({ ...current, ...patch }))
+                  }
+                />
+              </CardSection>
+            )}
+            <div className="flex flex-col gap-3">
+              <div>
                 <Button
                   type="submit"
                   // After a refused save, Save stays on even with the saved
                   // values back in the fields, so it can always be retried.
                   disabled={
                     busy !== null ||
-                    !(changed || error) ||
+                    !(dirty || error) ||
                     !filled(market, values)
                   }
                 >
@@ -737,12 +870,12 @@ function MarketCard({
                 </Button>
               </div>
               {error && (
-                <p role="alert" className="mt-3 text-sm text-destructive">
+                <p role="alert" className="text-sm text-destructive">
                   {error}
                 </p>
               )}
-            </form>
-          </div>
+            </div>
+          </form>
         </CollapsibleContent>
       </Collapsible>
 
@@ -802,126 +935,91 @@ function MarketCard({
 }
 
 /**
- * The account's ownership verification, kept in DomBot (docs/markets.md,
- * "Ownership verification"): the value the market gives the account, pasted
- * whole and read on save, and the method Apply ownership verification offers
- * first. The field is labelled the same for every market; its help says what
- * the market calls it and where it is.
+ * The account's ownership verification (docs/markets.md, "Ownership
+ * verification"): the value the market gives the account, pasted whole and
+ * read on save, and the method Apply ownership verification offers first.
+ * Labelled the same for every market; the help says where the market keeps
+ * it.
  */
-function OwnershipVerificationSettings({
-  account,
+function VerificationFields({
   market,
+  idPrefix,
+  value,
+  method,
+  savedId,
+  disabled,
+  onValue,
+  onMethod,
 }: {
-  account: MarketAccountView;
   market: MarketInfo;
+  idPrefix: string;
+  value: string;
+  method: VerificationMethod;
+  savedId: string | null;
+  disabled: boolean;
+  onValue: (value: string) => void;
+  onMethod: (method: VerificationMethod) => void;
 }) {
-  const setMarketAccounts = useAppStore((s) => s.setMarketAccounts);
-  const saved = account.verification ?? DEFAULT_VERIFICATION;
-  // The field shows what the market shows: the TXT value.
-  const shown = saved.id ? verificationTxt(market.id, saved.id) : '';
-  const [value, setValue] = useState(shown);
-  const [method, setMethod] = useState<VerificationMethod>(saved.method);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const help = verificationHelp(market.id);
-  const ns3 = verificationNameserver(market.id, saved.id);
-  const dirty = value.trim() !== shown || method !== saved.method;
-
-  const save = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const accounts = await window.api.setMarketVerification(
-        account.id,
-        value,
-        method,
-      );
-      await setMarketAccounts(accounts);
-      // Show what was read out of the paste, as the market shows it.
-      const id = accounts.find((a) => a.id === account.id)?.verification?.id;
-      setValue(id ? verificationTxt(market.id, id) : '');
-      toast.success(`Saved your ${market.name} ownership verification.`);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
+  const ns3 = verificationNameserver(market.id, savedId);
   return (
-    <div className="rounded-md border">
-      <div className="flex items-start justify-between gap-3 rounded-t-md bg-muted/40 px-3 py-2">
-        <div>
-          <h3 className="text-sm font-medium">Ownership verification</h3>
-          <p className="text-xs text-muted-foreground">
-            Kept in DomBot, for Apply ownership verification on the Domains
-            page.
-          </p>
-        </div>
-        <Button size="sm" disabled={!dirty || busy} onClick={() => void save()}>
-          {busy ? 'Saving…' : 'Save'}
-        </Button>
-      </div>
-      <div className="flex flex-col gap-4 px-3 py-3">
-        <Field>
-          <FieldLabel htmlFor={`${account.id}-verification`}>
-            Ownership Verification ID
-          </FieldLabel>
-          <Input
-            id={`${account.id}-verification`}
-            value={value}
-            autoComplete="off"
-            spellCheck={false}
-            className="font-mono text-xs md:text-xs"
-            disabled={busy}
-            onChange={(e) => setValue(e.target.value)}
-          />
-          <FieldDescription>
-            On {market.name}, {help.where}{' '}
-            <a
-              href={help.url}
-              className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
-              onClick={(e) => {
-                e.preventDefault();
-                void window.api.openExternal(help.url);
-              }}
-            >
-              Open {market.name}
-              <ExternalLink className="size-3.5" />
-            </a>
-          </FieldDescription>
-          {ns3 && (
-            <p className="text-xs break-all text-muted-foreground">
-              Its nameserver (NS3):{' '}
-              <span className="font-mono text-foreground">{ns3}</span>
-            </p>
-          )}
-        </Field>
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
-          <span>Apply with</span>
-          <Select
-            value={method}
-            onValueChange={(v) => setMethod(v as VerificationMethod)}
+    <>
+      <Field>
+        <FieldLabel htmlFor={`${idPrefix}-verification`}>
+          Ownership Verification ID
+        </FieldLabel>
+        <Input
+          id={`${idPrefix}-verification`}
+          value={value}
+          autoComplete="off"
+          spellCheck={false}
+          className="font-mono text-xs md:text-xs"
+          disabled={disabled}
+          onChange={(e) => onValue(e.target.value)}
+        />
+        <FieldDescription>
+          {help.path}.{' '}
+          <a
+            href={help.url}
+            className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+            onClick={(e) => {
+              e.preventDefault();
+              void window.api.openExternal(help.url);
+            }}
           >
-            <SelectTrigger aria-label="Apply with" className="h-8 w-68">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end">
-              {VERIFICATION_METHODS.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {verificationMethodLabel(m, market.name)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      {error && (
-        <p role="alert" className="px-3 pb-2.5 text-xs text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
+            Open {market.name}
+            <ExternalLink className="size-3.5" />
+          </a>
+        </FieldDescription>
+        {ns3 && (
+          <p className="text-xs break-all text-muted-foreground">
+            Its nameserver (NS3):{' '}
+            <span className="font-mono text-foreground">{ns3}</span>
+          </p>
+        )}
+      </Field>
+      <SettingRow label="Preferred Verification Method">
+        <Select
+          value={method}
+          disabled={disabled}
+          onValueChange={(v) => onMethod(v as VerificationMethod)}
+        >
+          <SelectTrigger
+            aria-label="Preferred Verification Method"
+            className="h-8"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {VERIFICATION_METHODS.map((m) => (
+              <SelectItem key={m} value={m}>
+                {verificationMethodLabel(m, market.name)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </SettingRow>
+    </>
   );
 }
 
@@ -934,7 +1032,7 @@ function SettingRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 text-sm">
+    <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
       <span>{label}</span>
       <div className="flex items-center gap-2">{children}</div>
     </div>
@@ -944,185 +1042,119 @@ function SettingRow({
 /**
  * What the market account itself holds, read through its API: what the
  * account has (read-only, e.g. Discount Domain Club Domain Pro), and its
- * settings (Afternic's lease-to-own defaults), saved back to the market
- * together with one Save. Lease-to-own applies to listings created on the
- * market itself; DomBot sends lease-to-own with every listing it creates.
+ * settings (Afternic's lander and lease-to-own defaults), saved back to the
+ * market with the card's Save. Lease-to-own applies to listings created on
+ * the market itself; DomBot sends lease-to-own with every listing it creates.
  */
-function MarketAccountSettings({
-  accountId,
+function AccountSettingsFields({
   marketName,
   flags,
   lease,
+  disabled,
+  onChange,
 }: {
-  accountId: string;
   marketName: string;
   flags: { label: string; on: boolean }[];
   lease: LeaseDefaults | null;
+  disabled: boolean;
+  onChange: (patch: Partial<LeaseDefaults>) => void;
 }) {
-  const [saved, setSaved] = useState(lease);
-  const [enabled, setEnabled] = useState(lease?.enabled ?? false);
-  const [months, setMonths] = useState(lease?.months ?? DEFAULT_LEASE_MONTHS);
-  const [lander, setLander] = useState<LanderStyle | null>(
-    lease?.lander ?? null,
-  );
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const landerChanged = !!saved && lander !== null && lander !== saved.lander;
-  const leaseChanged =
-    !!saved &&
-    (enabled !== saved.enabled || (enabled && months !== saved.months));
-  const dirty = landerChanged || leaseChanged;
-
-  const save = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      // Only what changed: the rest of the account's settings stay as
-      // they are (a partial update).
-      await window.api.setMarketListingDefaults(accountId, {
-        ...(landerChanged ? { intakeStyle: lander } : {}),
-        ...(leaseChanged
-          ? enabled
-            ? { leasingEnabled: true, maxLeasePeriod: months }
-            : { leasingEnabled: false }
-          : {}),
-      });
-      setSaved({
-        enabled,
-        months: enabled ? months : (saved?.months ?? null),
-        lander,
-      });
-      toast.success(`Saved your ${marketName} account settings.`);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
+  const months = lease?.months ?? DEFAULT_LEASE_MONTHS;
   return (
-    <div className="rounded-md border">
-      <div className="flex items-start justify-between gap-3 rounded-t-md bg-muted/40 px-3 py-2">
-        <div>
-          <h3 className="text-sm font-medium">{marketName} account settings</h3>
-          <p className="text-xs text-muted-foreground">
-            Read from your {marketName} account
-            {lease ? `; saving changes them on ${marketName}` : ''}.
-          </p>
-        </div>
-        {lease && (
-          <Button
-            size="sm"
-            disabled={!dirty || busy}
-            onClick={() => void save()}
-          >
-            {busy ? 'Saving…' : 'Save'}
-          </Button>
-        )}
-      </div>
-      <div className="py-1">
-        {flags.map((flag) => (
-          <SettingRow key={flag.label} label={flag.label}>
-            <span
-              className={cn(
-                'flex items-center gap-2',
-                !flag.on && 'text-muted-foreground',
-              )}
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  'size-2 shrink-0 rounded-full',
-                  flag.on
-                    ? 'bg-emerald-500'
-                    : 'border border-muted-foreground/60',
-                )}
-              />
-              {flag.on ? 'Yes' : 'No'}
-            </span>
-          </SettingRow>
-        ))}
-        {lease && (
-          <>
-            {lander !== null && (
-              <SettingRow label="Lander for new listings">
-                <Select
-                  value={lander}
-                  onValueChange={(v) => setLander(v as LanderStyle)}
-                >
-                  <SelectTrigger
-                    aria-label="Lander for new listings"
-                    className="h-8 w-68"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent align="end">
-                    {(
-                      Object.entries(LANDER_STYLES) as [LanderStyle, string][]
-                    ).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </SettingRow>
+    <div className="flex flex-col gap-1">
+      {flags.map((flag) => (
+        <SettingRow key={flag.label} label={flag.label}>
+          <span
+            className={cn(
+              'flex items-center gap-2',
+              !flag.on && 'text-muted-foreground',
             )}
-            <SettingRow label="Lease To Own">
+          >
+            <span
+              aria-hidden
+              className={cn(
+                'size-2 shrink-0 rounded-full',
+                flag.on
+                  ? 'bg-emerald-500'
+                  : 'border border-muted-foreground/60',
+              )}
+            />
+            {flag.on ? 'Yes' : 'No'}
+          </span>
+        </SettingRow>
+      ))}
+      {lease && (
+        <>
+          {lease.lander !== null && (
+            <SettingRow label="Lander for new listings">
               <Select
-                value={enabled ? 'on' : 'off'}
-                onValueChange={(v) => setEnabled(v === 'on')}
-              >
-                <SelectTrigger aria-label="Lease To Own" className="h-8 w-68">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  <SelectItem value="off">Disable installments</SelectItem>
-                  <SelectItem value="on">Enable installments</SelectItem>
-                </SelectContent>
-              </Select>
-            </SettingRow>
-            <SettingRow label="Maximum Lease Period">
-              <Select
-                value={String(months)}
-                disabled={!enabled}
-                onValueChange={(v) => setMonths(Number(v))}
+                value={lease.lander}
+                disabled={disabled}
+                onValueChange={(v) => onChange({ lander: v as LanderStyle })}
               >
                 <SelectTrigger
-                  aria-label="Maximum Lease Period"
-                  className="h-8 w-68"
+                  aria-label="Lander for new listings"
+                  className="h-8"
                 >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent align="end">
-                  {leaseMonthOptions(months).map((m) => (
-                    <SelectItem key={m} value={String(m)}>
-                      {m} months
-                      {leaseCommissionDiscount(m) > 0 && (
-                        <span className="text-muted-foreground">
-                          {' '}
-                          · {leaseCommissionDiscount(m)}% discount
-                        </span>
-                      )}
+                  {(
+                    Object.entries(LANDER_STYLES) as [LanderStyle, string][]
+                  ).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </SettingRow>
-          </>
-        )}
-      </div>
-      {lease && (
-        <p className="px-3 pb-2.5 text-xs text-muted-foreground">
-          These apply to listings created from now on. Installments need a Buy
-          Now price between $495 and $5,000,000; if a price is too low for the
-          maximum lease period, {marketName} sets it as close as it can.
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="px-3 pb-2 text-xs text-destructive">
-          {error}
-        </p>
+          )}
+          <SettingRow label="Lease To Own">
+            <Select
+              value={lease.enabled ? 'on' : 'off'}
+              disabled={disabled}
+              onValueChange={(v) => onChange({ enabled: v === 'on' })}
+            >
+              <SelectTrigger aria-label="Lease To Own" className="h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="off">Disable installments</SelectItem>
+                <SelectItem value="on">Enable installments</SelectItem>
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          <SettingRow label="Maximum Lease Period">
+            <Select
+              value={String(months)}
+              disabled={disabled || !lease.enabled}
+              onValueChange={(v) => onChange({ months: Number(v) })}
+            >
+              <SelectTrigger aria-label="Maximum Lease Period" className="h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {leaseMonthOptions(months).map((m) => (
+                  <SelectItem key={m} value={String(m)}>
+                    {m} months
+                    {leaseCommissionDiscount(m) > 0 && (
+                      <span className="text-muted-foreground">
+                        {' '}
+                        · {leaseCommissionDiscount(m)}% discount
+                      </span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          <p className="pt-1 text-xs text-muted-foreground">
+            These apply to listings created from now on. Installments need a Buy
+            Now price between $495 and $5,000,000; if a price is too low for the
+            maximum lease period, {marketName} sets it as close as it can.
+          </p>
+        </>
       )}
     </div>
   );

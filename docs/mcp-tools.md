@@ -250,7 +250,7 @@ saying so.
 
 - **`market_list`** — every market account: `accountId`, `market`, `label`,
   `configured`, `enabled`, its last `sync`, its ownership `verification`
-  (saved ID and default method), and the market's `capabilities`. No
+  (saved ID and preferred method), and the market's `capabilities`. No
   secrets.
 - **`market_sync`** — `accountId?`. Re-reads listings, sales and stats from
   one account or every enabled one. Completed sales become `sold` events.

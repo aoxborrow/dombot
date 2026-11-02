@@ -45,8 +45,8 @@ interface VerificationInfo {
   term: string;
   /** The page that shows it. */
   url: string;
-  /** Where it is and what to copy, after "On <market>, ". */
-  where: string;
+  /** Where the market shows it: its menu path, as the market names it. */
+  path: string;
   /** The ID in the pasted value, or null when it isn't one. */
   parse: (value: string) => string | null;
   /** The TXT record's value for an ID. */
@@ -61,8 +61,7 @@ const VERIFICATION: Record<MarketId, VerificationInfo> = {
   afternic: {
     term: 'Domain Ownership Record',
     url: 'https://www.afternic.com/account/ownership',
-    where:
-      'Ownership Settings has your Domain Ownership Record. Paste the TXT Record or the Nameserver (NS3).',
+    path: 'Ownership Settings → Domain Ownership Record',
     parse: (value) =>
       /^afternic-verification-([a-z0-9]+)$/i.exec(value)?.[1] ??
       /^verification-([a-z0-9]+)\.ns101\.verify\.hn$/i.exec(value)?.[1] ??
@@ -73,16 +72,14 @@ const VERIFICATION: Record<MarketId, VerificationInfo> = {
   atom: {
     term: 'TXT Code',
     url: 'https://www.atom.com/dashboard/account/details',
-    where:
-      'your account details show your TXT Code beside your User ID. The page shortens it, so use its copy button.',
+    path: 'Account Details → TXT Code',
     parse: (value) => (HEX40.test(value) ? value.toLowerCase() : null),
     txt: (id) => id,
   },
   sedo: {
     term: 'Domain Ownership Verification ID',
     url: 'https://sedo.com/member/ownership_verification.php',
-    where:
-      'My Domains → Domain Ownership Verification has your Domain Ownership Verification ID (“Your personal ID”).',
+    path: 'My Domains → Domain Ownership Verification',
     parse: (value) => (HEX40.test(value) ? value.toLowerCase() : null),
     txt: (id) => id,
   },
@@ -92,10 +89,10 @@ const VERIFICATION: Record<MarketId, VerificationInfo> = {
 export function verificationHelp(market: MarketId): {
   term: string;
   url: string;
-  where: string;
+  path: string;
 } {
-  const { term, url, where } = VERIFICATION[market];
-  return { term, url, where };
+  const { term, url, path } = VERIFICATION[market];
+  return { term, url, path };
 }
 
 /**

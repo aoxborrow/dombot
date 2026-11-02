@@ -543,20 +543,28 @@ sale: names sold in 12 months over names listed now plus those sold.
 
 As in the Afternic plan, generalized: one card per market account, built
 from the adapter's `configFields` and `test()`, with the same ⋯ menu as
-registrar cards. An opened card has two parts, so it's clear what lives where:
+registrar cards. An opened card is one form with one Save, in titled
+sections (`CardSection`: a title with a line under it and a line of subtext,
+never a box of its own):
 
-- **Your <market> account:** what the market holds, read through its API.
-  What the account has shows read-only (`MarketSyncState.status`, such as
-  Afternic's Discount Domain Club Domain Pro, which decides whether search
-  counts come back; sync keeps it current). Account settings, where the
-  market has them (`accountSettings`), are editable and saved back to the
-  market: Afternic's lander (Buy Now, price request or custom) and
-  Lease To Own defaults (enable or disable installments, Maximum Lease
-  Period with Afternic's commission discount for each length), saved together with one Save as a partial
-  update (`setMarketListingDefaults`).
-- **In DomBot:** how DomBot connects: the credentials (encrypted, never sent
-  anywhere but the market), DomBot's sync notes, and market-specific help
-  such as Sedo's partner-access note and Atom's API-access note.
+1. **API credentials:** how DomBot connects (encrypted, never sent anywhere
+   but the market), with the market's help on where to get them. DomBot's
+   sync notes and market-specific notes (Sedo's partner access, Atom's API
+   access) sit above the sections.
+2. **Ownership verification:** see "Ownership verification" below.
+3. **<Market> account settings,** where the market has any: what the market
+   holds, read through its API. What the account has shows read-only
+   (`MarketSyncState.status`, such as Afternic's Discount Domain Club Domain
+   Pro, which decides whether search counts come back; sync keeps it
+   current). Account settings (`accountSettings`) are editable and saved
+   back to the market: Afternic's lander (Buy Now, price request or custom)
+   and Lease To Own defaults (enable or disable installments, Maximum Lease
+   Period with Afternic's commission discount for each length), as a partial
+   update (`setMarketListingDefaults`). Their dropdowns fit their content.
+
+Save tests a changed key first, so a refused one saves nothing; then it
+saves the verification ID, then the market's settings. A verification value
+that isn't the market's stops it before anything is saved.
 
 The demo connects one account on each market over an in-memory world
 (`src/core/demo/markets.ts`), with listings, a year of traffic, sales, and a
@@ -624,28 +632,28 @@ What each costs:
 
 ### Settings (built)
 
-Each market account's card in Settings → Markets has an **Ownership
-verification** part, between what the market holds and how DomBot connects.
-It's saved on the `market-accounts` record as `verification: { id, method }`;
-it isn't a secret.
+The Ownership verification section of each market account's card (see
+"Settings → Markets") is saved on the `market-accounts` record as
+`verification: { id, method }`; it isn't a secret.
 
 - **Ownership Verification ID**, labelled the same for every market. The help
-  text says what the market calls it and where it is:
-  - Afternic: the **Domain Ownership Record** on Ownership Settings
-    (<https://www.afternic.com/account/ownership>). Paste the TXT Record or
-    the Nameserver (NS3).
-  - Sedo: the **Domain Ownership Verification ID** ("Your personal ID") under
-    My Domains → Domain Ownership Verification
-    (<https://sedo.com/member/ownership_verification.php>).
-  - Atom: the **TXT Code** beside your User ID on your account details
-    (<https://www.atom.com/dashboard/account/details>). The page shortens it,
-    so use its copy button.
+  text is the market's menu path to it, and a link to the page:
+  - Afternic: Ownership Settings → Domain Ownership Record
+    (<https://www.afternic.com/account/ownership>). The TXT Record or the
+    Nameserver (NS3) both work.
+  - Sedo: My Domains → Domain Ownership Verification
+    (<https://sedo.com/member/ownership_verification.php>), "Your personal
+    ID".
+  - Atom: Account Details → TXT Code
+    (<https://www.atom.com/dashboard/account/details>). The page shortens it;
+    its copy button copies it whole.
 - You paste the whole value as the market shows it; DomBot reads the ID out
   of it on save. Spaces, quotes and a trailing dot are dropped. Afternic takes
-  either value and the card then shows both, to check against Afternic's page.
-  Sedo's and Atom's are 40 hex characters. A value cut short ("…") is refused.
-- **Default method:** TXT record or the market's nameservers, TXT unless you
-  change it. It preselects the method in Apply.
+  either value and the card then shows its NS3, to check against Afternic's
+  page. Sedo's and Atom's are 40 hex characters. A value cut short ("…") is
+  refused, saying to use the copy button.
+- **Preferred Verification Method:** TXT record or the market's nameservers,
+  TXT unless you change it. It preselects the method in Apply.
 
 ### Apply and Request are different actions (built)
 
@@ -687,7 +695,7 @@ MCP tools and the code.
 ### Choosing a method when listing (next)
 
 Listing names on a market asks how to verify them: the methods that market
-accepts, with the account's default method preselected, plus **Don't change
+accepts, with the account's preferred method preselected, plus **Don't change
 DNS** to skip it. Picking a method runs Apply on the names being listed, then
 Request where the market has one. There's no setting to verify on every
 listing: the right method depends on the name (one with a website or email
