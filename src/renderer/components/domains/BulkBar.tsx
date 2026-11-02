@@ -157,7 +157,7 @@ export function BulkBar({
               <ChevronDown className="text-primary-foreground/70" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
+          <DropdownMenuContent align="end" className="w-68">
             {!archiveView && (
               <>
                 <DropdownMenuItem onSelect={onRefresh}>

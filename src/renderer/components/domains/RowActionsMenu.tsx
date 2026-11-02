@@ -154,7 +154,7 @@ export function RowActionsMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-52"
+        className="w-68"
         onCloseAutoFocus={(e) => {
           if (!keepFocus.current) return;
           keepFocus.current = false;

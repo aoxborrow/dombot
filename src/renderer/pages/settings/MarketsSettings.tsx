@@ -831,9 +831,15 @@ function OwnershipVerificationSettings({
     setBusy(true);
     setError(null);
     try {
-      await setMarketAccounts(
-        await window.api.setMarketVerification(account.id, value, method),
+      const accounts = await window.api.setMarketVerification(
+        account.id,
+        value,
+        method,
       );
+      await setMarketAccounts(accounts);
+      // Show what was read out of the paste, as the market shows it.
+      const id = accounts.find((a) => a.id === account.id)?.verification?.id;
+      setValue(id ? verificationTxt(market.id, id) : '');
       toast.success(`Saved your ${market.name} ownership verification.`);
     } catch (err) {
       setError(errorMessage(err));

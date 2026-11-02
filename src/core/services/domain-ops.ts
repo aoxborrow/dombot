@@ -575,7 +575,9 @@ async function dispatch(
         before: records.map(dnsRecordLine),
         after: next.map(dnsRecordLine),
       };
-      return fromResult(await client.setDnsRecords(domainName, next, request));
+      // Say what was added, not the registrar's "records updated".
+      const r = await client.setDnsRecords(domainName, next, request);
+      return fromResult(r.success ? { ...r, message: '' } : r);
     }
   }
 }

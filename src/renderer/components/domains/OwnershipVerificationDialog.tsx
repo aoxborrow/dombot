@@ -274,13 +274,19 @@ export function OwnershipVerificationDialog({
                     )
                   ) : (
                     <>
-                      Sets each name’s nameservers to{' '}
-                      {verificationNameservers(info, vid).join(', ')}
+                      Sets each name’s nameservers to {info.name}’s
+                      {info.id === 'afternic' && vid
+                        ? ' pair and your account’s NS3'
+                        : ''}
+                      :{' '}
+                      <code className="break-all">
+                        {verificationNameservers(info, vid).join(', ')}
+                      </code>
+                      .
                       {info.id === 'afternic' &&
-                        (vid
-                          ? ', Afternic’s pair with your account’s NS3'
-                          : '. Save your Ownership Verification ID to add Afternic’s NS3 with them')}
-                      . Any website or email on these names stops working.
+                        !vid &&
+                        ' Save your Ownership Verification ID to add your account’s NS3 with them.'}{' '}
+                      Any website or email on these names stops working.
                     </>
                   )}
                 </p>
