@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-/** Shown with every nameserver change, whatever the new set is. */
+/** Shown once the set differs from the current one, whatever the new set is. */
 export const NAMESERVER_WARNING =
   'Changing nameservers moves the DNS: any website or email stops working unless the new nameservers serve it.';
 
@@ -156,10 +156,15 @@ export function NameserversEditor({
         </ul>
       )}
 
-      <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
-        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-        {NAMESERVER_WARNING}
-      </p>
+      {!unchanged && parsed.nameservers.length > 0 && (
+        <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
+          <TriangleAlert
+            className="mt-0.5 size-3.5 shrink-0 text-amber-500 dark:text-amber-400"
+            aria-hidden
+          />
+          {NAMESERVER_WARNING}
+        </p>
+      )}
 
       {note && (
         <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
@@ -194,14 +199,16 @@ export function NameserversEditor({
 
 function PresetItem({ preset }: { preset: NameserverPreset }) {
   return (
-    <SelectItem value={preset.key} className="items-start">
+    // No room kept for a checkmark: a preset is never the selected value.
+    <SelectItem value={preset.key} className="items-start pr-2">
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="text-xs text-muted-foreground">{preset.label}</span>
-        {/* Wraps between hosts, never inside one: a third host (Afternic's
-            NS3) goes to a line of its own rather than being cut off. */}
-        <span className="flex flex-wrap gap-x-1.5 font-mono text-[12px]">
+        {/* Wraps between hosts: a third host (Afternic's NS3) goes to a
+            line of its own, and only a host wider than the list breaks
+            inside itself. */}
+        <span className="flex min-w-0 flex-wrap gap-x-1.5 font-mono text-[12px]">
           {preset.nameservers.map((host, i) => (
-            <span key={host} className="whitespace-nowrap">
+            <span key={host} className="min-w-0 [overflow-wrap:anywhere]">
               {host}
               {i < preset.nameservers.length - 1 && ','}
             </span>
