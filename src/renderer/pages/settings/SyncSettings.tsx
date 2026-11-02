@@ -24,7 +24,7 @@ import {
   SyncStatusLabel,
   SyncTime,
 } from '../../components/SyncStatus';
-import { SettingsCard, SettingsField } from './SettingsCard';
+import { SETTINGS_LINK, SettingsCard, SettingsField } from './SettingsCard';
 
 /** Auto-sync interval choices (minutes). `0` disables the background sync. */
 const INTERVAL_OPTIONS: { label: string; minutes: number }[] = [
@@ -258,7 +258,7 @@ function AttentionRow({
       </span>
       <Link
         to={`/settings?tab=${market ? 'markets' : 'registrars'}`}
-        className="ml-auto shrink-0 text-muted-foreground underline underline-offset-4 hover:text-foreground"
+        className={cn('ml-auto shrink-0', SETTINGS_LINK)}
       >
         {market ? 'Market settings' : 'Registrar settings'}
       </Link>

@@ -34,6 +34,17 @@ export function SettingsCard({
 }
 
 /**
+ * Every link on the settings pages, in help text and beside it: a little
+ * brighter than the muted copy around it but never full white, and only
+ * underlined, in full white, on hover.
+ */
+export const SETTINGS_LINK =
+  'text-foreground/80 underline-offset-4 hover:text-foreground hover:underline';
+
+/** The same, with room for a trailing icon (an external link's arrow). */
+export const SETTINGS_ICON_LINK = `inline-flex items-center gap-1 ${SETTINGS_LINK}`;
+
+/**
  * One input in a settings card: a label, an optional description under it,
  * then the control. Every settings input uses it, so labels read the same
  * across the tabs (14px, with 13px help text under it). Pass `htmlFor` to tie
@@ -65,7 +76,9 @@ export function SettingsField({
       {/* A fixed pull-up: shadcn's own nudge applies only when the help
           text is second-to-last, which made the gap vary by field. */}
       {description && (
-        <FieldDescription className="-mt-[5px] text-[13px] nth-last-2:-mt-[5px]">
+        // Links in it look like every other settings link (SETTINGS_LINK),
+        // not shadcn's always-underlined ones.
+        <FieldDescription className="-mt-[5px] text-[13px] nth-last-2:-mt-[5px] [&>a]:no-underline [&>a:hover]:text-foreground [&>a:hover]:underline">
           {description}
         </FieldDescription>
       )}

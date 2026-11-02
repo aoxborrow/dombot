@@ -71,7 +71,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { SettingsField } from './SettingsCard';
+import {
+  SETTINGS_ICON_LINK,
+  SETTINGS_LINK,
+  SettingsField,
+} from './SettingsCard';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 /** Until when a card's expand toggle is ignored. A click outside an open
@@ -1091,7 +1095,7 @@ function ProxyToggle({
 }) {
   const [copied, setCopied] = useState(false);
   const proxyLink = (
-    <Link to="/settings?tab=proxy" className="underline underline-offset-4">
+    <Link to="/settings?tab=proxy" className={SETTINGS_LINK}>
       configured proxy
     </Link>
   );
@@ -1156,10 +1160,7 @@ function ProxyToggle({
         {!proxy ? (
           <>
             Set up a{' '}
-            <Link
-              to="/settings?tab=proxy"
-              className="underline underline-offset-4"
-            >
+            <Link to="/settings?tab=proxy" className={SETTINGS_LINK}>
               proxy
             </Link>{' '}
             to use this.
@@ -1293,7 +1294,7 @@ function HelpLink({ link }: { link: HelpLinkData }) {
       href={link.url}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1 text-[13px] font-medium text-brand underline-offset-4 hover:underline"
+      className={cn(SETTINGS_ICON_LINK, 'text-[13px]')}
     >
       {link.label}
       <ExternalLink className="size-3 shrink-0" aria-hidden />
@@ -1433,7 +1434,7 @@ function DomainCountLink({
       ·{' '}
       <Link
         to={`/?${new URLSearchParams({ account: idOf(meta) })}`}
-        className="underline-offset-4 hover:text-foreground hover:underline"
+        className={SETTINGS_LINK}
       >
         {plural(domainCount)}
       </Link>

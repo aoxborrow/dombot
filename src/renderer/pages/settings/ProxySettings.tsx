@@ -13,7 +13,7 @@ import { isDemo, isWeb } from '../../lib/platform';
 import { Button } from '@/components/ui/button';
 import { FieldGroup } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { SettingsCard, SettingsField } from './SettingsCard';
+import { SETTINGS_LINK, SettingsCard, SettingsField } from './SettingsCard';
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -229,7 +229,7 @@ export default function ProxySettings() {
             <p className="mt-4 text-sm text-muted-foreground">
               On a self-hosted instance, proxy connections use{' '}
               <a
-                className="underline"
+                className={SETTINGS_LINK}
                 href="https://github.com/latentharbor/tunnelfetch#readme"
                 target="_blank"
                 rel="noreferrer"

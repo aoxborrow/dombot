@@ -62,7 +62,7 @@ import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { SettingsField } from './SettingsCard';
+import { SETTINGS_ICON_LINK, SettingsField } from './SettingsCard';
 import { CardSection } from '../../components/CardSection';
 
 // Settings → Markets (docs/markets.md): one card per connected marketplace
@@ -241,7 +241,7 @@ function MarketHelp({ market }: { market: MarketInfo }) {
       {market.helpText}{' '}
       <a
         href={market.keysUrl}
-        className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+        className={SETTINGS_ICON_LINK}
         onClick={(e) => {
           e.preventDefault();
           void window.api.openExternal(market.keysUrl);
@@ -965,7 +965,7 @@ function VerificationFields({
             {help.path}.{' '}
             <a
               href={help.url}
-              className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+              className={SETTINGS_ICON_LINK}
               onClick={(e) => {
                 e.preventDefault();
                 void window.api.openExternal(help.url);
@@ -988,8 +988,7 @@ function VerificationFields({
         />
         {ns3 && (
           <p className="text-xs break-all text-muted-foreground">
-            Its nameserver (NS3):{' '}
-            <span className="font-mono text-foreground">{ns3}</span>
+            NS3: <span className="font-mono">{ns3}</span>
           </p>
         )}
       </SettingsField>

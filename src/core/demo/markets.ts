@@ -448,7 +448,7 @@ export const DEMO_MARKET_ACCOUNTS = [
     label: 'Afternic',
     credentials: { apiKey: 'demo-key', apiSecret: 'demo-secret' },
     // Obviously fake, in each market's format; Sedo's is left for you.
-    verification: 'afternic-verification-DemoOwnership7Id',
+    verification: 'afternic-verification-d3m0Af7rn1cV3r1fy',
   },
   {
     id: 'demo-sedo',
@@ -466,7 +466,7 @@ export const DEMO_MARKET_ACCOUNTS = [
     market: 'atom',
     label: 'Atom',
     credentials: { apiToken: 'demo-token', userId: '00000' },
-    verification: '0000000000000000000000000000000000000de0',
+    verification: 'de30de30de30de30de30de30de30de30de30de30',
   },
 ] as const;
 

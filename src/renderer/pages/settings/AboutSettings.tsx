@@ -27,7 +27,7 @@ import { timeAgo } from '@/lib/time';
 import { isDevVersion, releasesNewerThan } from '../../../shared/releases';
 import type { UpdaterState } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
-import { SettingsCard } from './SettingsCard';
+import { SETTINGS_LINK, SettingsCard } from './SettingsCard';
 
 const REPO = 'https://github.com/aoxborrow/dombot';
 const SPONSOR = 'https://github.com/sponsors/aoxborrow';
@@ -151,10 +151,7 @@ export default function AboutSettings() {
             {newer.length > 0 && updater?.status === 'error' && (
               <p className="text-xs text-destructive">
                 The update didn’t download: {updater.error}{' '}
-                <ExtLink
-                  href={newer[0].url}
-                  className="underline underline-offset-2"
-                >
+                <ExtLink href={newer[0].url} className={SETTINGS_LINK}>
                   Download it from GitHub
                 </ExtLink>{' '}
                 instead.
@@ -230,10 +227,7 @@ export default function AboutSettings() {
       <SettingsCard title="About DomBot" contentClassName="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">
           DomBot is free and open-source software, released under the{' '}
-          <ExtLink
-            href={`${REPO}/blob/main/LICENSE`}
-            className="text-foreground underline-offset-2 hover:underline"
-          >
+          <ExtLink href={`${REPO}/blob/main/LICENSE`} className={SETTINGS_LINK}>
             GNU AGPL v3.0
           </ExtLink>
           .
@@ -282,10 +276,7 @@ export default function AboutSettings() {
             the muted text in dark mode, where that grey still reads loud. */}
         <p className="-mx-6 -mb-[19px] border-t bg-muted/40 px-6 py-3 text-xs text-muted-foreground dark:text-muted-foreground/70">
           © 2026{' '}
-          <ExtLink
-            href="https://x.com/aoxborrow"
-            className="hover:text-foreground"
-          >
+          <ExtLink href="https://x.com/aoxborrow" className={SETTINGS_LINK}>
             Aaron Oxborrow
           </ExtLink>{' '}
           and contributors
