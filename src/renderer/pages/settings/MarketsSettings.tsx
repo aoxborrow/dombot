@@ -953,22 +953,6 @@ function VerificationFields({
   );
 }
 
-/** One setting: its name on the left, its value or control on the right. */
-function SettingRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
-      <span>{label}</span>
-      <div className="flex items-center gap-2">{children}</div>
-    </div>
-  );
-}
-
 /** Where a market's own account settings are changed, when DomBot only shows them. */
 const ACCOUNT_SETTINGS_URL: Partial<Record<MarketId, string>> = {
   afternic: 'https://www.afternic.com/account/lander',
@@ -992,8 +976,8 @@ function MarketAccountSummary({
   const settingsUrl = ACCOUNT_SETTINGS_URL[market.id];
   const months = lease?.months ?? null;
   return (
-    <div className="flex flex-col gap-1.5 rounded-md border px-3 py-2.5 text-sm">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+    <div className="overflow-hidden rounded-md border text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b bg-muted/40 px-3 py-2">
         <h3 className="font-medium">{market.name} account</h3>
         {settingsUrl && (
           <SettingsExternalLink url={settingsUrl} className="text-[13px]">
@@ -1001,49 +985,65 @@ function MarketAccountSummary({
           </SettingsExternalLink>
         )}
       </div>
-      {flags.map((flag) => (
-        <SettingRow key={flag.label} label={flag.label}>
-          <span
-            className={cn(
-              'flex items-center gap-2',
-              !flag.on && 'text-muted-foreground',
-            )}
-          >
+      {/* Each setting beside its value, in two columns: the setting muted,
+          its value in the text colour. */}
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 px-3 py-2.5">
+        {flags.map((flag) => (
+          <SummaryRow key={flag.label} label={flag.label}>
             <span
-              aria-hidden
               className={cn(
-                'size-2 shrink-0 rounded-full',
-                flag.on
-                  ? 'bg-emerald-500'
-                  : 'border border-muted-foreground/60',
+                'flex items-center gap-2',
+                !flag.on && 'text-muted-foreground',
               )}
-            />
-            {flag.on ? 'Yes' : 'No'}
-          </span>
-        </SettingRow>
-      ))}
-      {lease && (
-        <>
-          <SettingRow label="Lease To Own">
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'size-2 shrink-0 rounded-full',
+                  flag.on
+                    ? 'bg-emerald-500'
+                    : 'border border-muted-foreground/60',
+                )}
+              />
+              {flag.on ? 'Yes' : 'No'}
+            </span>
+          </SummaryRow>
+        ))}
+        {lease && (
+          <SummaryRow label="Lease To Own">
             <span className={cn(!lease.enabled && 'text-muted-foreground')}>
               {lease.enabled ? 'On' : 'Off'}
             </span>
-          </SettingRow>
-          {lease.enabled && months !== null && (
-            <SettingRow label="Maximum Lease Period">
-              <span>
-                {months} months
-                {leaseCommissionDiscount(months) > 0 && (
-                  <span className="text-muted-foreground">
-                    {' '}
-                    · {leaseCommissionDiscount(months)}% discount
-                  </span>
-                )}
+          </SummaryRow>
+        )}
+        {lease?.enabled && months !== null && (
+          <SummaryRow label="Maximum Lease Period">
+            {months} months
+            {leaseCommissionDiscount(months) > 0 && (
+              <span className="text-muted-foreground">
+                {' '}
+                · {leaseCommissionDiscount(months)}% discount
               </span>
-            </SettingRow>
-          )}
-        </>
-      )}
+            )}
+          </SummaryRow>
+        )}
+      </dl>
     </div>
+  );
+}
+
+/** One row of the account card: the setting, then its value. */
+function SummaryRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd>{children}</dd>
+    </>
   );
 }
