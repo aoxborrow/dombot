@@ -1,6 +1,6 @@
 import { configureStore, hydrateStores } from '../storage/namespace';
 import { MemoryDocStore } from '../storage/doc-store';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ── Boundary mocks ───────────────────────────────────────────────────────────
 // registrars.ts sits on top of registrar-client, the on-disk cache, credentials,
@@ -134,9 +134,15 @@ vi.mock('../dns', () => ({
   resolveNameservers: (d: string) => resolveNs(d),
 }));
 
-import { NotImplementedError } from '@aoxborrow/registrar-client';
+import {
+  Feature,
+  NotImplementedError,
+  registrars,
+} from '@aoxborrow/registrar-client';
 import {
   findRegistrarsForDomain,
+  getRegistrarCatalog,
+  getRegistrarFeatures,
   getRegistrationQuote,
   getCachedPortfolio,
   getDomainDetail,
@@ -228,6 +234,27 @@ describe('findRegistrarsForDomain', () => {
       'dynadot',
       'porkbun',
     ]);
+  });
+});
+
+describe('getRegistrarFeatures', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const transferOut = [
+    Feature.GetTransferOut,
+    Feature.ApproveTransferOut,
+    Feature.RejectTransferOut,
+  ];
+
+  it('drops GoDaddy transfer-out, which needs a customer ID the app lacks', () => {
+    const features = [Feature.GetAuthCode, ...transferOut];
+    vi.spyOn(registrars.godaddy, 'features', 'get').mockReturnValue(features);
+    vi.spyOn(registrars.dynadot, 'features', 'get').mockReturnValue(features);
+    expect(getRegistrarFeatures('godaddy')).toEqual([Feature.GetAuthCode]);
+    expect(
+      getRegistrarCatalog().find((r) => r.name === 'godaddy')?.features,
+    ).toEqual([Feature.GetAuthCode]);
+    expect(getRegistrarFeatures('dynadot')).toEqual(features);
   });
 });
 

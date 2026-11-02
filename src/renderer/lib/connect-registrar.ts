@@ -11,6 +11,13 @@ export class DynadotActivationPending extends Error {
   }
 }
 
+// Dynadot's 401 for a key it doesn't accept (yet). Only the message crosses
+// testConnection and IPC: registrar-client 0.12.1 makes it Dynadot's own
+// `error.description`; a 401 without that envelope keeps the shared
+// "failed with 401 Unauthorized: <body>" form.
+const DYNADOT_KEY_REJECTED =
+  /\b401\b[\s\S]*\bUnauthorized\b|\bAPI key is invalid, expired, or missing\b/i;
+
 function waitForActivation(signal: AbortSignal, delay: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const abort = () => {
@@ -45,10 +52,7 @@ export async function connectRegistrarWithActivationWait<T>(
       return await connect();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (
-        registrar !== 'dynadot' ||
-        !/\b401\b[\s\S]*\bUnauthorized\b/i.test(message)
-      )
+      if (registrar !== 'dynadot' || !DYNADOT_KEY_REJECTED.test(message))
         throw error;
       if (retry >= 6 || Date.now() >= deadline)
         throw new DynadotActivationPending();
