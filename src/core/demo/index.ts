@@ -1,10 +1,11 @@
-import { registrars, type RegistrarName } from '@aoxborrow/registrar-client';
+import type { RegistrarName } from '@aoxborrow/registrar-client';
 import { createAccount } from '../services/accounts';
 import { setStoredCredentials } from '../services/credentials';
 import { assignFolder, createFolder, getFolders } from '../services/folders';
 import { setManualPrice } from '../services/pricing';
 import {
   configureRegistrarFactory,
+  getRegistrarFeatures,
   resetRegistrarClients,
 } from '../services/registrars';
 import { flushWrites } from '../storage/namespace';
@@ -136,14 +137,14 @@ export async function installDemo(
   );
   const authCodeNames = new Set(
     seed.records
-      .filter((r) => registrars[r.registrar].features.includes('getAuthCode'))
+      .filter((r) => getRegistrarFeatures(r.registrar).includes('getAuthCode'))
       .map((r) => r.domainName),
   );
   const approvesTransfer = (name: string) => {
     const record = world.get(name);
     return (
       !!record &&
-      registrars[record.registrar].features.includes('approveTransferOut')
+      getRegistrarFeatures(record.registrar).includes('approveTransferOut')
     );
   };
   seedDemoMarkets(

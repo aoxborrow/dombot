@@ -22,8 +22,8 @@ gate the UI; DomBot keeps the known gaps itself (see
 | ---------- | :--------: | :-------: | :--: | :---------: | :---: | :-----: | :-------: | :-------: | :----------: |
 | Cloudflare |     ✗¹     |     ✓     |  ✗¹  |     ✗¹      |  ✗¹   |    ✓    |     ✓     |     ✗     |      ✗       |
 | Dynadot    |     ✓      |     ✓     |  ✓   |      ✓      |   ✓   |    ✓    |     ✓     |     ✓     |     ✓¹³      |
-| Gandi      |     ✓      |    ✓²     |  ✓   |      ✓      |   ✓   |   ✓³    |     ✓     |     ✓     |      ✗       |
-| GoDaddy    |     ✓      | off only⁴ |  ✓   |      ✓      |   ✓   |   ✗⁵    |     ✗     |     ✓     |      ✗       |
+| Gandi      |     ✓      |    ✓²     |  ✓   |      ✓      |   ✓   |   ✓³    |     ✓     |     ✓     |     ✓¹³      |
+| GoDaddy    |     ✓      | off only⁴ |  ✓   |      ✓      |   ✓   |   ✗⁵    |     ✗     |     ✓     |     ✗¹³      |
 | NameBright |     ✓      |     ✓     |  ✓   |     ✓⁶      |  ✓⁶   |    ✗    |     ✗     |     ✓     |      ✗       |
 | Namecheap  |     ✓      |    ✓¹²    |  ✓   |      ✓      |   ✓   |    ✓    |     ✓     |     ✗     |      ✗       |
 | Name.com   |     ✓      |     ✓     |  ✓   |      ✓      |   ✓   |    ✗    |     ✗     |     ✓     |      ✗       |
@@ -51,8 +51,12 @@ gate the UI; DomBot keeps the known gaps itself (see
     (surfaces as `failed`, not `unsupported`).
 13. Reading and approving a pending outbound transfer (the buyer's registrar
     asking for the name), on the Sales page and over MCP; see
-    [Transfers out](#transfers-out). GoDaddy (v2, needs a customer ID), Gandi,
-    and Name.com (reject only) have endpoints registrar-client doesn't use yet;
+    [Transfers out](#transfers-out). Gandi reports only that one is pending,
+    with no dates, and neither its approve nor GoDaddy's has run on a real
+    transfer yet. GoDaddy's goes through its v2 customer API, which needs the
+    customer ID the app doesn't collect (see note 5), so DomBot drops those
+    features from GoDaddy's list (`UNUSABLE_FEATURES` in `registrars.ts`).
+    Name.com (reject only) has an endpoint registrar-client doesn't use yet;
     the rest leave it to their dashboard or the transfer email.
 
 ## How a write runs

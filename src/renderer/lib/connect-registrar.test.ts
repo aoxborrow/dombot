@@ -52,6 +52,30 @@ describe('new Dynadot key activation', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('waits on the 401 as registrar-client 0.12.1 reports it (the description alone)', async () => {
+    vi.useFakeTimers();
+    const account = { id: 'connected' };
+    const connect = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error(
+          "Error invoking remote method 'registrar:connectAccount': Error: The provided API key is invalid, expired, or missing. Please verify your key is correct and active.",
+        ),
+      )
+      .mockResolvedValue(account);
+    const waiting = vi.fn();
+    const result = connectRegistrarWithActivationWait(
+      'dynadot',
+      connect,
+      new AbortController().signal,
+      waiting,
+    );
+    await vi.advanceTimersByTimeAsync(30_000);
+    await expect(result).resolves.toBe(account);
+    expect(connect).toHaveBeenCalledTimes(2);
+    expect(waiting).toHaveBeenCalledWith(true);
+  });
+
   it('stops after three minutes with actionable guidance and no raw response', async () => {
     vi.useFakeTimers();
     const connect = vi.fn().mockRejectedValue(unauthorized);

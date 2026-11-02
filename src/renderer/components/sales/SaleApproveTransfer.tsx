@@ -9,12 +9,14 @@ import { SaleStepButton } from './SaleStepButton';
 
 const APPROVE: DomainOp = { kind: 'approveTransfer' };
 // How long a registrar may hold an unanswered transfer before releasing it
-// (ICANN's limit), for when it reports no date of its own (Dynadot doesn't).
+// (ICANN's limit), for when it reports no date of its own (Dynadot and Gandi
+// don't).
 const RELEASE_AFTER_MS = 5 * 24 * 60 * 60 * 1000;
 
 /**
  * Approve transfer, the last of a pending sale's steps, shown from the start
- * wherever the registrar's API reports transfer requests (Dynadot today), so
+ * wherever the registrar's API reports transfer requests (Dynadot and Gandi
+ * today; GoDaddy's needs a customer ID the app doesn't collect), so
  * the row lays out every step at once. It turns on when the buyer's registrar
  * asks for the name: the registrar holding it waits for you to answer
  * (Dynadot five days) before letting it go on its own, and approving releases
