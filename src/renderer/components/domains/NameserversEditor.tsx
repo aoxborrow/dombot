@@ -197,8 +197,15 @@ function PresetItem({ preset }: { preset: NameserverPreset }) {
     <SelectItem value={preset.key} className="items-start">
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="text-xs text-muted-foreground">{preset.label}</span>
-        <span className="truncate font-mono text-[12px]">
-          {preset.nameservers.join(', ')}
+        {/* Wraps between hosts, never inside one: a third host (Afternic's
+            NS3) goes to a line of its own rather than being cut off. */}
+        <span className="flex flex-wrap gap-x-1.5 font-mono text-[12px]">
+          {preset.nameservers.map((host, i) => (
+            <span key={host} className="whitespace-nowrap">
+              {host}
+              {i < preset.nameservers.length - 1 && ','}
+            </span>
+          ))}
         </span>
       </span>
     </SelectItem>

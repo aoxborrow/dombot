@@ -663,10 +663,10 @@ The Ownership Verification ID field of each market account's card (see
 
 Separate actions, kept apart everywhere: the Domains bulk bar and row menu,
 the MCP tools and the code. Each multi-select one works like "List at your
-prices": every market account it can act on, ticked to start, and nothing
+prices": every market account it can act on, selected to start, and nothing
 for the ones it can't.
 
-- **Ownership verification TXT…** adds each ticked market account's TXT
+- **Ownership verification TXT…** adds each selected market account's TXT
   record at the root of the selected names, through the registrar account
   that holds each one. The markets aren't contacted. It offers only enabled
   accounts with an Ownership Verification ID saved (none saved: the menu item
@@ -690,12 +690,12 @@ for the ones it can't.
   common sets, without the sets the Markets group already shows. Every
   nameserver change, preset or not, shows one warning ("any website or email
   stops working unless the new nameservers serve it") and has a red button.
-- **Recheck ownership…** asks each ticked market to check the selected names
+- **Recheck ownership…** asks each selected market to check the selected names
   it lists for your ownership verification (their TXT records or
   nameservers) now. It changes nothing in DNS. It offers only
   markets that can be asked (never Sedo: none of its API calls asks for a
   check, and it checks on its own), with the ones that list any of the names
-  ticked; results show per account.
+  selected; results show per account.
   - **Afternic:** relist with `RESYNC` ("Re-trigger the listing process", up
     to 500 names a call). Updating a listing doesn't re-run Afternic's checks
     but relisting does (docs/afternic-api.md); whether that includes the
@@ -708,8 +708,8 @@ for the ones it can't.
 ### TXT records while listing (built)
 
 "List at your prices" has **Add ownership verification TXT records**,
-shown when a ticked market account has an Ownership Verification ID, and off
-until you tick it. On List, DomBot starts the TXT job for those accounts on
+shown when a selected market account has an Ownership Verification ID, and off
+until you check it. On List, DomBot starts the TXT job for those accounts on
 the priced names a registrar account holds, in the background (the bulk bar
 shows it), and pushes the prices at once: it doesn't wait, since the markets
 check on their own and Recheck can ask sooner. There's no setting to do this

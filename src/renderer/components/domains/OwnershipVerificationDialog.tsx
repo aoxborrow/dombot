@@ -29,9 +29,9 @@ import { Field, FieldLabel } from '@/components/ui/field';
 
 // Ownership verification on selected names (docs/markets.md, "Ownership
 // verification"), as two actions kept apart. Ownership verification TXT…
-// adds each ticked market account's TXT record at the names' registrars,
+// adds the selected market accounts' TXT records at the names' registrars,
 // in one bulk job; the markets aren't contacted. Recheck ownership… asks
-// each ticked market to check the names it lists, and changes no DNS.
+// the selected markets to check the names they list, and changes no DNS.
 // Nameservers are the nameserver editor's job (its market presets).
 
 export type VerificationAction = 'verificationTxt' | 'recheckOwnership';
@@ -110,7 +110,7 @@ function AccountChecks({
 }
 
 /**
- * Ownership verification TXT…: every ticked market account's TXT record,
+ * Ownership verification TXT…: every selected market account's TXT record,
  * added at the root of each selected name a registrar account holds, as one
  * bulk job (one write per name). Names whose DNS isn't at their registrar,
  * or that already have the records, are skipped. Accounts without an
@@ -176,7 +176,7 @@ export function VerificationTxtDialog({
         <DialogHeader>
           <DialogTitle>Ownership verification TXT</DialogTitle>
           <DialogDescription>
-            Adds each ticked market’s TXT record at the root of every name and
+            Adds the selected markets’ TXT records at the root of every name and
             keeps its other records. Names whose DNS isn’t at their registrar,
             or that already have the records, are skipped.
           </DialogDescription>
@@ -191,7 +191,9 @@ export function VerificationTxtDialog({
             )}
           />
           <p>
-            {n ? `${names(n)} will get the records.` : 'Nothing to do.'}
+            {n
+              ? `${names(n)} will have ${values.length === 1 ? 'a TXT record' : `${values.length} TXT records`} added.`
+              : 'Nothing to do.'}
             {domains.length > held.length && (
               <span className="text-muted-foreground">
                 {' '}
@@ -237,7 +239,7 @@ export function VerificationTxtDialog({
 }
 
 /**
- * Recheck ownership…: asks each ticked market account to check the
+ * Recheck ownership…: asks each selected market account to check the
  * selected names it lists, now. Afternic relists them (`RESYNC`); Atom
  * checks DNS one name at a time until it says a check is in progress.
  * Markets that check on their own (Sedo) aren't offered. Changes no DNS.
@@ -311,7 +313,7 @@ export function RecheckOwnershipDialog({
           <DialogTitle>Recheck ownership</DialogTitle>
           {!results && (
             <DialogDescription>
-              Asks each ticked market to check the names’ TXT records or
+              Asks the selected markets to check the names’ TXT records or
               nameservers for your ownership verification now. Afternic relists
               them; Atom checks once per account every 12 hours. Nothing in DNS
               changes.
@@ -355,7 +357,7 @@ export function RecheckOwnershipDialog({
             <p>
               {total
                 ? `${names(total)} will be rechecked.`
-                : 'None of these are listed on the ticked markets.'}
+                : 'None of these are listed on the selected markets.'}
             </p>
           </div>
         )}

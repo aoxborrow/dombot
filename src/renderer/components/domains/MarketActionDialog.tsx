@@ -313,8 +313,8 @@ export function MarketActionDialog({
               {action === 'delist' && keys.length > targets.length && (
                 <span className="text-muted-foreground">
                   {' '}
-                  {names(keys.length - targets.length)} not listed on the ticked
-                  markets will be skipped.
+                  {names(keys.length - targets.length)} not listed on the
+                  selected markets will be skipped.
                 </span>
               )}
             </p>

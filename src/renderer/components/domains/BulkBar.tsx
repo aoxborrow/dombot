@@ -15,8 +15,8 @@ import {
   Trash2,
   X,
   CircleX,
-  FileBadge,
-  SearchCheck,
+  Redo,
+  Ribbon,
 } from 'lucide-react';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
@@ -283,7 +283,7 @@ export function BulkBar({
                       title={marketReasons?.verificationTxt ?? undefined}
                       onSelect={() => onMarket('verificationTxt')}
                     >
-                      <FileBadge className="text-muted-foreground" />
+                      <Ribbon className="text-muted-foreground" />
                       Ownership verification TXT
                       <span className="-ml-[6px] opacity-50">…</span>
                     </DropdownMenuItem>
@@ -292,7 +292,7 @@ export function BulkBar({
                       title={marketReasons?.recheckOwnership ?? undefined}
                       onSelect={() => onMarket('recheckOwnership')}
                     >
-                      <SearchCheck className="text-muted-foreground" />
+                      <Redo className="text-muted-foreground" />
                       Recheck ownership
                       <span className="-ml-[6px] opacity-50">…</span>
                     </DropdownMenuItem>
