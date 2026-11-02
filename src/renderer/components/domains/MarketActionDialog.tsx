@@ -327,13 +327,13 @@ export function MarketActionDialog({
                   onCheckedChange={(on) => setAddTxt(on === true)}
                 />
                 <span>
-                  Add ownership verification TXT records first
+                  Add ownership verification TXT records
                   <span className="block text-muted-foreground">
                     {bulkBusy
                       ? 'Another bulk action is running; wait for it to finish.'
                       : txtTargets.length === 0
                         ? 'No registrar account holds these names.'
-                        : 'At each name’s registrar, in the background; the listing doesn’t wait for them.'}
+                        : 'At each name’s registrar, in the background.'}
                   </span>
                 </span>
               </label>

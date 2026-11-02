@@ -12,8 +12,8 @@ import {
   RefreshCw,
   Trash2,
   CircleX,
-  ScanSearch,
-  ShieldCheck,
+  FileBadge,
+  SearchCheck,
 } from 'lucide-react';
 import type { Domain, Folder } from '../../../shared/ipc';
 import type { ArchiveLabel } from '../../../shared/ownership';
@@ -283,7 +283,7 @@ export function RowActionsMenu({
                   title={marketReasons?.verificationTxt ?? undefined}
                   onSelect={() => onMarket('verificationTxt')}
                 >
-                  <ShieldCheck className="text-muted-foreground" />
+                  <FileBadge className="text-muted-foreground" />
                   Ownership verification TXT
                   <span className="-ml-[6px] opacity-50">…</span>
                 </DropdownMenuItem>
@@ -292,7 +292,7 @@ export function RowActionsMenu({
                   title={marketReasons?.recheckOwnership ?? undefined}
                   onSelect={() => onMarket('recheckOwnership')}
                 >
-                  <ScanSearch className="text-muted-foreground" />
+                  <SearchCheck className="text-muted-foreground" />
                   Recheck ownership
                   <span className="-ml-[6px] opacity-50">…</span>
                 </DropdownMenuItem>

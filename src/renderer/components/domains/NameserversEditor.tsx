@@ -108,7 +108,13 @@ export function NameserversEditor({
           <SelectTrigger size="sm" className="w-full">
             <SelectValue placeholder="Presets…" />
           </SelectTrigger>
-          <SelectContent className="max-w-[420px]">
+          {/* Popper, like the currency picker: a long list scrolls in place
+              under the trigger instead of running off the window. */}
+          <SelectContent
+            position="popper"
+            align="start"
+            className="max-h-72 w-(--radix-select-trigger-width)"
+          >
             {/* Each preset lists its actual hosts — several providers (e.g.
                 Cloudflare) hand out different host pairs per account, so the
                 provider name alone would look like duplicates. The markets'

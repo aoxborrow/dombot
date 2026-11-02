@@ -690,8 +690,9 @@ for the ones it can't.
   common sets, without the sets the Markets group already shows. Every
   nameserver change, preset or not, shows one warning ("any website or email
   stops working unless the new nameservers serve it") and has a red button.
-- **Recheck ownership…** asks each ticked market to check now that you own
-  the selected names it lists. It changes nothing in DNS. It offers only
+- **Recheck ownership…** asks each ticked market to check the selected names
+  it lists for your ownership verification (their TXT records or
+  nameservers) now. It changes nothing in DNS. It offers only
   markets that can be asked (never Sedo: none of its API calls asks for a
   check, and it checks on its own), with the ones that list any of the names
   ticked; results show per account.
@@ -706,7 +707,7 @@ for the ones it can't.
 
 ### TXT records while listing (built)
 
-"List at your prices" has **Add ownership verification TXT records first**,
+"List at your prices" has **Add ownership verification TXT records**,
 shown when a ticked market account has an Ownership Verification ID, and off
 until you tick it. On List, DomBot starts the TXT job for those accounts on
 the priced names a registrar account holds, in the background (the bulk bar

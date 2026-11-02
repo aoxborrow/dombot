@@ -311,9 +311,10 @@ export function RecheckOwnershipDialog({
           <DialogTitle>Recheck ownership</DialogTitle>
           {!results && (
             <DialogDescription>
-              Asks each ticked market to check now that you own the names it
-              lists. Afternic relists them; Atom checks their DNS, once per
-              account every 12 hours. Nothing in DNS changes.
+              Asks each ticked market to check the names’ TXT records or
+              nameservers for your ownership verification now. Afternic relists
+              them; Atom checks once per account every 12 hours. Nothing in DNS
+              changes.
             </DialogDescription>
           )}
         </DialogHeader>

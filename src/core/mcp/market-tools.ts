@@ -980,7 +980,7 @@ export function registerMarketWriteTools(server: McpServer): void {
     {
       title: 'Recheck ownership',
       description:
-        'Recheck ownership: ask the market to check now that you own a listed name, instead of waiting for its own check. Changes no DNS (add the TXT records first with domain_verification_apply). Afternic relists the name, which re-runs its checks; Atom checks DNS, one request per account every 12 hours (sooner, it fails saying a check is in progress). Sedo has no such call and says so. Returns the listing as read back afterwards; its status may take a while to change.',
+        'Recheck ownership: ask the market to check a listed name’s TXT records or nameservers for your ownership verification now, instead of waiting for its own check. Changes no DNS (add the TXT records first with domain_verification_apply). Afternic relists the name, which re-runs its checks; Atom checks DNS, one request per account every 12 hours (sooner, it fails saying a check is in progress). Sedo has no such call and says so. Returns the listing as read back afterwards; its status may take a while to change.',
       inputSchema: { domain: z.string().min(1).max(253), accountId },
       annotations: { idempotentHint: true },
     },
