@@ -623,10 +623,17 @@ MCP tools and the code. Neither name is final.
   the registrar has no DNS API. Changing nameservers asks first and says
   what the name will stop doing.
 - **Request ownership verification** asks the market to run its own check
-  now. It changes nothing in DNS. Only Atom has one (verify DNS, one request
-  per account every 12 hours, for any name: seen live, docs/atom-api.md);
-  Afternic and Sedo check on their own. After Apply, DomBot sends one
-  Request for the batch where the market has it, not one per name.
+  now. It changes nothing in DNS.
+  - **Atom:** verify DNS, one request per account every 12 hours, for any
+    name (seen live, docs/atom-api.md).
+  - **Afternic:** relist with `RESYNC` ("Re-trigger the listing process", up
+    to 500 names a call). Updating a listing doesn't re-run Afternic's checks
+    but relisting does (docs/afternic-api.md); whether that includes the
+    ownership check on a pending name isn't confirmed live yet.
+  - **Sedo:** none of its API calls asks for a check; it checks on its own.
+
+  After Apply, DomBot sends one Request for the batch where the market has
+  it, not one per name.
 
 ### Choosing a method when listing
 
@@ -637,6 +644,69 @@ Request where the market has one. There's no setting to verify on every
 listing: the right method depends on the name (one with a website or email
 shouldn't move nameservers), so the default only preselects the choice.
 
+### Tracking which names are set up
+
+DomBot should know, for every name and every connected market account,
+whether the name is already set up to verify: so the list flow can say so,
+the account card can count what's missing, and a filter can find it. It
+applies once the market account is connected, and for an account's own
+nameserver or TXT record, once its verification ID is entered. A name a
+market already shows as live or for sale counts as verified, whatever DNS
+says, so tracking matters most for pending listings and names about to be
+listed.
+
+**Phase 1: from nameservers DomBot already has.** No new requests: it's
+worked out from data sync and enrichment hold, and redone when a name's
+nameservers or an account's settings change. Per name and market account:
+
+- **Market nameservers:** the name is on the market's shared pair
+  (`marketNameserversFor` already recognizes them). Enough for that market,
+  except where another account already lists the name.
+- **Account nameserver:** one of the name's nameservers is this account's
+  own (Afternic's `verification-<ID>.ns101.verify.hn`, matched against the
+  account's setting). Another ID in the same pattern means a different
+  Afternic account, worth flagging.
+- **Not by nameservers:** neither. A TXT record may still cover it; that's
+  phase 2.
+- **Unknown:** DomBot doesn't have the nameservers yet. They come in the
+  list call only from GoDaddy, Spaceship and Dynadot; other registrars'
+  arrive through per-row enrichment (`getDomainDetail`, cached in
+  `registrar-details`), which falls back to a DNS-over-HTTPS lookup
+  (`src/core/dns.ts`).
+
+**Phase 2: TXT records.** Checking every name's DNS records is slow for a
+large portfolio, so it stays out of sync and runs only where it tells
+DomBot something. Ideas:
+
+- **Public DNS, not registrar APIs.** A DNS-over-HTTPS TXT query, with the
+  same resolvers as `src/core/dns.ts`, answers for any DNS host (the
+  registrar, Cloudflare, anyone else), needs no credentials, and doesn't
+  touch registrar rate limits. Registrar DNS APIs stay for Apply.
+- **One query covers every market.** A name's TXT answer holds all its TXT
+  records, so one lookup checks each market's ID at once. The same pass can
+  fill in nameservers phase 1 doesn't know yet.
+- **A background queue, not part of Sync now:** a few lookups in flight,
+  resumable, never ahead of anything the user is doing.
+- **Only the names that need it,** most urgent first: right after Apply, and
+  when the user asks (Check now on selected names); names listed and still
+  pending at a market; names about to be listed (the list flow checks the
+  ones it's offering). Names whose nameservers already settle it, and names
+  a market already shows for sale, are skipped. Everything else is checked
+  rarely, or only on request.
+- **Remember the results** in a namespace of its own (say
+  `domain-verification`, keyed by name: when checked, and which markets'
+  records were found), and check again on a schedule by result: pending
+  names daily, names not set up weekly or less, names found not again
+  unless their nameservers change, the account's verification ID changes,
+  or the listing goes back to pending.
+- **Resolver caching:** a TXT record added moments ago can be hidden behind
+  a resolver's cached "no record" answer, so a check right after Apply that
+  finds nothing should try again later rather than report a failure.
+- **At 10,000 names:** about 10 lookups a second makes a full pass about 17
+  minutes, but with the rules above a normal day checks only pending and new
+  names. The Worker has a per-invocation subrequest limit, so it works
+  through the queue in batches across runs.
+
 ### What DomBot will need
 
 - **Settings, per market account** (stored on the `market-accounts` record;
@@ -644,7 +714,7 @@ shouldn't move nameservers), so the default only preselects the choice.
   the market assigns one, and the default method for listing. Settings shows
   only the fields that market's methods need.
 - **Capabilities, per market:** which methods it accepts, its nameservers,
-  and whether it has Request (`verifyDns`, Atom only today). Each market
+  and whether it has Request (`verifyDns` on Atom; `relist` on Afternic). Each market
   already declares its nameservers next to its client
   (`src/core/markets/<market>/nameservers.ts`), published in the catalog as
   `MarketInfo.nameservers`; the Nameservers filter groups by them, and
@@ -652,8 +722,9 @@ shouldn't move nameservers), so the default only preselects the choice.
   account nameserver can be listed as a pattern
   (`verification-*.ns101.verify.hn`) so the filter recognizes it.
 - **Both actions on selected names** in the Domains table, and as separate
-  MCP tools: `domain_listing_verify` is Request (Atom's, built), and Apply
+  MCP tools: `domain_listing_verify` is Request (Atom's built; Afternic's would relist), and Apply
   gets a tool of its own.
+- **Verification tracking** (above): phase 1 with the rest, phase 2 later.
 - **Status:** a name stays `pending` until the market puts it up for sale
   (already the case for Sedo, `asyncInsert`), and the account card says how
   many are waiting.
@@ -699,8 +770,9 @@ capability:
 | `market_categories_get`        | —                 | Atom, Sedo |
 | `market_payments_get`          | `parkingEarnings` | Sedo       |
 
-`domain_listing_verify` is Request ownership verification; Apply will be a
-separate tool for every market (see Ownership verification).
+`domain_listing_verify` is Request ownership verification (Atom's verify DNS
+today; Afternic's would relist with `RESYNC`); Apply will be a separate tool
+for every market (see Ownership verification).
 
 Anything that spends money takes `confirmSpend: true`; anything that reaches
 a person (a sale message) says so in its description.
@@ -720,6 +792,7 @@ a person (a sale message) says so in its description.
    needs a partner ID and sign key. Atom also brought market bulk jobs (see "Bulk writes"). Status and
    what's left: atom-api.md, "Status"; sedo-api.md.
 5. **Ownership verification** for every market: planned above, not built.
+   Checking TXT records (tracking phase 2) comes after the rest.
 
 ## Open questions
 
