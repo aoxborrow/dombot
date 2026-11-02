@@ -543,24 +543,28 @@ sale: names sold in 12 months over names listed now plus those sold.
 
 As in the Afternic plan, generalized: one card per market account, built
 from the adapter's `configFields` and `test()`, with the same ⋯ menu as
-registrar cards. An opened card is one form with one Save, in titled
-sections (`CardSection`: a title with a line under it and a line of subtext,
-never a box of its own):
+registrar cards. An opened card is one form with one Save. Its fields use
+the registrar cards' `SettingsField` (a label, any help tucked under it, then
+the control, all stacked), and its selects fit their content:
 
-1. **API credentials:** how DomBot connects (encrypted, never sent anywhere
-   but the market), with the market's help on where to get them. DomBot's
-   sync notes and market-specific notes (Sedo's partner access, Atom's API
-   access) sit above the sections.
-2. **Ownership verification:** see "Ownership verification" below.
-3. **<Market> account settings,** where the market has any: what the market
-   holds, read through its API. What the account has shows read-only
-   (`MarketSyncState.status`, such as Afternic's Discount Domain Club Domain
-   Pro, which decides whether search counts come back; sync keeps it
-   current). Account settings (`accountSettings`) are editable and saved
-   back to the market: Afternic's lander (Buy Now, price request or custom)
-   and Lease To Own defaults (enable or disable installments, Maximum Lease
-   Period with Afternic's commission discount for each length), as a partial
-   update (`setMarketListingDefaults`). Their dropdowns fit their content.
+1. The market's help on where to get keys, then the **API credentials**
+   (encrypted, never sent anywhere but the market). DomBot's sync notes and
+   market-specific notes (Sedo's partner access, Atom's API access) sit
+   above them.
+2. The **Ownership Verification ID** and **Preferred Verification Method**
+   right after them, with no heading of their own (see "Ownership
+   verification" below).
+3. **<Market> account settings,** where the market has any, under a
+   `CardSection` heading (a title with a line under it and a line of
+   subtext, never a box of its own): what the market holds, read through its
+   API. What the account has shows read-only (`MarketSyncState.status`, such
+   as Afternic's Discount Domain Club Domain Pro, which decides whether search
+   counts come back; sync keeps it current). Account settings
+   (`accountSettings`) are editable and saved back to the market: Afternic's
+   lander (Buy Now, price request or custom) and Lease To Own defaults
+   (enable or disable installments, Maximum Lease Period with Afternic's
+   commission discount for each length), side by side where there's room, as
+   a partial update (`setMarketListingDefaults`).
 
 Save tests a changed key first, so a refused one saves nothing; then it
 saves the verification ID, then the market's settings. A verification value
@@ -632,12 +636,12 @@ What each costs:
 
 ### Settings (built)
 
-The Ownership verification section of each market account's card (see
+The ownership verification fields of each market account's card (see
 "Settings → Markets") is saved on the `market-accounts` record as
 `verification: { id, method }`; it isn't a secret.
 
 - **Ownership Verification ID**, labelled the same for every market. The help
-  text is the market's menu path to it, and a link to the page:
+  under the label is the market's menu path to it, and a link to the page:
   - Afternic: Ownership Settings → Domain Ownership Record
     (<https://www.afternic.com/account/ownership>). The TXT Record or the
     Nameserver (NS3) both work.

@@ -58,15 +58,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { SettingsField } from './SettingsCard';
 import { CardSection } from '../../components/CardSection';
 
 // Settings → Markets (docs/markets.md): one card per connected marketplace
@@ -241,16 +237,7 @@ function EmptyMarkets() {
 /** Where to get keys, and the market's own note about them. */
 function MarketHelp({ market }: { market: MarketInfo }) {
   return (
-    <p className="mb-4 text-sm text-muted-foreground">
-      <MarketHelpText market={market} />
-    </p>
-  );
-}
-
-/** The same, inline: a card section's subtext. */
-function MarketHelpText({ market }: { market: MarketInfo }) {
-  return (
-    <>
+    <p className="mb-4 text-[13px] leading-relaxed text-muted-foreground">
       {market.helpText}{' '}
       <a
         href={market.keysUrl}
@@ -263,7 +250,7 @@ function MarketHelpText({ market }: { market: MarketInfo }) {
         Open {market.website}
         <ExternalLink className="size-3" />
       </a>
-    </>
+    </p>
   );
 }
 
@@ -294,14 +281,26 @@ function CredentialFields({
             onChange(field.name, e.target.value),
         };
         return (
-          <Field key={field.name}>
-            <FieldLabel htmlFor={id}>{field.label}</FieldLabel>
+          <SettingsField
+            key={field.name}
+            htmlFor={id}
+            label={
+              <>
+                {field.label}
+                {field.required && <span className="text-destructive"> *</span>}
+              </>
+            }
+          >
             {field.type === 'password' ? (
-              <PasswordInput {...props} revealLabel={`Show ${field.label}`} />
+              <PasswordInput
+                {...props}
+                className="font-mono"
+                revealLabel={`Show ${field.label}`}
+              />
             ) : (
-              <Input {...props} />
+              <Input {...props} className="font-mono" />
             )}
-          </Field>
+          </SettingsField>
         );
       })}
     </>
@@ -805,10 +804,8 @@ function MarketCard({
                 {note}
               </p>
             ))}
-            <CardSection
-              title="API credentials"
-              description={<MarketHelpText market={market} />}
-            >
+            <div>
+              <MarketHelp market={market} />
               <FieldGroup className="gap-4">
                 <CredentialFields
                   market={market}
@@ -819,23 +816,18 @@ function MarketCard({
                     setValues((current) => ({ ...current, [name]: value }))
                   }
                 />
+                <VerificationFields
+                  market={market}
+                  idPrefix={account.id}
+                  value={verification.value}
+                  method={verification.method}
+                  savedId={savedVerification.id}
+                  disabled={busy !== null}
+                  onValue={setVerifyValue}
+                  onMethod={setVerifyMethod}
+                />
               </FieldGroup>
-            </CardSection>
-            <CardSection
-              title="Ownership verification"
-              description="For Apply ownership verification on the Domains page."
-            >
-              <VerificationFields
-                market={market}
-                idPrefix={account.id}
-                value={verification.value}
-                method={verification.method}
-                savedId={savedVerification.id}
-                disabled={busy !== null}
-                onValue={setVerifyValue}
-                onMethod={setVerifyMethod}
-              />
-            </CardSection>
+            </div>
             {(account.sync?.status?.length || leaseDraft) && (
               <CardSection
                 title={`${market.name} account settings`}
@@ -844,6 +836,7 @@ function MarketCard({
                 }.`}
               >
                 <AccountSettingsFields
+                  idPrefix={account.id}
                   marketName={market.name}
                   flags={account.sync?.status ?? []}
                   lease={leaseDraft}
@@ -964,61 +957,66 @@ function VerificationFields({
   const ns3 = verificationNameserver(market.id, savedId);
   return (
     <>
-      <Field>
-        <FieldLabel htmlFor={`${idPrefix}-verification`}>
-          Ownership Verification ID
-        </FieldLabel>
+      <SettingsField
+        htmlFor={`${idPrefix}-verification`}
+        label="Ownership Verification ID"
+        description={
+          <>
+            {help.path}.{' '}
+            <a
+              href={help.url}
+              className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+              onClick={(e) => {
+                e.preventDefault();
+                void window.api.openExternal(help.url);
+              }}
+            >
+              Open {market.name}
+              <ExternalLink className="size-3" />
+            </a>
+          </>
+        }
+      >
         <Input
           id={`${idPrefix}-verification`}
           value={value}
           autoComplete="off"
           spellCheck={false}
-          className="font-mono text-xs md:text-xs"
+          className="font-mono"
           disabled={disabled}
           onChange={(e) => onValue(e.target.value)}
         />
-        <FieldDescription>
-          {help.path}.{' '}
-          <a
-            href={help.url}
-            className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
-            onClick={(e) => {
-              e.preventDefault();
-              void window.api.openExternal(help.url);
-            }}
-          >
-            Open {market.name}
-            <ExternalLink className="size-3.5" />
-          </a>
-        </FieldDescription>
         {ns3 && (
           <p className="text-xs break-all text-muted-foreground">
             Its nameserver (NS3):{' '}
             <span className="font-mono text-foreground">{ns3}</span>
           </p>
         )}
-      </Field>
-      <SettingRow label="Preferred Verification Method">
-        <Select
-          value={method}
-          disabled={disabled}
-          onValueChange={(v) => onMethod(v as VerificationMethod)}
-        >
-          <SelectTrigger
-            aria-label="Preferred Verification Method"
-            className="h-8"
+      </SettingsField>
+      <SettingsField
+        htmlFor={`${idPrefix}-verification-method`}
+        label="Preferred Verification Method"
+      >
+        {/* Fits its content: the field stretches its direct children. */}
+        <div>
+          <Select
+            value={method}
+            disabled={disabled}
+            onValueChange={(v) => onMethod(v as VerificationMethod)}
           >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            {VERIFICATION_METHODS.map((m) => (
-              <SelectItem key={m} value={m}>
-                {verificationMethodLabel(m, market.name)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </SettingRow>
+            <SelectTrigger id={`${idPrefix}-verification-method`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {VERIFICATION_METHODS.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {verificationMethodLabel(m, market.name)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </SettingsField>
     </>
   );
 }
@@ -1047,12 +1045,14 @@ function SettingRow({
  * the market itself; DomBot sends lease-to-own with every listing it creates.
  */
 function AccountSettingsFields({
+  idPrefix,
   marketName,
   flags,
   lease,
   disabled,
   onChange,
 }: {
+  idPrefix: string;
   marketName: string;
   flags: { label: string; on: boolean }[];
   lease: LeaseDefaults | null;
@@ -1085,70 +1085,81 @@ function AccountSettingsFields({
       ))}
       {lease && (
         <>
-          {lease.lander !== null && (
-            <SettingRow label="Lander for new listings">
-              <Select
-                value={lease.lander}
-                disabled={disabled}
-                onValueChange={(v) => onChange({ lander: v as LanderStyle })}
+          <div className="flex flex-wrap gap-x-6 gap-y-4 pt-2">
+            {lease.lander !== null && (
+              <SettingsField
+                htmlFor={`${idPrefix}-lander`}
+                label="Lander for new listings"
+                className="w-auto"
               >
-                <SelectTrigger
-                  aria-label="Lander for new listings"
-                  className="h-8"
+                <Select
+                  value={lease.lander}
+                  disabled={disabled}
+                  onValueChange={(v) => onChange({ lander: v as LanderStyle })}
                 >
+                  <SelectTrigger id={`${idPrefix}-lander`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(
+                      Object.entries(LANDER_STYLES) as [LanderStyle, string][]
+                    ).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </SettingsField>
+            )}
+            <SettingsField
+              htmlFor={`${idPrefix}-lease`}
+              label="Lease To Own"
+              className="w-auto"
+            >
+              <Select
+                value={lease.enabled ? 'on' : 'off'}
+                disabled={disabled}
+                onValueChange={(v) => onChange({ enabled: v === 'on' })}
+              >
+                <SelectTrigger id={`${idPrefix}-lease`}>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent align="end">
-                  {(
-                    Object.entries(LANDER_STYLES) as [LanderStyle, string][]
-                  ).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
+                <SelectContent>
+                  <SelectItem value="off">Disable installments</SelectItem>
+                  <SelectItem value="on">Enable installments</SelectItem>
+                </SelectContent>
+              </Select>
+            </SettingsField>
+            <SettingsField
+              htmlFor={`${idPrefix}-lease-months`}
+              label="Maximum Lease Period"
+              className="w-auto"
+            >
+              <Select
+                value={String(months)}
+                disabled={disabled || !lease.enabled}
+                onValueChange={(v) => onChange({ months: Number(v) })}
+              >
+                <SelectTrigger id={`${idPrefix}-lease-months`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {leaseMonthOptions(months).map((m) => (
+                    <SelectItem key={m} value={String(m)}>
+                      {m} months
+                      {leaseCommissionDiscount(m) > 0 && (
+                        <span className="text-muted-foreground">
+                          {' '}
+                          · {leaseCommissionDiscount(m)}% discount
+                        </span>
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </SettingRow>
-          )}
-          <SettingRow label="Lease To Own">
-            <Select
-              value={lease.enabled ? 'on' : 'off'}
-              disabled={disabled}
-              onValueChange={(v) => onChange({ enabled: v === 'on' })}
-            >
-              <SelectTrigger aria-label="Lease To Own" className="h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                <SelectItem value="off">Disable installments</SelectItem>
-                <SelectItem value="on">Enable installments</SelectItem>
-              </SelectContent>
-            </Select>
-          </SettingRow>
-          <SettingRow label="Maximum Lease Period">
-            <Select
-              value={String(months)}
-              disabled={disabled || !lease.enabled}
-              onValueChange={(v) => onChange({ months: Number(v) })}
-            >
-              <SelectTrigger aria-label="Maximum Lease Period" className="h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {leaseMonthOptions(months).map((m) => (
-                  <SelectItem key={m} value={String(m)}>
-                    {m} months
-                    {leaseCommissionDiscount(m) > 0 && (
-                      <span className="text-muted-foreground">
-                        {' '}
-                        · {leaseCommissionDiscount(m)}% discount
-                      </span>
-                    )}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingRow>
+            </SettingsField>
+          </div>
           <p className="pt-1 text-xs text-muted-foreground">
             These apply to listings created from now on. Installments need a Buy
             Now price between $495 and $5,000,000; if a price is too low for the
