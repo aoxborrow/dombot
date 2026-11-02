@@ -35,6 +35,7 @@ import DemoBanner from './components/DemoBanner';
 import { useWeeklyUpdateCheck } from './lib/updates';
 import StatusBar from './components/StatusBar';
 import { isDemo } from './lib/platform';
+import { isDevVersion } from '../shared/releases';
 import { useTabMetrics, type TabMetrics } from './lib/tab-metrics';
 import {
   TabLink,
@@ -212,10 +213,13 @@ export default function App() {
               title="About this version"
             >
               {/* A serif italic "v", dimmer than the monospace digits (like
-                  the domain names) and set a little apart from them. */}
-              <span className="mr-px font-serif text-[12px] italic opacity-60">
-                v
-              </span>
+                  the domain names) and set a little apart from them. Not
+                  for a dev build (the demo), which has no number. */}
+              {!isDevVersion(appInfo.version) && (
+                <span className="mr-px font-serif text-[12px] italic opacity-60">
+                  v
+                </span>
+              )}
               <span className="font-mono text-[10px]">{appInfo.version}</span>
             </button>
           )}

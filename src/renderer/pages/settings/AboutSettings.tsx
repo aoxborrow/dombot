@@ -24,7 +24,7 @@ import { Switch } from '@/components/ui/switch';
 import { isDemo, isWeb } from '@/lib/platform';
 import { releaseNotesUrl, updateUrl, useUpdates } from '@/lib/updates';
 import { timeAgo } from '@/lib/time';
-import { releasesNewerThan } from '../../../shared/releases';
+import { isDevVersion, releasesNewerThan } from '../../../shared/releases';
 import type { UpdaterState } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { SettingsCard } from './SettingsCard';
@@ -105,6 +105,8 @@ export default function AboutSettings() {
     status = `DomBot ${newer[0].version} is available.`;
   else if (newer.length > 1)
     status = `${newer.length} newer releases are available; the latest is ${newer[0].version}.`;
+  else if (current && isDevVersion(current))
+    status = `A development build, newer than the latest release (${releases[0]?.version ?? 'none yet'}).`;
   else status = 'You’re on the latest version.';
 
   return (
@@ -121,7 +123,15 @@ export default function AboutSettings() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-lg font-semibold">
-              DomBot {current ?? '…'}
+              DomBot{' '}
+              {/* A dev build's commit reads as code, set apart from the name. */}
+              {current && isDevVersion(current) ? (
+                <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[15px] font-medium">
+                  {current}
+                </span>
+              ) : (
+                (current ?? '…')
+              )}
               {appInfo && (
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
                   {isDemo()

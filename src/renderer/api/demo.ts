@@ -54,7 +54,10 @@ import { openExternalInBrowser, saveTextFileInBrowser } from './http';
 //
 // Nothing here persists: a reload regenerates the portfolio from the seed.
 
-export const DEMO_VERSION: string = pkg.version;
+// The build stamps the commit it was built from (vite.demo.config.mts), e.g.
+// dev+a1b2c3d. Tests run without the build, so fall back to package.json.
+export const DEMO_VERSION: string =
+  typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : pkg.version;
 
 const none = z.tuple([]);
 

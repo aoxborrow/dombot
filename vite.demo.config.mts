@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 // The demo build: the same renderer, but with the whole core bundled into
 // the page and `window.api` served in-process against the in-memory demo
@@ -12,9 +12,24 @@ import { readFileSync } from 'node:fs';
 //   npm run demo:build  → dist/demo
 //   npm run demo:dev    → vite dev server
 
-const pkg = JSON.parse(
-  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
-) as { version: string };
+// The version the demo shows. demo.dombot.ai deploys every push to main, so
+// it runs code newer than the last release; package.json's version would
+// name a download that behaves differently. It shows the commit instead:
+// dev+a1b2c3d.
+function demoVersion(): string {
+  let head = process.env.WORKERS_CI_COMMIT_SHA ?? '';
+  if (!head) {
+    try {
+      head = execFileSync('git', ['rev-parse', 'HEAD'], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+    } catch {
+      // Not a git checkout: plain "dev".
+    }
+  }
+  return head ? `dev+${head.slice(0, 7)}` : 'dev';
+}
 
 // The shared index.html carries only what the desktop app needs. The demo is
 // a public web page, so give it the same head as the marketing site: a title,
@@ -106,7 +121,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), demoHead()],
   base: './',
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_VERSION__: JSON.stringify(demoVersion()),
     __DOMBOT_DEMO__: 'true',
   },
   build: {
