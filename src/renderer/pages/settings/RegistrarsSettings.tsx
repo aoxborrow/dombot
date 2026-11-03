@@ -1297,13 +1297,18 @@ function OptionalCredentialFields(props: CredentialFieldsProps) {
   );
   const about = REGISTRAR_HELP[provider.name].optional;
   return (
-    <Collapsible open={open || incomplete} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="group -ml-0.5 inline-flex items-center gap-1 text-sm font-medium">
-        <ChevronRight className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+    // A panel of its own, so it reads as a section even while collapsed.
+    <Collapsible
+      open={open || incomplete}
+      onOpenChange={setOpen}
+      className="rounded-md border bg-muted/30"
+    >
+      <CollapsibleTrigger className="group flex w-full items-center gap-1.5 rounded-md px-3 py-2.5 text-left text-sm font-medium outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:rounded-b-none">
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
         {about?.title ?? 'Optional'}
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <FieldGroup className="mt-3 gap-4">
+        <FieldGroup className="gap-4 border-t px-3 pt-3 pb-4">
           {about && (
             <p className="text-[13px] leading-relaxed text-muted-foreground">
               <HelpText text={about.summary} />
