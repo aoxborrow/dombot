@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Copy, Eye, EyeOff, Lock } from 'lucide-react';
+import { Copy, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Domain } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { reportOpResult, targetOf } from '../../lib/domain-ops';
+import { InlineWarning } from '../InlineWarning';
 import {
   friendlyError,
   isApiUnsupportedMessage,
@@ -137,11 +138,10 @@ export function AuthCodeDialog({
             </div>
           )}
           {domain.locked && (
-            <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
-              <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <InlineWarning>
               This domain is locked. A transfer won’t go through until it’s
-              unlocked (the Locked column).
-            </p>
+              unlocked (Transfer lock in its row menu, or the Locked column).
+            </InlineWarning>
           )}
         </div>
 

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { TriangleAlert } from 'lucide-react';
 import {
   sameNameservers,
   validateNameservers,
@@ -17,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { InlineWarning } from '../InlineWarning';
 
 /** Shown once the set differs from the current one, whatever the new set is. */
 export const NAMESERVER_WARNING =
@@ -157,21 +157,10 @@ export function NameserversEditor({
       )}
 
       {!unchanged && parsed.nameservers.length > 0 && (
-        <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
-          <TriangleAlert
-            className="mt-0.5 size-3.5 shrink-0 text-amber-500 dark:text-amber-400"
-            aria-hidden
-          />
-          {NAMESERVER_WARNING}
-        </p>
+        <InlineWarning>{NAMESERVER_WARNING}</InlineWarning>
       )}
 
-      {note && (
-        <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
-          <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-          {note}
-        </p>
-      )}
+      {note && <InlineWarning>{note}</InlineWarning>}
 
       {showActions && (
         <div className="flex items-center justify-end gap-2">

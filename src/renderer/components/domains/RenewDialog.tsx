@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { TriangleAlert } from 'lucide-react';
 import type { Domain, RenewalPricing } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
+import { InlineWarning } from '../InlineWarning';
 import { reportOpResult, targetOf } from '../../lib/domain-ops';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -142,11 +142,10 @@ export function RenewDialog({
           )}
         </dd>
       </dl>
-      <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
-        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+      <InlineWarning>
         The cost is DomBot’s estimate. Your registrar charges its own price,
         which can differ for premium names.
-      </p>
+      </InlineWarning>
     </ConfirmDialog>
   );
 }
