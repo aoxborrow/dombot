@@ -117,10 +117,10 @@ Things to know about the reference:
   `for_sale_type` (Not Set, Buy Now, Make Offer, Buy Now + Make Offer),
   `price`, `transfer_status` and `updated_date`. No minimum offer,
   installments, category or description.
-- **Verification values** come per name: `verify_status`, the
+- **Verification values** are asked for per name: `verify_status`, the
   `open_market_key`, the TXT value, the nameservers to use, and a CNAME
-  host. `new_key: true` regenerates the key. Whether the key is one per
-  account or one per name isn't said (open question 4).
+  host. `new_key: true` regenerates the key. The reference doesn't say the
+  key is the account's, but the dashboard shows it is (below).
 - **Verify now** takes a list and answers `success_list` and `failed_list`
   (failed, or not in the other-registrar list).
 - **Listing** sets `for_sale_type` (`marketplace` or `not_for_sale`; the
@@ -185,6 +185,13 @@ No seller "my listings" call is documented for these. What there is:
   Verify Now), then listed as Marketplace. Only nameserver verification
   allows Dynadot's For Sale landing page. No user auctions; installments
   are allowed.
+- **One key for the account** (seen in the dashboard, 2026-11-03). The
+  Verification dialog shows "Your Open Marketplace Key", 32 hex
+  characters, with a Regenerate button, and it was the same for every name
+  added. The TXT record is the key itself. The nameservers are
+  `ns1.dyna-ns.net`, `ns2.dyna-ns.net` and `ns3-<key>.dyna-ns.org`: a
+  shared pair plus a third that carries the key, the same pattern as
+  Afternic's NS3.
 - **The verification has to stay.** If Dynadot can't find the record later,
   the name goes back to Unverified and its listings are removed (with a
   "Domain Delisting" email).
@@ -210,7 +217,7 @@ No seller "my listings" call is documented for these. What there is:
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `other_registrar_domain_list`                 | Sync for names held elsewhere: sale type, price, verification and transfer status, 100 a page.                                                                                 |
 | `add_other_registrar_domain`                  | The first step of listing a name held elsewhere, done for the user as part of List.                                                                                            |
-| `other_registrar_domain_verification`         | The TXT value to set up, and the nameservers for anyone who wants Dynadot's landing page. Nothing to paste.                                                                    |
+| `other_registrar_domain_verification`         | The account's Open Marketplace Key, saved as its Ownership Verification ID, so there's nothing to paste once a name is added.                                                  |
 | `verify_other_registrar_domain`               | Recheck ownership, for a list of names; also run after DomBot adds the TXT records.                                                                                            |
 | `listing_other_registrar_domain`              | List, reprice, Buy Now and Make Offer, minimum offer, delist (`not_for_sale`) for names held elsewhere.                                                                        |
 | `delete_other_registrar_domain`               | Take a name off Dynadot's list entirely, when asked.                                                                                                                           |
@@ -412,13 +419,34 @@ get a verification mark.
 **Held elsewhere:** every name needs it, and the verification has to stay in
 place.
 
-- **Nothing to paste.** Dynadot gives the values per name through the API,
-  so the card has no Ownership Verification ID field, and DomBot reads a
-  name's TXT value when it needs it (cached). If the key turns out to be
-  one per account (open question 4), DomBot reads it once and stores it as
-  the account's `verificationId`, and everything below works as for other
-  markets. Otherwise the TXT job learns to ask a market for each name's
-  value instead of taking one per account.
+- **One key per account,** so it's the account's Ownership Verification ID
+  (`verificationId`), and what markets.md built for the other markets works
+  unchanged.
+- **Filled in from the API.** The first `other_registrar_domain_verification`
+  answer (for any added name) gives `open_market_key`, and DomBot saves it;
+  each sync checks it again, so a key regenerated on Dynadot's site is
+  picked up. Before any name is added, the card's field takes a paste, with
+  the help "My Domains → Other Registrar → Unverified: Your Open
+  Marketplace Key". The key, the TXT value or the NS3 hostname all work;
+  DomBot reads the key out of any of them, as it does Afternic's. DomBot
+  never sends `new_key`.
+- **Two methods, both shaped like Afternic's:**
+
+  | Method      | What DomBot sets                                                 |
+  | ----------- | ---------------------------------------------------------------- |
+  | TXT record  | the key, at the root, TTL 3600                                   |
+  | Nameservers | `ns1.dyna-ns.net`, `ns2.dyna-ns.net` and `ns3-<key>.dyna-ns.org` |
+
+  The NS3 carries the account's key, as Afternic's
+  `verification-<ID>.ns101.verify.hn` does, so nameservers prove ownership
+  on their own, even for a name another account has added. The three are
+  declared in `src/core/markets/dynadot/nameservers.ts` (the pair, and
+  `*.dyna-ns.org` for the NS3) and make the Dynadot preset in the
+  nameserver editor's Markets group, the NS3 lowercased like every
+  nameserver DomBot sends. Nameservers hand the name's DNS to Dynadot, and
+  they're the only method that gets Dynadot's For Sale landing page; TXT
+  stays the default.
+
 - **Ownership verification TXT…** offers the Dynadot account for names held
   elsewhere, through the registrar account that holds each name, as for
   every market. When the job has finished, DomBot asks Dynadot to verify
@@ -428,9 +456,6 @@ place.
 - **List at your prices** turns **Add ownership verification TXT records**
   on to start for a Dynadot listing of names held elsewhere: without it
   the listing can't go live. The user can still turn it off.
-- **Nameservers:** Dynadot's verification nameservers are a preset in the
-  Markets group for these names, for anyone who wants Dynadot's landing
-  page. Not the default: it hands the name's DNS to Dynadot.
 - **Recheck ownership…** works (`verifyDns: true`), many names a call.
 - **Keeping it in place.** Removing the TXT record, or moving the name to
   other nameservers, gets the Dynadot listing removed. DomBot's nameserver
@@ -438,7 +463,8 @@ place.
   editor keeps the record like any other.
 - **Tracking** (markets.md, "Tracking which names are set up") gets its
   answer for free here: `verify_status` from sync says, per name, whether
-  Dynadot sees it.
+  Dynadot sees it. Phase 1's nameserver rule recognizes the Dynadot pair
+  and this account's NS3 as it does Afternic's.
 
 ### Sales
 
@@ -548,7 +574,8 @@ Phase 5 adds the pay link tools and `domain_listing_fast_transfer_set`
 ### The demo
 
 A Dynadot Marketplace account linked to the demo's Dynadot registrar
-account (`src/core/demo/markets.ts`): Buy Now, offers-only and
+account (`src/core/demo/markets.ts`), with a made-up Open Marketplace Key
+as its verification ID: Buy Now, offers-only and
 pending-sale listings in the account, and names from the demo's other
 registrars on Dynadot, one waiting on verification and one sold and
 waiting on its auth code.
@@ -579,8 +606,9 @@ nobody would pay, read back, then delisted.
    the demo account. Live reads, open questions 1–6 first.
 3. **Writes and verification:** list, reprice, Buy Now and offers, minimum
    offer, delist for both kinds; add and remove for names held elsewhere;
-   per-name TXT values in Ownership verification TXT…, verify after it,
-   Recheck, the nameserver preset and warning. Through the List and Delist
+   the Open Marketplace Key read into the verification ID, Ownership
+   verification TXT… with a verify after it, Recheck, the nameserver preset
+   with its NS3, and the nameserver warning. Through the List and Delist
    dialog, the bulk runner and the MCP tools. Live round trips on both
    test names.
 4. **Sales:** sale records for names held elsewhere and their steps on the
@@ -597,9 +625,11 @@ nobody would pay, read back, then delisted.
    With `show_other_registrar`, does it include names held elsewhere?
 3. Does `get_listing_item` return more than documented (minimum offer,
    currency, installments)? What's in `price` for a Make Offer listing?
-4. Is the open marketplace key one per account or one per name? Does
-   `new_key` change every name's value, and does a regenerated key unlist
-   names until their records are updated?
+4. The key is one per account (seen in the dashboard). Still open: does
+   Regenerate (`new_key`) unlist names verified with the old key until
+   their records change? Does `ns3-<key>.dyna-ns.org` answer DNS
+   (Afternic's NS3 host doesn't), and does Dynadot accept the shared pair
+   without it?
 5. For a sold name held elsewhere: which `status` or `transfer_status`
    says the buyer has paid, does the list read give a price or an order id,
    and can the auth code be submitted through the API (a command behind
