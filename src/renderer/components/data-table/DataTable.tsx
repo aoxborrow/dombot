@@ -100,6 +100,7 @@ export function DataTable<T>({
   layout,
   onLayoutChange,
   forceVisible,
+  floatingBar,
 }: {
   rows: T[];
   /** Every column, in default order. With a `layout`, it picks and orders them. */
@@ -126,6 +127,12 @@ export function DataTable<T>({
   onLayoutChange?: (next: ColumnLayout) => void;
   /** Columns shown even while the layout hides them, e.g. one being filtered. */
   forceVisible?: readonly string[];
+  /**
+   * Floats centred over the bottom of the table while set (the bulk actions
+   * bar), with room after the last row to scroll it out from under. Its
+   * width can follow the table's through the `float` container.
+   */
+  floatingBar?: ReactNode;
 }) {
   const columns = layout
     ? applyColumnLayout(allColumns, layout, forceVisible)
@@ -181,6 +188,13 @@ export function DataTable<T>({
       {/* This region scrolls; the column names stick to its top and move
           sideways with the columns. Overlay bars sit on the host. */}
       <DomainTableScroll
+        overlay={
+          floatingBar && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-8 z-20 flex flex-col items-center gap-2 px-3 @container/float">
+              {floatingBar}
+            </div>
+          )
+        }
         className={cn(
           // Row height is set by the cells' vertical padding around one line of
           // text (icon buttons overlap into it with negative margins, so they
@@ -345,6 +359,7 @@ export function DataTable<T>({
             )}
           </TableBody>
         </Table>
+        {floatingBar && <div aria-hidden className="h-[88px]" />}
       </DomainTableScroll>
 
       {/* Pagination stays under the table, outside the scroll, so the row

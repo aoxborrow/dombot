@@ -6,6 +6,7 @@ import {
   type MarketStatsDay,
 } from '../../../shared/markets';
 import { localDay } from '../../../shared/domain-events';
+import { toAscii } from '../../../shared/domain-name';
 import { namesSelling } from '../../../shared/ownership';
 import { broadcastPortfolioChanged } from '../../events';
 import {
@@ -126,6 +127,55 @@ export function putMarketListings(
   if (saved.length) {
     void listings.setMany(saved.map((l) => [`${accountId}:${l.name}`, l]));
   }
+}
+
+/**
+ * Re-read these names' listings on every enabled account (Refresh on
+ * Domains), so a change made on the market's site shows without a full
+ * sync. A name the market lists is stored fresh; a stored one it no longer
+ * lists is dropped, unless it's a pending listing the market is still
+ * checking (Sedo leaves those out until it adds them). Atom reads one name
+ * per call, so there only the names it already lists are re-read. An
+ * account that fails keeps its rows; its label comes back in `failed`.
+ */
+export async function refreshMarketListings(
+  names: readonly string[],
+): Promise<{ failed: string[] }> {
+  const failed: string[] = [];
+  const keys = [...new Set(names.map((n) => toAscii(n)))];
+  for (const account of activeMarketAccounts()) {
+    const prefix = `${account.id}:`;
+    const adapter = marketAdapter(account.id);
+    const caps = adapter.capabilities;
+    const ask =
+      caps.writeBatch > 1
+        ? keys
+        : keys.filter((name) => listings.get(prefix + name));
+    if (ask.length === 0) continue;
+    let read: MarketListing[];
+    try {
+      read = await adapter.getListings(ask);
+    } catch (err) {
+      console.error('[markets] refreshing listings failed', err);
+      failed.push(account.label);
+      continue;
+    }
+    const fresh = new Map(read.map((l) => [prefix + l.name, l]));
+    for (const name of ask) {
+      const key = prefix + name;
+      const row = listings.get(key);
+      if (!row || fresh.has(key)) continue;
+      if (caps.asyncInsert && row.status === 'pending') continue;
+      void listings.delete(key);
+    }
+    if (caps.asyncInsert) {
+      for (const [key, row] of fresh)
+        fresh.set(key, holdPending(listings.get(key), row));
+    }
+    void listings.setMany([...fresh]);
+  }
+  broadcastPortfolioChanged();
+  return { failed };
 }
 
 /** Drop listings a market confirmed it delisted. */

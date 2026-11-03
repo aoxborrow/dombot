@@ -166,16 +166,22 @@ Sold…" becomes Record sale… / Edit sale….
 
 ### Bulk
 
-The selection bar on Activity gets the one-click answers, each with how many
-of the selection it applies to:
+The selection bar on Activity (the floating bar Domains uses) gets the
+answers, each with how many of the selection it applies to. None is one click
+in bulk: each opens a dialog listing the names, and saves on its button.
 
-- **Record registration** for the selected arrivals. Names without a usable
-  price are skipped; the toast says how many, and Needs review still lists
-  them. Each name is one pricing call to its registrar, so a large batch
-  runs like the other bulk jobs, paced per account.
+- **Record registration** for the selected arrivals: the Registration |
+  Purchase switch of the one-name dialog, and one amount recorded for every
+  name (a promo registration fee, say). Registrations are dated the day each
+  name was created; purchases take one date. Bulk is for names that cost the
+  same, so it doesn't look up registrar fees; a name priced differently is
+  recorded from its row. The toast has an Undo. Domains' bulk Record
+  purchase is the same dialog.
+- **Record sale** takes one sale date and one price for every name; a blank
+  price is added later from each row (the same dialog as on Domains).
 - **Mark dropped** for the selected departures.
 - **Dismiss** (today's "Dismiss review") for the selected new rows.
-- Record sale… and Notes… stay as they are.
+- Notes… stays as it is.
 
 ## Recording a registration or a purchase
 

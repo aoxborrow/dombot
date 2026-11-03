@@ -402,13 +402,13 @@ export function MarketActionDialog({
             <>
               {job?.status === 'running' ? (
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   onClick={() => void window.api.cancelMarketBulk(job.id)}
                 >
                   Stop
                 </Button>
               ) : (
-                <Button variant="ghost" disabled={running} onClick={onClose}>
+                <Button variant="outline" disabled={running} onClick={onClose}>
                   Cancel
                 </Button>
               )}

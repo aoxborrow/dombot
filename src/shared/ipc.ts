@@ -230,6 +230,7 @@ export const IpcChannels = {
   pushMarketPrices: 'markets:pushPrices',
   deleteMarketListings: 'markets:deleteListings',
   relistMarketListings: 'markets:relist',
+  refreshMarketListings: 'markets:refreshListings',
   requestMarketVerification: 'markets:requestVerification',
   startMarketBulk: 'markets:bulkStart',
   advanceMarketBulk: 'markets:bulkAdvance',
@@ -1282,6 +1283,11 @@ export interface DombotApi {
     names: string[],
     mode?: 'RESYNC' | 'REACTIVATE',
   ) => Promise<MarketWriteResult[]>;
+  /**
+   * Re-read these names' listings on every enabled market account (Refresh
+   * on Domains). `failed` names the accounts that couldn't be read.
+   */
+  refreshMarketListings: (names: string[]) => Promise<{ failed: string[] }>;
   /**
    * Recheck ownership: ask the market to check these listed names now
    * (Afternic's relist, Atom's verify DNS). Changes no DNS.

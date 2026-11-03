@@ -77,6 +77,62 @@ function alreadyInState(
   }
 }
 
+// One op per direction for the kinds whose support can depend on it (GoDaddy
+// can turn privacy off but not on).
+/** The registrar changes the bulk menu offers, each opening its dialog. */
+export type BulkRegistrarKind = Exclude<
+  DomainOpKind,
+  'approveTransfer' | 'txtRecords'
+>;
+
+const PROBES: Record<BulkRegistrarKind, DomainOp[]> = {
+  autoRenew: [
+    { kind: 'autoRenew', enabled: true },
+    { kind: 'autoRenew', enabled: false },
+  ],
+  privacy: [
+    { kind: 'privacy', enabled: true },
+    { kind: 'privacy', enabled: false },
+  ],
+  lock: [
+    { kind: 'lock', locked: true },
+    { kind: 'lock', locked: false },
+  ],
+  nameservers: [{ kind: 'nameservers', nameservers: [] }],
+  urlForwarding: [{ kind: 'urlForwarding', forwards: [] }],
+  emailForwarding: [{ kind: 'emailForwarding', forwards: [] }],
+  authCode: [{ kind: 'authCode' }],
+  renew: [{ kind: 'renew', years: 1 }],
+};
+
+/**
+ * Why none of `held` (the selected names at a connected account) can take a
+ * bulk `kind`, or null when at least one can, so the menu item greys out only
+ * when the dialog would have nothing to send. One registrar's own reason when
+ * they share it.
+ */
+export function bulkKindReason(
+  held: readonly Domain[],
+  kind: BulkRegistrarKind,
+  registrars: RegistrarMeta[] | null,
+): string | null {
+  if (held.length === 0) return 'None of these are at a connected account.';
+  const reasons = new Set<string>();
+  for (const d of held) {
+    // Per account: GoDaddy's Optional settings add features to one account.
+    const meta = accountMetaOf(registrars, d);
+    if (!meta) return null;
+    const why = PROBES[kind].map((op) =>
+      unsupportedReason(meta.name, meta.features, op),
+    );
+    if (why.some((r) => r === null)) return null;
+    reasons.add(why[0]!);
+  }
+  return reasons.size === 1
+    ? [...reasons][0]
+    : `None of these names’ registrars offer ${OP_LABEL[kind]} through their API.`;
+}
+
 /** Imperative title for an op, e.g. "Enable auto-renew", "Unlock". */
 export function bulkOpTitle(op: DomainOp): string {
   switch (op.kind) {

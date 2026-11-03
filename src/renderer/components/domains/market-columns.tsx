@@ -398,6 +398,8 @@ export function marketColumns({
     {
       key: 'fastTransfer',
       label: 'Fast Transfer',
+      tooltip:
+        'Afternic Fast Transfer: a buyer pays and gets the name right away, through GoDaddy’s partner registrars. It needs a Buy Now price, and an eligible registrar and TLD.',
       hideOnMobile: true,
       render: (d) => {
         const status = of(d).map(fastTransferOf).find(Boolean);
@@ -413,12 +415,17 @@ export function marketColumns({
     },
     // Interest over the last 12 months: sort by Leads, then Views, for the
     // names buyers look at most.
-    count('views', 'Views', (d) => traffic[toAscii(d.domainName)]?.views365),
+    count(
+      'views',
+      'Views',
+      (d) => traffic[toAscii(d.domainName)]?.views365,
+      'Listing views over the last 12 months, every market added up: Afternic views, Sedo visitors, Atom views.',
+    ),
     count(
       'leads',
       'Leads',
       (d) => traffic[toAscii(d.domainName)]?.leads365,
-      undefined,
+      'Buyer leads over the last 12 months. Only Afternic counts them.',
       (d) => traffic[toAscii(d.domainName)]?.views365,
     ),
     count(

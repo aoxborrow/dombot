@@ -431,6 +431,7 @@ export function createHttpApi(): DombotApi {
     cancelMarketBulk: m('cancelMarketBulk'),
     deleteMarketListings: m('deleteMarketListings'),
     relistMarketListings: m('relistMarketListings'),
+    refreshMarketListings: m('refreshMarketListings'),
     requestMarketVerification: m('requestMarketVerification'),
     setMarketSaleAuthCode: m('setMarketSaleAuthCode'),
     sendMarketSaleMessage: m('sendMarketSaleMessage'),

@@ -13,7 +13,6 @@ import {
   CircleMinus,
   CirclePlus,
   CalendarClock,
-  ChevronDown,
   CircleSlash,
   ClipboardPen,
   Diff,
@@ -58,8 +57,11 @@ import {
 } from '../components/activity/EventTypeBadge';
 import {
   DeleteDomainsDialog,
-  MarkSoldDialog,
+  BulkSaleDialog,
 } from '../components/actions/OwnershipDialogs';
+import { ActionDialog } from '../components/actions/ActionDialog';
+import { BulkPurchaseDialog } from '../components/domains/BulkPurchaseDialog';
+import { SelectionBar } from '../components/data-table/SelectionBar';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { useColumnLayout } from '../components/data-table/ColumnPicker';
 import { applyColumnLayout } from '../components/data-table/column-layout';
@@ -149,6 +151,11 @@ type DialogState =
       side: AcquisitionSide;
       /** Why the fee isn't filled in, from a one-click registration. */
       note?: string;
+    }
+  | {
+      /** The bulk answers, each confirmed in a dialog listing the names. */
+      kind: 'registrations' | 'dropped' | 'dismiss';
+      events: DomainEvent[];
     };
 
 /**
@@ -495,15 +502,20 @@ export default function Activity() {
     return closer && closer.source === 'sync' ? undefined : e.id;
   };
   /** One item per name with no sale on record yet. */
-  const unsoldOf = (list: ActivityRow[]) => {
+  /** One row per selected name with no sale on record. */
+  const unsoldRowsOf = (list: ActivityRow[]) => {
     const seen = new Set<string>();
-    return list.flatMap(({ event: e }) => {
-      if (seen.has(e.domain)) return [];
+    return list.filter(({ event: e }) => {
+      if (seen.has(e.domain)) return false;
       seen.add(e.domain);
-      if (stateOf(e)?.sale) return [];
-      return [{ domainName: toUnicode(e.domain), resolves: answers(e) }];
+      return !stateOf(e)?.sale;
     });
   };
+  const unsoldOf = (list: ActivityRow[]) =>
+    unsoldRowsOf(list).map(({ event: e }) => ({
+      domainName: toUnicode(e.domain),
+      resolves: answers(e),
+    }));
   const namesOf = (list: ActivityRow[]) => [
     ...new Map(list.map((r) => [r.event.domain, r.event])).values(),
   ];
@@ -511,11 +523,11 @@ export default function Activity() {
   const removableOf = (list: ActivityRow[]) =>
     namesOf(list).filter((e) => !held(e));
 
-  function dismiss(list: DomainEvent[]) {
+  function dismiss(list: DomainEvent[]): Promise<void> {
     const ids = list.map((e) => e.id);
     const what =
       list.length === 1 ? toUnicode(list[0].domain) : `${list.length} alerts`;
-    void setAlertsDismissed(ids, true).then(() => {
+    return setAlertsDismissed(ids, true).then(() => {
       deselect(ids);
       toast.success(`Dismissed ${what}`, {
         action: {
@@ -554,12 +566,16 @@ export default function Activity() {
     return null;
   }
 
-  /** Undo one-click registrations: delete the ones answering these arrivals. */
+  /**
+   * Undo recorded registrations or purchases: delete the ones answering these
+   * arrivals, which go back to Needs review.
+   */
   async function undoRegistrations(ids: string[]) {
     const answering = new Set(ids);
     for (const e of useAppStore.getState().domainEvents)
       if (
-        e.type === DomainEventType.Registered &&
+        (e.type === DomainEventType.Registered ||
+          e.type === DomainEventType.Purchased) &&
         e.resolves &&
         answering.has(e.resolves)
       )
@@ -595,52 +611,12 @@ export default function Activity() {
     });
   }
 
-  /**
-   * Record registration for many arrivals, one registrar call each, in turn.
-   * Names with no usable fee are skipped and stay in Needs review.
-   */
-  async function recordRegistrations(list: DomainEvent[]) {
-    const n = list.length;
-    const id = toast.loading(`Recording ${n} registrations…`);
-    const saved: string[] = [];
-    let skipped = 0;
-    for (const e of list) {
-      try {
-        if (await saveRegistration(e)) skipped += 1;
-        else saved.push(e.id);
-      } catch {
-        skipped += 1;
-      }
-      toast.loading(
-        `Recording registrations… ${saved.length + skipped} of ${n}`,
-        { id },
-      );
-    }
-    deselect(saved);
-    const done = `Recorded ${saved.length} registration${saved.length === 1 ? '' : 's'}`;
-    const left = skipped
-      ? `${skipped} had no fee to record and still need review.`
-      : undefined;
-    (saved.length ? toast.success : toast.error)(done, {
-      id,
-      description: left,
-      ...(saved.length
-        ? {
-            action: {
-              label: 'Undo',
-              onClick: () => void undoRegistrations(saved),
-            },
-          }
-        : {}),
-    });
-  }
-
   /** Mark departures dropped (no money came back), with an Undo. */
-  function markDropped(list: DomainEvent[], dropped = true) {
+  function markDropped(list: DomainEvent[], dropped = true): Promise<void> {
     const ids = list.map((e) => e.id);
     const what =
       list.length === 1 ? toUnicode(list[0].domain) : `${list.length} names`;
-    void setDeparturesDropped(ids, dropped).then(() => {
+    return setDeparturesDropped(ids, dropped).then(() => {
       deselect(ids);
       if (!dropped) return;
       toast.success(`Marked ${what} dropped`, {
@@ -1019,97 +995,85 @@ export default function Activity() {
           fields={filterFields}
           presets={['account', 'type']}
         />
-
-        {selected.size > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand/70 bg-brand/10 py-1.5 pl-2.5 pr-[7px]">
-            <div className="flex items-center gap-3 text-sm">
-              <span className="font-medium text-brand">
-                <span className="pl-1 pr-px text-[16px] font-bold">
-                  {selected.size}
-                </span>{' '}
-                selected
-                {newSelected.length > 0 && (
-                  <span className="font-normal text-muted-foreground">
-                    {' '}
-                    · {newSelected.length} new
-                  </span>
-                )}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1 border-brand/40 pl-1! pr-2.5 text-muted-foreground hover:bg-brand/10 hover:text-brand dark:border-brand/40 dark:hover:bg-brand/15 dark:hover:text-brand"
-                onClick={clearSelection}
-              >
-                <X />
-                Clear
-              </Button>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm">
-                  Bulk actions
-                  <ChevronDown className="text-primary-foreground/70" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
-                <BulkItem
-                  icon={StickyNoteIcon}
-                  label="Notes"
-                  count={namesOf(selectedRows).length}
-                  onSelect={() =>
-                    setDialog({ kind: 'notes', rows: selectedRows })
-                  }
-                />
-                <DropdownMenuSeparator />
-                <BulkItem
-                  icon={ClipboardPen}
-                  label="Record registration"
-                  count={arrivalsSelected.length}
-                  immediate
-                  onSelect={() => void recordRegistrations(arrivalsSelected)}
-                />
-                <BulkItem
-                  icon={Receipt}
-                  label="Record sale"
-                  count={unsoldOf(selectedRows).length}
-                  onSelect={() =>
-                    setDialog({ kind: 'sold', rows: selectedRows })
-                  }
-                />
-                <BulkItem
-                  icon={CircleSlash}
-                  label="Mark dropped"
-                  count={departuresSelected.length}
-                  immediate
-                  onSelect={() => markDropped(departuresSelected)}
-                />
-                <DropdownMenuSeparator />
-                <BulkItem
-                  icon={X}
-                  label="Dismiss"
-                  count={newSelected.length}
-                  immediate
-                  onSelect={() => dismiss(newSelected)}
-                />
-                <DropdownMenuSeparator />
-                <BulkItem
-                  icon={Trash2}
-                  label="Delete"
-                  count={removableOf(selectedRows).length}
-                  destructive
-                  onSelect={() =>
-                    setDialog({ kind: 'delete', rows: selectedRows })
-                  }
-                />
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
       </div>
 
       <DataTable
         className="mt-[13px]"
+        // The bulk actions float over the table once rows are selected.
+        floatingBar={
+          selected.size > 0 && (
+            <SelectionBar
+              count={selected.size}
+              total={reviewOnly ? reviewIds.size : allRows.length}
+              onClear={clearSelection}
+              actionsClassName="w-60"
+              actions={
+                <>
+                  <BulkItem
+                    icon={StickyNoteIcon}
+                    label="Notes"
+                    count={namesOf(selectedRows).length}
+                    onSelect={() =>
+                      setDialog({ kind: 'notes', rows: selectedRows })
+                    }
+                  />
+                  <DropdownMenuSeparator />
+                  <BulkItem
+                    icon={ClipboardPen}
+                    label="Record registration"
+                    count={arrivalsSelected.length}
+                    onSelect={() =>
+                      setDialog({
+                        kind: 'registrations',
+                        events: arrivalsSelected,
+                      })
+                    }
+                  />
+                  <BulkItem
+                    icon={Receipt}
+                    label="Record sale"
+                    count={unsoldOf(selectedRows).length}
+                    // Only the names with no sale on record; one left gets
+                    // the sale dialog, which also takes fees, as on Domains.
+                    onSelect={() =>
+                      setDialog({
+                        kind: 'sold',
+                        rows: unsoldRowsOf(selectedRows),
+                      })
+                    }
+                  />
+                  <BulkItem
+                    icon={CircleSlash}
+                    label="Mark dropped"
+                    count={departuresSelected.length}
+                    onSelect={() =>
+                      setDialog({ kind: 'dropped', events: departuresSelected })
+                    }
+                  />
+                  <DropdownMenuSeparator />
+                  <BulkItem
+                    icon={X}
+                    label="Dismiss"
+                    count={newSelected.length}
+                    onSelect={() =>
+                      setDialog({ kind: 'dismiss', events: newSelected })
+                    }
+                  />
+                  <DropdownMenuSeparator />
+                  <BulkItem
+                    icon={Trash2}
+                    label="Delete"
+                    count={removableOf(selectedRows).length}
+                    destructive
+                    onSelect={() =>
+                      setDialog({ kind: 'delete', rows: selectedRows })
+                    }
+                  />
+                </>
+              }
+            />
+          )
+        }
         rows={rows}
         columns={columns}
         layout={columnLayout}
@@ -1177,7 +1141,7 @@ export default function Activity() {
             onClose={() => setDialog(null)}
           />
         ) : (
-          <MarkSoldDialog
+          <BulkSaleDialog
             items={unsoldOf(dialog.rows)}
             onDone={clearSelection}
             onClose={() => setDialog(null)}
@@ -1205,6 +1169,39 @@ export default function Activity() {
       {dialog?.kind === 'notes' && (
         <BulkNotesDialog
           domainNames={namesOf(dialog.rows).map((e) => e.domain)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'registrations' && (
+        <BulkPurchaseDialog
+          side="registration"
+          targets={dialog.events.map((e) => ({
+            domain: alertDomain(e, domains, registrars),
+            resolves: e.id,
+            arrivedOn: e.date ?? undefined,
+          }))}
+          onDone={deselect}
+          onUndo={(answered) => void undoRegistrations(answered)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'dropped' && (
+        <ActionDialog
+          title="Mark dropped"
+          names={dialog.events.map((e) => toUnicode(e.domain))}
+          description="Records that each name left your account and no money came back, which answers it in Needs review. Nothing changes at the registrar."
+          actionLabel="Mark dropped"
+          onConfirm={() => markDropped(dialog.events)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'dismiss' && (
+        <ActionDialog
+          title="Dismiss"
+          names={dialog.events.map((e) => toUnicode(e.domain))}
+          description="Marks each as read, so it’s no longer highlighted or counted on the bell. Anything still missing its money stays in Needs review."
+          actionLabel="Dismiss"
+          onConfirm={() => dismiss(dialog.events)}
           onClose={() => setDialog(null)}
         />
       )}
@@ -1466,20 +1463,20 @@ function ReviewButton({
   );
 }
 
-/** A bulk action with how many of the selection it applies to. */
+/**
+ * A bulk action with how many of the selection it applies to. Each opens a
+ * dialog that lists the names before anything is saved.
+ */
 function BulkItem({
   icon: Icon,
   label,
   count,
-  immediate = false,
   destructive = false,
   onSelect,
 }: {
   icon: ComponentType<{ className?: string }>;
   label: string;
   count: number;
-  /** Runs at once instead of opening a dialog (no "…"). */
-  immediate?: boolean;
   destructive?: boolean;
   onSelect: () => void;
 }) {
@@ -1491,7 +1488,7 @@ function BulkItem({
     >
       <Icon className={destructive ? undefined : 'text-muted-foreground'} />
       {label}
-      {!immediate && <span className="-ml-[6px] opacity-50">…</span>}
+      <span className="-ml-[6px] opacity-50">…</span>
       <span className="ml-auto text-xs tabular-nums text-muted-foreground">
         {count}
       </span>

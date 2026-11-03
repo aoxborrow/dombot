@@ -112,6 +112,15 @@ for renew), and Export results CSV. How the two hosts drive the steps is in
 | Auth code               | no confirm (read); shown masked with reveal/copy                             | results table; export warns it's a secret                                                                  |
 | **Renew**               | dialog with years, price estimate, new expiry; typed confirmation            | same plus total cost across the selection; typed confirmation; lanes forced to 1; **no automatic retries** |
 
+The row's ⋯ menu offers every one of these for one name under **Registrar**,
+so they're there when a column is hidden or isn't in the view (Listings has
+no flag or nameserver columns). Auto-renew, privacy and lock are checkboxes
+that flip with the same friction as their cells (privacy and unlock ask in a
+dialog), and Nameservers… opens the cell's editor in a dialog. The bulk
+actions bar floats over the table once rows are selected; its Actions menu
+has the same order and submenus as the row menu, and each Registrar item
+opens the bulk dialog where the value is picked.
+
 Renew is never retried blind: a timed-out renewal may have gone through. The
 library never resends a write whose outcome is unknown, DomBot re-reads the
 domain to settle it, and Retry failed is never offered for renew.
@@ -154,8 +163,9 @@ export function unsupportedReason(
 `unsupportedReason` first checks the extended-feature requirement (auth code →
 `getAuthCode`, forwarding → `set…Forwarding`, transfer approval →
 `approveTransferOut`), then the gap map. The renderer
-uses it to disable controls (with the reason as the tooltip) and to bucket a
-bulk selection; the bulk runner uses it to mark items `unsupported` without a
+uses it to disable controls (with the reason as the tooltip), to grey a bulk
+menu item when no selected name's registrar can take it (`bulkKindReason`),
+and to bucket a bulk selection; the bulk runner uses it to mark items `unsupported` without a
 network call. A `NotImplementedError` the map didn't predict is still
 classified `unsupported` at run time: the map is a UX nicety, not the source
 of truth.

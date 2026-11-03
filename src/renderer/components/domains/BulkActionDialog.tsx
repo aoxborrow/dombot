@@ -1,6 +1,6 @@
 import { domainKey } from '../../../shared/account-key';
 import { useMemo, useState } from 'react';
-import { ChevronRight, Copy, TriangleAlert } from 'lucide-react';
+import { ChevronRight, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
   BulkJob,
@@ -12,6 +12,7 @@ import type {
 } from '../../../shared/ipc';
 import { friendlyError } from '../../../shared/domain-ops';
 import { useAppStore } from '../../store/app';
+import { InlineWarning } from '../InlineWarning';
 import {
   bucketSelection,
   bulkOpTitle,
@@ -311,11 +312,10 @@ export function BulkActionDialog({
           />
         )}
         {op.kind === 'authCode' && (
-          <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
-            <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <InlineWarning>
             Auth codes are transfer secrets. They’re shown once here and never
             stored by DomBot; export them only if you need a file.
-          </p>
+          </InlineWarning>
         )}
         <Buckets buckets={buckets} held={held} />
       </ConfirmDialog>
@@ -657,12 +657,11 @@ function BulkRenew({
           )}
         </dd>
       </dl>
-      <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
-        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+      <InlineWarning>
         Estimates only — each registrar charges its own price, which can differ
         for premium names. Renewals run one at a time and are never retried
         automatically.
-      </p>
+      </InlineWarning>
     </div>
   );
 }

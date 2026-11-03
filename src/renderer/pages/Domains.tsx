@@ -19,7 +19,6 @@ import {
   CalendarClock,
   CalendarPlus2,
   CircleCheck,
-  CircleHelp,
   Globe,
   RotateCw,
   Server,
@@ -56,7 +55,7 @@ import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
   DeleteDomainsDialog,
-  MarkSoldDialog,
+  BulkSaleDialog,
 } from '../components/actions/OwnershipDialogs';
 import { useAppStore } from '../store/app';
 import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
@@ -119,6 +118,7 @@ import {
 } from '../../shared/market-filter';
 import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
+import { BulkPurchaseDialog } from '../components/domains/BulkPurchaseDialog';
 import { ListPriceDialog } from '../components/domains/ListPriceDialog';
 import { MarketListingDialog } from '../components/domains/MarketListingDialog';
 import { ImportedDomainDialog } from '../components/domains/ImportedDomainDialog';
@@ -128,14 +128,20 @@ import {
   DEFAULT_NUMBER_FORMAT,
   formatMoney,
 } from '../../shared/money';
-import { NameserversCell } from '../components/domains/NameserversCell';
+import {
+  NameserversCell,
+  NameserversDialog,
+} from '../components/domains/NameserversCell';
 import { AuthCodeDialog } from '../components/domains/AuthCodeDialog';
 import { RenewDialog } from '../components/domains/RenewDialog';
 import {
   EmailForwardingDialog,
   UrlForwardingDialog,
 } from '../components/domains/ForwardingDialogs';
-import { BulkBar, type OwnershipAction } from '../components/domains/BulkBar';
+import {
+  BulkActionsBar,
+  type OwnershipAction,
+} from '../components/domains/BulkActionsBar';
 import { BulkActionDialog } from '../components/domains/BulkActionDialog';
 import { defaultBulkOp } from '../lib/bulk';
 import {
@@ -203,7 +209,7 @@ type RegistrarLabels = Record<string, string>;
 interface Column {
   key: string;
   label: string;
-  /** A hover note on the header, marked with a small help icon. */
+  /** A hover note on the header, for a label that needs explaining. */
   tooltip?: string;
   /** Cell renderer. */
   render: (d: Domain, labels: RegistrarLabels) => React.ReactNode;
@@ -625,11 +631,12 @@ const VIEW_COLUMNS: Record<DomainsView, ColumnLayout> = {
       FOLDER,
       'binPrice',
       'minOffer',
+      'fastTransfer',
       'listing',
       'views',
       'leads',
       'searches',
-      'fastTransfer',
+      'nameservers',
       'registrar',
       'expirationDate',
       'purchaseDate',
@@ -955,6 +962,7 @@ export default function Domains() {
     listPrices,
     marketAccounts,
     marketListings,
+    refreshMarketListings,
     marketCatalog,
     marketTraffic,
     marketSales,
@@ -1401,6 +1409,7 @@ export default function Domains() {
   // Per-row action dialogs (opened from the row's "⋯" menu).
   const [authCodeFor, setAuthCodeFor] = useState<Domain | null>(null);
   const [renewFor, setRenewFor] = useState<Domain | null>(null);
+  const [nameserversFor, setNameserversFor] = useState<Domain | null>(null);
   const [urlForwardingFor, setUrlForwardingFor] = useState<Domain | null>(null);
   const [emailForwardingFor, setEmailForwardingFor] = useState<Domain | null>(
     null,
@@ -1411,11 +1420,25 @@ export default function Domains() {
   const [bulkNotesFor, setBulkNotesFor] = useState<Domain[] | null>(null);
   // Re-fetch one row's full record from its registrar (bypassing the detail
   // cache) — the row's detail cells show skeletons while it's in flight.
-  const refreshDomain = (d: Domain) => {
-    void enrichVisible([d], true).then(() =>
-      toast.success(`Refreshed ${d.domainName}`),
-    );
-  };
+  // Refresh re-reads the registrar's detail of names an account holds and,
+  // with a market account, every name's listings (an imported name can be
+  // listed too). A market that couldn't be read says so in the toast.
+  async function refreshNames(ds: Domain[], noun: string) {
+    const [, failed] = await Promise.all([
+      enrichVisible(ds, true),
+      marketsOn
+        ? refreshMarketListings(ds.map((d) => d.domainName)).catch(() => [
+            'your markets',
+          ])
+        : [],
+    ]);
+    if (failed.length)
+      toast.warning(`Refreshed ${noun}`, {
+        description: `Couldn’t read listings from ${failed.join(', ')}.`,
+      });
+    else toast.success(`Refreshed ${noun}`);
+  }
+  const refreshDomain = (d: Domain) => void refreshNames([d], d.domainName);
 
   // CSV export: an in-flight flag (dialog open + write) and a transient result
   // note ("Exported N rows to …" / an error) that clears itself after a moment.
@@ -2077,14 +2100,24 @@ export default function Domains() {
   // the detail cache (their cells show skeletons while in flight).
   // Registrar actions act on the selected names an account still holds.
   // The selected names at a connected account: what registrar actions run on.
+  // The bulk Folder menu's counts: selected names per folder (or None).
+  const selectedFolderCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const d of selectedDomains) {
+      const bucket = folderBucket(
+        folderAssignments[toAscii(d.domainName)],
+        folders,
+      );
+      counts[bucket] = (counts[bucket] ?? 0) + 1;
+    }
+    return counts;
+  }, [selectedDomains, folderAssignments, folders]);
   const selectedHeld = selectedDomains.filter(
     (d) => !d.departed && d.source !== 'imported',
   );
   const bulkRefresh = () => {
-    const n = selectedHeld.length;
-    void enrichVisible(selectedHeld, true).then(() =>
-      toast.success(`Refreshed ${n} domain${n === 1 ? '' : 's'}`),
-    );
+    const n = selectedDomains.length;
+    void refreshNames(selectedDomains, `${n} domain${n === 1 ? '' : 's'}`);
   };
   function applyFolders(domainsToMove: Domain[], folderId: string | null) {
     const keys = domainsToMove.map((domain) => domainKey(domain));
@@ -2112,8 +2145,45 @@ export default function Domains() {
     }));
 
   function openOwnership(action: OwnershipAction, ds: Domain[]) {
-    if (action === 'sold' && ds.length === 1) setMarkSoldFor(ds[0]);
-    else setOwnershipDialog({ action, domains: ds });
+    if (action === 'purchase') {
+      // Like Record sale: a name with a purchase on record edits it from its
+      // row. One name left gets the purchase dialog, which also takes notes.
+      const unpaid = ds.filter((d) => {
+        const record = purchaseOf(d);
+        return !record?.purchaseDate && !record?.amount;
+      });
+      if (unpaid.length === 0)
+        toast.info(
+          ds.length === 1
+            ? `${ds[0].domainName} already has a purchase on record`
+            : 'These already have a purchase on record',
+          { description: 'Edit a purchase from its row.' },
+        );
+      else if (unpaid.length === 1) setPurchaseFor(unpaid[0]);
+      else setOwnershipDialog({ action, domains: unpaid });
+      return;
+    }
+    if (action !== 'sold') {
+      setOwnershipDialog({ action, domains: ds });
+      return;
+    }
+    // Record sale records new sales: a name with one on record edits it from
+    // its row, so it stays out (a priced bulk sale would replace it). One
+    // name left gets the sale dialog, which also takes fees.
+    const unsold = ds.filter(
+      (d) => !ownership.get(toAscii(d.domainName))?.sale,
+    );
+    if (unsold.length === 0) {
+      toast.info(
+        ds.length === 1
+          ? `${ds[0].domainName} already has a sale on record`
+          : 'These already have a sale on record',
+        { description: 'Edit a sale from its row.' },
+      );
+      return;
+    }
+    if (unsold.length === 1) setMarkSoldFor(unsold[0]);
+    else setOwnershipDialog({ action, domains: unsold });
   }
 
   // After a bulk ownership action the names leave this view: clear them.
@@ -2232,6 +2302,7 @@ export default function Domains() {
               folders={folders}
               folderId={folderAssignments[toAscii(d.domainName)]}
               onRefresh={() => refreshDomain(d)}
+              onNameservers={() => setNameserversFor(d)}
               onUrlForwarding={() => setUrlForwardingFor(d)}
               onEmailForwarding={() => setEmailForwardingFor(d)}
               onAuthCode={() => setAuthCodeFor(d)}
@@ -2253,8 +2324,6 @@ export default function Domains() {
                   ? (action) => setMarketAction({ action, domains: [d] })
                   : undefined
               }
-              marketLabel={marketLabel}
-              marketId={marketId}
               marketReasons={marketReasonsFor([d])}
             />
           </div>
@@ -2336,13 +2405,7 @@ export default function Domains() {
     const col = columnByKey.get(key)!;
     return {
       label: col.tooltip ? (
-        <span
-          className="inline-flex cursor-help items-center gap-1"
-          title={col.tooltip}
-        >
-          {col.label}
-          <CircleHelp className="size-3" aria-hidden />
-        </span>
+        <span title={col.tooltip}>{col.label}</span>
       ) : (
         col.label
       ),
@@ -2525,40 +2588,52 @@ export default function Domains() {
             </span>
           )}
         </FilterToolbar>
-
-        {/* Bulk action bar — contextual: appears once any row is selected, or
-            while a bulk job is running (as a progress pill). */}
-        <BulkBar
-          domains={selectedDomains}
-          folders={folders}
-          onClear={clearSelection}
-          onRefresh={bulkRefresh}
-          onExport={() => void exportCsv(selectedDomains)}
-          onAssignFolder={(folderId) => applyFolders(selectedDomains, folderId)}
-          onNotes={() => setBulkNotesFor(selectedDomains)}
-          onKind={(kind) =>
-            setBulkDialog({ op: defaultBulkOp(kind, selectedHeld) })
-          }
-          onViewJob={() => {
-            if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });
-          }}
-          archiveView={archiveView}
-          onOwnership={(action) => openOwnership(action, selectedDomains)}
-          onListPrice={() => setListPriceFor(selectedDomains)}
-          onMarket={
-            marketsOn
-              ? (action) =>
-                  setMarketAction({ action, domains: selectedDomains })
-              : undefined
-          }
-          marketLabel={marketLabel}
-          marketId={marketId}
-          marketReasons={marketReasonsFor(selectedDomains)}
-        />
       </div>
 
       <DataTable
         className="mt-[13px]"
+        // The bulk actions float over the table once rows are selected (or
+        // a bulk job's progress, while one runs).
+        floatingBar={
+          (selectedDomains.length > 0 || bulk?.status === 'running') && (
+            <BulkActionsBar
+              domains={selectedDomains}
+              held={selectedHeld}
+              total={
+                archiveView
+                  ? archiveCount
+                  : view === 'listings'
+                    ? listedCount
+                    : ownedCount
+              }
+              folders={folders}
+              folderCounts={selectedFolderCounts}
+              onClear={clearSelection}
+              onRefresh={bulkRefresh}
+              onExport={() => void exportCsv(selectedDomains)}
+              onAssignFolder={(folderId) =>
+                applyFolders(selectedDomains, folderId)
+              }
+              onNotes={() => setBulkNotesFor(selectedDomains)}
+              onKind={(kind) =>
+                setBulkDialog({ op: defaultBulkOp(kind, selectedHeld) })
+              }
+              onViewJob={() => {
+                if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });
+              }}
+              archiveView={archiveView}
+              onOwnership={(action) => openOwnership(action, selectedDomains)}
+              onListPrice={() => setListPriceFor(selectedDomains)}
+              onMarket={
+                marketsOn
+                  ? (action) =>
+                      setMarketAction({ action, domains: selectedDomains })
+                  : undefined
+              }
+              marketReasons={marketReasonsFor(selectedDomains)}
+            />
+          )
+        }
         rows={filtered}
         columns={dataColumns}
         layout={columnLayout}
@@ -2618,6 +2693,12 @@ export default function Domains() {
         <AuthCodeDialog
           domain={authCodeFor}
           onClose={() => setAuthCodeFor(null)}
+        />
+      )}
+      {nameserversFor && (
+        <NameserversDialog
+          domain={nameserversFor}
+          onClose={() => setNameserversFor(null)}
         />
       )}
       {urlForwardingFor && (
@@ -2711,9 +2792,17 @@ export default function Domains() {
           const { action, domains: ds } = ownershipDialog;
           const close = () => setOwnershipDialog(null);
           const done = () => clearDone(ds);
+          if (action === 'purchase')
+            return (
+              <BulkPurchaseDialog
+                targets={ds.map((domain) => ({ domain }))}
+                onDone={done}
+                onClose={close}
+              />
+            );
           if (action === 'sold')
             return (
-              <MarkSoldDialog
+              <BulkSaleDialog
                 items={ownershipItems(ds)}
                 onDone={done}
                 onClose={close}

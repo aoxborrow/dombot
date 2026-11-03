@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Download, Upload } from 'lucide-react';
+import { FileSpreadsheet, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -96,7 +96,7 @@ function SpreadsheetCard() {
           className="gap-2"
           onClick={() => void onExport()}
         >
-          <Download className="size-4" />
+          <FileSpreadsheet className="size-4" />
           Export all domains
         </Button>
         <Button variant="ghost" onClick={() => void onTemplate()}>

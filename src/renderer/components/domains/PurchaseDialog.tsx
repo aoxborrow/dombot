@@ -220,7 +220,14 @@ export function PurchaseDialog({
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        // Start in the amount, not on the Registration | Purchase switch.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          document.getElementById('purchase-amount')?.focus();
+        }}
+      >
         <ActionHeader
           title={title[0].toUpperCase() + title.slice(1)}
           names={[domain.domainName]}
@@ -242,8 +249,7 @@ export function PurchaseDialog({
           <p className="text-sm text-muted-foreground">
             {side === 'registration'
               ? 'You registered it yourself: the fee you paid and the day it was created.'
-              : 'You bought it from someone: what you paid and when.'}{' '}
-            Kept even if the name leaves the account.
+              : 'You bought it from someone: what you paid and when.'}
           </p>
           <div className="flex flex-col gap-2">
             <Label htmlFor="purchase-date">
