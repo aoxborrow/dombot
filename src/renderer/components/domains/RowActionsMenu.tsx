@@ -271,14 +271,6 @@ export function RowActionsMenu({
                   <span className="-ml-[6px] opacity-50">…</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  disabled={Boolean(marketReasons?.delist)}
-                  title={marketReasons?.delist ?? undefined}
-                  onSelect={() => onMarket('delist')}
-                >
-                  <CircleX className="text-muted-foreground" />
-                  Delist<span className="-ml-[6px] opacity-50">…</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
                   disabled={Boolean(marketReasons?.verificationTxt)}
                   title={marketReasons?.verificationTxt ?? undefined}
                   onSelect={() => onMarket('verificationTxt')}
@@ -295,6 +287,14 @@ export function RowActionsMenu({
                   <Redo className="text-muted-foreground" />
                   Recheck ownership
                   <span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={Boolean(marketReasons?.delist)}
+                  title={marketReasons?.delist ?? undefined}
+                  onSelect={() => onMarket('delist')}
+                >
+                  <CircleX className="text-muted-foreground" />
+                  Delist<span className="-ml-[6px] opacity-50">…</span>
                 </DropdownMenuItem>
               </>
             )}
