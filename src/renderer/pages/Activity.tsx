@@ -502,15 +502,20 @@ export default function Activity() {
     return closer && closer.source === 'sync' ? undefined : e.id;
   };
   /** One item per name with no sale on record yet. */
-  const unsoldOf = (list: ActivityRow[]) => {
+  /** One row per selected name with no sale on record. */
+  const unsoldRowsOf = (list: ActivityRow[]) => {
     const seen = new Set<string>();
-    return list.flatMap(({ event: e }) => {
-      if (seen.has(e.domain)) return [];
+    return list.filter(({ event: e }) => {
+      if (seen.has(e.domain)) return false;
       seen.add(e.domain);
-      if (stateOf(e)?.sale) return [];
-      return [{ domainName: toUnicode(e.domain), resolves: answers(e) }];
+      return !stateOf(e)?.sale;
     });
   };
+  const unsoldOf = (list: ActivityRow[]) =>
+    unsoldRowsOf(list).map(({ event: e }) => ({
+      domainName: toUnicode(e.domain),
+      resolves: answers(e),
+    }));
   const namesOf = (list: ActivityRow[]) => [
     ...new Map(list.map((r) => [r.event.domain, r.event])).values(),
   ];
@@ -1028,8 +1033,13 @@ export default function Activity() {
                     icon={Receipt}
                     label="Record sale"
                     count={unsoldOf(selectedRows).length}
+                    // Only the names with no sale on record; one left gets
+                    // the sale dialog, which also takes fees, as on Domains.
                     onSelect={() =>
-                      setDialog({ kind: 'sold', rows: selectedRows })
+                      setDialog({
+                        kind: 'sold',
+                        rows: unsoldRowsOf(selectedRows),
+                      })
                     }
                   />
                   <BulkItem
