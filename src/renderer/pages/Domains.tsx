@@ -60,7 +60,6 @@ import {
 import { useAppStore } from '../store/app';
 import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
 import { importedRows } from '../../shared/imported-domains';
-import { priceMoney } from '../lib/renewals';
 import { SALE_STEP_LABEL, saleSourceLabel } from '../lib/sales';
 import { nameserverGroup } from '../lib/nameservers';
 import {
@@ -127,6 +126,8 @@ import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
   formatMoney,
+  formatMoneyNumber,
+  type NumberFormatId,
 } from '../../shared/money';
 import {
   NameserversCell,
@@ -303,9 +304,13 @@ const SOURCE_LABEL: Record<RenewalPricing['source'], string> = {
 function RenewalCell({
   info,
   loading,
+  preferred,
+  numberFormat,
 }: {
   info: RenewalPricing | undefined;
   loading: boolean;
+  preferred: string;
+  numberFormat: NumberFormatId;
 }) {
   if (info === undefined && loading) return <CellSkeleton align="right" />;
   if (!info || info.renewal == null) {
@@ -316,7 +321,7 @@ function RenewalCell({
       className="font-medium tabular-nums"
       title={`Renewal source: ${SOURCE_LABEL[info.source]}`}
     >
-      {priceMoney(info.renewal, info.currency)}
+      {formatMoneyNumber(info.renewal, info.currency, preferred, numberFormat)}
     </span>
   );
 }
@@ -2399,7 +2404,12 @@ export default function Domains() {
         headClassName: 'w-0',
         cellClassName: 'w-0 pr-3',
         cell: (d) => (
-          <RenewalCell info={pricing[domainKey(d)]} loading={pricingLoading} />
+          <RenewalCell
+            info={pricing[domainKey(d)]}
+            loading={pricingLoading}
+            preferred={currency}
+            numberFormat={settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT}
+          />
         ),
       };
     const col = columnByKey.get(key)!;
@@ -2516,6 +2526,7 @@ export default function Domains() {
             archiveLabelOf={archiveLabelOf}
             pricing={pricing}
             currency={currency}
+            numberFormat={settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT}
             fx={exchangeRates}
             actions={{
               // The names the card counts: expiring within 30 days, not

@@ -175,6 +175,24 @@ export function formatMoney(
 }
 
 /**
+ * `formatMoney` for an amount held as a number, such as a renewal price or a
+ * sum: rounded to the currency's places (or whole) first, since
+ * formatAmountInput cuts extra digits off. A loss gets a minus sign.
+ */
+export function formatMoneyNumber(
+  n: number,
+  currency: string,
+  preferred: string,
+  formatId: NumberFormatId,
+  whole = false,
+): string {
+  const places = whole ? 0 : (currencyInfo(currency)?.decimals ?? 2);
+  const canonical = Math.abs(n).toFixed(places);
+  const text = formatMoney(canonical, currency, preferred, formatId, whole);
+  return n < 0 && Number(canonical) !== 0 ? `−${text}` : text;
+}
+
+/**
  * Parse a stored amount: digits, an optional period, and no thousands
  * separators. Empty clears the amount. `$0` is allowed; negatives are not.
  * Fraction digits must fit the currency (USD 2, JPY 0, KWD 3). `label` names

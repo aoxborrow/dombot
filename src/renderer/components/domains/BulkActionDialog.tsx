@@ -65,7 +65,11 @@ import { NameserversEditor } from './NameserversEditor';
 import { UrlForwardingEditor } from './UrlForwardingEditor';
 import { EmailForwardingEditor } from './EmailForwardingEditor';
 import { useNameserverPresets } from './useNameserverPresets';
-import { priceMoney } from '../../lib/renewals';
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_NUMBER_FORMAT,
+  formatMoneyNumber,
+} from '../../../shared/money';
 
 /**
  * The three-stage bulk dialog every bulk op uses:
@@ -603,6 +607,7 @@ function BulkRenew({
   domains: Domain[];
   pricing: ReturnType<typeof useAppStore.getState>['pricing'];
 }) {
+  const settings = useAppStore((s) => s.settings);
   // Summed per currency: prices aren't converted.
   let known = 0;
   const totals = new Map<string, number>();
@@ -614,7 +619,14 @@ function BulkRenew({
     }
   }
   const total = [...totals]
-    .map(([currency, n]) => priceMoney(n, currency))
+    .map(([currency, n]) =>
+      formatMoneyNumber(
+        n,
+        currency,
+        settings?.preferredCurrency ?? DEFAULT_CURRENCY,
+        settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+      ),
+    )
     .join(' + ');
   const hasPorkbun = domains.some((d) => d.registrar === 'porkbun');
   return (

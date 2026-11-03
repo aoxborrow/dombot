@@ -12,7 +12,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { priceMoney } from '../../lib/renewals';
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_NUMBER_FORMAT,
+  formatMoneyNumber,
+} from '../../../shared/money';
 
 const MAX_YEARS = 10;
 /** What the user types to confirm — renewals charge the registrar account. */
@@ -23,11 +27,6 @@ const FIXED_TERM: Record<string, string> = {
   porkbun:
     'Porkbun always renews for the registry-minimum term (usually 1 year) regardless of the years chosen.',
 };
-
-/** A price in the estimate's currency, e.g. "$12.99" or "€9". */
-function usd(n: number, currency: string): string {
-  return priceMoney(n, currency);
-}
 
 function isoDate(date: Date | null): string {
   if (!date) return '—';
@@ -60,6 +59,15 @@ export function RenewDialog({
   onClose: () => void;
 }) {
   const applyDomainOp = useAppStore((s) => s.applyDomainOp);
+  const settings = useAppStore((s) => s.settings);
+  // A price in the estimate's currency, e.g. "$12.99" or "€9.00".
+  const money = (n: number) =>
+    formatMoneyNumber(
+      n,
+      pricing?.currency ?? 'USD',
+      settings?.preferredCurrency ?? DEFAULT_CURRENCY,
+      settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+    );
   const [years, setYears] = useState(1);
   const [busy, setBusy] = useState(false);
 
@@ -133,10 +141,9 @@ export function RenewDialog({
             <span className="text-muted-foreground">unknown</span>
           ) : (
             <>
-              {usd(estimate, pricing?.currency ?? 'USD')}
+              {money(estimate)}
               <span className="ml-1.5 text-xs text-muted-foreground">
-                {usd(perYear!, pricing?.currency ?? 'USD')}/yr ·{' '}
-                {pricing?.source}
+                {money(perYear!)}/yr · {pricing?.source}
               </span>
             </>
           )}
