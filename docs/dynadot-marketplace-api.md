@@ -6,12 +6,13 @@ docs/afternic-api.md, docs/atom-api.md, docs/sedo-api.md and the Spaceship
 SellerHub plan (docs/sellerhub-api.md, PR #251). Docs: the RESTful v2
 reference at <https://www.dynadot.com/domain/api-document#set_for_sale>
 ("Aftermarket" section). Dynadot's seller help:
-<https://www.dynadot.com/help/question/domain-sale-process>.
+<https://www.dynadot.com/help/question/domain-sale-process> and, for names
+held elsewhere, <https://www.dynadot.com/help/question/open-marketplace>.
 
 **Status: planned, nothing built, no live calls yet.** Everything below is
 from the API reference and Dynadot's help pages as read on 2026-11-03. Only
 the other-registrar commands run in Dynadot's sandbox, so the build needs
-live calls on a test name early (see "Testing").
+live calls on test names early (see "Testing").
 
 Dynadot is already a DomBot registrar: registrar-client's `dynadot` speaks
 the same RESTful v2 API. The marketplace commands use the same host, the
@@ -19,6 +20,13 @@ same API key and secret and the same `X-Signature`, so a Dynadot market
 account borrows the registrar account's key, as SellerHub does
 (`registrarAccountId`, "One provider, registrar and market" in
 atom-api.md).
+
+**It sells names held anywhere, not only at Dynadot.** Dynadot's "open
+marketplace" lists names registered at other registrars once their
+ownership is verified, and the buyer's price includes the transfer to
+Dynadot. So one Dynadot market account covers the whole portfolio: names
+the linked Dynadot account holds go through one set of commands, every
+other name through another (see "Two kinds of names").
 
 ## The API at a glance
 
@@ -43,26 +51,37 @@ registrar calls on the same key share it.
 
 About 40 commands sit under the aftermarket heading. Most are for buyers.
 
+**Selling names held at other registrars** (the "open marketplace"; all but
+the listing call run in the sandbox):
+
+| Command                               | Call                                                             |
+| ------------------------------------- | ---------------------------------------------------------------- |
+| `add_other_registrar_domain`          | `POST /aftermarket/other_registrar/domains` (`domain_name_list`) |
+| `other_registrar_domain_list`         | `GET /aftermarket/other_registrar/domains?page&page_size`        |
+| `other_registrar_domain_verification` | `GET /aftermarket/other_registrar/{domain}/verification?new_key` |
+| `verify_other_registrar_domain`       | `POST /aftermarket/other_registrar/verify` (`domain_name_list`)  |
+| `listing_other_registrar_domain`      | `POST /aftermarket/{domain}/listing_other_registrar_domain`      |
+| `delete_other_registrar_domain`       | `DELETE /aftermarket/other_registrar/domains/{domain}`           |
+
 **Selling names in the account:**
 
-| Command                                      | Call                                                                                          |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `set_for_sale`                               | `PUT /aftermarkets/domains/{domain}/for_sales`                                                |
-| `get_listing_item`                           | `GET /aftermarket/listings/{domain}?currency`                                                 |
-| `get_listings`                               | `GET /aftermarket/listings?page&page_size&currency&exclude_pending_sale&show_other_registrar` |
-| `domain_list`, `domain_info`                 | `GET /domains`, `GET /domains/{domain}`: `is_for_sale` on each name                           |
-| `get_whois_stats`                            | `GET /aftermarket/whois_stats?domain_name&date_type`                                          |
-| Express Pay Links: create, get, list, delete | `POST`, `GET`, `DELETE /aftermarket/pay_links[/{domain}]`                                     |
-| `add_user_auction`, `close_auction`          | `POST /aftermarket/auctions/{domain}`, `POST /aftermarket/auctions/{id}/close`                |
-| `set_`/`get_auction_installment_plan`        | `/aftermarket/auctions/{domain}/installment_plan`                                             |
-| `set_other_platform_confirm_action`          | `POST /aftermarket/domains/{domain}/opt_in_fast_transfer`                                     |
-| `listing_on_afternic`, `listing_on_sedo`     | `POST /aftermarket/listing_on_afternic`, `…/listing_on_sedo`                                  |
+| Command                                  | Call                                                                                          |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `set_for_sale`                           | `PUT /aftermarkets/domains/{domain}/for_sales`                                                |
+| `get_listing_item`                       | `GET /aftermarket/listings/{domain}?currency`                                                 |
+| `get_listings`                           | `GET /aftermarket/listings?page&page_size&currency&exclude_pending_sale&show_other_registrar` |
+| `domain_list`, `domain_info`             | `GET /domains`, `GET /domains/{domain}`: `is_for_sale` on each name                           |
+| `set_other_platform_confirm_action`      | `POST /aftermarket/domains/{domain}/opt_in_fast_transfer`                                     |
+| `listing_on_afternic`, `listing_on_sedo` | `POST /aftermarket/listing_on_afternic`, `…/listing_on_sedo`                                  |
 
-**Selling names held at other registrars** (Dynadot's "open
-marketplace"): `add_other_registrar_domain`, `delete_other_registrar_domain`,
-`other_registrar_domain_list`, `other_registrar_domain_verification`,
-`verify_other_registrar_domain`, `listing_other_registrar_domain`. These run
-in the sandbox.
+**Either kind, or not said:**
+
+| Command                                      | Call                                                                           |
+| -------------------------------------------- | ------------------------------------------------------------------------------ |
+| `get_whois_stats`                            | `GET /aftermarket/whois_stats?domain_name&date_type`                           |
+| Express Pay Links: create, get, list, delete | `POST`, `GET`, `DELETE /aftermarket/pay_links[/{domain}]`                      |
+| `add_user_auction`, `close_auction`          | `POST /aftermarket/auctions/{domain}`, `POST /aftermarket/auctions/{id}/close` |
+| `set_`/`get_auction_installment_plan`        | `/aftermarket/auctions/{domain}/installment_plan`                              |
 
 **Buying:** `buy_it_now`, `get_open_auctions`, `get_auction_details`,
 `place_auction_bid`, `get_auction_bids`, `get_closed_auctions`, backorders,
@@ -77,12 +96,43 @@ Dynadot (`get_afternic_domain`, `get_sedo_domain`, `buy_afternic_domain`,
 Things to know about the reference:
 
 - `set_for_sale`'s path says `aftermarkets` where every other command says
-  `aftermarket`. Which one is live is open question 6.
+  `aftermarket`. Which one is live is an open question.
 - Error lists are copied between commands (`set_for_sale`'s 409s are grace
   delete's), so the wording of real errors has to come from live calls.
 - Nothing about seller sales, offers, leads, views (only WHOIS lookups),
   payouts or the Sale Balance. `accounts/info` has `account_balance`, not
   the Sale Balance.
+- No command is documented for the step that completes a sale of a name
+  held elsewhere (the seller's "Submit Transfer" with the auth code; see
+  "Sales").
+
+### Names at other registrars
+
+- **Add** takes a list of names. A name has to be added before it can be
+  verified or listed.
+- **The list read** is a proper seller read, 100 a page by default: per
+  name `registrar`, folder, registration and expiration dates, `status`
+  (examples: In account, Unregistered, Registered, Backorder, Marketplace,
+  Auction, Expired, In Transfer), `verify_status` (Unverified, Verified),
+  `for_sale_type` (Not Set, Buy Now, Make Offer, Buy Now + Make Offer),
+  `price`, `transfer_status` and `updated_date`. No minimum offer,
+  installments, category or description.
+- **Verification values** come per name: `verify_status`, the
+  `open_market_key`, the TXT value, the nameservers to use, and a CNAME
+  host. `new_key: true` regenerates the key. Whether the key is one per
+  account or one per name isn't said (open question 4).
+- **Verify now** takes a list and answers `success_list` and `failed_list`
+  (failed, or not in the other-registrar list).
+- **Listing** sets `for_sale_type` (`marketplace` or `not_for_sale`; the
+  auction types aren't allowed for these names), `listing_type`, and
+  amounts **in cents** ("1000 = $10.00"): `buy_now_price`,
+  `asking_price`, `reserve_price`, `minimum_offer_price`. Also `currency`,
+  `installment` and `maximum_installments` (under 12, or the months left
+  before expiry), `category`, `sub_category`, `description`, a Google
+  Analytics id, and For Sale landing page options
+  (`use_for_sale_landing_page`, which "will change and save your DNS
+  settings", traffic, more listings, Trustpilot, theme).
+- **Delete** removes a name from the other-registrar list.
 
 ### `set_for_sale`
 
@@ -103,9 +153,9 @@ with no listing in it.
 Whether it changes only the fields sent or replaces the listing isn't
 documented (open question 1).
 
-### Reading listings
+### Reading listings of names in the account
 
-No seller "my listings" call is documented. What there is:
+No seller "my listings" call is documented for these. What there is:
 
 - **`domain_list`** marks each name `is_for_sale`, with no price.
   DomBot's registrar sync already reads this list (registrar-client's
@@ -125,14 +175,26 @@ No seller "my listings" call is documented. What there is:
 
 ### From Dynadot's pages
 
-- **Commission:** 10% of the sale price, no listing fee. Express Pay Links
-  are 5%.
-- **A marketplace sale needs nothing from the seller.** Dynadot moves the
-  name into the buyer's Dynadot account at checkout; the buyer gets a
-  15-day Buy Lock. No auth code, no transfer. A name held at another
-  registrar adds a transfer fee to the buyer's price.
+- **Commission:** 10% of the sale price, no listing fee, for both kinds of
+  name. Express Pay Links are 5%.
+- **A name in the account sells without the seller.** Dynadot moves it into
+  the buyer's Dynadot account at checkout; the buyer gets a 15-day Buy
+  Lock. No auth code, no transfer.
+- **A name held elsewhere** is added under My Domains → Other Registrar,
+  verified by nameservers, CNAME or TXT (Dynadot checks on its own, or on
+  Verify Now), then listed as Marketplace. Only nameserver verification
+  allows Dynadot's For Sale landing page. No user auctions; installments
+  are allowed.
+- **The verification has to stay.** If Dynadot can't find the record later,
+  the name goes back to Unverified and its listings are removed (with a
+  "Domain Delisting" email).
+- **Selling a name held elsewhere:** the buyer's price adds Dynadot's
+  transfer fee. Once the buyer has paid, a Transfer icon appears on the
+  name; the seller enters the auth code and submits, which creates a
+  transfer order at no cost to the seller. Proceeds follow 2–3 days after
+  Dynadot receives the name.
 - **Payout:** proceeds, less the 10%, go to the seller's Sale Balance after
-  a processing period (2–3 days on the help page updated 2026-09-18; older
+  the processing period (2–3 days on the pages updated in 2026; older
   pages say 5–7). From there they can move to the Account Balance with a
   2% bonus, or be paid out.
 - **Afternic and Sedo Fast Transfer:** a name at Dynadot can be confirmed
@@ -144,41 +206,38 @@ No seller "my listings" call is documented. What there is:
 
 ### Implement
 
-| Command                                       | Why DomBot wants it                                                                                                                                             |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `domain_list` (`is_for_sale`)                 | Which names are listed. From the registrar sync once registrar-client passes the flag through (a small registrar-client change); otherwise the market reads it. |
-| `get_listing_item`                            | Price, Buy Now or offers, and a sale under way, per listed name. `getListings`, and sync for each name marked for sale.                                         |
-| `get_listings`                                | Sync in one paged read, if it's the account's own listings (open question 2).                                                                                   |
-| `set_for_sale` with `marketplace`             | List, reprice, Buy Now and Make Offer, minimum offer.                                                                                                           |
-| `set_for_sale` with `not_for_sale`            | Delist.                                                                                                                                                         |
-| `accounts/info`                               | The account test, and `price_level` for the rate limit.                                                                                                         |
-| Express Pay Links (phase 4)                   | A checkout link at a set price for a buyer the user is talking to; Dynadot can also list and delete them.                                                       |
-| `set_other_platform_confirm_action` (phase 4) | Fast Transfer for the Afternic and Sedo listings of names held at Dynadot.                                                                                      |
-| Other-registrar commands (phase 5)            | List names held anywhere on Dynadot's marketplace.                                                                                                              |
+| Command                                       | Why DomBot wants it                                                                                                                                                            |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `other_registrar_domain_list`                 | Sync for names held elsewhere: sale type, price, verification and transfer status, 100 a page.                                                                                 |
+| `add_other_registrar_domain`                  | The first step of listing a name held elsewhere, done for the user as part of List.                                                                                            |
+| `other_registrar_domain_verification`         | The TXT value to set up, and the nameservers for anyone who wants Dynadot's landing page. Nothing to paste.                                                                    |
+| `verify_other_registrar_domain`               | Recheck ownership, for a list of names; also run after DomBot adds the TXT records.                                                                                            |
+| `listing_other_registrar_domain`              | List, reprice, Buy Now and Make Offer, minimum offer, delist (`not_for_sale`) for names held elsewhere.                                                                        |
+| `delete_other_registrar_domain`               | Take a name off Dynadot's list entirely, when asked.                                                                                                                           |
+| `domain_list` (`is_for_sale`)                 | Which names in the account are listed. From the registrar sync once registrar-client passes the flag through (a small registrar-client change); otherwise the market reads it. |
+| `get_listing_item`                            | Price, Buy Now or offers, and a sale under way, per listed name in the account.                                                                                                |
+| `get_listings`                                | Sync in one paged read, if it's the account's own listings (open question 2).                                                                                                  |
+| `set_for_sale`                                | List, reprice, Buy Now and Make Offer, minimum offer, delist (`not_for_sale`) for names in the account.                                                                        |
+| `accounts/info`                               | The account test, and `price_level` for the rate limit.                                                                                                                        |
+| Express Pay Links (phase 5)                   | A checkout link at a set price for a buyer the user is talking to; Dynadot can also list and delete them.                                                                      |
+| `set_other_platform_confirm_action` (phase 5) | Fast Transfer for the Afternic and Sedo listings of names held at Dynadot.                                                                                                     |
 
 ### Defer
 
-- **Names at other registrars** (phase 5): DomBot users hold names at many
-  registrars, and this would put any of them on Dynadot's marketplace. Each
-  name is added, verified (TXT, nameservers or CNAME, with the values from
-  `other_registrar_domain_verification`), then listed with
-  `listing_other_registrar_domain` (prices in cents; Buy Now, asking,
-  reserve and minimum offer prices; landing page options). It has a real
-  read: `other_registrar_domain_list` gives the sale type, price, verify
-  status and transfer status. Big enough for its own design pass once the
-  in-account path is live.
 - **WHOIS stats:** daily WHOIS lookup counts per name (last 7 or 30 days,
   this year, last year), one call per name. A rough interest signal, not
   views. Maybe a column later.
 - **User auctions:** a time-boxed sale from a starting price, with
-  auto-relist and installments. DomBot's model is standing listings and has
-  no auction state. Revisit if asked.
+  auto-relist and installments, for names in the account only. DomBot's
+  model is standing listings and has no auction state. Revisit if asked.
 - **Webhooks:** `domain_status_changed` with `moved_sold` would confirm a
   sale. It needs a public URL, so only the web host's Worker could take it,
   not the desktop app.
 - **Category, sub-category, description, search indexing, installments:**
-  settable, not readable (see "Listings"). Writing what DomBot can't show
-  back waits until the reads are known.
+  settable, not readable. Writing what DomBot can't show back waits until
+  the reads are known.
+- **Asking and reserve prices** for names held elsewhere: what they do
+  beside Buy Now and the minimum offer isn't documented (open question 9).
 
 ### Leave out
 
@@ -189,14 +248,23 @@ No seller "my listings" call is documented. What there is:
   Afternic or Sedo for you. DomBot lists on both directly, with their own
   accounts; a second path would give one listing two owners.
 - **The `auction`, `portfolio_auction` and `broker_service` sale types.**
+- **CNAME verification:** anywhere DomBot can add a CNAME it can add the TXT
+  record, as for Sedo.
+- **`use_for_sale_landing_page`:** it changes the name's DNS, which
+  shouldn't happen as a side effect of listing (markets.md, "TXT records
+  while listing").
+- **`transfer_in` to finish a sale:** registrar-client's transfer-in would
+  bill the seller and isn't tied to the sale; Dynadot's own Submit Transfer
+  is free.
 
 ### What Dynadot's API doesn't have
 
-No seller sales, offers, leads, messages or payouts, no Sale Balance, no
-views (only WHOIS lookups), no listing dates, no minimum offer,
-installments, category or description in the reads, no floor, discount or
-tiers, and no bulk write (one name a call). Names in the account need no
-ownership check, so there's nothing to recheck.
+No sales report, offers, leads, messages or payouts, no Sale Balance, no
+views (only WHOIS lookups), no listing dates for names in the account, no
+minimum offer, installments, category or description in any read, no
+floor, discount or tiers, and no bulk write (one name a call, except add
+and verify). No documented way to hand Dynadot the auth code for a sold
+name held elsewhere.
 
 ## Credentials: the Dynadot registrar key
 
@@ -207,8 +275,8 @@ read its key at call time, cards that point at each other, remove-both.
 Whichever market lands first builds it. What's different for Dynadot:
 
 - **No scopes.** Nothing in the reference scopes a key, so any key that
-  works for the registrar should work for the marketplace (open question 6).
-  The test reads `accounts/info` and one listing read.
+  works for the registrar should work for the marketplace (open question 7).
+  The test reads `accounts/info` and one page of each listing read.
 - **One budget for both sides.** On Regular, Dynadot answers a second
   request in flight with a 429. Registrar calls on a key already run in one
   bulk lane, a second apart (docs/domain-editing.md, "Concurrency policy"),
@@ -218,76 +286,188 @@ Whichever market lands first builds it. What's different for Dynadot:
   keyed by the registrar account (`src/core/markets/rate-limit.ts` is
   already shared by account key), sized from `price_level`. Auto-sync
   already runs markets after registrars, so the two syncs don't overlap.
-- **Only that account's names.** Until phase 5, the market lists only names
-  the linked registrar account holds; the List and Delist dialog leaves
-  the rest out and says why.
+- **A Dynadot registrar account is needed** for the key, even to sell only
+  names held elsewhere. A user with no Dynadot names opens a Dynadot
+  account, makes a key and connects it as a registrar with nothing in it;
+  the market card says so. A separate key on the market card isn't
+  offered: it's the same key either way.
 
 ## What it means for DomBot
 
 The market id is `dynadot`, the same as the registrar, shown as "Dynadot
 Marketplace".
 
+### Two kinds of names
+
+The linked registrar account decides the path, name by name:
+
+- **In the account:** a name the linked Dynadot account holds. Listed with
+  `set_for_sale`, read with `get_listing_item`, no verification, sold
+  without the seller.
+- **Held elsewhere:** any other name in the portfolio (another registrar
+  account, or an imported name). Added, verified, listed with
+  `listing_other_registrar_domain`, read from `other_registrar_domain_list`,
+  and sold with a transfer. The TXT record and the sale's unlock and auth
+  code come from the registrar account that holds it; for an imported name
+  the user does those by hand.
+
+Names in a different Dynadot account than the linked one aren't held
+"elsewhere" (open question 10); a second Dynadot market account, linked to
+that registrar account, sells them. The List and Delist dialog leaves them
+out and says why.
+
+Both kinds come back as the same `MarketListing`, with `extra.held`
+(`'dynadot'` or `'elsewhere'`), so the Domains table, filters and MCP don't
+care which.
+
 ### Listings
 
-Sync reads the names the linked account marks `is_for_sale`, then
-`get_listing_item` for each, or `get_listings` in pages if it turns out to
-be the account's own. On Regular, 1,000 listed names take about 17 minutes,
-sharing the minute with registrar sync; Bulk is ten times faster. A failed
-read leaves `complete` false and keeps the last snapshot.
+Sync reads both:
 
-| `MarketListing`             | From Dynadot                                                          |
-| --------------------------- | --------------------------------------------------------------------- |
-| `name`                      | `domain`                                                              |
-| `displayName`               | null                                                                  |
-| `status`                    | `active`; `on_hold` when `is_pending_sale_locked`                     |
-| `statusRaw`                 | `type`, with "pending sale" when locked                               |
-| `forSale`                   | true for every listing read                                           |
-| `price`                     | `price` (open question 3: what a `make_offer` listing has there)      |
-| `buyNow`                    | `type` is `bin` or `bin_make_offer`                                   |
-| `minOffer`                  | not readable; see below                                               |
-| `floor`, `discount`, `tier` | null                                                                  |
-| `leaseToOwn`                | null: installments aren't readable                                    |
-| `currency`                  | the account's listing currency (below)                                |
-| `listedAt`, `updatedAt`     | null                                                                  |
-| `extra`                     | `{ market: 'dynadot', listingId, offers, pendingSale, minOfferSent }` |
+- **Held elsewhere:** `other_registrar_domain_list`, every page. 10,000
+  entries is 100 calls. An entry with `for_sale_type` Not Set is added but
+  not listed: DomBot keeps its verification status and shows no listing.
+- **In the account:** the names the linked account marks `is_for_sale`, then
+  `get_listing_item` for each, or `get_listings` in pages if it turns out to
+  be the account's own. On Regular, 1,000 listed names take about 17
+  minutes, sharing the minute with registrar sync; Bulk is ten times faster.
 
-`offers` is true for `make_offer` and `bin_make_offer`: Dynadot says whether
+A failed read leaves `complete` false and keeps the last snapshot.
+
+| `MarketListing`             | In the account (`get_listing_item`)                      | Held elsewhere (`other_registrar_domain_list`)                                               |
+| --------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `name`                      | `domain`                                                 | `domain_name`                                                                                |
+| `displayName`               | null                                                     | null                                                                                         |
+| `status`                    | `active`; `on_hold` when `is_pending_sale_locked`        | `pending` while Unverified; `on_hold` once a buyer has paid (open question 5); else `active` |
+| `statusRaw`                 | `type`, with "pending sale" when locked                  | `status` and `verify_status`                                                                 |
+| `forSale`                   | true for every listing read                              | Verified and listed                                                                          |
+| `price`                     | `price` (open question 3: what a `make_offer` has there) | `price` (open question 8: its currency and format)                                           |
+| `buyNow`                    | `type` is `bin` or `bin_make_offer`                      | `for_sale_type` is Buy Now or Buy Now + Make Offer                                           |
+| `minOffer`                  | not readable; see below                                  | not readable; see below                                                                      |
+| `floor`, `discount`, `tier` | null                                                     | null                                                                                         |
+| `leaseToOwn`                | null: installments aren't readable                       | null: installments aren't readable                                                           |
+| `currency`                  | the account's listing currency (below)                   | the account's listing currency                                                               |
+| `listedAt`                  | null                                                     | null                                                                                         |
+| `updatedAt`                 | null                                                     | `updated_date`                                                                               |
+
+`extra` is `{ market: 'dynadot', held, listingId, offers, pendingSale,
+verified, registrar, transferStatus, minOfferSent }`, each where the read
+has it. `offers` is true for the Make Offer types: Dynadot says whether
 offers are welcome even where it doesn't give the minimum.
 
 **Currency:** the market card has a **Listing Currency** (USD to start).
 Writes send it and reads ask for it. A listing priced in another currency
 on Dynadot's site then reads converted, if Dynadot converts (open
-question 5), and shows as above or below the DomBot price.
+question 8), and shows as above or below the DomBot price.
 
-**Writes,** one name a call (`writeBatch: 1`, market jobs past 10 names, in
-the registrar account's lane):
+### Writes
 
-- **List or change:** `set_for_sale` with `for_sale_type: marketplace`.
-  `listing_type` follows the result: a price alone is `buy_now`, a price
-  and a minimum offer `buy_now_and_make_offer`, a minimum offer alone
-  `make_offer`. A change keeps whatever the change doesn't touch, so the
-  adapter reads the listing first (`get_listing_item`), as Atom's does,
-  and reads it back after to fill `saved` and `adjusted`.
-- **Minimum offer:** sent, but the reads don't return it. DomBot keeps the
-  last value it sent in `extra.minOfferSent`, and the listing editor shows
-  it as last set from DomBot. If the live read has it after all, it becomes
-  a plain field.
-- **If `set_for_sale` replaces the listing** (open question 1), a price
-  change would clear the minimum offer, category, description and
-  installments, and DomBot couldn't see it. Then DomBot re-sends its
-  `minOfferSent`, and the editor says that saving clears Dynadot's
-  category, description and installment settings.
+One name a call (`writeBatch: 1`, market jobs past 10 names, in the
+registrar account's lane). Common to both kinds:
+
+- **`listing_type`** follows the result: a price alone is Buy Now, a price
+  and a minimum offer Buy Now + Make Offer, a minimum offer alone Make
+  Offer. A change keeps whatever it doesn't touch, so the adapter reads the
+  listing first, as Atom's does, and reads it back after to fill `saved`
+  and `adjusted`.
+- **Minimum offer:** sent, but no read returns it. DomBot keeps the last
+  value it sent in `extra.minOfferSent`, and the listing editor shows it as
+  last set from DomBot. If a live read has it after all, it becomes a
+  plain field.
+- **If the write replaces the listing** (open question 1), a price change
+  would clear the minimum offer, category, description and installments,
+  and DomBot couldn't see it. Then DomBot re-sends its `minOfferSent`, and
+  the editor says that saving clears Dynadot's category, description and
+  installment settings.
 - **`forSale: false`** is refused with "Dynadot has no hidden listings;
   delist instead". `not_for_sale` is the delist.
 - **Floor, discount, lease-to-own, tiers:** refused with a message, never
   dropped (markets.md, "Capabilities").
 - **A listing with a sale under way** (`on_hold`) isn't written; the result
   says why.
-- **Delist:** `set_for_sale` with `not_for_sale`.
+
+In the account: `set_for_sale` with `marketplace`, or `not_for_sale` to
+delist.
+
+Held elsewhere:
+
+- **List:** add the name if Dynadot doesn't have it yet, then
+  `listing_other_registrar_domain` with `marketplace`. Amounts go in the
+  currency's minor units (cents for USD; open question 8 for currencies
+  without them). The listing reads `pending` until Dynadot has verified the
+  name; whether Dynadot takes the listing before then is open question 6,
+  and if it doesn't, the market job lists the name once a later sync sees
+  it Verified.
+- **Delist:** `listing_other_registrar_domain` with `not_for_sale`. The name
+  stays added and verified, so listing it again is one call. Delist has
+  **Also remove from Dynadot** (off), which runs
+  `delete_other_registrar_domain` after.
+- **No landing page:** DomBot never sends `use_for_sale_landing_page`.
+
+### Ownership verification
+
+**In the account:** none, since Dynadot is the registrar. Those names never
+get a verification mark.
+
+**Held elsewhere:** every name needs it, and the verification has to stay in
+place.
+
+- **Nothing to paste.** Dynadot gives the values per name through the API,
+  so the card has no Ownership Verification ID field, and DomBot reads a
+  name's TXT value when it needs it (cached). If the key turns out to be
+  one per account (open question 4), DomBot reads it once and stores it as
+  the account's `verificationId`, and everything below works as for other
+  markets. Otherwise the TXT job learns to ask a market for each name's
+  value instead of taking one per account.
+- **Ownership verification TXT…** offers the Dynadot account for names held
+  elsewhere, through the registrar account that holds each name, as for
+  every market. When the job has finished, DomBot asks Dynadot to verify
+  those names (one `verify_other_registrar_domain` call for the batch);
+  names that fail are asked again on the next sync, since resolvers may
+  still have the old answer cached.
+- **List at your prices** turns **Add ownership verification TXT records**
+  on to start for a Dynadot listing of names held elsewhere: without it
+  the listing can't go live. The user can still turn it off.
+- **Nameservers:** Dynadot's verification nameservers are a preset in the
+  Markets group for these names, for anyone who wants Dynadot's landing
+  page. Not the default: it hands the name's DNS to Dynadot.
+- **Recheck ownership…** works (`verifyDns: true`), many names a call.
+- **Keeping it in place.** Removing the TXT record, or moving the name to
+  other nameservers, gets the Dynadot listing removed. DomBot's nameserver
+  change warning names the Dynadot listings that would lapse, and the DNS
+  editor keeps the record like any other.
+- **Tracking** (markets.md, "Tracking which names are set up") gets its
+  answer for free here: `verify_status` from sync says, per name, whether
+  Dynadot sees it.
 
 ### Sales
 
-`sales: false`: the API has none. What DomBot does instead:
+`sales: true`, for names held elsewhere only; names in the account have no
+sale record to read.
+
+**Held elsewhere:** the list read shows a sale under way (which `status` or
+`transfer_status` says the buyer has paid is open question 5). Sync opens a
+sale record for it: `in_progress`, keyed by `${name}:${the day sync first
+saw it}`, the listed Buy Now price, commission estimated at 10%, `action:
+'auth_code'`. An offer-only listing has no price DomBot can read, so its
+sale shows only as on hold, and Record sale… fills in after the name leaves.
+
+The Sales tab's steps then mostly work as they do for Afternic:
+
+1. **Unlock** at the registrar account that holds the name.
+2. **The auth code.** DomBot fetches it from the holding registrar, but
+   there's no documented way to give it to Dynadot (open question 5). So
+   this step is **Copy auth code** with a link to Dynadot's Other Registrar
+   page, where the user pastes it and submits. If the API turns out to
+   take it, the step becomes Send auth code.
+3. **Approve transfer** at the holding registrar, where its API reports
+   transfers out (Gandi today; markets.md, "Sales tab"), once Dynadot's
+   transfer asks for the name.
+4. **Awaiting payout** once the name has moved. Sync sees it leave the
+   holding account and writes the `sold` event, as for any market sale
+   whose name has moved.
+
+**In the account:**
 
 - **A sale under way** shows as on hold (the grey clock) in Listings, from
   `is_pending_sale_locked`.
@@ -296,29 +476,14 @@ the registrar account's lane):
   name (Mark dropped · Record sale… · Dismiss, docs/unrecorded-activity.md).
   When the name's last Dynadot listing was live, Record sale… opens filled
   in: Dynadot Marketplace, the last Buy Now price, 10% fees, and the day it
-  left. A `make_offer` sale's price isn't known, so it's left blank.
-- **No sale steps on the Sales tab:** Dynadot moves the name itself.
-- **No payout tracking:** the Sale Balance isn't in the API.
-- **Later, on the web host:** the `domain_status_changed` webhook with
-  `moved_sold` confirms that a departure was a sale (still without the
-  price).
+  left. A Make Offer sale's price isn't known, so it's left blank.
+- **No sale steps:** Dynadot moves the name itself.
 
-### Ownership verification
+For both: no payout tracking (the Sale Balance isn't in the API). Later, on
+the web host, the `domain_status_changed` webhook with `moved_sold`
+confirms that a departure from the account was a sale.
 
-Names in the account need none, since Dynadot is their registrar. No
-Ownership Verification ID, no TXT record, no market nameservers, no
-Recheck (`verifyDns: false`). Every market card has the ID field today, so
-the catalog needs a way to say a market has no account-wide value
-(`MarketInfo`), and the card leaves the field out.
-
-Phase 5 brings verification back for names at other registrars, with a
-twist: Dynadot gives a value per name (`open_market_key` for TXT, plus its
-nameservers and a CNAME), not one per account, and
-`verify_other_registrar_domain` is a real "check now" for a list of names.
-DomBot's TXT job takes one value per account today, so it would need a
-per-name source.
-
-### Afternic and Sedo Fast Transfer (phase 4)
+### Afternic and Sedo Fast Transfer (phase 5)
 
 DomBot already lists on Afternic and Sedo. For a name held at Dynadot,
 confirming Fast Transfer there (`set_other_platform_confirm_action`:
@@ -331,13 +496,14 @@ is at a Dynadot account, and an MCP tool. It's a registrar-side setting
 that serves the other markets; it lives with the Dynadot market client
 because it's under the aftermarket commands.
 
-### Express Pay Links (phase 4)
+### Express Pay Links (phase 5)
 
-The same tool as SellerHub's checkout link, `domain_listing_checkout_link_create`
-(name, price, currency, installments, an expiry of never, 1, 3, 7, 14 or 30
-days), returning the link. Dynadot can also list and delete them, so
-`market_checkout_links` and `domain_listing_checkout_link_delete` too. The
-description says the link is meant for a buyer.
+The same tool as SellerHub's checkout link,
+`domain_listing_checkout_link_create` (name, price, currency, installments,
+an expiry of never, 1, 3, 7, 14 or 30 days), returning the link. Dynadot
+can also list and delete them, so `market_checkout_links` and
+`domain_listing_checkout_link_delete` too. The description says the link is
+meant for a buyer. Whether they work for names held elsewhere isn't said.
 
 ### Capabilities
 
@@ -345,13 +511,13 @@ description says the link is meant for a buyer.
 const DYNADOT_CAPABILITIES: MarketCapabilities = {
   // Dynadot's 32, less BTC and the withdrawn LTL, which DomBot doesn't have
   currencies: ['USD', 'EUR', 'GBP' /* … */],
-  minOffer: true, // sent, not read back; see Listings
+  minOffer: true, // sent, not read back; see Writes
   floor: false,
   discount: false,
   leaseToOwn: false, // installments: settable, not readable
   tiers: null,
-  sales: false,
-  saleAuthCode: false,
+  sales: true, // names held elsewhere, from the list read
+  saleAuthCode: false, // no documented call; Copy auth code instead
   saleMessages: false,
   accountStats: false,
   domainStats: null,
@@ -360,7 +526,7 @@ const DYNADOT_CAPABILITIES: MarketCapabilities = {
   searchCounts: false,
   accountSettings: false,
   relist: false,
-  verifyDns: false, // phase 5 makes it true for other-registrar names
+  verifyDns: true, // names held elsewhere
   asyncInsert: false,
   writeBatch: 1,
   jobs: false,
@@ -371,72 +537,93 @@ const DYNADOT_CAPABILITIES: MarketCapabilities = {
 
 ### MCP
 
-The shared listing and account tools work for Dynadot through its
-capabilities, and `market_list` shows `registrarAccountId`. Phase 4 adds
-the pay link tools above and `domain_listing_fast_transfer_set` (name,
-`afternic` or `sedo`, on or off).
+The shared listing, sales and account tools work for Dynadot through its
+capabilities, and `market_list` shows `registrarAccountId`. Listings carry
+`held` and `verified`. `domain_verification_apply` and
+`domain_listing_verify` work for names held elsewhere;
+`domain_listing_delete` takes `removeFromMarket` for Dynadot's list.
+Phase 5 adds the pay link tools and `domain_listing_fast_transfer_set`
+(name, `afternic` or `sedo`, on or off).
 
 ### The demo
 
 A Dynadot Marketplace account linked to the demo's Dynadot registrar
-account (`src/core/demo/markets.ts`), with Buy Now, offers-only and
-pending-sale listings, and a departed name whose Record sale… shows the
-prefill.
+account (`src/core/demo/markets.ts`): Buy Now, offers-only and
+pending-sale listings in the account, and names from the demo's other
+registrars on Dynadot, one waiting on verification and one sold and
+waiting on its auth code.
 
 ## Testing
 
 Unit tests map fixtures built from the reference, swapped for live captures
-as they come in. The in-account commands have no sandbox, so live tests run
-on production, as Atom's do: reads with the Dynadot key in `.env`, and a
-write round trip behind `DYNADOT_LIVE_WRITES=1` on `DYNADOT_TEST_DOMAIN`,
-listed at a price nobody would pay, read back, then delisted. That name has
-to be one held at Dynadot and picked with the user first: domanio.com and
-domainio.com are at 101domain. They do suit phase 5, as names held at
-another registrar, and the other-registrar commands run in the sandbox.
+as they come in. Live tests follow Atom's: reads with the Dynadot key in
+`.env`, writes behind `DYNADOT_LIVE_WRITES=1`, each listed at a price
+nobody would pay, read back, then delisted.
+
+- **Held elsewhere:** domanio.com and domainio.com, both at 101domain, are
+  the test names (`DYNADOT_TEST_EXTERNAL_DOMAIN`): add, TXT through
+  101domain, verify, list, delist, remove. Add and verify run in the
+  sandbox first.
+- **In the account:** no sandbox, so production on a name held at Dynadot
+  (`DYNADOT_TEST_DOMAIN`), picked with the user first.
 
 ## Phases
 
 1. **Registrar-backed market accounts:** SellerHub's phase 1
    (docs/sellerhub-api.md), built here if Dynadot goes first. For Dynadot
-   also: one limiter for a key both sides use, sized from `price_level`,
-   and a market with no Ownership Verification ID.
-2. **Read side:** client (signature, envelope, errors, limiter), adapter,
-   registry entry, listing sync (`is_for_sale`, then `get_listing_item`, or
-   `get_listings`), the Listing Currency setting, the demo account. Live
-   reads, open questions 1–5 first.
-3. **Writes:** list, reprice, Buy Now and offers, minimum offer, delist,
-   through the List and Delist dialog, the bulk runner and the MCP listing
-   tools; the Record sale… prefill. Live round trip on the test name.
-4. **Extras:** Express Pay Link tools; Fast Transfer for Afternic and Sedo.
-5. **Names at other registrars:** add, verify, list, sync from
-   `other_registrar_domain_list`, delist, remove. Its own design pass
-   first.
+   also: one limiter for a key both sides use, sized from `price_level`.
+2. **Read side, both kinds:** client (signature, envelope, errors, limiter),
+   adapter with the two paths, registry entry, sync from
+   `other_registrar_domain_list` and from `is_for_sale` plus
+   `get_listing_item` (or `get_listings`), the Listing Currency setting,
+   the demo account. Live reads, open questions 1–6 first.
+3. **Writes and verification:** list, reprice, Buy Now and offers, minimum
+   offer, delist for both kinds; add and remove for names held elsewhere;
+   per-name TXT values in Ownership verification TXT…, verify after it,
+   Recheck, the nameserver preset and warning. Through the List and Delist
+   dialog, the bulk runner and the MCP tools. Live round trips on both
+   test names.
+4. **Sales:** sale records for names held elsewhere and their steps on the
+   Sales tab; the Record sale… prefill for names in the account.
+5. **Extras:** Express Pay Link tools; Fast Transfer for Afternic and Sedo.
 
 ## Open questions
 
-1. Does `set_for_sale` change only the fields sent, or replace the listing?
-   If a price-only call clears the minimum offer, category, description or
-   installments, the reads won't show it.
+1. Does `set_for_sale` (and `listing_other_registrar_domain`) change only
+   the fields sent, or replace the listing? If a price-only call clears the
+   minimum offer, category, description or installments, the reads won't
+   show it.
 2. Is `get_listings` the account's own listings or the whole marketplace?
-   With `show_other_registrar`, does it include names from other
-   registrars?
+   With `show_other_registrar`, does it include names held elsewhere?
 3. Does `get_listing_item` return more than documented (minimum offer,
-   currency, installments)? What's in `price` for a `make_offer` listing?
-4. Is `description` really required on `set_for_sale`, and what does an
-   empty one do to an existing description?
-5. Is a listing kept in the currency it was set in, and does a read in
-   another currency convert it?
-6. Does the marketplace need anything on the key or the account (an API
+   currency, installments)? What's in `price` for a Make Offer listing?
+4. Is the open marketplace key one per account or one per name? Does
+   `new_key` change every name's value, and does a regenerated key unlist
+   names until their records are updated?
+5. For a sold name held elsewhere: which `status` or `transfer_status`
+   says the buyer has paid, does the list read give a price or an order id,
+   and can the auth code be submitted through the API (a command behind
+   Submit Transfer, or `set_transfer_auth_code` on the order it creates)?
+6. Can a name held elsewhere be listed before it's verified, and does the
+   listing go live on its own once it is?
+7. Does the marketplace need anything on the key or the account (an API
    setting, a price level), or does any registrar key work? Is the live
    path `aftermarkets/…/for_sales` or `aftermarket/…`?
-7. Can a name be listed or changed while it has a sale under way, a Buy
-   Lock, or a recent transfer, and what does Dynadot answer?
-8. Does a marketplace listing need anything in the name's DNS? Dynadot's
-   For Sale landing page is a DNS setting (`glue_type:
-for_sale_landing_page`), and only `listing_other_registrar_domain` has a
-   landing page flag (which "will change and save your DNS settings").
-9. After a sale, can DomBot tell from the registrar side that the name was
-   sold rather than pushed or transferred (a `domain_list` status, an
-   order)? On the web host, how are webhooks set up and signed?
-10. Phase 5: how does the sale of a name at another registrar complete?
-    Does Dynadot need an auth code, and who gives it?
+8. Currency: is a listing kept in the currency it was set in, and does a
+   read in another currency convert it? What are "cents" for JPY or KRW?
+   What currency and format is `price` in the other-registrar list?
+9. What do `asking_price` and `reserve_price` do on a listing held
+   elsewhere, beside Buy Now and the minimum offer?
+10. Does add refuse names at Dynadot (in another Dynadot account), or names
+    another Dynadot user has already added?
+11. How often can Verify now be called, and how often does Dynadot check
+    on its own?
+12. Is `description` really required on `set_for_sale`, and what does an
+    empty one do to an existing description?
+13. Can a name in the account be listed or changed while it has a sale
+    under way, a Buy Lock, or a recent transfer, and what does Dynadot
+    answer?
+14. After a sale of a name in the account, can DomBot tell from the
+    registrar side that it was sold rather than pushed or transferred (a
+    `domain_list` status, an order)? On the web host, how are webhooks set
+    up and signed?
