@@ -191,7 +191,12 @@ export const registrarNames = Object.keys(registrars) as [
 // reads these when they're passed: its v2 customer API (URL forwarding,
 // transfers out) is keyed by a customer UUID, which the library looks up from
 // the customer ID with the legacy key and secret, a lookup a PAT can't make.
-// GoDaddy retires the key and secret in 2026.
+// GoDaddy retires the key and secret in 2026. Expect v3 (PAT) routes for these
+// by then, as auto-renew and transfer-lock got in Oct 2026; move to them and
+// drop this section. Until then, the UUID never changes for an account (per
+// GoDaddy's 403-on-v2 docs), so storing the one the save-time check looks up
+// would leave the key and secret needed only at save. GoDaddy's docs show the
+// lookup with a PAT, but live a PAT still gets 401 (checked 2026-11-03).
 const OPTIONAL_CONFIG_FIELDS: Partial<
   Record<RegistrarName, RegistrarConfigField[]>
 > = {
