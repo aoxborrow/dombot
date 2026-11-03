@@ -405,8 +405,7 @@ has them.
   for sale" mode in the app), re-runs a stuck listing's checks where the
   market can, and Delist takes it down. Pricing stays DomBot's own asking price; this edits what the market
   has.
-- **The Markets filter** (the Markets tab's icon, after Pricing in Add
-  filter): the markets in play (all to start), then a listing's status
+- **The Markets filter** (a storefront icon, after Pricing in Add filter): the markets in play (all to start), then a listing's status
   (Active, Pending or on hold, Inactive or hidden, Rejected, or Not listed),
   its price against your DomBot price (above, below, at), and a range on its
   price. Each condition applies to one listing at a time; a name matches

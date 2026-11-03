@@ -59,6 +59,7 @@ import {
   DeleteDomainsDialog,
   MarkSoldDialog,
 } from '../components/actions/OwnershipDialogs';
+import { ActionDialog } from '../components/actions/ActionDialog';
 import { SelectionBar } from '../components/data-table/SelectionBar';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { useColumnLayout } from '../components/data-table/ColumnPicker';
@@ -149,6 +150,11 @@ type DialogState =
       side: AcquisitionSide;
       /** Why the fee isn't filled in, from a one-click registration. */
       note?: string;
+    }
+  | {
+      /** The bulk answers, each confirmed in a dialog listing the names. */
+      kind: 'registrations' | 'dropped' | 'dismiss';
+      events: DomainEvent[];
     };
 
 /**
@@ -511,11 +517,11 @@ export default function Activity() {
   const removableOf = (list: ActivityRow[]) =>
     namesOf(list).filter((e) => !held(e));
 
-  function dismiss(list: DomainEvent[]) {
+  function dismiss(list: DomainEvent[]): Promise<void> {
     const ids = list.map((e) => e.id);
     const what =
       list.length === 1 ? toUnicode(list[0].domain) : `${list.length} alerts`;
-    void setAlertsDismissed(ids, true).then(() => {
+    return setAlertsDismissed(ids, true).then(() => {
       deselect(ids);
       toast.success(`Dismissed ${what}`, {
         action: {
@@ -636,11 +642,11 @@ export default function Activity() {
   }
 
   /** Mark departures dropped (no money came back), with an Undo. */
-  function markDropped(list: DomainEvent[], dropped = true) {
+  function markDropped(list: DomainEvent[], dropped = true): Promise<void> {
     const ids = list.map((e) => e.id);
     const what =
       list.length === 1 ? toUnicode(list[0].domain) : `${list.length} names`;
-    void setDeparturesDropped(ids, dropped).then(() => {
+    return setDeparturesDropped(ids, dropped).then(() => {
       deselect(ids);
       if (!dropped) return;
       toast.success(`Marked ${what} dropped`, {
@@ -1046,8 +1052,12 @@ export default function Activity() {
                     icon={ClipboardPen}
                     label="Record registration"
                     count={arrivalsSelected.length}
-                    immediate
-                    onSelect={() => void recordRegistrations(arrivalsSelected)}
+                    onSelect={() =>
+                      setDialog({
+                        kind: 'registrations',
+                        events: arrivalsSelected,
+                      })
+                    }
                   />
                   <BulkItem
                     icon={Receipt}
@@ -1061,16 +1071,18 @@ export default function Activity() {
                     icon={CircleSlash}
                     label="Mark dropped"
                     count={departuresSelected.length}
-                    immediate
-                    onSelect={() => markDropped(departuresSelected)}
+                    onSelect={() =>
+                      setDialog({ kind: 'dropped', events: departuresSelected })
+                    }
                   />
                   <DropdownMenuSeparator />
                   <BulkItem
                     icon={X}
                     label="Dismiss"
                     count={newSelected.length}
-                    immediate
-                    onSelect={() => dismiss(newSelected)}
+                    onSelect={() =>
+                      setDialog({ kind: 'dismiss', events: newSelected })
+                    }
                   />
                   <DropdownMenuSeparator />
                   <BulkItem
@@ -1182,6 +1194,36 @@ export default function Activity() {
       {dialog?.kind === 'notes' && (
         <BulkNotesDialog
           domainNames={namesOf(dialog.rows).map((e) => e.domain)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'registrations' && (
+        <ActionDialog
+          title="Record registration"
+          names={dialog.events.map((e) => toUnicode(e.domain))}
+          description="Records each as a registration on the day it was created, at its registrar’s fee. A name with no fee DomBot can use is skipped and stays in Needs review. Nothing changes at the registrar."
+          actionLabel="Record registration"
+          onConfirm={() => recordRegistrations(dialog.events)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'dropped' && (
+        <ActionDialog
+          title="Mark dropped"
+          names={dialog.events.map((e) => toUnicode(e.domain))}
+          description="Records that each name left your account and no money came back, which answers it in Needs review. Nothing changes at the registrar."
+          actionLabel="Mark dropped"
+          onConfirm={() => markDropped(dialog.events)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'dismiss' && (
+        <ActionDialog
+          title="Dismiss"
+          names={dialog.events.map((e) => toUnicode(e.domain))}
+          description="Marks each as read, so it’s no longer highlighted or counted on the bell. Anything still missing its money stays in Needs review."
+          actionLabel="Dismiss"
+          onConfirm={() => dismiss(dialog.events)}
           onClose={() => setDialog(null)}
         />
       )}
@@ -1443,20 +1485,20 @@ function ReviewButton({
   );
 }
 
-/** A bulk action with how many of the selection it applies to. */
+/**
+ * A bulk action with how many of the selection it applies to. Each opens a
+ * dialog that lists the names before anything is saved.
+ */
 function BulkItem({
   icon: Icon,
   label,
   count,
-  immediate = false,
   destructive = false,
   onSelect,
 }: {
   icon: ComponentType<{ className?: string }>;
   label: string;
   count: number;
-  /** Runs at once instead of opening a dialog (no "…"). */
-  immediate?: boolean;
   destructive?: boolean;
   onSelect: () => void;
 }) {
@@ -1468,7 +1510,7 @@ function BulkItem({
     >
       <Icon className={destructive ? undefined : 'text-muted-foreground'} />
       {label}
-      {!immediate && <span className="-ml-[6px] opacity-50">…</span>}
+      <span className="-ml-[6px] opacity-50">…</span>
       <span className="ml-auto text-xs tabular-nums text-muted-foreground">
         {count}
       </span>

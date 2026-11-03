@@ -166,8 +166,9 @@ Sold…" becomes Record sale… / Edit sale….
 
 ### Bulk
 
-The selection bar on Activity gets the one-click answers, each with how many
-of the selection it applies to:
+The selection bar on Activity (the floating bar Domains uses) gets the
+answers, each with how many of the selection it applies to. None is one click
+in bulk: each opens a dialog listing the names, and saves on its button.
 
 - **Record registration** for the selected arrivals. Names without a usable
   price are skipped; the toast says how many, and Needs review still lists
