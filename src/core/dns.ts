@@ -4,6 +4,7 @@
 // resolver first, Google's as a fallback; empty on any failure, timeout, or
 // undelegated domain — a missing nameserver list is cosmetic, never fatal.
 
+import { normalizeNameserver } from '../shared/domain-name';
 import { userAgentHeaders } from './app-info';
 
 const RESOLVERS = [
@@ -37,7 +38,7 @@ export function nameserversFromDnsJson(json: DnsJson): string[] | null {
   if (json.Status !== RCODE_NOERROR) return null;
   if (!Array.isArray(json.Answer)) return [];
   return json.Answer.filter((a) => a.type === TYPE_NS)
-    .map((a) => a.data.toLowerCase().replace(/\.$/, ''))
+    .map((a) => normalizeNameserver(a.data))
     .filter(Boolean);
 }
 

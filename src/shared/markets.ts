@@ -1,4 +1,5 @@
 import type { CurrencyCode } from './currencies';
+import { normalizeNameserver } from './domain-name';
 import type { RegistrarConfigField } from './ipc';
 
 // The shared market model (docs/markets.md). Each market's client speaks its
@@ -354,7 +355,7 @@ export function marketNameserversFor(
   host: string,
   markets: readonly Pick<MarketInfo, 'id' | 'nameservers'>[],
 ): { market: MarketId; set: MarketNameservers } | null {
-  const h = host.trim().toLowerCase().replace(/\.$/, '');
+  const h = normalizeNameserver(host);
   if (!h) return null;
   for (const exact of [true, false]) {
     for (const m of markets) {

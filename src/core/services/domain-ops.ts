@@ -33,6 +33,10 @@ import {
   type UserSource,
 } from '../../shared/domain-events';
 import { registrarHostsDns } from '../../shared/market-verification';
+import {
+  normalizeNameserver,
+  normalizeNameservers,
+} from '../../shared/domain-name';
 import { toCurrencyCode } from '../../shared/currencies';
 import { parseCanonicalAmount } from '../../shared/money';
 import { broadcastPortfolioChanged } from '../events';
@@ -99,6 +103,11 @@ export async function applyDomainOp(
     message: string,
     extra: Pick<DomainOpResult, 'patch' | 'data'> = {},
   ): DomainOpResult => ({ target, status, message, ...extra });
+
+  // Nameservers go to the registrar, the caches and the history in one
+  // spelling (some registrars refuse capitals), whoever asked.
+  if (op.kind === 'nameservers')
+    op = { ...op, nameservers: normalizeNameservers(op.nameservers) };
 
   // Gate up front so a known-unsupported op never makes a network call.
   const reason = unsupportedReason(
@@ -376,9 +385,7 @@ async function settleUnknown(
     case 'nameservers': {
       if (!now.nameservers) return done('unknown', UNCONFIRMED);
       const set = (list: string[]) =>
-        [...new Set(list.map((n) => n.trim().toLowerCase().replace(/\.$/, '')))]
-          .sort()
-          .join(' ');
+        [...new Set(list.map(normalizeNameserver))].sort().join(' ');
       return set(now.nameservers) === set(op.nameservers)
         ? confirmed({ nameservers: op.nameservers })
         : done('failed', NOT_APPLIED);
