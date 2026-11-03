@@ -118,12 +118,11 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
       customerId: 'The numeric Customer ID shown in your GoDaddy account.',
     },
     optional: {
-      title: 'Optional: GoDaddy v2 API',
+      title: 'Optional GoDaddy v2 API (Legacy)',
       summary:
         'These settings let DomBot set URL forwarding and approve or reject ' +
-        'transfer-outs through GoDaddy’s v2 API. Everything else works with ' +
-        'the PAT alone. The API key and secret are GoDaddy’s older ' +
-        'credentials, which it is retiring in 2026.',
+        'transfer-outs through GoDaddy’s older v2 API. Everything else works ' +
+        'with the PAT alone.',
     },
   },
 
