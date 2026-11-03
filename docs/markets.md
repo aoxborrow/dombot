@@ -12,6 +12,8 @@ bulk writes, MCP). Each market's own API, quirks and client are in its plan:
 - [sedo-api.md](sedo-api.md): client and adapter built
   (`src/core/markets/sedo/`, `src/core/services/markets/sedo.ts`), verified
   live (reads and writes).
+- [dynadot-marketplace-api.md](dynadot-marketplace-api.md): planned, on the
+  Dynadot registrar account's key.
 
 Atom's and Sedo's plans each proposed a first cut of shared types. This doc
 replaces both; where they disagreed, the choice and the reason are below.
