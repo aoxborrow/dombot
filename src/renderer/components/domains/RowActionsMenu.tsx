@@ -283,9 +283,9 @@ export function RowActionsMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
-          // Wide enough for "Verify ownership TXT", and wider on a
-          // phone, where submenus open in place, indented.
-          className="w-52 max-sm:w-72"
+          // Wide enough for "Verify ownership TXT", and for the submenus
+          // a phone opens in place, indented.
+          className="w-52"
           onCloseAutoFocus={(e) => {
             if (!keepFocus.current) return;
             keepFocus.current = false;

@@ -223,9 +223,9 @@ export function BulkActionsBar({
           count={domains.length}
           total={total}
           onClear={onClear}
-          // Wide enough for "Verify ownership TXT", and wider on a
-          // phone, where submenus open in place, indented.
-          actionsClassName="w-52 max-sm:w-72"
+          // Wide enough for "Verify ownership TXT", and for the submenus
+          // a phone opens in place, indented.
+          actionsClassName="w-52"
           actions={
             <>
               {archiveView ? (

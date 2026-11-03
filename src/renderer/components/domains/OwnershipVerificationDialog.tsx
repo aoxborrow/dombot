@@ -223,7 +223,7 @@ export function VerificationTxtDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="ghost" disabled={busy} onClick={onClose}>
+          <Button variant="outline" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
           <Button
@@ -366,7 +366,7 @@ export function RecheckOwnershipDialog({
             <Button onClick={onClose}>Done</Button>
           ) : (
             <>
-              <Button variant="ghost" disabled={busy} onClick={onClose}>
+              <Button variant="outline" disabled={busy} onClick={onClose}>
                 Cancel
               </Button>
               <Button disabled={busy || total === 0} onClick={() => void run()}>
