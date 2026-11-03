@@ -44,6 +44,9 @@ import { CashIcon } from '../icons/CashIcon';
 import type { MarketAction } from './MarketActionDialog';
 
 const dots = <span className="-ml-[6px] opacity-50">…</span>;
+// After a T, whose stem leaves room under its bar where the dots sit, a
+// little closer, as type kerns "T.".
+const dotsAfterT = <span className="-ml-[7px] opacity-50">…</span>;
 const icon = 'text-muted-foreground';
 
 /**
@@ -229,7 +232,7 @@ export function RowActionsMenu({
       >
         {glyph}
         {label}
-        {dots}
+        {label.endsWith('T') ? dotsAfterT : dots}
       </DropdownMenuItem>
     );
 
