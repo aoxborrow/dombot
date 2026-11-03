@@ -610,6 +610,13 @@ guides that describe it pair it with `ns1/ns2.afternic.com` the same way, and
 GoDaddy's announcement says Afternic asks for it when another account already
 lists the name: Afternic's shared pair alone can't say which account owns it.
 
+The NS3 is written lowercase even when the ID has capitals; the TXT record
+keeps the ID as Afternic shows it. Hostnames are case-insensitive, but some
+registrars refuse capitals: Dynadot answered "Name server must be all
+lowercase" (400) on 2026-11-03. TXT values are compared as written. DomBot
+lowercases every nameserver it shows, compares, caches or sends, and so does
+registrar-client.
+
 Each market gives one verification value per account, shown only in its
 dashboard. None of the APIs return it (Afternic's account settings are
 lander, intake style, lease-to-own, lander options and self-broker, checked
@@ -750,7 +757,7 @@ nameservers or an account's settings change. Per name and market account:
   except where another account already lists the name.
 - **Account nameserver:** one of the name's nameservers is this account's
   own (Afternic's `verification-<ID>.ns101.verify.hn`, matched against the
-  account's setting). Another ID in the same pattern means a different
+  account's setting, ignoring case). Another ID in the same pattern means a different
   Afternic account, worth flagging.
 - **Not by nameservers:** neither. A TXT record may still cover it; that's
   phase 2.

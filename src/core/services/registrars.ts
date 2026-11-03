@@ -27,7 +27,7 @@ import {
   removeAccountRecord,
 } from './accounts';
 import { domainKey } from '../../shared/account-key';
-import { toAscii } from '../../shared/domain-name';
+import { normalizeNameservers, toAscii } from '../../shared/domain-name';
 import { currencyInfo } from '../../shared/money';
 import { expiryDay, type AccountHoldings } from '../../shared/sync-diff';
 import { recordSync } from './domain-history';
@@ -126,12 +126,18 @@ interface RegistrarPortfolioEntry {
   recovery?: RegistrarMeta['sync']['recovery'];
 }
 
-/** Dates round-trip through JSON as ISO strings; revive them back to `Date`. */
-function reviveDomainDates<T extends Partial<Domain>>(d: T): T {
+/**
+ * Dates round-trip through JSON as ISO strings; revive them back to `Date`.
+ * Nameservers come back normalized too: an entry patched by an older version
+ * can hold them as the caller typed them.
+ */
+function reviveCachedDomain<T extends Partial<Domain>>(d: T): T {
   const out = { ...d } as Partial<Domain>;
   if (out.createdDate != null) out.createdDate = new Date(out.createdDate);
   if (out.expirationDate != null)
     out.expirationDate = new Date(out.expirationDate);
+  if (Array.isArray(out.nameservers))
+    out.nameservers = normalizeNameservers(out.nameservers);
   return out as T;
 }
 
@@ -397,7 +403,7 @@ function readRegistrarEntry(name: string): RegistrarPortfolioEntry | null {
     lastError: cached.data.lastError
       ? redactRegistrarMessage(cached.data.lastError, accountSecrets(name))
       : null,
-    domains: cached.data.domains.filter(hasDomainName).map(reviveDomainDates),
+    domains: cached.data.domains.filter(hasDomainName).map(reviveCachedDomain),
   };
 }
 
@@ -1032,7 +1038,7 @@ export function getCachedDetail(): Record<string, Partial<Domain>> {
   const all = readAll<DetailRecord>('detail');
   const out: Record<string, Partial<Domain>> = {};
   for (const [key, entry] of Object.entries(all)) {
-    out[key] = reviveDomainDates(withoutQuote(entry.data));
+    out[key] = reviveCachedDomain(withoutQuote(entry.data));
   }
   return out;
 }
@@ -1046,7 +1052,7 @@ export function getCachedDomainDetail(
     'detail',
     detailKey(accountId, domainName),
   );
-  return entry ? reviveDomainDates(withoutQuote(entry.data)) : null;
+  return entry ? reviveCachedDomain(withoutQuote(entry.data)) : null;
 }
 
 /**
@@ -1348,7 +1354,7 @@ export async function getDomainDetail(
     // Serve a fresh-enough cached partial without any network calls.
     if (cached && !isStale(cached)) {
       return {
-        ...reviveDomainDates(withoutQuote(cached.data)),
+        ...reviveCachedDomain(withoutQuote(cached.data)),
         registrar: name,
         accountId,
         accountLabel: accountById(accountId).label,

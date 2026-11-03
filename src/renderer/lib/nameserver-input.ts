@@ -7,6 +7,10 @@ import {
   type MarketInfo,
 } from '../../shared/markets';
 import { verificationNameservers } from '../../shared/market-verification';
+import {
+  normalizeNameserver,
+  normalizeNameservers,
+} from '../../shared/domain-name';
 import { nameserverGroup } from './nameservers';
 
 /** Registries cap the delegation at 13 nameservers. */
@@ -29,11 +33,6 @@ export interface NameserverInput {
   warnings: string[];
 }
 
-/** Trim, lowercase, and strip a trailing dot from one host. */
-export function normalizeHost(raw: string): string {
-  return raw.trim().toLowerCase().replace(/\.$/, '');
-}
-
 /**
  * Parses editor text — one host per line (commas and whitespace also
  * separate) — into a validated nameserver set.
@@ -45,7 +44,7 @@ export function validateNameservers(text: string): NameserverInput {
   const nameservers: string[] = [];
 
   for (const raw of text.split(/[\s,]+/)) {
-    const host = normalizeHost(raw);
+    const host = normalizeNameserver(raw);
     if (!host) continue;
     if (!HOSTNAME.test(host)) {
       errors.push(`Not a valid hostname: ${host}`);
@@ -72,7 +71,7 @@ export function validateNameservers(text: string): NameserverInput {
 
 /** Order-insensitive identity of a set, for dedupe and "unchanged" checks. */
 export function nameserverSetKey(nameservers: string[]): string {
-  return nameservers.map(normalizeHost).filter(Boolean).sort().join('\n');
+  return normalizeNameservers(nameservers).sort().join('\n');
 }
 
 export function sameNameservers(a: string[], b: string[]): boolean {
@@ -113,7 +112,7 @@ export function nameserverPresets(
   const used = new Set<string>();
 
   for (const set of recent) {
-    const normalized = set.map(normalizeHost).filter(Boolean);
+    const normalized = normalizeNameservers(set);
     const key = nameserverSetKey(normalized);
     if (!key || used.has(key)) continue;
     used.add(key);
@@ -126,7 +125,7 @@ export function nameserverPresets(
 
   const counts = new Map<string, { nameservers: string[]; count: number }>();
   for (const d of domains) {
-    const normalized = d.nameservers.map(normalizeHost).filter(Boolean);
+    const normalized = normalizeNameservers(d.nameservers);
     const key = nameserverSetKey(normalized);
     if (!key) continue;
     const entry = counts.get(key);

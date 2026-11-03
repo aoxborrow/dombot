@@ -1,3 +1,4 @@
+import { normalizeNameserver } from './domain-name';
 import type { RegistrarName } from './ipc';
 import {
   defaultMarketNameservers,
@@ -37,8 +38,11 @@ const VERIFICATION: Record<MarketId, VerificationInfo> = {
       /^afternic-verification-([a-z0-9]+)$/i.exec(value)?.[1] ??
       /^verification-([a-z0-9]+)\.ns101\.verify\.hn$/i.exec(value)?.[1] ??
       null,
+    // The TXT keeps the ID as Afternic shows it (TXT values are
+    // case-sensitive); the NS3 is a hostname, so it's lowercase.
     txt: (id) => `afternic-verification-${id}`,
-    nameserver: (id) => `verification-${id}.ns101.verify.hn`,
+    nameserver: (id) =>
+      normalizeNameserver(`verification-${id}.ns101.verify.hn`),
   },
   atom: {
     term: 'TXT Code',
@@ -153,7 +157,7 @@ export function registrarHostsDns(
   const own = REGISTRAR_DNS[registrar];
   if (!own || nameservers.length === 0) return true;
   return nameservers.every((ns) => {
-    const host = ns.trim().toLowerCase().replace(/\.$/, '');
+    const host = normalizeNameserver(ns);
     return own.some((d) => host === d || host.endsWith(`.${d}`));
   });
 }

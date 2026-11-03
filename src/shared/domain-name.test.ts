@@ -3,6 +3,8 @@ import {
   assertDomainName,
   isIdn,
   normalizeDomain,
+  normalizeNameserver,
+  normalizeNameservers,
   toAscii,
   toUnicode,
 } from './domain-name';
@@ -30,6 +32,20 @@ describe('domain names', () => {
       expect(() => assertDomainName(bad)).toThrow(/not a domain name/);
     }
     expect(() => assertDomainName(`${'a'.repeat(64)}.com`)).toThrow();
+  });
+});
+
+describe('nameservers', () => {
+  it('spells a nameserver one way: trimmed, lowercase, no root dot', () => {
+    expect(normalizeNameserver('  Verification-AbC1.NS101.verify.test. ')).toBe(
+      'verification-abc1.ns101.verify.test',
+    );
+  });
+
+  it('normalizes a list and drops blanks', () => {
+    expect(
+      normalizeNameservers(['NS1.Example.net', ' ', 'ns2.example.net.']),
+    ).toEqual(['ns1.example.net', 'ns2.example.net']);
   });
 });
 

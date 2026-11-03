@@ -21,6 +21,21 @@ export function normalizeDomain(domain: string | null | undefined): string {
     .trim();
 }
 
+/**
+ * One spelling of a nameserver hostname, wherever DomBot shows, compares,
+ * stores or sends one: trimmed, lowercase, no root dot. Hostnames are
+ * case-insensitive, but registrars hand them back in mixed case and some
+ * refuse capitals on write (Dynadot: "Name server must be all lowercase").
+ */
+export function normalizeNameserver(host: string): string {
+  return host.trim().toLowerCase().replace(/\.$/, '');
+}
+
+/** Each nameserver in `hosts` normalized, blanks dropped. */
+export function normalizeNameservers(hosts: readonly string[]): string[] {
+  return hosts.map(normalizeNameserver).filter(Boolean);
+}
+
 /** Normalized ASCII (punycode) form: the key for anything stored by name. */
 export function toAscii(domain: string | null | undefined): string {
   const normalized = normalizeDomain(domain);
