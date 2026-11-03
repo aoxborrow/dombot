@@ -85,6 +85,28 @@ describe('bucketSelection', () => {
     expect(summaryOnly.eligible).toHaveLength(1);
   });
 
+  it('judges each row by its own account, not the first at its registrar', () => {
+    // Two GoDaddy accounts: only the second has the Optional settings that
+    // unlock forwarding.
+    const accounts = [
+      { ...meta('godaddy'), accountId: 'plain' },
+      { ...meta('godaddy', ['setDomainForwarding']), accountId: 'full' },
+    ];
+    const at = (domainName: string, accountId: string) =>
+      domain({ domainName, registrar: 'godaddy', accountId });
+    const r = bucketSelection(
+      [at('plain.com', 'plain'), at('full.com', 'full')],
+      { kind: 'urlForwarding', forwards: [] },
+      accounts,
+      () => true,
+    );
+    expect(r.eligible.map((d) => d.domainName)).toEqual(['full.com']);
+    expect(r.unsupported.map((u) => u.domain.domainName)).toEqual([
+      'plain.com',
+    ]);
+    expect(r.unsupported[0].reason).toMatch(/Optional settings/);
+  });
+
   it('treats everything as eligible until registrar metadata loads', () => {
     const r = bucketSelection([c], { kind: 'authCode' }, null, () => true);
     expect(r.eligible).toHaveLength(1);

@@ -2,7 +2,6 @@ import { protectRegistrar, redactRegistrarMessage } from './registrar-errors';
 import { importedRows } from '../../shared/imported-domains';
 import { getImportedDomains } from './imported-domains';
 import {
-  Feature,
   NotImplementedError,
   RateLimitError,
   RegistrarClient,
@@ -63,7 +62,10 @@ import {
   renewalFromGodaddyPricing,
   tldsNeedingPremiumFlags,
 } from './godaddy-renewal-quotes';
-import { missingOptionalField } from '../../shared/registrar-fields';
+import {
+  OPTIONAL_SETTINGS_FEATURES,
+  missingOptionalField,
+} from '../../shared/registrar-fields';
 import type {
   ConnectRegistrarResult,
   Domain,
@@ -186,10 +188,10 @@ export const registrarNames = Object.keys(registrars) as [
 
 // Settings the app collects beyond the library's `configFields`, in the account
 // form's collapsed Optional section. GoDaddy advertises only its PAT but still
-// reads these when they're passed: its v2 customer API (transfers out) is keyed
-// by a customer UUID, which the library looks up from the customer number with
-// the legacy key and secret, a lookup a PAT can't make. GoDaddy retires the key
-// and secret in 2026.
+// reads these when they're passed: its v2 customer API (URL forwarding,
+// transfers out) is keyed by a customer UUID, which the library looks up from
+// the customer ID with the legacy key and secret, a lookup a PAT can't make.
+// GoDaddy retires the key and secret in 2026.
 const OPTIONAL_CONFIG_FIELDS: Partial<
   Record<RegistrarName, RegistrarConfigField[]>
 > = {
@@ -203,29 +205,18 @@ const OPTIONAL_CONFIG_FIELDS: Partial<
     },
     {
       name: 'apiKey',
-      label: 'API Key',
+      label: 'API Key (Legacy)',
       type: 'password',
       required: false,
       section: 'optional',
     },
     {
       name: 'apiSecret',
-      label: 'API Secret',
+      label: 'API Secret (Legacy)',
       type: 'password',
       required: false,
       section: 'optional',
     },
-  ],
-};
-
-// Extended features the library offers but an account can't use until it has
-// every Optional setting (OPTIONAL_CONFIG_FIELDS). GoDaddy reads and answers
-// transfers out through its v2 customer API, which needs all three.
-const UNUSABLE_FEATURES: Partial<Record<RegistrarName, readonly string[]>> = {
-  godaddy: [
-    Feature.GetTransferOut,
-    Feature.ApproveTransferOut,
-    Feature.RejectTransferOut,
   ],
 };
 
@@ -239,13 +230,13 @@ function hasOptionalSettings(name: RegistrarName, accountId: string): boolean {
 }
 
 /** The provider's capability list (core + extended `Feature` ids), less the
- *  features the account can't use (UNUSABLE_FEATURES): all of those when no
- *  account is given. */
+ *  features the account's Optional settings unlock while it lacks them
+ *  (OPTIONAL_SETTINGS_FEATURES): all of those when no account is given. */
 export function getRegistrarFeatures(
   name: RegistrarName,
   accountId?: string,
 ): readonly string[] {
-  const unusable = UNUSABLE_FEATURES[name];
+  const unusable = OPTIONAL_SETTINGS_FEATURES[name];
   const features = registrars[name].features;
   if (!unusable || (accountId && hasOptionalSettings(name, accountId)))
     return features;

@@ -4,6 +4,7 @@
 
 import { Feature } from '@aoxborrow/registrar-client';
 import type { DomainOp, DomainOpKind, RegistrarName } from './ipc';
+import { OPTIONAL_SETTINGS_FEATURES } from './registrar-fields';
 
 /** Extended features an op needs; ops absent here are core on every provider. */
 const REQUIRED_FEATURE: Partial<Record<DomainOpKind, string>> = {
@@ -49,9 +50,7 @@ const KNOWN_GAPS: Partial<
   godaddy: (op) =>
     op.kind === 'privacy' && op.enabled
       ? 'Enabling privacy at GoDaddy is a purchase the API doesn’t expose; only disabling is supported.'
-      : op.kind === 'urlForwarding'
-        ? 'GoDaddy forwarding needs a customer ID and legacy key the app no longer collects.'
-        : null,
+      : null,
 };
 
 // Registrars whose API doesn't report WHOIS privacy, so the library's `false`
@@ -89,9 +88,21 @@ export function unsupportedReason(
 ): string | null {
   const required = REQUIRED_FEATURE[op.kind];
   if (required && !features.includes(required)) {
-    return `This registrar doesn’t offer ${OP_LABEL[op.kind]} through its API.`;
+    return missingFeatureReason(registrar, required, OP_LABEL[op.kind]);
   }
   return KNOWN_GAPS[registrar]?.(op) ?? null;
+}
+
+/** Why an account lacks an extended feature, `what` naming it ("URL
+ *  forwarding"): Optional settings it hasn't filled in, or an API without it. */
+export function missingFeatureReason(
+  registrar: RegistrarName,
+  feature: string,
+  what: string,
+): string {
+  return OPTIONAL_SETTINGS_FEATURES[registrar]?.includes(feature)
+    ? `Add this account’s Optional settings in Settings › Registrars to use ${what}.`
+    : `This registrar doesn’t offer ${what} through its API.`;
 }
 
 /** Past-tense summary of a successful op, for toasts and result messages. */

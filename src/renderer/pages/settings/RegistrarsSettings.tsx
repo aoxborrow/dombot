@@ -1300,13 +1300,13 @@ function OptionalCredentialFields(props: CredentialFieldsProps) {
     <Collapsible open={open || incomplete} onOpenChange={setOpen}>
       <CollapsibleTrigger className="group -ml-0.5 inline-flex items-center gap-1 text-sm font-medium">
         <ChevronRight className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
-        Optional
+        {about?.title ?? 'Optional'}
       </CollapsibleTrigger>
       <CollapsibleContent>
         <FieldGroup className="mt-3 gap-4">
           {about && (
             <p className="text-[13px] leading-relaxed text-muted-foreground">
-              <HelpText text={about} />
+              <HelpText text={about.summary} />
             </p>
           )}
           <CredentialFields

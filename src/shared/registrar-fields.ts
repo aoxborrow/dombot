@@ -1,7 +1,26 @@
 // Which registrar credential fields must be filled in, shared by the Settings
-// form (asterisks, the Save button) and main (the check before saving).
+// form (asterisks, the Save button) and main (the check before saving), and
+// what the Optional ones unlock.
 
-import type { RegistrarConfigField } from './ipc';
+import { Feature } from '@aoxborrow/registrar-client';
+import type { RegistrarConfigField, RegistrarName } from './ipc';
+
+/**
+ * Extended features an account can use only once every Optional setting is
+ * filled in. GoDaddy's URL forwarding and transfers out go through its v2
+ * customer API, which needs them.
+ */
+export const OPTIONAL_SETTINGS_FEATURES: Partial<
+  Record<RegistrarName, readonly string[]>
+> = {
+  godaddy: [
+    Feature.GetDomainForwarding,
+    Feature.SetDomainForwarding,
+    Feature.GetTransferOut,
+    Feature.ApproveTransferOut,
+    Feature.RejectTransferOut,
+  ],
+};
 
 type Values = Record<string, string | undefined>;
 

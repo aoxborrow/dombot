@@ -26,9 +26,9 @@ export interface RegistrarHelp {
   /** Per-field guidance keyed by `ConfigField.name`, shown between the label
    *  and the input. Fields with no entry show nothing. */
   fields: Record<string, string>;
-  /** What the collapsed Optional section's settings are for, shown at its
-   *  top. Only registrars with Optional fields have one. */
-  optional?: string;
+  /** The collapsed Optional section's title, and what its settings are for,
+   *  shown at its top. Only registrars with Optional fields have one. */
+  optional?: { title: string; summary: string };
 }
 
 // Exhaustive over RegistrarName so adding a registrar to the library forces a
@@ -115,12 +115,16 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
       },
     ],
     fields: {
-      customerId: 'The numeric Customer # shown in your GoDaddy account.',
+      customerId: 'The numeric Customer ID shown in your GoDaddy account.',
     },
-    optional:
-      'These settings let DomBot approve or reject GoDaddy transfer-outs. ' +
-      'Everything else works with the PAT alone. GoDaddy is retiring the ' +
-      'API key and secret in 2026.',
+    optional: {
+      title: 'Optional: GoDaddy v2 API',
+      summary:
+        'These settings let DomBot set URL forwarding and approve or reject ' +
+        'transfer-outs through GoDaddy’s v2 API. Everything else works with ' +
+        'the PAT alone. The API key and secret are GoDaddy’s older ' +
+        'credentials, which it is retiring in 2026.',
+    },
   },
 
   namebright: {

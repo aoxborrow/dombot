@@ -116,18 +116,18 @@ export function RowActionsMenu({
       ? 'Added by you. No connected account holds this name.'
       : null;
   const pending = useAppStore((s) => s.mutating[key] ?? false);
-  const urlReason = useOpUnsupportedReason(domain.registrar, {
+  const urlReason = useOpUnsupportedReason(domain, {
     kind: 'urlForwarding',
     forwards: [],
   });
-  const emailReason = useOpUnsupportedReason(domain.registrar, {
+  const emailReason = useOpUnsupportedReason(domain, {
     kind: 'emailForwarding',
     forwards: [],
   });
-  const authReason = useOpUnsupportedReason(domain.registrar, {
+  const authReason = useOpUnsupportedReason(domain, {
     kind: 'authCode',
   });
-  const renewReason = useOpUnsupportedReason(domain.registrar, {
+  const renewReason = useOpUnsupportedReason(domain, {
     kind: 'renew',
     years: 1,
   });

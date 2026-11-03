@@ -246,8 +246,13 @@ describe('getRegistrarFeatures', () => {
     Feature.RejectTransferOut,
   ];
 
-  it('drops GoDaddy transfer-out unless the account has every Optional setting', () => {
-    const features = [Feature.GetAuthCode, ...transferOut];
+  it('drops GoDaddy forwarding and transfer-out unless the account has every Optional setting', () => {
+    const features = [
+      Feature.GetAuthCode,
+      Feature.GetDomainForwarding,
+      Feature.SetDomainForwarding,
+      ...transferOut,
+    ];
     vi.spyOn(registrars.godaddy, 'features', 'get').mockReturnValue(features);
     vi.spyOn(registrars.dynadot, 'features', 'get').mockReturnValue(features);
     // No account to check: the catalog never offers it.

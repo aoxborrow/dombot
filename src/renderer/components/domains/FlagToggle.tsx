@@ -55,7 +55,7 @@ export function FlagToggle({
       : { kind: 'lock', locked: next };
   const optimistic: Partial<Domain> =
     kind === 'privacy' ? { privacy: next } : { locked: next };
-  const reason = useOpUnsupportedReason(domain.registrar, op);
+  const reason = useOpUnsupportedReason(domain, op);
 
   const apply = () => {
     void applyDomainOp(targetOf(domain), op, optimistic).then((result) =>

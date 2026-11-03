@@ -860,8 +860,12 @@ describe('getTransferOut', () => {
   it('throws, with no call, where the registrar can’t report one', async () => {
     getDomainFeatures.mockReturnValue(['getAuthCode']);
     await expect(readTransferOut(target)).rejects.toThrow(
-      /doesn.t report transfers out/,
+      'This registrar doesn’t offer transfer-out reports through its API.',
     );
+    // A GoDaddy account is missing its Optional settings instead.
+    await expect(
+      readTransferOut({ ...target, registrar: 'godaddy' }),
+    ).rejects.toThrow(/Add this account’s Optional settings/);
     expect(getTransferOut).not.toHaveBeenCalled();
   });
 });

@@ -17,6 +17,7 @@ import type {
 } from '../../shared/ipc';
 import {
   expandTemplate,
+  missingFeatureReason,
   opSummary,
   unsupportedReason,
 } from '../../shared/domain-ops';
@@ -627,7 +628,11 @@ export async function getTransferOut(
 ): Promise<DomainTransferOut | null> {
   if (!getDomainFeatures(target).includes(Feature.GetTransferOut))
     throw new Error(
-      'This registrar doesn’t report transfers out through its API.',
+      missingFeatureReason(
+        target.registrar,
+        Feature.GetTransferOut,
+        'transfer-out reports',
+      ),
     );
   const account = resolveDomainAccount(
     target.registrar,

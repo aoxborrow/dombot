@@ -4,6 +4,7 @@ import type {
   OperationResult,
   RegistrarName,
 } from '@aoxborrow/registrar-client';
+import { missingFeatureReason } from '../../shared/domain-ops';
 import {
   resolveDomainAccount,
   resolveAccount,
@@ -15,6 +16,7 @@ import {
   getPortfolio,
   getPortfolioPricing,
   getRegistrarClient,
+  getRegistrarFeatures,
   getRegistrarMetadata,
   registerDomainCached,
   registrarNames,
@@ -1954,6 +1956,10 @@ export function registerTools(server: McpServer): void {
     async ({ accountId, registrar, domain }) => {
       const r = resolveRegistrar(domain, registrar, accountId);
       const account = resolveDomainAccount(r, domain, accountId);
+      if (!getRegistrarFeatures(r, account.id).includes('getDomainForwarding'))
+        throw new Error(
+          missingFeatureReason(r, 'getDomainForwarding', 'URL forwarding'),
+        );
       return json(
         await getRegistrarClient(r, account.id).getDomainForwarding(domain),
       );

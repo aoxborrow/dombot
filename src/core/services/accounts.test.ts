@@ -71,11 +71,13 @@ vi.mock('@aoxborrow/registrar-client', async (original) => {
             'transferIn',
             'getPricing',
             'getTransferOut',
+            'getDomainForwarding',
           ].map((name) => [name, vi.fn()]),
         );
         provider.listDomains.mockResolvedValue([]);
         provider.getDomain.mockResolvedValue(null);
         provider.getNameservers.mockResolvedValue([]);
+        provider.getDomainForwarding.mockResolvedValue([]);
         provider.testConnection.mockResolvedValue(
           process.env.DOMBOT_ACCOUNT_QA && creds.apiKey === 'invalid'
             ? {
@@ -1027,32 +1029,63 @@ describe('GoDaddy Optional settings', () => {
     ]);
   });
 
-  it('offers transfers out only on an account with all three', async () => {
+  it('offers URL forwarding and transfers out only on an account with all three', async () => {
     const plain = await connect({ apiToken: 'pat' }, 'Plain');
     const full = await connect({ apiToken: 'pat-2', ...OPTIONAL }, 'Full');
+    const unlocked = [
+      Feature.GetDomainForwarding,
+      Feature.SetDomainForwarding,
+      Feature.GetTransferOut,
+      Feature.ApproveTransferOut,
+      Feature.RejectTransferOut,
+    ];
     expect(featuresOf(plain.id)).toContain(Feature.GetAuthCode);
-    expect(featuresOf(plain.id)).not.toContain(Feature.GetTransferOut);
-    expect(featuresOf(plain.id)).not.toContain(Feature.ApproveTransferOut);
-    expect(featuresOf(full.id)).toEqual(
-      expect.arrayContaining([
-        Feature.GetTransferOut,
-        Feature.ApproveTransferOut,
-        Feature.RejectTransferOut,
-      ]),
-    );
+    for (const feature of unlocked)
+      expect(featuresOf(plain.id)).not.toContain(feature);
+    expect(featuresOf(full.id)).toEqual(expect.arrayContaining(unlocked));
     const sold = (accountId: string): DomainTarget => ({
       registrar: 'godaddy',
       domainName: 'sold.com',
       accountId,
     });
     await expect(transferOut(sold(plain.id))).rejects.toThrow(
-      /doesn.t report transfers out/,
+      'Add this account’s Optional settings in Settings › Registrars to use transfer-out reports.',
     );
     await expect(transferOut(sold(full.id))).resolves.toBeNull();
     expect(fakes.providers.get('gd-key')!.getTransferOut).toHaveBeenCalledWith(
       'sold.com',
       {},
     );
+    // URL forwarding: the app's read, the MCP read and the write.
+    const forwarding = (target: DomainTarget) =>
+      invoke('getUrlForwarding', coreMethods.getUrlForwarding, [target]);
+    await expect(forwarding(sold(plain.id))).rejects.toThrow(
+      /Optional settings .* to use URL forwarding/,
+    );
+    await expect(forwarding(sold(full.id))).resolves.toEqual([]);
+    await expect(
+      mcp('domain_url_forwarding_get', {
+        domain: 'sold.com',
+        registrar: 'godaddy',
+        accountId: plain.id,
+      }),
+    ).rejects.toThrow(/Optional settings/);
+    await expect(
+      mcp('domain_url_forwarding_get', {
+        domain: 'sold.com',
+        registrar: 'godaddy',
+        accountId: full.id,
+      }),
+    ).resolves.toEqual([]);
+    expect(
+      await invoke('applyDomainOp', coreMethods.applyDomainOp, [
+        sold(plain.id),
+        { kind: 'urlForwarding', forwards: [] },
+      ]),
+    ).toMatchObject({
+      status: 'unsupported',
+      message: expect.stringMatching(/Optional settings/),
+    });
   });
 
   it('resolves the account for a target that names none', async () => {
@@ -1083,7 +1116,7 @@ describe('GoDaddy Optional settings', () => {
     await expect(
       connect({ apiToken: 'pat', customerId: '123456789' }),
     ).rejects.toThrow(
-      /API Key is required when any Optional setting is filled in/,
+      'API Key (Legacy) is required when any Optional setting is filled in.',
     );
     expect(fakes.providers.size).toBe(0);
     const account = await connect({ apiToken: 'pat' });

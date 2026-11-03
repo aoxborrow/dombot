@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { DombotApi, DomainTarget } from '../../shared/ipc';
 import { clearAll, clearRegistrarCaches } from '../services/cache';
 import { applyDomainOp, getTransferOut } from '../services/domain-ops';
+import { missingFeatureReason } from '../../shared/domain-ops';
 import {
   advanceMarketBulk,
   cancelBulk,
@@ -212,10 +213,10 @@ export async function invoke<K extends ApiMethodName>(
   return entry.handler(...(parsed.data as Args<K>));
 }
 
-/** Throws a plain message when the registrar lacks an extended read feature. */
+/** Throws a plain message when the account lacks an extended read feature. */
 function requireFeature(target: DomainTarget, feature: string, what: string) {
   if (!getDomainFeatures(target).includes(feature)) {
-    throw new Error(`This registrar doesn’t offer ${what} through its API.`);
+    throw new Error(missingFeatureReason(target.registrar, feature, what));
   }
 }
 

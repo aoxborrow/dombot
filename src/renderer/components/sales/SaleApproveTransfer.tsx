@@ -5,6 +5,7 @@ import { localDay } from '../../../shared/domain-events';
 import type { Domain, DomainOp } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { reportOpResult, targetOf } from '../../lib/domain-ops';
+import { accountMetaOf } from '../../lib/registrar-accounts';
 import { SaleStepButton } from './SaleStepButton';
 
 const APPROVE: DomainOp = { kind: 'approveTransfer' };
@@ -32,9 +33,7 @@ export function SaleApproveTransfer({ domain }: { domain: Domain }) {
   const busy = useAppStore((s) => s.mutating[key] ?? false);
   // Per account: a GoDaddy account reports transfers only with its Optional
   // settings filled in.
-  const meta = useAppStore((s) =>
-    s.registrars?.find((r) => r.accountId === domain.accountId),
-  );
+  const meta = useAppStore((s) => accountMetaOf(s.registrars, domain));
   const reports =
     (meta?.features.includes(Feature.GetTransferOut) &&
       meta.features.includes(Feature.ApproveTransferOut)) ??

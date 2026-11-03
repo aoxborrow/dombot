@@ -38,7 +38,7 @@ export function NameserversCell({ domain }: { domain: Domain }) {
   const [open, setOpen] = useState(false);
 
   const probe: DomainOp = { kind: 'nameservers', nameservers: [] };
-  const reason = useOpUnsupportedReason(domain.registrar, probe);
+  const reason = useOpUnsupportedReason(domain, probe);
 
   const save = (nameservers: string[]) => {
     const op: DomainOp = { kind: 'nameservers', nameservers };
