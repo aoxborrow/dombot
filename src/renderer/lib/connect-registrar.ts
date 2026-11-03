@@ -1,4 +1,8 @@
-import type { RegistrarName } from '../../shared/ipc';
+import type {
+  ConnectRegistrarResult,
+  RegistrarAccount,
+  RegistrarName,
+} from '../../shared/ipc';
 
 export const DYNADOT_ACTIVATION_NOTICE =
   'Dynadot hasn’t accepted this key yet. New keys can take a few minutes to become active. We’ll try again every 30 seconds for up to 3 minutes. You can stop waiting at any time.';
@@ -28,39 +32,31 @@ function waitForActivation(signal: AbortSignal, delay: number): Promise<void> {
 
 /** Only retry Dynadot authentication during account creation. A rejected
  * connection test never persists an account; other failures may be from saving
- * and must not be replayed. The provider cannot distinguish activation from a
- * bad key, so keep the wait bounded and the guidance conditional. */
-export async function connectRegistrarWithActivationWait<T>(
+ * and must not be replayed. Dynadot answers 401 both for a key that isn't
+ * active yet and for a bad one, so keep the wait bounded and the guidance
+ * conditional. */
+export async function connectRegistrarWithActivationWait(
   registrar: RegistrarName,
-  connect: () => Promise<T>,
+  connect: () => Promise<ConnectRegistrarResult>,
   signal: AbortSignal,
   onWaiting: (waiting: boolean) => void,
-): Promise<T> {
+): Promise<RegistrarAccount> {
   const deadline = Date.now() + 180_000;
   for (let retry = 0; ; retry++) {
     signal.throwIfAborted();
     if (retry > 0 && Date.now() > deadline)
       throw new DynadotActivationPending();
+    const result = await connect();
+    if (result.success) return result.account;
+    if (registrar !== 'dynadot' || result.status !== 401)
+      throw new Error(result.message);
+    if (retry >= 6 || Date.now() >= deadline)
+      throw new DynadotActivationPending();
+    onWaiting(true);
     try {
-      return await connect();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (
-        registrar !== 'dynadot' ||
-        !/\b401\b[\s\S]*\bUnauthorized\b/i.test(message)
-      )
-        throw error;
-      if (retry >= 6 || Date.now() >= deadline)
-        throw new DynadotActivationPending();
-      onWaiting(true);
-      try {
-        await waitForActivation(
-          signal,
-          Math.min(30_000, deadline - Date.now()),
-        );
-      } finally {
-        onWaiting(false);
-      }
+      await waitForActivation(signal, Math.min(30_000, deadline - Date.now()));
+    } finally {
+      onWaiting(false);
     }
   }
 }

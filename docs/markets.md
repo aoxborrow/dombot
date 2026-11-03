@@ -510,8 +510,8 @@ can take shows from the start, in order, and one waits, disabled with the
 reason on hover, until the step before it is done: Send auth code until
 the name is unlocked (where DomBot can unlock it; where the registrar's API
 can't, it doesn't wait, so you can unlock there), and Approve transfer
-until the buyer's registrar asks (Dynadot only, the one registrar whose API
-reports transfers out). Once the name has
+until the buyer's registrar asks (Dynadot and Gandi, the registrars whose
+APIs report transfers out that DomBot can read). Once the name has
 moved, the market's transfer-confirmed and payout statuses (Afternic's
 `CONFIRMED_TRANSFER`, `PENDING_PAYOUT`, `SCHEDULED_PAYOUT`) read Awaiting
 payout, with no buttons; every sale not finished has an amber dot. Awaiting

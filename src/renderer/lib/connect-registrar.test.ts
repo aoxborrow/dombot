@@ -1,19 +1,29 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ConnectRegistrarResult } from '../../shared/ipc';
 import {
   connectRegistrarWithActivationWait,
   DynadotActivationPending,
 } from './connect-registrar';
 
-const unauthorized = new Error(
-  'Request to ‘https://api.dynadot.com/restful/v2/accounts/info’ failed with 401 Unauthorized: {"code":401,"message":"Unauthorized","error":{"description":"The provided API key is invalid, expired, or missing. Please verify your key is correct and active."}}',
-);
+// How registrar-client 0.13 reports Dynadot's 401 for a key it doesn't accept.
+const unauthorized: ConnectRegistrarResult = {
+  success: false,
+  message:
+    'The provided API key is invalid, expired, or missing. Please verify your key is correct and active.',
+  status: 401,
+};
+const account = {
+  id: 'connected',
+  registrar: 'dynadot' as const,
+  label: 'Account 1',
+};
+const connected: ConnectRegistrarResult = { success: true, account };
 
 afterEach(() => vi.useRealTimers());
 
 describe('new Dynadot key activation', () => {
   it('returns an immediately accepted account without waiting', async () => {
-    const account = { id: 'connected' };
-    const connect = vi.fn().mockResolvedValue(account);
+    const connect = vi.fn().mockResolvedValue(connected);
     const waiting = vi.fn();
     await expect(
       connectRegistrarWithActivationWait(
@@ -29,12 +39,11 @@ describe('new Dynadot key activation', () => {
 
   it('waits between rejected tests and returns the account once the key works', async () => {
     vi.useFakeTimers();
-    const account = { id: 'connected' };
     const connect = vi
       .fn()
-      .mockRejectedValueOnce(unauthorized)
-      .mockRejectedValueOnce(unauthorized)
-      .mockResolvedValue(account);
+      .mockResolvedValueOnce(unauthorized)
+      .mockResolvedValueOnce(unauthorized)
+      .mockResolvedValue(connected);
     const waiting = vi.fn();
     const result = connectRegistrarWithActivationWait(
       'dynadot',
@@ -54,7 +63,7 @@ describe('new Dynadot key activation', () => {
 
   it('stops after three minutes with actionable guidance and no raw response', async () => {
     vi.useFakeTimers();
-    const connect = vi.fn().mockRejectedValue(unauthorized);
+    const connect = vi.fn().mockResolvedValue(unauthorized);
     const result = connectRegistrarWithActivationWait(
       'dynadot',
       connect,
@@ -77,7 +86,7 @@ describe('new Dynadot key activation', () => {
   it('cancels the wait without making another connection attempt', async () => {
     vi.useFakeTimers();
     const controller = new AbortController();
-    const connect = vi.fn().mockRejectedValue(unauthorized);
+    const connect = vi.fn().mockResolvedValue(unauthorized);
     const waiting = vi.fn();
     const result = connectRegistrarWithActivationWait(
       'dynadot',
@@ -98,7 +107,7 @@ describe('new Dynadot key activation', () => {
   it('stopping the wait rejects with the abort reason', async () => {
     vi.useFakeTimers();
     const controller = new AbortController();
-    const connect = vi.fn().mockRejectedValue(unauthorized);
+    const connect = vi.fn().mockResolvedValue(unauthorized);
     const result = connectRegistrarWithActivationWait(
       'dynadot',
       connect,
@@ -114,7 +123,7 @@ describe('new Dynadot key activation', () => {
 
   it('does not retry after the browser resumes beyond the activation deadline', async () => {
     vi.useFakeTimers();
-    const connect = vi.fn().mockRejectedValue(unauthorized);
+    const connect = vi.fn().mockResolvedValue(unauthorized);
     const result = connectRegistrarWithActivationWait(
       'dynadot',
       connect,
@@ -136,9 +145,9 @@ describe('new Dynadot key activation', () => {
       .fn()
       .mockImplementationOnce(async () => {
         vi.setSystemTime(Date.now() + 179_000);
-        throw unauthorized;
+        return unauthorized;
       })
-      .mockRejectedValue(unauthorized);
+      .mockResolvedValue(unauthorized);
     const result = connectRegistrarWithActivationWait(
       'dynadot',
       connect,
@@ -154,13 +163,14 @@ describe('new Dynadot key activation', () => {
 
   it.each([
     ['porkbun', unauthorized],
-    ['dynadot', new Error('429 Too Many Requests')],
-    ['dynadot', new Error('500 Internal Server Error')],
-    ['dynadot', new Error('These credentials are already connected')],
+    ['dynadot', { ...unauthorized, status: 429 }],
+    ['dynadot', { ...unauthorized, status: 500 }],
+    // The text alone no longer counts: only the status does.
+    ['dynadot', { success: false, message: unauthorized.message }],
   ] as const)(
-    'does not retry other failures (%s: %s)',
-    async (registrar, error) => {
-      const connect = vi.fn().mockRejectedValue(error);
+    'does not retry other rejections (%s: %o)',
+    async (registrar, rejection) => {
+      const connect = vi.fn().mockResolvedValue(rejection);
       const waiting = vi.fn();
       await expect(
         connectRegistrarWithActivationWait(
@@ -169,11 +179,27 @@ describe('new Dynadot key activation', () => {
           new AbortController().signal,
           waiting,
         ),
-      ).rejects.toBe(error);
+      ).rejects.toThrow(rejection.message);
       expect(connect).toHaveBeenCalledOnce();
       expect(waiting).not.toHaveBeenCalled();
     },
   );
+
+  it('does not retry an error from the call itself', async () => {
+    const error = new Error('These credentials are already connected');
+    const connect = vi.fn().mockRejectedValue(error);
+    const waiting = vi.fn();
+    await expect(
+      connectRegistrarWithActivationWait(
+        'dynadot',
+        connect,
+        new AbortController().signal,
+        waiting,
+      ),
+    ).rejects.toBe(error);
+    expect(connect).toHaveBeenCalledOnce();
+    expect(waiting).not.toHaveBeenCalled();
+  });
 
   it('does not connect after the form has been unmounted', async () => {
     const controller = new AbortController();

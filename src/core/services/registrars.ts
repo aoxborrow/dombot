@@ -2,6 +2,7 @@ import { protectRegistrar, redactRegistrarMessage } from './registrar-errors';
 import { importedRows } from '../../shared/imported-domains';
 import { getImportedDomains } from './imported-domains';
 import {
+  Feature,
   NotImplementedError,
   RateLimitError,
   RegistrarClient,
@@ -63,6 +64,7 @@ import {
   tldsNeedingPremiumFlags,
 } from './godaddy-renewal-quotes';
 import type {
+  ConnectRegistrarResult,
   Domain,
   RegistrarAccount,
   RegistrarDefinition,
@@ -179,9 +181,24 @@ export const registrarNames = Object.keys(registrars) as [
   ...RegistrarName[],
 ];
 
-/** The library's capability list for a provider (core + extended `Feature` ids). */
+// Extended features the library offers but the app can't use, because they need
+// a setting the app doesn't collect. GoDaddy reads and answers transfers out
+// through its v2 customer API, which needs the customer UUID (`customerId`), and
+// a PAT can't look that up (see FIELD_ORDER).
+const UNUSABLE_FEATURES: Partial<Record<RegistrarName, readonly string[]>> = {
+  godaddy: [
+    Feature.GetTransferOut,
+    Feature.ApproveTransferOut,
+    Feature.RejectTransferOut,
+  ],
+};
+
+/** The provider's capability list (core + extended `Feature` ids), less the
+ *  features the app can't use (UNUSABLE_FEATURES). */
 export function getRegistrarFeatures(name: RegistrarName): readonly string[] {
-  return registrars[name].features;
+  const unusable = UNUSABLE_FEATURES[name];
+  const features = registrars[name].features;
+  return unusable ? features.filter((f) => !unusable.includes(f)) : features;
 }
 
 /** Resolve once before work starts. Labels never participate in routing. */
@@ -1104,7 +1121,8 @@ export async function getRenewalPriceLive(
 // (`apiToken`), so there is nothing to reorder. The library still carries the
 // legacy sso-key (`apiKey`/`apiSecret`) and `customerId` handling internally,
 // but those are no longer configurable — which means GoDaddy domain forwarding
-// (which needs `customerId`, plus an sso-key to resolve a numeric shopper ID) is
+// (which needs `customerId`, plus an sso-key to resolve a numeric shopper ID)
+// and transfer-out approval (`customerId`, see UNUSABLE_FEATURES) are
 // unavailable through the app. GoDaddy deprecates sso-key in 2026 regardless.
 const FIELD_ORDER: Partial<Record<RegistrarName, string[]>> = {
   cloudflare: ['accountId', 'apiToken'],
@@ -1140,7 +1158,7 @@ export function getRegistrarCatalog(): RegistrarDefinition[] {
         required: f.required,
         options: f.options,
       })),
-      features: [...R.features],
+      features: [...getRegistrarFeatures(name)],
     };
   });
 }
@@ -1175,13 +1193,14 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
 
 const publishConnection = serialByKey();
 
-/** Check draft credentials without saving them, then publish a complete account. */
+/** Check draft credentials without saving them, then publish a complete
+ *  account. A failed connection test resolves with the registrar's answer. */
 export async function connectRegistrarAccount(
   name: RegistrarName,
   credentials: RegistrarCredentials,
   label?: string,
   useProxy = false,
-): Promise<RegistrarAccount> {
+): Promise<ConnectRegistrarResult> {
   const provider = getRegistrarCatalog().find((r) => r.name === name);
   if (!provider) throw new Error('Unknown registrar.');
   const clean: RegistrarCredentials = {};
@@ -1231,13 +1250,16 @@ export async function connectRegistrarAccount(
   );
   const result = await client.testConnection();
   if (!result.success)
-    throw new Error(
-      result.message ||
+    return {
+      success: false,
+      message:
+        result.message ||
         'Connection failed. Check your credentials and try again.',
-    );
+      ...(result.status ? { status: result.status } : {}),
+    };
   // Concurrent tests may both pass before either account exists. Recheck and
   // publish serially, while keeping network tests outside this short queue.
-  return publishConnection(name, async () => {
+  const account = await publishConnection(name, async () => {
     assertNotDuplicate();
     return createAccount(
       name,
@@ -1246,6 +1268,7 @@ export async function connectRegistrarAccount(
       proxy ? DEFAULT_PROXY_ID : undefined,
     );
   });
+  return { success: true, account };
 }
 
 /** The configured proxy, for an account that is about to start using it. */

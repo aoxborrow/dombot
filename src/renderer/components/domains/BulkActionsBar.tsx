@@ -327,11 +327,6 @@ export function BulkActionsBar({
                       'List at your prices',
                     )}
                     {marketItem(
-                      'delist',
-                      <CircleX className={icon} />,
-                      'Delist',
-                    )}
-                    {marketItem(
                       'verificationTxt',
                       <CertificateIcon className={icon} />,
                       'Ownership verification TXT',
@@ -340,6 +335,11 @@ export function BulkActionsBar({
                       'recheckOwnership',
                       <Redo className={icon} />,
                       'Recheck ownership',
+                    )}
+                    {marketItem(
+                      'delist',
+                      <CircleX className={icon} />,
+                      'Delist',
                     )}
                   </MenuSub>
                   <MenuSub

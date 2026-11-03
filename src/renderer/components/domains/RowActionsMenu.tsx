@@ -416,7 +416,6 @@ export function RowActionsMenu({
                   />,
                   'List at your price',
                 )}
-                {marketItem('delist', <CircleX className={icon} />, 'Delist')}
                 {marketItem(
                   'verificationTxt',
                   <CertificateIcon className={icon} />,
@@ -427,6 +426,7 @@ export function RowActionsMenu({
                   <Redo className={icon} />,
                   'Recheck ownership',
                 )}
+                {marketItem('delist', <CircleX className={icon} />, 'Delist')}
               </MenuSub>
               <MenuSub
                 icon={<Calculator className={icon} />}
