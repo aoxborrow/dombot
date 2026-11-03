@@ -2084,6 +2084,18 @@ export default function Domains() {
   // the detail cache (their cells show skeletons while in flight).
   // Registrar actions act on the selected names an account still holds.
   // The selected names at a connected account: what registrar actions run on.
+  // The bulk Folder menu's counts: selected names per folder (or None).
+  const selectedFolderCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const d of selectedDomains) {
+      const bucket = folderBucket(
+        folderAssignments[toAscii(d.domainName)],
+        folders,
+      );
+      counts[bucket] = (counts[bucket] ?? 0) + 1;
+    }
+    return counts;
+  }, [selectedDomains, folderAssignments, folders]);
   const selectedHeld = selectedDomains.filter(
     (d) => !d.departed && d.source !== 'imported',
   );
@@ -2550,6 +2562,7 @@ export default function Domains() {
                     : ownedCount
               }
               folders={folders}
+              folderCounts={selectedFolderCounts}
               onClear={clearSelection}
               onRefresh={bulkRefresh}
               onExport={() => void exportCsv(selectedDomains)}

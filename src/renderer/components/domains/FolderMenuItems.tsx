@@ -1,6 +1,6 @@
 import { Check } from 'lucide-react';
 import type { Folder } from '../../../shared/ipc';
-import { folderColorStyle } from '../../lib/folders';
+import { folderColorStyle, NO_FOLDER } from '../../lib/folders';
 import { FolderIcon } from '../icons/FolderIcon';
 import { FolderOffIcon } from '../icons/FolderOffIcon';
 import { cn } from '@/lib/utils';
@@ -12,19 +12,24 @@ import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
  * caller supplies the surrounding menu so it keeps its own width and trigger.
  *
  * Pass `selected` (a folder id, or `null` for None) to
- * mark the current assignment with a check — omit it for the bulk menu, where
- * there is no single current value. Pass `emptyState` to show a "No folders yet"
- * hint when the user has none (again, the bulk menu).
+ * mark the current assignment with a check — the bulk menu passes it only when
+ * every selected name shares one, and omits it otherwise. The bulk menu also
+ * passes `counts`, how many of the selection each folder holds, shown beside
+ * it. Pass `emptyState` to show a "No folders yet" hint when the user has none
+ * (again, the bulk menu).
  */
 export function FolderMenuItems({
   folders,
   selected,
+  counts,
   emptyState = false,
   onAssign,
 }: {
   folders: Folder[];
   /** Current assignment, or omit to render without checks (bulk). */
   selected?: string | null;
+  /** Names per folder id (`NO_FOLDER` for None) in a bulk selection. */
+  counts?: Readonly<Record<string, number>>;
   /** Show a "No folders yet" hint when there are no folders. */
   emptyState?: boolean;
   onAssign: (folderId: string | null) => void;
@@ -46,6 +51,7 @@ export function FolderMenuItems({
             aria-hidden
           />
           <span className="flex-1 truncate">{f.name}</span>
+          <Count n={counts?.[f.id]} />
           {showChecks && f.id === selected && (
             <Check className="size-3.5 shrink-0 text-muted-foreground" />
           )}
@@ -62,10 +68,21 @@ export function FolderMenuItems({
           aria-hidden
         />
         <span className="flex-1">None</span>
+        <Count n={counts?.[NO_FOLDER]} />
         {showChecks && selected === null && (
           <Check className="size-3.5 shrink-0 text-muted-foreground" />
         )}
       </DropdownMenuItem>
     </>
+  );
+}
+
+/** How many selected names a folder holds, beside it; nothing for none. */
+function Count({ n }: { n?: number }) {
+  if (!n) return null;
+  return (
+    <span className="text-xs text-muted-foreground tabular-nums">
+      {n.toLocaleString('en-US')}
+    </span>
   );
 }

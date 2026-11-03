@@ -34,6 +34,7 @@ import { ListEditIcon } from '../icons/ListEditIcon';
 import { StickyNoteIcon } from '../icons/StickyNoteIcon';
 import { CertificateIcon } from '../icons/CertificateIcon';
 import { CashIcon } from '../icons/CashIcon';
+import { NO_FOLDER } from '../../lib/folders';
 import { FolderMenuItems } from './FolderMenuItems';
 import { MenuSub } from './MenuSub';
 import type { MarketAction } from './MarketActionDialog';
@@ -80,6 +81,7 @@ export function BulkActionsBar({
   held,
   total,
   folders,
+  folderCounts,
   onClear,
   onRefresh,
   onExport,
@@ -100,6 +102,8 @@ export function BulkActionsBar({
   /** Names in this view, for "3 of 251 selected". */
   total: number;
   folders: Folder[];
+  /** Selected names per folder id (`NO_FOLDER` for None). */
+  folderCounts: Readonly<Record<string, number>>;
   onClear: () => void;
   /** Re-fetch the selected domains' detail from their registrars. */
   onRefresh: () => void;
@@ -162,8 +166,22 @@ export function BulkActionsBar({
       </DropdownMenuItem>
     );
 
+  // Checked when every selected name is in the same folder (or none).
+  const filled = Object.keys(folderCounts).filter((k) => folderCounts[k] > 0);
+  const sharedFolder =
+    filled.length === 1
+      ? filled[0] === NO_FOLDER
+        ? null
+        : filled[0]
+      : undefined;
   const folderItems = (
-    <FolderMenuItems folders={folders} emptyState onAssign={onAssignFolder} />
+    <FolderMenuItems
+      folders={folders}
+      selected={sharedFolder}
+      counts={folderCounts}
+      emptyState
+      onAssign={onAssignFolder}
+    />
   );
 
   const exportItem = (
