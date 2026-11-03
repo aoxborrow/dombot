@@ -420,8 +420,8 @@ has them.
   Relist action in the app; `market_listings_relist` stays for agents.
 - **Delist** ticks accounts the same way, starting from those that list the
   names.
-- Both sit directly beside Pricing in the row menu and the bulk bar; a
-  Markets submenu returns when these menus are split into submenus.
+- Both sit after Pricing in the Selling submenu, in the row menu and in the
+  bulk bar's Actions.
 
 - **Views, Leads and Searches over 12 months** in Listings, sortable,
   Leads breaking ties on Views: the names buyers look at most. Views and

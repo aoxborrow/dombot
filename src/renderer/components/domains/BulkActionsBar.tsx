@@ -3,7 +3,6 @@ import {
   Building2,
   Calculator,
   CalendarPlus,
-  ChevronDown,
   CircleX,
   EyeOff,
   FileSpreadsheet,
@@ -20,7 +19,6 @@ import {
   Server,
   Tag,
   Trash2,
-  X,
 } from 'lucide-react';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
@@ -30,7 +28,6 @@ import {
   type BulkRegistrarKind,
 } from '../../lib/bulk';
 import { FolderIcon } from '../icons/FolderIcon';
-import { ListEditIcon } from '../icons/ListEditIcon';
 import { StickyNoteIcon } from '../icons/StickyNoteIcon';
 import { CertificateIcon } from '../icons/CertificateIcon';
 import { CashIcon } from '../icons/CashIcon';
@@ -38,38 +35,27 @@ import { NO_FOLDER } from '../../lib/folders';
 import { FolderMenuItems } from './FolderMenuItems';
 import { MenuSub } from './MenuSub';
 import type { MarketAction } from './MarketActionDialog';
-import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+import {
+  SelectionBar,
+  SelectionBarButton,
+  SelectionBarMenu,
+} from '../data-table/SelectionBar';
 
 /** Ownership actions on the selection, each opening its dialog. */
 export type OwnershipAction = 'sold' | 'delete';
-
-// White on the brand green, icons a pale green, and the selection's darker
-// green on hover and while a menu is open.
-const ON_GREEN =
-  'h-8 gap-1.5 rounded-sm px-2.5 has-[>svg]:px-2.5 text-[13px] font-medium text-primary-foreground hover:bg-black/15 hover:text-primary-foreground dark:hover:bg-black/25 data-[state=open]:bg-black/15 dark:data-[state=open]:bg-black/25 [&_svg]:size-4 [&_svg]:text-brand-100/85';
-
-// The bar's menus open upward, so their shadow is cast up too: the usual one
-// falls down, onto the bar.
-const UP_SHADOW =
-  'shadow-[0_-18px_50px_6px_rgb(0_0_0/0.12),0_-4px_16px_rgb(0_0_0/0.08)] dark:shadow-[0_-18px_50px_6px_rgb(0_0_0/0.75),0_-4px_16px_rgb(0_0_0/0.6)]';
 
 const dots = <span className="-ml-[6px] opacity-50">…</span>;
 const icon = 'text-muted-foreground';
 
 /**
- * The bulk actions, in a green bar floating over the bottom of the table once
+ * The Domains bulk actions, in the SelectionBar floating over the table once
  * rows are selected (the table places it; see DataTable's `floatingBar`).
- * Left, on a darker green: the count, "of N selected", and Clear. Right:
- * Actions, which holds everything in the row menu's order and submenus, then
- * Folder and Export CSV as shortcuts, which drop out when the table is narrow
+ * Actions holds everything in the row menu's order and submenus; Folder and
+ * Export CSV follow as shortcuts, which drop out when the table is narrow
  * (they're in Actions too). Archive's menu is short and flat, like its row
  * menu. Registrar items grey out while a job runs, or when no selected name's
  * registrar can make the change; the dialog an item opens is where the value
@@ -233,45 +219,12 @@ export function BulkActionsBar({
         </button>
       )}
       {domains.length > 0 && (
-        <div className="pointer-events-auto flex max-w-full items-center gap-1 rounded-md bg-primary p-1 text-primary-foreground shadow-xl ring-1 shadow-black/30 ring-black/10 animate-in fade-in slide-in-from-bottom-2 @min-[480px]/float:max-w-[66%] dark:ring-white/15">
-          {/* The selection, set apart from the actions on a darker green. */}
-          <span className="mr-1 flex h-8 shrink-0 items-center gap-2 rounded-sm bg-black/15 pr-2.5 pl-2 text-[13px] whitespace-nowrap dark:bg-black/25">
-            {/* The tabs' count pill, in the bar's green. */}
-            <span className="inline-flex h-5 items-center rounded-full bg-primary px-2 text-xs font-medium text-white tabular-nums">
-              {domains.length}
-            </span>
-            <span className="text-brand-100/75">
-              of <span className="tabular-nums">{total}</span> selected
-            </span>
-            {/* The filter chips' remove button: a small X, a small hover
-                square. */}
-            <button
-              type="button"
-              title="Clear selection"
-              aria-label="Clear selection"
-              onClick={onClear}
-              className="group/clear ml-0.5 flex text-brand-100/75 outline-none hover:text-white"
-            >
-              <span className="-m-[3px] flex rounded-[4px] p-[3px] transition-colors group-hover/clear:bg-white/20">
-                <X className="size-3.5" />
-              </span>
-            </button>
-          </span>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className={ON_GREEN}>
-                <ListEditIcon className="size-[18px]!" />
-                Actions
-                <ChevronDown className="size-3.5!" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              side="top"
-              sideOffset={10}
-              align="start"
-              className={cn('w-56', UP_SHADOW)}
-            >
+        <SelectionBar
+          count={domains.length}
+          total={total}
+          onClear={onClear}
+          actions={
+            <>
               {archiveView ? (
                 <>
                   <DropdownMenuItem onSelect={onNotes}>
@@ -369,46 +322,28 @@ export function BulkActionsBar({
               {exportItem}
               <DropdownMenuSeparator />
               {deleteItem}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
+            </>
+          }
+        >
           {/* Shortcuts, also in Actions, so they can drop out when narrow. */}
           {!archiveView && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className={cn(ON_GREEN, '@max-[760px]/float:hidden')}
-                >
-                  <FolderIcon />
-                  Folder
-                  <ChevronDown className="size-3.5!" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                side="top"
-                sideOffset={10}
-                align="start"
-                className={cn('max-h-[320px] w-52 overflow-y-auto', UP_SHADOW)}
-              >
-                {folderItems}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <SelectionBarMenu
+              icon={<FolderIcon />}
+              label="Folder"
+              className="@max-[760px]/float:hidden"
+              contentClassName="max-h-[320px] w-52 overflow-y-auto"
+            >
+              {folderItems}
+            </SelectionBarMenu>
           )}
-          <Button
-            variant="ghost"
-            // A little more room on the right, where the others have a
-            // chevron.
-            className={cn(
-              ON_GREEN,
-              'pr-3.5 has-[>svg]:pr-3.5 @max-[760px]/float:hidden',
-            )}
+          <SelectionBarButton
+            className="@max-[760px]/float:hidden"
             onClick={onExport}
           >
             <FileSpreadsheet />
             Export CSV
-          </Button>
-        </div>
+          </SelectionBarButton>
+        </SelectionBar>
       )}
     </>
   );

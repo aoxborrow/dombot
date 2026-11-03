@@ -13,7 +13,6 @@ import {
   CircleMinus,
   CirclePlus,
   CalendarClock,
-  ChevronDown,
   CircleSlash,
   ClipboardPen,
   Diff,
@@ -60,6 +59,7 @@ import {
   DeleteDomainsDialog,
   MarkSoldDialog,
 } from '../components/actions/OwnershipDialogs';
+import { SelectionBar } from '../components/data-table/SelectionBar';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { useColumnLayout } from '../components/data-table/ColumnPicker';
 import { applyColumnLayout } from '../components/data-table/column-layout';
@@ -1019,97 +1019,74 @@ export default function Activity() {
           fields={filterFields}
           presets={['account', 'type']}
         />
-
-        {selected.size > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand/70 bg-brand/10 py-1.5 pl-2.5 pr-[7px]">
-            <div className="flex items-center gap-3 text-sm">
-              <span className="font-medium text-brand">
-                <span className="pl-1 pr-px text-[16px] font-bold">
-                  {selected.size}
-                </span>{' '}
-                selected
-                {newSelected.length > 0 && (
-                  <span className="font-normal text-muted-foreground">
-                    {' '}
-                    · {newSelected.length} new
-                  </span>
-                )}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1 border-brand/40 pl-1! pr-2.5 text-muted-foreground hover:bg-brand/10 hover:text-brand dark:border-brand/40 dark:hover:bg-brand/15 dark:hover:text-brand"
-                onClick={clearSelection}
-              >
-                <X />
-                Clear
-              </Button>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm">
-                  Bulk actions
-                  <ChevronDown className="text-primary-foreground/70" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
-                <BulkItem
-                  icon={StickyNoteIcon}
-                  label="Notes"
-                  count={namesOf(selectedRows).length}
-                  onSelect={() =>
-                    setDialog({ kind: 'notes', rows: selectedRows })
-                  }
-                />
-                <DropdownMenuSeparator />
-                <BulkItem
-                  icon={ClipboardPen}
-                  label="Record registration"
-                  count={arrivalsSelected.length}
-                  immediate
-                  onSelect={() => void recordRegistrations(arrivalsSelected)}
-                />
-                <BulkItem
-                  icon={Receipt}
-                  label="Record sale"
-                  count={unsoldOf(selectedRows).length}
-                  onSelect={() =>
-                    setDialog({ kind: 'sold', rows: selectedRows })
-                  }
-                />
-                <BulkItem
-                  icon={CircleSlash}
-                  label="Mark dropped"
-                  count={departuresSelected.length}
-                  immediate
-                  onSelect={() => markDropped(departuresSelected)}
-                />
-                <DropdownMenuSeparator />
-                <BulkItem
-                  icon={X}
-                  label="Dismiss"
-                  count={newSelected.length}
-                  immediate
-                  onSelect={() => dismiss(newSelected)}
-                />
-                <DropdownMenuSeparator />
-                <BulkItem
-                  icon={Trash2}
-                  label="Delete"
-                  count={removableOf(selectedRows).length}
-                  destructive
-                  onSelect={() =>
-                    setDialog({ kind: 'delete', rows: selectedRows })
-                  }
-                />
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
       </div>
 
       <DataTable
         className="mt-[13px]"
+        // The bulk actions float over the table once rows are selected.
+        floatingBar={
+          selected.size > 0 && (
+            <SelectionBar
+              count={selected.size}
+              total={reviewOnly ? reviewIds.size : allRows.length}
+              onClear={clearSelection}
+              actionsClassName="w-60"
+              actions={
+                <>
+                  <BulkItem
+                    icon={StickyNoteIcon}
+                    label="Notes"
+                    count={namesOf(selectedRows).length}
+                    onSelect={() =>
+                      setDialog({ kind: 'notes', rows: selectedRows })
+                    }
+                  />
+                  <DropdownMenuSeparator />
+                  <BulkItem
+                    icon={ClipboardPen}
+                    label="Record registration"
+                    count={arrivalsSelected.length}
+                    immediate
+                    onSelect={() => void recordRegistrations(arrivalsSelected)}
+                  />
+                  <BulkItem
+                    icon={Receipt}
+                    label="Record sale"
+                    count={unsoldOf(selectedRows).length}
+                    onSelect={() =>
+                      setDialog({ kind: 'sold', rows: selectedRows })
+                    }
+                  />
+                  <BulkItem
+                    icon={CircleSlash}
+                    label="Mark dropped"
+                    count={departuresSelected.length}
+                    immediate
+                    onSelect={() => markDropped(departuresSelected)}
+                  />
+                  <DropdownMenuSeparator />
+                  <BulkItem
+                    icon={X}
+                    label="Dismiss"
+                    count={newSelected.length}
+                    immediate
+                    onSelect={() => dismiss(newSelected)}
+                  />
+                  <DropdownMenuSeparator />
+                  <BulkItem
+                    icon={Trash2}
+                    label="Delete"
+                    count={removableOf(selectedRows).length}
+                    destructive
+                    onSelect={() =>
+                      setDialog({ kind: 'delete', rows: selectedRows })
+                    }
+                  />
+                </>
+              }
+            />
+          )
+        }
         rows={rows}
         columns={columns}
         layout={columnLayout}
