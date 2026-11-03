@@ -68,9 +68,11 @@ Other observed behavior worth designing around:
   minute or two; on 2026-10-29 it came back `ACTIVE` straight away.
 - A bulk call answers a name it couldn't act on with that name's own status
   and no error body (`{"name": {"code": 404}}` for delete), inside a 200.
-- `RESYNC` on an `ACTIVE` listing succeeds and changes nothing visible. On an
-  `INACTIVE` one it doesn't run the ownership check (see "Observed: ownership
-  verification").
+- `RESYNC` has never changed anything we could see. On an `ACTIVE` listing
+  it succeeds and nothing changes. On an `INACTIVE` one it doesn't run the
+  ownership check, and it didn't clear the two listings that have been
+  `INACTIVE` since April (see "Observed: ownership verification"). The
+  reference says only that relist "re-trigger[s] the listing process".
 - Creating a listing that exists returns 409, as documented.
 - Prices must keep minimum offer ≤ floor ≤ Buy Now (equal allowed), checked
   against the whole saved listing: a PATCH of just the floor is refused if it
@@ -151,6 +153,12 @@ nobody else listed, and three names another account already listed
   `INACTIVE` since April, with no `registrar` and no listing elsewhere, which
   fits the dashboard's "undergoing domain registration checks"
   (`WHOIS_NOT_FOUND`, `WHOIS_UNKNOWN_REGISTRAR`). The API has no reason field.
+  `RESYNC` didn't clear them (2026-11-03): nothing changed in 15 minutes on
+  either. One of them was then moved to `ns1/ns2.afternic.com` plus NS3, and
+  all of its registry's servers had the new delegation about 13 minutes
+  later. It stayed `INACTIVE` through the 20 minutes from that change to a
+  second `RESYNC` and for 30 minutes after it, with `updatedAt` still the
+  April date.
 - **The dashboard's verification is for duplicates,** going by its own
   text (bundled in afternic.com's pages). The account is told "We found a
   duplicate listing"; adding the name shows it "Unverified"; Verify Ownership
@@ -189,23 +197,23 @@ All of it except Replace domain (PUT): 23 of the 24 operations, plus every
 
 ### Implement
 
-| Operation                                                   | Why DomBot wants it                                                                                                                                                                                                |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| List domains (all filters, all `includes`)                  | The listing snapshot: which names are listed, at what prices, status, lander, leasing, Fast Transfer, registrar, and (for Domain Pro members) search counts. Basis of sync.                                        |
-| Get domain, get many by name                                | Refresh one name or a selection after an edit, without re-pulling everything.                                                                                                                                      |
-| Create domain                                               | "List on Afternic" from DomBot.                                                                                                                                                                                    |
-| Update domain (PATCH)                                       | Price and lander edits. Maps onto DomBot's asking price.                                                                                                                                                           |
-| Delete domain                                               | Delist. Also needed when a name sells elsewhere or is dropped.                                                                                                                                                     |
-| Upsert many                                                 | Bulk list/reprice up to 500 at a time; the bulk path for "push my prices to Afternic".                                                                                                                             |
-| Delete many                                                 | Bulk delist.                                                                                                                                                                                                       |
-| Relist many (`RESYNC`, `REACTIVATE`)                        | Fixes `INACTIVE`/`FAILED_COMPLIANCE` listings; DomBot can offer it next to those statuses. `RESYNC` doesn't run the ownership check (see "Observed: ownership verification"); `REACTIVATE` is untested.            |
-| Account stats, domain stats                                 | Views and leads per day: the only traffic data the API has. Feeds dashboards.                                                                                                                                      |
-| List sales, get sale                                        | Full sales history with commission and payout dates; feeds `sold` events and reporting.                                                                                                                            |
-| Update sale (auth code)                                     | When a sale is `AWAITING_AUTH_CODE`, DomBot can fetch the code from the registrar (registrar-client `getAuthCode`) and submit it. This is the most valuable automation in the whole API.                           |
-| Send sale message                                           | Small, and the only way to reach the transaction agent from DomBot. Needs a confirm step since it's a message to a person.                                                                                         |
-| Get / update account settings                               | Defaults for new listings. Tiny; useful in Settings.                                                                                                                                                               |
-| Search statistics (`includes=searches`)                     | GoDaddy search counts per name (total and unique, 30/90/365 days) for Domain Pro members. One of the best demand signals available; feeds columns, sorting, and reporting. Hidden when the account doesn't get it. |
-| Bulk jobs: create, list, get, upload, results, close/cancel | Large portfolios. See below.                                                                                                                                                                                       |
+| Operation                                                   | Why DomBot wants it                                                                                                                                                                                                                           |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| List domains (all filters, all `includes`)                  | The listing snapshot: which names are listed, at what prices, status, lander, leasing, Fast Transfer, registrar, and (for Domain Pro members) search counts. Basis of sync.                                                                   |
+| Get domain, get many by name                                | Refresh one name or a selection after an edit, without re-pulling everything.                                                                                                                                                                 |
+| Create domain                                               | "List on Afternic" from DomBot.                                                                                                                                                                                                               |
+| Update domain (PATCH)                                       | Price and lander edits. Maps onto DomBot's asking price.                                                                                                                                                                                      |
+| Delete domain                                               | Delist. Also needed when a name sells elsewhere or is dropped.                                                                                                                                                                                |
+| Upsert many                                                 | Bulk list/reprice up to 500 at a time; the bulk path for "push my prices to Afternic".                                                                                                                                                        |
+| Delete many                                                 | Bulk delist.                                                                                                                                                                                                                                  |
+| Relist many (`RESYNC`, `REACTIVATE`)                        | Fixes `INACTIVE`/`FAILED_COMPLIANCE` listings; DomBot can offer it next to those statuses. `RESYNC` has changed nothing on any listing we tried, ownership check included (see "Observed: ownership verification"); `REACTIVATE` is untested. |
+| Account stats, domain stats                                 | Views and leads per day: the only traffic data the API has. Feeds dashboards.                                                                                                                                                                 |
+| List sales, get sale                                        | Full sales history with commission and payout dates; feeds `sold` events and reporting.                                                                                                                                                       |
+| Update sale (auth code)                                     | When a sale is `AWAITING_AUTH_CODE`, DomBot can fetch the code from the registrar (registrar-client `getAuthCode`) and submit it. This is the most valuable automation in the whole API.                                                      |
+| Send sale message                                           | Small, and the only way to reach the transaction agent from DomBot. Needs a confirm step since it's a message to a person.                                                                                                                    |
+| Get / update account settings                               | Defaults for new listings. Tiny; useful in Settings.                                                                                                                                                                                          |
+| Search statistics (`includes=searches`)                     | GoDaddy search counts per name (total and unique, 30/90/365 days) for Domain Pro members. One of the best demand signals available; feeds columns, sorting, and reporting. Hidden when the account doesn't get it.                            |
+| Bulk jobs: create, list, get, upload, results, close/cancel | Large portfolios. See below.                                                                                                                                                                                                                  |
 
 ### Leave out
 

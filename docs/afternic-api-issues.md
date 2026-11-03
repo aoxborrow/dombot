@@ -269,10 +269,17 @@ record or NS3 in place, two such listings answered `200` and stayed
 `INACTIVE`, with `updatedAt` unchanged, for over an hour. The reference says
 a relist that changed nothing is reported as `204`.
 
-Two asks: a reason on `INACTIVE` listings (duplicate listing, registration
-checks, and so on, as the dashboard shows), and a way to request ownership
+`RESYNC` didn't clear two older listings either. They have been `INACTIVE`
+since April, and no other account lists them. One of them was on
+`ns1/ns2.afternic.com` plus NS3. Both stayed `INACTIVE`, with `updatedAt`
+unchanged, for 15 to 30 minutes after it. The reference says only that relist
+"re-trigger[s] the listing process", so it's unclear what `RESYNC` is for.
+
+Three asks: a reason on `INACTIVE` listings (duplicate listing, registration
+checks, and so on, as the dashboard shows), a way to request ownership
 verification through the API, or `RESYNC` doing it for a listing that's
-`INACTIVE` as a duplicate.
+`INACTIVE` as a duplicate, and a line in the reference on what `RESYNC` and
+`REACTIVATE` each do.
 
 ## Resolved
 
