@@ -355,7 +355,7 @@ export function MarketListingDialog({
                 {caps.minOffer && (
                   <Field
                     id="market-min-offer"
-                    label="Minimum offer"
+                    label="Minimum Offer"
                     help={LIST_PRICE_HELP.minOffer}
                   >
                     <MoneyInput
@@ -371,7 +371,7 @@ export function MarketListingDialog({
                 {caps.floor && (
                   <Field
                     id="market-floor"
-                    label="Floor price"
+                    label="Floor Price"
                     help={LIST_PRICE_HELP.floor}
                   >
                     <MoneyInput
@@ -568,8 +568,9 @@ function Outcome({
       </p>
       {r?.pending && (
         <p className="text-muted-foreground">
-          Pending: {where} lists it once it can verify you own the name. Point
-          its nameservers at {where}&apos;s, or verify it there.
+          Pending: {where} lists it once it can verify you own the name. Use
+          Ownership verification TXT from the Domains table, or verify it on{' '}
+          {where}.
         </p>
       )}
       {r?.relisted && (

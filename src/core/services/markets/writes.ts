@@ -14,7 +14,7 @@ import { applyDomainOp } from '../domain-ops';
 import { getListPrices } from '../list-prices';
 import { findRegistrarsForDomain, resolveDomainAccount } from '../registrars';
 import { activeMarketAccounts, marketAccount, marketAdapter } from './accounts';
-import type { AnyMarketAdapter } from './registry';
+import { marketInfo, type AnyMarketAdapter } from './registry';
 import {
   cachedListing,
   dropMarketListings,
@@ -360,6 +360,44 @@ export async function relistMarketListings(
   if (ok.length) putMarketListings(accountId, await adapter.getListings(ok));
   broadcastPortfolioChanged();
   return results;
+}
+
+/**
+ * Request ownership verification (docs/markets.md, "Ownership
+ * verification"): ask the market to check these listed names now, changing
+ * no DNS. Afternic relists them (`RESYNC`). Atom takes one verify-DNS request
+ * per account every 12 hours and answers the next "in progress", so names go
+ * one at a time and the rest aren't sent once it says so. Throws for a market
+ * with no such call (Sedo checks on its own).
+ */
+export async function requestMarketVerification(
+  accountId: string,
+  names: readonly string[],
+): Promise<MarketWriteResult[]> {
+  const adapter = enabledAdapter(accountId);
+  if (adapter.capabilities.relist && adapter.relist) {
+    return relistMarketListings(accountId, names, 'RESYNC');
+  }
+  if (adapter.capabilities.verifyDns && adapter.verifyDns) {
+    const out: MarketWriteResult[] = [];
+    let held: string | null = null;
+    for (const raw of names) {
+      const name = toAscii(raw);
+      if (held) {
+        out.push(failed(name, 'NOT_SENT', `Not sent: ${held}`));
+        continue;
+      }
+      const result = await verifyMarketDns(accountId, name);
+      if (!result.ok && /in progress/i.test(result.error?.message ?? '')) {
+        held = result.error!.message;
+      }
+      out.push(result);
+    }
+    return out;
+  }
+  throw new Error(
+    `Requesting ownership verification is not supported for ${adapter.market}: ${marketInfo(adapter.market).name} checks names on its own.`,
+  );
 }
 
 /** Change an account's defaults for new listings. */

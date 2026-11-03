@@ -97,6 +97,11 @@ import {
   type MarketAction,
 } from '../components/domains/MarketActionDialog';
 import {
+  RecheckOwnershipDialog,
+  VerificationTxtDialog,
+} from '../components/domains/OwnershipVerificationDialog';
+import { recheckAccounts, txtAccounts } from '../lib/ownership-verification';
+import {
   isMarketColumnKey,
   listingColumnKey,
   marketColumns,
@@ -999,6 +1004,16 @@ export default function Domains() {
     const notListed = one
       ? `Not listed on ${where}`
       : `None of these are listed on ${where}`;
+    const held = domains.some((d) => !d.departed && d.source !== 'imported');
+    // Ownership verification offers only accounts with an ID saved (TXT),
+    // and markets that can be asked to check (Recheck).
+    const withId = txtAccounts(marketAccounts ?? []).length > 0;
+    const recheckable = new Set(
+      recheckAccounts(marketAccounts ?? [], marketCatalog).map((a) => a.id),
+    );
+    const listedForRecheck = keys.some((k) =>
+      marketListings[k]?.some((l) => recheckable.has(l.accountId)),
+    );
     return {
       list: priced
         ? null
@@ -1006,6 +1021,20 @@ export default function Domains() {
           ? 'Set an asking price with Pricing first'
           : 'None of these have an asking price; set one with Pricing first',
       delist: listed ? null : notListed,
+      verificationTxt: !withId
+        ? 'Save an Ownership Verification ID in Settings → Markets first'
+        : held
+          ? null
+          : one
+            ? 'No registrar account holds it'
+            : 'No registrar account holds any of these',
+      recheckOwnership: listedForRecheck
+        ? null
+        : recheckable.size === 0
+          ? 'None of your markets can be asked to recheck'
+          : one
+            ? 'Not listed on a market that can recheck'
+            : 'None of these are listed on a market that can recheck',
     };
   };
   const [marketAction, setMarketAction] = useState<{
@@ -2630,13 +2659,28 @@ export default function Domains() {
           onClose={() => setListingFor(null)}
         />
       )}
-      {marketAction && (
-        <MarketActionDialog
-          action={marketAction.action}
-          domains={marketAction.domains}
-          onClose={() => setMarketAction(null)}
-        />
-      )}
+      {marketAction &&
+        (marketAction.action === 'list' || marketAction.action === 'delist' ? (
+          <MarketActionDialog
+            action={marketAction.action}
+            domains={marketAction.domains}
+            onClose={() => setMarketAction(null)}
+          />
+        ) : marketAction.action === 'verificationTxt' ? (
+          <VerificationTxtDialog
+            domains={marketAction.domains}
+            onClose={() => setMarketAction(null)}
+            onStarted={(op, jobId) => {
+              setMarketAction(null);
+              setBulkDialog({ op, jobId });
+            }}
+          />
+        ) : (
+          <RecheckOwnershipDialog
+            domains={marketAction.domains}
+            onClose={() => setMarketAction(null)}
+          />
+        ))}
       {bulkNotesFor && (
         <BulkNotesDialog
           domainNames={bulkNotesFor.map((d) => d.domainName)}

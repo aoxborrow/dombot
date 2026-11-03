@@ -46,7 +46,7 @@ export function MarkSoldDialog({
     >
       <DateField
         id="mark-sold-date"
-        label="Sale date"
+        label="Sale Date"
         value={date}
         onChange={setDate}
       />

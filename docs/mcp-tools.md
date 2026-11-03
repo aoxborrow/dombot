@@ -249,8 +249,9 @@ Listings, sales and account stats are read from what market sync stored;
 saying so.
 
 - **`market_list`** — every market account: `accountId`, `market`, `label`,
-  `configured`, `enabled`, its last `sync`, and the market's `capabilities`.
-  No secrets.
+  `configured`, `enabled`, its last `sync`, its `verificationId` and
+  `verificationNameservers` (the set to point a name at, Afternic's with
+  the account's NS3), and the market's `capabilities`. No secrets.
 - **`market_sync`** — `accountId?`. Re-reads listings, sales and stats from
   one account or every enabled one. Completed sales become `sold` events.
 - **`market_listings`** — your listings across accounts: filter by `market`,
@@ -337,9 +338,18 @@ Atom only (each fails saying so on markets without it):
 - **`domain_listing_discount_set`** — `domain`, `accountId?`, `amount`
   (whole dollars off, at most 30% of the price; null clears). Lasts until
   Atom resets discounts on Monday.
-- **`domain_listing_verify`** — `domain`, `accountId?`. Asks Atom to check
-  the name's nameservers or TXT record now; once per account every 12
-  hours.
+- **`domain_listing_verify`** — `domain`, `accountId?`. Recheck ownership:
+  asks the market to check a listed name now, changing no DNS. Afternic relists it (`RESYNC`); Atom checks its nameservers or TXT
+  record, once per account every 12 hours. Sedo has no such call.
+- **`domain_verification_apply`** — `domain`, `accountIds?` (default every
+  enabled account with an ID saved). Ownership verification TXT: adds those
+  accounts' TXT records at the name's root, at the registrar that holds it,
+  in one write, keeping the rest (skipped when the name's DNS isn't at its
+  registrar, or the records are there). For a market's nameservers, use
+  `domain_nameservers_set` with the account's `verificationNameservers`.
+- **`market_verification_set`** — `accountId`, `value`. Saves the account's
+  Ownership Verification ID, read out of the value as the market shows it
+  (blank clears). Kept in DomBot.
 - **`market_grading_submit`** — `accountId`, `domains[]`. Atom's AI grading
   (brand fit, Premium fit); **`market_grading_get`** — `accountId`,
   `page?`, `brandFitOnly?` reads the results.

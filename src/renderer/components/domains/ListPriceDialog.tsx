@@ -117,7 +117,7 @@ export function ListPriceDialog({
           )}
           <PriceField
             id="bin-price"
-            label="BIN price"
+            label="BIN Price"
             help={LIST_PRICE_HELP.amount}
           >
             <MoneyInput
@@ -133,7 +133,7 @@ export function ListPriceDialog({
           <div className="grid grid-cols-2 gap-3">
             <PriceField
               id="list-min-offer"
-              label="Minimum offer"
+              label="Minimum Offer"
               help={LIST_PRICE_HELP.minOffer}
             >
               <MoneyInput
@@ -147,7 +147,7 @@ export function ListPriceDialog({
             </PriceField>
             <PriceField
               id="list-floor"
-              label="Floor price"
+              label="Floor Price"
               help={LIST_PRICE_HELP.floor}
             >
               <MoneyInput

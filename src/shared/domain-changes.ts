@@ -126,9 +126,12 @@ export function opChange(
           }),
         ),
       );
+    // A TXT record's write knows the records before and after, and reports
+    // the change itself.
     case 'authCode':
     case 'renew':
     case 'approveTransfer':
+    case 'txtRecords':
       return null;
   }
 }

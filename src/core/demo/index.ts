@@ -12,6 +12,7 @@ import { flushWrites } from '../storage/namespace';
 import { setListPrices } from '../services/list-prices';
 import {
   connectMarketAccount,
+  setMarketVerification,
   marketAccountViews,
 } from '../services/markets/accounts';
 import { configureMarketFactory } from '../services/markets/registry';
@@ -177,8 +178,9 @@ export async function installDemo(
   configureMarketFactory(demoMarketFactory(markets));
   const connected = new Set(marketAccountViews().map((a) => a.id));
   for (const a of DEMO_MARKET_ACCOUNTS) {
-    if (!connected.has(a.id))
-      await connectMarketAccount(a.market, { ...a.credentials }, a.label, a.id);
+    if (connected.has(a.id)) continue;
+    await connectMarketAccount(a.market, { ...a.credentials }, a.label, a.id);
+    if ('verification' in a) await setMarketVerification(a.id, a.verification);
   }
 
   await flushWrites();

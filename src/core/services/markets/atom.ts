@@ -66,7 +66,7 @@ export const ATOM_CAPABILITIES: MarketCapabilities = {
 };
 
 export const ATOM_CONFIG_FIELDS: MarketConfigField[] = [
-  { name: 'apiToken', label: 'API token', type: 'password', required: true },
+  { name: 'apiToken', label: 'API Token', type: 'password', required: true },
   { name: 'userId', label: 'User ID', type: 'text', required: true },
 ];
 

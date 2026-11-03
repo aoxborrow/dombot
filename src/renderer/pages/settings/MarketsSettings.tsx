@@ -3,7 +3,6 @@ import {
   ChevronDown,
   CircleX,
   Ellipsis,
-  ExternalLink,
   Pencil,
   Plus,
   Power,
@@ -11,28 +10,28 @@ import {
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { MarketAccountView, MarketInfo } from '../../../shared/markets';
+import {
+  SEARCH_DATA_FLAG,
+  type MarketAccountView,
+  type MarketId,
+  type MarketInfo,
+} from '../../../shared/markets';
+import {
+  parseVerificationId,
+  verificationHelp,
+  verificationNameserver,
+  verificationTxt,
+} from '../../../shared/market-verification';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
 import { MarketLogo } from '../../components/RegistrarLogo';
 import { timeAgo } from '../../lib/time';
 import { useSyncState } from '../../lib/sync-state';
 import {
-  DEFAULT_LEASE_MONTHS,
   leaseCommissionDiscount,
-  leaseMonthOptions,
   useLeaseDefaults,
-  LANDER_STYLES,
-  type LanderStyle,
   type LeaseDefaults,
 } from '../../lib/lease-to-own';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '../../components/EmptyState';
 import { Card } from '@/components/ui/card';
@@ -52,6 +51,11 @@ import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import {
+  SettingsExternalLink,
+  SettingsField,
+  SettingsHelp,
+} from './SettingsCard';
 
 // Settings → Markets (docs/markets.md): one card per connected marketplace
 // account, built like the registrar cards. Everything a card shows comes from
@@ -225,20 +229,10 @@ function EmptyMarkets() {
 /** Where to get keys, and the market's own note about them. */
 function MarketHelp({ market }: { market: MarketInfo }) {
   return (
-    <p className="mb-4 text-sm text-muted-foreground">
-      {market.helpText}{' '}
-      <a
-        href={market.keysUrl}
-        className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
-        onClick={(e) => {
-          e.preventDefault();
-          void window.api.openExternal(market.keysUrl);
-        }}
-      >
-        Open {market.website}
-        <ExternalLink className="size-3.5" />
-      </a>
-    </p>
+    <SettingsHelp
+      summary={market.helpText}
+      links={[{ label: `Open ${market.name}`, url: market.keysUrl }]}
+    />
   );
 }
 
@@ -269,14 +263,26 @@ function CredentialFields({
             onChange(field.name, e.target.value),
         };
         return (
-          <Field key={field.name}>
-            <FieldLabel htmlFor={id}>{field.label}</FieldLabel>
+          <SettingsField
+            key={field.name}
+            htmlFor={id}
+            label={
+              <>
+                {field.label}
+                {field.required && <span className="text-destructive"> *</span>}
+              </>
+            }
+          >
             {field.type === 'password' ? (
-              <PasswordInput {...props} revealLabel={`Show ${field.label}`} />
+              <PasswordInput
+                {...props}
+                className="font-mono"
+                revealLabel={`Show ${field.label}`}
+              />
             ) : (
-              <Input {...props} />
+              <Input {...props} className="font-mono" />
             )}
-          </Field>
+          </SettingsField>
         );
       })}
     </>
@@ -356,7 +362,7 @@ function DraftMarketCard({
           />
           <Field>
             <FieldLabel htmlFor="new-market-label">
-              Account name (optional)
+              Account Name (optional)
             </FieldLabel>
             <Input
               id="new-market-label"
@@ -503,6 +509,70 @@ function MarketCard({
   const changed = Object.keys({ ...original, ...values }).some(
     (k) => (original[k] ?? '') !== (values[k]?.trim() ?? ''),
   );
+
+  // Ownership verification, kept in DomBot. The field shows what the market
+  // shows (the TXT value); null means untouched.
+  const savedVerificationId = account.verificationId ?? null;
+  const shownVerification = savedVerificationId
+    ? verificationTxt(market.id, savedVerificationId)
+    : '';
+  const [verifyValue, setVerifyValue] = useState<string | null>(null);
+  // The key was refused: saving again retries it, changed or not.
+  const [keyRefused, setKeyRefused] = useState(false);
+  const verification = verifyValue ?? shownVerification;
+  const verificationChanged = verification.trim() !== shownVerification;
+
+  const dirty = changed || verificationChanged;
+
+  /**
+   * One Save for the whole card: the key (tested first, so a refused one
+   * saves nothing), then the verification ID. A verification value that
+   * isn't the market's stops it before anything is saved.
+   */
+  const save = async () => {
+    setBusy('save');
+    setError(null);
+    try {
+      if (verificationChanged) {
+        parseVerificationId(market.id, verification, market.name);
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(null);
+      return;
+    }
+    let views: MarketAccountView[] | null = null;
+    try {
+      if (changed || keyRefused) {
+        try {
+          views = await window.api.saveMarketCredentials(account.id, values);
+          setOriginal(values);
+          setKeyRefused(false);
+        } catch (err) {
+          setKeyRefused(true);
+          throw new Error(
+            `${errorMessage(err)} Nothing was saved; the account keeps its key.`,
+          );
+        }
+      }
+      if (verificationChanged) {
+        views = await window.api.setMarketVerification(
+          account.id,
+          verification,
+        );
+        setVerifyValue(null);
+      }
+      if (views) await setMarketAccounts(views);
+      toast.success(
+        `Saved ${market.name}${account.label !== market.name ? ` · ${account.label}` : ''}.`,
+      );
+    } catch (err) {
+      setError(errorMessage(err));
+      setOpen(true);
+    } finally {
+      setBusy(null);
+    }
+  };
   const syncing = busy === 'sync' || syncingAll;
   const syncFailed =
     account.enabled && !syncing && account.sync?.lastError != null;
@@ -653,44 +723,20 @@ function MarketCard({
           </div>
         )}
 
-        <CollapsibleContent className="flex flex-col gap-6 border-t px-5 py-4">
-          {/* What the market itself holds, read through its API (and, for
-              settings, saved back there), in a box of its own apart from
-              what DomBot keeps. */}
-          {(account.sync?.status?.length ||
-            (lease && lease.enabled !== null)) && (
-            <MarketAccountSettings
-              // Remounts once the settings arrive, after the flags.
-              key={`${account.id}:${lease ? 'loaded' : 'loading'}`}
-              accountId={account.id}
-              marketName={market.name}
-              flags={account.sync?.status ?? []}
-              lease={lease && lease.enabled !== null ? lease : null}
-            />
-          )}
-          <div className="flex flex-col gap-3">
+        <CollapsibleContent className="border-t px-5 py-4">
+          <form
+            className="flex flex-col gap-7"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void save();
+            }}
+          >
             {account.sync?.notes.map((note) => (
               <p key={note} className="text-sm text-muted-foreground">
                 {note}
               </p>
             ))}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void run('save', () =>
-                  window.api.saveMarketCredentials(account.id, values),
-                ).then((ok) => {
-                  if (ok) setOriginal(values);
-                  // The key is tested before it's saved, so a refused one
-                  // changes nothing: say so.
-                  else
-                    setError(
-                      (e) =>
-                        `${e} Nothing was saved; the account keeps its key.`,
-                    );
-                });
-              }}
-            >
+            <div>
               <MarketHelp market={market} />
               <FieldGroup className="gap-4">
                 <CredentialFields
@@ -702,15 +748,33 @@ function MarketCard({
                     setValues((current) => ({ ...current, [name]: value }))
                   }
                 />
+                <VerificationField
+                  market={market}
+                  idPrefix={account.id}
+                  value={verification}
+                  savedId={savedVerificationId}
+                  disabled={busy !== null}
+                  onValue={setVerifyValue}
+                />
               </FieldGroup>
-              <div className="mt-5 flex flex-wrap items-center gap-3">
+            </div>
+            {(account.sync?.status?.length ||
+              (lease && lease.enabled !== null)) && (
+              <MarketAccountSummary
+                market={market}
+                flags={account.sync?.status ?? []}
+                lease={lease && lease.enabled !== null ? lease : null}
+              />
+            )}
+            <div className="flex flex-col gap-3">
+              <div>
                 <Button
                   type="submit"
                   // After a refused save, Save stays on even with the saved
                   // values back in the fields, so it can always be retried.
                   disabled={
                     busy !== null ||
-                    !(changed || error) ||
+                    !(dirty || error) ||
                     !filled(market, values)
                   }
                 >
@@ -718,12 +782,12 @@ function MarketCard({
                 </Button>
               </div>
               {error && (
-                <p role="alert" className="mt-3 text-sm text-destructive">
+                <p role="alert" className="text-sm text-destructive">
                   {error}
                 </p>
               )}
-            </form>
-          </div>
+            </div>
+          </form>
         </CollapsibleContent>
       </Collapsible>
 
@@ -764,7 +828,7 @@ function MarketCard({
         >
           <Field>
             <FieldLabel htmlFor={`${account.id}-label`}>
-              Account name
+              Account Name
             </FieldLabel>
             <Input
               id={`${account.id}-label`}
@@ -782,8 +846,141 @@ function MarketCard({
   );
 }
 
-/** One setting: its name on the left, its value or control on the right. */
-function SettingRow({
+/**
+ * The account's Ownership Verification ID (docs/markets.md, "Ownership
+ * verification"): the value the market gives the account, pasted whole and
+ * read on save, for Ownership verification TXT… and Afternic's NS3 preset.
+ * Labelled the same for every market; the help says where the market keeps
+ * it.
+ */
+function VerificationField({
+  market,
+  idPrefix,
+  value,
+  savedId,
+  disabled,
+  onValue,
+}: {
+  market: MarketInfo;
+  idPrefix: string;
+  value: string;
+  savedId: string | null;
+  disabled: boolean;
+  onValue: (value: string) => void;
+}) {
+  const help = verificationHelp(market.id);
+  const ns3 = verificationNameserver(market.id, savedId);
+  return (
+    <SettingsField
+      htmlFor={`${idPrefix}-verification`}
+      label="Ownership Verification ID"
+      description={
+        <>
+          {help.path}.{' '}
+          <SettingsExternalLink url={help.url}>
+            Open {market.name}
+          </SettingsExternalLink>
+        </>
+      }
+    >
+      <Input
+        id={`${idPrefix}-verification`}
+        value={value}
+        autoComplete="off"
+        spellCheck={false}
+        className="font-mono"
+        disabled={disabled}
+        onChange={(e) => onValue(e.target.value)}
+      />
+      {ns3 && (
+        <p className="text-xs break-all text-muted-foreground">
+          NS3: <span className="font-mono">{ns3}</span>
+        </p>
+      )}
+    </SettingsField>
+  );
+}
+
+/** Where a market's own account settings are changed, when DomBot only shows them. */
+const ACCOUNT_SETTINGS_URL: Partial<Record<MarketId, string>> = {
+  afternic: 'https://www.afternic.com/account/lander',
+};
+
+/**
+ * What the market account itself holds, read through its API and shown
+ * read-only: what the account has (Discount Domain Club Domain Pro, from
+ * sync), and its lease-to-own defaults (Afternic's account settings), which
+ * a new listing in DomBot starts from. They're changed on the market.
+ */
+function MarketAccountSummary({
+  market,
+  flags,
+  lease,
+}: {
+  market: MarketInfo;
+  flags: { label: string; on: boolean }[];
+  lease: LeaseDefaults | null;
+}) {
+  const settingsUrl = ACCOUNT_SETTINGS_URL[market.id];
+  const months = lease?.months ?? null;
+  return (
+    <div className="overflow-hidden rounded-md border text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b bg-muted/40 px-3 py-2">
+        <h3 className="font-medium">{market.name} Account Settings</h3>
+        {settingsUrl && (
+          <SettingsExternalLink url={settingsUrl} className="text-[13px]">
+            Open {market.name}
+          </SettingsExternalLink>
+        )}
+      </div>
+      {/* Each setting beside its value, in two columns: the setting muted,
+          its value in the text colour. */}
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 px-3 py-2.5">
+        {flags.map((flag) =>
+          // The API doesn't say the membership level; search counts, which
+          // only Domain Pro gets, say whether it's that one.
+          flag.label === SEARCH_DATA_FLAG ? (
+            <SummaryRow key={flag.label} label="Discount Domain Club">
+              <span
+                className={cn(!flag.on && 'text-muted-foreground')}
+                title={`Read from whether ${market.name} sends search counts, which only Domain Pro members get; its API doesn’t say the level.`}
+              >
+                {flag.on ? 'Domain Pro' : 'Not Domain Pro'}
+              </span>
+            </SummaryRow>
+          ) : (
+            <SummaryRow key={flag.label} label={flag.label}>
+              <span className={cn(!flag.on && 'text-muted-foreground')}>
+                {flag.on ? 'Yes' : 'No'}
+              </span>
+            </SummaryRow>
+          ),
+        )}
+        {lease && (
+          <SummaryRow label="Lease To Own">
+            <span className={cn(!lease.enabled && 'text-muted-foreground')}>
+              {lease.enabled ? 'On' : 'Off'}
+            </span>
+          </SummaryRow>
+        )}
+        {lease?.enabled && months !== null && (
+          <SummaryRow label="Maximum Lease Period">
+            {months} months
+            {leaseCommissionDiscount(months) > 0 && (
+              <span className="text-muted-foreground">
+                {' '}
+                · {leaseCommissionDiscount(months)}% discount
+              </span>
+            )}
+          </SummaryRow>
+        )}
+      </dl>
+    </div>
+  );
+}
+
+/** One row of the account card: the setting, then its value. */
+function SummaryRow({
   label,
   children,
 }: {
@@ -791,196 +988,9 @@ function SettingRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 text-sm">
-      <span>{label}</span>
-      <div className="flex items-center gap-2">{children}</div>
-    </div>
-  );
-}
-
-/**
- * What the market account itself holds, read through its API: what the
- * account has (read-only, e.g. Discount Domain Club Domain Pro), and its
- * settings (Afternic's lease-to-own defaults), saved back to the market
- * together with one Save. Lease-to-own applies to listings created on the
- * market itself; DomBot sends lease-to-own with every listing it creates.
- */
-function MarketAccountSettings({
-  accountId,
-  marketName,
-  flags,
-  lease,
-}: {
-  accountId: string;
-  marketName: string;
-  flags: { label: string; on: boolean }[];
-  lease: LeaseDefaults | null;
-}) {
-  const [saved, setSaved] = useState(lease);
-  const [enabled, setEnabled] = useState(lease?.enabled ?? false);
-  const [months, setMonths] = useState(lease?.months ?? DEFAULT_LEASE_MONTHS);
-  const [lander, setLander] = useState<LanderStyle | null>(
-    lease?.lander ?? null,
-  );
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const landerChanged = !!saved && lander !== null && lander !== saved.lander;
-  const leaseChanged =
-    !!saved &&
-    (enabled !== saved.enabled || (enabled && months !== saved.months));
-  const dirty = landerChanged || leaseChanged;
-
-  const save = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      // Only what changed: the rest of the account's settings stay as
-      // they are (a partial update).
-      await window.api.setMarketListingDefaults(accountId, {
-        ...(landerChanged ? { intakeStyle: lander } : {}),
-        ...(leaseChanged
-          ? enabled
-            ? { leasingEnabled: true, maxLeasePeriod: months }
-            : { leasingEnabled: false }
-          : {}),
-      });
-      setSaved({
-        enabled,
-        months: enabled ? months : (saved?.months ?? null),
-        lander,
-      });
-      toast.success(`Saved your ${marketName} account settings.`);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="rounded-md border">
-      <div className="flex items-start justify-between gap-3 rounded-t-md bg-muted/40 px-3 py-2">
-        <div>
-          <h3 className="text-sm font-medium">{marketName} account settings</h3>
-          <p className="text-xs text-muted-foreground">
-            Read from your {marketName} account
-            {lease ? `; saving changes them on ${marketName}` : ''}.
-          </p>
-        </div>
-        {lease && (
-          <Button
-            size="sm"
-            disabled={!dirty || busy}
-            onClick={() => void save()}
-          >
-            {busy ? 'Saving…' : 'Save'}
-          </Button>
-        )}
-      </div>
-      <div className="py-1">
-        {flags.map((flag) => (
-          <SettingRow key={flag.label} label={flag.label}>
-            <span
-              className={cn(
-                'flex items-center gap-2',
-                !flag.on && 'text-muted-foreground',
-              )}
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  'size-2 shrink-0 rounded-full',
-                  flag.on
-                    ? 'bg-emerald-500'
-                    : 'border border-muted-foreground/60',
-                )}
-              />
-              {flag.on ? 'Yes' : 'No'}
-            </span>
-          </SettingRow>
-        ))}
-        {lease && (
-          <>
-            {lander !== null && (
-              <SettingRow label="Lander for new listings">
-                <Select
-                  value={lander}
-                  onValueChange={(v) => setLander(v as LanderStyle)}
-                >
-                  <SelectTrigger
-                    aria-label="Lander for new listings"
-                    className="h-8 w-68"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent align="end">
-                    {(
-                      Object.entries(LANDER_STYLES) as [LanderStyle, string][]
-                    ).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </SettingRow>
-            )}
-            <SettingRow label="Lease To Own">
-              <Select
-                value={enabled ? 'on' : 'off'}
-                onValueChange={(v) => setEnabled(v === 'on')}
-              >
-                <SelectTrigger aria-label="Lease To Own" className="h-8 w-68">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  <SelectItem value="off">Disable installments</SelectItem>
-                  <SelectItem value="on">Enable installments</SelectItem>
-                </SelectContent>
-              </Select>
-            </SettingRow>
-            <SettingRow label="Maximum Lease Period">
-              <Select
-                value={String(months)}
-                disabled={!enabled}
-                onValueChange={(v) => setMonths(Number(v))}
-              >
-                <SelectTrigger
-                  aria-label="Maximum Lease Period"
-                  className="h-8 w-68"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  {leaseMonthOptions(months).map((m) => (
-                    <SelectItem key={m} value={String(m)}>
-                      {m} months
-                      {leaseCommissionDiscount(m) > 0 && (
-                        <span className="text-muted-foreground">
-                          {' '}
-                          · {leaseCommissionDiscount(m)}% discount
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </SettingRow>
-          </>
-        )}
-      </div>
-      {lease && (
-        <p className="px-3 pb-2.5 text-xs text-muted-foreground">
-          These apply to listings created from now on. Installments need a Buy
-          Now price between $495 and $5,000,000; if a price is too low for the
-          maximum lease period, {marketName} sets it as close as it can.
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="px-3 pb-2 text-xs text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd>{children}</dd>
+    </>
   );
 }

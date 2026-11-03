@@ -76,7 +76,10 @@ describe('isRiskyOp', () => {
     expect(isRiskyOp({ kind: 'lock', locked: true })).toBe(false);
     expect(isRiskyOp({ kind: 'privacy', enabled: true })).toBe(false);
     expect(isRiskyOp({ kind: 'autoRenew', enabled: false })).toBe(false);
-    expect(isRiskyOp({ kind: 'nameservers', nameservers: [] })).toBe(false);
+  });
+
+  it('is true for any nameserver change, which moves the DNS', () => {
+    expect(isRiskyOp({ kind: 'nameservers', nameservers: [] })).toBe(true);
   });
 });
 
