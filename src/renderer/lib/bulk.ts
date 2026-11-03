@@ -10,6 +10,7 @@ import type {
   RegistrarMeta,
 } from '../../shared/ipc';
 import { OP_LABEL, unsupportedReason } from '../../shared/domain-ops';
+import { accountMetaOf } from './registrar-accounts';
 
 export interface Bucketed {
   /** Will be sent to the registrar. */
@@ -35,7 +36,7 @@ export function bucketSelection(
 ): Bucketed {
   const out: Bucketed = { eligible: [], skipped: [], unsupported: [] };
   for (const d of domains) {
-    const meta = registrars?.find((r) => r.name === d.registrar);
+    const meta = accountMetaOf(registrars, d);
     const reason = meta
       ? unsupportedReason(meta.name, meta.features, op)
       : null;

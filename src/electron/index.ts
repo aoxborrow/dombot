@@ -7,6 +7,8 @@ import { setAppMenu } from './menu';
 import { initStorage } from './storage';
 import { configureProxyTransport } from '../core/services/proxy-transport';
 import { desktopProxyFetch } from './proxy-transport';
+import { configureConsentIp } from '../core/services/consent-ip';
+import { publicIp } from './public-ip';
 import { startMcpServer, stopMcpServer } from './mcp/server';
 import { hasPairedClients } from '../core/mcp/oauth';
 import { setAppIdentity } from '../core/app-info';
@@ -195,6 +197,7 @@ function runApp(): void {
     // can touch one. Also runs the one-time legacy-credentials migration.
     await initStorage();
     configureProxyTransport(desktopProxyFetch);
+    configureConsentIp(publicIp);
     // Bulk jobs: the desktop drives them in-process, and a registrar job left
     // running by a crash/quit is closed out (never silently resumed — renew
     // is money); a market job carries on with the names it hadn't sent.

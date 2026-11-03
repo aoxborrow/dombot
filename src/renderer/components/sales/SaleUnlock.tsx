@@ -22,8 +22,7 @@ export function waitsForUnlock(
   registrars: RegistrarMeta[] | null,
 ): boolean {
   return (
-    !!domain?.locked &&
-    opUnsupportedReason(registrars, domain.registrar, UNLOCK) === null
+    !!domain?.locked && opUnsupportedReason(registrars, domain, UNLOCK) === null
   );
 }
 
@@ -39,7 +38,7 @@ export function SaleUnlock({ domain }: { domain: Domain }) {
   const applyDomainOp = useAppStore((s) => s.applyDomainOp);
   // Another write on the name (an Approve transfer) holds this one back.
   const busy = useAppStore((s) => s.mutating[domainKey(domain)] ?? false);
-  const reason = useOpUnsupportedReason(domain.registrar, UNLOCK);
+  const reason = useOpUnsupportedReason(domain, UNLOCK);
   // Only this button's own write reads as Unlocking.
   const [unlocking, setUnlocking] = useState(false);
 

@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   friendlyError,
   isApiUnsupportedMessage,
+  missingFeatureReason,
   opSummary,
   reportsPrivacy,
   unsupportedReason,
@@ -108,11 +109,35 @@ describe('unsupportedReason', () => {
     expect(unsupportedReason('porkbun', ALL, ops.autoOn)).toBeNull();
   });
 
-  it('lets GoDaddy disable privacy but not enable it, and blocks forwarding', () => {
-    expect(unsupportedReason('godaddy', ALL, ops.privacyOn)).toMatch(/GoDaddy/);
+  it('lets GoDaddy turn privacy on and off', () => {
+    expect(unsupportedReason('godaddy', ALL, ops.privacyOn)).toBeNull();
     expect(unsupportedReason('godaddy', ALL, ops.privacyOff)).toBeNull();
-    expect(unsupportedReason('godaddy', ALL, ops.url)).toMatch(/customer ID/);
     expect(unsupportedReason('godaddy', ALL, ops.auth)).toBeNull();
+  });
+
+  it('allows GoDaddy forwarding on an account whose Optional settings unlock it', () => {
+    expect(unsupportedReason('godaddy', ALL, ops.url)).toBeNull();
+    // Without them the account's list lacks it, and the reason says why.
+    expect(unsupportedReason('godaddy', ['getAuthCode'], ops.url)).toBe(
+      'Add this account’s Optional settings in Settings › Registrars to use URL forwarding.',
+    );
+  });
+
+  it('names the Optional settings only for features they unlock', () => {
+    expect(
+      missingFeatureReason(
+        'godaddy',
+        'approveTransferOut',
+        'transfer approval',
+      ),
+    ).toMatch(/Optional settings/);
+    // GoDaddy has no email forwarding API at all.
+    expect(
+      missingFeatureReason('godaddy', 'setEmailForwarding', 'email forwarding'),
+    ).toBe('This registrar doesn’t offer email forwarding through its API.');
+    expect(
+      missingFeatureReason('dynadot', 'setDomainForwarding', 'URL forwarding'),
+    ).toBe('This registrar doesn’t offer URL forwarding through its API.');
   });
 
   it('checks the feature list before the gap map', () => {

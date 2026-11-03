@@ -34,6 +34,7 @@ import { withRequestLock } from './lock';
 import { D1DocStore } from './storage/d1-doc-store';
 import { runMigrations } from '../core/storage/migrations';
 import { configureProxyTransport } from '../core/services/proxy-transport';
+import { configureConsentIp } from '../core/services/consent-ip';
 import { migrateLegacyProxies } from '../core/services/proxies';
 import { workerProxyFetch } from './proxy-transport';
 
@@ -85,6 +86,10 @@ function bootOnce(env: Env): Promise<Boot> {
     // this boot. Renames copy raw rows, so values move still sealed.
     await runMigrations(raw, store);
     configureProxyTransport(workerProxyFetch);
+    configureConsentIp(async () => {
+      if (!requestIp) throw new Error('This request has no client IP address.');
+      return requestIp;
+    });
     return { auth: await buildAuthConfig(env, root) };
   })().catch((err) => {
     boot = null; // let the next request retry (e.g. secret set after deploy)
@@ -103,6 +108,12 @@ async function hydrate(): Promise<void> {
 
 type Vars = { auth: AuthConfig };
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
+
+// The user's IP address for the stateful request being handled, which
+// Cloudflare sets as CF-Connecting-IP at the edge. Registrar agreements that
+// record it read it through configureConsentIp (see bootOnce). Stateful
+// requests run one at a time (withRequestLock), so one variable is enough.
+let requestIp: string | null = null;
 
 // ── boot on every request ───────────────────────────────────────────────────
 app.use('*', async (c, next) => {
@@ -131,8 +142,13 @@ const stateful: MiddlewareHandler<{ Bindings: Env; Variables: Vars }> = (
   next,
 ) =>
   withRequestLock(async () => {
-    await hydrate();
-    await next();
+    requestIp = c.req.header('cf-connecting-ip') ?? null;
+    try {
+      await hydrate();
+      await next();
+    } finally {
+      requestIp = null;
+    }
     try {
       await flushWrites();
     } catch (err) {

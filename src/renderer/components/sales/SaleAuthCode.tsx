@@ -20,7 +20,7 @@ export function pastedAuthCodeFrom(
   registrars: RegistrarMeta[] | null,
 ): string | null {
   if (!domain) return '';
-  if (opUnsupportedReason(registrars, domain.registrar, AUTH_CODE) === null) {
+  if (opUnsupportedReason(registrars, domain, AUTH_CODE) === null) {
     return null;
   }
   return (

@@ -5,6 +5,21 @@ import type {
 } from '../../shared/ipc';
 import { accountNumber } from '../../shared/account-label';
 
+export type RowAccount = Pick<Domain, 'registrar' | 'accountId'>;
+
+/** A row's account metadata. Features can differ between accounts at one
+ *  registrar (GoDaddy's Optional settings), so match the account first; a row
+ *  with no known account falls back to its registrar's first. */
+export function accountMetaOf(
+  registrars: RegistrarMeta[] | null,
+  d: RowAccount,
+): RegistrarMeta | undefined {
+  return (
+    registrars?.find((r) => d.accountId && r.accountId === d.accountId) ??
+    registrars?.find((r) => r.name === d.registrar)
+  );
+}
+
 export interface AccountCardModel {
   provider: RegistrarDefinition;
   account: RegistrarMeta;

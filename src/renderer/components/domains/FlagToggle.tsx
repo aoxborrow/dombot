@@ -7,7 +7,10 @@ import {
   targetOf,
   useOpUnsupportedReason,
 } from '../../lib/domain-ops';
-import { reportsPrivacy } from '../../../shared/domain-ops';
+import {
+  recordsPrivacyConsent,
+  reportsPrivacy,
+} from '../../../shared/domain-ops';
 import { cn } from '@/lib/utils';
 import { ConfirmPopover } from '../ConfirmPopover';
 
@@ -55,7 +58,7 @@ export function FlagToggle({
       : { kind: 'lock', locked: next };
   const optimistic: Partial<Domain> =
     kind === 'privacy' ? { privacy: next } : { locked: next };
-  const reason = useOpUnsupportedReason(domain.registrar, op);
+  const reason = useOpUnsupportedReason(domain, op);
 
   const apply = () => {
     void applyDomainOp(targetOf(domain), op, optimistic).then((result) =>
@@ -80,7 +83,11 @@ export function FlagToggle({
           }
         : {
             title: `Disable privacy for ${domain.domainName}?`,
-            body: 'Exposes the registrant name, address, email, and phone in public WHOIS.',
+            body:
+              'Exposes the registrant name, address, email, and phone in public WHOIS.' +
+              (recordsPrivacyConsent(domain.registrar)
+                ? ' The registrar records your agreement and IP address.'
+                : ''),
             action: 'Disable',
           };
 
