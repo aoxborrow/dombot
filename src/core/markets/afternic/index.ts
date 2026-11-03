@@ -2,6 +2,7 @@ export {
   AFTERNIC_BASE_URL,
   AfternicClient,
   BATCH_SIZE,
+  SALES_HISTORY_FROM,
   type AfternicClientOptions,
 } from './client';
 export { AfternicError } from './errors';

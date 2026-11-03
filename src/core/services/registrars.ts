@@ -1,3 +1,4 @@
+import { API_TIMEOUT_MS } from '../api-timeout';
 import { protectRegistrar, redactRegistrarMessage } from './registrar-errors';
 import { importedRows } from '../../shared/imported-domains';
 import { getImportedDomains } from './imported-domains';
@@ -178,7 +179,7 @@ function buildProvider(
   if (factory) return factory(name, credentials, accountId);
   return proxy
     ? createProxiedRegistrar(name, credentials, proxy)
-    : createRegistrar(name, credentials);
+    : createRegistrar(name, credentials, { timeout: API_TIMEOUT_MS });
 }
 const clientCredentials = new Map<string, string>();
 const generations = new Map<string, number>();

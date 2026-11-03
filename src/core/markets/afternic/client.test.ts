@@ -297,6 +297,31 @@ describe('retries', () => {
     expect(calls).toHaveLength(4);
     expect(error.message).not.toMatch(/secret/);
   });
+
+  it('retries a response that times out partway through its body', async () => {
+    const { clock } = fakeClock();
+    let calls = 0;
+    const afternic = new AfternicClient({
+      apiKey: 'key',
+      apiSecret: 'secret',
+      clock,
+      limiter: new RateLimiter(clock),
+      fetch: (async () => {
+        calls++;
+        const stalled = new Response('{}');
+        stalled.text = () =>
+          Promise.reject(
+            new DOMException('The operation timed out.', 'TimeoutError'),
+          );
+        return stalled;
+      }) as typeof fetch,
+    });
+    const error = await afternic.getAccountSettings().catch((e) => e);
+    expect(error).toBeInstanceOf(AfternicError);
+    expect(error.code).toBe('TIMEOUT');
+    expect(error.message).toBe('Afternic did not respond in time.');
+    expect(calls).toBe(4);
+  });
 });
 
 describe('RateLimiter', () => {

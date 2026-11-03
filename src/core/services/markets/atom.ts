@@ -599,12 +599,16 @@ export class AtomAdapter implements MarketAdapter, AtomActions {
     return out;
   }
 
-  /** Every sale; Atom takes no date filter, so `since` is applied here. */
-  async allSales(since?: string): Promise<MarketSale[]> {
+  /** Every sale; Atom takes no date filter, so the range is applied here. */
+  async allSales(since?: string, until?: string): Promise<MarketSale[]> {
     const sales = (await this.client.allSales()).map((s) =>
       saleFromAtom(s, this.accountId),
     );
-    return since ? sales.filter((s) => !s.soldOn || s.soldOn >= since) : sales;
+    return sales.filter(
+      (s) =>
+        !s.soldOn ||
+        ((!since || s.soldOn >= since) && (!until || s.soldOn < until)),
+    );
   }
 
   async domainCounters(name: string): Promise<MarketCounters> {

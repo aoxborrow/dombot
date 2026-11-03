@@ -26,7 +26,12 @@ const fake = {
   stats: [] as MarketStatsDay[],
   fail: null as Error | null,
   testFails: false,
-  salesSince: [] as (string | undefined)[],
+  /** The [since, until] of each sales read. */
+  salesRanges: [] as [string | undefined, string | undefined][],
+  /** Afternic filters sales by date; unset, the market reads like Atom. */
+  historyFrom: '2000-01-01' as string | undefined,
+  /** An error for a sales read, by its range. */
+  salesFail: null as ((since?: string, until?: string) => Error | null) | null,
   statsDays: [] as number[],
   asyncInsert: false,
   /** What a single sale read says about the auth code, by sale id. */
@@ -50,6 +55,9 @@ vi.mock('./registry', async () => {
     buildAdapter: (_market: string, accountId: string) => ({
       market: 'afternic',
       accountId,
+      get salesHistoryFrom() {
+        return fake.historyFrom;
+      },
       get capabilities() {
         return {
           ...AFTERNIC_CAPABILITIES,
@@ -75,9 +83,17 @@ vi.mock('./registry', async () => {
           .filter((l) => names.includes(l.name))
           .map((l) => ({ ...l, accountId }));
       },
-      allSales: async (since?: string) => {
-        fake.salesSince.push(since);
-        return fake.sales.map((s) => ({ ...s, accountId }));
+      allSales: async (since?: string, until?: string) => {
+        fake.salesRanges.push([since, until]);
+        const failure = fake.salesFail?.(since, until);
+        if (failure) throw failure;
+        return fake.sales
+          .filter(
+            (s) =>
+              !s.soldOn ||
+              ((!since || s.soldOn >= since) && (!until || s.soldOn < until)),
+          )
+          .map((s) => ({ ...s, accountId }));
       },
       // The list never says whether Afternic has the auth code; one sale does.
       getSale: async (id: string) => {
@@ -177,6 +193,15 @@ const connect = () =>
   );
 const sold = () => listEvents().filter((e) => e.type === DomainEventType.Sold);
 
+/** The year-at-a-time reads of a whole history, newest first, from `year`. */
+function yearsBack(year: number, to = 2000): [string, string | undefined][] {
+  const out: [string, string | undefined][] = [];
+  for (let y = year; y >= to; y--) {
+    out.push([`${y}-01-01`, y === 2026 ? undefined : `${y + 1}-01-01`]);
+  }
+  return out;
+}
+
 beforeEach(async () => {
   await flushWrites().catch(() => {});
   configureStore(new MemoryDocStore());
@@ -188,7 +213,9 @@ beforeEach(async () => {
     stats: [],
     fail: null,
     testFails: false,
-    salesSince: [],
+    salesRanges: [],
+    historyFrom: '2000-01-01',
+    salesFail: null,
     asyncInsert: false,
     statsDays: [],
     saleCodes: new Map(),
@@ -263,13 +290,134 @@ describe('syncMarketAccount', () => {
     );
   });
 
-  it('reads all sales once, then a window back from the newest', async () => {
+  it('reads the history a year at a time once, then a window back from the newest', async () => {
+    await connect();
+    fake.sales = [
+      sale('t1', 'gone.com', '2026-10-01'),
+      sale('t0', 'old.com', '2003-02-03'),
+    ];
+    await syncMarketAccount(ACCOUNT);
+    expect(fake.salesRanges).toEqual(yearsBack(2026));
+    expect(marketAccountViews()[0].sync?.salesRead).toEqual({
+      from: '2000-01-01',
+      to: '2026-10-28',
+    });
+    fake.salesRanges = [];
+    await syncMarketAccount(ACCOUNT);
+    expect(fake.salesRanges).toEqual([['2026-08-17', undefined]]);
+    expect(marketSales().map((s) => s.id)).toEqual(['t1', 't0']);
+  });
+
+  it('reads all sales once on a market that takes no dates', async () => {
+    fake.historyFrom = undefined;
     await connect();
     fake.sales = [sale('t1', 'gone.com', '2026-10-01')];
     await syncMarketAccount(ACCOUNT);
     await syncMarketAccount(ACCOUNT);
-    expect(fake.salesSince).toEqual([undefined, '2026-08-17']);
+    expect(fake.salesRanges).toEqual([
+      [undefined, undefined],
+      ['2026-08-17', undefined],
+    ]);
     expect(marketSales()).toHaveLength(1);
+    expect(marketAccountViews()[0].sync?.salesRead).toBeUndefined();
+  });
+
+  it('pauses the history at a year that fails, and carries on from there', async () => {
+    await connect();
+    fake.listings = [listing('a.com')];
+    fake.sales = [
+      sale('t3', 'new.com', '2026-10-01'),
+      sale('t2', 'mid.com', '2024-06-01'),
+      sale('t1', 'old.com', '2021-03-04'),
+    ];
+    fake.salesFail = (since) =>
+      since === '2023-01-01'
+        ? new Error('Afternic did not respond in time.')
+        : null;
+    await syncMarketAccount(ACCOUNT);
+    // The years before it failed are kept, and so is the rest of the sync.
+    expect(marketSales().map((s) => s.id)).toEqual(['t3', 't2']);
+    expect(fake.statsDays).toEqual([365]);
+    const paused = marketAccountViews()[0].sync;
+    expect(paused).toMatchObject({
+      lastError: null,
+      listings: 1,
+      salesRead: { from: '2024-01-01', to: '2026-10-28' },
+    });
+    expect(paused?.notes).toContain(
+      'Sales history read back to 2024, then paused: Afternic did not respond in time. The next sync carries on.',
+    );
+
+    fake.salesFail = null;
+    fake.salesRanges = [];
+    vi.setSystemTime(Date.parse('2026-10-29T12:00:00Z'));
+    await syncMarketAccount(ACCOUNT);
+    expect(fake.salesRanges).toEqual([
+      ['2026-08-17', undefined],
+      ...yearsBack(2023),
+    ]);
+    expect(marketSales().map((s) => s.id)).toEqual(['t3', 't2', 't1']);
+    const done = marketAccountViews()[0].sync;
+    expect(done?.salesRead).toEqual({ from: '2000-01-01', to: '2026-10-29' });
+    expect(done?.notes.some((n) => n.startsWith('Sales history'))).toBe(false);
+  });
+
+  it('keeps the history read so far when the whole sync fails', async () => {
+    await connect();
+    fake.sales = [sale('t1', 'gone.com', '2026-10-01')];
+    fake.salesFail = (since) =>
+      since === '2025-01-01'
+        ? new Error('Afternic did not respond in time.')
+        : null;
+    await syncMarketAccount(ACCOUNT);
+    fake.fail = new Error('Afternic is down');
+    await syncMarketAccount(ACCOUNT);
+    expect(marketAccountViews()[0].sync).toMatchObject({
+      lastError: 'Afternic: Afternic is down',
+      salesRead: { from: '2026-01-01', to: '2026-10-28' },
+    });
+  });
+
+  it('starts the history over while a failing first year has found nothing', async () => {
+    await connect();
+    fake.salesFail = () => new Error('Afternic did not respond in time.');
+    await syncMarketAccount(ACCOUNT);
+    expect(fake.salesRanges).toEqual([['2026-01-01', undefined]]);
+    expect(marketAccountViews()[0].sync?.notes).toContain(
+      'Sales history paused: Afternic did not respond in time. The next sync carries on.',
+    );
+    fake.salesFail = null;
+    fake.salesRanges = [];
+    await syncMarketAccount(ACCOUNT);
+    expect(fake.salesRanges).toEqual(yearsBack(2026));
+  });
+
+  it('reads from the last read on an account with no sales at all', async () => {
+    await connect();
+    await syncMarketAccount(ACCOUNT);
+    fake.salesRanges = [];
+    vi.setSystemTime(Date.parse('2026-12-20T12:00:00Z'));
+    await syncMarketAccount(ACCOUNT);
+    expect(fake.salesRanges).toEqual([['2026-10-28', undefined]]);
+    expect(marketAccountViews()[0].sync?.salesRead).toEqual({
+      from: '2000-01-01',
+      to: '2026-12-20',
+    });
+  });
+
+  it('treats an account synced before the yearly reads as read in full', async () => {
+    fake.historyFrom = undefined;
+    await connect();
+    fake.sales = [sale('t1', 'gone.com', '2026-10-01')];
+    await syncMarketAccount(ACCOUNT);
+    fake.historyFrom = '2000-01-01';
+    fake.salesRanges = [];
+    await syncMarketAccount(ACCOUNT);
+    expect(fake.salesRanges).toEqual([['2026-08-17', undefined]]);
+    expect(marketAccountViews()[0].sync?.salesRead).toEqual({
+      from: '2000-01-01',
+      to: '2026-10-28',
+    });
   });
 
   it('reads sales under way one by one until the market has the auth code', async () => {
@@ -307,10 +455,11 @@ describe('syncMarketAccount', () => {
     const first = syncMarketAccount(ACCOUNT);
     expect(syncMarketAccount(ACCOUNT)).toBe(first);
     await first;
-    expect(fake.salesSince).toEqual([undefined]);
+    expect(fake.salesRanges).toEqual(yearsBack(2026));
     // Once it's done, the next one runs.
+    fake.salesRanges = [];
     await syncMarketAccount(ACCOUNT);
-    expect(fake.salesSince).toEqual([undefined, '2026-08-17']);
+    expect(fake.salesRanges).toEqual([['2026-08-17', undefined]]);
   });
 
   it('reads a year of stats first, then a week, merged by day', async () => {
