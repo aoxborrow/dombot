@@ -40,7 +40,7 @@ import {
 } from './bulk-jobs';
 import { domainKey } from '../../shared/account-key';
 import type { Domain as ProviderDomain } from '@aoxborrow/registrar-client';
-import type { DomainTarget } from '../../shared/ipc';
+import type { DomainTarget, RegistrarAccount } from '../../shared/ipc';
 
 const fakes = vi.hoisted(() => ({
   providers: new Map<string, Record<string, ReturnType<typeof vi.fn>>>(),
@@ -162,6 +162,19 @@ async function mcp(name: string, args: unknown) {
   return JSON.parse(
     (await tool.handler(z.object(tool.schema).parse(args))).content[0].text,
   );
+}
+
+/** Connects through the API and returns the new account. A turned-down
+ *  connection test resolves with the registrar's answer; these tests expect
+ *  an account, so it fails them. */
+async function connectAccount(args: unknown[]): Promise<RegistrarAccount> {
+  const result = await invoke(
+    'connectRegistrarAccount',
+    coreMethods.connectRegistrarAccount,
+    args,
+  );
+  if (!result.success) throw new Error(result.message);
+  return result.account;
 }
 
 beforeEach(async () => {
@@ -684,16 +697,14 @@ describe('multi-account storage, routing and portable migration', () => {
   });
 
   it('connects in one submission and numbers unnamed accounts', async () => {
-    const first = await invoke(
-      'connectRegistrarAccount',
-      coreMethods.connectRegistrarAccount,
-      ['dynadot', { apiKey: 'first', apiSecret: 'secret' }],
-    );
-    const second = await invoke(
-      'connectRegistrarAccount',
-      coreMethods.connectRegistrarAccount,
-      ['dynadot', { apiKey: 'second', apiSecret: 'secret' }],
-    );
+    const first = await connectAccount([
+      'dynadot',
+      { apiKey: 'first', apiSecret: 'secret' },
+    ]);
+    const second = await connectAccount([
+      'dynadot',
+      { apiKey: 'second', apiSecret: 'secret' },
+    ]);
     expect(first.label).toBe('Account 1');
     expect(second.label).toBe('Account 2');
     expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(2);
@@ -702,21 +713,14 @@ describe('multi-account storage, routing and portable migration', () => {
     await hydrateStores();
     expect(getStoredCredentials(second.id).apiKey).toBe('second');
     await expect(
-      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
-        'dynadot',
-        { apiKey: 'first', apiSecret: 'secret' },
-      ]),
+      connectAccount(['dynadot', { apiKey: 'first', apiSecret: 'secret' }]),
     ).rejects.toThrow(/already connected/);
     expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(2);
   });
 
   it('numbers past the highest in use, never handing a live number to another account', async () => {
     const connect = (apiKey: string, label?: string) =>
-      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
-        'dynadot',
-        { apiKey, apiSecret: 'secret' },
-        label,
-      ]);
+      connectAccount(['dynadot', { apiKey, apiSecret: 'secret' }, label]);
     const one = await connect('k1');
     const two = await connect('k2');
     const three = await connect('k3');
@@ -743,10 +747,7 @@ describe('multi-account storage, routing and portable migration', () => {
 
   it('removes a nickname when it is cleared, returning the account to the lowest free number', async () => {
     const connect = (apiKey: string) =>
-      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
-        'dynadot',
-        { apiKey, apiSecret: 'secret' },
-      ]);
+      connectAccount(['dynadot', { apiKey, apiSecret: 'secret' }]);
     const one = await connect('k1');
     const two = await connect('k2');
     await invoke('renameRegistrarAccount', coreMethods.renameRegistrarAccount, [
@@ -770,11 +771,10 @@ describe('multi-account storage, routing and portable migration', () => {
       apiKey: 'legacy',
       apiSecret: 'secret',
     });
-    const second = await invoke(
-      'connectRegistrarAccount',
-      coreMethods.connectRegistrarAccount,
-      ['dynadot', { apiKey: 'second', apiSecret: 'secret' }],
-    );
+    const second = await connectAccount([
+      'dynadot',
+      { apiKey: 'second', apiSecret: 'secret' },
+    ]);
     expect(second.label).toBe('Account 2');
     for (const clash of ['Main', 'account 1', '#1'])
       await expect(renameAccount(second.id, clash)).rejects.toThrow(
@@ -784,13 +784,13 @@ describe('multi-account storage, routing and portable migration', () => {
   });
 
   it('keeps nicknames unique per registrar, ignoring case, without a network test or a second account', async () => {
-    const first = await invoke(
-      'connectRegistrarAccount',
-      coreMethods.connectRegistrarAccount,
-      ['dynadot', { apiKey: 'first', apiSecret: 'secret' }, 'Personal'],
-    );
+    const first = await connectAccount([
+      'dynadot',
+      { apiKey: 'first', apiSecret: 'secret' },
+      'Personal',
+    ]);
     await expect(
-      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+      connectAccount([
         'dynadot',
         { apiKey: 'second', apiSecret: 'secret' },
         ' personal ',
@@ -800,11 +800,11 @@ describe('multi-account storage, routing and portable migration', () => {
     expect(fakes.providers.get('second')).toBeUndefined();
     expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(1);
 
-    const second = await invoke(
-      'connectRegistrarAccount',
-      coreMethods.connectRegistrarAccount,
-      ['dynadot', { apiKey: 'second', apiSecret: 'secret' }, 'Agency'],
-    );
+    const second = await connectAccount([
+      'dynadot',
+      { apiKey: 'second', apiSecret: 'secret' },
+      'Agency',
+    ]);
     await expect(renameAccount(second.id, 'PERSONAL')).rejects.toThrow(
       /already named/,
     );
@@ -812,27 +812,27 @@ describe('multi-account storage, routing and portable migration', () => {
     // registrar are both fine.
     await renameAccount(second.id, 'agency');
     await renameAccount(first.id, 'Personal');
-    const elsewhere = await invoke(
-      'connectRegistrarAccount',
-      coreMethods.connectRegistrarAccount,
-      ['porkbun', { apiKey: 'pb', secretApiKey: 'secret' }, 'Personal'],
-    );
+    const elsewhere = await connectAccount([
+      'porkbun',
+      { apiKey: 'pb', secretApiKey: 'secret' },
+      'Personal',
+    ]);
     expect(elsewhere.label).toBe('Personal');
   });
 
   it('frees a nickname when its account is removed, and never collides with an unused placeholder', async () => {
     // No Dynadot account is saved, so the placeholder's "Default" is not taken.
-    const first = await invoke(
-      'connectRegistrarAccount',
-      coreMethods.connectRegistrarAccount,
-      ['dynadot', { apiKey: 'first', apiSecret: 'secret' }, 'Default'],
-    );
+    const first = await connectAccount([
+      'dynadot',
+      { apiKey: 'first', apiSecret: 'secret' },
+      'Default',
+    ]);
     await removeRegistrarAccount(first.id);
-    const again = await invoke(
-      'connectRegistrarAccount',
-      coreMethods.connectRegistrarAccount,
-      ['dynadot', { apiKey: 'again', apiSecret: 'secret' }, 'default'],
-    );
+    const again = await connectAccount([
+      'dynadot',
+      { apiKey: 'again', apiSecret: 'secret' },
+      'default',
+    ]);
     expect(again.label).toBe('default');
   });
 
@@ -842,25 +842,32 @@ describe('multi-account storage, routing and portable migration', () => {
     fakes.providers.get('bad')!.testConnection.mockResolvedValue({
       success: false,
       message: 'Invalid API key',
+      status: 401,
     });
+    // The registrar's answer comes back as a value, so its status crosses
+    // IPC and HTTP too.
     await expect(
       invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
         'dynadot',
         { apiKey: 'bad', apiSecret: 'secret' },
         'Company',
       ]),
-    ).rejects.toThrow(/Invalid API key/);
+    ).resolves.toEqual({
+      success: false,
+      message: 'Invalid API key',
+      status: 401,
+    });
     expect(getRegistrarMetadata().filter((a) => a.saved)).toEqual([]);
     expect(await disk.list('registrar-credentials')).toEqual({});
     expect(await disk.list('registrar-accounts')).toEqual({});
     fakes.providers
       .get('bad')!
       .testConnection.mockResolvedValue({ success: true });
-    await invoke(
-      'connectRegistrarAccount',
-      coreMethods.connectRegistrarAccount,
-      ['dynadot', { apiKey: 'bad', apiSecret: 'secret' }, 'Company'],
-    );
+    await connectAccount([
+      'dynadot',
+      { apiKey: 'bad', apiSecret: 'secret' },
+      'Company',
+    ]);
     expect(getRegistrarMetadata().filter((a) => a.saved)).toHaveLength(1);
   });
 
@@ -876,20 +883,16 @@ describe('multi-account storage, routing and portable migration', () => {
         .find((p) => p.name === 'dynadot')!
         .configFields.map((f) => f.name),
     ).toContain('apiKey');
-    const account = await invoke(
-      'connectRegistrarAccount',
-      coreMethods.connectRegistrarAccount,
-      ['dynadot', { apiKey: 'new', apiSecret: 'secret' }],
-    );
+    const account = await connectAccount([
+      'dynadot',
+      { apiKey: 'new', apiSecret: 'secret' },
+    ]);
     expect(account.id).not.toBe('dynadot');
   });
 
   it('connection form validation and storage failure leave no incomplete accounts', async () => {
     await expect(
-      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
-        'dynadot',
-        { apiKey: 'incomplete' },
-      ]),
+      connectAccount(['dynadot', { apiKey: 'incomplete' }]),
     ).rejects.toThrow(/API Secret is required/);
     expect(fakes.providers.size).toBe(0);
     configureStore(
@@ -907,10 +910,7 @@ describe('multi-account storage, routing and portable migration', () => {
     );
     await hydrateStores();
     await expect(
-      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
-        'dynadot',
-        { apiKey: 'unsaved', apiSecret: 'secret' },
-      ]),
+      connectAccount(['dynadot', { apiKey: 'unsaved', apiSecret: 'secret' }]),
     ).rejects.toThrow(/keyring unavailable/);
     expect(getRegistrarMetadata().filter((a) => a.saved)).toEqual([]);
     await expect(flushWrites()).rejects.toThrow(/keyring unavailable/);
@@ -924,10 +924,7 @@ describe('multi-account storage, routing and portable migration', () => {
       return put(namespace, key, value);
     });
     await expect(
-      invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
-        'dynadot',
-        { apiKey: 'first', apiSecret: 'secret' },
-      ]),
+      connectAccount(['dynadot', { apiKey: 'first', apiSecret: 'secret' }]),
     ).rejects.toThrow(/metadata write failed/);
     expect(getRegistrarMetadata().filter((a) => a.saved)).toEqual([]);
     expect(await disk.list('registrar-credentials')).toEqual({});
