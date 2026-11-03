@@ -215,7 +215,7 @@ One PR, in this order:
    90-day rule.
 2. **Domains UI.** The Sold pill, the Auto-renew filter, the Archive
    Status filter (Sold, Deleted, Expired, Removed), and trimmed row, bulk and
-   Activity menus (`RowActionsMenu.tsx`, `BulkBar.tsx`, `Activity.tsx`,
+   Activity menus (`RowActionsMenu.tsx`, `BulkActionsBar.tsx`, `Activity.tsx`,
    `OwnershipDialogs.tsx`, `FolderMenuItems.tsx`).
 3. **Delete.** Gate it on "no connected account holds it", add the bulk
    count.

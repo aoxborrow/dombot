@@ -12,9 +12,12 @@ const GAP = 2;
 export function DomainTableScroll({
   className,
   children,
+  overlay,
 }: {
   className?: string;
   children: ReactNode;
+  /** Floats over the scroll area without scrolling with it. */
+  overlay?: ReactNode;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -182,6 +185,7 @@ export function DomainTableScroll({
         aria-hidden
         className="domain-scroll-thumb domain-scroll-thumb-h"
       />
+      {overlay}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import {
   CalendarCheck,
   Clock,
   Coins,
-  Download,
+  FileSpreadsheet,
   CircleCheck,
   Ellipsis,
   Globe,
@@ -746,7 +746,7 @@ export default function Sales() {
         onClick={() => void exportCsv()}
         disabled={sorted.length === 0}
       >
-        <Download />
+        <FileSpreadsheet />
         Export CSV
       </Button>
     </div>

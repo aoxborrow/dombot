@@ -135,7 +135,10 @@ import {
   EmailForwardingDialog,
   UrlForwardingDialog,
 } from '../components/domains/ForwardingDialogs';
-import { BulkBar, type OwnershipAction } from '../components/domains/BulkBar';
+import {
+  BulkActionsBar,
+  type OwnershipAction,
+} from '../components/domains/BulkActionsBar';
 import { BulkActionDialog } from '../components/domains/BulkActionDialog';
 import { defaultBulkOp } from '../lib/bulk';
 import {
@@ -2525,40 +2528,53 @@ export default function Domains() {
             </span>
           )}
         </FilterToolbar>
-
-        {/* Bulk action bar — contextual: appears once any row is selected, or
-            while a bulk job is running (as a progress pill). */}
-        <BulkBar
-          domains={selectedDomains}
-          folders={folders}
-          onClear={clearSelection}
-          onRefresh={bulkRefresh}
-          onExport={() => void exportCsv(selectedDomains)}
-          onAssignFolder={(folderId) => applyFolders(selectedDomains, folderId)}
-          onNotes={() => setBulkNotesFor(selectedDomains)}
-          onKind={(kind) =>
-            setBulkDialog({ op: defaultBulkOp(kind, selectedHeld) })
-          }
-          onViewJob={() => {
-            if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });
-          }}
-          archiveView={archiveView}
-          onOwnership={(action) => openOwnership(action, selectedDomains)}
-          onListPrice={() => setListPriceFor(selectedDomains)}
-          onMarket={
-            marketsOn
-              ? (action) =>
-                  setMarketAction({ action, domains: selectedDomains })
-              : undefined
-          }
-          marketLabel={marketLabel}
-          marketId={marketId}
-          marketReasons={marketReasonsFor(selectedDomains)}
-        />
       </div>
 
       <DataTable
         className="mt-[13px]"
+        // The bulk actions float over the table once rows are selected (or
+        // a bulk job's progress, while one runs).
+        floatingBar={
+          (selectedDomains.length > 0 || bulk?.status === 'running') && (
+            <BulkActionsBar
+              domains={selectedDomains}
+              held={selectedHeld}
+              total={
+                archiveView
+                  ? archiveCount
+                  : view === 'listings'
+                    ? listedCount
+                    : ownedCount
+              }
+              folders={folders}
+              onClear={clearSelection}
+              onRefresh={bulkRefresh}
+              onExport={() => void exportCsv(selectedDomains)}
+              onAssignFolder={(folderId) =>
+                applyFolders(selectedDomains, folderId)
+              }
+              onNotes={() => setBulkNotesFor(selectedDomains)}
+              onKind={(kind) =>
+                setBulkDialog({ op: defaultBulkOp(kind, selectedHeld) })
+              }
+              onViewJob={() => {
+                if (bulk) setBulkDialog({ op: bulk.op, jobId: bulk.id });
+              }}
+              archiveView={archiveView}
+              onOwnership={(action) => openOwnership(action, selectedDomains)}
+              onListPrice={() => setListPriceFor(selectedDomains)}
+              onMarket={
+                marketsOn
+                  ? (action) =>
+                      setMarketAction({ action, domains: selectedDomains })
+                  : undefined
+              }
+              marketLabel={marketLabel}
+              marketId={marketId}
+              marketReasons={marketReasonsFor(selectedDomains)}
+            />
+          )
+        }
         rows={filtered}
         columns={dataColumns}
         layout={columnLayout}

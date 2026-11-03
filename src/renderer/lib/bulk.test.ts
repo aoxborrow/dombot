@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   bucketSelection,
+  bulkKindReason,
   bulkOpTitle,
   defaultBulkOp,
   defaultFlagOp,
@@ -88,6 +89,33 @@ describe('bucketSelection', () => {
   it('treats everything as eligible until registrar metadata loads', () => {
     const r = bucketSelection([c], { kind: 'authCode' }, null, () => true);
     expect(r.eligible).toHaveLength(1);
+  });
+});
+
+describe('bulkKindReason', () => {
+  it('needs a name at a connected account', () => {
+    expect(bulkKindReason([], 'lock', registrars)).toMatch(/connected account/);
+  });
+
+  it('is null when any selected registrar can do it', () => {
+    const held = [
+      domain({ domainName: 'a.com', registrar: 'cloudflare' }),
+      domain({ domainName: 'b.com', registrar: 'dynadot' }),
+    ];
+    expect(bulkKindReason(held, 'nameservers', registrars)).toBeNull();
+  });
+
+  it('gives the registrar’s reason when none can', () => {
+    const held = [domain({ domainName: 'a.com', registrar: 'cloudflare' })];
+    expect(bulkKindReason(held, 'nameservers', registrars)).toMatch(
+      /Cloudflare/,
+    );
+  });
+
+  it('counts a kind supported in one direction as supported', () => {
+    const godaddy = [meta('godaddy')];
+    const held = [domain({ domainName: 'a.com', registrar: 'godaddy' })];
+    expect(bulkKindReason(held, 'privacy', godaddy)).toBeNull();
   });
 });
 
