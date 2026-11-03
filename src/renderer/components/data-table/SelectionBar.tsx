@@ -26,9 +26,10 @@ const UP_SHADOW =
  * selected", and Clear. Then Actions, a menu of everything the page can do to
  * the selection, and any shortcuts (`children`: SelectionBarMenu and
  * SelectionBarButton) after it. As wide as what's in it, up to 80% of the
- * table (all of it on a narrow one, where Clear and Actions alone wouldn't
- * fit in 80%). Shortcuts drop out with `@max-[…]/float:hidden` at the width
- * they stop fitting; past that, "of N selected" shortens rather than spill.
+ * table, or 90% under 724px (tablets and phones), never all of it: edge to
+ * edge it would cut the table in two rather than float. Shortcuts drop out
+ * with `@max-[…]/float:hidden` at the width they stop fitting; on a phone
+ * "of N" goes, leaving "2 selected", and past that the text shortens.
  */
 export function SelectionBar({
   count,
@@ -50,7 +51,7 @@ export function SelectionBar({
   children?: ReactNode;
 }) {
   return (
-    <div className="pointer-events-auto flex max-w-full items-center gap-1 rounded-md bg-primary p-1 text-primary-foreground shadow-xl ring-1 shadow-black/30 ring-black/10 animate-in fade-in slide-in-from-bottom-2 @min-[440px]/float:max-w-[80%] dark:ring-white/15">
+    <div className="pointer-events-auto flex max-w-[90%] items-center gap-1 rounded-md bg-primary p-1 text-primary-foreground shadow-xl ring-1 shadow-black/30 ring-black/10 animate-in fade-in slide-in-from-bottom-2 @min-[724px]/float:max-w-[80%] dark:ring-white/15">
       {/* The selection, set apart from the actions on a darker green. */}
       <span className="mr-1 flex h-8 min-w-0 items-center gap-2 rounded-sm bg-black/15 pr-2.5 pl-2 text-[13px] whitespace-nowrap dark:bg-black/25">
         {/* The tabs' count pill, in the bar's green. */}
@@ -58,8 +59,12 @@ export function SelectionBar({
           {count.toLocaleString('en-US')}
         </span>
         <span className="min-w-0 truncate text-brand-100/75">
-          of{' '}
-          <span className="tabular-nums">{total.toLocaleString('en-US')}</span>{' '}
+          <span className="@max-[360px]/float:hidden">
+            of{' '}
+            <span className="tabular-nums">
+              {total.toLocaleString('en-US')}
+            </span>{' '}
+          </span>
           selected
         </span>
         {/* The filter chips' remove button: a small X, a small hover square. */}
