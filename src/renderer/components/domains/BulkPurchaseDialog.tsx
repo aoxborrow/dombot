@@ -128,8 +128,7 @@ export function BulkPurchaseDialog({
       <p className="text-sm text-muted-foreground">
         {side === 'registration'
           ? 'You registered them yourself: the fee you paid for each, dated the day it was created.'
-          : 'You bought them from someone: what you paid for each, and when.'}{' '}
-        Kept even if a name leaves the account.
+          : 'You bought them from someone: what you paid for each, and when.'}
       </p>
       {side === 'purchase' && (
         <DateField

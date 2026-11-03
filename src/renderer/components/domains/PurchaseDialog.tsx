@@ -242,8 +242,7 @@ export function PurchaseDialog({
           <p className="text-sm text-muted-foreground">
             {side === 'registration'
               ? 'You registered it yourself: the fee you paid and the day it was created.'
-              : 'You bought it from someone: what you paid and when.'}{' '}
-            Kept even if the name leaves the account.
+              : 'You bought it from someone: what you paid and when.'}
           </p>
           <div className="flex flex-col gap-2">
             <Label htmlFor="purchase-date">
