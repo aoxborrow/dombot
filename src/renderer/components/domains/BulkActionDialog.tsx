@@ -452,6 +452,10 @@ function configureDescription(
     return 'Another bulk action is running — wait for it to finish.';
   if (retrying) return 'Retrying the domains that failed last time.';
   switch (op.kind) {
+    case 'privacy':
+      return op.enabled
+        ? 'Applied one domain at a time, paced per registrar. You can cancel while it runs.'
+        : 'Exposes the registrant name, address, email, and phone in public WHOIS on every domain below. Some registrars, like GoDaddy, record your agreement and IP address. Paced per registrar; you can cancel while it runs.';
     case 'nameservers':
       return 'Replaces the full nameserver set on every domain below. Paced per registrar; you can cancel while it runs.';
     case 'urlForwarding':

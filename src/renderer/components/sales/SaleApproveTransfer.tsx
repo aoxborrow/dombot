@@ -5,6 +5,7 @@ import { localDay } from '../../../shared/domain-events';
 import type { Domain, DomainOp } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { reportOpResult, targetOf } from '../../lib/domain-ops';
+import { accountMetaOf } from '../../lib/registrar-accounts';
 import { SaleStepButton } from './SaleStepButton';
 
 const APPROVE: DomainOp = { kind: 'approveTransfer' };
@@ -15,9 +16,9 @@ const RELEASE_AFTER_MS = 5 * 24 * 60 * 60 * 1000;
 
 /**
  * Approve transfer, the last of a pending sale's steps, shown from the start
- * wherever the registrar's API reports transfer requests (Dynadot and Gandi
- * today; GoDaddy's needs a customer ID the app doesn't collect), so
- * the row lays out every step at once. It turns on when the buyer's registrar
+ * wherever the account's registrar API reports transfer requests (Dynadot,
+ * Gandi, and GoDaddy accounts with the Optional settings), so the row lays
+ * out every step at once. It turns on when the buyer's registrar
  * asks for the name: the registrar holding it waits for you to answer
  * (Dynadot five days) before letting it go on its own, and approving releases
  * it now. One click, like Unlock: the sale is the reason. It reads Transfer
@@ -30,9 +31,9 @@ export function SaleApproveTransfer({ domain }: { domain: Domain }) {
   const transfer = useAppStore((s) => s.transfersOut[key]);
   // Another write on the name (an Unlock) holds this one back.
   const busy = useAppStore((s) => s.mutating[key] ?? false);
-  const meta = useAppStore((s) =>
-    s.registrars?.find((r) => r.name === domain.registrar),
-  );
+  // Per account: a GoDaddy account reports transfers only with its Optional
+  // settings filled in.
+  const meta = useAppStore((s) => accountMetaOf(s.registrars, domain));
   const reports =
     (meta?.features.includes(Feature.GetTransferOut) &&
       meta.features.includes(Feature.ApproveTransferOut)) ??

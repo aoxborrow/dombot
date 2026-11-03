@@ -18,6 +18,7 @@ import {
   unsupportedReason,
 } from '../../shared/domain-ops';
 import { useAppStore } from '../store/app';
+import { accountMetaOf, type RowAccount } from './registrar-accounts';
 
 /** The IPC target for a row. */
 export function targetOf(d: Domain): DomainTarget {
@@ -29,27 +30,27 @@ export function targetOf(d: Domain): DomainTarget {
 }
 
 /**
- * Why `registrar` can't run `op`, or null when it can (or when the registrar
- * metadata hasn't loaded yet — main gates again, so an unknown list errs on
- * the side of offering the control).
+ * Why the row's account can't run `op`, or null when it can (or when the
+ * registrar metadata hasn't loaded yet — main gates again, so an unknown list
+ * errs on the side of offering the control).
  */
 export function opUnsupportedReason(
   registrars: RegistrarMeta[] | null,
-  registrar: string,
+  domain: RowAccount,
   op: DomainOp,
 ): string | null {
-  const meta = registrars?.find((r) => r.name === registrar);
+  const meta = accountMetaOf(registrars, domain);
   if (!meta) return null;
   return unsupportedReason(meta.name, meta.features, op);
 }
 
 /** Hook form of `opUnsupportedReason` over the store's registrar metadata. */
 export function useOpUnsupportedReason(
-  registrar: string,
+  domain: RowAccount,
   op: DomainOp,
 ): string | null {
   const registrars = useAppStore((s) => s.registrars);
-  return opUnsupportedReason(registrars, registrar, op);
+  return opUnsupportedReason(registrars, domain, op);
 }
 
 /** One toast per outcome. Returns true when the op succeeded. */

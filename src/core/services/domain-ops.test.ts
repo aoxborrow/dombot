@@ -15,7 +15,7 @@ import type { ConfirmedRenewal } from './domain-history';
 // the network out of the test entirely. The error classes above are the real
 // ones so classify() sees the types it checks with instanceof.
 
-const getRegistrarFeatures = vi.fn<(name: string) => readonly string[]>();
+const getDomainFeatures = vi.fn<(target: DomainTarget) => readonly string[]>();
 const setAutoRenewCached = vi.fn();
 const setPrivacyCached = vi.fn();
 const setLockCached = vi.fn();
@@ -57,7 +57,7 @@ vi.mock('./registrars', () => ({
     id: id ?? registrar,
     label: 'Default',
   }),
-  getRegistrarFeatures: (name: string) => getRegistrarFeatures(name),
+  getDomainFeatures: (target: DomainTarget) => getDomainFeatures(target),
   getRegistrarClient: (name: string) => getRegistrarClient(name),
   setAutoRenewCached: (...a: unknown[]) => setAutoRenewCached(...a),
   setPrivacyCached: (...a: unknown[]) => setPrivacyCached(...a),
@@ -115,7 +115,7 @@ const fail = (message = ''): OperationResult => ({ success: false, message });
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getRegistrarFeatures.mockReturnValue(ALL_FEATURES);
+  getDomainFeatures.mockReturnValue(ALL_FEATURES);
   // Re-establish the client shape after clearAllMocks reset the factory.
   getRegistrarClient.mockReturnValue({
     provider: { getAuthCode, getTransferOut, approveTransferOut },
@@ -153,7 +153,7 @@ describe('applyDomainOp — up-front capability gate', () => {
     expect(r.patch).toBeUndefined();
   });
   it('returns unsupported and makes no network call when the registrar lacks the feature', async () => {
-    getRegistrarFeatures.mockReturnValue([]); // no getAuthCode
+    getDomainFeatures.mockReturnValue([]); // no getAuthCode
     const r = await applyDomainOp(target, { kind: 'authCode' });
 
     expect(r.status).toBe('unsupported');
@@ -831,7 +831,7 @@ describe('applyDomainOp — approveTransfer', () => {
   });
 
   it('is unsupported, with no call, where the registrar can’t approve', async () => {
-    getRegistrarFeatures.mockReturnValue(['getAuthCode']);
+    getDomainFeatures.mockReturnValue(['getAuthCode']);
     const r = await applyDomainOp(target, { kind: 'approveTransfer' });
     expect(r.status).toBe('unsupported');
     expect(r.message).toMatch(/doesn.t offer transfer approval/i);
@@ -877,10 +877,14 @@ describe('getTransferOut', () => {
   });
 
   it('throws, with no call, where the registrar can’t report one', async () => {
-    getRegistrarFeatures.mockReturnValue(['getAuthCode']);
+    getDomainFeatures.mockReturnValue(['getAuthCode']);
     await expect(readTransferOut(target)).rejects.toThrow(
-      /doesn.t report transfers out/,
+      'This registrar doesn’t offer transfer-out reports through its API.',
     );
+    // A GoDaddy account is missing its Optional settings instead.
+    await expect(
+      readTransferOut({ ...target, registrar: 'godaddy' }),
+    ).rejects.toThrow(/Add this account’s Optional settings/);
     expect(getTransferOut).not.toHaveBeenCalled();
   });
 });

@@ -2,7 +2,6 @@ import { protectRegistrar, redactRegistrarMessage } from './registrar-errors';
 import { importedRows } from '../../shared/imported-domains';
 import { getImportedDomains } from './imported-domains';
 import {
-  Feature,
   NotImplementedError,
   RateLimitError,
   RegistrarClient,
@@ -15,6 +14,7 @@ import {
   type RegistrarCredentials,
   type RegistrarName,
   type RequestOptions,
+  type SetPrivacyOptions,
 } from '@aoxborrow/registrar-client';
 import {
   accountById,
@@ -34,6 +34,8 @@ import { recordSync } from './domain-history';
 import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { createProxiedRegistrar } from './proxy-transport';
+import { consentIp } from './consent-ip';
+import { recordsPrivacyConsent } from '../../shared/domain-ops';
 import { accountProxyRoute, getProxyProfile } from './proxies';
 import {
   DEFAULT_PROXY_ID,
@@ -63,10 +65,16 @@ import {
   renewalFromGodaddyPricing,
   tldsNeedingPremiumFlags,
 } from './godaddy-renewal-quotes';
+import {
+  OPTIONAL_SETTINGS_FEATURES,
+  missingOptionalField,
+} from '../../shared/registrar-fields';
 import type {
   ConnectRegistrarResult,
   Domain,
+  DomainTarget,
   RegistrarAccount,
+  RegistrarConfigField,
   RegistrarDefinition,
   Portfolio,
   PortfolioErrorInfo,
@@ -187,24 +195,120 @@ export const registrarNames = Object.keys(registrars) as [
   ...RegistrarName[],
 ];
 
-// Extended features the library offers but the app can't use, because they need
-// a setting the app doesn't collect. GoDaddy reads and answers transfers out
-// through its v2 customer API, which needs the customer UUID (`customerId`), and
-// a PAT can't look that up (see FIELD_ORDER).
-const UNUSABLE_FEATURES: Partial<Record<RegistrarName, readonly string[]>> = {
+// Settings the app collects beyond the library's `configFields`, in the account
+// form's collapsed Optional section. GoDaddy advertises only its PAT but still
+// reads these when they're passed: its v2 customer API (URL forwarding,
+// transfers out) is keyed by a customer UUID, which the library looks up from
+// the customer ID with the legacy key and secret, a lookup a PAT can't make.
+// GoDaddy retires the key and secret in 2026. Expect v3 (PAT) routes for these
+// by then, as auto-renew and transfer-lock got in Oct 2026; move to them and
+// drop this section. Until then, the UUID never changes for an account (per
+// GoDaddy's 403-on-v2 docs), so storing the one the save-time check looks up
+// would leave the key and secret needed only at save. GoDaddy's docs show the
+// lookup with a PAT, but live a PAT still gets 401 (checked 2026-11-03).
+const OPTIONAL_CONFIG_FIELDS: Partial<
+  Record<RegistrarName, RegistrarConfigField[]>
+> = {
   godaddy: [
-    Feature.GetTransferOut,
-    Feature.ApproveTransferOut,
-    Feature.RejectTransferOut,
+    {
+      name: 'customerId',
+      label: 'Customer Number',
+      type: 'text',
+      required: false,
+      section: 'optional',
+    },
+    {
+      name: 'apiKey',
+      label: 'API Key (Legacy)',
+      type: 'password',
+      required: false,
+      section: 'optional',
+    },
+    {
+      name: 'apiSecret',
+      label: 'API Secret (Legacy)',
+      type: 'password',
+      required: false,
+      section: 'optional',
+    },
   ],
 };
 
+// What saving an account's Optional settings tries first, and what it says when
+// they don't work. GoDaddy: the Customer Number lookup its URL forwarding and
+// transfers out make before each call, which uses all three settings (private
+// in registrar-client 0.13, so reached by name).
+const OPTIONAL_SETTINGS_CHECKS: Partial<
+  Record<
+    RegistrarName,
+    { run: (provider: Registrar) => Promise<unknown>; failure: string }
+  >
+> = {
+  godaddy: {
+    run: (provider) =>
+      (
+        provider as unknown as { resolveCustomerId(): Promise<string> }
+      ).resolveCustomerId(),
+    failure:
+      'GoDaddy couldn’t look up the Customer Number with this API Key and API Secret. Check the Optional settings.',
+  },
+};
+
+/** Why the Optional settings in `values` don't work, or null when they do or
+ *  aren't filled in. */
+async function checkOptionalSettings(
+  name: RegistrarName,
+  provider: Registrar,
+  values: RegistrarCredentials,
+): Promise<string | null> {
+  const check = OPTIONAL_SETTINGS_CHECKS[name];
+  const fields = OPTIONAL_CONFIG_FIELDS[name] ?? [];
+  if (!check || !fields.every((f) => values[f.name]?.trim())) return null;
+  try {
+    await check.run(provider);
+    return null;
+  } catch {
+    return check.failure;
+  }
+}
+
+/** True when the account has every Optional setting its registrar offers. */
+function hasOptionalSettings(name: RegistrarName, accountId: string): boolean {
+  const fields = OPTIONAL_CONFIG_FIELDS[name];
+  return (
+    !!fields?.length &&
+    fields.every((f) => Boolean(resolveField(name, accountId, f.name)))
+  );
+}
+
 /** The provider's capability list (core + extended `Feature` ids), less the
- *  features the app can't use (UNUSABLE_FEATURES). */
-export function getRegistrarFeatures(name: RegistrarName): readonly string[] {
-  const unusable = UNUSABLE_FEATURES[name];
+ *  features the account's Optional settings unlock while it lacks them
+ *  (OPTIONAL_SETTINGS_FEATURES): all of those when no account is given. */
+export function getRegistrarFeatures(
+  name: RegistrarName,
+  accountId?: string,
+): readonly string[] {
+  const unusable = OPTIONAL_SETTINGS_FEATURES[name];
   const features = registrars[name].features;
-  return unusable ? features.filter((f) => !unusable.includes(f)) : features;
+  if (!unusable || (accountId && hasOptionalSettings(name, accountId)))
+    return features;
+  return features.filter((f) => !unusable.includes(f));
+}
+
+/** The features usable on a domain's account (see getRegistrarFeatures),
+ *  resolving the account when the target doesn't name one. */
+export function getDomainFeatures(target: DomainTarget): readonly string[] {
+  let accountId = target.accountId;
+  if (!accountId) {
+    try {
+      accountId = resolveDomainAccount(target.registrar, target.domainName).id;
+    } catch {
+      // No single account: leave every feature in, so the operation resolves
+      // the account again and reports why it can't, not the Optional settings.
+      return registrars[target.registrar].features;
+    }
+  }
+  return getRegistrarFeatures(target.registrar, accountId);
 }
 
 /** Resolve once before work starts. Labels never participate in routing. */
@@ -1123,13 +1227,8 @@ export async function getRenewalPriceLive(
 // not mentioned here are appended in their original order, so this stays correct
 // if the library adds fields later.
 //
-// GoDaddy is deliberately absent: it now exposes a single credential, the PAT
-// (`apiToken`), so there is nothing to reorder. The library still carries the
-// legacy sso-key (`apiKey`/`apiSecret`) and `customerId` handling internally,
-// but those are no longer configurable — which means GoDaddy domain forwarding
-// (which needs `customerId`, plus an sso-key to resolve a numeric shopper ID)
-// and transfer-out approval (`customerId`, see UNUSABLE_FEATURES) are
-// unavailable through the app. GoDaddy deprecates sso-key in 2026 regardless.
+// GoDaddy is absent: the library exposes a single credential, the PAT
+// (`apiToken`), and the app's Optional fields follow it (OPTIONAL_CONFIG_FIELDS).
 const FIELD_ORDER: Partial<Record<RegistrarName, string[]>> = {
   cloudflare: ['accountId', 'apiToken'],
 };
@@ -1149,6 +1248,21 @@ function orderConfigFields<T extends { name: string }>(
     );
 }
 
+/** The fields an account's form collects: the library's, then the app's
+ *  Optional ones. */
+function configFieldsFor(name: RegistrarName): RegistrarConfigField[] {
+  return [
+    ...orderConfigFields(name, registrars[name].configFields).map((f) => ({
+      name: f.name,
+      label: f.label,
+      type: f.type,
+      required: f.required,
+      options: f.options,
+    })),
+    ...(OPTIONAL_CONFIG_FIELDS[name] ?? []),
+  ];
+}
+
 /** Provider catalog stays available even after its last account is removed. */
 export function getRegistrarCatalog(): RegistrarDefinition[] {
   return registrarNames.map((name) => {
@@ -1157,13 +1271,7 @@ export function getRegistrarCatalog(): RegistrarDefinition[] {
       name,
       displayName: R.displayName,
       supportsSandbox: R.supportsSandbox,
-      configFields: orderConfigFields(name, R.configFields).map((f) => ({
-        name: f.name,
-        label: f.label,
-        type: f.type,
-        required: f.required,
-        options: f.options,
-      })),
+      configFields: configFieldsFor(name),
       features: [...getRegistrarFeatures(name)],
     };
   });
@@ -1181,6 +1289,7 @@ export function getRegistrarMetadata(): RegistrarMeta[] {
       ...catalog.find((r) => r.name === account.registrar)!,
       accountId: account.id,
       accountLabel: account.label,
+      features: [...getRegistrarFeatures(account.registrar, account.id)],
       saved: isSavedAccount(account.id),
       proxy: Boolean(account.proxyId),
       configured: isConfigured(account.registrar, account.id),
@@ -1222,18 +1331,21 @@ export async function connectRegistrarAccount(
     else if (field.required && !proxySupplies(field.name))
       throw new Error(`${field.label} is required.`);
   }
+  assertOptionalComplete(provider.configFields, clean);
   if (!Object.keys(clean).length)
     throw new Error('Enter your account credentials.');
   if ((label?.trim().length ?? 0) > 100)
     throw new Error('Account name must contain at most 100 characters.');
   // Fail on a taken nickname before spending a network round trip.
   if (label?.trim()) assertUniqueAccountLabel(name, label);
+  // The Optional settings add to an account; they don't tell one apart.
+  const identity = provider.configFields.filter((f) => !f.section);
   const assertNotDuplicate = () => {
     const duplicate = getRegistrarMetadata().find(
       (account) =>
         account.name === name &&
         account.saved &&
-        provider.configFields.every(
+        identity.every(
           (field) =>
             (getStoredCredentials(account.accountId ?? name)[
               field.name
@@ -1251,9 +1363,11 @@ export async function connectRegistrarAccount(
   const secrets: Record<string, string | undefined> = { ...clean };
   proxySecrets(proxy?.url).forEach((v, i) => (secrets[`proxy:${i}`] = v));
   // (The account doesn't exist yet, so the id here is a placeholder.)
-  const client = new RegistrarClient(
-    protectRegistrar(buildProvider(name, clean, name, proxy), secrets),
+  const registrar = protectRegistrar(
+    buildProvider(name, clean, name, proxy),
+    secrets,
   );
+  const client = new RegistrarClient(registrar);
   const result = await client.testConnection();
   if (!result.success)
     return {
@@ -1263,6 +1377,8 @@ export async function connectRegistrarAccount(
         'Connection failed. Check your credentials and try again.',
       ...(result.status ? { status: result.status } : {}),
     };
+  const optionalFailure = await checkOptionalSettings(name, registrar, clean);
+  if (optionalFailure) return { success: false, message: optionalFailure };
   // Concurrent tests may both pass before either account exists. Recheck and
   // publish serially, while keeping network tests outside this short queue.
   const account = await publishConnection(name, async () => {
@@ -1275,6 +1391,19 @@ export async function connectRegistrarAccount(
     );
   });
   return { success: true, account };
+}
+
+/** Rejects an Optional section that's only part filled in: its settings only
+ *  work together. */
+function assertOptionalComplete(
+  fields: readonly RegistrarConfigField[],
+  values: RegistrarCredentials,
+): void {
+  const missing = missingOptionalField(fields, values);
+  if (missing)
+    throw new Error(
+      `${missing.label} is required when any Optional setting is filled in.`,
+    );
 }
 
 /** The configured proxy, for an account that is about to start using it. */
@@ -1307,8 +1436,34 @@ export async function saveRegistrarCredentials(
   useProxy?: boolean,
 ): Promise<void> {
   const account = resolveAccount(name, accountId);
+  // Trimmed, as setStoredCredentials keeps them, so the lookup below tries the
+  // values that will be stored.
+  creds = Object.fromEntries(
+    Object.entries(creds)
+      .filter(([, v]) => typeof v === 'string' && v.trim())
+      .map(([k, v]) => [k, (v as string).trim()]),
+  );
   // Check the route exists before persisting anything.
-  if (useProxy) requireProxy();
+  const proxy = useProxy
+    ? requireProxy()
+    : useProxy === false
+      ? null
+      : accountProxyRoute(account);
+  assertOptionalComplete(configFieldsFor(name), creds);
+  // New or changed Optional settings are tried before they're kept, over the
+  // route the account will use.
+  const stored = getStoredCredentials(account.id);
+  const optional = OPTIONAL_CONFIG_FIELDS[name] ?? [];
+  if (optional.some((f) => (creds[f.name] ?? '') !== (stored[f.name] ?? ''))) {
+    const secrets: Record<string, string | undefined> = { ...stored, ...creds };
+    proxySecrets(proxy?.url).forEach((v, i) => (secrets[`proxy:${i}`] = v));
+    const failure = await checkOptionalSettings(
+      name,
+      protectRegistrar(buildProvider(name, creds, account.id, proxy), secrets),
+      creds,
+    );
+    if (failure) throw new Error(failure);
+  }
   invalidateAccount(account.id);
   // The proxy no longer lives in the credentials; never let it back in.
   const clean = { ...creds };
@@ -1554,10 +1709,23 @@ export async function setPrivacyCached(
   accountId?: string,
 ): Promise<OperationResult> {
   accountId = resolveDomainAccount(name, domainName, accountId).id;
+  let request: SetPrivacyOptions | undefined = opts;
+  // Turning privacy off is the user's agreement to show their contact details,
+  // which some registrars record with their IP address.
+  if (!enabled && recordsPrivacyConsent(name)) {
+    try {
+      request = { ...opts, consent: { agreedBy: await consentIp() } };
+    } catch {
+      return {
+        success: false,
+        message: `Couldn’t find your public IP address, which ${registrars[name].displayName} records when contact details go public. Check your connection and try again.`,
+      };
+    }
+  }
   const result = await getRegistrarClient(name, accountId).setPrivacy(
     domainName,
     enabled,
-    opts,
+    request,
   );
   if (result.success)
     patchDomainInCaches(name, domainName, { privacy: enabled }, accountId);
@@ -1717,7 +1885,7 @@ function resolveCredentials(
 ): RegistrarCredentials {
   const creds: RegistrarCredentials = {};
   const missing: string[] = [];
-  for (const field of registrars[name].configFields) {
+  for (const field of configFieldsFor(name)) {
     const value = resolveField(name, accountId, field.name);
     if (value) creds[field.name] = value;
     else if (field.required) missing.push(field.name);

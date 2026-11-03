@@ -16,6 +16,7 @@ import {
   marketAccountViews,
 } from '../services/markets/accounts';
 import { configureMarketFactory } from '../services/markets/registry';
+import { configureConsentIp } from '../services/consent-ip';
 import {
   DEMO_MARKET_ACCOUNTS,
   DemoMarketWorld,
@@ -86,6 +87,8 @@ export async function installDemo(
     });
   });
   resetRegistrarClients();
+  // The fake registrars record nothing, so a documentation address will do.
+  configureConsentIp(async () => '192.0.2.1');
 
   for (const account of seed.accounts) {
     // An account name needs an account record; an unnamed default account is
@@ -198,5 +201,6 @@ export async function installDemo(
 export function uninstallDemo(): void {
   configureRegistrarFactory(null);
   configureMarketFactory(null);
+  configureConsentIp();
   resetRegistrarClients();
 }

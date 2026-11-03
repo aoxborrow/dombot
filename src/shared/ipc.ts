@@ -586,6 +586,9 @@ export interface RegistrarConfigField {
   type: 'text' | 'password' | 'select';
   required: boolean;
   options?: string[];
+  /** Shown in the form's collapsed Optional section. Those settings only work
+   *  together, so filling in one makes them all required. */
+  section?: 'optional';
 }
 
 /**

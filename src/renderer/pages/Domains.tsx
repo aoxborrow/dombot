@@ -546,7 +546,7 @@ function AutoRenewSwitch({ domain }: { domain: Domain }) {
   const applyDomainOp = useAppStore((s) => s.applyDomainOp);
   const key = domainKey(domain);
   const pending = useAppStore((s) => s.mutating[key] ?? false);
-  const reason = useOpUnsupportedReason(domain.registrar, {
+  const reason = useOpUnsupportedReason(domain, {
     kind: 'autoRenew',
     enabled: !domain.autoRenew,
   });

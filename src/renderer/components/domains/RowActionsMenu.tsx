@@ -126,34 +126,34 @@ export function RowActionsMenu({
   const imported = domain.source === 'imported';
   // Each reason is for the change a click would make (GoDaddy can turn
   // privacy off but not on).
-  const autoRenewReason = useOpUnsupportedReason(domain.registrar, {
+  const autoRenewReason = useOpUnsupportedReason(domain, {
     kind: 'autoRenew',
     enabled: !domain.autoRenew,
   });
-  const privacyReason = useOpUnsupportedReason(domain.registrar, {
+  const privacyReason = useOpUnsupportedReason(domain, {
     kind: 'privacy',
     enabled: !domain.privacy,
   });
-  const lockReason = useOpUnsupportedReason(domain.registrar, {
+  const lockReason = useOpUnsupportedReason(domain, {
     kind: 'lock',
     locked: !domain.locked,
   });
-  const nameserversReason = useOpUnsupportedReason(domain.registrar, {
+  const nameserversReason = useOpUnsupportedReason(domain, {
     kind: 'nameservers',
     nameservers: [],
   });
-  const urlReason = useOpUnsupportedReason(domain.registrar, {
+  const urlReason = useOpUnsupportedReason(domain, {
     kind: 'urlForwarding',
     forwards: [],
   });
-  const emailReason = useOpUnsupportedReason(domain.registrar, {
+  const emailReason = useOpUnsupportedReason(domain, {
     kind: 'emailForwarding',
     forwards: [],
   });
-  const authReason = useOpUnsupportedReason(domain.registrar, {
+  const authReason = useOpUnsupportedReason(domain, {
     kind: 'authCode',
   });
-  const renewReason = useOpUnsupportedReason(domain.registrar, {
+  const renewReason = useOpUnsupportedReason(domain, {
     kind: 'renew',
     years: 1,
   });
@@ -179,15 +179,14 @@ export function RowActionsMenu({
       : write({ kind: 'lock', locked: next }, { locked: next });
   const toggleFlag = (kind: 'privacy' | 'lock') => {
     const next = kind === 'privacy' ? !domain.privacy : !domain.locked;
-    if (flagConfirm(domain.domainName, kind, next)) {
+    if (flagConfirm(domain, kind, next)) {
       setConfirming({ kind, next });
     } else {
       flipFlag(kind, next);
     }
   };
   const confirm =
-    confirming &&
-    flagConfirm(domain.domainName, confirming.kind, confirming.next);
+    confirming && flagConfirm(domain, confirming.kind, confirming.next);
 
   // A registrar item, greyed with the reason when the registrar can't do it.
   const registrarItem = (

@@ -7,7 +7,10 @@ import {
   targetOf,
   useOpUnsupportedReason,
 } from '../../lib/domain-ops';
-import { reportsPrivacy } from '../../../shared/domain-ops';
+import {
+  recordsPrivacyConsent,
+  reportsPrivacy,
+} from '../../../shared/domain-ops';
 import { cn } from '@/lib/utils';
 import { ConfirmPopover } from '../ConfirmPopover';
 
@@ -15,10 +18,12 @@ import { ConfirmPopover } from '../ConfirmPopover';
  * What to ask before flipping a privacy or lock flag to `next`, or null when
  * it's plain one-click: locking only ever makes the domain safer. Privacy asks
  * both ways (off exposes the WHOIS contact, on can be a purchase); unlocking
- * asks because it enables a transfer-out. Shared by the cells and the row menu.
+ * asks because it enables a transfer-out. Turning privacy off also says when
+ * the registrar records your agreement (GoDaddy). Shared by the cells and the
+ * row menu.
  */
 export function flagConfirm(
-  domainName: string,
+  { domainName, registrar }: Pick<Domain, 'domainName' | 'registrar'>,
   kind: 'privacy' | 'lock',
   next: boolean,
 ): {
@@ -45,7 +50,11 @@ export function flagConfirm(
       }
     : {
         title: `Disable privacy for ${domainName}?`,
-        body: 'Exposes the registrant name, address, email, and phone in public WHOIS.',
+        body:
+          'Exposes the registrant name, address, email, and phone in public WHOIS.' +
+          (recordsPrivacyConsent(registrar)
+            ? ' The registrar records your agreement and IP address.'
+            : ''),
         action: 'Disable',
         destructive: true,
       };
@@ -95,7 +104,7 @@ export function FlagToggle({
       : { kind: 'lock', locked: next };
   const optimistic: Partial<Domain> =
     kind === 'privacy' ? { privacy: next } : { locked: next };
-  const reason = useOpUnsupportedReason(domain.registrar, op);
+  const reason = useOpUnsupportedReason(domain, op);
 
   const apply = () => {
     void applyDomainOp(targetOf(domain), op, optimistic).then((result) =>
@@ -104,7 +113,7 @@ export function FlagToggle({
   };
 
   // Lock → one click. Everything else confirms in place.
-  const confirm = flagConfirm(domain.domainName, kind, next);
+  const confirm = flagConfirm(domain, kind, next);
   const needsConfirm = confirm !== null;
 
   const Icon = value ? On : Off;
