@@ -6,6 +6,7 @@ import {
   CalendarPlus,
   CircleX,
   Ellipsis,
+  HandCoins,
   KeyRound,
   Link2,
   Mail,
@@ -20,7 +21,6 @@ import {
 import type { Domain, DomainOp, Folder } from '../../../shared/ipc';
 import type { ArchiveLabel } from '../../../shared/ownership';
 import { useAppStore } from '../../store/app';
-import { MarketLogo } from '../RegistrarLogo';
 import {
   reportOpResult,
   targetOf,
@@ -86,8 +86,6 @@ export function RowActionsMenu({
   onMarkSold,
   onDelete,
   onMarket,
-  marketLabel = 'markets',
-  marketId = null,
   marketReasons,
 }: {
   domain: Domain;
@@ -118,9 +116,6 @@ export function RowActionsMenu({
   onDelete: () => void;
   /** Market actions; absent with no market account. */
   onMarket?: (action: MarketAction) => void;
-  marketLabel?: string;
-  /** The one market behind the menu, for its logo; null for several. */
-  marketId?: string | null;
   /** Why each market action can't apply here; null when it can. */
   marketReasons?: Record<MarketAction, string | null>;
 }) {
@@ -364,13 +359,13 @@ export function RowActionsMenu({
                 {flagItem(lockReason, domain.locked, 'Transfer lock', () =>
                   toggleFlag('lock'),
                 )}
+                <DropdownMenuSeparator />
                 {registrarItem(
                   nameserversReason,
                   <Server className={icon} />,
                   'Nameservers',
                   onNameservers,
                 )}
-                <DropdownMenuSeparator />
                 {registrarItem(
                   urlReason,
                   <Link2 className={icon} />,
@@ -398,7 +393,7 @@ export function RowActionsMenu({
                 )}
               </MenuSub>
               <MenuSub
-                icon={<Tag className={icon} />}
+                icon={<HandCoins className={icon} />}
                 label="Selling"
                 contentClassName="w-68"
               >
@@ -409,11 +404,7 @@ export function RowActionsMenu({
                 {onMarket && <DropdownMenuSeparator />}
                 {marketItem(
                   'list',
-                  <MarketLogo
-                    market={marketId}
-                    label={marketLabel}
-                    className="size-4 p-[1.5px] text-muted-foreground"
-                  />,
+                  <Tag className={icon} />,
                   'List at your price',
                 )}
                 {marketItem(

@@ -7,6 +7,7 @@ import {
   CircleX,
   EyeOff,
   FileSpreadsheet,
+  HandCoins,
   IterationCw,
   KeyRound,
   Link2,
@@ -23,7 +24,6 @@ import {
 } from 'lucide-react';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
-import { MarketLogo } from '../RegistrarLogo';
 import {
   bulkKindReason,
   bulkOpTitle,
@@ -91,8 +91,6 @@ export function BulkActionsBar({
   onOwnership,
   onListPrice,
   onMarket,
-  marketLabel = 'markets',
-  marketId = null,
   marketReasons,
 }: {
   /** The selected domains (merged rows). */
@@ -118,10 +116,6 @@ export function BulkActionsBar({
   onListPrice: () => void;
   /** Market actions; absent with no market account. */
   onMarket?: (action: MarketAction) => void;
-  /** The market's name for the menu, e.g. "Afternic" (or "markets"). */
-  marketLabel?: string;
-  /** The one market behind the menu, for its logo; null for several. */
-  marketId?: string | null;
   /** Why each market action can't apply here; null when it can. */
   marketReasons?: Record<MarketAction, string | null>;
 }) {
@@ -299,8 +293,8 @@ export function BulkActionsBar({
                     {registrarItem('autoRenew', IterationCw, 'Auto-renew')}
                     {registrarItem('privacy', EyeOff, 'WHOIS privacy')}
                     {registrarItem('lock', Lock, 'Transfer lock')}
-                    {registrarItem('nameservers', Server, 'Nameservers')}
                     <DropdownMenuSeparator />
+                    {registrarItem('nameservers', Server, 'Nameservers')}
                     {registrarItem('urlForwarding', Link2, 'URL forwarding')}
                     {registrarItem('emailForwarding', Mail, 'Email forwarding')}
                     <DropdownMenuSeparator />
@@ -308,7 +302,7 @@ export function BulkActionsBar({
                     {registrarItem('authCode', KeyRound, 'Get auth codes')}
                   </MenuSub>
                   <MenuSub
-                    icon={<Tag className={icon} />}
+                    icon={<HandCoins className={icon} />}
                     label="Selling"
                     contentClassName="w-68"
                   >
@@ -319,11 +313,7 @@ export function BulkActionsBar({
                     {onMarket && <DropdownMenuSeparator />}
                     {marketItem(
                       'list',
-                      <MarketLogo
-                        market={marketId}
-                        label={marketLabel}
-                        className="size-4 p-[1.5px] text-muted-foreground"
-                      />,
+                      <Tag className={icon} />,
                       'List at your prices',
                     )}
                     {marketItem(

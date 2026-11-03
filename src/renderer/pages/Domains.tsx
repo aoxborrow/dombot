@@ -2261,8 +2261,6 @@ export default function Domains() {
                   ? (action) => setMarketAction({ action, domains: [d] })
                   : undefined
               }
-              marketLabel={marketLabel}
-              marketId={marketId}
               marketReasons={marketReasonsFor([d])}
             />
           </div>
@@ -2574,8 +2572,6 @@ export default function Domains() {
                       setMarketAction({ action, domains: selectedDomains })
                   : undefined
               }
-              marketLabel={marketLabel}
-              marketId={marketId}
               marketReasons={marketReasonsFor(selectedDomains)}
             />
           )
