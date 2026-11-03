@@ -20,6 +20,7 @@ const fake = {
   relisted: [] as string[][],
   relistModes: [] as (string | undefined)[],
   relistFails: new Set<string>(),
+  dnsChecks: [] as string[],
   authCodes: [] as [string, string][],
   sales: [] as MarketSale[],
   saleReadFails: false,
@@ -112,6 +113,21 @@ vi.mock('./registry', async () => {
       },
       getListings: async (names: string[]) =>
         names.map((n) => ({ ...listingOf(n, accountId), status: 'active' })),
+      // Like Atom, one DNS check per account, then "in progress".
+      verifyDns: async (name: string) => {
+        fake.dnsChecks.push(name);
+        return fake.dnsChecks.length === 1
+          ? ok(name)
+          : {
+              ...ok(name),
+              ok: false,
+              error: {
+                code: 'HTTP_400',
+                message:
+                  'DNS check Request in progress, please try again after 12 hrs',
+              },
+            };
+      },
       // Like Afternic, the sale moves on to the transfer once it has a code.
       setSaleAuthCode: async (saleId: string, code: string) => {
         fake.authCodes.push([saleId, code]);
@@ -172,6 +188,7 @@ beforeEach(async () => {
     relisted: [],
     relistModes: [],
     relistFails: new Set(),
+    dnsChecks: [],
     authCodes: [],
     sales: [],
     saleReadFails: false,
@@ -314,6 +331,36 @@ describe('delist and relist', () => {
       name: 'a.com',
       status: 'active',
     });
+  });
+});
+
+describe('requestMarketVerification', () => {
+  it('relists where the market relists (Afternic)', async () => {
+    await writes.requestMarketVerification(ID, ['a.com']);
+    expect(fake.relisted).toEqual([['a.com']]);
+    expect(fake.relistModes).toEqual(['RESYNC']);
+  });
+
+  it('asks Atom one name at a time and stops at “in progress”', async () => {
+    fake.caps = { relist: false, verifyDns: true };
+    const results = await writes.requestMarketVerification(ID, [
+      'a.com',
+      'b.com',
+      'c.com',
+    ]);
+    expect(fake.dnsChecks).toEqual(['a.com', 'b.com']);
+    expect(results.map((r) => r.ok)).toEqual([true, false, false]);
+    expect(results[2].error?.code).toBe('NOT_SENT');
+    expect(results[2].error?.message).toMatch(
+      /^Not sent: DNS check Request in progress/,
+    );
+  });
+
+  it('isn’t supported where the market has neither (Sedo)', async () => {
+    fake.caps = { relist: false, verifyDns: false };
+    await expect(
+      writes.requestMarketVerification(ID, ['a.com']),
+    ).rejects.toThrow(/not supported for afternic/);
   });
 });
 

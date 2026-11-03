@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Trash2,
   CircleX,
+  Redo,
 } from 'lucide-react';
 import type { Domain, Folder } from '../../../shared/ipc';
 import type { ArchiveLabel } from '../../../shared/ownership';
@@ -32,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { StickyNoteIcon } from '../icons/StickyNoteIcon';
+import { CertificateIcon } from '../icons/CertificateIcon';
 import { CashIcon } from '../icons/CashIcon';
 import type { MarketAction } from './MarketActionDialog';
 
@@ -152,7 +154,7 @@ export function RowActionsMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-52"
+        className="w-68"
         onCloseAutoFocus={(e) => {
           if (!keepFocus.current) return;
           keepFocus.current = false;
@@ -266,6 +268,24 @@ export function RowActionsMenu({
                     className="size-4 p-[1.5px] text-muted-foreground"
                   />
                   List at your price
+                  <span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={Boolean(marketReasons?.verificationTxt)}
+                  title={marketReasons?.verificationTxt ?? undefined}
+                  onSelect={() => onMarket('verificationTxt')}
+                >
+                  <CertificateIcon className="text-muted-foreground" />
+                  Ownership verification TXT
+                  <span className="-ml-[6px] opacity-50">…</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={Boolean(marketReasons?.recheckOwnership)}
+                  title={marketReasons?.recheckOwnership ?? undefined}
+                  onSelect={() => onMarket('recheckOwnership')}
+                >
+                  <Redo className="text-muted-foreground" />
+                  Recheck ownership
                   <span className="-ml-[6px] opacity-50">…</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem

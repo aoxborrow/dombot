@@ -10,10 +10,17 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+
+/** Shown once the set differs from the current one, whatever the new set is. */
+export const NAMESERVER_WARNING =
+  'Changing nameservers moves the DNS: any website or email stops working unless the new nameservers serve it.';
 
 /**
  * The nameserver set editor: one host per line (paste-friendly — commas and
@@ -101,22 +108,35 @@ export function NameserversEditor({
           <SelectTrigger size="sm" className="w-full">
             <SelectValue placeholder="Presets…" />
           </SelectTrigger>
-          <SelectContent className="max-w-[420px]">
+          {/* Popper, like the currency picker: a long list scrolls in place
+              under the trigger instead of running off the window. */}
+          <SelectContent
+            position="popper"
+            align="start"
+            className="max-h-72 w-(--radix-select-trigger-width)"
+          >
             {/* Each preset lists its actual hosts — several providers (e.g.
                 Cloudflare) hand out different host pairs per account, so the
-                provider name alone would look like duplicates. */}
-            {presets.map((p) => (
-              <SelectItem key={p.key} value={p.key} className="items-start">
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="text-xs text-muted-foreground">
-                    {p.label}
-                  </span>
-                  <span className="truncate font-mono text-[12px]">
-                    {p.nameservers.join(', ')}
-                  </span>
-                </span>
-              </SelectItem>
-            ))}
+                provider name alone would look like duplicates. The markets'
+                own sets come first, under a heading of their own. */}
+            {presets.some((p) => p.market) && (
+              <>
+                <SelectGroup>
+                  <SelectLabel>Markets</SelectLabel>
+                  {presets
+                    .filter((p) => p.market)
+                    .map((p) => (
+                      <PresetItem key={p.key} preset={p} />
+                    ))}
+                </SelectGroup>
+                {presets.some((p) => !p.market) && <SelectSeparator />}
+              </>
+            )}
+            {presets
+              .filter((p) => !p.market)
+              .map((p) => (
+                <PresetItem key={p.key} preset={p} />
+              ))}
           </SelectContent>
         </Select>
       )}
@@ -136,6 +156,16 @@ export function NameserversEditor({
         </ul>
       )}
 
+      {!unchanged && parsed.nameservers.length > 0 && (
+        <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
+          <TriangleAlert
+            className="mt-0.5 size-3.5 shrink-0 text-amber-500 dark:text-amber-400"
+            aria-hidden
+          />
+          {NAMESERVER_WARNING}
+        </p>
+      )}
+
       {note && (
         <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
           <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
@@ -153,11 +183,38 @@ export function NameserversEditor({
           >
             Cancel
           </Button>
-          <Button size="sm" onClick={save} disabled={!canSave}>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={save}
+            disabled={!canSave}
+          >
             {saving ? 'Saving…' : saveLabel}
           </Button>
         </div>
       )}
     </div>
+  );
+}
+
+function PresetItem({ preset }: { preset: NameserverPreset }) {
+  return (
+    // No room kept for a checkmark: a preset is never the selected value.
+    <SelectItem value={preset.key} className="items-start pr-2">
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-xs text-muted-foreground">{preset.label}</span>
+        {/* Wraps between hosts: a third host (Afternic's NS3) goes to a
+            line of its own, and only a host wider than the list breaks
+            inside itself. */}
+        <span className="flex min-w-0 flex-wrap gap-x-1.5 font-mono text-[12px]">
+          {preset.nameservers.map((host, i) => (
+            <span key={host} className="min-w-0 [overflow-wrap:anywhere]">
+              {host}
+              {i < preset.nameservers.length - 1 && ','}
+            </span>
+          ))}
+        </span>
+      </span>
+    </SelectItem>
   );
 }

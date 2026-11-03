@@ -15,6 +15,7 @@ import {
   Trash2,
   X,
   CircleX,
+  Redo,
 } from 'lucide-react';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
@@ -34,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { StickyNoteIcon } from '../icons/StickyNoteIcon';
+import { CertificateIcon } from '../icons/CertificateIcon';
 import { CashIcon } from '../icons/CashIcon';
 import type { MarketAction } from './MarketActionDialog';
 
@@ -155,7 +157,7 @@ export function BulkBar({
               <ChevronDown className="text-primary-foreground/70" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
+          <DropdownMenuContent align="end" className="w-68">
             {!archiveView && (
               <>
                 <DropdownMenuItem onSelect={onRefresh}>
@@ -266,6 +268,24 @@ export function BulkBar({
                         className="size-4 p-[1.5px] text-muted-foreground"
                       />
                       List at your prices
+                      <span className="-ml-[6px] opacity-50">…</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={Boolean(marketReasons?.verificationTxt)}
+                      title={marketReasons?.verificationTxt ?? undefined}
+                      onSelect={() => onMarket('verificationTxt')}
+                    >
+                      <CertificateIcon className="text-muted-foreground" />
+                      Ownership verification TXT
+                      <span className="-ml-[6px] opacity-50">…</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={Boolean(marketReasons?.recheckOwnership)}
+                      title={marketReasons?.recheckOwnership ?? undefined}
+                      onSelect={() => onMarket('recheckOwnership')}
+                    >
+                      <Redo className="text-muted-foreground" />
+                      Recheck ownership
                       <span className="-ml-[6px] opacity-50">…</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem

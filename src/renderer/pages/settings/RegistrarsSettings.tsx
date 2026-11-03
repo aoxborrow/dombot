@@ -17,7 +17,6 @@ import {
   Clock,
   Copy,
   Ellipsis,
-  ExternalLink,
   Pencil,
   Plus,
   Power,
@@ -32,10 +31,7 @@ import type {
   RegistrarDefinition,
   RegistrarMeta,
 } from '../../../shared/ipc';
-import {
-  REGISTRAR_HELP,
-  type HelpLink as HelpLinkData,
-} from '../../../shared/registrar-help';
+import { REGISTRAR_HELP } from '../../../shared/registrar-help';
 import { cn } from '@/lib/utils';
 import { RegistrarLogo } from '../../components/RegistrarLogo';
 import { useAppStore } from '../../store/app';
@@ -71,7 +67,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { SettingsField } from './SettingsCard';
+import { SETTINGS_LINK, SettingsField, SettingsHelp } from './SettingsCard';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 /** Until when a card's expand toggle is ignored. A click outside an open
@@ -810,7 +806,7 @@ function AccountCard({
           }}
         >
           <Field>
-            <FieldLabel htmlFor={`${id}-account-name`}>Account name</FieldLabel>
+            <FieldLabel htmlFor={`${id}-account-name`}>Account Name</FieldLabel>
             <Input
               id={`${id}-account-name`}
               autoFocus
@@ -993,7 +989,7 @@ function DraftAccountCard({
           />
           <SettingsField
             htmlFor={`${idPrefix}-account-name`}
-            label="Account name"
+            label="Account Name"
             description="Optional. Tells accounts at the same registrar apart."
           >
             <Input
@@ -1057,18 +1053,10 @@ function DraftAccountCard({
 function RegistrarHelp({ provider }: { provider: RegistrarDefinition }) {
   const help = REGISTRAR_HELP[provider.name];
   return (
-    <div className="mb-4 flex flex-col gap-2">
-      <p className="text-[13px] leading-relaxed text-muted-foreground">
-        <HelpText text={help.summary} />
-      </p>
-      {help.links.length > 0 && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          {help.links.map((link) => (
-            <HelpLink key={link.url} link={link} />
-          ))}
-        </div>
-      )}
-    </div>
+    <SettingsHelp
+      summary={<HelpText text={help.summary} />}
+      links={help.links}
+    />
   );
 }
 
@@ -1091,7 +1079,7 @@ function ProxyToggle({
 }) {
   const [copied, setCopied] = useState(false);
   const proxyLink = (
-    <Link to="/settings?tab=proxy" className="underline underline-offset-4">
+    <Link to="/settings?tab=proxy" className={SETTINGS_LINK}>
       configured proxy
     </Link>
   );
@@ -1156,10 +1144,7 @@ function ProxyToggle({
         {!proxy ? (
           <>
             Set up a{' '}
-            <Link
-              to="/settings?tab=proxy"
-              className="underline underline-offset-4"
-            >
+            <Link to="/settings?tab=proxy" className={SETTINGS_LINK}>
               proxy
             </Link>{' '}
             to use this.
@@ -1272,32 +1257,13 @@ function HelpText({ text }: { text: string }) {
     i % 2 === 1 ? (
       <code
         key={i}
-        className="rounded bg-muted px-1 py-px font-mono text-[0.92em] text-foreground"
+        className="rounded bg-muted px-1 py-px font-mono text-[0.92em] text-foreground/75"
       >
         {part}
       </code>
     ) : (
       part
     ),
-  );
-}
-
-/**
- * A real external link in the help copy. `target="_blank"` hands the URL to the
- * main process's window-open handler, which opens it in the system browser and
- * denies the in-app window.
- */
-function HelpLink({ link }: { link: HelpLinkData }) {
-  return (
-    <a
-      href={link.url}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex items-center gap-1 text-[13px] font-medium text-brand underline-offset-4 hover:underline"
-    >
-      {link.label}
-      <ExternalLink className="size-3 shrink-0" aria-hidden />
-    </a>
   );
 }
 
@@ -1433,7 +1399,7 @@ function DomainCountLink({
       ·{' '}
       <Link
         to={`/?${new URLSearchParams({ account: idOf(meta) })}`}
-        className="underline-offset-4 hover:text-foreground hover:underline"
+        className={SETTINGS_LINK}
       >
         {plural(domainCount)}
       </Link>

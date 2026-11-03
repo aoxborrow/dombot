@@ -32,6 +32,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { useAppStore } from '../../store/app';
 import { countFolders, folderColorStyle } from '../../lib/folders';
 import { FolderIcon } from '../../components/icons/FolderIcon';
+import { SETTINGS_LINK } from './SettingsCard';
 
 /**
  * Settings → Folders: create, edit, and delete the folders used to organize
@@ -153,14 +154,12 @@ export default function FoldersSettings() {
   );
 }
 
-const COUNT_LINK = 'underline-offset-4 hover:text-foreground hover:underline';
-
 /** "3 domains", opening the Domains table on the folder when there are any. */
 function CountLink({ count, to }: { count: number; to: string }) {
   const text = `${count} domain${count === 1 ? '' : 's'}`;
   if (count === 0) return text;
   return (
-    <Link to={to} className={COUNT_LINK}>
+    <Link to={to} className={SETTINGS_LINK}>
       {text}
     </Link>
   );
@@ -198,7 +197,7 @@ function FolderRow({
                 {' · '}
                 <Link
                   to={`/?${new URLSearchParams({ view: 'archive', folder: folder.id })}`}
-                  className={COUNT_LINK}
+                  className={SETTINGS_LINK}
                 >
                   {archived} in Archive
                 </Link>

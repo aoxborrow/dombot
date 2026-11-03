@@ -171,7 +171,7 @@ export function SaleDialog({
               : 'What you sold it for and when, and what the sale cost you.'}
           </p>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="sale-date">Sale date</Label>
+            <Label htmlFor="sale-date">Sale Date</Label>
             <Input
               id="sale-date"
               type="date"
@@ -180,7 +180,7 @@ export function SaleDialog({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="sale-amount">Sale amount</Label>
+            <Label htmlFor="sale-amount">Sale Amount</Label>
             <MoneyInput
               id="sale-amount"
               currency={currency}

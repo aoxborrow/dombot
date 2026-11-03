@@ -387,6 +387,8 @@ export interface MarketAccount {
   enabled: boolean;
   /** A registrar account whose key this market account uses (Atom, later). */
   registrarAccountId?: string | null;
+  /** The account's Ownership Verification ID, as read out of what was pasted. */
+  verificationId?: string | null;
   createdAt: number;
 }
 

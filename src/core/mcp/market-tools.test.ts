@@ -20,15 +20,20 @@ const fake = {
   defaults: [] as unknown[],
   /** Names per write call; 1 makes the fake behave like Atom for bulk. */
   writeBatch: 500,
+  relisted: [] as [string[], string | undefined][],
+  applied: [] as { target: unknown; op: unknown }[],
 };
 vi.mock('../services/markets/registry', async () => {
   const { AFTERNIC_CONFIG_FIELDS } =
     await import('../services/markets/afternic');
+  const { AFTERNIC_NAMESERVERS } =
+    await import('../markets/afternic/nameservers');
   const info = {
     id: 'afternic',
     name: 'Afternic',
     configFields: AFTERNIC_CONFIG_FIELDS,
     capabilities: AFTERNIC_CAPABILITIES,
+    nameservers: AFTERNIC_NAMESERVERS,
   };
   return {
     isMarketId: (v: unknown) => v === 'afternic',
@@ -81,11 +86,34 @@ vi.mock('../services/markets/registry', async () => {
       sendSaleMessage: async (saleId: string, message: string) => {
         fake.messages.push([saleId, message]);
       },
+      relist: async (names: string[], mode?: string) => {
+        fake.relisted.push([names, mode]);
+        return names.map((name) => ({
+          name,
+          ok: true,
+          pending: false,
+          saved: null,
+          adjusted: [],
+          error: null,
+        }));
+      },
+      getListings: async (names: string[]) =>
+        fake.listings
+          .filter((l) => names.includes(l.name))
+          .map((l) => ({ ...l, accountId })),
     }),
   };
 });
 vi.mock('../services/registrars', () => ({
   getCachedPortfolio: () => ({ domains: [] }),
+  findRegistrarsForDomain: (name: string) =>
+    name === 'alpha.com' ? ['dynadot'] : [],
+}));
+vi.mock('../services/domain-ops', () => ({
+  applyDomainOp: async (target: unknown, op: unknown) => {
+    fake.applied.push({ target, op });
+    return { target, status: 'ok', message: 'Done' };
+  },
 }));
 
 const { connectMarketAccount } = await import('../services/markets/accounts');
@@ -173,6 +201,8 @@ beforeEach(async () => {
   fake.messages = [];
   fake.defaults = [];
   fake.writeBatch = 500;
+  fake.relisted = [];
+  fake.applied = [];
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-28T12:00:00'));
   await connectMarketAccount(
@@ -381,15 +411,64 @@ describe('market write tools', () => {
     await expect(
       call('domain_listing_discount_set', { domain: 'alpha.com', amount: 50 }),
     ).rejects.toThrow(/not supported for afternic/);
-    await expect(
-      call('domain_listing_verify', { domain: 'alpha.com' }),
-    ).rejects.toThrow(/not supported for afternic/);
     await expect(call('market_grading_get', { accountId: ID })).rejects.toThrow(
       /not supported for afternic/,
     );
     await expect(
       call('domain_appraisal_get', { domain: 'alpha.com' }),
     ).rejects.toThrow(/No connected market account can appraise/);
+  });
+
+  it('requests ownership verification through Afternic’s relist', async () => {
+    const result = await call('domain_listing_verify', { domain: 'beta.io' });
+    expect(result).toMatchObject({ accountId: ID, name: 'beta.io', ok: true });
+    expect(fake.relisted).toEqual([[['beta.io'], 'RESYNC']]);
+  });
+
+  it('saves the verification ID and adds its TXT record at the registrar', async () => {
+    await expect(
+      call('domain_verification_apply', { domain: 'alpha.com' }),
+    ).rejects.toThrow(/No market account has an Ownership Verification ID/);
+    await expect(
+      call('domain_verification_apply', {
+        domain: 'alpha.com',
+        accountIds: [ID],
+      }),
+    ).rejects.toThrow(/has no Ownership Verification ID/);
+    await expect(
+      call('market_verification_set', { accountId: ID, value: 'nope' }),
+    ).rejects.toThrow(/isn’t Afternic’s Domain Ownership Record/);
+
+    const saved = await call('market_verification_set', {
+      accountId: ID,
+      value: ' "verification-Abc123.ns101.verify.hn." ',
+    });
+    expect(saved.verificationId).toBe('Abc123');
+    const [listed] = (await call('market_list')).accounts;
+    expect(listed.verificationId).toBe('Abc123');
+    expect(listed.verificationNameservers).toEqual([
+      'ns1.afternic.com',
+      'ns2.afternic.com',
+      'verification-Abc123.ns101.verify.hn',
+    ]);
+
+    const txt = await call('domain_verification_apply', {
+      domain: 'alpha.com',
+    });
+    expect(txt).toMatchObject({
+      accountIds: [ID],
+      registrar: 'dynadot',
+      success: true,
+    });
+    expect(fake.applied).toEqual([
+      {
+        target: { registrar: 'dynadot', domainName: 'alpha.com' },
+        op: { kind: 'txtRecords', values: ['afternic-verification-Abc123'] },
+      },
+    ]);
+    await expect(
+      call('domain_verification_apply', { domain: 'nowhere.com' }),
+    ).rejects.toThrow(/isn’t in a connected registrar account/);
   });
 
   it('sends a sale message and saves listing defaults', async () => {

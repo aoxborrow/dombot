@@ -28,6 +28,9 @@ const getDomainForwarding = vi.fn();
 const setDomainForwarding = vi.fn();
 const getEmailForwarding = vi.fn();
 const setEmailForwarding = vi.fn();
+const getNameservers = vi.fn();
+const getDnsRecords = vi.fn();
+const setDnsRecords = vi.fn();
 const getCachedPortfolio = vi.fn<() => { domains: unknown[] } | null>();
 const getCachedDomainDetail = vi.fn<() => Record<string, unknown> | null>(
   () => null,
@@ -42,6 +45,9 @@ const getRegistrarClient = vi.fn((name: string) => {
     setDomainForwarding,
     getEmailForwarding,
     setEmailForwarding,
+    getNameservers,
+    getDnsRecords,
+    setDnsRecords,
   };
 });
 
@@ -117,6 +123,9 @@ beforeEach(() => {
     setDomainForwarding,
     getEmailForwarding,
     setEmailForwarding,
+    getNameservers,
+    getDnsRecords,
+    setDnsRecords,
   });
 });
 
@@ -854,5 +863,110 @@ describe('getTransferOut', () => {
       /doesn.t report transfers out/,
     );
     expect(getTransferOut).not.toHaveBeenCalled();
+  });
+});
+
+describe('applyDomainOp — txtRecords (Ownership verification TXT…)', () => {
+  const op: DomainOp = {
+    kind: 'txtRecords',
+    values: ['afternic-verification-Abc123'],
+  };
+  const records = [
+    { type: 'A', name: '@', value: '203.0.113.7', ttl: 600 },
+    { type: 'TXT', name: '@', value: 'v=spf1 -all', ttl: 600 },
+  ];
+
+  it('adds the record at the root, keeps the rest, and logs the change', async () => {
+    getNameservers.mockResolvedValue(['ns1.dynadot.com', 'ns2.dynadot.com']);
+    getDnsRecords.mockResolvedValue(records);
+    setDnsRecords.mockResolvedValue(ok());
+    const r = await applyDomainOp(target, op);
+    expect(r.status).toBe('ok');
+    expect(setDnsRecords).toHaveBeenCalledWith(
+      'example.com',
+      [
+        ...records,
+        {
+          type: 'TXT',
+          name: '@',
+          value: 'afternic-verification-Abc123',
+          ttl: 3600,
+        },
+      ],
+      expect.anything(),
+    );
+    const [event] = putEvents.mock.calls[0][0];
+    expect(event).toMatchObject({ setting: 'dns' });
+    expect(event.before).toHaveLength(2);
+    expect(event.after).toHaveLength(3);
+  });
+
+  it('skips a name whose DNS isn’t at its registrar', async () => {
+    getNameservers.mockResolvedValue([
+      'ada.ns.cloudflare.com',
+      'bob.ns.cloudflare.com',
+    ]);
+    const r = await applyDomainOp(target, op);
+    expect(r.status).toBe('skipped');
+    expect(r.message).toMatch(/DNS isn’t at the registrar/);
+    expect(getDnsRecords).not.toHaveBeenCalled();
+    expect(setDnsRecords).not.toHaveBeenCalled();
+  });
+
+  it('skips a name that already has the record, quoted or not', async () => {
+    getNameservers.mockResolvedValue([]);
+    getDnsRecords.mockResolvedValue([
+      ...records,
+      {
+        type: 'txt',
+        name: 'example.com.',
+        value: '"afternic-verification-Abc123"',
+      },
+    ]);
+    const r = await applyDomainOp(target, op);
+    expect(r).toMatchObject({
+      status: 'skipped',
+      message: 'Already has the TXT record',
+    });
+    expect(setDnsRecords).not.toHaveBeenCalled();
+  });
+
+  it('adds only the records that are missing, in one write', async () => {
+    getNameservers.mockResolvedValue(['ns1.dynadot.com']);
+    getDnsRecords.mockResolvedValue([
+      ...records,
+      { type: 'TXT', name: '@', value: 'afternic-verification-Abc123' },
+    ]);
+    setDnsRecords.mockResolvedValue(ok());
+    const r = await applyDomainOp(target, {
+      kind: 'txtRecords',
+      values: ['afternic-verification-Abc123', 'sedo-id-0123'],
+    });
+    expect(r).toMatchObject({
+      status: 'ok',
+      message: 'Added a TXT record (1 already there)',
+    });
+    expect(setDnsRecords).toHaveBeenCalledTimes(1);
+    const written = setDnsRecords.mock.calls[0][1] as { value: string }[];
+    expect(written.map((w) => w.value)).toEqual([
+      '203.0.113.7',
+      'v=spf1 -all',
+      'afternic-verification-Abc123',
+      'sedo-id-0123',
+    ]);
+  });
+
+  it('settles a lost response by re-reading the records', async () => {
+    getNameservers.mockResolvedValue(['ns1.dynadot.com']);
+    getDnsRecords
+      .mockResolvedValueOnce(records)
+      .mockResolvedValueOnce([
+        ...records,
+        { type: 'TXT', name: '@', value: 'afternic-verification-Abc123' },
+      ]);
+    setDnsRecords.mockRejectedValue(new OutcomeUnknownError('timed out'));
+    const r = await applyDomainOp(target, op);
+    expect(r.status).toBe('ok');
+    expect(r.message).toMatch(/confirmed by re-reading the records/);
   });
 });

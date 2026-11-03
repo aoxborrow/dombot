@@ -64,6 +64,10 @@ export const domainOp = z.discriminatedUnion('kind', [
     years: z.number().int().min(1).max(10),
   }),
   z.object({ kind: z.literal('approveTransfer') }),
+  z.object({
+    kind: z.literal('txtRecords'),
+    values: z.array(z.string().trim().min(1).max(255)).min(1).max(20),
+  }),
 ]);
 
 export const folderColor = z.enum(FOLDER_COLORS as [string, ...string[]]);
@@ -318,6 +322,8 @@ export const marketBulkOp = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('delete') }),
 ]);
 export const relistMode = z.enum(['RESYNC', 'REACTIVATE']);
+/** A pasted verification value: generous, since it's trimmed and parsed. */
+export const verificationValue = z.string().max(500);
 export const marketListingDefaults = z
   .object({
     landingPage: z.enum(['PARKING_TYPE', 'SALES_TYPE']).optional(),

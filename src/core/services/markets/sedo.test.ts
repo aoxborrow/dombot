@@ -344,7 +344,7 @@ describe('registry', () => {
     ]);
     expect(info.capabilities).toBe(SEDO_CAPABILITIES);
     expect(() => buildAdapter('sedo', 'a', { partnerId: '1' })).toThrow(
-      /Sign key is required/,
+      /Sign Key is required/,
     );
     expect(
       buildAdapter('sedo', 'a', {

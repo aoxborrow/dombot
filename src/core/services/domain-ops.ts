@@ -21,15 +21,18 @@ import {
   unsupportedReason,
 } from '../../shared/domain-ops';
 import {
+  dnsRecordLine,
   opChange,
   type KnownSettings,
   type SettingChange,
 } from '../../shared/domain-changes';
 import {
   DomainEventSource,
+  DomainSetting,
   type DomainEvent,
   type UserSource,
 } from '../../shared/domain-events';
+import { registrarHostsDns } from '../../shared/market-verification';
 import { toCurrencyCode } from '../../shared/currencies';
 import { parseCanonicalAmount } from '../../shared/money';
 import { broadcastPortfolioChanged } from '../events';
@@ -138,7 +141,10 @@ export async function applyDomainOp(
         opts,
       );
     if (result.status === 'ok') {
-      const change = opChange(op, target.domainName, known);
+      const change =
+        seen.change !== undefined
+          ? seen.change
+          : opChange(op, target.domainName, known);
       if (change) noteChange(target.domainName, account.id, change, opts);
     }
     if (result.status === 'ok' && !opts.silent) broadcastPortfolioChanged();
@@ -148,9 +154,14 @@ export async function applyDomainOp(
   }
 }
 
-/** What a dispatch saw beyond its result: the charge a renewal reported. */
+/**
+ * What a dispatch saw beyond its result: the charge a renewal reported, and
+ * the change a write worked out itself (a TXT record: the records before and
+ * after), in place of the one the op implies.
+ */
 interface Seen {
   charge?: ConfirmedRenewal['charge'];
+  change?: SettingChange | null;
 }
 
 /**
@@ -298,6 +309,26 @@ async function settleUnknown(
   if (op.kind === 'urlForwarding' || op.kind === 'emailForwarding')
     return done('unknown', UNCONFIRMED);
   if (request.signal?.aborted) return done('unknown', UNCONFIRMED);
+  // The records are there or they aren't; adding them again skips any that
+  // are.
+  if (op.kind === 'txtRecords') {
+    try {
+      const records = await getRegistrarClient(
+        target.registrar,
+        target.accountId,
+      ).getDnsRecords(target.domainName, request);
+      return op.values.every((v) =>
+        records.some((r) => isRootTxt(r, target.domainName, v)),
+      )
+        ? done(
+            'ok',
+            `${opSummary(op)} (the response was lost, so this was confirmed by re-reading the records)`,
+          )
+        : done('failed', NOT_APPLIED);
+    } catch {
+      return done('unknown', UNCONFIRMED);
+    }
+  }
 
   let now: Partial<Domain> | null;
   try {
@@ -517,7 +548,71 @@ async function dispatch(
           accountId,
         ).provider.approveTransferOut(domainName, request),
       );
+    case 'txtRecords': {
+      const client = getRegistrarClient(registrar, accountId);
+      // A record in the registrar's zone does nothing while the name's DNS
+      // is elsewhere (another DNS host, or a market's nameservers).
+      const nameservers = await client
+        .getNameservers(domainName, request)
+        .catch((err: unknown) => {
+          if (err instanceof AbortError) throw err;
+          return [] as string[];
+        });
+      if (!registrarHostsDns(registrar, nameservers)) {
+        return done(
+          'skipped',
+          `Its DNS isn’t at the registrar (nameservers ${nameservers.join(', ')}). Add the TXT records where its DNS is hosted.`,
+        );
+      }
+      // Registrars replace the whole record set: read, add, write back.
+      const records = await client.getDnsRecords(domainName, request);
+      const missing = [...new Set(op.values)].filter(
+        (v) => !records.some((r) => isRootTxt(r, domainName, v)),
+      );
+      if (missing.length === 0) {
+        return done(
+          'skipped',
+          op.values.length === 1
+            ? 'Already has the TXT record'
+            : 'Already has the TXT records',
+        );
+      }
+      const next = [
+        ...records,
+        ...missing.map((value) => ({
+          type: 'TXT',
+          name: '@',
+          value,
+          ttl: 3600,
+        })),
+      ];
+      seen.change = {
+        setting: DomainSetting.Dns,
+        before: records.map(dnsRecordLine),
+        after: next.map(dnsRecordLine),
+      };
+      // Say what was added, not the registrar's "records updated".
+      const r = await client.setDnsRecords(domainName, next, request);
+      const there = op.values.length - missing.length;
+      const added = `Added ${missing.length === 1 ? 'a TXT record' : `${missing.length} TXT records`}${there ? ` (${there} already there)` : ''}`;
+      return fromResult(r.success ? { ...r, message: added } : r);
+    }
   }
+}
+
+/** A TXT record at the name's root holding `value` (quotes aside). */
+function isRootTxt(
+  r: { type: string; name: string; value: string },
+  domainName: string,
+  value: string,
+): boolean {
+  const name = r.name.trim().toLowerCase().replace(/\.$/, '');
+  const root = name === '' || name === '@' || name === domainName.toLowerCase();
+  return (
+    root &&
+    r.type.toUpperCase() === 'TXT' &&
+    r.value.trim().replace(/^"|"$/g, '') === value
+  );
 }
 
 /**

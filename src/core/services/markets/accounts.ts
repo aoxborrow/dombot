@@ -4,6 +4,7 @@ import type {
   MarketId,
   MarketSyncState,
 } from '../../../shared/markets';
+import { parseVerificationId } from '../../../shared/market-verification';
 import {
   MARKET_ACCOUNTS_NAMESPACE,
   MARKET_CREDENTIALS_NAMESPACE,
@@ -154,6 +155,27 @@ export async function renameMarketAccount(
   await accounts.set(id, {
     ...account,
     label: cleanLabel(label, account.market),
+  });
+}
+
+/**
+ * Save an account's Ownership Verification ID, read out of the value pasted
+ * (blank clears it). Throws, saying what to copy, when the value isn't the
+ * market's.
+ */
+export async function setMarketVerification(
+  id: string,
+  pasted: string,
+): Promise<void> {
+  const account = marketAccount(id);
+  const verificationId = parseVerificationId(
+    account.market,
+    pasted,
+    marketInfo(account.market).name,
+  );
+  await accounts.set(id, {
+    ...account,
+    verificationId,
   });
 }
 
