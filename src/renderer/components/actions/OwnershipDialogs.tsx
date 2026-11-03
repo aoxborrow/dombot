@@ -27,7 +27,8 @@ const who = (items: { domainName: string }[]) =>
  * Record sales for several names at once: one sale date and currency, and a
  * price for each name, like the one-name sale dialog's. A price can stay
  * blank and be added later from the name's row; those names are recorded in
- * one write, the priced ones one by one. (One name gets the sale dialog,
+ * one write, the priced ones one by one. Pass only names with no sale on
+ * record: a priced one would replace it. (One name gets the sale dialog,
  * which also takes fees.)
  */
 export function BulkSaleDialog({
@@ -52,7 +53,8 @@ export function BulkSaleDialog({
   const [amounts, setAmounts] = useState<Record<string, string>>({});
 
   async function record() {
-    const saleDate = parsePurchaseDate(date, 'Sale date');
+    // A cleared date is today, for the priced and unpriced names alike.
+    const saleDate = parsePurchaseDate(date, 'Sale date') ?? todayInput();
     const priced: { item: OwnershipItem; amount: string }[] = [];
     const unpriced: OwnershipItem[] = [];
     for (const item of items) {

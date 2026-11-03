@@ -2131,8 +2131,27 @@ export default function Domains() {
     }));
 
   function openOwnership(action: OwnershipAction, ds: Domain[]) {
-    if (action === 'sold' && ds.length === 1) setMarkSoldFor(ds[0]);
-    else setOwnershipDialog({ action, domains: ds });
+    if (action !== 'sold') {
+      setOwnershipDialog({ action, domains: ds });
+      return;
+    }
+    // Record sale records new sales: a name with one on record edits it from
+    // its row, so it stays out (a priced bulk sale would replace it). One
+    // name left gets the sale dialog, which also takes fees.
+    const unsold = ds.filter(
+      (d) => !ownership.get(toAscii(d.domainName))?.sale,
+    );
+    if (unsold.length === 0) {
+      toast.info(
+        ds.length === 1
+          ? `${ds[0].domainName} already has a sale on record`
+          : 'These already have a sale on record',
+        { description: 'Edit a sale from its row.' },
+      );
+      return;
+    }
+    if (unsold.length === 1) setMarkSoldFor(unsold[0]);
+    else setOwnershipDialog({ action, domains: unsold });
   }
 
   // After a bulk ownership action the names leave this view: clear them.
