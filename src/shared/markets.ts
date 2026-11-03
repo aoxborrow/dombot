@@ -386,7 +386,8 @@ export interface MarketAccount {
   label: string;
   /** Off: kept, but not synced and not shown. */
   enabled: boolean;
-  /** A registrar account whose key this market account uses (Atom, later). */
+  /** A registrar account whose key this market account uses, for a provider
+   *  whose one key covers both (not Atom: its registrar API has its own). */
   registrarAccountId?: string | null;
   /** The account's Ownership Verification ID, as read out of what was pasted. */
   verificationId?: string | null;
