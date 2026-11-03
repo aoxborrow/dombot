@@ -15,6 +15,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { NameserversEditor } from './NameserversEditor';
 
 /** Registrar caveats shown inside the editor. */
@@ -31,8 +38,7 @@ const EDITOR_NOTE: Record<string, string> = {
  * registrar can't change nameservers (Cloudflare).
  */
 export function NameserversCell({ domain }: { domain: Domain }) {
-  const applyDomainOp = useAppStore((s) => s.applyDomainOp);
-  const rememberNameservers = useAppStore((s) => s.rememberNameservers);
+  const write = useSaveNameservers(domain);
   const key = domainKey(domain);
   const pending = useAppStore((s) => s.mutating[key] ?? false);
   const [open, setOpen] = useState(false);
@@ -41,11 +47,8 @@ export function NameserversCell({ domain }: { domain: Domain }) {
   const reason = useOpUnsupportedReason(domain.registrar, probe);
 
   const save = (nameservers: string[]) => {
-    const op: DomainOp = { kind: 'nameservers', nameservers };
     setOpen(false);
-    void applyDomainOp(targetOf(domain), op).then((result) => {
-      if (reportOpResult(op, result)) void rememberNameservers(nameservers);
-    });
+    write(nameservers);
   };
 
   const empty = domain.nameservers.length === 0;
@@ -100,6 +103,67 @@ export function NameserversCell({ domain }: { domain: Domain }) {
       </PopoverContent>
     </Popover>
   );
+}
+
+/**
+ * The cell's editor in a dialog, for the row menu's Nameservers…: the column
+ * can be hidden, and Listings doesn't have it.
+ */
+export function NameserversDialog({
+  domain,
+  onClose,
+}: {
+  domain: Domain;
+  onClose: () => void;
+}) {
+  const write = useSaveNameservers(domain);
+  const presets = useNameserverPresets();
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Nameservers</DialogTitle>
+          <DialogDescription>
+            For{' '}
+            <span className="font-mono text-foreground">
+              {domain.domainName}
+            </span>
+            . One per line. Replaces the full set at the registrar.
+          </DialogDescription>
+        </DialogHeader>
+        <NameserversEditor
+          initial={domain.nameservers}
+          presets={presets}
+          note={EDITOR_NOTE[domain.registrar]}
+          onSave={(nameservers) => {
+            onClose();
+            write(nameservers);
+          }}
+          onCancel={onClose}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Writes a full nameserver set at the registrar, pessimistically (the row
+ * shows pending until it answers), and remembers it as a recent preset.
+ */
+function useSaveNameservers(domain: Domain) {
+  const applyDomainOp = useAppStore((s) => s.applyDomainOp);
+  const rememberNameservers = useAppStore((s) => s.rememberNameservers);
+  return (nameservers: string[]) => {
+    const op: DomainOp = { kind: 'nameservers', nameservers };
+    void applyDomainOp(targetOf(domain), op).then((result) => {
+      if (reportOpResult(op, result)) void rememberNameservers(nameservers);
+    });
+  };
 }
 
 // Mounted only while the popover is open, so the preset derivation (a pass

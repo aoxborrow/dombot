@@ -35,6 +35,7 @@ import { StickyNoteIcon } from '../icons/StickyNoteIcon';
 import { CertificateIcon } from '../icons/CertificateIcon';
 import { CashIcon } from '../icons/CashIcon';
 import { FolderMenuItems } from './FolderMenuItems';
+import { MenuSub } from './MenuSub';
 import type { MarketAction } from './MarketActionDialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -42,9 +43,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -276,102 +274,87 @@ export function BulkActionsBar({
                     <RefreshCw className={icon} />
                     Refresh
                   </DropdownMenuItem>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <FolderIcon className={icon} />
-                      Folder
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="max-h-[320px] w-52 overflow-y-auto">
-                      {folderItems}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
+                  <MenuSub
+                    icon={<FolderIcon className={icon} />}
+                    label="Folder"
+                    contentClassName="max-h-[320px] w-52 overflow-y-auto"
+                  >
+                    {folderItems}
+                  </MenuSub>
                   <DropdownMenuItem onSelect={onNotes}>
                     <StickyNoteIcon className={icon} />
                     Notes{dots}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger
-                      disabled={noneHeld}
-                      title={
-                        noneHeld
-                          ? 'None of these are at a connected account.'
-                          : undefined
-                      }
+                  <MenuSub
+                    icon={<Building2 className={icon} />}
+                    label="Registrar"
+                    disabled={noneHeld}
+                    title={
+                      noneHeld
+                        ? 'None of these are at a connected account.'
+                        : undefined
+                    }
+                  >
+                    {registrarItem('autoRenew', IterationCw, 'Auto-renew')}
+                    {registrarItem('privacy', EyeOff, 'WHOIS privacy')}
+                    {registrarItem('lock', Lock, 'Transfer lock')}
+                    {registrarItem('nameservers', Server, 'Nameservers')}
+                    <DropdownMenuSeparator />
+                    {registrarItem('urlForwarding', Link2, 'URL forwarding')}
+                    {registrarItem('emailForwarding', Mail, 'Email forwarding')}
+                    <DropdownMenuSeparator />
+                    {registrarItem('renew', CalendarPlus, 'Renew')}
+                    {registrarItem('authCode', KeyRound, 'Get auth codes')}
+                  </MenuSub>
+                  <MenuSub
+                    icon={<Tag className={icon} />}
+                    label="Selling"
+                    contentClassName="w-68"
+                  >
+                    <DropdownMenuItem onSelect={onListPrice}>
+                      <CashIcon className={icon} />
+                      Pricing{dots}
+                    </DropdownMenuItem>
+                    {onMarket && <DropdownMenuSeparator />}
+                    {marketItem(
+                      'list',
+                      <MarketLogo
+                        market={marketId}
+                        label={marketLabel}
+                        className="size-4 p-[1.5px] text-muted-foreground"
+                      />,
+                      'List at your prices',
+                    )}
+                    {marketItem(
+                      'delist',
+                      <CircleX className={icon} />,
+                      'Delist',
+                    )}
+                    {marketItem(
+                      'verificationTxt',
+                      <CertificateIcon className={icon} />,
+                      'Ownership verification TXT',
+                    )}
+                    {marketItem(
+                      'recheckOwnership',
+                      <Redo className={icon} />,
+                      'Recheck ownership',
+                    )}
+                  </MenuSub>
+                  <MenuSub
+                    icon={<Calculator className={icon} />}
+                    label="Bookkeeping"
+                  >
+                    <DropdownMenuItem
+                      disabled
+                      title="Purchases are recorded one name at a time from its row, or imported from a CSV."
                     >
-                      <Building2 className={icon} />
-                      Registrar
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-56">
-                      {registrarItem('autoRenew', IterationCw, 'Auto-renew')}
-                      {registrarItem('privacy', EyeOff, 'WHOIS privacy')}
-                      {registrarItem('lock', Lock, 'Transfer lock')}
-                      {registrarItem('nameservers', Server, 'Nameservers')}
-                      <DropdownMenuSeparator />
-                      {registrarItem('urlForwarding', Link2, 'URL forwarding')}
-                      {registrarItem(
-                        'emailForwarding',
-                        Mail,
-                        'Email forwarding',
-                      )}
-                      <DropdownMenuSeparator />
-                      {registrarItem('renew', CalendarPlus, 'Renew')}
-                      {registrarItem('authCode', KeyRound, 'Get auth codes')}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <Tag className={icon} />
-                      Selling
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-68">
-                      <DropdownMenuItem onSelect={onListPrice}>
-                        <CashIcon className={icon} />
-                        Pricing{dots}
-                      </DropdownMenuItem>
-                      {onMarket && <DropdownMenuSeparator />}
-                      {marketItem(
-                        'list',
-                        <MarketLogo
-                          market={marketId}
-                          label={marketLabel}
-                          className="size-4 p-[1.5px] text-muted-foreground"
-                        />,
-                        'List at your prices',
-                      )}
-                      {marketItem(
-                        'delist',
-                        <CircleX className={icon} />,
-                        'Delist',
-                      )}
-                      {marketItem(
-                        'verificationTxt',
-                        <CertificateIcon className={icon} />,
-                        'Ownership verification TXT',
-                      )}
-                      {marketItem(
-                        'recheckOwnership',
-                        <Redo className={icon} />,
-                        'Recheck ownership',
-                      )}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
                       <Calculator className={icon} />
-                      Bookkeeping
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-56">
-                      <DropdownMenuItem
-                        disabled
-                        title="Purchases are recorded one name at a time from its row, or imported from a CSV."
-                      >
-                        <Calculator className={icon} />
-                        Record purchase{dots}
-                      </DropdownMenuItem>
-                      {recordSale}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
+                      Record purchase{dots}
+                    </DropdownMenuItem>
+                    {recordSale}
+                  </MenuSub>
                 </>
               )}
               <DropdownMenuSeparator />

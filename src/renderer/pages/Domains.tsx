@@ -128,7 +128,10 @@ import {
   DEFAULT_NUMBER_FORMAT,
   formatMoney,
 } from '../../shared/money';
-import { NameserversCell } from '../components/domains/NameserversCell';
+import {
+  NameserversCell,
+  NameserversDialog,
+} from '../components/domains/NameserversCell';
 import { AuthCodeDialog } from '../components/domains/AuthCodeDialog';
 import { RenewDialog } from '../components/domains/RenewDialog';
 import {
@@ -1404,6 +1407,7 @@ export default function Domains() {
   // Per-row action dialogs (opened from the row's "⋯" menu).
   const [authCodeFor, setAuthCodeFor] = useState<Domain | null>(null);
   const [renewFor, setRenewFor] = useState<Domain | null>(null);
+  const [nameserversFor, setNameserversFor] = useState<Domain | null>(null);
   const [urlForwardingFor, setUrlForwardingFor] = useState<Domain | null>(null);
   const [emailForwardingFor, setEmailForwardingFor] = useState<Domain | null>(
     null,
@@ -2235,6 +2239,7 @@ export default function Domains() {
               folders={folders}
               folderId={folderAssignments[toAscii(d.domainName)]}
               onRefresh={() => refreshDomain(d)}
+              onNameservers={() => setNameserversFor(d)}
               onUrlForwarding={() => setUrlForwardingFor(d)}
               onEmailForwarding={() => setEmailForwardingFor(d)}
               onAuthCode={() => setAuthCodeFor(d)}
@@ -2634,6 +2639,12 @@ export default function Domains() {
         <AuthCodeDialog
           domain={authCodeFor}
           onClose={() => setAuthCodeFor(null)}
+        />
+      )}
+      {nameserversFor && (
+        <NameserversDialog
+          domain={nameserversFor}
+          onClose={() => setNameserversFor(null)}
         />
       )}
       {urlForwardingFor && (

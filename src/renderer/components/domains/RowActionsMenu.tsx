@@ -1,35 +1,43 @@
-import { useRef } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { domainKey } from '../../../shared/account-key';
 import {
+  Building2,
   Calculator,
   CalendarPlus,
+  CircleX,
   Ellipsis,
   KeyRound,
   Link2,
   Mail,
-  Receipt,
   PencilLine,
-  RefreshCw,
-  Trash2,
-  CircleX,
+  Receipt,
   Redo,
+  RefreshCw,
+  Server,
+  Tag,
+  Trash2,
 } from 'lucide-react';
-import type { Domain, Folder } from '../../../shared/ipc';
+import type { Domain, DomainOp, Folder } from '../../../shared/ipc';
 import type { ArchiveLabel } from '../../../shared/ownership';
 import { useAppStore } from '../../store/app';
 import { MarketLogo } from '../RegistrarLogo';
-import { useOpUnsupportedReason } from '../../lib/domain-ops';
+import {
+  reportOpResult,
+  targetOf,
+  useOpUnsupportedReason,
+} from '../../lib/domain-ops';
+import { ConfirmDialog } from '../ConfirmDialog';
 import { FolderIcon } from '../icons/FolderIcon';
 import { FolderMenuItems } from './FolderMenuItems';
+import { MenuSub } from './MenuSub';
+import { flagConfirm } from './FlagToggle';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { StickyNoteIcon } from '../icons/StickyNoteIcon';
@@ -37,24 +45,30 @@ import { CertificateIcon } from '../icons/CertificateIcon';
 import { CashIcon } from '../icons/CashIcon';
 import type { MarketAction } from './MarketActionDialog';
 
+const dots = <span className="-ml-[6px] opacity-50">…</span>;
+const icon = 'text-muted-foreground';
+
 /**
- * The trailing "⋯" menu on each row (pinned to the right of the Domain cell):
- * for a name you own, a refresh, a Folder submenu, and the actions that
- * aren't a column (forwarding, renew, auth code); then, for every name,
- * Notes, Record purchase (Edit purchase or registration once one is
- * recorded), and Record sale (Edit sale once one is recorded; undoing it is in
- * that dialog). Delete ends the menu only for a
- * name no connected account holds (imported and Archive names): a name you
- * hold goes away by turning its auto-renew off (docs/owned-and-archive.md).
- * A name in Archive gets no registrar actions. Registrar-backed items the
- * registrar can't do are disabled with the reason as their tooltip. Disabled
- * outright while a write for this row is in flight.
+ * The trailing "⋯" menu on each row (pinned to the right of the Domain cell),
+ * in the bulk bar's Actions order. For a name in Owned or Listings: Refresh
+ * (Edit details for an imported name), Folder, Notes; then Registrar
+ * (auto-renew, privacy and lock as checkboxes, which flip with the same
+ * confirms as their cells, then nameservers, forwarding, renew, auth code),
+ * Selling (Pricing and the market actions) and Bookkeeping (Record purchase,
+ * or Edit purchase or registration once one is recorded; Record sale, or Edit
+ * sale, where undoing it lives); then Delete. Every row in a view gets the
+ * same items: what doesn't apply is greyed with the reason as its tooltip
+ * (Registrar as a whole for an imported name, Delete for a name you hold,
+ * which goes away by turning its auto-renew off: docs/owned-and-archive.md).
+ * A name in Archive gets a short flat menu: Notes, the two records, Delete.
+ * Disabled outright while a write for this row is in flight.
  */
 export function RowActionsMenu({
   domain,
   folders,
   folderId,
   onRefresh,
+  onNameservers,
   onUrlForwarding,
   onEmailForwarding,
   onAuthCode,
@@ -80,6 +94,7 @@ export function RowActionsMenu({
   folders: Folder[];
   folderId: string | undefined;
   onRefresh: () => void;
+  onNameservers: () => void;
   onUrlForwarding: () => void;
   onEmailForwarding: () => void;
   onAuthCode: () => void;
@@ -101,7 +116,7 @@ export function RowActionsMenu({
   removable: boolean;
   onMarkSold: () => void;
   onDelete: () => void;
-  /** List or delist on a market; absent with no market account. */
+  /** Market actions; absent with no market account. */
   onMarket?: (action: MarketAction) => void;
   marketLabel?: string;
   /** The one market behind the menu, for its logo; null for several. */
@@ -110,12 +125,28 @@ export function RowActionsMenu({
   marketReasons?: Record<MarketAction, string | null>;
 }) {
   const key = domainKey(domain);
-  // An imported name isn't at a connected account: registrar actions can't run.
-  const importedReason =
-    domain.source === 'imported'
-      ? 'Added by you. No connected account holds this name.'
-      : null;
   const pending = useAppStore((s) => s.mutating[key] ?? false);
+  const applyDomainOp = useAppStore((s) => s.applyDomainOp);
+  // An imported name isn't at a connected account: registrar actions can't run.
+  const imported = domain.source === 'imported';
+  // Each reason is for the change a click would make (GoDaddy can turn
+  // privacy off but not on).
+  const autoRenewReason = useOpUnsupportedReason(domain.registrar, {
+    kind: 'autoRenew',
+    enabled: !domain.autoRenew,
+  });
+  const privacyReason = useOpUnsupportedReason(domain.registrar, {
+    kind: 'privacy',
+    enabled: !domain.privacy,
+  });
+  const lockReason = useOpUnsupportedReason(domain.registrar, {
+    kind: 'lock',
+    locked: !domain.locked,
+  });
+  const nameserversReason = useOpUnsupportedReason(domain.registrar, {
+    kind: 'nameservers',
+    nameservers: [],
+  });
   const urlReason = useOpUnsupportedReason(domain.registrar, {
     kind: 'urlForwarding',
     forwards: [],
@@ -132,190 +163,297 @@ export function RowActionsMenu({
     years: 1,
   });
 
+  // A privacy change or an unlock waiting on its confirm.
+  const [confirming, setConfirming] = useState<{
+    kind: 'privacy' | 'lock';
+    next: boolean;
+  } | null>(null);
+
   // Notes opens an editor beside the row: the menu mustn't hand focus back
   // to its trigger as it closes, or the editor's textarea loses the caret.
   const keepFocus = useRef(false);
 
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          disabled={pending}
-          aria-label={`Actions for ${domain.domainName}`}
-          // Covers the Domain cell outside the name: the cell lights, not
-          // the button (index.css).
-          data-cell-action
-          className="-my-2 w-7 text-muted-foreground hover:bg-transparent hover:text-foreground compact:h-7 compact:w-6 dark:hover:bg-transparent"
-        >
-          <Ellipsis />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-68"
-        onCloseAutoFocus={(e) => {
-          if (!keepFocus.current) return;
-          keepFocus.current = false;
-          e.preventDefault();
-        }}
+  const write = (op: DomainOp, patch: Partial<Domain>) => {
+    void applyDomainOp(targetOf(domain), op, patch).then((result) =>
+      reportOpResult(op, result),
+    );
+  };
+  const flipFlag = (kind: 'privacy' | 'lock', next: boolean) =>
+    kind === 'privacy'
+      ? write({ kind: 'privacy', enabled: next }, { privacy: next })
+      : write({ kind: 'lock', locked: next }, { locked: next });
+  const toggleFlag = (kind: 'privacy' | 'lock') => {
+    const next = kind === 'privacy' ? !domain.privacy : !domain.locked;
+    if (flagConfirm(domain.domainName, kind, next)) {
+      setConfirming({ kind, next });
+    } else {
+      flipFlag(kind, next);
+    }
+  };
+  const confirm =
+    confirming &&
+    flagConfirm(domain.domainName, confirming.kind, confirming.next);
+
+  // A registrar item, greyed with the reason when the registrar can't do it.
+  const registrarItem = (
+    reason: string | null,
+    glyph: ReactNode,
+    label: string,
+    onSelect: () => void,
+  ) => (
+    <DropdownMenuItem
+      disabled={reason !== null}
+      title={reason ?? undefined}
+      onSelect={onSelect}
+    >
+      {glyph}
+      {label}
+      {dots}
+    </DropdownMenuItem>
+  );
+  const flagItem = (
+    reason: string | null,
+    checked: boolean,
+    label: string,
+    onSelect: () => void,
+  ) => (
+    <DropdownMenuCheckboxItem
+      checked={checked}
+      disabled={reason !== null}
+      title={reason ?? undefined}
+      onSelect={onSelect}
+    >
+      {label}
+    </DropdownMenuCheckboxItem>
+  );
+  const marketItem = (action: MarketAction, glyph: ReactNode, label: string) =>
+    onMarket && (
+      <DropdownMenuItem
+        disabled={Boolean(marketReasons?.[action])}
+        title={marketReasons?.[action] ?? undefined}
+        onSelect={() => onMarket(action)}
       >
-        {/* Registrar and organizing actions: only for a name you own. */}
-        {archive === null && (
-          <>
-            {domain.source === 'imported' ? (
-              <DropdownMenuItem onSelect={onEditDetails}>
-                <PencilLine className="text-muted-foreground" />
-                Edit details<span className="-ml-[6px] opacity-50">…</span>
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem onSelect={onRefresh}>
-                <RefreshCw className="text-muted-foreground" />
-                Refresh
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <FolderIcon className="text-muted-foreground" />
-                Folder
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="max-h-[320px] w-52 overflow-y-auto">
+        {glyph}
+        {label}
+        {dots}
+      </DropdownMenuItem>
+    );
+
+  const notesItem = (
+    <DropdownMenuItem
+      onSelect={() => {
+        keepFocus.current = true;
+        onNotes();
+      }}
+    >
+      <StickyNoteIcon className={icon} />
+      Notes{dots}
+    </DropdownMenuItem>
+  );
+  const purchaseItem = (
+    <DropdownMenuItem onSelect={onEditPurchase}>
+      <Calculator className={icon} />
+      {paid === 'registered'
+        ? 'Edit registration'
+        : paid
+          ? 'Edit purchase'
+          : 'Record purchase'}
+      {dots}
+    </DropdownMenuItem>
+  );
+  const saleItem = (
+    <DropdownMenuItem onSelect={sold ? onEditSale : onMarkSold}>
+      <Receipt className={icon} />
+      {sold ? 'Edit sale' : 'Record sale'}
+      {dots}
+    </DropdownMenuItem>
+  );
+  const deleteItem = (
+    <DropdownMenuItem
+      variant="destructive"
+      disabled={!removable}
+      title={
+        removable
+          ? undefined
+          : 'A name you hold leaves when you turn its auto-renew off.'
+      }
+      onSelect={onDelete}
+    >
+      <Trash2 />
+      Delete{dots}
+    </DropdownMenuItem>
+  );
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            disabled={pending}
+            aria-label={`Actions for ${domain.domainName}`}
+            // Covers the Domain cell outside the name: the cell lights, not
+            // the button (index.css).
+            data-cell-action
+            className="-my-2 w-7 text-muted-foreground hover:bg-transparent hover:text-foreground compact:h-7 compact:w-6 dark:hover:bg-transparent"
+          >
+            <Ellipsis />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="w-52"
+          onCloseAutoFocus={(e) => {
+            if (!keepFocus.current) return;
+            keepFocus.current = false;
+            e.preventDefault();
+          }}
+        >
+          {archive !== null ? (
+            <>
+              {notesItem}
+              {purchaseItem}
+              {saleItem}
+            </>
+          ) : (
+            <>
+              {imported ? (
+                <DropdownMenuItem onSelect={onEditDetails}>
+                  <PencilLine className={icon} />
+                  Edit details{dots}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onSelect={onRefresh}>
+                  <RefreshCw className={icon} />
+                  Refresh
+                </DropdownMenuItem>
+              )}
+              <MenuSub
+                icon={<FolderIcon className={icon} />}
+                label="Folder"
+                contentClassName="max-h-[320px] w-52 overflow-y-auto"
+              >
                 <FolderMenuItems
                   folders={folders}
                   selected={folderId ?? null}
                   onAssign={onAssignFolder}
                 />
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={importedReason !== null || urlReason !== null}
-              title={importedReason ?? urlReason ?? undefined}
-              onSelect={onUrlForwarding}
-            >
-              <Link2 className="text-muted-foreground" />
-              URL forwarding<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={importedReason !== null || emailReason !== null}
-              title={importedReason ?? emailReason ?? undefined}
-              onSelect={onEmailForwarding}
-            >
-              <Mail className="text-muted-foreground" />
-              Email forwarding<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={importedReason !== null || renewReason !== null}
-              title={importedReason ?? renewReason ?? undefined}
-              onSelect={onRenew}
-            >
-              <CalendarPlus className="text-muted-foreground" />
-              Renew<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={importedReason !== null || authReason !== null}
-              title={importedReason ?? authReason ?? undefined}
-              onSelect={onAuthCode}
-            >
-              <KeyRound className="text-muted-foreground" />
-              Get auth code<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        {/* Ownership, in the same order as on Activity. Record purchase and
-            Record sale open with what's saved (and the name's notes), so
-            they edit what's recorded. */}
-        <DropdownMenuItem
-          onSelect={() => {
-            keepFocus.current = true;
-            onNotes();
-          }}
-        >
-          <StickyNoteIcon className="text-muted-foreground" />
-          Notes<span className="-ml-[6px] opacity-50">…</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onEditPurchase}>
-          <Calculator className="text-muted-foreground" />
-          {paid === 'registered'
-            ? 'Edit registration'
-            : paid
-              ? 'Edit purchase'
-              : 'Record purchase'}
-          <span className="-ml-[6px] opacity-50">…</span>
-        </DropdownMenuItem>
-        {/* Pricing and the markets, in a section of their own. */}
-        {archive === null && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onEditListPrice}>
-              <CashIcon className="text-muted-foreground" />
-              Pricing<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-            {onMarket && (
-              <>
-                <DropdownMenuItem
-                  disabled={Boolean(marketReasons?.list)}
-                  title={marketReasons?.list ?? undefined}
-                  onSelect={() => onMarket('list')}
-                >
+              </MenuSub>
+              {notesItem}
+              <DropdownMenuSeparator />
+              <MenuSub
+                icon={<Building2 className={icon} />}
+                label="Registrar"
+                disabled={imported}
+                title={
+                  imported
+                    ? 'Added by you. No connected account holds this name.'
+                    : undefined
+                }
+              >
+                {flagItem(autoRenewReason, domain.autoRenew, 'Auto-renew', () =>
+                  write(
+                    { kind: 'autoRenew', enabled: !domain.autoRenew },
+                    { autoRenew: !domain.autoRenew },
+                  ),
+                )}
+                {flagItem(privacyReason, domain.privacy, 'WHOIS privacy', () =>
+                  toggleFlag('privacy'),
+                )}
+                {flagItem(lockReason, domain.locked, 'Transfer lock', () =>
+                  toggleFlag('lock'),
+                )}
+                {registrarItem(
+                  nameserversReason,
+                  <Server className={icon} />,
+                  'Nameservers',
+                  onNameservers,
+                )}
+                <DropdownMenuSeparator />
+                {registrarItem(
+                  urlReason,
+                  <Link2 className={icon} />,
+                  'URL forwarding',
+                  onUrlForwarding,
+                )}
+                {registrarItem(
+                  emailReason,
+                  <Mail className={icon} />,
+                  'Email forwarding',
+                  onEmailForwarding,
+                )}
+                <DropdownMenuSeparator />
+                {registrarItem(
+                  renewReason,
+                  <CalendarPlus className={icon} />,
+                  'Renew',
+                  onRenew,
+                )}
+                {registrarItem(
+                  authReason,
+                  <KeyRound className={icon} />,
+                  'Get auth code',
+                  onAuthCode,
+                )}
+              </MenuSub>
+              <MenuSub
+                icon={<Tag className={icon} />}
+                label="Selling"
+                contentClassName="w-68"
+              >
+                <DropdownMenuItem onSelect={onEditListPrice}>
+                  <CashIcon className={icon} />
+                  Pricing{dots}
+                </DropdownMenuItem>
+                {onMarket && <DropdownMenuSeparator />}
+                {marketItem(
+                  'list',
                   <MarketLogo
                     market={marketId}
                     label={marketLabel}
                     className="size-4 p-[1.5px] text-muted-foreground"
-                  />
-                  List at your price
-                  <span className="-ml-[6px] opacity-50">…</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={Boolean(marketReasons?.delist)}
-                  title={marketReasons?.delist ?? undefined}
-                  onSelect={() => onMarket('delist')}
-                >
-                  <CircleX className="text-muted-foreground" />
-                  Delist<span className="-ml-[6px] opacity-50">…</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={Boolean(marketReasons?.verificationTxt)}
-                  title={marketReasons?.verificationTxt ?? undefined}
-                  onSelect={() => onMarket('verificationTxt')}
-                >
-                  <CertificateIcon className="text-muted-foreground" />
-                  Ownership verification TXT
-                  <span className="-ml-[6px] opacity-50">…</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={Boolean(marketReasons?.recheckOwnership)}
-                  title={marketReasons?.recheckOwnership ?? undefined}
-                  onSelect={() => onMarket('recheckOwnership')}
-                >
-                  <Redo className="text-muted-foreground" />
-                  Recheck ownership
-                  <span className="-ml-[6px] opacity-50">…</span>
-                </DropdownMenuItem>
-              </>
-            )}
-          </>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={sold ? onEditSale : onMarkSold}>
-          <Receipt className="text-muted-foreground" />
-          {sold ? 'Edit sale' : 'Record sale'}
-          <span className="-ml-[6px] opacity-50">…</span>
-        </DropdownMenuItem>
-        {removable && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-              <Trash2 />
-              Delete<span className="-ml-[6px] opacity-50">…</span>
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+                  />,
+                  'List at your price',
+                )}
+                {marketItem('delist', <CircleX className={icon} />, 'Delist')}
+                {marketItem(
+                  'verificationTxt',
+                  <CertificateIcon className={icon} />,
+                  'Ownership verification TXT',
+                )}
+                {marketItem(
+                  'recheckOwnership',
+                  <Redo className={icon} />,
+                  'Recheck ownership',
+                )}
+              </MenuSub>
+              <MenuSub
+                icon={<Calculator className={icon} />}
+                label="Bookkeeping"
+              >
+                {purchaseItem}
+                {saleItem}
+              </MenuSub>
+            </>
+          )}
+          <DropdownMenuSeparator />
+          {deleteItem}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {confirming && confirm && (
+        <ConfirmDialog
+          title={confirm.title}
+          description={confirm.body}
+          actionLabel={confirm.action}
+          destructive={confirm.destructive}
+          onConfirm={() => {
+            flipFlag(confirming.kind, confirming.next);
+            setConfirming(null);
+          }}
+          onClose={() => setConfirming(null)}
+        />
+      )}
+    </>
   );
 }

@@ -12,6 +12,46 @@ import { cn } from '@/lib/utils';
 import { ConfirmPopover } from '../ConfirmPopover';
 
 /**
+ * What to ask before flipping a privacy or lock flag to `next`, or null when
+ * it's plain one-click: locking only ever makes the domain safer. Privacy asks
+ * both ways (off exposes the WHOIS contact, on can be a purchase); unlocking
+ * asks because it enables a transfer-out. Shared by the cells and the row menu.
+ */
+export function flagConfirm(
+  domainName: string,
+  kind: 'privacy' | 'lock',
+  next: boolean,
+): {
+  title: string;
+  body: string;
+  action: string;
+  destructive: boolean;
+} | null {
+  if (kind === 'lock')
+    return next
+      ? null
+      : {
+          title: `Unlock ${domainName}?`,
+          body: 'An unlocked domain can be transferred to another registrar.',
+          action: 'Unlock',
+          destructive: true,
+        };
+  return next
+    ? {
+        title: `Enable privacy for ${domainName}?`,
+        body: 'Hides the registrant contact from public WHOIS. Some registrars charge for this.',
+        action: 'Enable',
+        destructive: false,
+      }
+    : {
+        title: `Disable privacy for ${domainName}?`,
+        body: 'Exposes the registrant name, address, email, and phone in public WHOIS.',
+        action: 'Disable',
+        destructive: true,
+      };
+}
+
+/**
  * A clickable on/off cell for the Privacy and Locked columns. Solid glyphs
  * (Lucide shields, Heroicons locks) carry the state: the protected state
  * (`on`) is brand green, the exposed state (`off`) a different glyph in the
@@ -64,25 +104,8 @@ export function FlagToggle({
   };
 
   // Lock → one click. Everything else confirms in place.
-  const needsConfirm = !(kind === 'lock' && !value);
-  const confirm =
-    kind === 'lock'
-      ? {
-          title: `Unlock ${domain.domainName}?`,
-          body: 'An unlocked domain can be transferred to another registrar.',
-          action: 'Unlock',
-        }
-      : next
-        ? {
-            title: `Enable privacy for ${domain.domainName}?`,
-            body: 'Hides the registrant contact from public WHOIS. Some registrars charge for this.',
-            action: 'Enable',
-          }
-        : {
-            title: `Disable privacy for ${domain.domainName}?`,
-            body: 'Exposes the registrant name, address, email, and phone in public WHOIS.',
-            action: 'Disable',
-          };
+  const confirm = flagConfirm(domain.domainName, kind, next);
+  const needsConfirm = confirm !== null;
 
   const Icon = value ? On : Off;
   // The library's false is only a default where the registrar doesn't report
@@ -139,7 +162,7 @@ export function FlagToggle({
       title={confirm.title}
       body={confirm.body}
       actionLabel={confirm.action}
-      destructive={kind === 'lock' || !next}
+      destructive={confirm.destructive}
       disabled={pending || reason !== null}
       onConfirm={apply}
     >
