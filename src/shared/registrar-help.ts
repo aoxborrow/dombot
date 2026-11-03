@@ -120,9 +120,9 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
     optional: {
       title: 'Optional GoDaddy v2 API (Legacy)',
       summary:
-        'These settings let DomBot set URL forwarding and approve or reject ' +
-        'transfer-outs through GoDaddy’s older v2 API. Everything else works ' +
-        'with the PAT alone.',
+        'Only used for two features: URL forwarding and approving ' +
+        'transfer-outs. Both go through GoDaddy’s older v2 API. Everything ' +
+        'else works with the PAT alone.',
     },
   },
 
