@@ -147,7 +147,7 @@ describe('marketNameserverPresets', () => {
         [
           'ns1.afternic.com',
           'ns2.afternic.com',
-          'verification-Abc1.ns101.verify.hn',
+          'verification-abc1.ns101.verify.hn',
         ],
       ],
       ['Sedo', ['ns1.sedoparking.com', 'ns2.sedoparking.com']],

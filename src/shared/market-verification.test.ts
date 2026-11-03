@@ -74,10 +74,12 @@ describe('what Apply sets', () => {
       'ns1.afternic.com',
       'ns2.afternic.com',
     ]);
+    // The NS3 is a hostname, lowercase (Dynadot refuses capitals); the TXT
+    // above keeps the ID's case.
     expect(verificationNameservers(afternic, 'Abc1')).toEqual([
       'ns1.afternic.com',
       'ns2.afternic.com',
-      'verification-Abc1.ns101.verify.hn',
+      'verification-abc1.ns101.verify.hn',
     ]);
     expect(
       verificationNameservers(

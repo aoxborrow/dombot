@@ -3,6 +3,7 @@ import {
   type DomainEvent,
   type SettingValue,
 } from './domain-events';
+import { normalizeNameservers } from './domain-name';
 import { expandTemplate } from './domain-ops';
 import type { DomainOp, EmailForward, UrlForwardInput } from './ipc';
 
@@ -49,11 +50,6 @@ export const SETTING_ORDER: DomainSetting[] = [
   DomainSetting.Dns,
   DomainSetting.Contacts,
 ];
-
-/** Nameservers as compared and stored: trimmed, lowercase, no root dot. */
-function nameserver(host: string): string {
-  return host.trim().toLowerCase().replace(/\.$/, '');
-}
 
 function sameValue(a: SettingValue, b: SettingValue): boolean {
   if (typeof a === 'boolean' || typeof b === 'boolean') return a === b;
@@ -104,8 +100,8 @@ export function opChange(
     case 'nameservers':
       return changeOf(
         DomainSetting.Nameservers,
-        known.nameservers?.map(nameserver),
-        op.nameservers.map(nameserver),
+        known.nameservers && normalizeNameservers(known.nameservers),
+        normalizeNameservers(op.nameservers),
       );
     case 'urlForwarding':
       return changeOf(

@@ -449,7 +449,7 @@ describe('market write tools', () => {
     expect(listed.verificationNameservers).toEqual([
       'ns1.afternic.com',
       'ns2.afternic.com',
-      'verification-Abc123.ns101.verify.hn',
+      'verification-abc123.ns101.verify.hn',
     ]);
 
     const txt = await call('domain_verification_apply', {

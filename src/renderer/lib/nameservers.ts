@@ -1,4 +1,5 @@
 import { getDomain, getSubdomain } from 'tldts';
+import { normalizeNameserver } from '../../shared/domain-name';
 import { marketNameserversFor, type MarketInfo } from '../../shared/markets';
 
 // Groups a nameserver hostname into the bucket the Nameservers filter uses.
@@ -30,7 +31,7 @@ export function nameserverGroup(
   host: string,
   markets: readonly Pick<MarketInfo, 'id' | 'nameservers'>[] = [],
 ): NsGroup | null {
-  const h = host.trim().toLowerCase();
+  const h = normalizeNameserver(host);
   if (!h) return null;
 
   const market = marketNameserversFor(h, markets);

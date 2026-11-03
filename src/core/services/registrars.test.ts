@@ -289,6 +289,23 @@ describe('getCachedPortfolio / assemblePortfolio', () => {
     expect(p.domains.every((d) => d.source === 'registrar')).toBe(true);
   });
 
+  it('serves cached nameservers lowercase, as an older patch may have left them', () => {
+    seedSlice('dynadot', [
+      domain({
+        domainName: 'a.com',
+        registrar: 'dynadot',
+        nameservers: [
+          'NS1.Afternic.com',
+          'Verification-AbC1.ns101.verify.test.',
+        ],
+      }),
+    ]);
+    expect(getCachedPortfolio()!.domains[0].nameservers).toEqual([
+      'ns1.afternic.com',
+      'verification-abc1.ns101.verify.test',
+    ]);
+  });
+
   it('records an error-only registrar in errors but not in registrars', () => {
     seedSlice(
       'dynadot',

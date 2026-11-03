@@ -584,8 +584,9 @@ sale waiting on an auth code.
 **First part built (the ID setting, TXT records, market nameserver presets,
 Recheck, and TXT records while listing), tracking planned.** Every market checks that you own a name before its listing goes
 live or for sale, and the APIs mostly don't report it or offer a way to
-complete it. Afternic keeps a listing `PENDING` until it has verified the
-name. Sedo lists a new name not for sale, refuses to change that (`E3124`),
+complete it. Afternic marks a new listing `INACTIVE` within seconds when
+another account already lists the name, and a name nobody else lists can go
+live with nothing set up (seen live, docs/afternic-api.md). Sedo lists a new name not for sale, refuses to change that (`E3124`),
 and shows it under "Ownership Verification Pending" on sedo.com (seen live,
 docs/sedo-api.md). Atom checks DNS "at random intervals" unless asked to
 check now.
@@ -614,6 +615,13 @@ lookups; beside Afternic's pair, for a sales lander, that doesn't matter. The
 guides that describe it pair it with `ns1/ns2.afternic.com` the same way, and
 GoDaddy's announcement says Afternic asks for it when another account already
 lists the name: Afternic's shared pair alone can't say which account owns it.
+
+The NS3 is written lowercase even when the ID has capitals; the TXT record
+keeps the ID as Afternic shows it. Hostnames are case-insensitive, but some
+registrars refuse capitals: Dynadot answered "Name server must be all
+lowercase" (400) on 2026-11-03. TXT values are compared as written. DomBot
+lowercases every nameserver it shows, compares, caches or sends, and so does
+registrar-client.
 
 Each market gives one verification value per account, shown only in its
 dashboard. None of the APIs return it (Afternic's account settings are
@@ -706,9 +714,13 @@ for the ones it can't.
   request in 12 hours, and all three check on their own. The dialog, the
   Afternic and Atom calls and `domain_listing_verify` stay.
   - **Afternic:** relist with `RESYNC` ("Re-trigger the listing process", up
-    to 500 names a call). Updating a listing doesn't re-run Afternic's checks
-    but relisting does (docs/afternic-api.md); whether that includes the
-    ownership check on a pending name isn't confirmed live yet.
+    to 500 names a call). Seen live (2026-11-02), it doesn't run the
+    ownership check: on two listings Afternic had marked `INACTIVE` because
+    another account listed the names, with the TXT record or NS3 in place,
+    `RESYNC` answered `200` and nothing changed for over an hour.
+    `REACTIVATE` didn't either (2026-11-03). Afternic's dashboard has
+    **Request ownership verification** for that, and the API has nothing
+    like it (docs/afternic-api.md).
   - **Atom:** verify DNS. Atom takes one request per account every 12 hours
     and answers the next, for any name, "DNS check Request in progress"
     (seen live, docs/atom-api.md), so DomBot sends one name at a time and
@@ -759,7 +771,7 @@ nameservers or an account's settings change. Per name and market account:
   except where another account already lists the name.
 - **Account nameserver:** one of the name's nameservers is this account's
   own (Afternic's `verification-<ID>.ns101.verify.hn`, matched against the
-  account's setting). Another ID in the same pattern means a different
+  account's setting, ignoring case). Another ID in the same pattern means a different
   Afternic account, worth flagging.
 - **Not by nameservers:** neither. A TXT record may still cover it; that's
   phase 2.
@@ -819,8 +831,10 @@ it is: a name is `pending` until the market puts it up for sale (already the
 case for Sedo, `asyncInsert`).
 
 Open: whether a TXT record can be removed once a market has verified a name,
-how each market reports a failed check, whether Afternic's `RESYNC` re-runs
-the ownership check, and whether one Atom request checks every pending name.
+how each market reports a failed check, whether Afternic ever verifies a
+name another account lists from DNS alone (without its dashboard's Request
+ownership verification) and how long that takes, and whether one Atom
+request checks every pending name.
 
 ## MCP
 

@@ -215,6 +215,25 @@ describe('applyDomainOp — happy paths and patches', () => {
     expect(r.patch).toEqual({ nameservers: ns });
   });
 
+  it('nameservers: writes and patches them lowercase, whoever typed them', async () => {
+    setNameserversCached.mockResolvedValue(ok());
+    const r = await applyDomainOp(target, {
+      kind: 'nameservers',
+      nameservers: [
+        'NS1.Afternic.com',
+        ' ns2.afternic.com ',
+        'Verification-AbC1.ns101.verify.test.',
+      ],
+    });
+    const lower = [
+      'ns1.afternic.com',
+      'ns2.afternic.com',
+      'verification-abc1.ns101.verify.test',
+    ];
+    expect(setNameserversCached.mock.calls[0][2]).toEqual(lower);
+    expect(r.patch).toEqual({ nameservers: lower });
+  });
+
   it('falls back to opSummary when the provider message is empty', async () => {
     setAutoRenewCached.mockResolvedValue(ok(''));
     const r = await applyDomainOp(target, {
