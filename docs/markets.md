@@ -701,9 +701,10 @@ for the ones it can't.
     to 500 names a call). Seen live (2026-11-02), it doesn't run the
     ownership check: on two listings Afternic had marked `INACTIVE` because
     another account listed the names, with the TXT record or NS3 in place,
-    `RESYNC` answered `200` and nothing changed for over an hour. Afternic's
-    dashboard has **Request ownership verification** for that, and the API
-    has nothing like it (docs/afternic-api.md).
+    `RESYNC` answered `200` and nothing changed for over an hour.
+    `REACTIVATE` didn't either (2026-11-03). Afternic's dashboard has
+    **Request ownership verification** for that, and the API has nothing
+    like it (docs/afternic-api.md).
   - **Atom:** verify DNS. Atom takes one request per account every 12 hours
     and answers the next, for any name, "DNS check Request in progress"
     (seen live, docs/atom-api.md), so DomBot sends one name at a time and
