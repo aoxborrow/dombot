@@ -56,7 +56,7 @@ import { NotesButton } from '../components/domains/NotesButton';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
   DeleteDomainsDialog,
-  MarkSoldDialog,
+  BulkSaleDialog,
 } from '../components/actions/OwnershipDialogs';
 import { useAppStore } from '../store/app';
 import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
@@ -2749,7 +2749,7 @@ export default function Domains() {
           const done = () => clearDone(ds);
           if (action === 'sold')
             return (
-              <MarkSoldDialog
+              <BulkSaleDialog
                 items={ownershipItems(ds)}
                 onDone={done}
                 onClose={close}

@@ -57,9 +57,10 @@ import {
 } from '../components/activity/EventTypeBadge';
 import {
   DeleteDomainsDialog,
-  MarkSoldDialog,
+  BulkSaleDialog,
 } from '../components/actions/OwnershipDialogs';
 import { ActionDialog } from '../components/actions/ActionDialog';
+import { BulkRegistrationDialog } from '../components/activity/BulkRegistrationDialog';
 import { SelectionBar } from '../components/data-table/SelectionBar';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { useColumnLayout } from '../components/data-table/ColumnPicker';
@@ -602,39 +603,22 @@ export default function Activity() {
   }
 
   /**
-   * Record registration for many arrivals, one registrar call each, in turn.
-   * Names with no usable fee are skipped and stay in Needs review.
+   * After the bulk Record registration dialog: the answered arrivals leave
+   * the selection, with an Undo; the skipped ones stay in Needs review.
    */
-  async function recordRegistrations(list: DomainEvent[]) {
-    const n = list.length;
-    const id = toast.loading(`Recording ${n} registrations…`);
-    const saved: string[] = [];
-    let skipped = 0;
-    for (const e of list) {
-      try {
-        if (await saveRegistration(e)) skipped += 1;
-        else saved.push(e.id);
-      } catch {
-        skipped += 1;
-      }
-      toast.loading(
-        `Recording registrations… ${saved.length + skipped} of ${n}`,
-        { id },
-      );
-    }
-    deselect(saved);
-    const done = `Recorded ${saved.length} registration${saved.length === 1 ? '' : 's'}`;
+  function registered(answered: string[], skipped: number) {
+    deselect(answered);
+    const done = `Recorded ${answered.length} registration${answered.length === 1 ? '' : 's'}`;
     const left = skipped
-      ? `${skipped} had no fee to record and still need review.`
+      ? `${skipped} left blank ${skipped === 1 ? 'is' : 'are'} still in Needs review.`
       : undefined;
-    (saved.length ? toast.success : toast.error)(done, {
-      id,
+    (answered.length ? toast.success : toast.info)(done, {
       description: left,
-      ...(saved.length
+      ...(answered.length
         ? {
             action: {
               label: 'Undo',
-              onClick: () => void undoRegistrations(saved),
+              onClick: () => void undoRegistrations(answered),
             },
           }
         : {}),
@@ -1166,7 +1150,7 @@ export default function Activity() {
             onClose={() => setDialog(null)}
           />
         ) : (
-          <MarkSoldDialog
+          <BulkSaleDialog
             items={unsoldOf(dialog.rows)}
             onDone={clearSelection}
             onClose={() => setDialog(null)}
@@ -1198,12 +1182,10 @@ export default function Activity() {
         />
       )}
       {dialog?.kind === 'registrations' && (
-        <ActionDialog
-          title="Record registration"
-          names={dialog.events.map((e) => toUnicode(e.domain))}
-          description="Records each as a registration on the day it was created, at its registrar’s fee. A name with no fee DomBot can use is skipped and stays in Needs review. Nothing changes at the registrar."
-          actionLabel="Record registration"
-          onConfirm={() => recordRegistrations(dialog.events)}
+        <BulkRegistrationDialog
+          events={dialog.events}
+          domainOf={(e) => alertDomain(e, domains, registrars)}
+          onSaved={registered}
           onClose={() => setDialog(null)}
         />
       )}
