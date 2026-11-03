@@ -14,6 +14,7 @@ import {
   type RegistrarCredentials,
   type RegistrarName,
   type RequestOptions,
+  type SetPrivacyOptions,
 } from '@aoxborrow/registrar-client';
 import {
   accountById,
@@ -33,6 +34,8 @@ import { recordSync } from './domain-history';
 import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { createProxiedRegistrar } from './proxy-transport';
+import { consentIp } from './consent-ip';
+import { recordsPrivacyConsent } from '../../shared/domain-ops';
 import { accountProxyRoute, getProxyProfile } from './proxies';
 import {
   DEFAULT_PROXY_ID,
@@ -1700,10 +1703,23 @@ export async function setPrivacyCached(
   accountId?: string,
 ): Promise<OperationResult> {
   accountId = resolveDomainAccount(name, domainName, accountId).id;
+  let request: SetPrivacyOptions | undefined = opts;
+  // Turning privacy off is the user's agreement to show their contact details,
+  // which some registrars record with their IP address.
+  if (!enabled && recordsPrivacyConsent(name)) {
+    try {
+      request = { ...opts, consent: { agreedBy: await consentIp() } };
+    } catch {
+      return {
+        success: false,
+        message: `Couldn’t find your public IP address, which ${registrars[name].displayName} records when contact details go public. Check your connection and try again.`,
+      };
+    }
+  }
   const result = await getRegistrarClient(name, accountId).setPrivacy(
     domainName,
     enabled,
-    opts,
+    request,
   );
   if (result.success)
     patchDomainInCaches(name, domainName, { privacy: enabled }, accountId);

@@ -27,6 +27,7 @@ import {
   syncRegistrar,
 } from './registrars';
 import { writeEntry, readEntry } from './cache';
+import { configureConsentIp } from './consent-ip';
 import { setRegistrarEnabled } from './registrar-state';
 import { setManualPrice } from './pricing';
 import { createFolder, assignFolder, getFolders } from './folders';
@@ -73,6 +74,7 @@ vi.mock('@aoxborrow/registrar-client', async (original) => {
             'getTransferOut',
             'getDomainForwarding',
             'resolveCustomerId',
+            'setPrivacy',
           ].map((name) => [name, vi.fn()]),
         );
         provider.resolveCustomerId.mockResolvedValue('customer-uuid');
@@ -96,6 +98,7 @@ vi.mock('@aoxborrow/registrar-client', async (original) => {
           'setDnsRecords',
           'registerDomain',
           'transferIn',
+          'setPrivacy',
         ])
           provider[name].mockResolvedValue({ success: true, message: 'ok' });
         fakes.providers.set(creds.apiKey, provider);
@@ -1206,6 +1209,58 @@ describe('GoDaddy Optional settings', () => {
     ).toMatchObject({
       message: expect.stringMatching(/Multiple accounts match/),
     });
+  });
+
+  it('turns privacy off with the user’s IP address as consent', async () => {
+    const account = await connect({ apiToken: 'pat', ...OPTIONAL });
+    const setPrivacy = fakes.providers.get('gd-key')!.setPrivacy;
+    const op = (
+      registrar: 'godaddy' | 'dynadot',
+      accountId: string,
+      enabled: boolean,
+    ) =>
+      invoke('applyDomainOp', coreMethods.applyDomainOp, [
+        { registrar, domainName: 'sold.com', accountId },
+        { kind: 'privacy', enabled },
+      ]);
+    // With no way to find the IP, GoDaddy is never asked.
+    expect(await op('godaddy', account.id, false)).toMatchObject({
+      status: 'failed',
+      message: expect.stringMatching(
+        /public IP address, which GoDaddy records/,
+      ),
+    });
+    expect(setPrivacy).not.toHaveBeenCalled();
+    const lookup = vi.fn(async () => '203.0.113.7');
+    configureConsentIp(lookup);
+    try {
+      expect(await op('godaddy', account.id, false)).toMatchObject({
+        status: 'ok',
+      });
+      expect(setPrivacy).toHaveBeenLastCalledWith(
+        'sold.com',
+        false,
+        expect.objectContaining({ consent: { agreedBy: '203.0.113.7' } }),
+      );
+      // Turning it on, or off at a registrar that records nothing, sends no IP.
+      expect(await op('godaddy', account.id, true)).toMatchObject({
+        status: 'ok',
+      });
+      expect(setPrivacy.mock.lastCall![2]).not.toHaveProperty('consent');
+      const dynadot = await connectAccount([
+        'dynadot',
+        { apiKey: 'dy-key', apiSecret: 'dy-secret' },
+      ]);
+      expect(await op('dynadot', dynadot.id, false)).toMatchObject({
+        status: 'ok',
+      });
+      expect(
+        fakes.providers.get('dy-key')!.setPrivacy.mock.lastCall![2],
+      ).not.toHaveProperty('consent');
+      expect(lookup).toHaveBeenCalledTimes(1);
+    } finally {
+      configureConsentIp();
+    }
   });
 
   it('treats the same PAT with Optional settings as the account already connected', async () => {

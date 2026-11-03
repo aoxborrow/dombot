@@ -109,8 +109,8 @@ describe('unsupportedReason', () => {
     expect(unsupportedReason('porkbun', ALL, ops.autoOn)).toBeNull();
   });
 
-  it('lets GoDaddy disable privacy but not enable it', () => {
-    expect(unsupportedReason('godaddy', ALL, ops.privacyOn)).toMatch(/GoDaddy/);
+  it('lets GoDaddy turn privacy on and off', () => {
+    expect(unsupportedReason('godaddy', ALL, ops.privacyOn)).toBeNull();
     expect(unsupportedReason('godaddy', ALL, ops.privacyOff)).toBeNull();
     expect(unsupportedReason('godaddy', ALL, ops.auth)).toBeNull();
   });

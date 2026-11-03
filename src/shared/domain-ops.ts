@@ -47,10 +47,6 @@ const KNOWN_GAPS: Partial<
     op.kind === 'lock' || op.kind === 'privacy'
       ? 'Porkbun’s API can’t change this after registration.'
       : null,
-  godaddy: (op) =>
-    op.kind === 'privacy' && op.enabled
-      ? 'Enabling privacy at GoDaddy is a purchase the API doesn’t expose; only disabling is supported.'
-      : null,
 };
 
 // Registrars whose API doesn't report WHOIS privacy, so the library's `false`
@@ -60,6 +56,16 @@ const PRIVACY_UNREPORTED = new Set<string>(['101domain']);
 /** Whether `registrar` reports a domain's WHOIS privacy at all. */
 export function reportsPrivacy(registrar: string): boolean {
   return !PRIVACY_UNREPORTED.has(registrar);
+}
+
+// Registrars that record the user's agreement, with their IP address, when
+// WHOIS privacy is turned off and the contact details go public.
+const PRIVACY_OFF_CONSENT = new Set<string>(['godaddy']);
+
+/** Whether turning privacy off at `registrar` records the user's agreement
+ *  and IP address (the app sends both). */
+export function recordsPrivacyConsent(registrar: string): boolean {
+  return PRIVACY_OFF_CONSENT.has(registrar);
 }
 
 /** Short human label per op kind, for reasons and menu items. */

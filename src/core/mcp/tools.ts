@@ -1833,7 +1833,8 @@ export function registerTools(server: McpServer): void {
     'domain_set_privacy',
     {
       title: 'Set WHOIS privacy',
-      description: 'For a single domain: enable or disable WHOIS privacy.',
+      description:
+        'For a single domain: enable or disable WHOIS privacy. Disabling publishes the registrant contact in WHOIS; registrars that record that agreement (GoDaddy) also get the user’s IP address.',
       inputSchema: {
         accountId,
         registrar: optionalRegistrar,
