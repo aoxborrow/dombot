@@ -72,8 +72,10 @@ vi.mock('@aoxborrow/registrar-client', async (original) => {
             'getPricing',
             'getTransferOut',
             'getDomainForwarding',
+            'resolveCustomerId',
           ].map((name) => [name, vi.fn()]),
         );
+        provider.resolveCustomerId.mockResolvedValue('customer-uuid');
         provider.listDomains.mockResolvedValue([]);
         provider.getDomain.mockResolvedValue(null);
         provider.getNameservers.mockResolvedValue([]);
@@ -1128,6 +1130,45 @@ describe('GoDaddy Optional settings', () => {
       ),
     ).rejects.toThrow(/Customer Number is required/);
     expect(getStoredCredentials(account.id)).toEqual({ apiToken: 'pat' });
+  });
+
+  it('tries new or changed Optional settings before keeping them', async () => {
+    const failure =
+      'GoDaddy couldn’t look up the Customer Number with this API Key and API Secret. Check the Optional settings.';
+    createRegistrar('godaddy', OPTIONAL);
+    const lookup = fakes.providers.get('gd-key')!.resolveCustomerId;
+    // Connecting: a failed lookup keeps the account out.
+    lookup.mockRejectedValueOnce(new Error('401 Unauthorized'));
+    await expect(connect({ apiToken: 'pat', ...OPTIONAL })).rejects.toThrow(
+      failure,
+    );
+    const account = await connect({ apiToken: 'pat', ...OPTIONAL });
+    expect(lookup).toHaveBeenCalledTimes(2);
+    // Saving: a failed lookup keeps what was stored.
+    lookup.mockClear().mockRejectedValueOnce(new Error('401 Unauthorized'));
+    const changed = { apiToken: 'pat', ...OPTIONAL, apiSecret: 'new-secret' };
+    await expect(
+      saveRegistrarCredentials('godaddy', changed, account.id),
+    ).rejects.toThrow(failure);
+    expect(getStoredCredentials(account.id)).toEqual({
+      apiToken: 'pat',
+      ...OPTIONAL,
+    });
+    await saveRegistrarCredentials('godaddy', changed, account.id);
+    expect(getStoredCredentials(account.id)).toEqual(changed);
+    expect(lookup).toHaveBeenCalledTimes(2);
+    // A new PAT alone, or clearing them, tries nothing.
+    await saveRegistrarCredentials(
+      'godaddy',
+      { ...changed, apiToken: 'pat-2' },
+      account.id,
+    );
+    await saveRegistrarCredentials(
+      'godaddy',
+      { apiToken: 'pat-2' },
+      account.id,
+    );
+    expect(lookup).toHaveBeenCalledTimes(2);
   });
 
   it('treats the same PAT with Optional settings as the account already connected', async () => {

@@ -220,6 +220,44 @@ const OPTIONAL_CONFIG_FIELDS: Partial<
   ],
 };
 
+// What saving an account's Optional settings tries first, and what it says when
+// they don't work. GoDaddy: the Customer Number lookup its URL forwarding and
+// transfers out make before each call, which uses all three settings (private
+// in registrar-client 0.13, so reached by name).
+const OPTIONAL_SETTINGS_CHECKS: Partial<
+  Record<
+    RegistrarName,
+    { run: (provider: Registrar) => Promise<unknown>; failure: string }
+  >
+> = {
+  godaddy: {
+    run: (provider) =>
+      (
+        provider as unknown as { resolveCustomerId(): Promise<string> }
+      ).resolveCustomerId(),
+    failure:
+      'GoDaddy couldn’t look up the Customer Number with this API Key and API Secret. Check the Optional settings.',
+  },
+};
+
+/** Why the Optional settings in `values` don't work, or null when they do or
+ *  aren't filled in. */
+async function checkOptionalSettings(
+  name: RegistrarName,
+  provider: Registrar,
+  values: RegistrarCredentials,
+): Promise<string | null> {
+  const check = OPTIONAL_SETTINGS_CHECKS[name];
+  const fields = OPTIONAL_CONFIG_FIELDS[name] ?? [];
+  if (!check || !fields.every((f) => values[f.name]?.trim())) return null;
+  try {
+    await check.run(provider);
+    return null;
+  } catch {
+    return check.failure;
+  }
+}
+
 /** True when the account has every Optional setting its registrar offers. */
 function hasOptionalSettings(name: RegistrarName, accountId: string): boolean {
   const fields = OPTIONAL_CONFIG_FIELDS[name];
@@ -1309,9 +1347,11 @@ export async function connectRegistrarAccount(
   const secrets: Record<string, string | undefined> = { ...clean };
   proxySecrets(proxy?.url).forEach((v, i) => (secrets[`proxy:${i}`] = v));
   // (The account doesn't exist yet, so the id here is a placeholder.)
-  const client = new RegistrarClient(
-    protectRegistrar(buildProvider(name, clean, name, proxy), secrets),
+  const registrar = protectRegistrar(
+    buildProvider(name, clean, name, proxy),
+    secrets,
   );
+  const client = new RegistrarClient(registrar);
   const result = await client.testConnection();
   if (!result.success)
     return {
@@ -1321,6 +1361,8 @@ export async function connectRegistrarAccount(
         'Connection failed. Check your credentials and try again.',
       ...(result.status ? { status: result.status } : {}),
     };
+  const optionalFailure = await checkOptionalSettings(name, registrar, clean);
+  if (optionalFailure) return { success: false, message: optionalFailure };
   // Concurrent tests may both pass before either account exists. Recheck and
   // publish serially, while keeping network tests outside this short queue.
   const account = await publishConnection(name, async () => {
@@ -1379,8 +1421,26 @@ export async function saveRegistrarCredentials(
 ): Promise<void> {
   const account = resolveAccount(name, accountId);
   // Check the route exists before persisting anything.
-  if (useProxy) requireProxy();
+  const proxy = useProxy
+    ? requireProxy()
+    : useProxy === false
+      ? null
+      : accountProxyRoute(account);
   assertOptionalComplete(configFieldsFor(name), creds);
+  // New or changed Optional settings are tried before they're kept, over the
+  // route the account will use.
+  const stored = getStoredCredentials(account.id);
+  const optional = OPTIONAL_CONFIG_FIELDS[name] ?? [];
+  if (optional.some((f) => (creds[f.name] ?? '') !== (stored[f.name] ?? ''))) {
+    const secrets: Record<string, string | undefined> = { ...stored, ...creds };
+    proxySecrets(proxy?.url).forEach((v, i) => (secrets[`proxy:${i}`] = v));
+    const failure = await checkOptionalSettings(
+      name,
+      protectRegistrar(buildProvider(name, creds, account.id, proxy), secrets),
+      creds,
+    );
+    if (failure) throw new Error(failure);
+  }
   invalidateAccount(account.id);
   // The proxy no longer lives in the credentials; never let it back in.
   const clean = { ...creds };
