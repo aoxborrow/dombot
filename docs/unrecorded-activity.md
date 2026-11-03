@@ -170,13 +170,15 @@ The selection bar on Activity (the floating bar Domains uses) gets the
 answers, each with how many of the selection it applies to. None is one click
 in bulk: each opens a dialog listing the names, and saves on its button.
 
-- **Record registration** for the selected arrivals. The dialog looks up
-  each name's registrar fee as it opens (one pricing call per name, in turn)
-  and fills it into that name's own amount, which you can change. A name
-  without a usable fee shows why and stays blank; a blank one is skipped and
-  Needs review still lists it.
-- **Record sale** takes one sale date and currency and a price per name; a
-  blank price is added later from the row (the same dialog as on Domains).
+- **Record registration** for the selected arrivals: the Registration |
+  Purchase switch of the one-name dialog, and one amount recorded for every
+  name (a promo registration fee, say). Registrations are dated the day each
+  name was created; purchases take one date. Bulk is for names that cost the
+  same, so it doesn't look up registrar fees; a name priced differently is
+  recorded from its row. The toast has an Undo. Domains' bulk Record
+  purchase is the same dialog.
+- **Record sale** takes one sale date and one price for every name; a blank
+  price is added later from each row (the same dialog as on Domains).
 - **Mark dropped** for the selected departures.
 - **Dismiss** (today's "Dismiss review") for the selected new rows.
 - Notes… stays as it is.

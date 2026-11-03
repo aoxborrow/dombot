@@ -10,10 +10,9 @@ import {
   type NumberFormatId,
 } from '../../../shared/money';
 import { useAppStore } from '../../store/app';
-import { CurrencyPicker } from '../domains/CurrencyPicker';
+import { MoneyInput } from '../domains/MoneyInput';
 import { Label } from '@/components/ui/label';
 import { ActionDialog, DateField, todayInput } from './ActionDialog';
-import { NameAmounts } from './NameAmounts';
 
 // The ownership actions, for one name or many. Each is one write however
 // many names it covers. Pass each name's open alert as `resolves` so the
@@ -24,12 +23,12 @@ const who = (items: { domainName: string }[]) =>
   items.length === 1 ? items[0].domainName : count(items.length);
 
 /**
- * Record sales for several names at once: one sale date and currency, and a
- * price for each name, like the one-name sale dialog's. A price can stay
- * blank and be added later from the name's row; those names are recorded in
- * one write, the priced ones one by one. Pass only names with no sale on
- * record: a priced one would replace it. (One name gets the sale dialog,
- * which also takes fees.)
+ * Record sales for several names at once, at one date and one price: bulk is
+ * for names sold at the same price, and a name sold for a different one is
+ * recorded from its row. A blank price records the sales in one write, to be
+ * priced later from each row; a price records them one by one. Pass only
+ * names with no sale on record: a priced one would replace it. (One name
+ * gets the sale dialog, which also takes fees.)
  */
 export function BulkSaleDialog({
   items,
@@ -47,44 +46,33 @@ export function BulkSaleDialog({
   const formatId: NumberFormatId =
     settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   const [date, setDate] = useState(todayInput);
+  const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState(
     settings?.preferredCurrency ?? DEFAULT_CURRENCY,
   );
-  const [amounts, setAmounts] = useState<Record<string, string>>({});
 
   async function record() {
-    // A cleared date is today, for the priced and unpriced names alike.
+    // A cleared date is today, for the priced and unpriced alike.
     const saleDate = parsePurchaseDate(date, 'Sale date') ?? todayInput();
-    const priced: { item: OwnershipItem; amount: string }[] = [];
-    const unpriced: OwnershipItem[] = [];
-    for (const item of items) {
-      let amount: string | null;
-      try {
-        amount = parseLocalizedAmount(
-          amounts[item.domainName] ?? '',
+    const price = parseLocalizedAmount(
+      amount,
+      currency,
+      formatId,
+      'Sale price',
+    );
+    if (!price) await markSold(items, saleDate);
+    else
+      for (const item of items)
+        await saveSale({
+          mark: true,
+          ...(item.resolves ? { resolves: item.resolves } : {}),
+          domainName: item.domainName,
+          saleDate,
+          amount: price,
           currency,
-          formatId,
-        );
-      } catch (err) {
-        throw new Error(
-          `${item.domainName}: ${err instanceof Error ? err.message : 'check the amount.'}`,
-        );
-      }
-      if (amount) priced.push({ item, amount });
-      else unpriced.push(item);
-    }
-    if (unpriced.length > 0) await markSold(unpriced, saleDate);
-    for (const { item, amount } of priced)
-      await saveSale({
-        mark: true,
-        ...(item.resolves ? { resolves: item.resolves } : {}),
-        domainName: item.domainName,
-        saleDate,
-        amount,
-        currency,
-        // The note belongs to the name: keep it.
-        notes: purchases[toAscii(item.domainName)]?.notes ?? '',
-      });
+          // The note belongs to the name: keep it.
+          notes: purchases[toAscii(item.domainName)]?.notes ?? '',
+        });
     toast.success(
       items.length === 1
         ? `Recorded the sale of ${items[0].domainName}`
@@ -97,37 +85,28 @@ export function BulkSaleDialog({
     <ActionDialog
       title="Record sale"
       names={items.map((i) => i.domainName)}
-      description="Records each sale, dated as below. A name still in one of your accounts stays in Owned as Sold until the buyer takes it. A price left blank can be added later from its row. Nothing changes at the registrar."
+      description="Records a sale for each name at the date and price below. A name still in one of your accounts stays in Owned as Sold until the buyer takes it. Leave the price blank to add it later from each row. Nothing changes at the registrar."
       actionLabel="Record sale"
       onConfirm={record}
       onClose={onClose}
     >
-      <div className="grid grid-cols-2 gap-3">
-        <DateField
-          id="bulk-sale-date"
-          label="Sale Date"
-          value={date}
-          onChange={setDate}
-        />
-        <div className="flex flex-col gap-2">
-          <Label>Currency</Label>
-          <CurrencyPicker value={currency} onChange={setCurrency} />
-        </div>
-      </div>
-      <NameAmounts
-        id="bulk-sale-amounts"
-        label="Sale Amounts"
-        placeholder="Later"
-        rows={items.map((item) => ({
-          key: item.domainName,
-          name: item.domainName,
-          amount: amounts[item.domainName] ?? '',
-          currency,
-        }))}
-        onAmount={(key, amount) =>
-          setAmounts((current) => ({ ...current, [key]: amount }))
-        }
+      <DateField
+        id="bulk-sale-date"
+        label="Sale Date"
+        value={date}
+        onChange={setDate}
       />
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="bulk-sale-price">Sale Price</Label>
+        <MoneyInput
+          id="bulk-sale-price"
+          currency={currency}
+          onCurrencyChange={setCurrency}
+          value={amount}
+          placeholder="Later"
+          onChange={(e) => setAmount(e.target.value)}
+        />
+      </div>
     </ActionDialog>
   );
 }

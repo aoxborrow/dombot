@@ -60,7 +60,7 @@ import {
   BulkSaleDialog,
 } from '../components/actions/OwnershipDialogs';
 import { ActionDialog } from '../components/actions/ActionDialog';
-import { BulkRegistrationDialog } from '../components/activity/BulkRegistrationDialog';
+import { BulkPurchaseDialog } from '../components/domains/BulkPurchaseDialog';
 import { SelectionBar } from '../components/data-table/SelectionBar';
 import { DataTable, type DataColumn } from '../components/data-table/DataTable';
 import { useColumnLayout } from '../components/data-table/ColumnPicker';
@@ -561,12 +561,16 @@ export default function Activity() {
     return null;
   }
 
-  /** Undo one-click registrations: delete the ones answering these arrivals. */
+  /**
+   * Undo recorded registrations or purchases: delete the ones answering these
+   * arrivals, which go back to Needs review.
+   */
   async function undoRegistrations(ids: string[]) {
     const answering = new Set(ids);
     for (const e of useAppStore.getState().domainEvents)
       if (
-        e.type === DomainEventType.Registered &&
+        (e.type === DomainEventType.Registered ||
+          e.type === DomainEventType.Purchased) &&
         e.resolves &&
         answering.has(e.resolves)
       )
@@ -599,29 +603,6 @@ export default function Activity() {
     deselect([e.id]);
     toast.success(`Recorded the registration of ${toUnicode(e.domain)}`, {
       action: { label: 'Undo', onClick: () => void undoRegistrations([e.id]) },
-    });
-  }
-
-  /**
-   * After the bulk Record registration dialog: the answered arrivals leave
-   * the selection, with an Undo; the skipped ones stay in Needs review.
-   */
-  function registered(answered: string[], skipped: number) {
-    deselect(answered);
-    const done = `Recorded ${answered.length} registration${answered.length === 1 ? '' : 's'}`;
-    const left = skipped
-      ? `${skipped} left blank ${skipped === 1 ? 'is' : 'are'} still in Needs review.`
-      : undefined;
-    (answered.length ? toast.success : toast.info)(done, {
-      description: left,
-      ...(answered.length
-        ? {
-            action: {
-              label: 'Undo',
-              onClick: () => void undoRegistrations(answered),
-            },
-          }
-        : {}),
     });
   }
 
@@ -1182,10 +1163,15 @@ export default function Activity() {
         />
       )}
       {dialog?.kind === 'registrations' && (
-        <BulkRegistrationDialog
-          events={dialog.events}
-          domainOf={(e) => alertDomain(e, domains, registrars)}
-          onSaved={registered}
+        <BulkPurchaseDialog
+          side="registration"
+          targets={dialog.events.map((e) => ({
+            domain: alertDomain(e, domains, registrars),
+            resolves: e.id,
+            arrivedOn: e.date ?? undefined,
+          }))}
+          onDone={deselect}
+          onUndo={(answered) => void undoRegistrations(answered)}
           onClose={() => setDialog(null)}
         />
       )}

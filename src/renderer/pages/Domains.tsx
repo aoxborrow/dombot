@@ -119,6 +119,7 @@ import {
 } from '../../shared/market-filter';
 import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
+import { BulkPurchaseDialog } from '../components/domains/BulkPurchaseDialog';
 import { ListPriceDialog } from '../components/domains/ListPriceDialog';
 import { MarketListingDialog } from '../components/domains/MarketListingDialog';
 import { ImportedDomainDialog } from '../components/domains/ImportedDomainDialog';
@@ -2131,6 +2132,24 @@ export default function Domains() {
     }));
 
   function openOwnership(action: OwnershipAction, ds: Domain[]) {
+    if (action === 'purchase') {
+      // Like Record sale: a name with a purchase on record edits it from its
+      // row. One name left gets the purchase dialog, which also takes notes.
+      const unpaid = ds.filter((d) => {
+        const record = purchaseOf(d);
+        return !record?.purchaseDate && !record?.amount;
+      });
+      if (unpaid.length === 0)
+        toast.info(
+          ds.length === 1
+            ? `${ds[0].domainName} already has a purchase on record`
+            : 'These already have a purchase on record',
+          { description: 'Edit a purchase from its row.' },
+        );
+      else if (unpaid.length === 1) setPurchaseFor(unpaid[0]);
+      else setOwnershipDialog({ action, domains: unpaid });
+      return;
+    }
     if (action !== 'sold') {
       setOwnershipDialog({ action, domains: ds });
       return;
@@ -2766,6 +2785,14 @@ export default function Domains() {
           const { action, domains: ds } = ownershipDialog;
           const close = () => setOwnershipDialog(null);
           const done = () => clearDone(ds);
+          if (action === 'purchase')
+            return (
+              <BulkPurchaseDialog
+                targets={ds.map((domain) => ({ domain }))}
+                onDone={done}
+                onClose={close}
+              />
+            );
           if (action === 'sold')
             return (
               <BulkSaleDialog

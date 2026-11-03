@@ -46,7 +46,7 @@ import {
 } from '../data-table/SelectionBar';
 
 /** Ownership actions on the selection, each opening its dialog. */
-export type OwnershipAction = 'sold' | 'delete';
+export type OwnershipAction = 'purchase' | 'sold' | 'delete';
 
 const dots = <span className="-ml-[6px] opacity-50">…</span>;
 const icon = 'text-muted-foreground';
@@ -177,6 +177,13 @@ export function BulkActionsBar({
     </DropdownMenuItem>
   );
 
+  const recordPurchase = (
+    <DropdownMenuItem onSelect={() => onOwnership('purchase')}>
+      <Calculator className={icon} />
+      Record purchase{dots}
+    </DropdownMenuItem>
+  );
+
   const recordSale = (
     <DropdownMenuItem onSelect={() => onOwnership('sold')}>
       <Receipt className={icon} />
@@ -231,6 +238,8 @@ export function BulkActionsBar({
                     <StickyNoteIcon className={icon} />
                     Notes{dots}
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {recordPurchase}
                   {recordSale}
                 </>
               ) : (
@@ -307,13 +316,7 @@ export function BulkActionsBar({
                     icon={<Calculator className={icon} />}
                     label="Bookkeeping"
                   >
-                    <DropdownMenuItem
-                      disabled
-                      title="Purchases are recorded one name at a time from its row, or imported from a CSV."
-                    >
-                      <Calculator className={icon} />
-                      Record purchase{dots}
-                    </DropdownMenuItem>
+                    {recordPurchase}
                     {recordSale}
                   </MenuSub>
                 </>
