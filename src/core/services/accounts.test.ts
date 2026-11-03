@@ -1157,10 +1157,27 @@ describe('GoDaddy Optional settings', () => {
     await saveRegistrarCredentials('godaddy', changed, account.id);
     expect(getStoredCredentials(account.id)).toEqual(changed);
     expect(lookup).toHaveBeenCalledTimes(2);
-    // A new PAT alone, or clearing them, tries nothing.
+    // The lookup tries the values as they'll be stored: trimmed.
+    lookup.mockClear();
+    vi.mocked(createRegistrar).mockClear();
+    const trimmed = {
+      apiToken: 'pat',
+      ...OPTIONAL,
+      apiSecret: 'padded-secret',
+    };
     await saveRegistrarCredentials(
       'godaddy',
-      { ...changed, apiToken: 'pat-2' },
+      { ...trimmed, apiSecret: ' padded-secret ' },
+      account.id,
+    );
+    expect(createRegistrar).toHaveBeenCalledWith('godaddy', trimmed);
+    expect(getStoredCredentials(account.id)).toEqual(trimmed);
+    expect(lookup).toHaveBeenCalledTimes(1);
+    // A new PAT alone, or clearing them, tries nothing.
+    lookup.mockClear();
+    await saveRegistrarCredentials(
+      'godaddy',
+      { ...trimmed, apiToken: 'pat-2' },
       account.id,
     );
     await saveRegistrarCredentials(
@@ -1168,7 +1185,27 @@ describe('GoDaddy Optional settings', () => {
       { apiToken: 'pat-2' },
       account.id,
     );
-    expect(lookup).toHaveBeenCalledTimes(2);
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('reports why a target with no single account fails, not the Optional settings', async () => {
+    await connect({ apiToken: 'pat' }, 'Plain');
+    await connect({ apiToken: 'pat-2', ...OPTIONAL }, 'Full');
+    const target: DomainTarget = {
+      registrar: 'godaddy',
+      domainName: 'sold.com',
+    };
+    await expect(transferOut(target)).rejects.toThrow(
+      /Multiple accounts match/,
+    );
+    expect(
+      await invoke('applyDomainOp', coreMethods.applyDomainOp, [
+        target,
+        { kind: 'approveTransfer' },
+      ]),
+    ).toMatchObject({
+      message: expect.stringMatching(/Multiple accounts match/),
+    });
   });
 
   it('treats the same PAT with Optional settings as the account already connected', async () => {

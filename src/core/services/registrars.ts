@@ -289,7 +289,9 @@ export function getDomainFeatures(target: DomainTarget): readonly string[] {
     try {
       accountId = resolveDomainAccount(target.registrar, target.domainName).id;
     } catch {
-      // The operation resolves the account again and reports why it can't.
+      // No single account: leave every feature in, so the operation resolves
+      // the account again and reports why it can't, not the Optional settings.
+      return registrars[target.registrar].features;
     }
   }
   return getRegistrarFeatures(target.registrar, accountId);
@@ -1420,6 +1422,13 @@ export async function saveRegistrarCredentials(
   useProxy?: boolean,
 ): Promise<void> {
   const account = resolveAccount(name, accountId);
+  // Trimmed, as setStoredCredentials keeps them, so the lookup below tries the
+  // values that will be stored.
+  creds = Object.fromEntries(
+    Object.entries(creds)
+      .filter(([, v]) => typeof v === 'string' && v.trim())
+      .map(([k, v]) => [k, (v as string).trim()]),
+  );
   // Check the route exists before persisting anything.
   const proxy = useProxy
     ? requireProxy()
