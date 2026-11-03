@@ -279,9 +279,10 @@ Following docs/storage-model.md:
   namespaces it lists, so `market-credentials` goes in that set, and data
   bundles treat it like `registrar-credentials`.
 - **`registrarAccountId`** (from the Atom plan) lets a market account borrow a
-  registrar account's key when one provider is both (AtomRegistrar, later
-  Dynadot and Namecheap). The field is in the record from the start; the
-  Settings flow for it comes with the first such market.
+  registrar account's key when one provider is both (Spaceship first, then
+  AtomRegistrar, Dynadot and Namecheap). The field is in the record from the
+  start; the Settings flow for it comes with the first such market, Spaceship
+  SellerHub (docs/sellerhub-api.md).
 - **Sales become `sold` events.** A completed sale writes one `sold` event
   (source `sync`, date `soldOn`, amount `price`, `currency`), and so does one
   whose name has moved: the market is on to the payout (`action: 'payout'`)
@@ -900,6 +901,8 @@ a person (a sale message) says so in its description.
 5. **Ownership verification** for every market: settings, Apply and Request
    built; choosing a method when listing and tracking come next (see
    Ownership verification, "Build order").
+6. **Spaceship SellerHub** (planned): the first market account that uses a
+   registrar account's key; see docs/sellerhub-api.md.
 
 ## Open questions
 
