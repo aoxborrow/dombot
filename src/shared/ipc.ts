@@ -48,6 +48,16 @@ export interface RegistrarAccount {
   trackedSince?: number;
 }
 
+/**
+ * What `connectRegistrarAccount` answers: the new account, or why the
+ * registrar turned the credentials down, with its HTTP status when it gave one
+ * (Dynadot's 401 for a key that isn't active yet). A value rather than a
+ * thrown error, so the status survives IPC and HTTP. Bad input still rejects.
+ */
+export type ConnectRegistrarResult =
+  | { success: true; account: RegistrarAccount }
+  | { success: false; message: string; status?: number };
+
 /** Where a Domain row comes from (see `Domain.source`). */
 export type DomainSource = 'registrar' | 'imported';
 
@@ -1078,7 +1088,7 @@ export interface DombotApi {
     label?: string,
     /** Route the new account through the fixed IP proxy (and test it that way). */
     useProxy?: boolean,
-  ) => Promise<RegistrarAccount>;
+  ) => Promise<ConnectRegistrarResult>;
   createRegistrarAccount: (
     name: RegistrarName,
     label: string,

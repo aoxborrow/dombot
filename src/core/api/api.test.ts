@@ -26,14 +26,14 @@ describe('invoke', () => {
       registrar: 'dynadot' as const,
       label: '#1',
     };
-    const handler = vi.fn(() => account);
+    const handler = vi.fn(() => ({ success: true as const, account }));
     const entry = { ...coreMethods.connectRegistrarAccount, handler };
     const wire: unknown[] = JSON.parse(
       JSON.stringify(['dynadot', { apiKey: 'test-key' }, undefined, false]),
     );
     await expect(
       invoke('connectRegistrarAccount', entry, wire),
-    ).resolves.toEqual(account);
+    ).resolves.toEqual({ success: true, account });
     expect(handler).toHaveBeenCalledWith(
       'dynadot',
       { apiKey: 'test-key' },

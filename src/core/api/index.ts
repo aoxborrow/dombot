@@ -316,6 +316,8 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
       getDomainDetail(name, domainName, refresh, accountId),
   ),
   getRegistrarCatalog: method(none, getRegistrarCatalog),
+  // Resolves, not rejects, when the registrar turns the credentials down, so
+  // its HTTP status reaches the renderer (`ConnectRegistrarResult`).
   connectRegistrarAccount: method(
     z.tuple([
       s.registrarName,
