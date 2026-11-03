@@ -5,6 +5,7 @@ import type { OwnershipItem } from '../../../shared/ipc';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
+  formatAmountInput,
   parseLocalizedAmount,
   parsePurchaseDate,
   type NumberFormatId,
@@ -85,8 +86,9 @@ export function BulkSaleDialog({
     <ActionDialog
       title="Record sale"
       names={items.map((i) => i.domainName)}
-      description="Records a sale for each name at the date and price below. A name still in one of your accounts stays in Owned as Sold until the buyer takes it. Leave the price blank to add it later from each row. Nothing changes at the registrar."
+      description="Records a sale for each name at the date and price below. A name still in one of your accounts stays in Owned as Sold until the buyer takes it. Nothing changes at the registrar."
       actionLabel="Record sale"
+      focusId="bulk-sale-price"
       onConfirm={record}
       onClose={onClose}
     >
@@ -103,7 +105,7 @@ export function BulkSaleDialog({
           currency={currency}
           onCurrencyChange={setCurrency}
           value={amount}
-          placeholder="Later"
+          placeholder={formatAmountInput('0', currency, formatId)}
           onChange={(e) => setAmount(e.target.value)}
         />
       </div>
