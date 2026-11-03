@@ -13,7 +13,8 @@ import { cn } from '@/lib/utils';
  * A submenu of the row and bulk menus. On a phone there's no room beside the
  * menu for it (Radix won't shift a submenu sideways, so it ran off the
  * screen), so there it opens in place instead: the trigger toggles its items
- * in, indented under it, and the menu stays open.
+ * in, indented under it, and the menu stays open. The menu itself scrolls
+ * when that makes it too tall; the items get no scroll box of their own.
  */
 export function MenuSub({
   icon,
@@ -68,11 +69,7 @@ export function MenuSub({
           )}
         />
       </DropdownMenuItem>
-      {open && (
-        <div className="ml-[15px] max-h-[50vh] overflow-y-auto border-l pl-1">
-          {children}
-        </div>
-      )}
+      {open && <div className="ml-[15px] border-l pl-1">{children}</div>}
     </>
   );
 }
