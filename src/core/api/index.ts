@@ -64,7 +64,7 @@ import {
   getRegistrationQuote,
   getRegistrarClient,
   getRegistrarCredentialValues,
-  getRegistrarFeatures,
+  getDomainFeatures,
   getRegistrarMetadata,
   saveRegistrarCredentials,
   setRegistrarEnabledCached,
@@ -212,7 +212,7 @@ export async function invoke<K extends ApiMethodName>(
 
 /** Throws a plain message when the registrar lacks an extended read feature. */
 function requireFeature(target: DomainTarget, feature: string, what: string) {
-  if (!getRegistrarFeatures(target.registrar).includes(feature)) {
+  if (!getDomainFeatures(target).includes(feature)) {
     throw new Error(`This registrar doesn’t offer ${what} through its API.`);
   }
 }

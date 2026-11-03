@@ -42,7 +42,7 @@ import {
   getCachedPortfolio,
   getDomainDetail,
   getRegistrarClient,
-  getRegistrarFeatures,
+  getDomainFeatures,
   patchCachedDomain,
   renewDomainCached,
   setAutoRenewCached,
@@ -100,7 +100,7 @@ export async function applyDomainOp(
   // Gate up front so a known-unsupported op never makes a network call.
   const reason = unsupportedReason(
     target.registrar,
-    getRegistrarFeatures(target.registrar),
+    getDomainFeatures(target),
     op,
   );
   if (reason) return done('unsupported', reason);
@@ -530,7 +530,7 @@ export async function getTransferOut(
   target: DomainTarget,
   request: RequestOptions = {},
 ): Promise<DomainTransferOut | null> {
-  if (!getRegistrarFeatures(target.registrar).includes(Feature.GetTransferOut))
+  if (!getDomainFeatures(target).includes(Feature.GetTransferOut))
     throw new Error(
       'This registrar doesn’t report transfers out through its API.',
     );

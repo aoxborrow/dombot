@@ -11,6 +11,7 @@ import { EncryptedDocStore, aesGcmCipher } from '../storage/encrypted';
 import { createAccount, listAccounts, renameAccount } from './accounts';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import {
+  getRegistrarCatalog,
   getRegistrarClient,
   getRegistrarMetadata,
   getPortfolio,
@@ -39,7 +40,11 @@ import {
   stepBulk,
 } from './bulk-jobs';
 import { domainKey } from '../../shared/account-key';
-import type { Domain as ProviderDomain } from '@aoxborrow/registrar-client';
+import {
+  Feature,
+  createRegistrar,
+  type Domain as ProviderDomain,
+} from '@aoxborrow/registrar-client';
 import type { DomainTarget } from '../../shared/ipc';
 
 const fakes = vi.hoisted(() => ({
@@ -65,6 +70,7 @@ vi.mock('@aoxborrow/registrar-client', async (original) => {
             'registerDomain',
             'transferIn',
             'getPricing',
+            'getTransferOut',
           ].map((name) => [name, vi.fn()]),
         );
         provider.listDomains.mockResolvedValue([]);
@@ -996,6 +1002,113 @@ describe('multi-account storage, routing and portable migration', () => {
     });
     await hydrateStores();
     expect(getRegistrarClient('dynadot')).not.toBe(old);
+  });
+});
+
+describe('GoDaddy Optional settings', () => {
+  const OPTIONAL = {
+    customerId: '123456789',
+    apiKey: 'gd-key',
+    apiSecret: 'gd-secret',
+  };
+  const connect = (credentials: Record<string, string>, label?: string) =>
+    invoke('connectRegistrarAccount', coreMethods.connectRegistrarAccount, [
+      'godaddy',
+      credentials,
+      label,
+    ]);
+  const featuresOf = (id: string) =>
+    getRegistrarMetadata().find((a) => a.accountId === id)!.features;
+  const transferOut = (target: DomainTarget) =>
+    invoke('getTransferOut', coreMethods.getTransferOut, [target]);
+
+  it('follows the PAT in the form, in the Optional section', () => {
+    const godaddy = getRegistrarCatalog().find((r) => r.name === 'godaddy')!;
+    expect(
+      godaddy.configFields.map((f) => [f.name, f.required, f.section]),
+    ).toEqual([
+      ['apiToken', true, undefined],
+      ['customerId', false, 'optional'],
+      ['apiKey', false, 'optional'],
+      ['apiSecret', false, 'optional'],
+    ]);
+  });
+
+  it('offers transfers out only on an account with all three', async () => {
+    const plain = await connect({ apiToken: 'pat' }, 'Plain');
+    const full = await connect({ apiToken: 'pat-2', ...OPTIONAL }, 'Full');
+    expect(featuresOf(plain.id)).toContain(Feature.GetAuthCode);
+    expect(featuresOf(plain.id)).not.toContain(Feature.GetTransferOut);
+    expect(featuresOf(plain.id)).not.toContain(Feature.ApproveTransferOut);
+    expect(featuresOf(full.id)).toEqual(
+      expect.arrayContaining([
+        Feature.GetTransferOut,
+        Feature.ApproveTransferOut,
+        Feature.RejectTransferOut,
+      ]),
+    );
+    const sold = (accountId: string): DomainTarget => ({
+      registrar: 'godaddy',
+      domainName: 'sold.com',
+      accountId,
+    });
+    await expect(transferOut(sold(plain.id))).rejects.toThrow(
+      /doesn.t report transfers out/,
+    );
+    await expect(transferOut(sold(full.id))).resolves.toBeNull();
+    expect(fakes.providers.get('gd-key')!.getTransferOut).toHaveBeenCalledWith(
+      'sold.com',
+      {},
+    );
+  });
+
+  it('resolves the account for a target that names none', async () => {
+    await connect({ apiToken: 'pat', ...OPTIONAL });
+    await expect(
+      transferOut({ registrar: 'godaddy', domainName: 'sold.com' }),
+    ).resolves.toBeNull();
+  });
+
+  it('passes them to the library alongside the PAT', async () => {
+    const account = await connect({ apiToken: 'pat', ...OPTIONAL });
+    expect(getStoredCredentials(account.id)).toEqual({
+      apiToken: 'pat',
+      ...OPTIONAL,
+    });
+    vi.mocked(createRegistrar).mockClear();
+    getRegistrarClient('godaddy', account.id);
+    expect(createRegistrar).toHaveBeenCalledWith('godaddy', {
+      apiToken: 'pat',
+      ...OPTIONAL,
+    });
+    // Clearing them takes transfers out away again.
+    await saveRegistrarCredentials('godaddy', { apiToken: 'pat' }, account.id);
+    expect(featuresOf(account.id)).not.toContain(Feature.GetTransferOut);
+  });
+
+  it('requires all three once any is filled in, before a network call or save', async () => {
+    await expect(
+      connect({ apiToken: 'pat', customerId: '123456789' }),
+    ).rejects.toThrow(
+      /API Key is required when any Optional setting is filled in/,
+    );
+    expect(fakes.providers.size).toBe(0);
+    const account = await connect({ apiToken: 'pat' });
+    await expect(
+      saveRegistrarCredentials(
+        'godaddy',
+        { apiToken: 'pat', apiKey: 'gd-key', apiSecret: 'gd-secret' },
+        account.id,
+      ),
+    ).rejects.toThrow(/Customer Number is required/);
+    expect(getStoredCredentials(account.id)).toEqual({ apiToken: 'pat' });
+  });
+
+  it('treats the same PAT with Optional settings as the account already connected', async () => {
+    await connect({ apiToken: 'pat' });
+    await expect(connect({ apiToken: 'pat', ...OPTIONAL })).rejects.toThrow(
+      /already connected/,
+    );
   });
 });
 

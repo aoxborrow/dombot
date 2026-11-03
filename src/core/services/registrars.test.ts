@@ -246,14 +246,29 @@ describe('getRegistrarFeatures', () => {
     Feature.RejectTransferOut,
   ];
 
-  it('drops GoDaddy transfer-out, which needs a customer ID the app lacks', () => {
+  it('drops GoDaddy transfer-out unless the account has every Optional setting', () => {
     const features = [Feature.GetAuthCode, ...transferOut];
     vi.spyOn(registrars.godaddy, 'features', 'get').mockReturnValue(features);
     vi.spyOn(registrars.dynadot, 'features', 'get').mockReturnValue(features);
+    // No account to check: the catalog never offers it.
     expect(getRegistrarFeatures('godaddy')).toEqual([Feature.GetAuthCode]);
     expect(
       getRegistrarCatalog().find((r) => r.name === 'godaddy')?.features,
     ).toEqual([Feature.GetAuthCode]);
+    storedCredentials.godaddy = { apiToken: 'pat' };
+    expect(getRegistrarFeatures('godaddy', 'godaddy')).toEqual([
+      Feature.GetAuthCode,
+    ]);
+    storedCredentials.godaddy = {
+      apiToken: 'pat',
+      customerId: '123456789',
+      apiKey: 'key',
+    };
+    expect(getRegistrarFeatures('godaddy', 'godaddy')).toEqual([
+      Feature.GetAuthCode,
+    ]);
+    storedCredentials.godaddy.apiSecret = 'secret';
+    expect(getRegistrarFeatures('godaddy', 'godaddy')).toEqual(features);
     expect(getRegistrarFeatures('dynadot')).toEqual(features);
   });
 });

@@ -26,6 +26,9 @@ export interface RegistrarHelp {
   /** Per-field guidance keyed by `ConfigField.name`, shown between the label
    *  and the input. Fields with no entry show nothing. */
   fields: Record<string, string>;
+  /** What the collapsed Optional section's settings are for, shown at its
+   *  top. Only registrars with Optional fields have one. */
+  optional?: string;
 }
 
 // Exhaustive over RegistrarName so adding a registrar to the library forces a
@@ -103,7 +106,7 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
   godaddy: {
     summary:
       'A Personal Access Token (PAT) generated from the GoDaddy developer ' +
-      'dashboard. The older API Key/Secret pair is not supported.',
+      'dashboard.',
     links: [
       { label: 'Developer dashboard', url: 'https://developer.godaddy.com/' },
       {
@@ -111,7 +114,13 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
         url: 'https://developer.godaddy.com/en/docs/api-users/auth',
       },
     ],
-    fields: {},
+    fields: {
+      customerId: 'The numeric Customer # shown in your GoDaddy account.',
+    },
+    optional:
+      'These settings let DomBot approve or reject GoDaddy transfer-outs. ' +
+      'Everything else works with the PAT alone. GoDaddy is retiring the ' +
+      'API key and secret in 2026.',
   },
 
   namebright: {
