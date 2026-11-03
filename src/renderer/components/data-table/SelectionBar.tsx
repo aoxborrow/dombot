@@ -25,8 +25,10 @@ const UP_SHADOW =
  * table. Left, on a darker green: the count in the tabs' pill style, "of N
  * selected", and Clear. Then Actions, a menu of everything the page can do to
  * the selection, and any shortcuts (`children`: SelectionBarMenu and
- * SelectionBarButton) after it. At most two-thirds of the table's width; a
- * shortcut can drop out on a narrow table with `@max-[…]/float:hidden`.
+ * SelectionBarButton) after it. As wide as what's in it, up to 80% of the
+ * table (all of it on a narrow one, where Clear and Actions alone wouldn't
+ * fit in 80%). Shortcuts drop out with `@max-[…]/float:hidden` at the width
+ * they stop fitting; past that, "of N selected" shortens rather than spill.
  */
 export function SelectionBar({
   count,
@@ -48,14 +50,14 @@ export function SelectionBar({
   children?: ReactNode;
 }) {
   return (
-    <div className="pointer-events-auto flex max-w-full items-center gap-1 rounded-md bg-primary p-1 text-primary-foreground shadow-xl ring-1 shadow-black/30 ring-black/10 animate-in fade-in slide-in-from-bottom-2 @min-[480px]/float:max-w-[66%] dark:ring-white/15">
+    <div className="pointer-events-auto flex max-w-full items-center gap-1 rounded-md bg-primary p-1 text-primary-foreground shadow-xl ring-1 shadow-black/30 ring-black/10 animate-in fade-in slide-in-from-bottom-2 @min-[440px]/float:max-w-[80%] dark:ring-white/15">
       {/* The selection, set apart from the actions on a darker green. */}
-      <span className="mr-1 flex h-8 shrink-0 items-center gap-2 rounded-sm bg-black/15 pr-2.5 pl-2 text-[13px] whitespace-nowrap dark:bg-black/25">
+      <span className="mr-1 flex h-8 min-w-0 items-center gap-2 rounded-sm bg-black/15 pr-2.5 pl-2 text-[13px] whitespace-nowrap dark:bg-black/25">
         {/* The tabs' count pill, in the bar's green. */}
-        <span className="inline-flex h-5 items-center rounded-full bg-primary px-2 text-xs font-medium text-white tabular-nums">
+        <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-primary px-2 text-xs font-medium text-white tabular-nums">
           {count.toLocaleString('en-US')}
         </span>
-        <span className="text-brand-100/75">
+        <span className="min-w-0 truncate text-brand-100/75">
           of{' '}
           <span className="tabular-nums">{total.toLocaleString('en-US')}</span>{' '}
           selected
@@ -66,7 +68,7 @@ export function SelectionBar({
           title="Clear selection"
           aria-label="Clear selection"
           onClick={onClear}
-          className="group/clear ml-0.5 flex text-brand-100/75 outline-none hover:text-white"
+          className="group/clear ml-0.5 flex shrink-0 text-brand-100/75 outline-none hover:text-white"
         >
           <span className="-m-[3px] flex rounded-[4px] p-[3px] transition-colors group-hover/clear:bg-white/20">
             <X className="size-3.5" />

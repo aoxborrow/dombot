@@ -328,19 +328,22 @@ export function BulkActionsBar({
             </>
           }
         >
-          {/* Shortcuts, also in Actions, so they can drop out when narrow. */}
+          {/* Shortcuts, also in Actions, so they can drop out when the bar
+              won't fit in 80% of the table: Export CSV first, then Folder.
+              Measured with "12,345 of 12,345 selected": 576px with both,
+              456px without Export CSV. */}
           {!archiveView && (
             <SelectionBarMenu
               icon={<FolderIcon />}
               label="Folder"
-              className="@max-[760px]/float:hidden"
+              className="@max-[572px]/float:hidden"
               contentClassName="max-h-[320px] w-52 overflow-y-auto"
             >
               {folderItems}
             </SelectionBarMenu>
           )}
           <SelectionBarButton
-            className="@max-[760px]/float:hidden"
+            className="@max-[724px]/float:hidden"
             onClick={onExport}
           >
             <FileSpreadsheet />
