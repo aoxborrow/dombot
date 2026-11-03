@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   Building2,
   Calculator,
@@ -6,7 +6,6 @@ import {
   CircleX,
   EyeOff,
   FileSpreadsheet,
-  HandCoins,
   IterationCw,
   KeyRound,
   Link2,
@@ -14,7 +13,6 @@ import {
   Lock,
   Mail,
   Receipt,
-  Redo,
   RefreshCw,
   Server,
   Tag,
@@ -54,10 +52,11 @@ const icon = 'text-muted-foreground';
 /**
  * The Domains bulk actions, in the SelectionBar floating over the table once
  * rows are selected (the table places it; see DataTable's `floatingBar`).
- * Actions holds everything in the row menu's order and submenus; Folder and
- * Export CSV follow as shortcuts, which drop out when the table is narrow
- * (they're in Actions too). Archive's menu is short and flat, like its row
- * menu. Registrar items grey out while a job runs, or when no selected name's
+ * Actions holds everything in the row menu's order and submenus, Delete only
+ * when some of the selection can be deleted; Folder and Export CSV follow as
+ * shortcuts, which drop out when the table is narrow. Folder is in Actions
+ * too; Export CSV joins it only once its button has gone. Archive's menu is
+ * short and flat, like its row menu. Registrar items grey out while a job runs, or when no selected name's
  * registrar can make the change; the dialog an item opens is where the value
  * is picked. While a job runs, a progress pill with View floats above the bar,
  * or on its own with nothing selected.
@@ -170,12 +169,7 @@ export function BulkActionsBar({
     />
   );
 
-  const exportItem = (
-    <DropdownMenuItem onSelect={onExport}>
-      <FileSpreadsheet className={icon} />
-      Export CSV
-    </DropdownMenuItem>
-  );
+  const exportButton = useRef<HTMLButtonElement>(null);
 
   const recordPurchase = (
     <DropdownMenuItem onSelect={() => onOwnership('purchase')}>
@@ -191,25 +185,24 @@ export function BulkActionsBar({
     </DropdownMenuItem>
   );
 
-  const deleteItem = (
-    <DropdownMenuItem
-      variant="destructive"
-      disabled={removable === 0}
-      title={
-        removable === 0
-          ? 'Only names no connected account holds can be deleted. A name you hold leaves when you turn its auto-renew off.'
-          : undefined
-      }
-      onSelect={() => onOwnership('delete')}
-    >
-      <Trash2 />
-      Delete{dots}
-      {removable > 0 && removable < domains.length && (
-        <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-          {removable} of {domains.length}
-        </span>
-      )}
-    </DropdownMenuItem>
+  // Only when some of the selection can be deleted: a name you hold leaves
+  // when you turn its auto-renew off.
+  const deleteItem = removable > 0 && (
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        variant="destructive"
+        onSelect={() => onOwnership('delete')}
+      >
+        <Trash2 />
+        Delete{dots}
+        {removable < domains.length && (
+          <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+            {removable} of {domains.length}
+          </span>
+        )}
+      </DropdownMenuItem>
+    </>
   );
 
   return (
@@ -230,6 +223,9 @@ export function BulkActionsBar({
           count={domains.length}
           total={total}
           onClear={onClear}
+          // Wide enough for "Verify ownership TXT", and wider on a
+          // phone, where submenus open in place, indented.
+          actionsClassName="w-52 max-sm:w-72"
           actions={
             <>
               {archiveView ? (
@@ -259,6 +255,8 @@ export function BulkActionsBar({
                     <StickyNoteIcon className={icon} />
                     Notes{dots}
                   </DropdownMenuItem>
+                  {recordPurchase}
+                  {recordSale}
                   <DropdownMenuSeparator />
                   <MenuSub
                     icon={<Building2 className={icon} />}
@@ -281,57 +279,35 @@ export function BulkActionsBar({
                     {registrarItem('renew', CalendarPlus, 'Renew')}
                     {registrarItem('authCode', KeyRound, 'Get auth codes')}
                   </MenuSub>
-                  <MenuSub
-                    icon={<HandCoins className={icon} />}
-                    label="Selling"
-                    contentClassName="w-68"
-                  >
-                    <DropdownMenuItem onSelect={onListPrice}>
-                      <CashIcon className={icon} />
-                      Pricing{dots}
-                    </DropdownMenuItem>
-                    {onMarket && <DropdownMenuSeparator />}
-                    {marketItem(
-                      'list',
-                      <Tag className={icon} />,
-                      'List at your prices',
-                    )}
-                    {marketItem(
-                      'verificationTxt',
-                      <CertificateIcon className={icon} />,
-                      'Ownership verification TXT',
-                    )}
-                    {marketItem(
-                      'recheckOwnership',
-                      <Redo className={icon} />,
-                      'Recheck ownership',
-                    )}
-                    {marketItem(
-                      'delist',
-                      <CircleX className={icon} />,
-                      'Delist',
-                    )}
-                  </MenuSub>
-                  <MenuSub
-                    icon={<Calculator className={icon} />}
-                    label="Bookkeeping"
-                  >
-                    {recordPurchase}
-                    {recordSale}
-                  </MenuSub>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={onListPrice}>
+                    <CashIcon className={icon} />
+                    Pricing{dots}
+                  </DropdownMenuItem>
+                  {marketItem(
+                    'list',
+                    <Tag className={icon} />,
+                    'List at your prices',
+                  )}
+                  {marketItem(
+                    'verificationTxt',
+                    <CertificateIcon className={icon} />,
+                    'Verify ownership TXT',
+                  )}
+                  {/* Recheck ownership is hidden for now, as in the row
+                      menu. */}
+                  {marketItem('delist', <CircleX className={icon} />, 'Delist')}
                 </>
               )}
-              <DropdownMenuSeparator />
-              {exportItem}
-              <DropdownMenuSeparator />
+              <ExportWhenHidden button={exportButton} onExport={onExport} />
               {deleteItem}
             </>
           }
         >
-          {/* Shortcuts, also in Actions, so they can drop out when the bar
-              won't fit in its share of the table (90% under 724px): Export
-              CSV first, then Folder. Measured with "12,345 of 12,345
-              selected": 576px with both, 456px without Export CSV. */}
+          {/* Shortcuts, which drop out when the bar won't fit in its share
+              of the table (90% under 724px): Export CSV first, then Folder.
+              Measured with "12,345 of 12,345 selected": 576px with both,
+              456px without Export CSV. */}
           {!archiveView && (
             <SelectionBarMenu
               icon={<FolderIcon />}
@@ -343,6 +319,7 @@ export function BulkActionsBar({
             </SelectionBarMenu>
           )}
           <SelectionBarButton
+            ref={exportButton}
             className="@max-[644px]/float:hidden"
             onClick={onExport}
           >
@@ -351,6 +328,32 @@ export function BulkActionsBar({
           </SelectionBarButton>
         </SelectionBar>
       )}
+    </>
+  );
+}
+
+/**
+ * Export CSV in Actions, only while the bar's own Export CSV button is
+ * hidden for room. A container query hides that button, and the menu, in a
+ * portal outside the bar, can't see it: it looks once, as the menu opens
+ * (its items mount then).
+ */
+function ExportWhenHidden({
+  button,
+  onExport,
+}: {
+  button: RefObject<HTMLButtonElement | null>;
+  onExport: () => void;
+}) {
+  const [hidden] = useState(() => !button.current?.offsetWidth);
+  if (!hidden) return null;
+  return (
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={onExport}>
+        <FileSpreadsheet className={icon} />
+        Export CSV
+      </DropdownMenuItem>
     </>
   );
 }

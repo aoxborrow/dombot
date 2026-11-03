@@ -122,6 +122,7 @@ import {
   marketAccountStats,
   marketListings,
   marketSales,
+  refreshMarketListings,
   syncMarketAccount,
   syncMarkets,
 } from '../services/markets/sync';
@@ -574,6 +575,9 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   relistMarketListings: method(
     z.tuple([s.marketAccountId, s.marketNames, s.relistMode.optional()]),
     async (id, names, mode) => relistMarketListings(id, names, mode),
+  ),
+  refreshMarketListings: method(z.tuple([s.marketNames]), async (names) =>
+    refreshMarketListings(names),
   ),
   requestMarketVerification: method(
     z.tuple([s.marketAccountId, s.marketNames]),

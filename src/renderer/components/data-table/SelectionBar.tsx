@@ -53,12 +53,13 @@ export function SelectionBar({
   return (
     <div className="pointer-events-auto flex max-w-[90%] items-center gap-1 rounded-md bg-primary p-1 text-primary-foreground shadow-xl ring-1 shadow-black/30 ring-black/10 animate-in fade-in slide-in-from-bottom-2 @min-[724px]/float:max-w-[80%] dark:ring-white/15">
       {/* The selection, set apart from the actions on a darker green. */}
-      <span className="mr-1 flex h-8 min-w-0 items-center gap-2 rounded-sm bg-black/15 pr-2.5 pl-2 text-[13px] whitespace-nowrap dark:bg-black/25">
+      <span className="flex h-8 min-w-0 items-center gap-2 rounded-sm bg-black/15 pr-2.5 pl-2 text-[13px] whitespace-nowrap dark:bg-black/25">
         {/* The tabs' count pill, in the bar's green. */}
         <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-primary px-2 text-xs font-medium text-white tabular-nums">
           {count.toLocaleString('en-US')}
         </span>
-        <span className="min-w-0 truncate text-brand-100/75">
+        {/* A pixel closer to the pill than the gap. */}
+        <span className="-ml-px min-w-0 truncate text-brand-100/75">
           <span className="@max-[360px]/float:hidden">
             of{' '}
             <span className="tabular-nums">
@@ -67,7 +68,8 @@ export function SelectionBar({
           </span>
           selected
         </span>
-        {/* The filter chips' remove button: a small X, a small hover square. */}
+        {/* The filter chips' remove button: a small X, its hover square the
+            bar's own green. */}
         <button
           type="button"
           title="Clear selection"
@@ -75,7 +77,7 @@ export function SelectionBar({
           onClick={onClear}
           className="group/clear ml-0.5 flex shrink-0 text-brand-100/75 outline-none hover:text-white"
         >
-          <span className="-m-[3px] flex rounded-[4px] p-[3px] transition-colors group-hover/clear:bg-white/20">
+          <span className="-m-[3px] flex rounded-[4px] p-[3px] transition-colors group-hover/clear:bg-primary">
             <X className="size-3.5" />
           </span>
         </button>

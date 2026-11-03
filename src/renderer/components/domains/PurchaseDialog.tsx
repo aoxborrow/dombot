@@ -220,7 +220,14 @@ export function PurchaseDialog({
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        // Start in the amount, not on the Registration | Purchase switch.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          document.getElementById('purchase-amount')?.focus();
+        }}
+      >
         <ActionHeader
           title={title[0].toUpperCase() + title.slice(1)}
           names={[domain.domainName]}

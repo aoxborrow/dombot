@@ -19,7 +19,6 @@ import {
   CalendarClock,
   CalendarPlus2,
   CircleCheck,
-  CircleHelp,
   Globe,
   RotateCw,
   Server,
@@ -210,7 +209,7 @@ type RegistrarLabels = Record<string, string>;
 interface Column {
   key: string;
   label: string;
-  /** A hover note on the header, marked with a small help icon. */
+  /** A hover note on the header, for a label that needs explaining. */
   tooltip?: string;
   /** Cell renderer. */
   render: (d: Domain, labels: RegistrarLabels) => React.ReactNode;
@@ -632,11 +631,12 @@ const VIEW_COLUMNS: Record<DomainsView, ColumnLayout> = {
       FOLDER,
       'binPrice',
       'minOffer',
+      'fastTransfer',
       'listing',
       'views',
       'leads',
       'searches',
-      'fastTransfer',
+      'nameservers',
       'registrar',
       'expirationDate',
       'purchaseDate',
@@ -962,6 +962,7 @@ export default function Domains() {
     listPrices,
     marketAccounts,
     marketListings,
+    refreshMarketListings,
     marketCatalog,
     marketTraffic,
     marketSales,
@@ -1419,11 +1420,25 @@ export default function Domains() {
   const [bulkNotesFor, setBulkNotesFor] = useState<Domain[] | null>(null);
   // Re-fetch one row's full record from its registrar (bypassing the detail
   // cache) — the row's detail cells show skeletons while it's in flight.
-  const refreshDomain = (d: Domain) => {
-    void enrichVisible([d], true).then(() =>
-      toast.success(`Refreshed ${d.domainName}`),
-    );
-  };
+  // Refresh re-reads the registrar's detail of names an account holds and,
+  // with a market account, every name's listings (an imported name can be
+  // listed too). A market that couldn't be read says so in the toast.
+  async function refreshNames(ds: Domain[], noun: string) {
+    const [, failed] = await Promise.all([
+      enrichVisible(ds, true),
+      marketsOn
+        ? refreshMarketListings(ds.map((d) => d.domainName)).catch(() => [
+            'your markets',
+          ])
+        : [],
+    ]);
+    if (failed.length)
+      toast.warning(`Refreshed ${noun}`, {
+        description: `Couldn’t read listings from ${failed.join(', ')}.`,
+      });
+    else toast.success(`Refreshed ${noun}`);
+  }
+  const refreshDomain = (d: Domain) => void refreshNames([d], d.domainName);
 
   // CSV export: an in-flight flag (dialog open + write) and a transient result
   // note ("Exported N rows to …" / an error) that clears itself after a moment.
@@ -2101,10 +2116,8 @@ export default function Domains() {
     (d) => !d.departed && d.source !== 'imported',
   );
   const bulkRefresh = () => {
-    const n = selectedHeld.length;
-    void enrichVisible(selectedHeld, true).then(() =>
-      toast.success(`Refreshed ${n} domain${n === 1 ? '' : 's'}`),
-    );
+    const n = selectedDomains.length;
+    void refreshNames(selectedDomains, `${n} domain${n === 1 ? '' : 's'}`);
   };
   function applyFolders(domainsToMove: Domain[], folderId: string | null) {
     const keys = domainsToMove.map((domain) => domainKey(domain));
@@ -2392,13 +2405,7 @@ export default function Domains() {
     const col = columnByKey.get(key)!;
     return {
       label: col.tooltip ? (
-        <span
-          className="inline-flex cursor-help items-center gap-1"
-          title={col.tooltip}
-        >
-          {col.label}
-          <CircleHelp className="size-3" aria-hidden />
-        </span>
+        <span title={col.tooltip}>{col.label}</span>
       ) : (
         col.label
       ),

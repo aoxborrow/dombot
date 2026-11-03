@@ -32,6 +32,10 @@ const fake = {
   /** What a single sale read says about the auth code, by sale id. */
   saleCodes: new Map<string, boolean>(),
   saleReads: [] as string[],
+  /** Names per call: 1 reads like Atom, one name at a time. */
+  writeBatch: AFTERNIC_CAPABILITIES.writeBatch,
+  /** The names each getListings call asked for. */
+  asked: [] as string[][],
 };
 vi.mock('./registry', async () => {
   const { AFTERNIC_CONFIG_FIELDS } = await import('./afternic');
@@ -47,7 +51,11 @@ vi.mock('./registry', async () => {
       market: 'afternic',
       accountId,
       get capabilities() {
-        return { ...AFTERNIC_CAPABILITIES, asyncInsert: fake.asyncInsert };
+        return {
+          ...AFTERNIC_CAPABILITIES,
+          asyncInsert: fake.asyncInsert,
+          writeBatch: fake.writeBatch,
+        };
       },
       test: async () => {
         if (fake.testFails) throw new Error('Bad key');
@@ -59,6 +67,13 @@ vi.mock('./registry', async () => {
           listings: fake.listings.map((l) => ({ ...l, accountId })),
           complete: fake.complete,
         };
+      },
+      getListings: async (names: readonly string[]) => {
+        fake.asked.push([...names]);
+        if (fake.fail) throw fake.fail;
+        return fake.listings
+          .filter((l) => names.includes(l.name))
+          .map((l) => ({ ...l, accountId }));
       },
       allSales: async (since?: string) => {
         fake.salesSince.push(since);
@@ -98,6 +113,7 @@ const {
   marketSale,
   marketSales,
   putMarketListings,
+  refreshMarketListings,
   syncMarketAccount,
 } = await import('./sync');
 
@@ -177,6 +193,8 @@ beforeEach(async () => {
     statsDays: [],
     saleCodes: new Map(),
     saleReads: [],
+    writeBatch: AFTERNIC_CAPABILITIES.writeBatch,
+    asked: [],
   });
   held.clear();
   vi.useFakeTimers();
@@ -653,6 +671,73 @@ describe('listings a market is still checking', () => {
     putMarketListings(ACCOUNT, [pending('new.com', 1)]);
     await syncMarketAccount(ACCOUNT);
     expect(marketListings()).toEqual([]);
+  });
+});
+
+describe('refreshMarketListings', () => {
+  const stored = (name: string, patch: Partial<MarketListing> = {}) => ({
+    ...listing(name),
+    accountId: ACCOUNT,
+    ...patch,
+  });
+  const names = () =>
+    marketListings()
+      .map((l) => [l.name, l.price, l.status])
+      .sort();
+
+  it('stores what the market lists for the names, drops what it no longer does, and leaves other names alone', async () => {
+    await connect();
+    putMarketListings(ACCOUNT, [
+      stored('a.com'),
+      stored('b.com'),
+      stored('other.com'),
+    ]);
+    fake.listings = [{ ...listing('a.com'), price: '9000' }];
+    expect(await refreshMarketListings(['a.com', 'b.com'])).toEqual({
+      failed: [],
+    });
+    expect(fake.asked).toEqual([['a.com', 'b.com']]);
+    expect(names()).toEqual([
+      ['a.com', '9000', 'active'],
+      ['other.com', '2500', 'active'],
+    ]);
+  });
+
+  it('picks up a name listed on the market’s site', async () => {
+    await connect();
+    fake.listings = [listing('new.com')];
+    await refreshMarketListings(['NEW.com']);
+    expect(names()).toEqual([['new.com', '2500', 'active']]);
+  });
+
+  it('keeps a pending insert the market doesn’t list yet', async () => {
+    fake.asyncInsert = true;
+    await connect();
+    putMarketListings(ACCOUNT, [stored('new.com', { status: 'pending' })]);
+    await refreshMarketListings(['new.com']);
+    expect(names()).toEqual([['new.com', '2500', 'pending']]);
+  });
+
+  it('asks only for names it lists when the market reads one name a call', async () => {
+    fake.writeBatch = 1;
+    await connect();
+    putMarketListings(ACCOUNT, [stored('a.com')]);
+    fake.listings = [listing('a.com')];
+    await refreshMarketListings(['a.com', 'b.com']);
+    expect(fake.asked).toEqual([['a.com']]);
+    await refreshMarketListings(['b.com']);
+    expect(fake.asked).toHaveLength(1);
+  });
+
+  it('keeps an account’s rows when it can’t be read, and names it', async () => {
+    await connect();
+    putMarketListings(ACCOUNT, [stored('a.com')]);
+    fake.fail = new Error('Down');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await refreshMarketListings(['a.com'])).toEqual({
+      failed: ['Afternic'],
+    });
+    expect(names()).toEqual([['a.com', '2500', 'active']]);
   });
 });
 

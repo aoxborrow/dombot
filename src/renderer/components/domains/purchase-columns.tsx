@@ -10,7 +10,7 @@ type Labels = Record<string, string>;
 export interface PurchaseColumn {
   key: string;
   label: string;
-  /** A hover note on the header, marked with a small help icon. */
+  /** A hover note on the header, for a label that needs explaining. */
   tooltip?: string;
   align?: 'left' | 'right';
   hideOnMobile?: boolean;

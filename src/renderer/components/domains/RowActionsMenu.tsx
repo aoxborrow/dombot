@@ -6,13 +6,11 @@ import {
   CalendarPlus,
   CircleX,
   Ellipsis,
-  HandCoins,
   KeyRound,
   Link2,
   Mail,
   PencilLine,
   Receipt,
-  Redo,
   RefreshCw,
   Server,
   Tag,
@@ -51,16 +49,18 @@ const icon = 'text-muted-foreground';
 /**
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell),
  * in the bulk bar's Actions order. For a name in Owned or Listings: Refresh
- * (Edit details for an imported name), Folder, Notes; then Registrar
- * (auto-renew, privacy and lock as checkboxes, which flip with the same
- * confirms as their cells, then nameservers, forwarding, renew, auth code),
- * Selling (Pricing and the market actions) and Bookkeeping (Record purchase,
- * or Edit purchase or registration once one is recorded; Record sale, or Edit
- * sale, where undoing it lives); then Delete. Every row in a view gets the
- * same items: what doesn't apply is greyed with the reason as its tooltip
- * (Registrar as a whole for an imported name, Delete for a name you hold,
- * which goes away by turning its auto-renew off: docs/owned-and-archive.md).
- * A name in Archive gets a short flat menu: Notes, the two records, Delete.
+ * (Edit details for an imported name), Folder, Notes, Record purchase (or
+ * Edit purchase or registration once one is recorded), Record sale (or Edit
+ * sale, where undoing it lives); then Registrar (auto-renew, privacy and lock
+ * as checkboxes, which flip with the same confirms as their cells, then
+ * nameservers, forwarding, renew, auth code); then Pricing and the market
+ * actions (with a market account: List at your price, Ownership verification
+ * TXT, Delist); then Delete, only for a name no connected
+ * account holds (imported or in Archive): a name you hold leaves by turning
+ * its auto-renew off (docs/owned-and-archive.md). Otherwise every row in a
+ * view gets the same items: what doesn't apply is greyed with the reason as
+ * its tooltip (Registrar as a whole for an imported name). A name in Archive
+ * gets a short flat menu: Notes, the two records, Delete.
  * Disabled outright while a write for this row is in flight.
  */
 export function RowActionsMenu({
@@ -263,21 +263,6 @@ export function RowActionsMenu({
       {dots}
     </DropdownMenuItem>
   );
-  const deleteItem = (
-    <DropdownMenuItem
-      variant="destructive"
-      disabled={!removable}
-      title={
-        removable
-          ? undefined
-          : 'A name you hold leaves when you turn its auto-renew off.'
-      }
-      onSelect={onDelete}
-    >
-      <Trash2 />
-      Delete{dots}
-    </DropdownMenuItem>
-  );
 
   return (
     <>
@@ -298,7 +283,9 @@ export function RowActionsMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
-          className="w-52"
+          // Wide enough for "Verify ownership TXT", and wider on a
+          // phone, where submenus open in place, indented.
+          className="w-52 max-sm:w-72"
           onCloseAutoFocus={(e) => {
             if (!keepFocus.current) return;
             keepFocus.current = false;
@@ -336,6 +323,8 @@ export function RowActionsMenu({
                 />
               </MenuSub>
               {notesItem}
+              {purchaseItem}
+              {saleItem}
               <DropdownMenuSeparator />
               <MenuSub
                 icon={<Building2 className={icon} />}
@@ -392,44 +381,39 @@ export function RowActionsMenu({
                   onAuthCode,
                 )}
               </MenuSub>
-              <MenuSub
-                icon={<HandCoins className={icon} />}
-                label="Selling"
-                contentClassName="w-68"
-              >
-                <DropdownMenuItem onSelect={onEditListPrice}>
-                  <CashIcon className={icon} />
-                  Pricing{dots}
-                </DropdownMenuItem>
-                {onMarket && <DropdownMenuSeparator />}
-                {marketItem(
-                  'list',
-                  <Tag className={icon} />,
-                  'List at your price',
-                )}
-                {marketItem(
-                  'verificationTxt',
-                  <CertificateIcon className={icon} />,
-                  'Ownership verification TXT',
-                )}
-                {marketItem(
-                  'recheckOwnership',
-                  <Redo className={icon} />,
-                  'Recheck ownership',
-                )}
-                {marketItem('delist', <CircleX className={icon} />, 'Delist')}
-              </MenuSub>
-              <MenuSub
-                icon={<Calculator className={icon} />}
-                label="Bookkeeping"
-              >
-                {purchaseItem}
-                {saleItem}
-              </MenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={onEditListPrice}>
+                <CashIcon className={icon} />
+                Pricing{dots}
+              </DropdownMenuItem>
+              {marketItem(
+                'list',
+                <Tag className={icon} />,
+                'List at your price',
+              )}
+              {marketItem(
+                'verificationTxt',
+                <CertificateIcon className={icon} />,
+                'Verify ownership TXT',
+              )}
+              {/* Recheck ownership is hidden for now: Afternic's relist
+                  doesn't run the check, Sedo can't be asked, Atom allows
+                  one request in 12 hours, and all three check on their
+                  own (docs/markets.md). */}
+              {marketItem('delist', <CircleX className={icon} />, 'Delist')}
             </>
           )}
-          <DropdownMenuSeparator />
-          {deleteItem}
+          {/* Only for names no connected account holds: a name you hold
+              leaves when you turn its auto-renew off. */}
+          {removable && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                <Trash2 />
+                Delete{dots}
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       {confirming && confirm && (

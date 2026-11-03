@@ -95,6 +95,7 @@ export function ActionDialog({
   actionLabel,
   destructive = false,
   disabled = false,
+  focusId,
   onConfirm,
   onClose,
 }: {
@@ -105,6 +106,8 @@ export function ActionDialog({
   actionLabel: string;
   destructive?: boolean;
   disabled?: boolean;
+  /** The field to start in, rather than the first control. */
+  focusId?: string;
   onConfirm: () => Promise<void>;
   onClose: () => void;
 }) {
@@ -130,7 +133,17 @@ export function ActionDialog({
 
   return (
     <Dialog open onOpenChange={(next) => !next && !pending && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        onOpenAutoFocus={
+          focusId
+            ? (e) => {
+                e.preventDefault();
+                document.getElementById(focusId)?.focus();
+              }
+            : undefined
+        }
+      >
         <ActionHeader title={title} names={names} />
         {(description || children || error) && (
           <div className="flex flex-col gap-4">

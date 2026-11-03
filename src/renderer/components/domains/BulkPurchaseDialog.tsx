@@ -112,6 +112,8 @@ export function BulkPurchaseDialog({
       names={targets.map((t) => toUnicode(t.domain.domainName))}
       actionLabel={`Record ${noun}`}
       disabled={!amount.trim()}
+      // Start in the amount, not on the Registration | Purchase switch.
+      focusId="bulk-purchase-amount"
       onConfirm={record}
       onClose={onClose}
     >

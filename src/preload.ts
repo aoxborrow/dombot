@@ -198,6 +198,8 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.deleteMarketListings, ...args),
   relistMarketListings: (...args) =>
     ipcRenderer.invoke(IpcChannels.relistMarketListings, ...args),
+  refreshMarketListings: (names) =>
+    ipcRenderer.invoke(IpcChannels.refreshMarketListings, names),
   requestMarketVerification: (...args) =>
     ipcRenderer.invoke(IpcChannels.requestMarketVerification, ...args),
   setMarketSaleAuthCode: (...args) =>

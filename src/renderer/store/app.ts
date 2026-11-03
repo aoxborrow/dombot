@@ -260,6 +260,11 @@ interface AppState {
   loadMarkets: () => Promise<void>;
   /** Swap in the accounts a market API call returned, and reload listings. */
   setMarketAccounts: (accounts: MarketAccountView[]) => Promise<void>;
+  /**
+   * Re-read these names' listings on every enabled market account (Refresh
+   * on Domains); resolves to the labels of accounts that couldn't be read.
+   */
+  refreshMarketListings: (names: string[]) => Promise<string[]>;
   /** Every enabled market account is syncing (Sync now, or Settings →
    * Markets' Sync all); one account's own sync shows on its card alone. */
   marketsSyncing: boolean;
@@ -868,6 +873,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       window.api.getMarketSales(),
     ]);
     set({ marketListings: byDomain(listings), marketSales: sales });
+  },
+  refreshMarketListings: async (names) => {
+    const { failed } = await window.api.refreshMarketListings(names);
+    set({ marketListings: byDomain(await window.api.getMarketListings()) });
+    return failed;
   },
   marketsSyncing: false,
   syncMarkets: async () => {
