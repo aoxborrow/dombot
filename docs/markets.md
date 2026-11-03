@@ -579,8 +579,9 @@ sale waiting on an auth code.
 **First part built (the ID setting, TXT records, market nameserver presets,
 Recheck, and TXT records while listing), tracking planned.** Every market checks that you own a name before its listing goes
 live or for sale, and the APIs mostly don't report it or offer a way to
-complete it. Afternic keeps a listing `PENDING` until it has verified the
-name. Sedo lists a new name not for sale, refuses to change that (`E3124`),
+complete it. Afternic marks a new listing `INACTIVE` within seconds when
+another account already lists the name, and a name nobody else lists can go
+live with nothing set up (seen live, docs/afternic-api.md). Sedo lists a new name not for sale, refuses to change that (`E3124`),
 and shows it under "Ownership Verification Pending" on sedo.com (seen live,
 docs/sedo-api.md). Atom checks DNS "at random intervals" unless asked to
 check now.
@@ -704,9 +705,13 @@ for the ones it can't.
   check, and it checks on its own), with the ones that list any of the names
   selected; results show per account.
   - **Afternic:** relist with `RESYNC` ("Re-trigger the listing process", up
-    to 500 names a call). Updating a listing doesn't re-run Afternic's checks
-    but relisting does (docs/afternic-api.md); whether that includes the
-    ownership check on a pending name isn't confirmed live yet.
+    to 500 names a call). Seen live (2026-11-02), it doesn't run the
+    ownership check: on two listings Afternic had marked `INACTIVE` because
+    another account listed the names, with the TXT record or NS3 in place,
+    `RESYNC` answered `200` and nothing changed for over an hour.
+    `REACTIVATE` didn't either (2026-11-03). Afternic's dashboard has
+    **Request ownership verification** for that, and the API has nothing
+    like it (docs/afternic-api.md).
   - **Atom:** verify DNS. Atom takes one request per account every 12 hours
     and answers the next, for any name, "DNS check Request in progress"
     (seen live, docs/atom-api.md), so DomBot sends one name at a time and
@@ -817,8 +822,10 @@ it is: a name is `pending` until the market puts it up for sale (already the
 case for Sedo, `asyncInsert`).
 
 Open: whether a TXT record can be removed once a market has verified a name,
-how each market reports a failed check, whether Afternic's `RESYNC` re-runs
-the ownership check, and whether one Atom request checks every pending name.
+how each market reports a failed check, whether Afternic ever verifies a
+name another account lists from DNS alone (without its dashboard's Request
+ownership verification) and how long that takes, and whether one Atom
+request checks every pending name.
 
 ## MCP
 

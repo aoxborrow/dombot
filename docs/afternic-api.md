@@ -68,7 +68,14 @@ Other observed behavior worth designing around:
   minute or two; on 2026-10-29 it came back `ACTIVE` straight away.
 - A bulk call answers a name it couldn't act on with that name's own status
   and no error body (`{"name": {"code": 404}}` for delete), inside a 200.
-- `RESYNC` on an `ACTIVE` listing succeeds and changes nothing visible.
+- `RESYNC` has never changed anything we could see. On an `ACTIVE` listing
+  it succeeds and nothing changes. On an `INACTIVE` one it doesn't run the
+  ownership check, and it didn't clear the two listings that have been
+  `INACTIVE` since April (see "Observed: ownership verification"). The
+  reference says only that relist "re-trigger[s] the listing process".
+- `REACTIVATE` on an `INACTIVE` listing moved its `updatedAt` 4 seconds
+  later and changed nothing else (2026-11-03). On a name another account
+  lists, it changed nothing at all.
 - Creating a listing that exists returns 409, as documented.
 - Prices must keep minimum offer ≤ floor ≤ Buy Now (equal allowed), checked
   against the whole saved listing: a PATCH of just the floor is refused if it
@@ -125,6 +132,70 @@ Other observed behavior worth designing around:
   stats across the current 50 listings only add up to 48 views. The rest are
   presumably on names that sold or were delisted.
 
+### Observed: ownership verification
+
+Checked live on 2026-11-02 and 2026-11-03 with new listings: one name
+nobody else listed, and three names another account already listed
+(domainio.com and two others).
+
+- **Afternic decides at create, in seconds.** Every create came back
+  `PENDING`. The name nobody else listed (registered at GoDaddy, on GoDaddy's
+  parked DNS) was `ACTIVE` 15 seconds later, with no Afternic nameservers,
+  TXT record or NS3, and Fast Transfer `AWAITING_OPT_IN`. Each name another
+  account listed was `INACTIVE` 4 seconds later, with no `registrar` include
+  and Fast Transfer `PENDING_REVIEW`, and stayed there. None stayed `PENDING`.
+- **Seeing that another account lists a name:** GoDaddy's public page for it
+  (`forsale.godaddy.com/forsale/<name>`) says it's for sale ("PREMIUM
+  VERIFIED DOMAIN" for domainio.com, "Make an offer" for another), and
+  `afternic.com/domain/<name>` redirects there (a 307 to `/forsale/<name>`)
+  or shows the other account's Buy Now price. A name nobody lists gets "This
+  domain is registered, but may still be available". An `INACTIVE` listing
+  isn't shown anywhere, so these pages are never the account's own listing.
+- **`INACTIVE` doesn't say why.** It's the dashboard's "Not Listed", and it
+  covers more than duplicates: two older listings in this account have been
+  `INACTIVE` since April, with no `registrar` and no listing elsewhere, which
+  fits the dashboard's "undergoing domain registration checks"
+  (`WHOIS_NOT_FOUND`, `WHOIS_UNKNOWN_REGISTRAR`). The API has no reason field.
+  `RESYNC` didn't clear them (2026-11-03): nothing changed in 15 minutes on
+  either. One of them was then moved to `ns1/ns2.afternic.com` plus NS3, and
+  all of its registry's servers had the new delegation about 13 minutes
+  later. It stayed `INACTIVE` through the 20 minutes from that change to a
+  second `RESYNC` and for 30 minutes after it, with `updatedAt` still the
+  April date. A `REACTIVATE` an hour later moved its `updatedAt` to that
+  moment, and it stayed `INACTIVE` for the next 30 minutes.
+- **The dashboard's verification is for duplicates,** going by its own
+  text (bundled in afternic.com's pages). The account is told "We found a
+  duplicate listing"; adding the name shows it "Unverified"; Verify Ownership
+  shows the TXT record and NS3; you tick "Yes, I've added the TXT and/or
+  Nameserver record" and press **Request ownership verification**, which
+  takes "up to one minute" and may take "up to 48 hrs". Once verified, "the
+  existing listing will be removed from Afternic". The Portfolio API has no
+  call for this.
+- **`RESYNC` doesn't run it.** On all three duplicates, `RESYNC` answered
+  `200` for each name (the spec gives `204` for a listing that didn't
+  change) and changed nothing, not even `updatedAt`:
+  - with nothing in DNS: 5 minutes;
+  - with the TXT record live at Cloudflare: 30 minutes;
+  - with NS3 live beside `ns1/ns2.afternic.com`: over an hour, with a
+    second `RESYNC` 45 minutes after the first;
+  - with NS3 live beside Cloudflare's nameservers: 20 minutes.
+
+  Without a `RESYNC`, nothing changed either: 15 minutes with the TXT record
+  or NS3 live, before the first one.
+
+- **NS3 doesn't answer DNS** (queries to it time out), so beside other
+  nameservers it's a nameserver that never responds; resolvers move on to
+  the others. Registries take it: a `.com` at Spaceship and a `.st` at
+  101domain each showed it within about a minute.
+- **An `ACTIVE` listing isn't checked again when its DNS moves.**
+  domanio.com has been on 101domain's nameservers since 2026-10-28, with no
+  Afternic nameservers, TXT record or NS3, and is still `ACTIVE`. Whether it
+  ever needed verifying is unknown.
+- **`REACTIVATE` doesn't run it either.** On domainio.com, `INACTIVE` as a
+  duplicate for over six hours with the TXT record by then visible to
+  Google's resolver, it answered `200` and changed nothing, not even
+  `updatedAt`, for 30 minutes.
+
 ## What to implement
 
 All of it except Replace domain (PUT): 23 of the 24 operations, plus every
@@ -142,7 +213,7 @@ All of it except Replace domain (PUT): 23 of the 24 operations, plus every
 | Delete domain                                               | Delist. Also needed when a name sells elsewhere or is dropped.                                                                                                                                                     |
 | Upsert many                                                 | Bulk list/reprice up to 500 at a time; the bulk path for "push my prices to Afternic".                                                                                                                             |
 | Delete many                                                 | Bulk delist.                                                                                                                                                                                                       |
-| Relist many (`RESYNC`, `REACTIVATE`)                        | Fixes `INACTIVE`/`FAILED_COMPLIANCE` listings; DomBot can offer it next to those statuses. Exact effect of each mode needs a live test.                                                                            |
+| Relist many (`RESYNC`, `REACTIVATE`)                        | Meant for `INACTIVE`/`FAILED_COMPLIANCE` listings; DomBot offers it next to those statuses. Neither mode has cleared an `INACTIVE` listing or run the ownership check (see "Observed: ownership verification").    |
 | Account stats, domain stats                                 | Views and leads per day: the only traffic data the API has. Feeds dashboards.                                                                                                                                      |
 | List sales, get sale                                        | Full sales history with commission and payout dates; feeds `sold` events and reporting.                                                                                                                            |
 | Update sale (auth code)                                     | When a sale is `AWAITING_AUTH_CODE`, DomBot can fetch the code from the registrar (registrar-client `getAuthCode`) and submit it. This is the most valuable automation in the whole API.                           |

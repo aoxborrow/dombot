@@ -21,7 +21,7 @@ bug. #17 is resolved, and #4 is fixed in one of the two places it was wrong.
 #10 and #11 were first filed as bugs: #10 turned out to be a rule Afternic
 states in its dashboard but not in the API docs, and #11's bug is fixed,
 leaving behavior worth documenting. #12 wasn't rerun, since a reconcile could
-delist real names. #9 is new.
+delist real names. #9 is new. #18 was found on 2026-11-02.
 
 ## Bugs
 
@@ -255,6 +255,33 @@ include one. A short error code and message would let integrations show why.
 **Retested 2026-10-29:** unchanged:
 `{"dombot-not-listed-0000.com": {"code": 404}}` inside a 200
 (`f9284bdc-9d6f-4890-bcd7-247f5ed211e3`).
+
+### 18. No way to request ownership verification, and `INACTIVE` has no reason
+
+Found 2026-11-02. Creating a listing for a name another account already
+lists returns 201 `PENDING`, and four seconds later the listing is
+`INACTIVE`, with nothing in the API saying why. The dashboard handles this
+case with Verify Ownership: add the account's TXT record or NS3, then
+**Request ownership verification**, after which the other account's listing
+is removed. The Portfolio API has no call for that request, and
+`POST /domains/$each/relist` with `RESYNC` doesn't make it: with the TXT
+record or NS3 in place, two such listings answered `200` and stayed
+`INACTIVE`, with `updatedAt` unchanged, for over an hour. The reference says
+a relist that changed nothing is reported as `204`.
+
+`RESYNC` didn't clear two older listings either. They have been `INACTIVE`
+since April, and no other account lists them. One of them was on
+`ns1/ns2.afternic.com` plus NS3. Both stayed `INACTIVE`, with `updatedAt`
+unchanged, for 15 to 30 minutes after it. `REACTIVATE` didn't help either.
+On one of the older listings it moved `updatedAt` and nothing else. On a
+duplicate it changed nothing. The reference says only that relist
+"re-trigger[s] the listing process", so it's unclear what either mode is for.
+
+Three asks: a reason on `INACTIVE` listings (duplicate listing, registration
+checks, and so on, as the dashboard shows), a way to request ownership
+verification through the API, or `RESYNC` doing it for a listing that's
+`INACTIVE` as a duplicate, and a line in the reference on what `RESYNC` and
+`REACTIVATE` each do.
 
 ## Resolved
 
