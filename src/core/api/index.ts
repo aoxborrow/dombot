@@ -487,9 +487,20 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
   getMarketCatalog: method(none, async () => marketCatalog()),
   listMarketAccounts: method(none, async () => marketAccountViews()),
   connectMarketAccount: method(
-    z.tuple([s.marketId, s.marketCredentials, s.marketLabel.optional()]),
-    async (market, credentials, label) => {
-      const account = await connectMarketAccount(market, credentials, label);
+    z.tuple([
+      s.marketId,
+      s.marketCredentials,
+      s.marketLabel.optional(),
+      s.accountId,
+    ]),
+    async (market, credentials, label, registrarAccountId) => {
+      const account = await connectMarketAccount(
+        market,
+        credentials,
+        label,
+        undefined,
+        registrarAccountId,
+      );
       await syncMarketAccount(account.id);
       return marketAccountViews();
     },

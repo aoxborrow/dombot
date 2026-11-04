@@ -9,10 +9,35 @@ reference at <https://www.dynadot.com/domain/api-document#set_for_sale>
 <https://www.dynadot.com/help/question/domain-sale-process> and, for names
 held elsewhere, <https://www.dynadot.com/help/question/open-marketplace>.
 
-**Status: planned, nothing built, no live calls yet.** Everything below is
-from the API reference and Dynadot's help pages as read on 2026-11-03. Only
-the other-registrar commands run in Dynadot's sandbox, so the build needs
-live calls on test names early (see "Testing").
+## Status
+
+**Read side built, and checked live (reads only, 2026-11-04); listing from
+DomBot not built yet.** The plan below is from the API reference and
+Dynadot's help pages as read on 2026-11-03; "Observed" has what live reads
+showed.
+
+- **Client** `src/core/markets/dynadot/`: signed reads of the account, its
+  domain list, one listing, the other-registrar list and a name's
+  verification values. No writes yet.
+- **Adapter** `src/core/services/markets/dynadot.ts`, registered as
+  `dynadot` ("Dynadot"): listings of both kinds of name (below), the Open
+  Marketplace Key read into the account's Ownership Verification ID on
+  each sync. Writes answer, name by name, that listing from DomBot isn't
+  built yet. Capabilities are what's built: USD, no minimum offer, sales or
+  Recheck yet.
+- **Registrar-backed accounts:** Settings → Markets adds a Dynadot account by
+  picking a Dynadot registrar account (each one once); it calls with that
+  account's key and proxy route, keeps no credentials of its own, and
+  `market_list` shows its `registrarAccountId`.
+- **Verification:** the key parses from the key, its NS3 or its CNAME; the
+  nameserver preset is Dynadot's DNS pair plus `ns3-<key>.dyna-ns.org`;
+  only the NS3 counts as the market's nameservers.
+- **Demo:** a Dynadot account on the demo's Dynadot registrar account, with
+  names from both sides.
+- **Live tests:** `src/core/markets/dynadot/client.live.test.ts`, reads only.
+- **Next:** writes (both kinds), verification and Recheck for names held
+  elsewhere, then sales. Not yet: the remove-both prompt and the registrar
+  card pointing back, and sharing the registrar's bulk lane.
 
 Dynadot is already a DomBot registrar: registrar-client's `dynadot` speaks
 the same RESTful v2 API. The marketplace commands use the same host, the
@@ -155,7 +180,7 @@ documented (open question 1).
 
 ### Reading listings of names in the account
 
-No seller "my listings" call is documented for these. What there is:
+No seller "my listings" call exists for these. What there is:
 
 - **`domain_list`** marks each name `is_for_sale`, with no price.
   DomBot's registrar sync already reads this list (registrar-client's
@@ -167,11 +192,33 @@ No seller "my listings" call is documented for these. What there is:
   `is_huge_domains`. No minimum offer, installments, category,
   description, currency of its own, or listing date. It needs no
   signature, so it looks like the buyer's view of a listing.
-- **`get_listings`** pages through listings with the same fields. Its
-  parameters (`exclude_pending_sale`, `show_other_registrar`) and the
-  `is_huge_domains` flag read like the public marketplace feed. If it
-  returns only the account's own listings, it's the sync call (open
-  question 2).
+- **`get_listings`** pages through listings with the same fields, for the
+  whole marketplace (observed: a total of 493,548), not the account's own.
+  DomBot doesn't use it.
+
+### Observed (live reads, 2026-11-04)
+
+- `accounts/info` has `price_level` as a phrase ("Bulk Account").
+- `domain_list` marks names `is_for_sale: "Yes" | "No"`, takes
+  `page_size=200` and pages with `pagination_result` (`has_next_page:
+"No"`). Every listed name on the account checked used its own
+  nameservers (`glue_type: NAME_SERVERS`): a listing needs nothing in
+  Dynadot's DNS.
+- `get_listing_item` refuses a read without `currency` (400, "The value for
+  parameter currency is invalid"), wants the name lowercase (400 "must be
+  all lowercase"), and answers 404 "Can not find the …" for a name with no
+  listing. `type` comes in capitals (`BIN`, `BIN_MAKE_OFFER`),
+  `is_pending_sale_locked` as "No", no `is_huge_domains`, and prices like
+  "7999.00". Every listing had a price; none was Make Offer alone.
+- Reads convert: a listing read with `currency=eur` came back at the EUR
+  equivalent of its USD price.
+- The other-registrar list has no paging fields. A name not for sale reads
+  `for_sale_type: "Not Set"`, `price: ""`, `transfer_status: ""`; a .io
+  name read `status: "Unregistered"` with no registrar (Dynadot's WHOIS
+  lookup missed it), dates 0.
+- A name's verification read gives `txt`, `open_market_key` (the same),
+  `nameserver_list` (the pair and the NS3) and `cname`
+  (`ns1-<key>.dyna-ns.net`).
 
 ### From Dynadot's pages
 
@@ -225,7 +272,6 @@ No seller "my listings" call is documented for these. What there is:
 | `delete_other_registrar_domain`       | Take a name off Dynadot's list entirely, when asked.                                                                                                                           |
 | `domain_list` (`is_for_sale`)         | Which names in the account are listed. From the registrar sync once registrar-client passes the flag through (a small registrar-client change); otherwise the market reads it. |
 | `get_listing_item`                    | Price, Buy Now or offers, and a sale under way, per listed name in the account.                                                                                                |
-| `get_listings`                        | Sync in one paged read, if it's the account's own listings (open question 2).                                                                                                  |
 | `set_for_sale`                        | List, reprice, Buy Now and Make Offer, minimum offer, delist (`not_for_sale`) for names in the account.                                                                        |
 | `accounts/info`                       | The account test, and `price_level` for the rate limit.                                                                                                                        |
 
@@ -258,6 +304,7 @@ No seller "my listings" call is documented for these. What there is:
   Afternic or Sedo for you. DomBot lists on both directly, with their own
   accounts; a second path would give one listing two owners.
 - **The `auction`, `portfolio_auction` and `broker_service` sale types.**
+- **`get_listings`:** the whole marketplace, not the account's listings.
 - **CNAME verification:** anywhere DomBot can add a CNAME it can add the TXT
   record, as for Sedo.
 - **`use_for_sale_landing_page`:** it changes the name's DNS, which
@@ -304,8 +351,9 @@ Whichever market lands first builds it. What's different for Dynadot:
 
 ## What it means for DomBot
 
-The market id is `dynadot`, the same as the registrar, shown as "Dynadot
-Marketplace".
+The market id is `dynadot`, the same as the registrar, shown as "Dynadot"
+(Settings → Markets makes the context plain, and the listing column stays
+short).
 
 ### Two kinds of names
 
@@ -338,9 +386,9 @@ Sync reads both:
   entries is 100 calls. An entry with `for_sale_type` Not Set is added but
   not listed: DomBot keeps its verification status and shows no listing.
 - **In the account:** the names the linked account marks `is_for_sale`, then
-  `get_listing_item` for each, or `get_listings` in pages if it turns out to
-  be the account's own. On Regular, 1,000 listed names take about 17
-  minutes, sharing the minute with registrar sync; Bulk is ten times faster.
+  `get_listing_item` for each. On Regular, 1,000 listed names take about 20
+  minutes (the client paces at 50 a minute, under Regular's 60, sharing the
+  key with registrar sync); 36 took under a minute on a Bulk account.
 
 A failed read leaves `complete` false and keeps the last snapshot.
 
@@ -367,8 +415,9 @@ offers are welcome even where it doesn't give the minimum.
 
 **Currency:** the market card has a **Listing Currency** (USD to start).
 Writes send it and reads ask for it. A listing priced in another currency
-on Dynadot's site then reads converted, if Dynadot converts (open
-question 7), and shows as above or below the DomBot price.
+on Dynadot's site then reads converted (Dynadot converts, observed), and
+shows as above or below the DomBot price. Built so far: reads in USD, no
+setting yet.
 
 ### Writes
 
@@ -532,6 +581,9 @@ registrar, where the registrar supports it.
 
 ### Capabilities
 
+Planned, once writes, verification and sales are in. What's built declares
+only what works: USD, no minimum offer, `sales` and `verifyDns` off.
+
 ```ts
 const DYNADOT_CAPABILITIES: MarketCapabilities = {
   // Dynadot's 32, less BTC and the withdrawn LTL, which DomBot doesn't have
@@ -570,12 +622,13 @@ capabilities, and `market_list` shows `registrarAccountId`. Listings carry
 
 ### The demo
 
-A Dynadot Marketplace account linked to the demo's Dynadot registrar
-account (`src/core/demo/markets.ts`), with a made-up Open Marketplace Key
-as its verification ID: Buy Now, offers-only and
-pending-sale listings in the account, and names from the demo's other
-registrars on Dynadot, one waiting on verification and one sold and
-waiting on its auth code.
+Built: a Dynadot account on the demo's Dynadot registrar account
+(`src/core/demo/markets.ts`), with a made-up Open Marketplace Key as its
+verification ID, listing about three in ten priced names: those the demo's
+Dynadot account holds, and names from its other registrars, a few still
+waiting on verification. Writes answer that they aren't built, as the real
+adapter does. Planned: a pending-sale listing, and a sale of a name held
+elsewhere waiting on its auth code.
 
 ## Testing
 
@@ -585,11 +638,11 @@ as they come in. Live tests follow Atom's: reads with the Dynadot key in
 registrar), writes behind `DYNADOT_LIVE_WRITES=1`, each listed at a price
 nobody would pay, read back, then delisted.
 
-- **Reads first, on what's there.** The account already has names listed
-  on Dynadot's marketplace, so `domain_list`, `get_listing_item` and
-  `get_listings` can be read against them without writing anything. That
-  answers open questions 2 and 3, and shows the shapes. Nothing about
-  those listings goes in the repo.
+- **Reads first, on what's there (done, 2026-11-04).** The account's
+  existing listings were read without writing anything:
+  `client.live.test.ts` (`npm run test:live`) reads the price level, every
+  listing through the adapter, and the key. It prints counts only; nothing
+  about the listings goes in the repo.
 - **Held elsewhere:** domanio.com and domainio.com, both at 101domain, are
   the test names (`DYNADOT_TEST_EXTERNAL_DOMAIN`): add, TXT through
   101domain, verify, list, delist, remove. Other names from the user's
@@ -599,14 +652,16 @@ nobody would pay, read back, then delisted.
 
 ## Phases
 
-1. **Registrar-backed market accounts:** SellerHub's phase 1
-   (docs/sellerhub-api.md), built here if Dynadot goes first. For Dynadot
-   also: one limiter for a key both sides use, sized from `price_level`.
-2. **Read side, both kinds:** client (signature, envelope, errors, limiter),
+1. **Registrar-backed market accounts:** built here first (SellerHub's
+   phase 1 can use it): the Settings picker, credentials and proxy through
+   `registrarAccountId`, one market account per registrar account,
+   `market_list`. Not yet: the remove-both prompt, the registrar card
+   pointing back, and one limiter shared with the registrar's bulk lane.
+2. **Read side, both kinds:** built and checked live (reads only): client,
    adapter with the two paths, registry entry, sync from
    `other_registrar_domain_list` and from `is_for_sale` plus
-   `get_listing_item` (or `get_listings`), the Listing Currency setting,
-   the demo account. Live reads, open questions 1–5 first.
+   `get_listing_item`, the key into the verification ID, the demo account.
+   Not yet: the Listing Currency setting (reads are USD).
 3. **Writes and verification:** list, reprice, Buy Now and offers, minimum
    offer, delist for both kinds; add and remove for names held elsewhere;
    the Open Marketplace Key read into the verification ID, Ownership
@@ -623,10 +678,10 @@ nobody would pay, read back, then delisted.
    the fields sent, or replace the listing? If a price-only call clears the
    minimum offer, category, description or installments, the reads won't
    show it.
-2. Is `get_listings` the account's own listings or the whole marketplace?
-   With `show_other_registrar`, does it include names held elsewhere?
-3. Does `get_listing_item` return more than documented (minimum offer,
-   currency, installments)? What's in `price` for a Make Offer listing?
+2. Answered (2026-11-04): `get_listings` is the whole marketplace.
+3. Answered in part: `get_listing_item` has no minimum offer, currency or
+   installments. Still open: what's in `price` for a Make Offer listing
+   (the account has none).
 4. For a sold name held elsewhere: which `status` or `transfer_status`
    says the buyer has paid, does the list read give a price or an order id,
    and can the auth code be submitted through the API (a command behind
@@ -636,9 +691,9 @@ nobody would pay, read back, then delisted.
 6. Does the marketplace need anything on the key or the account (an API
    setting, a price level), or does any registrar key work? Is the live
    path `aftermarkets/…/for_sales` or `aftermarket/…`?
-7. Currency: is a listing kept in the currency it was set in, and does a
-   read in another currency convert it? What are "cents" for JPY or KRW?
-   What currency and format is `price` in the other-registrar list?
+7. Currency: reads convert (observed). Still open: is a listing kept in
+   the currency it was set in? What are "cents" for JPY or KRW? What
+   currency and format is `price` in the other-registrar list?
 8. What do `asking_price` and `reserve_price` do on a listing held
    elsewhere, beside Buy Now and the minimum offer?
 9. Does add refuse names at Dynadot (in another Dynadot account), or names

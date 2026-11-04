@@ -430,13 +430,13 @@ const queryShape = {
       'Only domains with a nameserver containing this substring (case-insensitive). Needs the domain enriched with detail; un-enriched domains without list nameservers are excluded.',
     ),
   listedOn: z
-    .enum(['afternic', 'atom', 'sedo'])
+    .enum(['afternic', 'atom', 'dynadot', 'sedo'])
     .optional()
     .describe(
       'Only names listed on this market (any listing status), as of the last market_sync.',
     ),
   notListedOn: z
-    .enum(['afternic', 'atom', 'sedo'])
+    .enum(['afternic', 'atom', 'dynadot', 'sedo'])
     .optional()
     .describe(
       'Only names not listed on this market: the ones you could list there.',

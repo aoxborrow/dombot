@@ -22,6 +22,7 @@ import {
   verificationNameserver,
   verificationTxt,
 } from '../../../shared/market-verification';
+import { accountTitle } from '../../../shared/account-label';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
 import { MarketLogo } from '../../components/RegistrarLogo';
@@ -50,6 +51,13 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import {
   SettingsExternalLink,
@@ -292,6 +300,91 @@ function CredentialFields({
 const filled = (market: MarketInfo, values: Values) =>
   market.configFields.every((f) => !f.required || values[f.name]?.trim());
 
+/**
+ * The connected accounts of the registrar a market runs on (Dynadot), as
+ * the picker lists them: id and title ("Dynadot", "Dynadot · Personal").
+ */
+function useRegistrarAccounts(market: MarketInfo, unusedOnly = false) {
+  const registrars = useAppStore((s) => s.registrars);
+  const loadRegistrars = useAppStore((s) => s.loadRegistrars);
+  const marketAccounts = useAppStore((s) => s.marketAccounts);
+  const used = (marketAccounts ?? []).map((a) => a.registrarAccountId);
+  useEffect(() => {
+    if (market.registrar && registrars === null) void loadRegistrars();
+  }, [market.registrar, registrars, loadRegistrars]);
+  const mine = (registrars ?? []).filter(
+    (r) => r.name === market.registrar && r.saved && r.configured,
+  );
+  return mine
+    .map((r) => ({
+      id: r.accountId ?? r.name,
+      title: accountTitle(r.displayName, r.accountLabel, mine.length > 1),
+    }))
+    .filter((o) => !unusedOnly || !used.includes(o.id));
+}
+
+/**
+ * For a market on a registrar's API: which registrar account's key it uses.
+ * Chosen when the account is added; shown, not changed, afterwards.
+ */
+function RegistrarAccountField({
+  market,
+  idPrefix,
+  value,
+  disabled,
+  onChange,
+}: {
+  market: MarketInfo;
+  idPrefix: string;
+  value: string | null;
+  disabled: boolean;
+  onChange?: (id: string) => void;
+}) {
+  // A new account offers the registrar accounts no market account uses yet.
+  const options = useRegistrarAccounts(market, Boolean(onChange));
+  const id = `${idPrefix}-registrar-account`;
+  const current = options.find((o) => o.id === value);
+  return (
+    <SettingsField
+      htmlFor={id}
+      label={`${market.name} Account`}
+      description={`DomBot uses this ${market.name} registrar account’s API key and proxy. Keys are changed in Settings → Registrars.`}
+    >
+      {!onChange ? (
+        <p id={id} className="text-sm">
+          {current?.title ?? (
+            <span className="text-destructive">
+              The {market.name} registrar account this used is gone.
+            </span>
+          )}
+        </p>
+      ) : options.length === 0 ? (
+        <p id={id} className="text-sm text-muted-foreground">
+          Every {market.name} registrar account has a market account already.
+          Connect another in Settings → Registrars first.
+        </p>
+      ) : (
+        <Select
+          value={value ?? undefined}
+          onValueChange={onChange}
+          disabled={disabled}
+        >
+          <SelectTrigger id={id} className="w-fit min-w-48">
+            <SelectValue placeholder={`Choose a ${market.name} account`} />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </SettingsField>
+  );
+}
+
 /** A new account: nothing is saved until its key passes a test. */
 function DraftMarketCard({
   market,
@@ -305,6 +398,14 @@ function DraftMarketCard({
   const [label, setLabel] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A market on a registrar's API uses one of that registrar's accounts.
+  const registrarAccounts = useRegistrarAccounts(market, true);
+  const [picked, setPicked] = useState<string | null>(null);
+  const registrarAccountId =
+    picked ?? (registrarAccounts.length === 1 ? registrarAccounts[0].id : null);
+  const ready = market.registrar
+    ? registrarAccountId !== null
+    : filled(market, values);
 
   const connect = async () => {
     setSaving(true);
@@ -314,6 +415,7 @@ function DraftMarketCard({
         market.id,
         values,
         label.trim() || undefined,
+        market.registrar ? (registrarAccountId ?? undefined) : undefined,
       );
       await setMarketAccounts(accounts);
       const added = accounts.at(-1);
@@ -351,15 +453,25 @@ function DraftMarketCard({
       >
         <MarketHelp market={market} />
         <FieldGroup className="gap-4">
-          <CredentialFields
-            market={market}
-            idPrefix="new-market"
-            values={values}
-            disabled={saving}
-            onChange={(name, value) =>
-              setValues((current) => ({ ...current, [name]: value }))
-            }
-          />
+          {market.registrar ? (
+            <RegistrarAccountField
+              market={market}
+              idPrefix="new-market"
+              value={registrarAccountId}
+              disabled={saving}
+              onChange={setPicked}
+            />
+          ) : (
+            <CredentialFields
+              market={market}
+              idPrefix="new-market"
+              values={values}
+              disabled={saving}
+              onChange={(name, value) =>
+                setValues((current) => ({ ...current, [name]: value }))
+              }
+            />
+          )}
           <Field>
             <FieldLabel htmlFor="new-market-label">
               Account Name (optional)
@@ -375,7 +487,7 @@ function DraftMarketCard({
           </Field>
         </FieldGroup>
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={saving || !filled(market, values)}>
+          <Button type="submit" disabled={saving || !ready}>
             {saving ? 'Connecting…' : 'Connect'}
           </Button>
           <Button
@@ -739,15 +851,24 @@ function MarketCard({
             <div>
               <MarketHelp market={market} />
               <FieldGroup className="gap-4">
-                <CredentialFields
-                  market={market}
-                  idPrefix={account.id}
-                  values={values}
-                  disabled={busy !== null}
-                  onChange={(name, value) =>
-                    setValues((current) => ({ ...current, [name]: value }))
-                  }
-                />
+                {account.registrarAccountId ? (
+                  <RegistrarAccountField
+                    market={market}
+                    idPrefix={account.id}
+                    value={account.registrarAccountId}
+                    disabled
+                  />
+                ) : (
+                  <CredentialFields
+                    market={market}
+                    idPrefix={account.id}
+                    values={values}
+                    disabled={busy !== null}
+                    onChange={(name, value) =>
+                      setValues((current) => ({ ...current, [name]: value }))
+                    }
+                  />
+                )}
                 <VerificationField
                   market={market}
                   idPrefix={account.id}
@@ -794,7 +915,11 @@ function MarketCard({
       {removing && (
         <ConfirmDialog
           title={`Remove ${market.name} · ${title}?`}
-          description={`DomBot forgets this account's key and synced listings. Your listings stay on ${market.name}, and sales DomBot recorded stay in your history.`}
+          description={
+            account.registrarAccountId
+              ? `DomBot forgets this account and its synced listings. The ${market.name} registrar account and its key stay, your listings stay on ${market.name}, and sales DomBot recorded stay in your history.`
+              : `DomBot forgets this account's key and synced listings. Your listings stay on ${market.name}, and sales DomBot recorded stay in your history.`
+          }
           actionLabel="Remove account"
           busyLabel="Removing…"
           busy={busy === 'remove'}
