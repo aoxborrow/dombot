@@ -18,13 +18,13 @@ import {
   CalendarCheck,
   CalendarClock,
   CalendarPlus2,
+  CircleAlert,
   CircleCheck,
   Globe,
   RotateCw,
   Server,
   ShieldBan,
   ShieldCheck,
-  TriangleAlert,
 } from 'lucide-react';
 import type {
   Domain,
@@ -2435,7 +2435,7 @@ export default function Domains() {
   }));
 
   // Sync failures: the whole sync, or which accounts failed. They show as a
-  // red triangle beside Sync now, these words in its tooltip; it opens
+  // red alert icon beside Sync now, these words in its tooltip; it opens
   // Settings → Sync, which has each account's error.
   const failedAccounts = [
     ...portfolioErrors.map((e) =>
@@ -2477,7 +2477,7 @@ export default function Domains() {
                 aria-label={`${syncTrouble}. Open Sync settings.`}
                 className="flex size-9 items-center justify-center rounded-md text-destructive/75 transition-colors hover:text-destructive"
               >
-                <TriangleAlert className="size-5" />
+                <CircleAlert className="size-5" />
               </Link>
             )}
             <SyncSplitButton
