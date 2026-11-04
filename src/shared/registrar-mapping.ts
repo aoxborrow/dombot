@@ -106,6 +106,8 @@ export function mappingIndex(): Index {
     for (const id of entry.ianaIds) byId.set(id, key);
     const names = [
       labelOf(key),
+      // "porkbun.com", as a file or a WHOIS record may give it.
+      ...(isBuiltIn(key) ? [registrars[key].website] : []),
       entry.name,
       ...(entry.names ?? []),
       ...entry.ianaIds.map((id) => ianaNames.get(id) ?? ''),

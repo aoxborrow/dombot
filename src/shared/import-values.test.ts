@@ -185,14 +185,17 @@ describe('readRegistrar', () => {
     ['gandi', 'gandi'],
     ['Gandi SAS', 'gandi'],
     ['godaddy.com', 'godaddy'],
+    ['porkbun.com', 'porkbun'],
+    ['namecheap.com', 'namecheap'],
   ])('%j → %j', (raw, id) => {
     expect(readRegistrar(raw)).toEqual({ id });
   });
   it.each(Object.entries(registrars))(
-    'reads %s by its id and its name',
+    'reads %s by its id, name and website',
     (id, r) => {
       expect(readRegistrar(id)).toEqual({ id });
       expect(readRegistrar(r.displayName)).toEqual({ id });
+      expect(readRegistrar(r.website)).toEqual({ id });
     },
   );
   it('keeps an unknown registrar as text', () => {
