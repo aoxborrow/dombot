@@ -1,3 +1,4 @@
+import { API_TIMEOUT_MS } from '../../api-timeout';
 import { userAgentHeaders } from '../../app-info';
 import { assertDomainName } from '../../../shared/domain-name';
 import {
@@ -74,6 +75,7 @@ export interface SedoClientOptions extends SedoCredentials {
   clock?: Clock;
   /** Retries for a call Sedo says it's too busy for. Defaults to 3. */
   maxRetries?: number;
+  /** Per-request timeout. Defaults to `API_TIMEOUT_MS`, 90 seconds. */
   timeoutMs?: number;
 }
 
@@ -182,7 +184,7 @@ export class SedoClient {
         () => new RateLimiter(this.clock, REQUESTS_PER_MINUTE),
       );
     this.maxRetries = options.maxRetries ?? 3;
-    this.timeoutMs = options.timeoutMs ?? 30_000;
+    this.timeoutMs = options.timeoutMs ?? API_TIMEOUT_MS;
   }
 
   // Account
@@ -614,16 +616,15 @@ export class SedoClient {
         signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch (error) {
-      const timedOut =
-        error instanceof Error &&
-        (error.name === 'TimeoutError' || error.name === 'AbortError');
-      throw new SedoError(
-        timedOut ? 'TIMEOUT' : 'NETWORK',
-        timedOut ? 'Sedo did not respond in time.' : 'Could not reach Sedo.',
-        0,
-      );
+      throw transportError(error);
     }
-    const raw = await response.text();
+    let raw: string;
+    try {
+      // The timeout covers the body too: a big page can stall mid-download.
+      raw = await response.text();
+    } catch (error) {
+      throw transportError(error);
+    }
     // A fault document wins over the status. Sedo sends faults with HTTP 200
     // (checked live), but a proxy or outage may not.
     let res: ParsedResponse | null = null;
@@ -658,4 +659,16 @@ export class SedoClient {
     }
     return res;
   }
+}
+
+/** No answer, or none in time. */
+function transportError(error: unknown): SedoError {
+  const timedOut =
+    error instanceof Error &&
+    (error.name === 'TimeoutError' || error.name === 'AbortError');
+  return new SedoError(
+    timedOut ? 'TIMEOUT' : 'NETWORK',
+    timedOut ? 'Sedo did not respond in time.' : 'Could not reach Sedo.',
+    0,
+  );
 }

@@ -1,3 +1,4 @@
+import { API_TIMEOUT_MS } from '../../api-timeout';
 import { userAgentHeaders } from '../../app-info';
 import { assertDomainName } from '../../../shared/domain-name';
 import {
@@ -84,6 +85,7 @@ export interface AtomClientOptions extends AtomCredentials {
   clock?: Clock;
   /** Retries for a read that hit a rate limit, 5xx or network error. */
   maxRetries?: number;
+  /** Per-request timeout. Defaults to `API_TIMEOUT_MS`, 90 seconds. */
   timeoutMs?: number;
 }
 
@@ -143,7 +145,7 @@ export class AtomClient {
         () => new RateLimiter(this.clock, REQUESTS_PER_MINUTE),
       );
     this.maxRetries = options.maxRetries ?? 3;
-    this.timeoutMs = options.timeoutMs ?? 30_000;
+    this.timeoutMs = options.timeoutMs ?? API_TIMEOUT_MS;
   }
 
   // Listings
@@ -528,17 +530,15 @@ export class AtomClient {
         signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch (error) {
-      const timedOut =
-        error instanceof Error &&
-        (error.name === 'TimeoutError' || error.name === 'AbortError');
-      if (timedOut) console.warn(`[atom] ${method} ${path} timed out`);
-      throw new AtomError(
-        timedOut ? 'TIMEOUT' : 'NETWORK',
-        timedOut ? 'Atom did not respond in time.' : 'Could not reach Atom.',
-        0,
-      );
+      throw transportError(error, method, path);
     }
-    const raw = await response.text();
+    let raw: string;
+    try {
+      // The timeout covers the body too: a big page can stall mid-download.
+      raw = await response.text();
+    } catch (error) {
+      throw transportError(error, method, path);
+    }
     // Atom usually answers in well under a second; log the slow ones by
     // endpoint (never the URL, which holds the token) to see what stalls.
     const took = this.clock.now() - started;
@@ -589,4 +589,21 @@ export class AtomClient {
     }
     return body;
   }
+}
+
+/** No answer, or none in time. Logs the endpoint, never the URL (the token). */
+function transportError(
+  error: unknown,
+  method: string,
+  path: string,
+): AtomError {
+  const timedOut =
+    error instanceof Error &&
+    (error.name === 'TimeoutError' || error.name === 'AbortError');
+  if (timedOut) console.warn(`[atom] ${method} ${path} timed out`);
+  return new AtomError(
+    timedOut ? 'TIMEOUT' : 'NETWORK',
+    timedOut ? 'Atom did not respond in time.' : 'Could not reach Atom.',
+    0,
+  );
 }
