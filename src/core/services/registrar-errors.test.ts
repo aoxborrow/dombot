@@ -11,8 +11,8 @@ import {
   saveRegistrarCredentials,
   syncRegistrar,
 } from './registrars';
-import { protectRegistrar, redactRegistrarMessage } from './registrar-errors';
-import { RateLimitError } from '@aoxborrow/registrar-client';
+import { protectRegistrar } from './registrar-errors';
+import { RateLimitError, redactSecrets } from '@aoxborrow/registrar-client';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -58,7 +58,7 @@ it('redacts raw and encoded secrets, soft failures, and extended-method exceptio
   await expect(client.getAuthCode()).rejects.toBeInstanceOf(RateLimitError);
   await expect(client.getAuthCode()).rejects.toThrow('bad [redacted]');
   expect(
-    redactRegistrarMessage(
+    redactSecrets(
       'Failed https://user:pass@api.example/path?unknown=old-secret',
     ),
   ).not.toContain('old-secret');

@@ -1,5 +1,5 @@
 import { API_TIMEOUT_MS } from '../api-timeout';
-import { protectRegistrar, redactRegistrarMessage } from './registrar-errors';
+import { protectRegistrar } from './registrar-errors';
 import { importedRows } from '../../shared/imported-domains';
 import { getImportedDomains } from './imported-domains';
 import {
@@ -8,6 +8,7 @@ import {
   RegistrarClient,
   createRegistrar,
   listPortfolio,
+  redactSecrets,
   registrars,
   type OperationResult,
   type RegisterDomainInput,
@@ -507,7 +508,7 @@ function readRegistrarEntry(name: string): RegistrarPortfolioEntry | null {
   return {
     ...cached.data,
     lastError: cached.data.lastError
-      ? redactRegistrarMessage(cached.data.lastError, accountSecrets(name))
+      ? redactSecrets(cached.data.lastError, accountSecrets(name))
       : null,
     domains: cached.data.domains.filter(hasDomainName).map(reviveCachedDomain),
   };

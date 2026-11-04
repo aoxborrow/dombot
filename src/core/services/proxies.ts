@@ -14,8 +14,8 @@ import type {
   RegistrarAccount,
 } from '../../shared/ipc';
 import { proxySecrets } from '../../shared/proxy';
+import { redactSecrets } from '@aoxborrow/registrar-client';
 import { sendThroughProxy } from './proxy-transport';
-import { redactRegistrarMessage } from './registrar-errors';
 import { Namespace } from '../storage/namespace';
 import { isSavedAccount, listAccounts, setAccountProxy } from './accounts';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
@@ -222,9 +222,7 @@ export async function testProxy(input: {
       clearTimeout(timer);
     }
   }
-  const secrets: Record<string, string> = {};
-  proxySecrets(route.url).forEach((v, i) => (secrets[String(i)] = v));
   throw new Error(
-    `Could not connect through the proxy: ${redactRegistrarMessage(failure, secrets)}`,
+    `Could not connect through the proxy: ${redactSecrets(failure, proxySecrets(route.url))}`,
   );
 }
