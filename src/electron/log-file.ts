@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { formatWithOptions } from 'node:util';
 
-// The desktop app's log file (Help → Show Log File): what the main process
+// The desktop app's log file (Help → Show Error Log): what the main process
 // warns and errors about, plus its few console.log lines, appended to
 // <logs>/main.log so a user can paste the last lines into a support email.
 // Packaged, the app has no terminal, so this is the only place they land.

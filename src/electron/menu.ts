@@ -6,7 +6,7 @@ import { showAppLog } from './app-log';
  * The macOS application menu: the standard one, with Check for Updates…
  * (opens Settings → About and checks) and Settings… (⌘,) after About;
  * File → Sync Now, which asks the focused window to sync like the status
- * bar's Sync button; and Help → Show Log File. Windows and Linux have no menu
+ * bar's Sync button; and Help → Show Error Log. Windows and Linux have no menu
  * bar (see removeMenu in index.ts); Settings → About shows the log there.
  */
 function focusedWindow(): BrowserWindow | undefined {
@@ -76,7 +76,7 @@ export function setAppMenu(open: (route: string) => void): void {
       { role: 'windowMenu' },
       {
         role: 'help',
-        submenu: [{ label: 'Show Log File', click: () => showAppLog() }],
+        submenu: [{ label: 'Show Error Log', click: () => showAppLog() }],
       },
     ]),
   );

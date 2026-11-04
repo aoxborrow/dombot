@@ -131,9 +131,9 @@ location, get a download link instead. Self-hosted instances link to
 
 ## Reporting a problem
 
-The desktop app keeps a log of what it warns and errors about, such as a sync
-that failed and what the registrar or marketplace said. Open it with **Help →
-Show Log File** (macOS) or **Settings → About → Show in Finder / Explorer**.
+The desktop app keeps an error log: its warnings and errors, such as a failed
+sync and what the registrar or marketplace said. Open it with **Help → Show
+Error Log** (macOS) or **Settings → About → Show in Finder / Explorer**.
 It lives at `~/Library/Logs/DomBot/main.log` on macOS and
 `%APPDATA%\DomBot\logs\main.log` on Windows, and rolls over to `main.old.log`
 at 2 MB. Every line is scrubbed before it's written: saved keys, passwords and

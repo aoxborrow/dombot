@@ -24,6 +24,7 @@ import {
   Server,
   ShieldBan,
   ShieldCheck,
+  TriangleAlert,
 } from 'lucide-react';
 import type {
   Domain,
@@ -2433,47 +2434,25 @@ export default function Domains() {
     ...dataColumn(c.key),
   }));
 
-  // Sync failures, in red under the Sync button: the whole sync, or which
-  // accounts failed (their errors are on their cards in Settings → Registrars
-  // or Markets).
-  const syncErrors = (portfolioError ||
-    portfolioErrors.length > 0 ||
-    marketSyncProblems.length > 0) && (
-    <div className="flex flex-col items-end gap-0.5 text-right text-xs text-destructive">
-      {portfolioError && <p>Sync failed: {portfolioError}</p>}
-      {portfolioErrors.length > 0 && (
-        <p>
-          {portfolioErrors
-            .map((e) =>
-              accountTitle(
-                registrarLabel(e.registrar, portfolioRegistrarLabels),
-                e.accountLabel,
-                multipleAccounts.has(e.registrar),
-              ),
-            )
-            .join(', ')}{' '}
-          failed to sync ·{' '}
-          <Link
-            to="/settings?tab=registrars"
-            className="whitespace-nowrap underline underline-offset-4"
-          >
-            Registrar settings
-          </Link>
-        </p>
-      )}
-      {marketSyncProblems.length > 0 && (
-        <p>
-          {marketSyncProblems.map((p) => p.account).join(', ')} failed to sync ·{' '}
-          <Link
-            to="/settings?tab=markets"
-            className="whitespace-nowrap underline underline-offset-4"
-          >
-            Market settings
-          </Link>
-        </p>
-      )}
-    </div>
-  );
+  // Sync failures: the whole sync, or which accounts failed. They show as a
+  // red triangle beside Sync now, these words in its tooltip; it opens
+  // Settings → Sync, which has each account's error.
+  const failedAccounts = [
+    ...portfolioErrors.map((e) =>
+      accountTitle(
+        registrarLabel(e.registrar, portfolioRegistrarLabels),
+        e.accountLabel,
+        multipleAccounts.has(e.registrar),
+      ),
+    ),
+    ...marketSyncProblems.map((p) => p.account),
+  ];
+  const syncTrouble = [
+    portfolioError && `Sync failed: ${portfolioError}`,
+    failedAccounts.length > 0 && `${failedAccounts.join(', ')} failed to sync`,
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
@@ -2490,7 +2469,17 @@ export default function Domains() {
               {VIEW_TITLE[view]}
             </span>
           </h1>
-          <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5">
+            {syncTrouble && (
+              <Link
+                to="/settings?tab=sync"
+                title={syncTrouble}
+                aria-label={`${syncTrouble}. Open Sync settings.`}
+                className="flex size-9 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
+              >
+                <TriangleAlert className="size-5" />
+              </Link>
+            )}
             <SyncSplitButton
               viewCount={nameCount(filtered)}
               allCount={nameCount(shown)}
@@ -2504,15 +2493,8 @@ export default function Domains() {
                 )
               }
             />
-            {syncErrors && (
-              <div className="hidden max-w-md sm:block">{syncErrors}</div>
-            )}
           </div>
         </div>
-
-        {/* On phones, where the header column is narrow, the sync errors
-            get their own row. */}
-        {syncErrors && <div className="-mt-1.5 sm:hidden">{syncErrors}</div>}
 
         {(archiveView ? archiveCount > 0 : ownedCount > 0) && (
           <DomainsCards

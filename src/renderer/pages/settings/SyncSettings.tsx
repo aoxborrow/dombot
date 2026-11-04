@@ -20,11 +20,10 @@ import { timeAgo } from '../../lib/time';
 import { useAppStore } from '../../store/app';
 import {
   SYNC_TONE,
-  SyncLight,
   SyncStatusLabel,
   SyncTime,
 } from '../../components/SyncStatus';
-import { SETTINGS_LINK, SettingsCard, SettingsField } from './SettingsCard';
+import { SettingsCard, SettingsField } from './SettingsCard';
 
 /** Auto-sync interval choices (minutes). `0` disables the background sync. */
 const INTERVAL_OPTIONS: { label: string; minutes: number }[] = [
@@ -88,7 +87,7 @@ export default function SyncSettings() {
         </p>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
         <SyncAllRow />
         <NeedsAttention />
       </div>
@@ -201,8 +200,9 @@ function SyncAllRow() {
 const ATTENTION_ORDER = { failed: 0, stale: 1, unsynced: 2, synced: 3 };
 
 /**
- * The accounts that keep the light from going green: failed, not synced in
- * over a week, or never synced, each with a link to its card.
+ * The accounts that keep the light from going green, a line each under Sync
+ * all accounts: failed (red, with the error), not synced in over a week or
+ * never synced (amber), each with a link to its card.
  */
 function NeedsAttention() {
   const { accounts } = useSyncState();
@@ -212,17 +212,15 @@ function NeedsAttention() {
     .sort((a, b) => ATTENTION_ORDER[a.state] - ATTENTION_ORDER[b.state]);
   if (rows.length === 0) return null;
   return (
-    <SettingsCard title="Needs attention" contentClassName="py-1">
-      <ul className="divide-y">
-        {rows.map(({ account, state }) => (
-          <AttentionRow
-            key={`${account.kind}:${account.id}`}
-            account={account}
-            state={state}
-          />
-        ))}
-      </ul>
-    </SettingsCard>
+    <ul className="flex flex-col gap-0.5 text-xs">
+      {rows.map(({ account, state }) => (
+        <AttentionRow
+          key={`${account.kind}:${account.id}`}
+          account={account}
+          state={state}
+        />
+      ))}
+    </ul>
   );
 }
 
@@ -233,35 +231,35 @@ function AttentionRow({
   account: SyncAccount;
   state: ReturnType<typeof accountSyncState>;
 }) {
-  const level = state === 'failed' ? 'error' : 'warn';
-  const detail =
+  const text =
     state === 'failed'
-      ? (account.lastError ?? 'Sync failed')
+      ? `${account.name} failed to sync${account.lastError ? `: ${account.lastError}` : ''}`
       : state === 'stale'
-        ? `Last synced ${timeAgo(account.lastSyncedAt!)}`
-        : 'Not synced yet';
+        ? `${account.name} last synced ${timeAgo(account.lastSyncedAt!)}`
+        : `${account.name} hasn’t synced yet`;
   const market = account.kind === 'market';
   return (
-    <li className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 py-2.5 text-sm">
-      <span
-        className={cn('flex w-3.5 shrink-0 justify-center', SYNC_TONE[level])}
-      >
-        <SyncLight level={level} />
+    // One line from sm up, a long error cut short (all of it on hover);
+    // wrapped on phones.
+    <li
+      className={cn(
+        'sm:flex sm:items-baseline sm:gap-1',
+        SYNC_TONE[state === 'failed' ? 'error' : 'warn'],
+      )}
+    >
+      <span className="sm:min-w-0 sm:truncate" title={text}>
+        {text}
       </span>
-      <span className="shrink-0 font-medium">{account.name}</span>
-      {/* Under the name on phones, beside it from sm up. */}
-      <span
-        className="min-w-0 text-muted-foreground max-sm:order-last max-sm:basis-full max-sm:pl-6 sm:flex-1 sm:truncate"
-        title={detail}
-      >
-        {detail}
+      <span className="whitespace-nowrap">
+        {' '}
+        ·{' '}
+        <Link
+          to={`/settings?tab=${market ? 'markets' : 'registrars'}`}
+          className="underline underline-offset-4"
+        >
+          {market ? 'Market settings' : 'Registrar settings'}
+        </Link>
       </span>
-      <Link
-        to={`/settings?tab=${market ? 'markets' : 'registrars'}`}
-        className={cn('ml-auto shrink-0', SETTINGS_LINK)}
-      >
-        {market ? 'Market settings' : 'Registrar settings'}
-      </Link>
     </li>
   );
 }

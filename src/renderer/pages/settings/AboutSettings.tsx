@@ -230,15 +230,14 @@ export default function AboutSettings() {
         </div>
 
         {/* Desktop only: what to send with a bug report. On macOS it's also
-            Help → Show Log File; Windows has no menu bar. */}
+            Help → Show Error Log; Windows has no menu bar. */}
         {appInfo?.logFile && (
           <div className="flex items-center justify-between gap-6 border-t pt-4">
             <div className="min-w-0">
-              <p className="text-sm font-medium">Log File</p>
+              <p className="text-sm font-medium">Error Log</p>
               <p className="mt-0.5 text-[13px] text-muted-foreground">
-                What DomBot warns and errors about, with keys and passwords
-                taken out. To report a problem, include its last 100 or so
-                lines.
+                Warnings and errors from DomBot, such as a failed sync. It
+                removes your API keys and passwords before writing anything.
               </p>
               <p className="mt-1 select-text break-all font-mono text-xs text-muted-foreground">
                 {appInfo.logFile}
