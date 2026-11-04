@@ -1053,13 +1053,15 @@ export interface DombotApi {
    * Best-available per-domain detail (nameservers/privacy/lock) to merge over
    * the list summary — a partial, or `null` when nothing could be resolved.
    * With `refresh` false, a fresh-enough cached partial is served without a
-   * network call; otherwise it re-fetches and updates the cache.
+   * network call; otherwise it re-fetches and updates the cache. `cacheOnly`
+   * never calls out: the fresh cached partial, or null.
    */
   getDomainDetail: (
     registrar: RegistrarName,
     domainName: string,
     refresh?: boolean,
     accountId?: string,
+    cacheOnly?: boolean,
   ) => Promise<Partial<Domain> | null>;
   /**
    * Apply one domain operation (toggle a flag, replace nameservers/forwarding,

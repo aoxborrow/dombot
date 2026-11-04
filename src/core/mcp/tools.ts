@@ -1229,8 +1229,15 @@ export function registerTools(server: McpServer): void {
       );
       // getDomainDetail returns null only when neither the registrar nor the
       // registry could resolve anything — fall back to a live getDomain so the
-      // error (or record) still comes from the provider.
+      // error (or record) still comes from the provider. Detail goes over the
+      // synced row, which holds what the detail call can't read (Namecheap's
+      // auto-renew).
+      const key = toAscii(domain);
+      const row = getMergedPortfolio().domains.find(
+        (d) => d.accountId === account.id && toAscii(d.domainName) === key,
+      );
       return json({
+        ...(row ?? {}),
         ...(detail ??
           (await getRegistrarClient(r, account.id).getDomain(domain))),
         registrar: r,

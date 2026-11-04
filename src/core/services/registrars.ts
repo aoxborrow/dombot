@@ -45,6 +45,7 @@ import {
   type ProxyRoute,
 } from '../../shared/proxy';
 import { resolveNameservers } from '../dns';
+import { isRateLimitMessage } from '../../shared/rate-limit';
 import { isRegistrarEnabled, setRegistrarEnabled } from './registrar-state';
 import {
   clearEntry,
@@ -101,6 +102,58 @@ function withoutQuote(record: DetailRecord): Partial<Domain> {
   delete rest.accountId;
   delete rest.accountLabel;
   return rest;
+}
+
+// Fields a registrar's detail call can't read, which registrar-client fills
+// with a default instead. The list reports them, so detail must never cover
+// the list row's value. Namecheap's getInfo has no auto-renew flag, so every
+// Namecheap detail read came back "off".
+const LIST_ONLY_FIELDS: Partial<
+  Record<RegistrarName, readonly (keyof Domain)[]>
+> = {
+  namecheap: ['autoRenew'],
+};
+
+/** A detail record without the fields its registrar's list owns. */
+function withoutListOnly<T extends Partial<Domain>>(
+  registrar: RegistrarName | undefined,
+  record: T,
+): T {
+  const fields = registrar ? LIST_ONLY_FIELDS[registrar] : undefined;
+  if (!fields) return record;
+  const rest = { ...record };
+  for (const field of fields) delete rest[field];
+  return rest;
+}
+
+/** True when a cached record holds a detail read, not only the renewal quote
+ *  Sync stores (and the expiry dates Sync carries into it). A full read always
+ *  has nameservers; a partial one has nameservers or a creation date. */
+function hasDetail(record: DetailRecord): boolean {
+  return Array.isArray(record.nameservers) || record.createdDate != null;
+}
+
+/** What a cached record adds over the list row, or null when it holds no
+ *  detail read yet. */
+function detailView(
+  registrar: RegistrarName | undefined,
+  record: DetailRecord,
+): Partial<Domain> | null {
+  if (!hasDetail(record)) return null;
+  return withoutListOnly(registrar, withoutQuote(record));
+}
+
+/** Each account's registrar, for reading detail entries keyed by account. */
+function registrarByAccount(): Map<string, RegistrarName> {
+  return new Map(listAccounts().map((a) => [a.id, a.registrar]));
+}
+
+/** Out of quota at the registrar. Namecheap answers over its limit with error
+ *  500000 ("Too many requests") inside a 200 reply, which registrar-client
+ *  raises as a plain Error rather than a RateLimitError. */
+function isRateLimited(err: unknown): boolean {
+  if (err instanceof RateLimitError) return true;
+  return isRateLimitMessage(err instanceof Error ? err.message : String(err));
 }
 
 /** True when a listed date needs no write: the list omits it, or the cached
@@ -981,14 +1034,24 @@ async function syncNamecheapPremiumQuotes(
   }
 }
 
+// Patched into an existing entry, so the detail keeps its fetchedAt: a quote
+// is not a fresh detail read, and stamping one kept old detail from ever going
+// stale. A new entry holds only the quote, which `hasDetail` doesn't count, so
+// the name's detail still gets read.
 function writeRenewalQuote(
   accountId: string,
   domain: string,
   quote: RenewalQuote,
 ): void {
   const key = detailKey(accountId, domain);
-  const existing = readEntry<DetailRecord>('detail', key)?.data ?? {};
-  writeEntry('detail', key, { ...existing, renewalQuote: quote });
+  if (readEntry<DetailRecord>('detail', key)) {
+    patchEntryData<DetailRecord>('detail', key, (data) => ({
+      ...data,
+      renewalQuote: quote,
+    }));
+  } else {
+    writeEntry<DetailRecord>('detail', key, { renewalQuote: quote });
+  }
 }
 
 // Patched rather than rewritten, so the domain detail keeps its fetchedAt.
@@ -1147,12 +1210,17 @@ export function findRegistrarsForDomain(domainName: string): RegistrarName[] {
 }
 
 /** All cached per-domain detail partials, keyed `registrar:domain` (revived).
- *  The stored renewal quote is dropped — it feeds pricing, not the detail overlay. */
+ *  The stored renewal quote is dropped — it feeds pricing, not the detail
+ *  overlay — and an entry holding only a quote isn't detail, so it's left out
+ *  and its row still gets read. */
 export function getCachedDetail(): Record<string, Partial<Domain>> {
   const all = readAll<DetailRecord>('detail');
+  const registrarOf = registrarByAccount();
   const out: Record<string, Partial<Domain>> = {};
   for (const [key, entry] of Object.entries(all)) {
-    out[key] = reviveCachedDomain(withoutQuote(entry.data));
+    const accountId = key.slice(0, key.indexOf(':'));
+    const view = detailView(registrarOf.get(accountId), entry.data);
+    if (view) out[key] = reviveCachedDomain(view);
   }
   return out;
 }
@@ -1166,7 +1234,10 @@ export function getCachedDomainDetail(
     'detail',
     detailKey(accountId, domainName),
   );
-  return entry ? reviveCachedDomain(withoutQuote(entry.data)) : null;
+  const view = entry
+    ? detailView(registrarByAccount().get(accountId), entry.data)
+    : null;
+  return view ? reviveCachedDomain(view) : null;
 }
 
 /**
@@ -1497,13 +1568,16 @@ export async function saveRegistrarCredentials(
  *    TLDs its list still returns).
  * Creation date is taken only from the registrar; providers that don't report
  * one (e.g. NameBright) leave it blank rather than triggering an extra lookup.
- * Returns null only when nothing could be resolved.
+ * Returns null only when nothing could be resolved. `cacheOnly` serves the
+ * fresh cached partial or null, never calling out: the renderer asks that
+ * first so a cache hit doesn't wait its turn behind a registrar's pacing.
  */
 export async function getDomainDetail(
   name: RegistrarName,
   domainName: string,
   refresh = false,
   accountId?: string,
+  cacheOnly = false,
 ): Promise<Partial<Domain> | null> {
   accountId = resolveDomainAccount(name, domainName, accountId).id;
   const client = getRegistrarClient(name, accountId);
@@ -1516,21 +1590,32 @@ export async function getDomainDetail(
     priorQuote ? { ...record, renewalQuote: priorQuote } : record;
   if (!refresh) {
     const cached = readEntry<DetailRecord>('detail', key);
-    // Serve a fresh-enough cached partial without any network calls.
-    if (cached && !isStale(cached)) {
+    // Serve a fresh-enough cached partial without any network calls. An entry
+    // holding only Sync's renewal quote isn't a read, whatever its age.
+    const view =
+      cached && !isStale(cached) ? detailView(name, cached.data) : null;
+    if (view) {
       return {
-        ...reviveCachedDomain(withoutQuote(cached.data)),
+        ...reviveCachedDomain(view),
         registrar: name,
         accountId,
         accountLabel: accountById(accountId).label,
       };
     }
   }
+  if (cacheOnly) return null;
 
   let domain: CachedDomain | null = null;
   try {
     domain = await client.getDomain(domainName);
-  } catch {
+  } catch (err) {
+    // Out of quota: the other lookups would fail the same way, and saving
+    // what DNS alone can tell would replace the lock and privacy an earlier
+    // read found. Leave the cache as it is so the caller can try later.
+    if (isRateLimited(err))
+      throw new RateLimitError(
+        `${registrars[name].displayName} rate limit reached. Try again in a few minutes.`,
+      );
     // Detail unavailable for this TLD — fall through to registry-only lookups.
   }
 
@@ -1559,14 +1644,14 @@ export async function getDomainDetail(
       'Account changed while loading detail; refresh the portfolio.',
     );
   if (domain) {
-    const result = {
+    const result = withoutListOnly(name, {
       ...domain,
       registrar: name,
       accountId,
       accountLabel: accountById(accountId).label,
       nameservers,
       ...(createdDate ? { createdDate } : {}),
-    };
+    });
     if ((generations.get(accountId) ?? 0) === generation)
       writeEntry('detail', key, withQuote(result));
     return result;
@@ -1574,14 +1659,19 @@ export async function getDomainDetail(
   const partial: Partial<Domain> = {};
   if (nameservers.length > 0) partial.nameservers = nameservers;
   if (createdDate) partial.createdDate = createdDate;
-  // Nothing resolved this round: don't drop a previously-stored quote — keep the
-  // entry alive if one exists, else stay uncached so a later refresh retries.
+  // The registrar's detail failed, so this round knows less than an earlier
+  // read may have (its lock and privacy): keep those under what was found.
+  const prior = readEntry<DetailRecord>('detail', key)?.data;
+  const known = prior ? detailView(name, prior) : null;
+  // Nothing resolved this round: serve what an earlier read found, else stay
+  // unread so a later refresh retries. The stored entry (and quote) stay put.
   if (Object.keys(partial).length === 0) {
-    return priorQuote ? {} : null;
+    return known ? reviveCachedDomain(known) : null;
   }
+  const merged = { ...(known ?? {}), ...partial };
   if ((generations.get(accountId) ?? 0) === generation)
-    writeEntry('detail', key, withQuote(partial));
-  return partial;
+    writeEntry('detail', key, withQuote(merged));
+  return reviveCachedDomain(merged);
 }
 
 /**

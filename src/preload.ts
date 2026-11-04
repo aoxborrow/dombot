@@ -36,13 +36,14 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.setManualPrice, domain, price),
 
   // Registrars
-  getDomainDetail: (registrar, domainName, refresh, accountId) =>
+  getDomainDetail: (registrar, domainName, refresh, accountId, cacheOnly) =>
     ipcRenderer.invoke(
       IpcChannels.getDomainDetail,
       registrar,
       domainName,
       refresh,
       accountId,
+      cacheOnly,
     ),
   applyDomainOp: (target, op) =>
     ipcRenderer.invoke(IpcChannels.applyDomainOp, target, op),
