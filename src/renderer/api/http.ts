@@ -302,12 +302,14 @@ export function createHttpApi(): DombotApi {
       domainName,
       refresh = false,
       accountId,
+      cacheOnly,
     ) => {
       const d = await call<Partial<Domain> | null>('getDomainDetail', [
         registrar,
         domainName,
         refresh,
         accountId,
+        cacheOnly,
       ]);
       return d ? reviveDomain(d) : null;
     },

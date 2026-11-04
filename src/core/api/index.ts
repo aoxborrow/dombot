@@ -316,9 +316,10 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
       s.domainName,
       z.boolean().optional(),
       s.accountId,
+      z.boolean().optional(),
     ]),
-    async (name, domainName, refresh = false, accountId) =>
-      getDomainDetail(name, domainName, refresh, accountId),
+    async (name, domainName, refresh = false, accountId, cacheOnly = false) =>
+      getDomainDetail(name, domainName, refresh, accountId, cacheOnly),
   ),
   getRegistrarCatalog: method(none, getRegistrarCatalog),
   // Resolves, not rejects, when the registrar turns the credentials down, so

@@ -2,6 +2,8 @@ import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
 import { create } from 'zustand';
 import { ExchangeRates } from '../../shared/exchange-rates';
+import { DETAIL_PACE, DetailLane } from '../lib/detail-lane';
+import { isRateLimitMessage } from '../../shared/rate-limit';
 import type {
   ImportedDomain,
   ImportedDomainFields,
@@ -86,6 +88,35 @@ const enrichFailed = new Set<string>();
 // would toggle its loading flag off while a pass is still running).
 let detailAllInFlight = false;
 
+// Detail reads for a registrar with a tight API quota go through one paced
+// lane per account (see lib/detail-lane), so they can take a while to settle.
+// The epoch moves on whenever the bookkeeping above resets; a read that
+// settles after that leaves the new pass's state alone.
+const detailLanes = new Map<string, DetailLane>();
+let enrichEpoch = 0;
+
+function laneFor(d: Domain): DetailLane | null {
+  const pace = DETAIL_PACE[d.registrar as RegistrarName];
+  if (!pace) return null;
+  const id = d.accountId ?? d.registrar;
+  let lane = detailLanes.get(id);
+  if (!lane) {
+    lane = new DetailLane(pace);
+    detailLanes.set(id, lane);
+  }
+  return lane;
+}
+
+/** Forget every detail read in flight or queued: a Sync or a cache clear makes
+ *  them moot, and the next pass queues whatever is still missing. */
+function resetEnrich(): void {
+  enrichEpoch++;
+  enrichInFlight.clear();
+  enrichFailed.clear();
+  detailAllInFlight = false;
+  for (const lane of detailLanes.values()) lane.clear();
+}
+
 interface AppState {
   appInfo: AppInfo | null;
   mcpInfo: McpInfo | null;
@@ -151,8 +182,13 @@ interface AppState {
   /** Domains whose detail fetch is currently in flight (for per-cell loading). */
   enriching: Record<string, boolean>;
   /** Fetch detail for on-screen rows. `force` re-fetches even cached rows and
-   * bypasses the registrar/registry cache in main (used after a live refresh). */
-  enrichVisible: (domains: Domain[], force?: boolean) => Promise<void>;
+   * bypasses the registrar/registry cache in main (used after a live refresh).
+   * `background` queues paced registrars' rows behind on-screen ones. */
+  enrichVisible: (
+    domains: Domain[],
+    force?: boolean,
+    background?: boolean,
+  ) => Promise<void>;
   /** True while a whole-portfolio detail (nameserver) load runs, so the
    * Nameservers filter can show that its groups aren't complete yet. */
   detailAllLoading: boolean;
@@ -516,9 +552,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   clearAllCaches: async () => {
     await window.api.clearAllCaches();
-    enrichInFlight.clear();
-    enrichFailed.clear();
-    detailAllInFlight = false;
+    resetEnrich();
     set({
       portfolio: [],
       portfolioErrors: [],
@@ -543,9 +577,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const result = await withSyncTimeout(window.api.listPortfolio(true));
       // Fresh summary data invalidates any prior per-domain detail.
-      enrichInFlight.clear();
-      enrichFailed.clear();
-      detailAllInFlight = false;
+      resetEnrich();
       const keys = new Set(result.domains.map(domainKey));
       set((state) => ({
         portfolio: result.domains,
@@ -635,7 +667,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Shown as nothing to approve.
     }
   },
-  enrichVisible: async (domains, force = false) => {
+  enrichVisible: async (domains, force = false, background = false) => {
+    // Rows that came on screen while still queued in a paced lane go first.
+    if (!background) {
+      for (const d of domains) {
+        const key = domainKey(d);
+        if (enrichInFlight.has(key)) laneFor(d)?.promote(key);
+      }
+    }
     const todo = domains.filter((d) => {
       const key = domainKey(d);
       // A name that already left the registrar, or one you added by hand, has
@@ -674,55 +713,86 @@ export const useAppStore = create<AppState>((set, get) => ({
         return { enriching };
       });
 
-    const CONCURRENCY = 6;
-    let next = 0;
-    const worker = async (): Promise<void> => {
-      while (next < todo.length) {
-        const d = todo[next++];
-        const key = domainKey(d);
-        try {
-          const detail = await window.api.getDomainDetail(
-            d.registrar as RegistrarName,
-            d.domainName,
-            force,
-            d.accountId,
-          );
-          if (detail) {
-            // detail is a partial — merge it over the list summary.
-            set((state) => ({
-              enriched: { ...state.enriched, [key]: { ...d, ...detail } },
-            }));
-          } else {
-            // No detail available (unsupported TLD etc.) — keep the summary and
-            // don't retry this domain.
-            enrichFailed.add(key);
-          }
-        } catch {
-          // Hard failure — keep summary values and don't retry.
+    const epoch = enrichEpoch;
+    const current = () => epoch === enrichEpoch;
+    const enrichOne = async (d: Domain): Promise<void> => {
+      const key = domainKey(d);
+      const read = (cacheOnly = false) =>
+        window.api.getDomainDetail(
+          d.registrar as RegistrarName,
+          d.domainName,
+          force,
+          d.accountId,
+          cacheOnly,
+        );
+      const lane = laneFor(d);
+      try {
+        // A paced lane waits out a rate limit and tries again itself. Only a
+        // read that has to call the registrar waits its turn there: after a
+        // Sync every row comes back through here, most of them cached.
+        const detail = lane
+          ? ((force ? null : await read(true)) ??
+            (await lane.run(key, () => read(), !background)))
+          : await read();
+        if (!current()) return;
+        if (detail) {
+          // detail is a partial — merge it over the list summary.
+          set((state) => ({
+            enriched: { ...state.enriched, [key]: { ...d, ...detail } },
+          }));
+        } else {
+          // No detail available (unsupported TLD etc.) — keep the summary and
+          // don't retry this domain.
           enrichFailed.add(key);
-        } finally {
+        }
+      } catch (err) {
+        // Hard failure — keep summary values and don't retry. Out of quota
+        // isn't one: the next pass (a page change, a Sync) asks again.
+        const message = err instanceof Error ? err.message : String(err);
+        if (current() && !isRateLimitMessage(message)) enrichFailed.add(key);
+      } finally {
+        if (current()) {
           enrichInFlight.delete(key);
           clearEnriching(key);
         }
       }
     };
-    await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, todo.length) }, worker),
-    );
+
+    // Paced rows all queue at once (each lane runs one at a time); the rest
+    // share a small pool.
+    const paced = todo.filter((d) => laneFor(d));
+    const free = todo.filter((d) => !laneFor(d));
+    const CONCURRENCY = 6;
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (next < free.length) await enrichOne(free[next++]);
+    };
+    // A queued run goes in front of the ones before it, so queue urgent rows
+    // last-first to keep the page's order.
+    const queued = background ? paced : [...paced].reverse();
+    await Promise.all([
+      ...queued.map(enrichOne),
+      ...Array.from({ length: Math.min(CONCURRENCY, free.length) }, worker),
+    ]);
   },
 
   detailAllLoading: false,
   loadAllDetail: async (domains) => {
     if (detailAllInFlight) return;
     detailAllInFlight = true;
+    const epoch = enrichEpoch;
     set({ detailAllLoading: true });
     try {
       // enrichVisible fetches only rows still missing detail and dedupes the
       // rest, so passing the whole portfolio loads everything not yet cached.
-      await get().enrichVisible(domains);
+      // Behind on-screen rows: paced lanes take those first.
+      await get().enrichVisible(domains, false, true);
     } finally {
-      detailAllInFlight = false;
-      set({ detailAllLoading: false });
+      // A reset since started its own pass; that one owns the flags now.
+      if (epoch === enrichEpoch) {
+        detailAllInFlight = false;
+        set({ detailAllLoading: false });
+      }
     }
   },
 

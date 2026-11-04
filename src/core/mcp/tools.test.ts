@@ -668,6 +668,36 @@ describe('end-to-end handlers', () => {
     expect(getDomain).not.toHaveBeenCalled();
   });
 
+  it('domain_get lays detail over the synced row, which keeps what detail can’t read', async () => {
+    findRegistrarsForDomain.mockReturnValue(['namecheap']);
+    getMergedPortfolio.mockReturnValue({
+      domains: [
+        {
+          domainName: 'a.com',
+          registrar: 'namecheap',
+          accountId: 'namecheap',
+          autoRenew: true,
+          locked: false,
+        },
+      ],
+      fetchedAt: 0,
+      registrars: ['namecheap'],
+      errors: [],
+    });
+    getDomainDetail.mockResolvedValue({
+      domainName: 'a.com',
+      locked: true,
+      nameservers: ['ns.x'],
+    });
+    const out = await call('domain_get', { domain: 'A.com' });
+    expect(out).toMatchObject({
+      domainName: 'a.com',
+      autoRenew: true,
+      locked: true,
+      nameservers: ['ns.x'],
+    });
+  });
+
   it('domain_get falls back to a live getDomain when detail is null', async () => {
     findRegistrarsForDomain.mockReturnValue(['dynadot']);
     getDomainDetail.mockResolvedValue(null);
