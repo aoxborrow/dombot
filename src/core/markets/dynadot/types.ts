@@ -58,7 +58,7 @@ export interface DynadotListingInput {
   minOffer: Amount | null;
   /** ISO 4217; Dynadot takes it lowercase. */
   currency: string;
-  /** Required by `set_for_sale`; empty passes (observed). */
+  /** Required, non-empty, by `set_for_sale` for a name in the account. */
   description?: string;
 }
 

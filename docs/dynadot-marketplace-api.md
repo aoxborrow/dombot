@@ -187,8 +187,9 @@ with no listing in it.
 Whether it changes only the fields sent or replaces the listing isn't
 documented (open question 1). Observed: the live path is the plural
 `aftermarkets/…/for_sales` (the singular one answers "The specified API
-command is not recognized"), `description` and `listing_type` are required
-even to delist, and an empty description passes.
+command is not recognized"), and `description` and `listing_type` are
+required even to delist. For a name in the account, an empty description
+counts as missing (testbot.io, 2026-11-04).
 
 ### Reading listings of names in the account
 
@@ -235,8 +236,8 @@ No seller "my listings" call exists for these. What there is:
   name the account doesn't hold: one read tells the two kinds of name apart.
 - Writes, checked as far as validation on domanio.com (not in the account,
   so nothing changed): `set_for_sale` needs `description` ("The required
-  parameter description is missing", 400) and `listing_type`, takes an empty
-  description, and then answers 404 "Can not find the domain in the
+  parameter description is missing", 400) and `listing_type`; with an empty
+  description it got as far as 404 "Can not find the domain in the
   account." Listing domanio.com held elsewhere while unverified: 409 "This
   domain is not verified."
 - With the account's key added as a TXT record at 101domain (beside Sedo's
@@ -474,8 +475,11 @@ twelve names a minute at the client's pace.
   name held elsewhere is saved as sent, since the listing read shows the
   buyer's price (with the transfer fee) and the seller's is only on the
   other-registrar list.
-- **Description:** `set_for_sale` needs one; DomBot sends it empty
-  (open question 11: whether that clears one set on Dynadot).
+- **Description:** `set_for_sale` needs a non-empty one for a name in the
+  account, even to reprice or delist: sent empty, testbot.io's same-price
+  rewrite was refused ("The required parameter description is missing", 400) and nothing changed. No read shows the one on Dynadot, so whatever
+  DomBot sends replaces it. What DomBot sends is open (open question 11);
+  until then writes to names in the account fail with that message.
 - **If the write replaces the listing** (open question 1), a price change
   would clear the minimum offer, category, description and installments,
   and DomBot couldn't see it. Then DomBot re-sends its `minOfferSent`, and
@@ -751,8 +755,10 @@ nobody would pay, read back, then delisted.
 10. Answered in part: Verify now found a fresh TXT record at once. Still
     open: how often it can be called, and how often Dynadot checks on its
     own.
-11. Answered in part: `description` is required, and an empty one passes.
-    Still open: does an empty one clear a description set on Dynadot?
+11. Answered in part: `description` is required, and for a name in the
+    account an empty one counts as missing (observed). Still open: what
+    DomBot sends, given that it replaces the description on Dynadot and no
+    read shows it.
 12. Can a name in the account be listed or changed while it has a sale
     under way, a Buy Lock, or a recent transfer, and what does Dynadot
     answer?

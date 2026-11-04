@@ -5,16 +5,18 @@ import {
 } from '../../services/markets/dynadot';
 
 // Live write round trips (`DYNADOT_LIVE_WRITES=1 npm run test:live`), through
-// the adapter, on test names only, each listed at a price nobody pays and
-// delisted at the end. Off unless DYNADOT_LIVE_WRITES=1, so a plain
-// `npm run test:live` stays read-only.
+// the adapter, on test names only. Off unless DYNADOT_LIVE_WRITES=1, so a
+// plain `npm run test:live` stays read-only.
 //
 // - DYNADOT_TEST_EXTERNAL_DOMAIN: a name held at another registrar
 //   (domanio.com, at 101domain), on the account's other-registrar list and
 //   verified (its TXT record holds the account's Open Marketplace Key).
-// - DYNADOT_TEST_DOMAIN: a name in the account that isn't listed, picked with
-//   the user. Skipped when it's listed already, so a real listing is never
-//   touched.
+//   Listed at a price nobody pays, then delisted.
+// - DYNADOT_TEST_DOMAIN: a name in the account, picked with the user
+//   (testbot.io). Not listed: listed at a price nobody pays, then delisted.
+//   Listed already (a live listing): never delisted, and only if it's Buy
+//   Now alone, whose whole state DomBot can send back; rewritten at its
+//   price, moved up $1, and put back, whatever happens.
 
 const apiKey = process.env.DYNADOT_API_KEY;
 const apiSecret = process.env.DYNADOT_API_SECRET;
@@ -71,11 +73,42 @@ describe.skipIf(!(apiKey && apiSecret && writes))(
     );
 
     it.skipIf(!HELD)(
-      'lists and delists an unlisted name in the account',
+      'writes a name in the account and leaves it as it was',
       async () => {
         const name = HELD ?? '';
-        if ((await adapter.getListings([name])).length) {
-          console.warn(`[dynadot live] ${name} is listed already: skipped`);
+        const [before] = await adapter.getListings([name]);
+        if (before) {
+          // Buy Now alone: a Make Offer minimum can't be read, so couldn't
+          // be put back. Nothing is written if this fails.
+          expect(before.extra).toMatchObject({
+            held: 'dynadot',
+            offers: false,
+            pendingSale: false,
+          });
+          const price = before.price ?? '';
+          expect(price).toMatch(/^\d+(\.\d+)?$/);
+          try {
+            // The same price: nothing a buyer would see changes.
+            const [same] = await adapter.writeListings([{ name, price }]);
+            expect(same.error).toBeNull();
+            expect(same.adjusted).toEqual([]);
+            expect(same.saved).toMatchObject({
+              price,
+              buyNow: true,
+              extra: { offers: false },
+            });
+            const bumped = String(Number(price) + 1);
+            const [up] = await adapter.writeListings([{ name, price: bumped }]);
+            expect(up.error).toBeNull();
+            expect((await adapter.getListings([name]))[0]?.price).toBe(bumped);
+          } finally {
+            await adapter.writeListings([{ name, price }]);
+          }
+          expect((await adapter.getListings([name]))[0]).toMatchObject({
+            price,
+            buyNow: true,
+            status: 'active',
+          });
           return;
         }
         const [listed] = await adapter.writeListings([{ name, price: PRICE }]);

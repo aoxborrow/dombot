@@ -209,8 +209,9 @@ export class DynadotClient {
    * List, reprice or delist a name in the account (`set_for_sale`). The
    * live path is `aftermarkets/…/for_sales` (the singular one answers
    * "not recognized", observed). `listing_type` is required even to delist,
-   * and so is `description`, though an empty one passes (observed);
-   * UNVERIFIED: whether an empty one clears a description set on Dynadot.
+   * and so is a non-empty `description` for a name in the account (an empty
+   * one counts as missing, observed). No read shows it, so what's sent
+   * replaces the one on Dynadot.
    */
   async setForSale(name: string, input: DynadotListingInput): Promise<void> {
     const domain = assertDomainName(name);
