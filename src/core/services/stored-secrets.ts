@@ -1,7 +1,7 @@
 import { storedCredentialValues } from './credentials';
 import { marketCredentialValues } from './markets/accounts';
 import { proxySecretValues } from './proxies';
-import { redactRegistrarMessage } from './registrar-errors';
+import { redactSecrets } from '@aoxborrow/registrar-client';
 
 // The second layer of scrubbing, for diagnostics that outlive the moment (the
 // desktop's log file). Registrar errors are already scrubbed where they're
@@ -28,8 +28,5 @@ export function storedSecrets(): string[] {
 /** `text` with URL queries and userinfo dropped and every stored secret
  *  (plain or URL-encoded) replaced with [redacted]. */
 export function scrubDiagnostic(text: string): string {
-  return redactRegistrarMessage(
-    text,
-    Object.fromEntries(storedSecrets().map((v, i) => [i, v])),
-  );
+  return redactSecrets(text, storedSecrets());
 }
