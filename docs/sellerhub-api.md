@@ -97,24 +97,25 @@ Listing statuses, from the spec:
 
 ### Implement
 
-| Operation                      | Why DomBot wants it                                                                                                                          |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `getSellerHubDomainList`       | Sync: every listing with status, prices and description, 100 a page with a `total` to check `complete` against.                              |
-| `getSellerHubDomain`           | `getListings` for a few names (404 means not listed).                                                                                        |
-| `createSellerHubDomain`        | List on SellerHub from the List and Delist dialog, at DomBot's asking price and minimum offer.                                               |
-| `updateSellerHubDomain`        | Reprice, minimum offer, Buy It Now and Make an Offer on or off, display name, description. Only the fields sent change.                      |
-| `deleteSellerHubDomain`        | Delist. The only way the API takes a name off sale.                                                                                          |
-| `getSoldDomains`               | Sales: name, sale time, price, payout and channel, from a given time onwards, so sync reads only what's new.                                 |
-| `getVerificationRecords`       | The account's ownership verification records. The first market whose API returns them, so DomBot fills the Ownership Verification ID itself. |
-| `createCheckoutLink` (phase 4) | A buy link at a set price, for a buyer DomBot's user is talking to. SellerHub-only action, MCP first.                                        |
+| Operation                | Why DomBot wants it                                                                                                                          |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getSellerHubDomainList` | Sync: every listing with status, prices and description, 100 a page with a `total` to check `complete` against.                              |
+| `getSellerHubDomain`     | `getListings` for a few names (404 means not listed).                                                                                        |
+| `createSellerHubDomain`  | List on SellerHub from the List and Delist dialog, at DomBot's asking price and minimum offer.                                               |
+| `updateSellerHubDomain`  | Reprice, minimum offer, Buy It Now and Make an Offer on or off, display name, description. Only the fields sent change.                      |
+| `deleteSellerHubDomain`  | Delist. The only way the API takes a name off sale.                                                                                          |
+| `getSoldDomains`         | Sales: name, sale time, price, payout and channel, from a given time onwards, so sync reads only what's new.                                 |
+| `getVerificationRecords` | The account's ownership verification records. The first market whose API returns them, so DomBot fills the Ownership Verification ID itself. |
 
 ### Defer
 
-- **SafePay list and get:** private deals the user is a party to, with
-  price, type (Buy Now or lease-to-own) and lease terms. They could show as
-  sales under way for `privateSale` names, but `saleStatus` (the
-  post-payment state) only comes back to brokers, so a seller can't follow
-  one through to the end here. The sold report covers the finished sale.
+- **Checkout links and SafePay** (`createCheckoutLink`, SafePay list and
+  get): tools for a deal with a buyer, not built for any market yet. A
+  checkout link might later become a shared "get a checkout link" in the
+  market model (Dynadot's Express Pay Links are the same idea). SafePay
+  deals could also show as sales under way for `privateSale` names, but
+  `saleStatus` (the post-payment state) only comes back to brokers, and the
+  sold report covers the finished sale.
 - **A sale record for `saleProcessing` and `leaseActive` listings** before
   the sold report has them: the listing has no price, date or id for one.
   See open question 1.
@@ -306,10 +307,7 @@ const SPACESHIP_CAPABILITIES: MarketCapabilities = {
 ### MCP
 
 The shared listing, sales and account tools work for SellerHub through its
-capabilities. One SellerHub-only tool, in phase 4:
-`domain_listing_checkout_link_create` (name, optional price, optional
-commission split of 0/25/50/75/100) returns the URL and expiry. It says in
-its description that the link is meant for a buyer.
+capabilities. No SellerHub-only tools for now.
 
 ## Testing
 
@@ -333,8 +331,8 @@ name held at Spaceship, for the internal path, needs the user's pick.
 3. **Writes:** list, reprice, minimum offer, display name, description,
    delist, through the List and Delist dialog, the bulk runner and the MCP
    listing tools. Live round trip on one test name.
-4. **Extras:** the checkout link tool; then lease-to-own and For Sale page
-   settings when Spaceship's API has them.
+4. **Later:** lease-to-own and For Sale page settings, when Spaceship's API
+   has them.
 
 ## Open questions
 
