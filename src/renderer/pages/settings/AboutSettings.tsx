@@ -236,7 +236,7 @@ export default function AboutSettings() {
             </p>
             {/* The path in the version's code pill, the reveal beside it. */}
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="min-w-0 select-text break-all rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs">
+              <span className="min-w-0 select-text break-all rounded-md bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
                 {appInfo.logFile}
               </span>
               <Button
