@@ -247,13 +247,14 @@ function failed(
 
 function failedFrom(name: string, error: unknown): MarketWriteResult {
   // Dynadot changes a listing in the account only while the name and the
-  // account are both unlocked (observed). DomBot doesn't turn the account
-  // lock off: that's the user's to do on dynadot.com.
+  // account are both unlocked (observed), unless its API settings let calls
+  // from an allowed IP skip the lock checks: DomBot's fixed IP proxy, on the
+  // registrar account. DomBot doesn't turn locks off for this.
   if (error instanceof DynadotError && error.code === 'LOCKED') {
     return failed(
       name,
       'LOCKED',
-      `Dynadot only changes ${name}’s listing through its API while your Dynadot account lock is off and the name is unlocked (Dynadot said: ${error.message}). Change it on dynadot.com, or turn those locks off first.`,
+      `Dynadot only changes ${name}’s listing through its API while your Dynadot account lock is off and the name is unlocked (Dynadot said: ${error.message}). To keep both locks on, send this Dynadot account through DomBot’s fixed IP proxy (Settings → Proxy), add that IP in Dynadot’s API settings, and tick “Allow api to process commands without checking account locks or domain locks”. Or change it on dynadot.com.`,
     );
   }
   const code =

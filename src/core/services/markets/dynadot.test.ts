@@ -359,6 +359,7 @@ describe('the adapter', () => {
     ]);
     expect(r.error?.code).toBe('LOCKED');
     expect(r.error?.message).toMatch(/account lock is off/);
+    expect(r.error?.message).toMatch(/fixed IP proxy/);
   });
 
   it('leaves a listing with a sale under way alone', async () => {

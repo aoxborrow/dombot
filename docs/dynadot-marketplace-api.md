@@ -12,9 +12,9 @@ held elsewhere, <https://www.dynadot.com/help/question/open-marketplace>.
 ## Status
 
 **Reads and writes built (2026-11-04). Reads checked live; writes checked
-live on a name held elsewhere (domanio.com). Names in the account can't be
-written while the account lock is on ("Locks"), so that path is checked
-only as far as Dynadot's refusals.** The plan
+live on both kinds: domanio.com held elsewhere, and testbot.io in the
+account with the account lock off and the name unlocked for the test
+("Locks").** The plan
 below is from the API reference and Dynadot's help pages as read on
 2026-11-03; "Observed" has what live calls showed.
 
@@ -42,9 +42,10 @@ below is from the API reference and Dynadot's help pages as read on
 - **Live tests:** `client.live.test.ts` (reads), and
   `client.writes.live.test.ts` (round trips behind `DYNADOT_LIVE_WRITES=1`):
   passed on domanio.com held elsewhere; on testbot.io, in the account, it
-  stops at the lock refusal ("Testing").
-- **Next:** sales; a write round trip on a name in the account once there's
-  an account with its lock off to test on. Not
+  passed on testbot.io in the account with both locks off for the run, and
+  stops at a lock refusal otherwise ("Testing").
+- **Next:** sales, and trying the IP bypass ("Locks") through the fixed IP
+  proxy. Not
   yet: keeping the last minimum offer DomBot sent across syncs, the Listing
   Currency setting, removing a name from Dynadot's list, the remove-both
   prompt and the registrar card pointing back, and sharing the registrar's
@@ -485,20 +486,27 @@ twelve names a minute at the client's pace.
   descriptions (decided 2026-11-04): it sends a space, which replaces the
   one on Dynadot.
 - **Locks:** Dynadot changes a listing in the account only while the name
-  is unlocked and the account lock is off. On testbot.io (locked, account
-  lock on) the write was refused with 409 "Domain is locked. Please unlock
-  domain first."; unlocked, with 400 "Please unlock your account firstly."
-  (then locked again). Both come back as `LOCKED`, with a message saying to
-  change it on dynadot.com or turn those locks off. DomBot never turns the
-  account lock off (a security setting, the user's to change), so with it
-  on, names in the account are read-only from DomBot; names held elsewhere
-  aren't affected. Possible later, for an account with its lock off:
-  unlock the name, write, lock it again.
-- **If the write replaces the listing** (open question 1), a price change
-  would clear the minimum offer, category, description and installments,
-  and DomBot couldn't see it. Then DomBot re-sends its `minOfferSent`, and
-  the editor says that saving clears Dynadot's category, description and
-  installment settings.
+  is unlocked and the account lock is off (other commands, the registrar
+  side's included, never needed either off). On testbot.io: locked with
+  the account lock on, 409 "Domain is locked. Please unlock domain first.";
+  unlocked, 400 "Please unlock your account firstly."; with the account
+  lock off (the user turned it off) and the name unlocked, the writes went
+  through, and the name was locked again after. Both refusals come back as
+  `LOCKED`, with a message saying what to do. Names held elsewhere aren't
+  affected.
+- **The way round it, untested:** Dynadot's API settings have an allowed-IP
+  list and "Allow api to process commands without checking account locks
+  or domain locks on above IPs." DomBot already sends a registrar account
+  through its fixed IP proxy when told to (Settings → Proxy), and the
+  market account uses the same route, so: the Dynadot registrar account on
+  the proxy, the proxy's IP on Dynadot's list, that box ticked. Then both
+  locks can stay on. DomBot never turns a lock off itself.
+- **What a write keeps:** on testbot.io, a reprice kept the category
+  ("Business") and sub-category ("None") set on Dynadot, and replaced the
+  description with the space DomBot sends (seen on the public listing
+  page, for the test only). Not checked yet: installments, and whether a
+  minimum offer survives a change that doesn't send one (DomBot always
+  sends it when offers are on).
 - **`forSale: false`** is refused with "Dynadot has no hidden listings;
   delist instead". `not_for_sale` is the delist.
 - **Floor, discount, lease-to-own, tiers:** refused with a message, never
@@ -713,10 +721,10 @@ nobody would pay, read back, then delisted.
 - **Writes in the account:** testbot.io (`DYNADOT_TEST_DOMAIN`), listed at
   $499 Buy Now on Dynadot and Afternic, picked with the user. The test
   rewrites it at its price, moves it up $1 and puts it back, never
-  delisting; with the account lock on, Dynadot refuses the first write and
-  the test stops there, nothing changed. Its description on Dynadot is a
-  test one ("adding a description"), which a successful write replaces
-  with a space.
+  delisting. Passed 2026-11-04 with the account lock off and the name
+  unlocked for the run (locked again after); with a lock on, Dynadot
+  refuses the first write and the test stops there, nothing changed. Its
+  description on Dynadot is now a space.
 
 ## Phases
 
@@ -743,10 +751,9 @@ nobody would pay, read back, then delisted.
 
 ## Open questions
 
-1. Does `set_for_sale` (and `listing_other_registrar_domain`) change only
-   the fields sent, or replace the listing? If a price-only call clears the
-   minimum offer, category, description or installments, the reads won't
-   show it.
+1. Answered in part (2026-11-04): `set_for_sale` kept the category and
+   sub-category it wasn't sent, and replaced the description (required).
+   Still open: installments, and `listing_other_registrar_domain`.
 2. Answered (2026-11-04): `get_listings` is the whole marketplace.
 3. Answered in part: `get_listing_item` has no minimum offer, currency or
    installments. Still open: what's in `price` for a Make Offer listing
@@ -783,6 +790,7 @@ nobody would pay, read back, then delisted.
     up and signed?
 14. Answered (2026-11-04): both. The name's lock (409) and the account
     lock (400 "Please unlock your account firstly.") each block
-    `set_for_sale`. Still open: whether a write goes through with both off,
-    and whether it keeps the category and other settings DomBot doesn't
-    send (open question 1).
+    `set_for_sale`, and with both off it goes through. Still open: whether
+    Dynadot's "without checking account locks or domain locks" setting for
+    allowed IPs lets DomBot write through its fixed IP proxy with both
+    locks on.
