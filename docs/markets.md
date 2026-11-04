@@ -279,9 +279,11 @@ Following docs/storage-model.md:
   namespaces it lists, so `market-credentials` goes in that set, and data
   bundles treat it like `registrar-credentials`.
 - **`registrarAccountId`** (from the Atom plan) lets a market account borrow a
-  registrar account's key when one provider is both (AtomRegistrar, later
-  Dynadot and Namecheap). The field is in the record from the start; the
-  Settings flow for it comes with the first such market.
+  registrar account's key when one provider is both and one key covers both
+  sides (Dynadot or Namecheap, if theirs do). Atom's doesn't: its registrar
+  API takes its own token ([atom-registrar.md](atom-registrar.md)). The
+  field is in the record from the start; the Settings flow for it comes with
+  the first such market.
 - **Sales become `sold` events.** A completed sale writes one `sold` event
   (source `sync`, date `soldOn`, amount `price`, `currency`), and so does one
   whose name has moved: the market is on to the payout (`action: 'payout'`)
