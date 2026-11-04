@@ -18,6 +18,7 @@ const PATTERNS: [RegExp, RegistrarName][] = [
   [/namebright|turncommerce/, 'namebright'],
   [/101domain/, '101domain'],
   [/namecom/, 'namecom'],
+  [/unstoppable/, 'unstoppable'],
 ];
 
 /** The registrar-client name for Afternic's registrar text, or null. */

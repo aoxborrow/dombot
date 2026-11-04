@@ -143,6 +143,7 @@ const REGISTRAR_DNS: Record<RegistrarName, readonly string[]> = {
   namesilo: ['dnsowl.com'],
   porkbun: ['porkbun.com'],
   spaceship: ['spaceship.net'],
+  unstoppable: ['unstoppabledomains.com'],
 };
 
 /**
