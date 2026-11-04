@@ -63,6 +63,30 @@ export function teeConsoleToFile(options: LogFileOptions): LogFile {
     // No file yet: the first write makes it.
   }
 
+  /** Moves the file aside to `older`; returns the size left at `file`. */
+  const rotate = (): number => {
+    try {
+      fs.renameSync(file, older);
+      return 0;
+    } catch (err) {
+      // Gone already (the user deleted it): the next write starts a new one.
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return 0;
+    }
+    // It couldn't be moved (on Windows, another program holding either file
+    // open): start it over rather than let it grow past the limit.
+    try {
+      fs.truncateSync(file, 0);
+      return 0;
+    } catch {
+      // Neither worked: keep its real size, so the next write tries again.
+    }
+    try {
+      return fs.statSync(file).size;
+    } catch {
+      return 0;
+    }
+  };
+
   const write = (level: Level, args: unknown[]) => {
     // Scrubbing reads storage; nothing it logs may come back here.
     if (writing) return;
@@ -70,14 +94,7 @@ export function teeConsoleToFile(options: LogFileOptions): LogFile {
     try {
       const entry = `${new Date().toISOString()} ${level} ${scrubEntry(formatArgs(args), scrub)}\n`;
       const bytes = Buffer.byteLength(entry);
-      if (size > 0 && size + bytes > maxBytes) {
-        try {
-          fs.renameSync(file, older);
-        } catch {
-          // Gone already (the user deleted it): start a new one.
-        }
-        size = 0;
-      }
+      if (size > 0 && size + bytes > maxBytes) size = rotate();
       fs.appendFileSync(file, entry);
       size += bytes;
     } catch (err) {

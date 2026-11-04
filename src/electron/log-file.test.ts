@@ -96,6 +96,20 @@ describe('teeConsoleToFile', () => {
     expect(read('main.old.log')).not.toContain('line 5');
   });
 
+  it('stays under the limit when the old file cannot be replaced', () => {
+    // A non-empty directory in main.old.log's place makes every rename fail,
+    // as another program holding the file open does on Windows.
+    fs.mkdirSync(path.join(dir, 'main.old.log'));
+    fs.writeFileSync(path.join(dir, 'main.old.log', 'keep'), '');
+    log = teeConsoleToFile({ dir, scrub: (t) => t, target, maxBytes: 200 });
+    for (let i = 0; i < 12; i++) target.warn(`line ${i} ${'x'.repeat(40)}`);
+
+    expect(fs.statSync(path.join(dir, 'main.log')).size).toBeLessThanOrEqual(
+      200,
+    );
+    expect(read()).toContain('line 11');
+  });
+
   it('survives a scrubber that logs, and puts the console back', () => {
     const original = target.error;
     log = teeConsoleToFile({
