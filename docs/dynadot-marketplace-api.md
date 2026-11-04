@@ -475,11 +475,20 @@ twelve names a minute at the client's pace.
   name held elsewhere is saved as sent, since the listing read shows the
   buyer's price (with the transfer fee) and the seller's is only on the
   other-registrar list.
-- **Description:** `set_for_sale` needs a non-empty one for a name in the
-  account, even to reprice or delist: sent empty, testbot.io's same-price
-  rewrite was refused ("The required parameter description is missing", 400) and nothing changed. No read shows the one on Dynadot, so whatever
-  DomBot sends replaces it. What DomBot sends is open (open question 11);
-  until then writes to names in the account fail with that message.
+- **Description:** `set_for_sale` needs one for a name in the account,
+  even to reprice or delist: left out or empty, it's refused ("The required
+  parameter description is missing", 400); a single space gets past that
+  check (testbot.io, 2026-11-04). No API read shows it, but Dynadot's public
+  listing page (`dynadot.com/market/user-listings/<name>`) does, in its
+  embedded data with the category and sub-category, so DomBot could read
+  it there and send it back unchanged. What DomBot sends is open (open
+  question 11).
+- **Locked names:** with a description, testbot.io's same-price rewrite was
+  refused with 409 "Domain is locked. Please unlock domain first." Every
+  name in the account is locked, and so is the account (`account_lock:
+"on"`); which lock Dynadot means is open (open question 14). If it's the
+  name's own lock, every write to a name in the account means unlock,
+  write, lock again.
 - **If the write replaces the listing** (open question 1), a price change
   would clear the minimum offer, category, description and installments,
   and DomBot couldn't see it. Then DomBot re-sends its `minOfferSent`, and
@@ -756,9 +765,10 @@ nobody would pay, read back, then delisted.
     open: how often it can be called, and how often Dynadot checks on its
     own.
 11. Answered in part: `description` is required, and for a name in the
-    account an empty one counts as missing (observed). Still open: what
-    DomBot sends, given that it replaces the description on Dynadot and no
-    read shows it.
+    account a missing or empty one is refused while a single space passes
+    (observed). No API read shows it; the public listing page does. Still
+    open: what DomBot sends (read it from that page and send it back, or a
+    placeholder that replaces it).
 12. Can a name in the account be listed or changed while it has a sale
     under way, a Buy Lock, or a recent transfer, and what does Dynadot
     answer?
@@ -766,3 +776,7 @@ nobody would pay, read back, then delisted.
     registrar side that it was sold rather than pushed or transferred (a
     `domain_list` status, an order)? On the web host, how are webhooks set
     up and signed?
+14. Which lock blocks `set_for_sale` ("Domain is locked. Please unlock
+    domain first."): the name's transfer lock, or the account lock? Can a
+    locked name in the account be listed or repriced through the API at
+    all?
