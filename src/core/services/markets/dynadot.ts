@@ -248,33 +248,12 @@ function failed(
 /** DomBot unlocked a name to write and couldn't lock it again. */
 class RelockError extends Error {}
 
-/**
- * What to do about Dynadot's account lock, which DomBot doesn't turn off:
- * the user does, or lets the IP DomBot calls from skip it. `egressIp` is the
- * fixed IP proxy's, when the registrar account uses one.
- */
-export function accountLockMessage(
-  name: string,
-  said: string,
-  egressIp?: string,
-): string {
-  const ip = egressIp
-    ? `${egressIp} (the fixed IP proxy this Dynadot account uses)`
-    : 'the IP DomBot calls Dynadot from (your fixed IP proxy’s, set in Settings → Proxy, or this computer’s)';
-  return `Dynadot won’t change ${name}’s listing while your Dynadot account lock is on (Dynadot said: “${said}”). Turn the account lock off in your Dynadot account, or let DomBot get past it: in Dynadot’s API settings, add ${ip} to the API’s IP addresses, and tick “Allow api to process commands without checking account locks or domain locks on above IPs”.`;
-}
+/** Dynadot's account lock, which DomBot never turns off. */
+const ACCOUNT_LOCKED = 'Dynadot account must be unlocked to change listings.';
 
-function failedFrom(
-  name: string,
-  error: unknown,
-  egressIp?: string,
-): MarketWriteResult {
+function failedFrom(name: string, error: unknown): MarketWriteResult {
   if (error instanceof DynadotError && error.code === 'ACCOUNT_LOCKED') {
-    return failed(
-      name,
-      'ACCOUNT_LOCKED',
-      accountLockMessage(name, error.message, egressIp),
-    );
+    return failed(name, 'ACCOUNT_LOCKED', ACCOUNT_LOCKED);
   }
   if (error instanceof RelockError) {
     return failed(name, 'RELOCK_FAILED', error.message);
@@ -369,8 +348,6 @@ export class DynadotAdapter implements MarketAdapter {
   constructor(
     readonly accountId: string,
     private readonly client: DynadotClient,
-    /** The fixed IP proxy's address, when the registrar account uses one. */
-    private readonly egressIp?: string,
   ) {}
 
   /**
@@ -402,7 +379,7 @@ export class DynadotAdapter implements MarketAdapter {
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
       throw new RelockError(
-        `DomBot unlocked ${name} to ${failure ? 'try to change' : 'change'} its listing, but couldn’t lock it again (${why}). Lock it in DomBot or on dynadot.com.`,
+        `${name} is unlocked: couldn’t lock it again (${why}).`,
       );
     }
     if (failure) throw failure;
@@ -482,7 +459,7 @@ export class DynadotAdapter implements MarketAdapter {
             : await this.writeElsewhere(name, change),
         );
       } catch (error) {
-        out.push(failedFrom(name, error, this.egressIp));
+        out.push(failedFrom(name, error));
       }
     }
     return out;
@@ -611,7 +588,7 @@ export class DynadotAdapter implements MarketAdapter {
         }
         out.push(ok(name));
       } catch (error) {
-        out.push(failedFrom(name, error, this.egressIp));
+        out.push(failedFrom(name, error));
       }
     }
     return out;
@@ -634,7 +611,7 @@ export class DynadotAdapter implements MarketAdapter {
         `Dynadot didn’t find ${name}’s ownership verification yet. A new TXT record can take a while to show, and Dynadot also checks on its own.`,
       );
     } catch (error) {
-      return failedFrom(name, error, this.egressIp);
+      return failedFrom(name, error);
     }
   }
 
@@ -654,12 +631,7 @@ export class DynadotAdapter implements MarketAdapter {
 export function createDynadotAdapter(
   accountId: string,
   credentials: DynadotAccountCredentials,
-  {
-    egressIp,
-    ...options
-  }: Omit<DynadotClientOptions, 'apiKey' | 'apiSecret'> & {
-    egressIp?: string;
-  } = {},
+  options: Omit<DynadotClientOptions, 'apiKey' | 'apiSecret'> = {},
 ): DynadotAdapter {
   const { apiKey, apiSecret } = credentials;
   if (!apiKey || !apiSecret) {
@@ -670,6 +642,5 @@ export function createDynadotAdapter(
   return new DynadotAdapter(
     accountId,
     new DynadotClient({ ...options, apiKey, apiSecret }),
-    egressIp,
   );
 }

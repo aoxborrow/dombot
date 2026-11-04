@@ -15,7 +15,11 @@ import {
   removeMarketAccount,
   saveMarketCredentials,
 } from './accounts';
-import { configureMarketFactory, type Credentials } from './registry';
+import {
+  configureMarketFactory,
+  marketCatalog,
+  type Credentials,
+} from './registry';
 
 // Registrar-backed market accounts (Dynadot): no credentials of their own,
 // the registrar account's key at call time.
@@ -110,5 +114,24 @@ describe('a market on a registrar’s key', () => {
     await connectMarketAccount('dynadot', {}, undefined, 'mkt', reg.id);
     await setStoredCredentials(reg.id, {});
     expect(marketAccountViews()[0].configured).toBe(false);
+  });
+});
+
+describe('order', () => {
+  it('lists markets and accounts alphabetically, wherever they show', async () => {
+    expect(marketCatalog().map((m) => m.name)).toEqual(
+      [...marketCatalog().map((m) => m.name)].sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    );
+    for (const [id, label] of [
+      ['z', 'Zeta'],
+      ['a', 'alpha'],
+    ]) {
+      const reg = await createAccount('dynadot', label);
+      await setStoredCredentials(reg.id, { apiKey: 'k', apiSecret: 's' });
+      await connectMarketAccount('dynadot', {}, label, id, reg.id);
+    }
+    expect(marketAccountViews().map((a) => a.label)).toEqual(['alpha', 'Zeta']);
   });
 });

@@ -44,8 +44,6 @@ export interface AdapterContext {
   registrarAccountId?: string;
   /** Through the registrar account's proxy, when it has one. */
   fetch?: typeof fetch;
-  /** That proxy's outgoing IP, for messages that ask to whitelist it. */
-  egressIp?: string;
 }
 
 /** An adapter, plus whichever market-only actions its market has. */
@@ -103,7 +101,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       website: 'dynadot.com',
       keysUrl: 'https://www.dynadot.com/help/question/open-marketplace',
       helpText:
-        'Sells the names in your Dynadot account, and names you hold at other registrars once Dynadot has verified them.',
+        'Sells the names in your Dynadot account, and names you hold at other registrars once Dynadot has verified them. Uses the registrar account’s API key and proxy.',
       configFields: DYNADOT_CONFIG_FIELDS,
       capabilities: DYNADOT_CAPABILITIES,
       nameservers: DYNADOT_NAMESERVERS,
@@ -112,7 +110,6 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     create: (accountId, credentials, context) =>
       createDynadotAdapter(accountId, credentials, {
         fetch: context.fetch,
-        egressIp: context.egressIp,
         limiterKey: context.registrarAccountId ?? accountId,
       }),
   },
@@ -136,7 +133,9 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
 
 /** Every supported market, for Settings. */
 export function marketCatalog(): MarketInfo[] {
-  return Object.values(MARKETS).map((m) => m.info);
+  return Object.values(MARKETS)
+    .map((m) => m.info)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function isMarketId(value: unknown): value is MarketId {

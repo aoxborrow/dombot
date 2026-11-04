@@ -123,11 +123,7 @@ function fakeClient(opts: {
     },
   };
   return {
-    adapter: new DynadotAdapter(
-      'acct',
-      client as unknown as DynadotClient,
-      '154.9.179.1',
-    ),
+    adapter: new DynadotAdapter('acct', client as unknown as DynadotClient),
     calls,
     sent,
   };
@@ -387,7 +383,7 @@ describe('the adapter', () => {
     ]);
   });
 
-  it('says how to get past the account lock, and locks the name again', async () => {
+  it('says the account must be unlocked, and locks the name again', async () => {
     const { adapter, calls } = fakeClient({
       held: [{ name: 'testbot.io', forSale: true }],
       listings: { 'testbot.io': listing({ name: 'testbot.io' }) },
@@ -397,10 +393,9 @@ describe('the adapter', () => {
       { name: 'testbot.io', price: '500' },
     ]);
     expect(r.error?.code).toBe('ACCOUNT_LOCKED');
-    expect(r.error?.message).toMatch(/account lock is on/);
-    // The proxy's IP, to whitelist with lock checks skipped.
-    expect(r.error?.message).toMatch(/154\.9\.179\.1 \(the fixed IP proxy/);
-    expect(r.error?.message).toMatch(/without checking account locks/);
+    expect(r.error?.message).toBe(
+      'Dynadot account must be unlocked to change listings.',
+    );
     expect(calls.at(-1)).toBe('setLock:testbot.io:true');
   });
 

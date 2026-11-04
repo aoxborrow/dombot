@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ChevronDown,
+  ChevronRight,
   CircleAlert,
   Ellipsis,
   Pencil,
@@ -26,7 +27,7 @@ import {
 import { accountTitle } from '../../../shared/account-label';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
-import { MarketLogo } from '../../components/RegistrarLogo';
+import { MarketLogo, RegistrarLogo } from '../../components/RegistrarLogo';
 import { timeAgo } from '../../lib/time';
 import { useSyncState } from '../../lib/sync-state';
 import {
@@ -61,7 +62,6 @@ import {
 } from '@/components/ui/select';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import {
-  SETTINGS_LINK,
   SettingsExternalLink,
   SettingsField,
   SettingsHelp,
@@ -326,8 +326,9 @@ function useRegistrarAccounts(market: MarketInfo, unusedOnly = false) {
 }
 
 /**
- * For a market on a registrar's API: which registrar account's key it uses.
- * Chosen when the account is added; shown, not changed, afterwards.
+ * For a market on a registrar's API: the registrar account whose key it
+ * uses. Picked when the account is added; afterwards, a link to its card in
+ * Settings → Registrars.
  */
 function RegistrarAccountField({
   market,
@@ -346,32 +347,35 @@ function RegistrarAccountField({
   const options = useRegistrarAccounts(market, Boolean(onChange));
   const id = `${idPrefix}-registrar-account`;
   const current = options.find((o) => o.id === value);
+  if (!onChange) {
+    return current ? (
+      <Link
+        to={`/settings?tab=registrars&account=${encodeURIComponent(current.id)}`}
+        title={`Open ${current.title} in Settings → Registrars`}
+        className="flex w-fit items-center gap-2.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+      >
+        {market.registrar && (
+          <RegistrarLogo
+            name={market.registrar}
+            label={market.name}
+            className="size-[18px] text-muted-foreground/70"
+          />
+        )}
+        {current.title}
+        <ChevronRight className="size-4 text-muted-foreground" />
+      </Link>
+    ) : (
+      <p className="text-sm text-destructive">
+        The {market.name} registrar account this used is gone.
+      </p>
+    );
+  }
   return (
-    <SettingsField
-      htmlFor={id}
-      label={`${market.name} Account`}
-      description="Uses this registrar account’s API key and proxy."
-    >
-      {!onChange ? (
-        <p id={id} className="text-sm">
-          {current ? (
-            // Its card in Settings → Registrars, opened.
-            <Link
-              to={`/settings?tab=registrars&account=${encodeURIComponent(current.id)}`}
-              className={SETTINGS_LINK}
-            >
-              {current.title}
-            </Link>
-          ) : (
-            <span className="text-destructive">
-              The {market.name} registrar account this used is gone.
-            </span>
-          )}
-        </p>
-      ) : options.length === 0 ? (
+    <SettingsField htmlFor={id} label={`${market.name} Account`}>
+      {options.length === 0 ? (
         <p id={id} className="text-sm text-muted-foreground">
-          Every {market.name} registrar account has a market account already.
-          Connect another in Settings → Registrars first.
+          No {market.name} registrar account is free: add one in Settings →
+          Registrars first.
         </p>
       ) : (
         <Select
@@ -404,6 +408,7 @@ function DraftMarketCard({
   onDone: () => void;
 }) {
   const setMarketAccounts = useAppStore((s) => s.setMarketAccounts);
+  const existing = useAppStore((s) => s.marketAccounts);
   const [values, setValues] = useState<Values>({});
   const [label, setLabel] = useState('');
   const [saving, setSaving] = useState(false);
@@ -420,6 +425,7 @@ function DraftMarketCard({
   const connect = async () => {
     setSaving(true);
     setError(null);
+    const before = new Set((existing ?? []).map((a) => a.id));
     try {
       const accounts = await window.api.connectMarketAccount(
         market.id,
@@ -428,7 +434,8 @@ function DraftMarketCard({
         market.registrar ? (registrarAccountId ?? undefined) : undefined,
       );
       await setMarketAccounts(accounts);
-      const added = accounts.at(-1);
+      // Accounts come sorted by market, so the new one is the one not seen.
+      const added = accounts.find((a) => !before.has(a.id));
       if (added?.sync?.lastError) {
         toast.error(`${market.name} account added, but sync failed`, {
           description: added.sync.lastError,

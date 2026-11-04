@@ -42,9 +42,20 @@ export function onMarketAccountRemoved(fn: (accountId: string) => void) {
   onRemove.push(fn);
 }
 
+/** A market's name for sorting; one DomBot no longer supports by its id. */
+const marketName = (market: MarketId) =>
+  isMarketId(market) ? marketInfo(market).name : market;
+
+/**
+ * Every account, in the order DomBot shows markets everywhere: by market
+ * name, then account name, then when it was added.
+ */
 export function listMarketAccounts(): MarketAccount[] {
   return Object.values(accounts.all()).sort(
-    (a, b) => a.createdAt - b.createdAt,
+    (a, b) =>
+      marketName(a.market).localeCompare(marketName(b.market)) ||
+      a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }) ||
+      a.createdAt - b.createdAt,
   );
 }
 
@@ -79,7 +90,6 @@ function contextOf(account: MarketAccount): AdapterContext {
   return {
     registrarAccountId: id,
     ...(route && {
-      egressIp: route.ip,
       fetch: (input, init) =>
         sendThroughProxy(
           route,

@@ -33,9 +33,11 @@ below is from the API reference and Dynadot's help pages as read on
 - **Registrar-backed accounts:** Settings → Markets adds a Dynadot account by
   picking a Dynadot registrar account (each one once); it calls with that
   account's key and proxy route, keeps no credentials of its own, and
-  `market_list` shows its `registrarAccountId`. The card names that
-  registrar account as a link that opens its card in Settings → Registrars
-  (`?tab=registrars&account=<id>`).
+  `market_list` shows its `registrarAccountId`. The card links to that
+  registrar account in a box (its logo and name), opening its card in
+  Settings → Registrars (`?tab=registrars&account=<id>`). Markets and
+  accounts are listed alphabetically everywhere (by market, then account
+  name).
 - **Verification:** the key parses from the key, its NS3 or its CNAME; the
   nameserver preset is Dynadot's DNS pair plus `ns3-<key>.dyna-ns.org`;
   only the NS3 counts as the market's nameservers.
@@ -500,14 +502,17 @@ twelve names a minute at the client's pace.
     `RELOCK_FAILED`, saying so. Checked live on testbot.io: the round trip
     ran with the name locked before and after.
   - **The account lock** DomBot never touches (a security setting). On
-    `ACCOUNT_LOCKED` the result says to turn it off in the Dynadot account,
-    or to let DomBot past it: add the IP DomBot calls from to Dynadot's API
-    IP addresses (the fixed IP proxy's, named in the message when the
-    registrar account uses one) and tick "Allow api to process commands
-    without checking account locks or domain locks on above IPs".
-  - **That setting** didn't skip the name's lock for `set_for_sale`: from an
-    allowed IP, with it ticked, Dynadot still answered 409. Whether it skips
-    the account lock is untested (the account lock was off).
+    `ACCOUNT_LOCKED` the result is a plain error: "Dynadot account must be
+    unlocked to change listings."
+  - **Maybe a way past it, unproven:** Dynadot's API settings have an
+    allowed-IP list and "Allow api to process commands without checking
+    account locks or domain locks on above IPs". If it works for listing
+    changes, the advice (add the IP DomBot calls from, the fixed IP proxy's
+    when the registrar account uses one, and tick that box) goes in DomBot's
+    help, not the error. So far it hasn't: from an allowed IP with the box
+    ticked, Dynadot still answered 409 for the name's lock, and 400 for the
+    account lock once that was on (2026-11-04). The setting may take a while
+    to apply.
 - **What a write keeps:** on testbot.io, a reprice kept the category
   ("Business") and sub-category ("None") set on Dynadot, and replaced the
   description with the space DomBot sends (seen on the public listing
