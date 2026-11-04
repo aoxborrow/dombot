@@ -1,4 +1,4 @@
-import { assertDomainName } from '../../../shared/domain-name';
+import { assertDomainName, toAscii } from '../../../shared/domain-name';
 import {
   DynadotClient,
   DynadotError,
@@ -293,6 +293,15 @@ function written(
   };
 }
 
+/** A listing with a buyer's purchase under way: written neither way. */
+function onHold(name: string): MarketWriteResult {
+  return failed(
+    name,
+    'ON_HOLD',
+    'A buyer’s purchase is under way on Dynadot, so the listing stays as it is.',
+  );
+}
+
 function ok(name: string): MarketWriteResult {
   return {
     name,
@@ -426,7 +435,8 @@ export class DynadotAdapter implements MarketAdapter {
    * held elsewhere, and the rest are read as names in the account.
    */
   async getListings(names: readonly string[]): Promise<MarketListing[]> {
-    const wanted = new Set(names.map((n) => n.toLowerCase()));
+    // Punycode, as both of Dynadot's lists key names.
+    const wanted = new Set(names.map((n) => toAscii(n)));
     const external = (await this.client.externalDomains()).domains.filter((d) =>
       wanted.has(d.name),
     );
@@ -471,13 +481,7 @@ export class DynadotAdapter implements MarketAdapter {
     change: MarketListingChange,
   ): Promise<MarketWriteResult> {
     const current = await this.client.getListing(name, CURRENCY);
-    if (current?.pendingSale) {
-      return failed(
-        name,
-        'ON_HOLD',
-        'A buyer’s purchase is under way on Dynadot, so the listing stays as it is.',
-      );
-    }
+    if (current?.pendingSale) return onHold(name);
     const input: DynadotListingInput = {
       forSale: true,
       ...listingFor(change, current),
@@ -530,10 +534,10 @@ export class DynadotAdapter implements MarketAdapter {
     }
     // The listing read covers these names too, with the right type but the
     // buyer's price (observed); the seller's is on the other-registrar
-    // list, read only when the change keeps the price.
-    const current = await this.client
-      .getListing(name, CURRENCY)
-      .catch(() => null);
+    // list, read only when the change keeps the price. A read that fails
+    // fails the write: guessing "not listed" could turn offers off.
+    const current = await this.client.getListing(name, CURRENCY);
+    if (current?.pendingSale) return onHold(name);
     const sellerPrice =
       current && change.price === undefined
         ? ((await this.client.externalDomains()).domains.find(
@@ -565,6 +569,10 @@ export class DynadotAdapter implements MarketAdapter {
         name = assertDomainName(raw);
         if (await this.client.holds(name)) {
           const current = await this.client.getListing(name, CURRENCY);
+          if (current?.pendingSale) {
+            out.push(onHold(name));
+            continue;
+          }
           if (current) {
             await this.withNameUnlocked(name, () =>
               this.client.setForSale(name, {
@@ -578,6 +586,10 @@ export class DynadotAdapter implements MarketAdapter {
             );
           }
         } else if (await this.client.verification(name)) {
+          if ((await this.client.getListing(name, CURRENCY))?.pendingSale) {
+            out.push(onHold(name));
+            continue;
+          }
           await this.client.listExternal(name, {
             forSale: false,
             listingType: 'bin',

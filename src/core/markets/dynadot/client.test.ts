@@ -368,6 +368,16 @@ describe('writes', () => {
     });
   });
 
+  it('gives back verified IDNs in punycode, as DomBot keys names', async () => {
+    const { dynadot } = client(() => ({
+      body: { ...OK, data: { success_list: ['Bücher.com'], failed_list: [] } },
+    }));
+    expect(await dynadot.verifyExternal(['bücher.com'])).toEqual({
+      verified: ['xn--bcher-kva.com'],
+      failed: [],
+    });
+  });
+
   it('refuses to list a name Dynadot hasn’t verified', async () => {
     const { dynadot } = client(() => ({
       status: 409,

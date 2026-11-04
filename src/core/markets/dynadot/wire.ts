@@ -117,7 +117,8 @@ export function envelopeCode(body: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function name(v: unknown): string | null {
+/** A name as DomBot keys it (lowercase punycode); null if it isn't one. */
+export function asciiName(v: unknown): string | null {
   const s = str(v);
   if (!s) return null;
   try {
@@ -137,13 +138,13 @@ export function readAccountInfo(data: Rec | null): DynadotAccountInfo {
 
 export function readAccountDomain(item: unknown): DynadotAccountDomain | null {
   if (!isRecord(item)) return null;
-  const n = name(item.domain_name);
+  const n = asciiName(item.domain_name);
   return n ? { name: n, forSale: yes(item.is_for_sale) } : null;
 }
 
 export function readListing(item: unknown): DynadotListing | null {
   if (!isRecord(item)) return null;
-  const n = name(item.domain);
+  const n = asciiName(item.domain);
   if (!n) return null;
   return {
     listingId: str(item.listing_id),
@@ -159,7 +160,7 @@ export function readExternalDomain(
   item: unknown,
 ): DynadotExternalDomain | null {
   if (!isRecord(item)) return null;
-  const n = name(item.domain_name);
+  const n = asciiName(item.domain_name);
   if (!n) return null;
   const verifyStatusRaw = str(item.verify_status) ?? '';
   return {
@@ -182,7 +183,7 @@ export function readVerification(
 ): DynadotVerification {
   const list = Array.isArray(data?.nameserver_list) ? data.nameserver_list : [];
   return {
-    name: name(data?.domain_name) ?? fallbackName,
+    name: asciiName(data?.domain_name) ?? fallbackName,
     verified: /^verified$/i.test(str(data?.verify_status) ?? ''),
     key: str(data?.open_market_key)?.toLowerCase() ?? null,
     txt: str(data?.txt),

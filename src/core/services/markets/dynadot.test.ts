@@ -495,6 +495,62 @@ describe('the adapter', () => {
     expect(r.adjusted).toEqual([]);
   });
 
+  it('fails a write to a name held elsewhere when its listing can’t be read', async () => {
+    const { adapter, sent } = fakeClient({
+      verified: { 'domanio.com': true },
+      listings: {
+        'domanio.com': new DynadotError('HTTP_500', 'Server error', 500),
+      },
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'domanio.com', price: '999999' },
+    ]);
+    expect(r.error?.code).toBe('HTTP_500');
+    expect(sent).toEqual([]);
+  });
+
+  it('leaves a name held elsewhere alone while a sale is under way', async () => {
+    const { adapter, sent } = fakeClient({
+      verified: { 'domanio.com': true },
+      listings: {
+        'domanio.com': listing({ name: 'domanio.com', pendingSale: true }),
+      },
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'domanio.com', price: '999999' },
+    ]);
+    expect(r.error?.code).toBe('ON_HOLD');
+    expect(sent).toEqual([]);
+  });
+
+  it('won’t delist either kind while a sale is under way', async () => {
+    const { adapter, sent } = fakeClient({
+      held: [{ name: 'lumenpost.com', forSale: true }],
+      listings: {
+        'lumenpost.com': listing({ pendingSale: true }),
+        'domanio.com': listing({ name: 'domanio.com', pendingSale: true }),
+      },
+      verified: { 'domanio.com': true },
+    });
+    const results = await adapter.deleteListings([
+      'lumenpost.com',
+      'domanio.com',
+    ]);
+    expect(results.map((r) => r.error?.code)).toEqual(['ON_HOLD', 'ON_HOLD']);
+    expect(sent).toEqual([]);
+  });
+
+  it('matches an IDN on the other-registrar list by its punycode', async () => {
+    const { adapter, calls } = fakeClient({
+      external: [external({ name: 'xn--bcher-kva.com' })],
+    });
+    const got = await adapter.getListings(['bücher.com']);
+    expect(got.map((l) => [l.name, l.extra])).toEqual([
+      ['xn--bcher-kva.com', expect.objectContaining({ held: 'elsewhere' })],
+    ]);
+    expect(calls).toEqual(['externalDomains']);
+  });
+
   it('refuses what DomBot can’t set on Dynadot, sending nothing', async () => {
     const { adapter, calls } = fakeClient({});
     const results = await adapter.writeListings([

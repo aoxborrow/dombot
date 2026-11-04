@@ -17,6 +17,7 @@ import type {
 } from './types';
 import {
   DYNADOT_BASE_URL,
+  asciiName,
   cents,
   dataOf,
   envelopeCode,
@@ -275,10 +276,9 @@ export class DynadotClient {
         },
       ),
     );
+    // Punycode, as DomBot keys names, so an IDN Dynadot verified matches.
     const namesIn = (key: string) =>
-      listOf(data, key).flatMap((n) =>
-        typeof n === 'string' ? n.toLowerCase() : [],
-      );
+      listOf(data, key).flatMap((n) => asciiName(n) ?? []);
     return {
       verified: namesIn('success_list'),
       failed: namesIn('failed_list'),
