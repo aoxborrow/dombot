@@ -552,9 +552,10 @@ that repo, not part of this client. Things it would hit:
 
 ### One provider, registrar and market
 
-Atom is the first of several providers that are both a registrar and a
-market: Dynadot and Namecheap have marketplace APIs too, and DomBot will add
-them. Often one API key covers both sides. DomBot shouldn't make the user enter
+Atom is one of several providers that are both a registrar and a market:
+Spaceship (SellerHub), Dynadot and Namecheap have marketplace APIs too, and
+DomBot will add them. Spaceship's comes first, and builds what follows
+(docs/sellerhub-api.md). Often one API key covers both sides. DomBot shouldn't make the user enter
 the same key twice or keep two cards in step, so:
 
 - **A market account can be backed by a registrar account.** It stores
