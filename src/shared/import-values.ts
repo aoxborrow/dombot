@@ -6,6 +6,7 @@ import {
   type CurrencyCode,
 } from './currencies';
 import { isDomainKey, toAscii } from './domain-name';
+import { resolveRegistrar } from './registrar-mapping';
 
 // Reading the values real files hold (docs/domain-import-export.md,
 // "Values"): every spelling a registrar, marketplace, or spreadsheet writes,
@@ -461,43 +462,20 @@ export function readYears(raw: string): number | null {
 
 // ── registrars ──────────────────────────────────────────────────────────────
 
-export interface RegistrarName {
-  id: string;
-  displayName: string;
-}
-
-const COMPANY =
-  /\b(inc|llc|ltd|limited|gmbh|corp|corporation|co|company|sa|sas|ag|bv|plc|pty|srl|sl)\b/g;
-
-function registrarKeys(raw: string): string[] {
-  const lower = raw.toLowerCase().replace(COMPANY, ' ');
-  const whole = lower.replace(/[^a-z0-9]/g, '');
-  const noTld = lower
-    .replace(/\.(com|net|org|io|co|biz|info|us|eu|ca)\b/g, ' ')
-    .replace(/[^a-z0-9]/g, '');
-  return [...new Set([whole, noTld])].filter(Boolean);
-}
-
 /**
- * A registrar cell as one DomBot knows (its id), matched on the id, display
- * name, website, or legal name ("GoDaddy.com, LLC", "Dynadot LLC");
- * anything else is kept as free text.
+ * A registrar cell as a built-in registrar (its id), matched through
+ * data/registrar-mapping.json on its id, display name, legal names and old
+ * names ("GoDaddy.com, LLC", "Wild West Domains, LLC"); any other is kept as
+ * text, under our formatted name when the mapping has one.
  */
 export function readRegistrar(
   raw: string,
-  known: RegistrarName[],
 ): { id: string } | { label: string } | null {
-  const cell = raw.trim();
-  if (!cell) return null;
-  const keys = registrarKeys(cell);
-  for (const r of known) {
-    const theirs = new Set([
-      ...registrarKeys(r.id),
-      ...registrarKeys(r.displayName),
-    ]);
-    if (keys.some((k) => theirs.has(k))) return { id: r.id };
-  }
-  return { label: cell.slice(0, 100) };
+  const hit = resolveRegistrar({ name: raw });
+  if (!hit) return null;
+  return hit.registrar
+    ? { id: hit.registrar }
+    : { label: hit.label.slice(0, 100) };
 }
 
 /** True when `code` is a currency DomBot records. */

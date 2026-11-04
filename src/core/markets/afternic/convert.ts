@@ -1,4 +1,4 @@
-import { registrarFromAfternic } from './registrars';
+import { resolveRegistrar } from '../../../shared/registrar-mapping';
 import type {
   AccountSettingsInput,
   AfternicAccountSettings,
@@ -67,7 +67,8 @@ export function toListing(wire: WireDomain): AfternicListing {
     createdAt: wire.createdAt,
     updatedAt: wire.updatedAt,
     registrarRaw: wire.registrar ?? null,
-    registrar: registrarFromAfternic(wire.registrar),
+    // Free text: "GODADDY", "Dynadot, LLC", "Unknown .DE registrar".
+    registrar: resolveRegistrar({ name: wire.registrar })?.registrar ?? null,
     fastTransferStatus: wire.fastTransferStatus ?? null,
     searches: wire.searches
       ? {
