@@ -11,6 +11,8 @@ export type DynadotErrorCode =
   | 'NOT_FOUND'
   /** The name or account isn't in a state that allows it. */
   | 'CONFLICT'
+  /** The name's lock or the account lock is on (Dynadot says to unlock). */
+  | 'LOCKED'
   | 'RATE_LIMITED'
   | 'NETWORK'
   | 'TIMEOUT'
@@ -39,6 +41,14 @@ export class DynadotError extends Error {
       this.code === 'RATE_LIMITED' || this.status === 0 || this.status >= 500
     );
   }
+}
+
+/**
+ * Dynadot's refusals for a lock: "Domain is locked. Please unlock domain
+ * first." (409) and "Please unlock your account firstly." (400), observed.
+ */
+export function isLockMessage(message: string): boolean {
+  return /please unlock|is locked/i.test(message);
 }
 
 /** DomBot's code for a status Dynadot answered with. */

@@ -303,7 +303,8 @@ describe('writes', () => {
     expect(call.body).toEqual({
       for_sale_type: 'marketplace',
       listing_type: 'buy_now_and_make_offer',
-      description: '',
+      // Dynadot refuses an empty one; DomBot doesn't manage descriptions.
+      description: ' ',
       currency: 'usd',
       price: '2500',
     });
@@ -327,7 +328,7 @@ describe('writes', () => {
     expect(calls[0].body).toEqual({
       for_sale_type: 'not_for_sale',
       listing_type: 'buy_now',
-      description: '',
+      description: ' ',
     });
   });
 
@@ -387,6 +388,29 @@ describe('writes', () => {
     );
     expect(error.code).toBe('CONFLICT');
     expect(error.message).toBe('This domain is not verified.');
+  });
+
+  it('says when a lock stops a write', async () => {
+    for (const [status, description] of [
+      [409, 'Domain is locked. Please unlock domain first.'],
+      [400, 'Please unlock your account firstly.'],
+    ] as const) {
+      const { dynadot } = client(() => ({
+        status,
+        body: { code: status, message: 'Refused', error: { description } },
+      }));
+      const error = await caught(
+        dynadot.setForSale('testbot.io', {
+          forSale: true,
+          listingType: 'bin',
+          price: '499',
+          minOffer: null,
+          currency: 'USD',
+        }),
+      );
+      expect(error.code).toBe('LOCKED');
+      expect(error.message).toBe(description);
+    }
   });
 
   it('sends a write once, even when it fails in a way a read would retry', async () => {

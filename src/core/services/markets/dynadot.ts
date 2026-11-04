@@ -246,6 +246,16 @@ function failed(
 }
 
 function failedFrom(name: string, error: unknown): MarketWriteResult {
+  // Dynadot changes a listing in the account only while the name and the
+  // account are both unlocked (observed). DomBot doesn't turn the account
+  // lock off: that's the user's to do on dynadot.com.
+  if (error instanceof DynadotError && error.code === 'LOCKED') {
+    return failed(
+      name,
+      'LOCKED',
+      `Dynadot only changes ${name}’s listing through its API while your Dynadot account lock is off and the name is unlocked (Dynadot said: ${error.message}). Change it on dynadot.com, or turn those locks off first.`,
+    );
+  }
   const code =
     error instanceof MarketUnsupportedError
       ? 'UNSUPPORTED'

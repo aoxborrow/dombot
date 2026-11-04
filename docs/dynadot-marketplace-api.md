@@ -12,8 +12,9 @@ held elsewhere, <https://www.dynadot.com/help/question/open-marketplace>.
 ## Status
 
 **Reads and writes built (2026-11-04). Reads checked live; writes checked
-live on a name held elsewhere (domanio.com), not yet on a name in the
-account.** The plan
+live on a name held elsewhere (domanio.com). Names in the account can't be
+written while the account lock is on ("Locks"), so that path is checked
+only as far as Dynadot's refusals.** The plan
 below is from the API reference and Dynadot's help pages as read on
 2026-11-03; "Observed" has what live calls showed.
 
@@ -40,9 +41,10 @@ below is from the API reference and Dynadot's help pages as read on
   names from both sides.
 - **Live tests:** `client.live.test.ts` (reads), and
   `client.writes.live.test.ts` (round trips behind `DYNADOT_LIVE_WRITES=1`):
-  passed on domanio.com held elsewhere; the name-in-the-account half waits
-  on a test name ("Testing").
-- **Next:** the write round trip on a name in the account, then sales. Not
+  passed on domanio.com held elsewhere; on testbot.io, in the account, it
+  stops at the lock refusal ("Testing").
+- **Next:** sales; a write round trip on a name in the account once there's
+  an account with its lock off to test on. Not
   yet: keeping the last minimum offer DomBot sent across syncs, the Listing
   Currency setting, removing a name from Dynadot's list, the remove-both
   prompt and the registrar card pointing back, and sharing the registrar's
@@ -477,18 +479,21 @@ twelve names a minute at the client's pace.
   other-registrar list.
 - **Description:** `set_for_sale` needs one for a name in the account,
   even to reprice or delist: left out or empty, it's refused ("The required
-  parameter description is missing", 400); a single space gets past that
-  check (testbot.io, 2026-11-04). No API read shows it, but Dynadot's public
-  listing page (`dynadot.com/market/user-listings/<name>`) does, in its
-  embedded data with the category and sub-category, so DomBot could read
-  it there and send it back unchanged. What DomBot sends is open (open
-  question 11).
-- **Locked names:** with a description, testbot.io's same-price rewrite was
-  refused with 409 "Domain is locked. Please unlock domain first." Every
-  name in the account is locked, and so is the account (`account_lock:
-"on"`); which lock Dynadot means is open (open question 14). If it's the
-  name's own lock, every write to a name in the account means unlock,
-  write, lock again.
+  parameter description is missing", 400); a single space passes
+  (testbot.io, 2026-11-04). No API read shows it (Dynadot's public listing
+  page does, but DomBot doesn't read web pages). DomBot doesn't manage
+  descriptions (decided 2026-11-04): it sends a space, which replaces the
+  one on Dynadot.
+- **Locks:** Dynadot changes a listing in the account only while the name
+  is unlocked and the account lock is off. On testbot.io (locked, account
+  lock on) the write was refused with 409 "Domain is locked. Please unlock
+  domain first."; unlocked, with 400 "Please unlock your account firstly."
+  (then locked again). Both come back as `LOCKED`, with a message saying to
+  change it on dynadot.com or turn those locks off. DomBot never turns the
+  account lock off (a security setting, the user's to change), so with it
+  on, names in the account are read-only from DomBot; names held elsewhere
+  aren't affected. Possible later, for an account with its lock off:
+  unlock the name, write, lock it again.
 - **If the write replaces the listing** (open question 1), a price change
   would clear the minimum offer, category, description and installments,
   and DomBot couldn't see it. Then DomBot re-sends its `minOfferSent`, and
@@ -705,11 +710,13 @@ nobody would pay, read back, then delisted.
   other-registrar list, verified by the key's TXT record (kept in its DNS
   for later runs), and delisted after each run. domainio.com is the spare.
   Other names from the user's registrars only once they're picked.
-- **Writes in the account:** no sandbox, so production on a name held at
-  Dynadot that isn't listed (`DYNADOT_TEST_DOMAIN`), picked with the user
-  first; the test skips a name that's listed already. Open question 11
-  needs a separate check: a description set on Dynadot's site, then a
-  reprice from DomBot.
+- **Writes in the account:** testbot.io (`DYNADOT_TEST_DOMAIN`), listed at
+  $499 Buy Now on Dynadot and Afternic, picked with the user. The test
+  rewrites it at its price, moves it up $1 and puts it back, never
+  delisting; with the account lock on, Dynadot refuses the first write and
+  the test stops there, nothing changed. Its description on Dynadot is a
+  test one ("adding a description"), which a successful write replaces
+  with a space.
 
 ## Phases
 
@@ -764,11 +771,9 @@ nobody would pay, read back, then delisted.
 10. Answered in part: Verify now found a fresh TXT record at once. Still
     open: how often it can be called, and how often Dynadot checks on its
     own.
-11. Answered in part: `description` is required, and for a name in the
-    account a missing or empty one is refused while a single space passes
-    (observed). No API read shows it; the public listing page does. Still
-    open: what DomBot sends (read it from that page and send it back, or a
-    placeholder that replaces it).
+11. Answered (2026-11-04): `description` is required, a missing or empty
+    one is refused and a single space passes; DomBot sends a space and
+    doesn't manage descriptions.
 12. Can a name in the account be listed or changed while it has a sale
     under way, a Buy Lock, or a recent transfer, and what does Dynadot
     answer?
@@ -776,7 +781,8 @@ nobody would pay, read back, then delisted.
     registrar side that it was sold rather than pushed or transferred (a
     `domain_list` status, an order)? On the web host, how are webhooks set
     up and signed?
-14. Which lock blocks `set_for_sale` ("Domain is locked. Please unlock
-    domain first."): the name's transfer lock, or the account lock? Can a
-    locked name in the account be listed or repriced through the API at
-    all?
+14. Answered (2026-11-04): both. The name's lock (409) and the account
+    lock (400 "Please unlock your account firstly.") each block
+    `set_for_sale`. Still open: whether a write goes through with both off,
+    and whether it keeps the category and other settings DomBot doesn't
+    send (open question 1).

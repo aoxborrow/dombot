@@ -6,7 +6,7 @@ import {
   sharedLimiter,
   type Clock,
 } from '../rate-limit';
-import { DynadotError, codeForStatus } from './errors';
+import { DynadotError, codeForStatus, isLockMessage } from './errors';
 import type {
   DynadotAccountDomain,
   DynadotAccountInfo,
@@ -209,9 +209,12 @@ export class DynadotClient {
    * List, reprice or delist a name in the account (`set_for_sale`). The
    * live path is `aftermarkets/…/for_sales` (the singular one answers
    * "not recognized", observed). `listing_type` is required even to delist,
-   * and so is a non-empty `description` for a name in the account (an empty
-   * one counts as missing, observed). No read shows it, so what's sent
-   * replaces the one on Dynadot.
+   * and so is a non-empty `description` for a name in the account (left out
+   * or empty, it's refused; a space passes, observed). DomBot doesn't manage
+   * descriptions, so it sends a space, which replaces the one on Dynadot.
+   * Dynadot refuses the write while the name is locked (409 "Domain is
+   * locked") or the account is (400 "Please unlock your account firstly"),
+   * observed: those come back as `LOCKED`.
    */
   async setForSale(name: string, input: DynadotListingInput): Promise<void> {
     const domain = assertDomainName(name);
@@ -221,7 +224,7 @@ export class DynadotClient {
       {
         for_sale_type: input.forSale ? 'marketplace' : 'not_for_sale',
         listing_type: listingTypeParam(input.listingType),
-        description: input.description ?? '',
+        description: input.description ?? ' ',
         ...(input.forSale && {
           currency: input.currency.toLowerCase(),
           ...(input.price !== null && { price: input.price }),
@@ -469,9 +472,10 @@ export class DynadotClient {
       );
     }
     if (status < 200 || status >= 300) {
+      const message = messageOf(parsed) ?? `Dynadot answered HTTP ${status}.`;
       throw new DynadotError(
-        codeForStatus(status),
-        messageOf(parsed) ?? `Dynadot answered HTTP ${status}.`,
+        isLockMessage(message) ? 'LOCKED' : codeForStatus(status),
+        message,
         status,
       );
     }

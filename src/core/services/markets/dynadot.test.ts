@@ -48,6 +48,8 @@ function fakeClient(opts: {
   external?: DynadotExternalDomain[];
   /** Names on the other-registrar list, and whether Dynadot verified them. */
   verified?: Record<string, boolean>;
+  /** What Dynadot answers `set_for_sale` with instead of taking it. */
+  refuse?: Error;
 }) {
   const calls: string[] = [];
   const sent: { name: string; input: DynadotListingInput }[] = [];
@@ -58,6 +60,7 @@ function fakeClient(opts: {
     },
     setForSale: async (name: string, input: DynadotListingInput) => {
       calls.push(`setForSale:${name}`);
+      if (opts.refuse) throw opts.refuse;
       sent.push({ name, input });
       // Dynadot now shows what was sent.
       opts.listings = {
@@ -339,6 +342,23 @@ describe('the adapter', () => {
     ]);
     expect(r.error?.code).toBe('UNSUPPORTED');
     expect(sent).toEqual([]);
+  });
+
+  it('says what to do when a lock stops a write', async () => {
+    const { adapter } = fakeClient({
+      held: [{ name: 'testbot.io', forSale: true }],
+      listings: { 'testbot.io': listing({ name: 'testbot.io' }) },
+      refuse: new DynadotError(
+        'LOCKED',
+        'Please unlock your account firstly.',
+        400,
+      ),
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'testbot.io', price: '500' },
+    ]);
+    expect(r.error?.code).toBe('LOCKED');
+    expect(r.error?.message).toMatch(/account lock is off/);
   });
 
   it('leaves a listing with a sale under way alone', async () => {
