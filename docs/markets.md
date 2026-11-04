@@ -325,7 +325,7 @@ Following docs/storage-model.md:
   (`salesRead`), so a year that fails leaves a "Sales history … paused" note
   and the next sync carries on from there. Atom takes no dates and reads
   everything each time.
-- Timeouts: every registrar and market request gets 2 minutes
+- Timeouts: every registrar and market request gets 90 seconds
   (`API_TIMEOUT_MS`), retries on top; the renderer gives up on a whole sync
   after 15 minutes.
 - Account stats: the last few days each sync, a year on first sync.

@@ -75,7 +75,7 @@ export interface SedoClientOptions extends SedoCredentials {
   clock?: Clock;
   /** Retries for a call Sedo says it's too busy for. Defaults to 3. */
   maxRetries?: number;
-  /** Per-request timeout. Defaults to `API_TIMEOUT_MS`, 2 minutes. */
+  /** Per-request timeout. Defaults to `API_TIMEOUT_MS`, 90 seconds. */
   timeoutMs?: number;
 }
 

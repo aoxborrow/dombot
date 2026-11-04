@@ -50,7 +50,7 @@ function byDomain(listings: MarketListing[]): Record<string, MarketListing[]> {
 
 /** Hard ceiling on any sync — if the main-process fetch hangs (a registrar API
  * that never responds), reject so the "Syncing…" state can't stick forever.
- * Each API request may take 2 minutes and be retried, and a big portfolio
+ * Each API request may take 90 seconds and be retried, and a big portfolio
  * makes many, so this sits well above that. */
 const SYNC_TIMEOUT_MINUTES = 15;
 const SYNC_TIMEOUT_MS = SYNC_TIMEOUT_MINUTES * 60 * 1000;

@@ -5,4 +5,4 @@
  * Neither Afternic, Atom, Sedo nor the registrars publish a limit. Retries
  * multiply it, which the renderer's ceiling on a whole sync allows for.
  */
-export const API_TIMEOUT_MS = 120_000;
+export const API_TIMEOUT_MS = 90_000;
