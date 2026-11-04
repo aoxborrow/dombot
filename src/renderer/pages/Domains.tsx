@@ -2483,6 +2483,7 @@ export default function Domains() {
             <SyncSplitButton
               viewCount={nameCount(filtered)}
               allCount={nameCount(shown)}
+              failing={Boolean(syncTrouble)}
               onImport={() => setImporting(true)}
               onExportView={() => void exportCsv(filtered)}
               onExportAll={() =>

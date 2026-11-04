@@ -257,9 +257,13 @@ function AttentionRow({
       )}
       <span className="min-w-0 break-words">
         <span className="font-medium">{account.name}:</span> {detail} ·{' '}
+        {/* Smaller, in the box's colour, the underline close to the text. */}
         <Link
           to={`/settings?tab=${market ? 'markets' : 'registrars'}`}
-          className="whitespace-nowrap underline underline-offset-4"
+          className={cn(
+            'whitespace-nowrap text-xs font-medium underline underline-offset-2 hover:opacity-80',
+            SYNC_TONE[failed ? 'error' : 'warn'],
+          )}
         >
           {market ? 'Market settings' : 'Registrar settings'}
         </Link>
