@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { registrars } from '@aoxborrow/registrar-client';
 import {
   detectDateOrder,
   fitAmount,
@@ -175,25 +176,32 @@ describe('words', () => {
 });
 
 describe('readRegistrar', () => {
-  const known = [
-    { id: 'godaddy', displayName: 'GoDaddy' },
-    { id: 'dynadot', displayName: 'Dynadot' },
-    { id: 'namecom', displayName: 'Name.com' },
-    { id: 'namecheap', displayName: 'Namecheap' },
-    { id: 'gandi', displayName: 'Gandi.net' },
-  ];
   it.each([
     ['GoDaddy.com, LLC', 'godaddy'],
+    ['Wild West Domains, LLC', 'godaddy'],
     ['Dynadot LLC', 'dynadot'],
     ['Name.com, Inc.', 'namecom'],
     ['NameCheap, Inc.', 'namecheap'],
     ['gandi', 'gandi'],
     ['Gandi SAS', 'gandi'],
     ['godaddy.com', 'godaddy'],
+    ['porkbun.com', 'porkbun'],
+    ['namecheap.com', 'namecheap'],
   ])('%j → %j', (raw, id) => {
-    expect(readRegistrar(raw, known)).toEqual({ id });
+    expect(readRegistrar(raw)).toEqual({ id });
   });
+  it.each(Object.entries(registrars))(
+    'reads %s by its id, name and website',
+    (id, r) => {
+      expect(readRegistrar(id)).toEqual({ id });
+      expect(readRegistrar(r.displayName)).toEqual({ id });
+      expect(readRegistrar(r.website)).toEqual({ id });
+    },
+  );
   it('keeps an unknown registrar as text', () => {
-    expect(readRegistrar('Epik', known)).toEqual({ label: 'Epik' });
+    expect(readRegistrar('Some ccTLD Registrar')).toEqual({
+      label: 'Some ccTLD Registrar',
+    });
+    expect(readRegistrar('  ')).toBeNull();
   });
 });

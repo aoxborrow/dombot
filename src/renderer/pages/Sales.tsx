@@ -25,6 +25,7 @@ import {
   DEFAULT_NUMBER_FORMAT,
   formatMoney,
 } from '../../shared/money';
+import { compactMoney } from '../lib/renewals';
 import { conversionText } from '../../shared/exchange-rates';
 import {
   filterSaleRecords,
@@ -123,15 +124,21 @@ export default function Sales() {
   const preferred = settings?.preferredCurrency ?? DEFAULT_CURRENCY;
   const fx = useAppStore((s) => s.exchangeRates);
   // formatMoney takes no sign, so a loss is formatted unsigned and given a
-  // minus sign here.
-  const money = (amount: string | null, currency: string | null) =>
+  // minus sign here. Fees, net, cost and profit keep their cents; a sale's
+  // price is whole, like the listing price it usually was, and so are the
+  // cards' totals.
+  const money = (
+    amount: string | null,
+    currency: string | null,
+    whole = false,
+  ) =>
     amount && currency
       ? `${amount.startsWith('-') ? '−' : ''}${formatMoney(
           amount.replace(/^-/, ''),
           currency,
           preferred,
           numberFormat,
-          true,
+          whole,
         )}`
       : null;
 
@@ -433,14 +440,20 @@ export default function Sales() {
     amount: string | null,
     r: SaleRecord,
     className?: string,
+    whole = false,
   ) => {
-    const text = money(amount, r.currency);
+    const text = money(amount, r.currency, whole);
     if (!text) return dash;
     let title: string | undefined;
     if (r.currency && r.currency !== preferred) {
       const c = fx.convert(amount!, r.currency, preferred, r.soldOn);
       title = c
-        ? conversionText(text, money(String(c.amount), preferred)!, c, r.soldOn)
+        ? conversionText(
+            text,
+            money(String(c.amount), preferred, whole)!,
+            c,
+            r.soldOn,
+          )
         : `DomBot can’t convert ${r.currency}`;
     }
     return (
@@ -517,6 +530,7 @@ export default function Sales() {
             'tabular-nums',
             r.status === 'cancelled' && 'text-muted-foreground line-through',
           ),
+          true,
         ),
     },
     {
@@ -772,6 +786,9 @@ export default function Sales() {
           currency={totalsCurrency}
           fx={fx}
           money={money}
+          compact={(n, currency) =>
+            compactMoney(n, currency, preferred, numberFormat)
+          }
         />
 
         <FilterToolbar

@@ -14,7 +14,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  CircleX,
+  CircleAlert,
   Clock,
   Copy,
   Ellipsis,
@@ -698,7 +698,7 @@ function AccountCard({
             {deferred ? (
               <Clock className="mt-0.5 size-4 shrink-0 text-amber-500 dark:text-amber-400" />
             ) : (
-              <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
             )}
             <span className="min-w-0 break-words">
               {sync.lastError}
@@ -1408,7 +1408,7 @@ function SyncStatus({
   if (lastError) {
     return (
       <span className="flex items-center gap-1.5">
-        <CircleX className="size-3.5 shrink-0 text-destructive" />
+        <CircleAlert className="size-3.5 shrink-0 text-destructive" />
         <span className="text-[13px] font-medium text-destructive">
           Sync failed
         </span>

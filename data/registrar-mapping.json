@@ -490,6 +490,15 @@
     "name": "Tucows",
     "ianaIds": [69]
   },
+  "unstoppable": {
+    "name": "Unstoppable Domains",
+    "ianaIds": [
+      4326, 4573, 4574, 4575, 4576, 4577, 4578, 4579, 4580, 4581, 4582
+    ],
+    "patterns": [
+      "^UnstoppableUS\\d+ LLC$"
+    ]
+  },
   "webnamesca": {
     "name": "Webnames.ca",
     "ianaIds": [456]

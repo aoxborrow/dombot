@@ -156,6 +156,7 @@ export const IpcChannels = {
   getUpdaterState: 'app:getUpdaterState',
   downloadUpdate: 'app:downloadUpdate',
   installUpdate: 'app:installUpdate',
+  showLogFile: 'app:showLogFile',
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
   applyDomainOp: 'domain:apply',
@@ -292,6 +293,8 @@ export interface AppInfo {
   /** `process.platform` on desktop ('darwin', 'win32', 'linux', …); 'web'
    *  for a self-hosted browser instance. */
   platform: string;
+  /** Desktop: the log file's path (Settings → About), when it's running. */
+  logFile?: string;
 }
 
 /** The desktop app's update-on-click progress (Settings → About). */
@@ -984,6 +987,8 @@ export interface DombotApi {
   downloadUpdate: () => Promise<UpdaterState>;
   /** Quit and relaunch into the downloaded release. */
   installUpdate: () => Promise<void>;
+  /** Desktop: select the log file in Finder / Explorer. */
+  showLogFile: () => Promise<void>;
   /** Open a URL in the user's default browser. */
   openExternal: (url: string) => Promise<void>;
   /**
@@ -1048,13 +1053,15 @@ export interface DombotApi {
    * Best-available per-domain detail (nameservers/privacy/lock) to merge over
    * the list summary — a partial, or `null` when nothing could be resolved.
    * With `refresh` false, a fresh-enough cached partial is served without a
-   * network call; otherwise it re-fetches and updates the cache.
+   * network call; otherwise it re-fetches and updates the cache. `cacheOnly`
+   * never calls out: the fresh cached partial, or null.
    */
   getDomainDetail: (
     registrar: RegistrarName,
     domainName: string,
     refresh?: boolean,
     accountId?: string,
+    cacheOnly?: boolean,
   ) => Promise<Partial<Domain> | null>;
   /**
    * Apply one domain operation (toggle a flag, replace nameservers/forwarding,

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ABOUT_REFRESH_MS,
   compareVersions,
+  feedIsStale,
   isDevVersion,
   parseReleaseFeed,
   releasesNewerThan,
@@ -73,5 +75,28 @@ describe('releasesNewerThan', () => {
     expect(releasesNewerThan(releases, 'dev+a1b2c3d')).toEqual([]);
     expect(releasesNewerThan(releases, 'dev')).toEqual([]);
     expect(isDevVersion('1.5.0')).toBe(false);
+  });
+});
+
+describe('feedIsStale', () => {
+  const now = Date.parse('2026-11-04T12:00:00Z');
+  const at = (ms: number) => ({ checkedAt: new Date(now - ms).toISOString() });
+
+  it('is stale when never fetched', () => {
+    expect(feedIsStale(null, ABOUT_REFRESH_MS, now)).toBe(true);
+    expect(feedIsStale({ checkedAt: null }, ABOUT_REFRESH_MS, now)).toBe(true);
+    expect(feedIsStale({ checkedAt: 'garbage' }, ABOUT_REFRESH_MS, now)).toBe(
+      true,
+    );
+  });
+
+  it('is stale only past the limit', () => {
+    expect(feedIsStale(at(60 * 60 * 1000), ABOUT_REFRESH_MS, now)).toBe(false);
+    expect(feedIsStale(at(ABOUT_REFRESH_MS), ABOUT_REFRESH_MS, now)).toBe(
+      false,
+    );
+    expect(feedIsStale(at(5 * ABOUT_REFRESH_MS), ABOUT_REFRESH_MS, now)).toBe(
+      true,
+    );
   });
 });

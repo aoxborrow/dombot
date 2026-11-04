@@ -1,11 +1,13 @@
 import { registrars, type RegistrarName } from '@aoxborrow/registrar-client';
-import ianaData from '../../../data/iana-registrars.json';
-import mappingData from '../../../data/registrar-mapping.json';
+import ianaData from '../../data/iana-registrars.json';
+import mappingData from '../../data/registrar-mapping.json';
 
 // Maps the registrar a WHOIS or RDAP lookup reports ("Name.com, Inc.", IANA ID
 // 625) to the formatted name we show ("Name.com"), and to one of our built-in
-// registrars when it is one. Both tables ship with the app and are refreshed by
-// hand with scripts/update-registrars.mjs (issue #123):
+// registrars when it is one. The registrar text in an imported file and in a
+// market's listings goes through the same name match. Both tables ship with
+// the app and are refreshed by hand with scripts/update-registrars.mjs (issue
+// #123):
 //
 // - data/iana-registrars.json: IANA's Registrar ID registry (Accredited and
 //   Reserved rows).
@@ -104,6 +106,9 @@ export function mappingIndex(): Index {
     for (const id of entry.ianaIds) byId.set(id, key);
     const names = [
       labelOf(key),
+      // The id itself ("unstoppable" is not its name, "Unstoppable Domains"),
+      // and "porkbun.com", as a file or a WHOIS record may give it.
+      ...(isBuiltIn(key) ? [key, registrars[key].website] : []),
       entry.name,
       ...(entry.names ?? []),
       ...entry.ianaIds.map((id) => ianaNames.get(id) ?? ''),

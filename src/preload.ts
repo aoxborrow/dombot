@@ -20,6 +20,7 @@ const api: DombotApi = {
   getUpdaterState: () => ipcRenderer.invoke(IpcChannels.getUpdaterState),
   downloadUpdate: () => ipcRenderer.invoke(IpcChannels.downloadUpdate),
   installUpdate: () => ipcRenderer.invoke(IpcChannels.installUpdate),
+  showLogFile: () => ipcRenderer.invoke(IpcChannels.showLogFile),
   openExternal: (url) => ipcRenderer.invoke(IpcChannels.openExternal, url),
   saveTextFile: (content, suggestedName) =>
     ipcRenderer.invoke(IpcChannels.saveTextFile, content, suggestedName),
@@ -35,13 +36,14 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.setManualPrice, domain, price),
 
   // Registrars
-  getDomainDetail: (registrar, domainName, refresh, accountId) =>
+  getDomainDetail: (registrar, domainName, refresh, accountId, cacheOnly) =>
     ipcRenderer.invoke(
       IpcChannels.getDomainDetail,
       registrar,
       domainName,
       refresh,
       accountId,
+      cacheOnly,
     ),
   applyDomainOp: (target, op) =>
     ipcRenderer.invoke(IpcChannels.applyDomainOp, target, op),

@@ -1,8 +1,12 @@
 import { useMemo } from 'react';
 import { useAppStore } from '../store/app';
 import { notifications } from '../../shared/notifications';
-import { compactMoney, leavesOut, summarize, wholeMoney } from './renewals';
-import { DEFAULT_CURRENCY } from '../../shared/money';
+import { compactMoney, leavesOut, summarize } from './renewals';
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_NUMBER_FORMAT,
+  formatMoneyNumber,
+} from '../../shared/money';
 import { importedRows } from '../../shared/imported-domains';
 import { ownedAndRenewing } from '../../shared/ownership';
 import { isPending, useSaleRecords } from './sales';
@@ -39,6 +43,9 @@ export function useTabMetrics(): TabMetrics {
   const currency = useAppStore(
     (s) => s.settings?.preferredCurrency ?? DEFAULT_CURRENCY,
   );
+  const numberFormat = useAppStore(
+    (s) => s.settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+  );
   const fx = useAppStore((s) => s.exchangeRates);
   const saleRecords = useSaleRecords();
 
@@ -65,8 +72,13 @@ export function useTabMetrics(): TabMetrics {
     const renewals =
       summary.priced > 0
         ? {
-            value: compactMoney(summary.yearly, summary.currency),
-            title: `${wholeMoney(summary.yearly, summary.currency)} per year in renewals (${summary.priced} of ${summary.total} priced)${leftOut ? `. ${leftOut}.` : ''}`,
+            value: compactMoney(
+              summary.yearly,
+              summary.currency,
+              currency,
+              numberFormat,
+            ),
+            title: `${formatMoneyNumber(summary.yearly, summary.currency, currency, numberFormat)} per year in renewals (${summary.priced} of ${summary.total} priced)${leftOut ? `. ${leftOut}.` : ''}`,
           }
         : null;
 
@@ -100,6 +112,7 @@ export function useTabMetrics(): TabMetrics {
     marketSales,
     registrationLookups,
     currency,
+    numberFormat,
     fx,
     saleRecords,
   ]);

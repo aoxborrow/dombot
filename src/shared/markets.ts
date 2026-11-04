@@ -439,6 +439,12 @@ export interface MarketSyncState {
   notes: string[];
   /** What the account has, from its last test or sync. */
   status?: MarketStatusFlag[];
+  /**
+   * The days of sales read so far, on a market whose history is read a year
+   * at a time: back to `from`, up to `to`, the day of the latest read. Until
+   * `from` reaches the market's start, each sync reads further back.
+   */
+  salesRead?: { from: string; to: string };
 }
 
 /** A market account with what Settings needs to draw its card. */

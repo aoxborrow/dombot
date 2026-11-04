@@ -3,6 +3,7 @@ import { wholeAmount } from '../../../shared/list-prices';
 import {
   AfternicClient,
   BATCH_SIZE,
+  SALES_HISTORY_FROM,
   type AccountSettingsInput,
   type AfternicAccountSettings,
   type AfternicClientOptions,
@@ -345,6 +346,7 @@ export interface AfternicCredentials {
 export class AfternicAdapter implements MarketAdapter, AfternicActions {
   readonly market = 'afternic' as const;
   readonly capabilities = AFTERNIC_CAPABILITIES;
+  readonly salesHistoryFrom = SALES_HISTORY_FROM;
 
   constructor(
     readonly accountId: string,
@@ -452,8 +454,11 @@ export class AfternicAdapter implements MarketAdapter, AfternicActions {
     }));
   }
 
-  async allSales(since?: string): Promise<MarketSale[]> {
-    const sales = await this.client.allSales(since ? { from: since } : {});
+  async allSales(since?: string, until?: string): Promise<MarketSale[]> {
+    const sales = await this.client.allSales({
+      ...(since ? { from: since } : {}),
+      ...(until ? { to: until } : {}),
+    });
     return sales.map((s) => saleFromAfternic(s, this.accountId));
   }
 

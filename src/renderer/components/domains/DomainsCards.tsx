@@ -28,7 +28,8 @@ import type {
 } from '../../../shared/markets';
 import type { ExchangeRates } from '../../../shared/exchange-rates';
 import { autoRenewChoice } from '../../lib/auto-renew';
-import { compactMoney, summarize, wholeMoney } from '../../lib/renewals';
+import { compactMoney, summarize } from '../../lib/renewals';
+import { formatMoneyNumber, type NumberFormatId } from '../../../shared/money';
 import { StatCard, StatCardRow } from '../StatCard';
 import { TagOffIcon } from '../icons/TagOffIcon';
 
@@ -71,6 +72,7 @@ export function DomainsCards({
   archiveLabelOf,
   pricing,
   currency,
+  numberFormat,
   fx,
   actions,
 }: {
@@ -90,7 +92,9 @@ export function DomainsCards({
   /** Each name's renewal price, for what the auto-renewing ones cost a
    * year in your currency. */
   pricing: Record<string, RenewalPricing>;
+  /** Your currency. */
   currency: string;
+  numberFormat: NumberFormatId;
   fx: ExchangeRates;
   actions: DomainsCardActions;
 }) {
@@ -401,10 +405,15 @@ export function DomainsCards({
           {
             value: pct(cards.autoRenewing, total),
             words: autoRenewCost.priced
-              ? `${compactMoney(autoRenewCost.yearly, autoRenewCost.currency)}/yr`
+              ? `${compactMoney(autoRenewCost.yearly, autoRenewCost.currency, currency, numberFormat)}/yr`
               : undefined,
           },
         ]}
+        title={
+          autoRenewCost.priced
+            ? `${formatMoneyNumber(autoRenewCost.yearly, autoRenewCost.currency, currency, numberFormat)} a year`
+            : undefined
+        }
         onClick={actions.onAutoRenew}
       />
       <StatCard
@@ -442,10 +451,18 @@ export function DomainsCards({
         // The BIN prices added up; in the currency most of them use.
         value={[
           {
-            value: bin.currency ? wholeMoney(bin.sum, bin.currency) : '—',
+            value: bin.currency
+              ? formatMoneyNumber(
+                  bin.sum,
+                  bin.currency,
+                  currency,
+                  numberFormat,
+                  true,
+                )
+              : '—',
             unit:
               bin.currency && bin.count
-                ? `${compactMoney(bin.sum / bin.count, bin.currency)} avg`
+                ? `${compactMoney(bin.sum / bin.count, bin.currency, currency, numberFormat)} avg`
                 : undefined,
           },
         ]}

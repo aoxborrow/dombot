@@ -39,6 +39,8 @@ const webMethods: Omit<ApiTable, CoreMethodName> = {
   installUpdate: method(none, async () => {
     throw new Error('Self-hosted instances update from their repository.');
   }),
+  // No log file: the Worker's console goes to `wrangler tail`.
+  showLogFile: method(none, async () => {}),
 
   getAppInfo: method(none, async () => ({
     name: 'DomBot',

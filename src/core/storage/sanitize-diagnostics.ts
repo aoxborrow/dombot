@@ -1,5 +1,5 @@
 import type { DocStore } from './doc-store';
-import { redactRegistrarMessage } from '../services/registrar-errors';
+import { redactSecrets } from '@aoxborrow/registrar-client';
 import { PROXIES_NAMESPACE, proxySecrets } from '../../shared/proxy';
 import {
   CREDENTIALS_NAMESPACE,
@@ -47,7 +47,7 @@ export function sanitizeBundleDiagnostics(
       Object.entries(value).map(([key, child]) => [
         key,
         ['message', 'lastError'].includes(key) && typeof child === 'string'
-          ? redactRegistrarMessage(child, credentials)
+          ? redactSecrets(child, credentials)
           : walk(child),
       ]),
     );

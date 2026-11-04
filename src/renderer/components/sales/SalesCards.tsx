@@ -13,7 +13,6 @@ import {
 import type { ExchangeRates } from '../../../shared/exchange-rates';
 import { recordIn, saleTotalsIn, type SaleRecord } from '../../../shared/sales';
 import { cn } from '@/lib/utils';
-import { compactMoney } from '../../lib/renewals';
 import { isPending } from '../../lib/sales';
 import { StatCard, StatCardRow } from '../StatCard';
 
@@ -28,7 +27,8 @@ import { StatCard, StatCardRow } from '../StatCard';
 // were, and which sales DomBot couldn't convert and left out.
 // The Pending view swaps gross, net and profit (nothing's paid yet) for
 // what the pending sales wait on, you or the transfer, then what they're
-// worth: their price and, as a fifth, the net expected.
+// worth: their price and, as a fifth, the net expected. Amounts are whole,
+// with the exact one on hover.
 
 const plural = (n: number, word: string) =>
   `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
@@ -46,6 +46,7 @@ export function SalesCards({
   currency,
   fx,
   money,
+  compact,
 }: {
   /** The sales the table shows. */
   rows: readonly SaleRecord[];
@@ -54,7 +55,13 @@ export function SalesCards({
   /** What the totals are in. */
   currency: string;
   fx: ExchangeRates;
-  money: (amount: string | null, currency: string | null) => string | null;
+  money: (
+    amount: string | null,
+    currency: string | null,
+    whole?: boolean,
+  ) => string | null;
+  /** A compact whole amount: "$4.2k". */
+  compact: (n: number, currency: string) => string;
 }) {
   const { t, count, pending, waiting, value, expected } = useMemo(() => {
     // Each sale in `currency`; one DomBot can't convert is left out.
@@ -98,6 +105,9 @@ export function SalesCards({
   }, [rows, currency, fx]);
   const c = currency;
   const dash = '—';
+  // A card's amount, whole, and its exact amount for the hover.
+  const whole = (amount: string | null) => money(amount, c, true) ?? dash;
+  const exact = (amount: string | null) => money(amount, c) ?? undefined;
   // Fees over what the buyers paid for the sales with both known.
   const feeTotal = t.feesCount ? Number(t.fees) : 0;
   const feeShare =
@@ -144,21 +154,22 @@ export function SalesCards({
           icon={CircleDollarSign}
           accentClass="text-sky-400"
           label="Gross"
+          title={t.grossCount ? exact(t.gross) : undefined}
           value={[
             {
-              value: t.grossCount ? money(t.gross, c)! : dash,
+              value: t.grossCount ? whole(t.gross) : dash,
               // With Fees beside it (from 1200px), the average; without,
               // the fees, so four cards still show them.
               unit: (
                 <>
                   {t.feesCount ? (
                     <span className="wide:hidden">
-                      {compactMoney(feeTotal, c)} fees
+                      {compact(feeTotal, c)} fees
                     </span>
                   ) : null}
                   {t.average ? (
                     <span className={cn(t.feesCount ? 'max-wide:hidden' : '')}>
-                      {compactMoney(Number(t.average), c)} avg
+                      {compact(Number(t.average), c)} avg
                     </span>
                   ) : null}
                 </>
@@ -194,7 +205,8 @@ export function SalesCards({
           icon={Gem}
           accentClass="text-sky-400"
           label="Pending value"
-          value={value && c ? money(value.toFixed(2), c)! : dash}
+          value={value && c ? whole(value.toFixed(2)) : dash}
+          title={value && c ? exact(value.toFixed(2)) : undefined}
         />
       )}
       {!pendingView && (
@@ -203,9 +215,10 @@ export function SalesCards({
           icon={Wallet}
           accentClass="text-brand-400"
           label="Net"
+          title={t.netCount ? exact(t.net) : undefined}
           value={[
             {
-              value: t.netCount ? money(t.net, c)! : dash,
+              value: t.netCount ? whole(t.net) : dash,
               // What the buyers paid that you kept.
               unit:
                 feeShare === null ? undefined : `${100 - feeShare}% of price`,
@@ -219,9 +232,10 @@ export function SalesCards({
           icon={TrendingUp}
           accentClass="text-rose-400"
           label="Profit"
+          title={t.profitCount ? exact(t.profit) : undefined}
           value={[
             {
-              value: t.profitCount ? money(t.profit, c)! : dash,
+              value: t.profitCount ? whole(t.profit) : dash,
               unit:
                 t.profitCount && t.roi !== null
                   ? `${Math.round(t.roi * 100).toLocaleString()}% ROI`
@@ -237,9 +251,10 @@ export function SalesCards({
           icon={Coins}
           accentClass="text-amber-400"
           label="Fees"
+          title={t.feesCount ? exact(t.fees) : undefined}
           value={[
             {
-              value: t.feesCount ? money(t.fees, c)! : dash,
+              value: t.feesCount ? whole(t.fees) : dash,
               unit:
                 t.feesCount < t.sold
                   ? `${t.sold - t.feesCount} missing`
@@ -256,10 +271,11 @@ export function SalesCards({
           icon={Wallet}
           accentClass="text-brand-400"
           label="Expected net"
+          title={expected.known ? exact(expected.net.toFixed(2)) : undefined}
           value={[
             {
               // Blank, not 0, when no pending sale's net is known.
-              value: expected.known ? money(expected.net.toFixed(2), c)! : dash,
+              value: expected.known ? whole(expected.net.toFixed(2)) : dash,
               unit: expected.unknown
                 ? `${expected.unknown} without fees`
                 : undefined,

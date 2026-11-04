@@ -1,3 +1,4 @@
+import { API_TIMEOUT_MS } from '../../api-timeout';
 import { userAgentHeaders } from '../../app-info';
 import { assertDomainName } from '../../../shared/domain-name';
 import {
@@ -73,7 +74,7 @@ const LISTINGS_PAGE = 500;
 /** The live API rejects sales pages over 100, whatever the docs say. */
 const SALES_PAGE = 100;
 /** `allSales` default start: before Afternic existed, so it's everything. */
-const ALL_SALES_FROM = '2000-01-01T00:00:00Z';
+export const SALES_HISTORY_FROM = '2000-01-01';
 
 export interface AfternicClientOptions {
   apiKey: string;
@@ -88,7 +89,7 @@ export interface AfternicClientOptions {
   clock?: Clock;
   /** Retries for a retryable read, after the first try. Defaults to 3. */
   maxRetries?: number;
-  /** Per-request timeout. Defaults to 30 seconds. */
+  /** Per-request timeout. Defaults to `API_TIMEOUT_MS`, 90 seconds. */
   timeoutMs?: number;
 }
 
@@ -149,7 +150,7 @@ export class AfternicClient {
     this.clock = options.clock ?? realClock;
     this.limiter = options.limiter ?? limiterFor(options.apiKey, this.clock);
     this.maxRetries = options.maxRetries ?? 3;
-    this.timeoutMs = options.timeoutMs ?? 30_000;
+    this.timeoutMs = options.timeoutMs ?? API_TIMEOUT_MS;
   }
 
   // Listings
@@ -316,7 +317,7 @@ export class AfternicClient {
     const sales: AfternicSale[] = [];
     const range = {
       ...options,
-      from: options.from ?? ALL_SALES_FROM,
+      from: options.from ?? SALES_HISTORY_FROM,
       to: options.to ?? new Date(this.clock.now()),
     };
     for (let offset = 0; ; offset += SALES_PAGE) {
@@ -770,19 +771,15 @@ export class AfternicClient {
         signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch (error) {
-      const timedOut =
-        error instanceof Error &&
-        (error.name === 'TimeoutError' || error.name === 'AbortError');
-      throw new AfternicError({
-        status: 0,
-        code: timedOut ? 'TIMEOUT' : 'NETWORK',
-        message: timedOut
-          ? 'Afternic did not respond in time.'
-          : 'Could not reach Afternic.',
-        requestId,
-      });
+      throw transportError(error, requestId);
     }
-    const text = await response.text();
+    let text: string;
+    try {
+      // The timeout covers the body too: a big page can stall mid-download.
+      text = await response.text();
+    } catch (error) {
+      throw transportError(error, requestId);
+    }
     if (!response.ok) {
       throw errorFromResponse(
         response.status,
@@ -804,4 +801,19 @@ export class AfternicClient {
       });
     }
   }
+}
+
+/** No answer, or none in time: retryable, like a server error. */
+function transportError(error: unknown, requestId: string): AfternicError {
+  const timedOut =
+    error instanceof Error &&
+    (error.name === 'TimeoutError' || error.name === 'AbortError');
+  return new AfternicError({
+    status: 0,
+    code: timedOut ? 'TIMEOUT' : 'NETWORK',
+    message: timedOut
+      ? 'Afternic did not respond in time.'
+      : 'Could not reach Afternic.',
+    requestId,
+  });
 }

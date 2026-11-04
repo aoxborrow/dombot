@@ -137,9 +137,13 @@ vi.mock('../dns', () => ({
 import {
   Feature,
   NotImplementedError,
+  RateLimitError,
   registrars,
+  type Domain,
+  type RegistrarName,
 } from '@aoxborrow/registrar-client';
 import {
+  LIST_ONLY_FIELDS,
   findRegistrarsForDomain,
   getRegistrarCatalog,
   getRegistrarFeatures,
@@ -157,7 +161,6 @@ import {
   setPrivacyCached,
   syncRegistrar,
 } from './registrars';
-import type { Domain } from '@aoxborrow/registrar-client';
 
 function domain(
   partial: Partial<Domain> & { domainName: string; registrar: string },
@@ -1280,5 +1283,211 @@ describe('getDomainDetail — nameserver resolution', () => {
     resolveNs.mockRejectedValue(new Error('nxdomain'));
     const detail = await getDomainDetail('dynadot', 'a.com', true);
     expect(detail).toBeNull();
+  });
+});
+
+describe('LIST_ONLY_FIELDS', () => {
+  it('matches registrar-client’s listOnlyFields for every registrar', async () => {
+    // The real library, not this file's mock of its catalog.
+    const actual = await vi.importActual<
+      typeof import('@aoxborrow/registrar-client')
+    >('@aoxborrow/registrar-client');
+    const names = Object.keys(actual.registrars) as RegistrarName[];
+    const library = Object.fromEntries(
+      names.map((n) => [n, actual.createRegistrar(n, {}).listOnlyFields ?? []]),
+    );
+    const ours = Object.fromEntries(
+      names.map((n) => [n, LIST_ONLY_FIELDS[n] ?? []]),
+    );
+    expect(ours).toEqual(library);
+  });
+});
+
+describe('Namecheap detail', () => {
+  const nc = (d: Partial<Domain> & { domainName: string }) =>
+    domain({ registrar: 'namecheap', ...d });
+  const quote = { renewal: 1200, currency: 'USD' };
+
+  beforeEach(() => {
+    storedCredentials.namecheap = { apiKey: 'k' };
+  });
+
+  it('keeps the list’s auto-renew over a detail read that can’t see it', async () => {
+    seedSlice('namecheap', [nc({ domainName: 'a.com', autoRenew: true })]);
+    // registrar-client's getInfo-based read fills a default "off".
+    clientMethods.getDomain.mockResolvedValue(
+      nc({ domainName: 'a.com', autoRenew: false, locked: true }),
+    );
+    clientMethods.getNameservers.mockResolvedValue(['ns1.x', 'ns2.x']);
+
+    const detail = await getDomainDetail('namecheap', 'a.com', true);
+
+    expect(detail).not.toHaveProperty('autoRenew');
+    expect(detail?.locked).toBe(true);
+    expect(store.detail['namecheap:a.com'].data).not.toHaveProperty(
+      'autoRenew',
+    );
+    const [row] = getMergedPortfolio().domains;
+    expect(row.autoRenew).toBe(true);
+    expect(row.locked).toBe(true);
+  });
+
+  it('ignores the auto-renew an older version cached', () => {
+    seedSlice('namecheap', [nc({ domainName: 'a.com', autoRenew: true })]);
+    store.detail['namecheap:a.com'] = {
+      data: { nameservers: ['ns1.x'], autoRenew: false, locked: true },
+      fetchedAt: Date.now(),
+    };
+    const [row] = getMergedPortfolio().domains;
+    expect(row.autoRenew).toBe(true);
+    expect(row.locked).toBe(true);
+  });
+
+  it('still takes auto-renew from detail at a registrar whose list omits it', async () => {
+    clientMethods.getDomain.mockResolvedValue(
+      domain({
+        domainName: 'a.com',
+        registrar: 'dynadot',
+        autoRenew: true,
+        nameservers: ['ns1.x'],
+      }),
+    );
+    const detail = await getDomainDetail('dynadot', 'a.com', true);
+    expect(detail?.autoRenew).toBe(true);
+  });
+
+  it('reads a premium name whose entry holds only the quote Sync stored', async () => {
+    seedSlice('namecheap', [nc({ domainName: 'nerd.id' })]);
+    store.detail['namecheap:nerd.id'] = {
+      data: {
+        renewalQuote: quote,
+        expirationDate: '2027-01-01T00:00:00.000Z',
+      },
+      fetchedAt: Date.now(),
+    };
+    // Not detail yet: the overlay leaves the row alone…
+    expect(getMergedPortfolio().domains[0].nameservers).toEqual([]);
+
+    clientMethods.getDomain.mockResolvedValue(
+      nc({ domainName: 'nerd.id', locked: true }),
+    );
+    clientMethods.getNameservers.mockResolvedValue([
+      'ns1.afternic.com',
+      'ns2.afternic.com',
+    ]);
+    // …and a cache-first read goes to the registrar.
+    const detail = await getDomainDetail('namecheap', 'nerd.id');
+
+    expect(clientMethods.getDomain).toHaveBeenCalledTimes(1);
+    expect(detail?.nameservers).toEqual([
+      'ns1.afternic.com',
+      'ns2.afternic.com',
+    ]);
+    expect(detail?.locked).toBe(true);
+    expect(store.detail['namecheap:nerd.id'].data).toMatchObject({
+      renewalQuote: quote,
+      locked: true,
+    });
+  });
+
+  it('stores a premium quote without making old detail look fresh', async () => {
+    listPortfolio.mockResolvedValue({
+      domains: [nc({ domainName: 'fancy.io' })],
+      errors: [],
+    });
+    clientMethods.getPricing.mockResolvedValue({
+      tld: 'io',
+      currency: 'USD',
+      renewal: 52.98,
+    });
+    clientMethods.checkAvailability.mockResolvedValue([
+      {
+        domainName: 'fancy.io',
+        available: false,
+        premium: true,
+        renewalPrice: 1200,
+      },
+    ]);
+    store.detail['namecheap:fancy.io'] = {
+      data: { nameservers: ['ns1.x'], locked: true },
+      fetchedAt: 1,
+    };
+
+    await getPortfolio(true);
+
+    expect(store.detail['namecheap:fancy.io']).toEqual({
+      data: { nameservers: ['ns1.x'], locked: true, renewalQuote: quote },
+      fetchedAt: 1,
+    });
+  });
+
+  it('keeps an earlier read’s lock when the registrar’s detail fails', async () => {
+    store.detail['namecheap:a.com'] = {
+      data: {
+        nameservers: ['old.ns'],
+        locked: true,
+        privacy: true,
+        renewalQuote: quote,
+      },
+      fetchedAt: 1,
+    };
+    clientMethods.getDomain.mockRejectedValue(new Error('no detail'));
+    clientMethods.getNameservers.mockRejectedValue(new Error('no ns'));
+    resolveNs.mockResolvedValue(['ns1.afternic.com', 'ns2.afternic.com']);
+
+    const detail = await getDomainDetail('namecheap', 'a.com', true);
+
+    expect(detail).toMatchObject({
+      nameservers: ['ns1.afternic.com', 'ns2.afternic.com'],
+      locked: true,
+      privacy: true,
+    });
+    expect(store.detail['namecheap:a.com'].data).toEqual({
+      nameservers: ['ns1.afternic.com', 'ns2.afternic.com'],
+      locked: true,
+      privacy: true,
+      renewalQuote: quote,
+    });
+  });
+
+  it('answers a cache-only read without calling out', async () => {
+    store.detail['namecheap:a.com'] = {
+      data: { nameservers: ['ns1.x'], locked: true },
+      fetchedAt: Date.now(),
+    };
+    store.detail['namecheap:b.com'] = {
+      data: { renewalQuote: quote },
+      fetchedAt: Date.now(),
+    };
+
+    expect(
+      await getDomainDetail('namecheap', 'a.com', false, undefined, true),
+    ).toMatchObject({ nameservers: ['ns1.x'], locked: true });
+    expect(
+      await getDomainDetail('namecheap', 'b.com', false, undefined, true),
+    ).toBeNull();
+    expect(clientMethods.getDomain).not.toHaveBeenCalled();
+    expect(resolveNs).not.toHaveBeenCalled();
+  });
+
+  it('leaves the cache alone and says so when the quota is spent', async () => {
+    const before = {
+      data: { nameservers: ['ns1.x'], locked: true },
+      fetchedAt: 1,
+    };
+    store.detail['namecheap:a.com'] = before;
+    // Namecheap's error 500000, which registrar-client raises as a
+    // RateLimitError (status 429).
+    clientMethods.getDomain.mockRejectedValue(
+      new RateLimitError('Too many requests'),
+    );
+
+    await expect(getDomainDetail('namecheap', 'a.com', true)).rejects.toThrow(
+      /Namecheap rate limit reached/,
+    );
+
+    expect(clientMethods.getNameservers).not.toHaveBeenCalled();
+    expect(resolveNs).not.toHaveBeenCalled();
+    expect(store.detail['namecheap:a.com']).toBe(before);
   });
 });

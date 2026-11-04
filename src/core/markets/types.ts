@@ -40,7 +40,13 @@ export interface MarketAdapter {
     changes: readonly MarketListingChange[],
   ): Promise<MarketWriteResult[]>;
   deleteListings(names: readonly string[]): Promise<MarketWriteResult[]>;
-  allSales?(since?: string): Promise<MarketSale[]>;
+  /** Sales sold from `since` (ever, without it) until `until` (now). */
+  allSales?(since?: string, until?: string): Promise<MarketSale[]>;
+  /**
+   * The day a market's sales history starts, when the market filters sales
+   * by date itself. Sync then reads that history a year at a time.
+   */
+  readonly salesHistoryFrom?: string;
   /** One sale, or null when the market has no such sale. */
   getSale?(saleId: string): Promise<MarketSale | null>;
   accountStats?(days: number): Promise<MarketStatsDay[]>;
