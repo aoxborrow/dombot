@@ -139,6 +139,7 @@ import {
   NotImplementedError,
   RateLimitError,
   registrars,
+  type Domain,
   type RegistrarName,
 } from '@aoxborrow/registrar-client';
 import {
@@ -160,7 +161,6 @@ import {
   setPrivacyCached,
   syncRegistrar,
 } from './registrars';
-import type { Domain } from '@aoxborrow/registrar-client';
 
 function domain(
   partial: Partial<Domain> & { domainName: string; registrar: string },
