@@ -76,6 +76,8 @@ export class DetailLane {
   private refilledAt: number;
   private pausedUntil = 0;
   private draining = false;
+  /** The read running now, unless `clear()` dropped it mid-flight. */
+  private running: Job | null = null;
 
   constructor(
     private readonly pace: DetailPace,
@@ -108,8 +110,9 @@ export class DetailLane {
   }
 
   /** Drops every queued read; each rejects with `DetailCancelled`. A read
-   *  already running finishes. */
+   *  already running finishes, but isn't run again if it hits the limit. */
   clear(): void {
+    this.running = null;
     for (const job of this.queue.splice(0)) job.reject(new DetailCancelled());
   }
 
@@ -125,6 +128,7 @@ export class DetailLane {
         await this.waitForTurn();
         const job = this.queue.shift();
         if (!job) break;
+        this.running = job;
         try {
           job.resolve(await job.read());
         } catch (err) {
@@ -134,11 +138,16 @@ export class DetailLane {
             continue;
           }
           // Start again slowly: nothing refills during the pause, so the
-          // first read after it waits for a token rather than bursting.
+          // first read after it waits for a token rather than bursting. The
+          // quota is spent either way, so a dropped read still pauses the
+          // lane; it just isn't run again.
           this.pausedUntil = this.clock.now() + this.pace.pauseMs;
           this.refilledAt = this.pausedUntil;
           for (const b of this.buckets) b.tokens = 0;
-          this.queue.unshift(job);
+          if (this.running === job) this.queue.unshift(job);
+          else job.reject(new DetailCancelled());
+        } finally {
+          this.running = null;
         }
       }
     } finally {

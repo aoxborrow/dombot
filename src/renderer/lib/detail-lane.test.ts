@@ -99,4 +99,31 @@ describe('DetailLane', () => {
     await expect(queued).rejects.toBeInstanceOf(DetailCancelled);
     expect(lane.pending).toBe(0);
   });
+
+  it('pauses but doesn’t run again a read dropped mid-flight that hits the limit', async () => {
+    const lane = new DetailLane(pace([{ reads: 10, perMs: 60_000 }], 300_000));
+    let fail!: (err: Error) => void;
+    const dropped = vi.fn(
+      () => new Promise<string>((_, reject) => (fail = reject)),
+    );
+    const first = lane.run('a', dropped);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(dropped).toHaveBeenCalledTimes(1);
+
+    // A Sync clears the lane while the read is out, then the registrar
+    // turns it away for quota.
+    lane.clear();
+    fail(new Error('Namecheap rate limit reached. Try again later.'));
+    await expect(first).rejects.toBeInstanceOf(DetailCancelled);
+    expect(lane.pending).toBe(0);
+
+    // The next pass's read still waits out the pause.
+    const started: number[] = [];
+    void lane.run('b', async () => {
+      started.push(Date.now());
+    });
+    await vi.advanceTimersByTimeAsync(300_000 + 6_000);
+    expect(dropped).toHaveBeenCalledTimes(1);
+    expect(started).toEqual([306_000]);
+  });
 });
