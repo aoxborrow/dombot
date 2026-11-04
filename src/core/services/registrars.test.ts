@@ -137,9 +137,13 @@ vi.mock('../dns', () => ({
 import {
   Feature,
   NotImplementedError,
+  RateLimitError,
   registrars,
+  type Domain,
+  type RegistrarName,
 } from '@aoxborrow/registrar-client';
 import {
+  LIST_ONLY_FIELDS,
   findRegistrarsForDomain,
   getRegistrarCatalog,
   getRegistrarFeatures,
@@ -157,7 +161,6 @@ import {
   setPrivacyCached,
   syncRegistrar,
 } from './registrars';
-import type { Domain } from '@aoxborrow/registrar-client';
 
 function domain(
   partial: Partial<Domain> & { domainName: string; registrar: string },
@@ -1283,6 +1286,23 @@ describe('getDomainDetail — nameserver resolution', () => {
   });
 });
 
+describe('LIST_ONLY_FIELDS', () => {
+  it('matches registrar-client’s listOnlyFields for every registrar', async () => {
+    // The real library, not this file's mock of its catalog.
+    const actual = await vi.importActual<
+      typeof import('@aoxborrow/registrar-client')
+    >('@aoxborrow/registrar-client');
+    const names = Object.keys(actual.registrars) as RegistrarName[];
+    const library = Object.fromEntries(
+      names.map((n) => [n, actual.createRegistrar(n, {}).listOnlyFields ?? []]),
+    );
+    const ours = Object.fromEntries(
+      names.map((n) => [n, LIST_ONLY_FIELDS[n] ?? []]),
+    );
+    expect(ours).toEqual(library);
+  });
+});
+
 describe('Namecheap detail', () => {
   const nc = (d: Partial<Domain> & { domainName: string }) =>
     domain({ registrar: 'namecheap', ...d });
@@ -1456,8 +1476,11 @@ describe('Namecheap detail', () => {
       fetchedAt: 1,
     };
     store.detail['namecheap:a.com'] = before;
-    // Namecheap's error 500000, raised by registrar-client as a plain Error.
-    clientMethods.getDomain.mockRejectedValue(new Error('Too many requests'));
+    // Namecheap's error 500000, which registrar-client raises as a
+    // RateLimitError (status 429).
+    clientMethods.getDomain.mockRejectedValue(
+      new RateLimitError('Too many requests'),
+    );
 
     await expect(getDomainDetail('namecheap', 'a.com', true)).rejects.toThrow(
       /Namecheap rate limit reached/,
