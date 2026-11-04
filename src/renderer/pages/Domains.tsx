@@ -2475,7 +2475,7 @@ export default function Domains() {
                 to="/settings?tab=sync"
                 title={syncTrouble}
                 aria-label={`${syncTrouble}. Open Sync settings.`}
-                className="flex size-9 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
+                className="flex size-9 items-center justify-center rounded-md text-destructive/75 transition-colors hover:text-destructive"
               >
                 <TriangleAlert className="size-5" />
               </Link>
