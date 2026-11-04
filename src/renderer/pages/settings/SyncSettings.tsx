@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CircleX, Clock, RefreshCw } from 'lucide-react';
+import { CircleAlert, Clock, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -251,7 +251,7 @@ function AttentionRow({
       )}
     >
       {failed ? (
-        <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
+        <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
       ) : (
         <Clock className="mt-0.5 size-4 shrink-0 text-amber-500 dark:text-amber-400" />
       )}
