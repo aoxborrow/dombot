@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { registrars } from '@aoxborrow/registrar-client';
-import ianaData from '../../../data/iana-registrars.json';
-import mappingData from '../../../data/registrar-mapping.json';
+import ianaData from '../../data/iana-registrars.json';
+import mappingData from '../../data/registrar-mapping.json';
 import {
   registrarNameKeys,
   resolveRegistrar,
