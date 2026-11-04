@@ -34,9 +34,8 @@ import {
 export const DYNADOT_CAPABILITIES: MarketCapabilities = {
   // Listed and read in USD until there's a Listing Currency setting.
   currencies: ['USD'],
-  // Dynadot takes a minimum offer but never shows it back, so DomBot
-  // doesn't set one yet.
-  minOffer: false,
+  // Sent, never shown back: Dynadot needs one whenever Make Offer is on.
+  minOffer: true,
   floor: false,
   discount: false,
   leaseToOwn: false,
@@ -167,11 +166,8 @@ export function checkDynadotChange(change: MarketListingChange): void {
   if (change.floor != null) {
     unsupported('floor', 'Dynadot has no floor price.');
   }
-  if (change.minOffer != null) {
-    unsupported(
-      'minOffer',
-      'DomBot doesn’t set Dynadot’s minimum offer yet: Dynadot’s API never shows it back.',
-    );
+  if (change.minOffer != null && Number(change.minOffer) < 1) {
+    unsupported('minOffer', 'Dynadot’s minimum offer must be $1.00 or more.');
   }
   if (change.leaseToOwn?.enabled) {
     unsupported('leaseToOwn', 'DomBot doesn’t set Dynadot’s installments yet.');
@@ -194,17 +190,44 @@ export function checkDynadotChange(change: MarketListingChange): void {
 }
 
 /**
- * Buy Now, Make Offer or both, for a price: a listing keeps whether it
- * takes offers; a new one is Buy Now, or Make Offer alone without a price.
+ * What to send for a change, from the listing's current type and (seller's)
+ * price. Dynadot needs a minimum offer of $1 or more whenever Make Offer is
+ * on, alone or beside Buy Now ("The minimum_offer_price must be $1.00 or
+ * higher", observed), and never shows it back. So a listing that takes
+ * offers can't be changed without one: DomBot doesn't know the one on
+ * Dynadot. A price alone is Buy Now; a minimum offer alone, Make Offer.
  */
-export function listingTypeFor(
-  price: Amount | null,
-  current: DynadotListingType | null,
-): DynadotListingType {
-  if (price === null) return 'make_offer';
-  return current === 'make_offer' || current === 'bin_make_offer'
-    ? 'bin_make_offer'
-    : 'bin';
+export function listingFor(
+  change: MarketListingChange,
+  current: { type: DynadotListingType | null; price: Amount | null } | null,
+): Pick<DynadotListingInput, 'listingType' | 'price' | 'minOffer'> {
+  const price =
+    change.price !== undefined ? change.price : (current?.price ?? null);
+  const takesOffers =
+    current?.type === 'make_offer' || current?.type === 'bin_make_offer';
+  if (change.minOffer === undefined && takesOffers) {
+    unsupported(
+      'minOffer',
+      'This Dynadot listing takes offers, and Dynadot needs its minimum offer with every change but never shows it. Give the minimum offer too, or clear it to turn offers off.',
+    );
+  }
+  const minOffer = change.minOffer ?? null;
+  if (price === null && minOffer === null) {
+    unsupported(
+      'price',
+      'Dynadot needs a Buy Now price, a minimum offer, or both.',
+    );
+  }
+  return {
+    price,
+    minOffer,
+    listingType:
+      price === null
+        ? 'make_offer'
+        : minOffer === null
+          ? 'bin'
+          : 'bin_make_offer',
+  };
 }
 
 function failed(
@@ -270,16 +293,15 @@ function ok(name: string): MarketWriteResult {
 }
 
 /**
- * A name held elsewhere as listed: what Dynadot's listing read shows, or,
- * where that read doesn't cover it, what was sent.
+ * A name held elsewhere as listed, from what was sent: the listing read
+ * shows the buyer's price, with Dynadot's transfer fee added (observed), and
+ * the other-registrar list means reading every page.
  */
 function asSavedElsewhere(
   name: string,
   input: DynadotListingInput,
-  read: DynadotListing | null,
   accountId: string,
 ): MarketListing {
-  const type = read?.type ?? input.listingType;
   const listing = listingFromExternal(
     {
       name,
@@ -287,15 +309,15 @@ function asSavedElsewhere(
       status: '',
       verified: true,
       verifyStatusRaw: 'Verified',
-      listingType: type,
-      listingTypeRaw: read?.typeRaw ?? type,
-      price: read ? read.price : input.price,
+      listingType: input.listingType,
+      listingTypeRaw: input.listingType.toUpperCase(),
+      price: input.price,
       transferStatus: null,
       updatedAt: null,
     },
     accountId,
   );
-  return listing!;
+  return { ...listing!, minOffer: input.minOffer };
 }
 
 // The adapter
@@ -413,22 +435,26 @@ export class DynadotAdapter implements MarketAdapter {
         'A buyer’s purchase is under way on Dynadot, so the listing stays as it is.',
       );
     }
-    const price =
-      change.price !== undefined ? change.price : (current?.price ?? null);
-    await this.client.setForSale(name, {
+    const input: DynadotListingInput = {
       forSale: true,
-      listingType: listingTypeFor(price, current?.type ?? null),
-      price,
-      minOffer: null,
+      ...listingFor(change, current),
       currency: CURRENCY,
-    });
+    };
+    await this.client.setForSale(name, input);
+    // UNVERIFIED: that a name in the account reads at the seller's price
+    // (no transfer fee to add).
     const saved = await this.client
       .getListing(name, CURRENCY)
       .catch(() => null);
     return written(
       name,
       change,
-      saved ? listingFromDynadot(saved, this.accountId) : null,
+      saved
+        ? {
+            ...listingFromDynadot(saved, this.accountId),
+            minOffer: input.minOffer,
+          }
+        : null,
     );
   }
 
@@ -457,28 +483,28 @@ export class DynadotAdapter implements MarketAdapter {
         `Dynadot hasn’t verified that you own ${name} yet: add your ownership verification TXT record, then list it again.`,
       );
     }
-    // UNVERIFIED: whether the listing read covers names held elsewhere.
+    // The listing read covers these names too, with the right type but the
+    // buyer's price (observed); the seller's is on the other-registrar
+    // list, read only when the change keeps the price.
     const current = await this.client
       .getListing(name, CURRENCY)
       .catch(() => null);
-    const price =
-      change.price !== undefined ? change.price : (current?.price ?? null);
+    const sellerPrice =
+      current && change.price === undefined
+        ? ((await this.client.externalDomains()).domains.find(
+            (d) => d.name === name,
+          )?.price ?? null)
+        : null;
     const input: DynadotListingInput = {
       forSale: true,
-      listingType: listingTypeFor(price, current?.type ?? null),
-      price,
-      minOffer: null,
+      ...listingFor(
+        change,
+        current ? { type: current.type, price: sellerPrice } : null,
+      ),
       currency: CURRENCY,
     };
     await this.client.listExternal(name, input);
-    const after = await this.client
-      .getListing(name, CURRENCY)
-      .catch(() => null);
-    return written(
-      name,
-      change,
-      asSavedElsewhere(name, input, after, this.accountId),
-    );
+    return written(name, change, asSavedElsewhere(name, input, this.accountId));
   }
 
   /**
@@ -497,7 +523,8 @@ export class DynadotAdapter implements MarketAdapter {
           if (current) {
             await this.client.setForSale(name, {
               forSale: false,
-              listingType: current.type ?? 'bin',
+              // Required, though it changes nothing here.
+              listingType: 'bin',
               price: null,
               minOffer: null,
               currency: CURRENCY,

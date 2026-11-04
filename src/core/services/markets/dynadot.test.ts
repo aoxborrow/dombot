@@ -10,7 +10,7 @@ import {
   DynadotAdapter,
   listingFromDynadot,
   listingFromExternal,
-  listingTypeFor,
+  listingFor,
 } from './dynadot';
 
 const KEY = '0123456789abcdef0123456789abcdef';
@@ -184,13 +184,41 @@ describe('reading listings', () => {
   });
 });
 
-describe('listing types', () => {
-  it('keeps offers on, starts new listings as Buy Now', () => {
-    expect(listingTypeFor('2500', null)).toBe('bin');
-    expect(listingTypeFor('2500', 'bin')).toBe('bin');
-    expect(listingTypeFor('2500', 'make_offer')).toBe('bin_make_offer');
-    expect(listingTypeFor('2500', 'bin_make_offer')).toBe('bin_make_offer');
-    expect(listingTypeFor(null, 'bin')).toBe('make_offer');
+describe('what a change sends', () => {
+  type Current = Parameters<typeof listingFor>[1];
+  const bin: Current = { type: 'bin', price: '2500' };
+  const offers: Current = { type: 'bin_make_offer', price: '2500' };
+
+  it('picks Buy Now, Make Offer or both from the price and minimum offer', () => {
+    const at = (change: object, current: Current = null) =>
+      listingFor({ name: 'x.com', ...change }, current);
+    expect(at({ price: '2500' })).toEqual({
+      listingType: 'bin',
+      price: '2500',
+      minOffer: null,
+    });
+    expect(at({ price: '2500', minOffer: '500' }).listingType).toBe(
+      'bin_make_offer',
+    );
+    expect(at({ price: null, minOffer: '500' }).listingType).toBe('make_offer');
+    // A change that leaves the price keeps it.
+    expect(at({ minOffer: '500' }, bin)).toMatchObject({ price: '2500' });
+    // Clearing the minimum turns offers off.
+    expect(at({ price: '3000', minOffer: null }, offers).listingType).toBe(
+      'bin',
+    );
+  });
+
+  it('won’t touch a listing that takes offers without its minimum', () => {
+    expect(() => listingFor({ name: 'x.com', price: '3000' }, offers)).toThrow(
+      /needs its minimum offer/,
+    );
+  });
+
+  it('needs a price or a minimum offer', () => {
+    expect(() => listingFor({ name: 'x.com', price: null }, null)).toThrow(
+      /Buy Now price, a minimum offer, or both/,
+    );
   });
 });
 
@@ -262,7 +290,41 @@ describe('the adapter', () => {
     expect(calls).toEqual(['externalDomains', 'getListing:lumenpost.com']);
   });
 
-  it('reprices a name in the account, keeping whether it takes offers', async () => {
+  it('reprices a name in the account, with the minimum offer Dynadot needs', async () => {
+    const { adapter, sent } = fakeClient({
+      held: [{ name: 'lumenpost.com', forSale: true }],
+      listings: {
+        'lumenpost.com': listing({
+          type: 'bin_make_offer',
+          typeRaw: 'BIN_MAKE_OFFER',
+        }),
+      },
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'lumenpost.com', price: '3000', minOffer: '750' },
+    ]);
+    expect(r).toMatchObject({ ok: true, error: null, adjusted: [] });
+    // What was sent, until a sync reads it back without the minimum.
+    expect(r.saved).toMatchObject({
+      price: '3000',
+      minOffer: '750',
+      extra: { offers: true },
+    });
+    expect(sent).toEqual([
+      {
+        name: 'lumenpost.com',
+        input: {
+          forSale: true,
+          listingType: 'bin_make_offer',
+          price: '3000',
+          minOffer: '750',
+          currency: 'USD',
+        },
+      },
+    ]);
+  });
+
+  it('won’t reprice a listing that takes offers without its minimum', async () => {
     const { adapter, sent } = fakeClient({
       held: [{ name: 'lumenpost.com', forSale: true }],
       listings: {
@@ -275,20 +337,8 @@ describe('the adapter', () => {
     const [r] = await adapter.writeListings([
       { name: 'lumenpost.com', price: '3000' },
     ]);
-    expect(r).toMatchObject({ ok: true, error: null, adjusted: [] });
-    expect(r.saved).toMatchObject({ price: '3000', extra: { offers: true } });
-    expect(sent).toEqual([
-      {
-        name: 'lumenpost.com',
-        input: {
-          forSale: true,
-          listingType: 'bin_make_offer',
-          price: '3000',
-          minOffer: null,
-          currency: 'USD',
-        },
-      },
-    ]);
+    expect(r.error?.code).toBe('UNSUPPORTED');
+    expect(sent).toEqual([]);
   });
 
   it('leaves a listing with a sale under way alone', async () => {
@@ -346,11 +396,38 @@ describe('the adapter', () => {
     });
   });
 
+  it('keeps the seller’s price for a name held elsewhere, not the buyer’s', async () => {
+    const { adapter, sent } = fakeClient({
+      verified: { 'domanio.com': true },
+      // The listing read adds Dynadot's transfer fee (observed).
+      listings: {
+        'domanio.com': listing({ name: 'domanio.com', price: '1000008.62' }),
+      },
+      external: [
+        external({
+          listingType: 'bin',
+          listingTypeRaw: 'Buy Now',
+          price: '999997',
+        }),
+      ],
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'domanio.com', minOffer: '500' },
+    ]);
+    expect(r.ok).toBe(true);
+    expect(sent[0].input).toMatchObject({
+      listingType: 'bin_make_offer',
+      price: '999997',
+      minOffer: '500',
+    });
+    expect(r.adjusted).toEqual([]);
+  });
+
   it('refuses what DomBot can’t set on Dynadot, sending nothing', async () => {
     const { adapter, calls } = fakeClient({});
     const results = await adapter.writeListings([
       { name: 'lumenpost.com', floor: '100' },
-      { name: 'lumenpost.com', minOffer: '100' },
+      { name: 'lumenpost.com', minOffer: '0.5' },
       { name: 'lumenpost.com', currency: 'EUR' },
       { name: 'lumenpost.com', forSale: false },
     ]);

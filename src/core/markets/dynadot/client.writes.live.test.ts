@@ -33,21 +33,36 @@ describe.skipIf(!(apiKey && apiSecret && writes))(
     });
 
     it.skipIf(!EXTERNAL)(
-      'lists, reprices and delists a verified name held elsewhere',
+      'lists, reprices with offers, and delists a verified name held elsewhere',
       async () => {
         const name = EXTERNAL ?? '';
         const [listed] = await adapter.writeListings([{ name, price: PRICE }]);
         expect(listed.error).toBeNull();
-        expect(listed.saved?.extra).toMatchObject({ held: 'elsewhere' });
+        expect(listed.adjusted).toEqual([]);
         const [read] = await adapter.getListings([name]);
-        expect(read?.price).toBe(PRICE);
-        expect(read?.status).toBe('active');
+        // The other-registrar list has the seller's price (the listing read
+        // adds Dynadot's transfer fee).
+        expect(read).toMatchObject({
+          price: PRICE,
+          status: 'active',
+          buyNow: true,
+          extra: { held: 'elsewhere', offers: false },
+        });
 
-        const [repriced] = await adapter.writeListings([
-          { name, price: '999998' },
+        // Offers on: Dynadot needs the minimum with them.
+        const [offers] = await adapter.writeListings([
+          { name, price: '999998', minOffer: '999990' },
         ]);
-        expect(repriced.error).toBeNull();
-        expect((await adapter.getListings([name]))[0]?.price).toBe('999998');
+        expect(offers.error).toBeNull();
+        expect((await adapter.getListings([name]))[0]).toMatchObject({
+          price: '999998',
+          extra: { offers: true },
+        });
+        // And without it, DomBot refuses rather than guess.
+        const [refused] = await adapter.writeListings([
+          { name, price: '999997' },
+        ]);
+        expect(refused.error?.code).toBe('UNSUPPORTED');
 
         const [delisted] = await adapter.deleteListings([name]);
         expect(delisted.ok).toBe(true);
