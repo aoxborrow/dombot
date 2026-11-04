@@ -18,6 +18,7 @@ import { Namespace } from '../../storage/namespace';
 import { listEvents } from '../domain-events';
 import { provideSellingNames } from '../domain-history';
 import { getCachedPortfolio } from '../registrars';
+import { errorSummary } from '../error-summary';
 import {
   activeMarketAccounts,
   getMarketSyncState,
@@ -438,6 +439,11 @@ async function runMarketSync(accountId: string): Promise<void> {
       status,
     });
   } catch (error) {
+    // The card shows the message; the log keeps the code, status and
+    // request id support asks for.
+    console.error(
+      `[markets] ${account.market} "${account.label}" sync failed: ${errorSummary(error)}`,
+    );
     setMarketSyncState(accountId, {
       at: Date.now(),
       lastError: `${account.label}: ${errorMessage(error)}`,

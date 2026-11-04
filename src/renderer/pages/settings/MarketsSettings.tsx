@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ChevronDown,
-  CircleX,
+  CircleAlert,
   Ellipsis,
   Pencil,
   Plus,
@@ -716,7 +716,7 @@ function MarketCard({
             role="alert"
             className="mx-5 mt-0.5 mb-[18px] flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
           >
-            <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
             <span className="min-w-0 break-words">
               {account.sync?.lastError}
             </span>

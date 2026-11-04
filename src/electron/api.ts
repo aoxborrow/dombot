@@ -8,6 +8,7 @@ import {
   type CoreMethodName,
 } from '../core/api';
 import { getMcpInfo } from './mcp/server';
+import { appLogPath, showAppLog } from './app-log';
 import { downloadUpdate, getUpdaterState, installUpdate } from './updater';
 
 // The desktop host's half of the API table: methods that need Electron (a
@@ -31,7 +32,9 @@ const electronMethods: Omit<ApiTable, CoreMethodName> = {
     chrome: process.versions.chrome,
     node: process.versions.node,
     platform: process.platform,
+    logFile: appLogPath() ?? undefined,
   })),
+  showLogFile: method(none, async () => showAppLog()),
 
   // Open a link in the user's browser. Only http(s) — never let the renderer
   // hand the OS an arbitrary scheme (file:, etc.). The schema enforces it.

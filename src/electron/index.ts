@@ -4,6 +4,7 @@ import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { forwardCoreEventsToWindows } from './events';
 import { setAppMenu } from './menu';
+import { startAppLog } from './app-log';
 import { initStorage } from './storage';
 import { configureProxyTransport } from '../core/services/proxy-transport';
 import { desktopProxyFetch } from './proxy-transport';
@@ -179,6 +180,9 @@ const createWindow = (route?: string) => {
 
 /** The desktop app proper: window, IPC, and the embedded MCP server. */
 function runApp(): void {
+  // Before anything can fail: packaged, the console reaches no terminal, so
+  // the log file is what a user has to send support.
+  startAppLog();
   app.on('ready', async () => {
     // Populate the native "About DomBot" panel (the app menu on macOS, and the
     // GTK about dialog on Linux). `website` is honored on Linux only, so the URL

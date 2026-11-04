@@ -35,6 +35,13 @@ export function listProxyProfiles(): ProxyProfile[] {
   return Object.values(store.all());
 }
 
+/** Each proxy URL and the username and password inside it, for scrubbing
+ *  diagnostics (see stored-secrets.ts). Empty until storage is hydrated. */
+export function proxySecretValues(): string[] {
+  if (!store.loaded) return [];
+  return listProxyProfiles().flatMap((profile) => proxySecrets(profile.url));
+}
+
 /** The route for an account, or null for a direct connection. An account that
  * points at a missing profile fails loudly: it must never quietly go direct
  * from an address the registrar hasn't whitelisted. */

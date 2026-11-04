@@ -156,6 +156,7 @@ export const IpcChannels = {
   getUpdaterState: 'app:getUpdaterState',
   downloadUpdate: 'app:downloadUpdate',
   installUpdate: 'app:installUpdate',
+  showLogFile: 'app:showLogFile',
   listPortfolio: 'registrar:listPortfolio',
   getDomainDetail: 'registrar:getDomainDetail',
   applyDomainOp: 'domain:apply',
@@ -292,6 +293,8 @@ export interface AppInfo {
   /** `process.platform` on desktop ('darwin', 'win32', 'linux', …); 'web'
    *  for a self-hosted browser instance. */
   platform: string;
+  /** Desktop: the log file's path (Settings → About), when it's running. */
+  logFile?: string;
 }
 
 /** The desktop app's update-on-click progress (Settings → About). */
@@ -984,6 +987,8 @@ export interface DombotApi {
   downloadUpdate: () => Promise<UpdaterState>;
   /** Quit and relaunch into the downloaded release. */
   installUpdate: () => Promise<void>;
+  /** Desktop: select the log file in Finder / Explorer. */
+  showLogFile: () => Promise<void>;
   /** Open a URL in the user's default browser. */
   openExternal: (url: string) => Promise<void>;
   /**

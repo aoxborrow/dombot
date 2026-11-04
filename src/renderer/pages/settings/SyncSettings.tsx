@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RefreshCw } from 'lucide-react';
+import { CircleAlert, Clock, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,11 +20,10 @@ import { timeAgo } from '../../lib/time';
 import { useAppStore } from '../../store/app';
 import {
   SYNC_TONE,
-  SyncLight,
   SyncStatusLabel,
   SyncTime,
 } from '../../components/SyncStatus';
-import { SETTINGS_LINK, SettingsCard, SettingsField } from './SettingsCard';
+import { SettingsCard, SettingsField } from './SettingsCard';
 
 /** Auto-sync interval choices (minutes). `0` disables the background sync. */
 const INTERVAL_OPTIONS: { label: string; minutes: number }[] = [
@@ -88,7 +87,7 @@ export default function SyncSettings() {
         </p>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <SyncAllRow />
         <NeedsAttention />
       </div>
@@ -201,8 +200,10 @@ function SyncAllRow() {
 const ATTENTION_ORDER = { failed: 0, stale: 1, unsynced: 2, synced: 3 };
 
 /**
- * The accounts that keep the light from going green: failed, not synced in
- * over a week, or never synced, each with a link to its card.
+ * The accounts that keep the light from going green, under Sync all
+ * accounts: failed (red, with the error), not synced in over a week or never
+ * synced (amber). Each is the box its card shows, named, with a link to the
+ * card.
  */
 function NeedsAttention() {
   const { accounts } = useSyncState();
@@ -212,17 +213,15 @@ function NeedsAttention() {
     .sort((a, b) => ATTENTION_ORDER[a.state] - ATTENTION_ORDER[b.state]);
   if (rows.length === 0) return null;
   return (
-    <SettingsCard title="Needs attention" contentClassName="py-1">
-      <ul className="divide-y">
-        {rows.map(({ account, state }) => (
-          <AttentionRow
-            key={`${account.kind}:${account.id}`}
-            account={account}
-            state={state}
-          />
-        ))}
-      </ul>
-    </SettingsCard>
+    <ul className="flex flex-col gap-2">
+      {rows.map(({ account, state }) => (
+        <AttentionRow
+          key={`${account.kind}:${account.id}`}
+          account={account}
+          state={state}
+        />
+      ))}
+    </ul>
   );
 }
 
@@ -233,35 +232,42 @@ function AttentionRow({
   account: SyncAccount;
   state: ReturnType<typeof accountSyncState>;
 }) {
-  const level = state === 'failed' ? 'error' : 'warn';
-  const detail =
-    state === 'failed'
-      ? (account.lastError ?? 'Sync failed')
-      : state === 'stale'
-        ? `Last synced ${timeAgo(account.lastSyncedAt!)}`
-        : 'Not synced yet';
+  const failed = state === 'failed';
+  const detail = failed
+    ? (account.lastError ?? 'Sync failed.')
+    : state === 'stale'
+      ? `Last synced ${timeAgo(account.lastSyncedAt!)}.`
+      : 'Not synced yet.';
   const market = account.kind === 'market';
   return (
-    <li className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 py-2.5 text-sm">
-      <span
-        className={cn('flex w-3.5 shrink-0 justify-center', SYNC_TONE[level])}
-      >
-        <SyncLight level={level} />
+    // Styled like the error box on Registrars and Markets cards.
+    <li
+      role={failed ? 'alert' : undefined}
+      className={cn(
+        'flex items-start gap-2 rounded-md border px-3 py-2 text-sm',
+        failed
+          ? 'border-destructive/40 bg-destructive/10'
+          : 'border-amber-500/40 bg-amber-500/10',
+      )}
+    >
+      {failed ? (
+        <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
+      ) : (
+        <Clock className="mt-0.5 size-4 shrink-0 text-amber-500 dark:text-amber-400" />
+      )}
+      <span className="min-w-0 break-words">
+        <span className="font-medium">{account.name}:</span> {detail} ·{' '}
+        {/* Smaller, in the box's colour, the underline close to the text. */}
+        <Link
+          to={`/settings?tab=${market ? 'markets' : 'registrars'}`}
+          className={cn(
+            'whitespace-nowrap text-xs font-medium underline underline-offset-2 hover:opacity-80',
+            SYNC_TONE[failed ? 'error' : 'warn'],
+          )}
+        >
+          {market ? 'Market settings' : 'Registrar settings'}
+        </Link>
       </span>
-      <span className="shrink-0 font-medium">{account.name}</span>
-      {/* Under the name on phones, beside it from sm up. */}
-      <span
-        className="min-w-0 text-muted-foreground max-sm:order-last max-sm:basis-full max-sm:pl-6 sm:flex-1 sm:truncate"
-        title={detail}
-      >
-        {detail}
-      </span>
-      <Link
-        to={`/settings?tab=${market ? 'markets' : 'registrars'}`}
-        className={cn('ml-auto shrink-0', SETTINGS_LINK)}
-      >
-        {market ? 'Market settings' : 'Registrar settings'}
-      </Link>
     </li>
   );
 }
