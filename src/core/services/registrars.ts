@@ -33,6 +33,7 @@ import { expiryDay, type AccountHoldings } from '../../shared/sync-diff';
 import { recordSync } from './domain-history';
 import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
+import { errorSummary } from './error-summary';
 import { createProxiedRegistrar } from './proxy-transport';
 import { consentIp } from './consent-ip';
 import { recordsPrivacyConsent } from '../../shared/domain-ops';
@@ -633,6 +634,14 @@ async function performInventorySync(
       attempts >= 3
         ? 'Dynadot rate limit: automatic inventory retries stopped after three attempts. Cached domains are preserved. Try Sync after the cooldown.'
         : 'Dynadot rate limit: inventory refresh is deferred. Cached domains are preserved. Retry on the next scheduled sync or use Sync after the cooldown.';
+  }
+  if (entry.lastError) {
+    // The UI shows the message; the log keeps the class and status too.
+    console.error(
+      `[registrars] ${name} "${account.label}" sync failed: ${
+        failure === undefined ? entry.lastError : errorSummary(failure)
+      }`,
+    );
   }
   writeEntry('portfolio', accountId, entry);
   // Refresh renewal quotes as part of the sync (see syncRenewalQuotes).

@@ -238,6 +238,7 @@ export type CoreMethodName = Exclude<
   | 'getUpdaterState'
   | 'downloadUpdate'
   | 'installUpdate'
+  | 'showLogFile'
 >;
 
 export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {

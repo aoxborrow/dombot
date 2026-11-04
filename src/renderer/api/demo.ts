@@ -74,6 +74,7 @@ const demoMethods: Omit<ApiTable, CoreMethodName> = {
   getUpdaterState: method(none, async () => DEMO_UPDATE),
   downloadUpdate: method(none, async () => DEMO_UPDATE),
   installUpdate: method(none, async () => {}),
+  showLogFile: method(none, async () => {}),
   getAppInfo: method(none, async () => ({
     name: 'DomBot',
     version: DEMO_VERSION,

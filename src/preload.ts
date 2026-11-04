@@ -20,6 +20,7 @@ const api: DombotApi = {
   getUpdaterState: () => ipcRenderer.invoke(IpcChannels.getUpdaterState),
   downloadUpdate: () => ipcRenderer.invoke(IpcChannels.downloadUpdate),
   installUpdate: () => ipcRenderer.invoke(IpcChannels.installUpdate),
+  showLogFile: () => ipcRenderer.invoke(IpcChannels.showLogFile),
   openExternal: (url) => ipcRenderer.invoke(IpcChannels.openExternal, url),
   saveTextFile: (content, suggestedName) =>
     ipcRenderer.invoke(IpcChannels.saveTextFile, content, suggestedName),

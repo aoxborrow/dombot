@@ -256,6 +256,8 @@ export function createHttpApi(): DombotApi {
     getUpdaterState: m('getUpdaterState'),
     downloadUpdate: m('downloadUpdate'),
     installUpdate: m('installUpdate'),
+    // A self-hosted instance's log is the Worker's (wrangler tail).
+    showLogFile: async () => {},
     openExternal: async (url) => openExternalInBrowser(url),
     saveTextFile: async (content, suggestedName) =>
       saveTextFileInBrowser(content, suggestedName),

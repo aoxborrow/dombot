@@ -10,6 +10,7 @@ import {
   BookOpen,
   Bug,
   ExternalLink,
+  FolderOpen,
   Globe,
   Heart,
   Lightbulb,
@@ -37,6 +38,11 @@ const PLATFORM_LABEL: Record<string, string> = {
   win32: 'Windows',
   linux: 'Linux',
   web: 'Self-hosted',
+};
+
+const REVEAL_LABEL: Record<string, string> = {
+  darwin: 'Show in Finder',
+  win32: 'Show in Explorer',
 };
 
 /** A link out of the app, in a new tab on the web. On the desktop the main
@@ -222,6 +228,33 @@ export default function AboutSettings() {
             onCheckedChange={(v) => void setUpdateChecks(v)}
           />
         </div>
+
+        {/* Desktop only: what to send with a bug report. On macOS it's also
+            Help → Show Log File; Windows has no menu bar. */}
+        {appInfo?.logFile && (
+          <div className="flex items-center justify-between gap-6 border-t pt-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Log File</p>
+              <p className="mt-0.5 text-[13px] text-muted-foreground">
+                What DomBot warns and errors about, with keys and passwords
+                taken out. To report a problem, include its last 100 or so
+                lines.
+              </p>
+              <p className="mt-1 select-text break-all font-mono text-xs text-muted-foreground">
+                {appInfo.logFile}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => void window.api.showLogFile()}
+            >
+              <FolderOpen className="size-3.5" />
+              {REVEAL_LABEL[appInfo.platform] ?? 'Show in Folder'}
+            </Button>
+          </div>
+        )}
       </SettingsCard>
 
       <SettingsCard title="About DomBot" contentClassName="flex flex-col gap-3">
