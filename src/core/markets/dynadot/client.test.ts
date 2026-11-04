@@ -390,10 +390,10 @@ describe('writes', () => {
     expect(error.message).toBe('This domain is not verified.');
   });
 
-  it('says when a lock stops a write', async () => {
-    for (const [status, description] of [
-      [409, 'Domain is locked. Please unlock domain first.'],
-      [400, 'Please unlock your account firstly.'],
+  it('says which lock stops a write', async () => {
+    for (const [status, description, code] of [
+      [409, 'Domain is locked. Please unlock domain first.', 'DOMAIN_LOCKED'],
+      [400, 'Please unlock your account firstly.', 'ACCOUNT_LOCKED'],
     ] as const) {
       const { dynadot } = client(() => ({
         status,
@@ -408,9 +408,17 @@ describe('writes', () => {
           currency: 'USD',
         }),
       );
-      expect(error.code).toBe('LOCKED');
+      expect(error.code).toBe(code);
       expect(error.message).toBe(description);
     }
+  });
+
+  it('locks and unlocks a name as registrar-client does', async () => {
+    const { dynadot, calls } = client(() => ({ body: OK }));
+    await dynadot.setLock('testbot.io', false);
+    expect(calls[0].method).toBe('PUT');
+    expect(calls[0].path).toBe('/restful/v2/domains/testbot.io/domain_lock');
+    expect(calls[0].body).toEqual({ lock: false });
   });
 
   it('sends a write once, even when it fails in a way a read would retry', async () => {

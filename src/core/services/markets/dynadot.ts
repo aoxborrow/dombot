@@ -245,17 +245,39 @@ function failed(
   };
 }
 
-function failedFrom(name: string, error: unknown): MarketWriteResult {
-  // Dynadot changes a listing in the account only while the name and the
-  // account are both unlocked (observed), unless its API settings let calls
-  // from an allowed IP skip the lock checks: DomBot's fixed IP proxy, on the
-  // registrar account. DomBot doesn't turn locks off for this.
-  if (error instanceof DynadotError && error.code === 'LOCKED') {
+/** DomBot unlocked a name to write and couldn't lock it again. */
+class RelockError extends Error {}
+
+/**
+ * What to do about Dynadot's account lock, which DomBot doesn't turn off:
+ * the user does, or lets the IP DomBot calls from skip it. `egressIp` is the
+ * fixed IP proxy's, when the registrar account uses one.
+ */
+export function accountLockMessage(
+  name: string,
+  said: string,
+  egressIp?: string,
+): string {
+  const ip = egressIp
+    ? `${egressIp} (the fixed IP proxy this Dynadot account uses)`
+    : 'the IP DomBot calls Dynadot from (your fixed IP proxy’s, set in Settings → Proxy, or this computer’s)';
+  return `Dynadot won’t change ${name}’s listing while your Dynadot account lock is on (Dynadot said: “${said}”). Turn the account lock off in your Dynadot account, or let DomBot get past it: in Dynadot’s API settings, add ${ip} to the API’s IP addresses, and tick “Allow api to process commands without checking account locks or domain locks on above IPs”.`;
+}
+
+function failedFrom(
+  name: string,
+  error: unknown,
+  egressIp?: string,
+): MarketWriteResult {
+  if (error instanceof DynadotError && error.code === 'ACCOUNT_LOCKED') {
     return failed(
       name,
-      'LOCKED',
-      `Dynadot only changes ${name}’s listing through its API while your Dynadot account lock is off and the name is unlocked (Dynadot said: ${error.message}). To keep both locks on, send this Dynadot account through DomBot’s fixed IP proxy (Settings → Proxy), add that IP in Dynadot’s API settings, and tick “Allow api to process commands without checking account locks or domain locks”. Or change it on dynadot.com.`,
+      'ACCOUNT_LOCKED',
+      accountLockMessage(name, error.message, egressIp),
     );
+  }
+  if (error instanceof RelockError) {
+    return failed(name, 'RELOCK_FAILED', error.message);
   }
   const code =
     error instanceof MarketUnsupportedError
@@ -347,7 +369,44 @@ export class DynadotAdapter implements MarketAdapter {
   constructor(
     readonly accountId: string,
     private readonly client: DynadotClient,
+    /** The fixed IP proxy's address, when the registrar account uses one. */
+    private readonly egressIp?: string,
   ) {}
+
+  /**
+   * A write to a name in the account. Dynadot refuses one while the name is
+   * locked (409, observed), so DomBot unlocks it, writes, and locks it again
+   * whatever the write did. The account lock it never touches.
+   */
+  private async withNameUnlocked(
+    name: string,
+    write: () => Promise<void>,
+  ): Promise<void> {
+    try {
+      await write();
+      return;
+    } catch (error) {
+      if (!(error instanceof DynadotError && error.code === 'DOMAIN_LOCKED')) {
+        throw error;
+      }
+    }
+    await this.client.setLock(name, false);
+    let failure: unknown = null;
+    try {
+      await write();
+    } catch (error) {
+      failure = error;
+    }
+    try {
+      await this.client.setLock(name, true);
+    } catch (error) {
+      const why = error instanceof Error ? error.message : String(error);
+      throw new RelockError(
+        `DomBot unlocked ${name} to ${failure ? 'try to change' : 'change'} its listing, but couldn’t lock it again (${why}). Lock it in DomBot or on dynadot.com.`,
+      );
+    }
+    if (failure) throw failure;
+  }
 
   async test(): Promise<MarketTestResult> {
     const info = await this.client.accountInfo();
@@ -427,7 +486,7 @@ export class DynadotAdapter implements MarketAdapter {
             : await this.writeElsewhere(name, change),
         );
       } catch (error) {
-        out.push(failedFrom(name, error));
+        out.push(failedFrom(name, error, this.egressIp));
       }
     }
     return out;
@@ -451,7 +510,9 @@ export class DynadotAdapter implements MarketAdapter {
       ...listingFor(change, current),
       currency: CURRENCY,
     };
-    await this.client.setForSale(name, input);
+    await this.withNameUnlocked(name, () =>
+      this.client.setForSale(name, input),
+    );
     // UNVERIFIED: that a name in the account reads at the seller's price
     // (no transfer fee to add).
     const saved = await this.client
@@ -532,14 +593,16 @@ export class DynadotAdapter implements MarketAdapter {
         if (await this.client.holds(name)) {
           const current = await this.client.getListing(name, CURRENCY);
           if (current) {
-            await this.client.setForSale(name, {
-              forSale: false,
-              // Required, though it changes nothing here.
-              listingType: 'bin',
-              price: null,
-              minOffer: null,
-              currency: CURRENCY,
-            });
+            await this.withNameUnlocked(name, () =>
+              this.client.setForSale(name, {
+                forSale: false,
+                // Required, though it changes nothing here.
+                listingType: 'bin',
+                price: null,
+                minOffer: null,
+                currency: CURRENCY,
+              }),
+            );
           }
         } else if (await this.client.verification(name)) {
           await this.client.listExternal(name, {
@@ -552,7 +615,7 @@ export class DynadotAdapter implements MarketAdapter {
         }
         out.push(ok(name));
       } catch (error) {
-        out.push(failedFrom(name, error));
+        out.push(failedFrom(name, error, this.egressIp));
       }
     }
     return out;
@@ -575,7 +638,7 @@ export class DynadotAdapter implements MarketAdapter {
         `Dynadot didn’t find ${name}’s ownership verification yet. A new TXT record can take a while to show, and Dynadot also checks on its own.`,
       );
     } catch (error) {
-      return failedFrom(name, error);
+      return failedFrom(name, error, this.egressIp);
     }
   }
 
@@ -595,7 +658,12 @@ export class DynadotAdapter implements MarketAdapter {
 export function createDynadotAdapter(
   accountId: string,
   credentials: DynadotAccountCredentials,
-  options: Omit<DynadotClientOptions, 'apiKey' | 'apiSecret'> = {},
+  {
+    egressIp,
+    ...options
+  }: Omit<DynadotClientOptions, 'apiKey' | 'apiSecret'> & {
+    egressIp?: string;
+  } = {},
 ): DynadotAdapter {
   const { apiKey, apiSecret } = credentials;
   if (!apiKey || !apiSecret) {
@@ -606,5 +674,6 @@ export function createDynadotAdapter(
   return new DynadotAdapter(
     accountId,
     new DynadotClient({ ...options, apiKey, apiSecret }),
+    egressIp,
   );
 }

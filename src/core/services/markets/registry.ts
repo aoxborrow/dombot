@@ -44,6 +44,8 @@ export interface AdapterContext {
   registrarAccountId?: string;
   /** Through the registrar account's proxy, when it has one. */
   fetch?: typeof fetch;
+  /** That proxy's outgoing IP, for messages that ask to whitelist it. */
+  egressIp?: string;
 }
 
 /** An adapter, plus whichever market-only actions its market has. */
@@ -110,6 +112,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     create: (accountId, credentials, context) =>
       createDynadotAdapter(accountId, credentials, {
         fetch: context.fetch,
+        egressIp: context.egressIp,
         limiterKey: context.registrarAccountId ?? accountId,
       }),
   },

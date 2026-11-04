@@ -16,9 +16,9 @@ import {
 //   (testbot.io). Not listed: listed at a price nobody pays, then delisted.
 //   Listed already (a live listing): never delisted, and only if it's Buy
 //   Now alone, whose whole state DomBot can send back; rewritten at its
-//   price, moved up $1, and put back, whatever happens. Dynadot takes these
-//   writes only while the account lock is off and the name is unlocked; a
-//   lock refusal changes nothing and ends the test there.
+//   price, moved up $1, and put back, whatever happens. DomBot unlocks the
+//   name for each write and locks it again; with the account lock on,
+//   Dynadot refuses, nothing changes, and the test ends there.
 
 const apiKey = process.env.DYNADOT_API_KEY;
 const apiSecret = process.env.DYNADOT_API_SECRET;
@@ -92,7 +92,7 @@ describe.skipIf(!(apiKey && apiSecret && writes))(
           try {
             // The same price: nothing a buyer would see changes.
             const [same] = await adapter.writeListings([{ name, price }]);
-            if (same.error?.code === 'LOCKED') {
+            if (same.error?.code === 'ACCOUNT_LOCKED') {
               console.warn(`[dynadot live] ${same.error.message}`);
               return;
             }

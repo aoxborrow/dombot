@@ -13,8 +13,8 @@ held elsewhere, <https://www.dynadot.com/help/question/open-marketplace>.
 
 **Reads and writes built (2026-11-04). Reads checked live; writes checked
 live on both kinds: domanio.com held elsewhere, and testbot.io in the
-account with the account lock off and the name unlocked for the test
-("Locks").** The plan
+account, which DomBot unlocks and locks again around each write ("Locks";
+the account lock was off).** The plan
 below is from the API reference and Dynadot's help pages as read on
 2026-11-03; "Observed" has what live calls showed.
 
@@ -42,10 +42,10 @@ below is from the API reference and Dynadot's help pages as read on
 - **Live tests:** `client.live.test.ts` (reads), and
   `client.writes.live.test.ts` (round trips behind `DYNADOT_LIVE_WRITES=1`):
   passed on domanio.com held elsewhere; on testbot.io, in the account, it
-  passed on testbot.io in the account with both locks off for the run, and
-  stops at a lock refusal otherwise ("Testing").
-- **Next:** sales, and trying the IP bypass ("Locks") through the fixed IP
-  proxy. Not
+  passed on testbot.io in the account (locked; the account lock off), and
+  stops at an account-lock refusal otherwise ("Testing").
+- **Next:** sales, and whether Dynadot's allowed-IP setting gets past the
+  account lock ("Locks"). Not
   yet: keeping the last minimum offer DomBot sent across syncs, the Listing
   Currency setting, removing a name from Dynadot's list, the remove-both
   prompt and the registrar card pointing back, and sharing the registrar's
@@ -488,19 +488,24 @@ twelve names a minute at the client's pace.
 - **Locks:** Dynadot changes a listing in the account only while the name
   is unlocked and the account lock is off (other commands, the registrar
   side's included, never needed either off). On testbot.io: locked with
-  the account lock on, 409 "Domain is locked. Please unlock domain first.";
-  unlocked, 400 "Please unlock your account firstly."; with the account
-  lock off (the user turned it off) and the name unlocked, the writes went
-  through, and the name was locked again after. Both refusals come back as
-  `LOCKED`, with a message saying what to do. Names held elsewhere aren't
-  affected.
-- **The way round it, untested:** Dynadot's API settings have an allowed-IP
-  list and "Allow api to process commands without checking account locks
-  or domain locks on above IPs." DomBot already sends a registrar account
-  through its fixed IP proxy when told to (Settings → Proxy), and the
-  market account uses the same route, so: the Dynadot registrar account on
-  the proxy, the proxy's IP on Dynadot's list, that box ticked. Then both
-  locks can stay on. DomBot never turns a lock off itself.
+  the account lock on, 409 "Domain is locked. Please unlock domain first."
+  (`DOMAIN_LOCKED`); unlocked, 400 "Please unlock your account firstly."
+  (`ACCOUNT_LOCKED`); with the account lock off and the name unlocked, the
+  writes went through. Names held elsewhere aren't affected.
+  - **The name's lock** DomBot handles itself (decided 2026-11-04): on
+    `DOMAIN_LOCKED` it unlocks the name, writes again, and locks it again
+    whatever the write did. A name it can't lock again fails as
+    `RELOCK_FAILED`, saying so. Checked live on testbot.io: the round trip
+    ran with the name locked before and after.
+  - **The account lock** DomBot never touches (a security setting). On
+    `ACCOUNT_LOCKED` the result says to turn it off in the Dynadot account,
+    or to let DomBot past it: add the IP DomBot calls from to Dynadot's API
+    IP addresses (the fixed IP proxy's, named in the message when the
+    registrar account uses one) and tick "Allow api to process commands
+    without checking account locks or domain locks on above IPs".
+  - **That setting** didn't skip the name's lock for `set_for_sale`: from an
+    allowed IP, with it ticked, Dynadot still answered 409. Whether it skips
+    the account lock is untested (the account lock was off).
 - **What a write keeps:** on testbot.io, a reprice kept the category
   ("Business") and sub-category ("None") set on Dynadot, and replaced the
   description with the space DomBot sends (seen on the public listing
@@ -790,7 +795,7 @@ nobody would pay, read back, then delisted.
     up and signed?
 14. Answered (2026-11-04): both. The name's lock (409) and the account
     lock (400 "Please unlock your account firstly.") each block
-    `set_for_sale`, and with both off it goes through. Still open: whether
-    Dynadot's "without checking account locks or domain locks" setting for
-    allowed IPs lets DomBot write through its fixed IP proxy with both
-    locks on.
+    `set_for_sale`; DomBot unlocks and relocks the name itself. Still open:
+    whether Dynadot's "without checking account locks or domain locks"
+    setting for allowed IPs gets past the account lock (it didn't skip the
+    name's lock).

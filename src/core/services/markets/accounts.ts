@@ -79,6 +79,7 @@ function contextOf(account: MarketAccount): AdapterContext {
   return {
     registrarAccountId: id,
     ...(route && {
+      egressIp: route.ip,
       fetch: (input, init) =>
         sendThroughProxy(
           route,

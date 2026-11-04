@@ -6,7 +6,7 @@ import {
   sharedLimiter,
   type Clock,
 } from '../rate-limit';
-import { DynadotError, codeForStatus, isLockMessage } from './errors';
+import { DynadotError, codeForStatus, lockCode } from './errors';
 import type {
   DynadotAccountDomain,
   DynadotAccountInfo,
@@ -213,8 +213,8 @@ export class DynadotClient {
    * or empty, it's refused; a space passes, observed). DomBot doesn't manage
    * descriptions, so it sends a space, which replaces the one on Dynadot.
    * Dynadot refuses the write while the name is locked (409 "Domain is
-   * locked") or the account is (400 "Please unlock your account firstly"),
-   * observed: those come back as `LOCKED`.
+   * locked", `DOMAIN_LOCKED`) or the account is (400 "Please unlock your
+   * account firstly", `ACCOUNT_LOCKED`), observed.
    */
   async setForSale(name: string, input: DynadotListingInput): Promise<void> {
     const domain = assertDomainName(name);
@@ -233,6 +233,16 @@ export class DynadotClient {
           }),
         }),
       },
+    );
+  }
+
+  /** Lock or unlock a name in the account (as registrar-client does). */
+  async setLock(name: string, locked: boolean): Promise<void> {
+    const domain = assertDomainName(name);
+    await this.write(
+      'PUT',
+      `/restful/v2/domains/${encodeURIComponent(domain)}/domain_lock`,
+      { lock: locked },
     );
   }
 
@@ -474,7 +484,7 @@ export class DynadotClient {
     if (status < 200 || status >= 300) {
       const message = messageOf(parsed) ?? `Dynadot answered HTTP ${status}.`;
       throw new DynadotError(
-        isLockMessage(message) ? 'LOCKED' : codeForStatus(status),
+        lockCode(message) ?? codeForStatus(status),
         message,
         status,
       );
