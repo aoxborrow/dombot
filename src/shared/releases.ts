@@ -90,3 +90,18 @@ export function releasesNewerThan(
   if (isDevVersion(version)) return [];
   return releases.filter((r) => compareVersions(r.version, version) > 0);
 }
+
+/** How old a stored list can be before Settings → About fetches it again on
+ *  opening. The weekly background check can leave a device a release behind;
+ *  someone looking at About wants today's list. */
+export const ABOUT_REFRESH_MS = 24 * 60 * 60 * 1000;
+
+/** Whether `feed` was never fetched, or was fetched more than `maxAgeMs` ago. */
+export function feedIsStale(
+  feed: Pick<ReleaseFeed, 'checkedAt'> | null,
+  maxAgeMs: number = ABOUT_REFRESH_MS,
+  now: number = Date.now(),
+): boolean {
+  const at = feed?.checkedAt ? Date.parse(feed.checkedAt) : NaN;
+  return !Number.isFinite(at) || now - at > maxAgeMs;
+}

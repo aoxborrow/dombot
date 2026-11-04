@@ -87,7 +87,7 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
     try {
       const feed = await window.api.getReleaseFeed(force);
       set({ feed });
-      if (!feed.error && feed.checkedAt)
+      if (!feed.error && feed.checkedAt) {
         write(
           FEED_KEY,
           JSON.stringify({
@@ -95,6 +95,10 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
             checkedAt: feed.checkedAt,
           }),
         );
+        // Any good fetch (Check now, opening About) counts as this week's
+        // check, so the weekly one doesn't fetch again a day later.
+        write(AUTO_CHECKED_KEY, String(Date.now()));
+      }
     } catch (err) {
       set((s) => ({
         feed: {
