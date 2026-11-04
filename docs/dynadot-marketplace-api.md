@@ -208,26 +208,26 @@ No seller "my listings" call is documented for these. What there is:
 - **Afternic and Sedo Fast Transfer:** a name at Dynadot can be confirmed
   so a sale on Afternic or Sedo moves at once (Confirm Afternic, Confirm
   SedoMLS in the dashboard). Names registered or transferred in the last
-  60 days don't qualify.
+  60 days don't qualify. A registrar setting, not the marketplace's (see
+  "Not here").
 
 ## What to implement
 
 ### Implement
 
-| Command                                       | Why DomBot wants it                                                                                                                                                            |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `other_registrar_domain_list`                 | Sync for names held elsewhere: sale type, price, verification and transfer status, 100 a page.                                                                                 |
-| `add_other_registrar_domain`                  | The first step of listing a name held elsewhere, done for the user as part of List.                                                                                            |
-| `other_registrar_domain_verification`         | The account's Open Marketplace Key, saved as its Ownership Verification ID, so there's nothing to paste once a name is added.                                                  |
-| `verify_other_registrar_domain`               | Recheck ownership, for a list of names; also run after DomBot adds the TXT records.                                                                                            |
-| `listing_other_registrar_domain`              | List, reprice, Buy Now and Make Offer, minimum offer, delist (`not_for_sale`) for names held elsewhere.                                                                        |
-| `delete_other_registrar_domain`               | Take a name off Dynadot's list entirely, when asked.                                                                                                                           |
-| `domain_list` (`is_for_sale`)                 | Which names in the account are listed. From the registrar sync once registrar-client passes the flag through (a small registrar-client change); otherwise the market reads it. |
-| `get_listing_item`                            | Price, Buy Now or offers, and a sale under way, per listed name in the account.                                                                                                |
-| `get_listings`                                | Sync in one paged read, if it's the account's own listings (open question 2).                                                                                                  |
-| `set_for_sale`                                | List, reprice, Buy Now and Make Offer, minimum offer, delist (`not_for_sale`) for names in the account.                                                                        |
-| `accounts/info`                               | The account test, and `price_level` for the rate limit.                                                                                                                        |
-| `set_other_platform_confirm_action` (phase 5) | Fast Transfer for the Afternic and Sedo listings of names held at Dynadot.                                                                                                     |
+| Command                               | Why DomBot wants it                                                                                                                                                            |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `other_registrar_domain_list`         | Sync for names held elsewhere: sale type, price, verification and transfer status, 100 a page.                                                                                 |
+| `add_other_registrar_domain`          | The first step of listing a name held elsewhere, done for the user as part of List.                                                                                            |
+| `other_registrar_domain_verification` | The account's Open Marketplace Key, saved as its Ownership Verification ID, so there's nothing to paste once a name is added.                                                  |
+| `verify_other_registrar_domain`       | Recheck ownership, for a list of names; also run after DomBot adds the TXT records.                                                                                            |
+| `listing_other_registrar_domain`      | List, reprice, Buy Now and Make Offer, minimum offer, delist (`not_for_sale`) for names held elsewhere.                                                                        |
+| `delete_other_registrar_domain`       | Take a name off Dynadot's list entirely, when asked.                                                                                                                           |
+| `domain_list` (`is_for_sale`)         | Which names in the account are listed. From the registrar sync once registrar-client passes the flag through (a small registrar-client change); otherwise the market reads it. |
+| `get_listing_item`                    | Price, Buy Now or offers, and a sale under way, per listed name in the account.                                                                                                |
+| `get_listings`                        | Sync in one paged read, if it's the account's own listings (open question 2).                                                                                                  |
+| `set_for_sale`                        | List, reprice, Buy Now and Make Offer, minimum offer, delist (`not_for_sale`) for names in the account.                                                                        |
+| `accounts/info`                       | The account test, and `price_level` for the rate limit.                                                                                                                        |
 
 ### Defer
 
@@ -519,18 +519,16 @@ For both: no payout tracking (the Sale Balance isn't in the API). Later, on
 the web host, the `domain_status_changed` webhook with `moved_sold`
 confirms that a departure from the account was a sale.
 
-### Afternic and Sedo Fast Transfer (phase 5)
+### Not here: Afternic and Sedo Fast Transfer
 
-DomBot already lists on Afternic and Sedo. For a name held at Dynadot,
-confirming Fast Transfer there (`set_other_platform_confirm_action`:
-`confirm` or `delete`, for `afternic` or `sedo`) lets a sale on that market
-move at once. The API can't read the confirmation back, though the buyer
-searches (`get_afternic_domain`, `get_sedo_domain`, up to 10 results) say
-`is_fast_transfer`. Where it could go: a "Confirm Fast Transfer at Dynadot"
-choice in List at your prices, for Afternic and Sedo, when a selected name
-is at a Dynadot account, and an MCP tool. It's a registrar-side setting
-that serves the other markets; it lives with the Dynadot market client
-because it's under the aftermarket commands.
+`set_other_platform_confirm_action` (`confirm` or `delete`, for `afternic`
+or `sedo`) approves Fast Transfer for one name held at Dynadot. That's a
+registrar setting, not part of Dynadot's marketplace: every registrar has
+its own Afternic and Sedo integration, and users approve Fast Transfer
+name by name at the name's registrar. So it belongs in registrar-client,
+per registrar, Dynadot's included. Later, DomBot's Afternic and Sedo
+markets could use it to approve Fast Transfer for a listed name at its
+registrar, where the registrar supports it.
 
 ### Capabilities
 
@@ -569,8 +567,6 @@ capabilities, and `market_list` shows `registrarAccountId`. Listings carry
 `held` and `verified`. `domain_verification_apply` and
 `domain_listing_verify` work for names held elsewhere;
 `domain_listing_delete` takes `removeFromMarket` for Dynadot's list.
-Phase 5 adds `domain_listing_fast_transfer_set` (name, `afternic` or
-`sedo`, on or off).
 
 ### The demo
 
@@ -620,7 +616,6 @@ nobody would pay, read back, then delisted.
    test names.
 4. **Sales:** sale records for names held elsewhere and their steps on the
    Sales tab; the Record sale… prefill for names in the account.
-5. **Extras:** Fast Transfer for Afternic and Sedo.
 
 ## Open questions
 
