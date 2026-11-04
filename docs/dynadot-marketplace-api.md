@@ -33,7 +33,9 @@ below is from the API reference and Dynadot's help pages as read on
 - **Registrar-backed accounts:** Settings → Markets adds a Dynadot account by
   picking a Dynadot registrar account (each one once); it calls with that
   account's key and proxy route, keeps no credentials of its own, and
-  `market_list` shows its `registrarAccountId`.
+  `market_list` shows its `registrarAccountId`. The card names that
+  registrar account as a link that opens its card in Settings → Registrars
+  (`?tab=registrars&account=<id>`).
 - **Verification:** the key parses from the key, its NS3 or its CNAME; the
   nameserver preset is Dynadot's DNS pair plus `ns3-<key>.dyna-ns.org`;
   only the NS3 counts as the market's nameservers.

@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   SEARCH_DATA_FLAG,
@@ -60,6 +61,7 @@ import {
 } from '@/components/ui/select';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import {
+  SETTINGS_LINK,
   SettingsExternalLink,
   SettingsField,
   SettingsHelp,
@@ -348,11 +350,19 @@ function RegistrarAccountField({
     <SettingsField
       htmlFor={id}
       label={`${market.name} Account`}
-      description={`DomBot uses this ${market.name} registrar account’s API key and proxy. Keys are changed in Settings → Registrars.`}
+      description="Uses this registrar account’s API key and proxy."
     >
       {!onChange ? (
         <p id={id} className="text-sm">
-          {current?.title ?? (
+          {current ? (
+            // Its card in Settings → Registrars, opened.
+            <Link
+              to={`/settings?tab=registrars&account=${encodeURIComponent(current.id)}`}
+              className={SETTINGS_LINK}
+            >
+              {current.title}
+            </Link>
+          ) : (
             <span className="text-destructive">
               The {market.name} registrar account this used is gone.
             </span>

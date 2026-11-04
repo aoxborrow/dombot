@@ -408,14 +408,10 @@ export class DynadotAdapter implements MarketAdapter {
     if (failure) throw failure;
   }
 
+  /** The key works: Dynadot answers the account read. */
   async test(): Promise<MarketTestResult> {
-    const info = await this.client.accountInfo();
-    return {
-      listings: null,
-      notes: info.priceLevel
-        ? [`Dynadot API price level: ${info.priceLevel}.`]
-        : [],
-    };
+    await this.client.accountInfo();
+    return { listings: null, notes: [] };
   }
 
   /**

@@ -275,6 +275,7 @@ async function runMarketSync(accountId: string): Promise<void> {
   const notes = (previous?.notes ?? []).filter(
     (n) =>
       !n.startsWith('No search data on this account') &&
+      !n.startsWith('Dynadot API price level') &&
       !n.startsWith('Sedo’s API has no sales'),
   );
   let status = previous?.status ?? [];

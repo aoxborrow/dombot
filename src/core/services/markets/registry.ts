@@ -103,7 +103,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       website: 'dynadot.com',
       keysUrl: 'https://www.dynadot.com/help/question/open-marketplace',
       helpText:
-        'Dynadot’s marketplace uses the API key of a Dynadot registrar account. It sells the names in that account, and names you hold at other registrars once Dynadot has verified them.',
+        'Sells the names in your Dynadot account, and names you hold at other registrars once Dynadot has verified them.',
       configFields: DYNADOT_CONFIG_FIELDS,
       capabilities: DYNADOT_CAPABILITIES,
       nameservers: DYNADOT_NAMESERVERS,
