@@ -228,26 +228,26 @@ export default function AboutSettings() {
         {/* Desktop only: what to send with a bug report. On macOS it's also
             Help → Show Error Log; Windows has no menu bar. */}
         {appInfo?.logFile && (
-          <div className="flex items-center justify-between gap-6 border-t pt-4">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Error Log</p>
-              <p className="mt-0.5 text-[13px] text-muted-foreground">
-                Warnings and errors from DomBot, such as a failed sync. It
-                removes your API keys and passwords before writing anything.
-              </p>
-              <p className="mt-1 select-text break-all font-mono text-xs text-muted-foreground">
+          <div className="border-t pt-4">
+            <p className="text-sm font-medium">Error Log</p>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">
+              Errors and warnings, such as a failed sync, with API keys and
+              passwords removed.
+            </p>
+            {/* The path in the version's code pill, the reveal beside it. */}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="min-w-0 select-text break-all rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs">
                 {appInfo.logFile}
-              </p>
+              </span>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => void window.api.showLogFile()}
+              >
+                <FolderOpen />
+                {REVEAL_LABEL[appInfo.platform] ?? 'Show in Folder'}
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              onClick={() => void window.api.showLogFile()}
-            >
-              <FolderOpen className="size-3.5" />
-              {REVEAL_LABEL[appInfo.platform] ?? 'Show in Folder'}
-            </Button>
           </div>
         )}
       </SettingsCard>
