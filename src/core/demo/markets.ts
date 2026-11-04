@@ -94,8 +94,6 @@ function refusal(
   price: string | null,
   currency: string,
 ): string | null {
-  // As in the real adapter, until writes are built.
-  if (market === 'dynadot') return DYNADOT_NOT_BUILT;
   if (change.floor != null && !caps.floor)
     return 'This market has no floor price.';
   if (change.minOffer != null && !caps.minOffer)
@@ -111,11 +109,10 @@ function refusal(
   }
   if (market === 'sedo' && price && currency !== 'GBP' && Number(price) < 199)
     return `Sedo needs a Buy Now price of at least 199 ${currency}.`;
+  if (market === 'dynadot' && change.forSale === false)
+    return 'Dynadot has no hidden listings; delist instead.';
   return null;
 }
-
-const DYNADOT_NOT_BUILT =
-  'Listing on Dynadot from DomBot isn’t built yet. Change it on dynadot.com for now.';
 
 /** When each demo account last asked Atom for a DNS check. */
 const dnsChecks = new Map<string, number>();
@@ -179,6 +176,16 @@ export class DemoMarketAdapter {
         currency,
       );
       if (why) return refused(name, why);
+      // Dynadot lists a name held elsewhere only once it has verified it.
+      if (
+        current?.extra.market === 'dynadot' &&
+        current.extra.verified === false
+      ) {
+        return refused(
+          name,
+          `Dynadot hasn’t verified that you own ${name} yet: add your ownership verification TXT record, then list it again.`,
+        );
+      }
       const now = new Date().toISOString();
       const next: MarketListing = {
         ...(current ?? newListing(this.market, this.accountId, name, now)),
@@ -221,9 +228,6 @@ export class DemoMarketAdapter {
 
   async deleteListings(names: readonly string[]) {
     return names.map((n) => {
-      if (this.market === 'dynadot') {
-        return refused(n.toLowerCase(), DYNADOT_NOT_BUILT);
-      }
       this.mine.delete(n.toLowerCase());
       return ok(null, n.toLowerCase());
     });
@@ -314,6 +318,20 @@ export class DemoMarketAdapter {
 
   async verifyDns(name: string): Promise<MarketWriteResult> {
     const key = name.toLowerCase();
+    // Dynadot checks a list of names whenever it's asked.
+    if (this.market === 'dynadot') {
+      const l = this.mine.get(key);
+      if (l?.extra.market === 'dynadot' && l.extra.verified === false) {
+        this.mine.set(key, {
+          ...l,
+          status: 'active',
+          statusRaw: 'Buy Now · Verified',
+          forSale: true,
+          extra: { ...l.extra, verified: true },
+        });
+      }
+      return ok(this.mine.get(key) ?? null, key);
+    }
     const last = dnsChecks.get(this.accountId);
     if (last !== undefined && Date.now() - last < 12 * 60 * 60 * 1000) {
       return refused(

@@ -12,12 +12,15 @@ import type {
   DynadotAccountInfo,
   DynadotExternalDomain,
   DynadotListing,
+  DynadotListingInput,
   DynadotVerification,
 } from './types';
 import {
   DYNADOT_BASE_URL,
+  cents,
   dataOf,
   envelopeCode,
+  listingTypeParam,
   listOf,
   messageOf,
   pagingOf,
@@ -30,7 +33,7 @@ import {
 
 // A client for Dynadot's marketplace (docs/dynadot-marketplace-api.md), on
 // the RESTful v2 API that registrar-client's Dynadot provider uses with the
-// same key. Reads only so far; listing from DomBot comes next.
+// same key. One method per command.
 //
 // - Every request carries `Authorization: Bearer <key>` and an
 //   `X-Signature`: the Base64 HMAC-SHA256, keyed by the secret, of
@@ -39,6 +42,8 @@ import {
 // - The limit is the account's (60 a minute on a Regular account, one
 //   request at a time), shared with the registrar side, which runs its own
 //   calls on the same key. The client paces itself under that.
+// - Writes go once and are never retried, not even on a network error,
+//   since Dynadot may have applied them.
 
 /** Names per page of the account's domain list (observed to work). */
 export const DOMAIN_PAGE = 200;
@@ -188,7 +193,112 @@ export class DynadotClient {
     }
   }
 
+  /** Whether the account holds the name: `domain_info` answers 404 if not. */
+  async holds(name: string): Promise<boolean> {
+    const domain = assertDomainName(name);
+    try {
+      await this.call(`/restful/v2/domains/${encodeURIComponent(domain)}`);
+      return true;
+    } catch (error) {
+      if (isNotFound(error)) return false;
+      throw error;
+    }
+  }
+
+  /**
+   * List, reprice or delist a name in the account (`set_for_sale`). The
+   * live path is `aftermarkets/…/for_sales` (the singular one answers
+   * "not recognized", observed). `listing_type` is required even to delist,
+   * and so is `description`, though an empty one passes (observed);
+   * UNVERIFIED: whether an empty one clears a description set on Dynadot.
+   */
+  async setForSale(name: string, input: DynadotListingInput): Promise<void> {
+    const domain = assertDomainName(name);
+    await this.write(
+      'PUT',
+      `/restful/v2/aftermarkets/domains/${encodeURIComponent(domain)}/for_sales`,
+      {
+        for_sale_type: input.forSale ? 'marketplace' : 'not_for_sale',
+        listing_type: listingTypeParam(input.listingType),
+        description: input.description ?? '',
+        ...(input.forSale && {
+          currency: input.currency.toLowerCase(),
+          ...(input.price !== null && { price: input.price }),
+          ...(input.minOffer !== null && {
+            minimum_offer_price: input.minOffer,
+          }),
+        }),
+      },
+    );
+  }
+
   // Names held at other registrars
+
+  /** Add names to the other-registrar list, the first step to listing them. */
+  async addExternal(names: readonly string[]): Promise<void> {
+    await this.write(
+      'POST',
+      '/restful/v2/aftermarket/other_registrar/domains',
+      {
+        domain_name_list: names.map((n) => assertDomainName(n)),
+      },
+    );
+  }
+
+  /**
+   * Ask Dynadot to check names' verification now. Names it doesn't find
+   * verified, or that aren't on the list, come back in `failed`.
+   */
+  async verifyExternal(
+    names: readonly string[],
+  ): Promise<{ verified: string[]; failed: string[] }> {
+    const data = dataOf(
+      await this.write(
+        'POST',
+        '/restful/v2/aftermarket/other_registrar/verify',
+        {
+          domain_name_list: names.map((n) => assertDomainName(n)),
+        },
+      ),
+    );
+    const namesIn = (key: string) =>
+      listOf(data, key).flatMap((n) =>
+        typeof n === 'string' ? n.toLowerCase() : [],
+      );
+    return {
+      verified: namesIn('success_list'),
+      failed: namesIn('failed_list'),
+    };
+  }
+
+  /**
+   * List, reprice or delist a name held elsewhere. Prices go in cents.
+   * Dynadot refuses one it hasn't verified (409 "This domain is not
+   * verified", observed).
+   */
+  async listExternal(name: string, input: DynadotListingInput): Promise<void> {
+    const domain = assertDomainName(name);
+    await this.write(
+      'POST',
+      `/restful/v2/aftermarket/${encodeURIComponent(domain)}/listing_other_registrar_domain`,
+      input.forSale
+        ? {
+            for_sale_type: 'marketplace',
+            listing_type: listingTypeParam(input.listingType),
+            currency: input.currency.toLowerCase(),
+            ...(input.price !== null && {
+              buy_now_price: cents(input.price),
+            }),
+            ...(input.minOffer !== null && {
+              minimum_offer_price: cents(input.minOffer),
+            }),
+            ...(input.description !== undefined && {
+              description: input.description,
+            }),
+          }
+        : { for_sale_type: 'not_for_sale' },
+    );
+  }
 
   /** Every name added to the account's other-registrar list. */
   async externalDomains(): Promise<{
@@ -267,6 +377,15 @@ export class DynadotClient {
     return { items, complete: total === null || total === items.length };
   }
 
+  /** A request with side effects: sent once, never retried. */
+  private write(
+    method: 'POST' | 'PUT' | 'DELETE',
+    pathAndQuery: string,
+    body?: unknown,
+  ): Promise<unknown> {
+    return this.send(method, pathAndQuery, body);
+  }
+
   /** A GET, retried with backoff when it's worth it. */
   private async call(pathAndQuery: string): Promise<unknown> {
     for (let attempt = 0; ; attempt++) {
@@ -287,7 +406,7 @@ export class DynadotClient {
   }
 
   private async send(
-    method: 'GET',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     pathAndQuery: string,
     body?: unknown,
   ): Promise<unknown> {

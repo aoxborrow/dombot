@@ -49,6 +49,19 @@ export interface DynadotExternalDomain {
   updatedAt: string | null;
 }
 
+/** What DomBot sends to list, reprice or delist a name, of either kind. */
+export interface DynadotListingInput {
+  forSale: boolean;
+  listingType: DynadotListingType;
+  /** Buy Now; null for Make Offer alone. */
+  price: Amount | null;
+  minOffer: Amount | null;
+  /** ISO 4217; Dynadot takes it lowercase. */
+  currency: string;
+  /** Required by `set_for_sale`; empty passes (observed). */
+  description?: string;
+}
+
 /** How to verify a name held elsewhere: the account's key, three ways. */
 export interface DynadotVerification {
   name: string;

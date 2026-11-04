@@ -3,7 +3,7 @@ import { RateLimiter, type Clock } from '../rate-limit';
 import { DynadotClient } from './client';
 import { DynadotError } from './errors';
 import * as fx from './fixtures';
-import { amount, listingTypeOf } from './wire';
+import { amount, cents, listingTypeOf } from './wire';
 
 const KEY = 'key_SECRET_123';
 const SECRET = 'secret_SECRET_456';
@@ -41,8 +41,12 @@ function fakeClock() {
 interface Call {
   pathAndQuery: string;
   path: string;
+  method: string;
   query: URLSearchParams;
   headers: Headers;
+  body: unknown;
+  /** The body exactly as sent, for the signature. */
+  bodyText: string;
 }
 
 type Reply = { status?: number; body: unknown } | Error;
@@ -55,7 +59,10 @@ function client(respond: (call: Call) => Reply) {
     const call: Call = {
       pathAndQuery: url.pathname + url.search,
       path: url.pathname,
+      method: init?.method ?? 'GET',
       query: url.searchParams,
+      bodyText: typeof init?.body === 'string' ? init.body : '',
+      body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
       headers: new Headers(init?.headers),
     };
     calls.push(call);
@@ -259,6 +266,139 @@ describe('names held elsewhere', () => {
   });
 });
 
+const OK = { code: 200, message: 'Success' };
+
+describe('writes', () => {
+  it('tells a name in the account from one that isn’t', async () => {
+    const { dynadot } = client((c) =>
+      c.path.endsWith('/lumenpost.com')
+        ? { body: { ...OK, data: { domain_info: {} } } }
+        : {
+            status: 404,
+            body: {
+              code: 404,
+              message: 'Not Found',
+              error: { description: 'Can not find the domain in the account.' },
+            },
+          },
+    );
+    expect(await dynadot.holds('lumenpost.com')).toBe(true);
+    expect(await dynadot.holds('domanio.com')).toBe(false);
+  });
+
+  it('lists a name in the account on the live path, with a description', async () => {
+    const { dynadot, calls } = client(() => ({ body: OK }));
+    await dynadot.setForSale('lumenpost.com', {
+      forSale: true,
+      listingType: 'bin_make_offer',
+      price: '2500',
+      minOffer: null,
+      currency: 'USD',
+    });
+    const call = calls[0];
+    expect(call.method).toBe('PUT');
+    expect(call.path).toBe(
+      '/restful/v2/aftermarkets/domains/lumenpost.com/for_sales',
+    );
+    expect(call.body).toEqual({
+      for_sale_type: 'marketplace',
+      listing_type: 'buy_now_and_make_offer',
+      description: '',
+      currency: 'usd',
+      price: '2500',
+    });
+    // The body is signed as sent.
+    expect(call.headers.get('x-signature')).toBe(
+      await expectedSignature(
+        `${KEY}\n${call.pathAndQuery}\n\n${call.bodyText}`,
+      ),
+    );
+  });
+
+  it('delists with the listing type Dynadot still wants', async () => {
+    const { dynadot, calls } = client(() => ({ body: OK }));
+    await dynadot.setForSale('lumenpost.com', {
+      forSale: false,
+      listingType: 'bin',
+      price: null,
+      minOffer: null,
+      currency: 'USD',
+    });
+    expect(calls[0].body).toEqual({
+      for_sale_type: 'not_for_sale',
+      listing_type: 'buy_now',
+      description: '',
+    });
+  });
+
+  it('lists a name held elsewhere in cents', async () => {
+    const { dynadot, calls } = client(() => ({ body: OK }));
+    await dynadot.listExternal('domanio.com', {
+      forSale: true,
+      listingType: 'bin',
+      price: '999999.5',
+      minOffer: null,
+      currency: 'USD',
+    });
+    expect(calls[0].method).toBe('POST');
+    expect(calls[0].path).toBe(
+      '/restful/v2/aftermarket/domanio.com/listing_other_registrar_domain',
+    );
+    expect(calls[0].body).toEqual({
+      for_sale_type: 'marketplace',
+      listing_type: 'buy_now',
+      currency: 'usd',
+      buy_now_price: 99999950,
+    });
+  });
+
+  it('says which names Dynadot verified', async () => {
+    const { dynadot, calls } = client(() => ({
+      body: {
+        ...OK,
+        data: { success_list: ['Domanio.com'], failed_list: ['lumenpost.io'] },
+      },
+    }));
+    expect(
+      await dynadot.verifyExternal(['domanio.com', 'lumenpost.io']),
+    ).toEqual({ verified: ['domanio.com'], failed: ['lumenpost.io'] });
+    expect(calls[0].body).toEqual({
+      domain_name_list: ['domanio.com', 'lumenpost.io'],
+    });
+  });
+
+  it('refuses to list a name Dynadot hasn’t verified', async () => {
+    const { dynadot } = client(() => ({
+      status: 409,
+      body: {
+        code: 409,
+        message: 'Conflict',
+        error: { description: 'This domain is not verified.' },
+      },
+    }));
+    const error = await caught(
+      dynadot.listExternal('domanio.com', {
+        forSale: true,
+        listingType: 'bin',
+        price: '2500',
+        minOffer: null,
+        currency: 'USD',
+      }),
+    );
+    expect(error.code).toBe('CONFLICT');
+    expect(error.message).toBe('This domain is not verified.');
+  });
+
+  it('sends a write once, even when it fails in a way a read would retry', async () => {
+    const { dynadot, calls } = client(() => ({
+      status: 500,
+      body: { code: 500, message: 'Internal Server Error', error: {} },
+    }));
+    await caught(dynadot.addExternal(['domanio.com']));
+    expect(calls).toHaveLength(1);
+  });
+});
+
 describe('wire', () => {
   it('reads both spellings of a listing type', () => {
     expect(listingTypeOf('BIN')).toBe('bin');
@@ -268,6 +408,13 @@ describe('wire', () => {
     expect(listingTypeOf('Make Offer')).toBe('make_offer');
     expect(listingTypeOf('Buy Now + Make Offer')).toBe('bin_make_offer');
     expect(listingTypeOf('Not Set')).toBeNull();
+  });
+
+  it('turns amounts into cents', () => {
+    expect(cents('2500')).toBe(250000);
+    expect(cents('19.9')).toBe(1990);
+    expect(cents('0.05')).toBe(5);
+    expect(() => cents('1.234')).toThrow();
   });
 
   it('keeps amounts canonical', () => {

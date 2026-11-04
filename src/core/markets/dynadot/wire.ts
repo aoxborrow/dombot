@@ -77,6 +77,27 @@ export function listingTypeOf(v: unknown): DynadotListingType | null {
   return null;
 }
 
+/** The `listing_type` Dynadot takes for a listing type. */
+export function listingTypeParam(type: DynadotListingType): string {
+  return type === 'bin'
+    ? 'buy_now'
+    : type === 'make_offer'
+      ? 'make_offer'
+      : 'buy_now_and_make_offer';
+}
+
+/**
+ * A decimal amount in cents, as the other-registrar listing takes prices
+ * ("1000 = $10.00"). UNVERIFIED for currencies without cents.
+ */
+export function cents(amount: string): number {
+  if (!/^\d+(\.\d{1,2})?$/.test(amount)) {
+    throw new Error(`${amount} isn’t an amount Dynadot takes.`);
+  }
+  const [whole, frac = ''] = amount.split('.');
+  return Number(whole) * 100 + Number(frac.padEnd(2, '0'));
+}
+
 /** The envelope's `data`, or null when there isn't one. */
 export function dataOf(body: unknown): Rec | null {
   return isRecord(body) && isRecord(body.data) ? body.data : null;

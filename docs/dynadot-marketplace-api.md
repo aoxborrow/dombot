@@ -11,20 +11,22 @@ held elsewhere, <https://www.dynadot.com/help/question/open-marketplace>.
 
 ## Status
 
-**Read side built, and checked live (reads only, 2026-11-04); listing from
-DomBot not built yet.** The plan below is from the API reference and
-Dynadot's help pages as read on 2026-11-03; "Observed" has what live reads
-showed.
+**Reads and writes built (2026-11-04). Reads checked live; writes checked
+live only as far as Dynadot's validation (no listing made yet).** The plan
+below is from the API reference and Dynadot's help pages as read on
+2026-11-03; "Observed" has what live calls showed.
 
 - **Client** `src/core/markets/dynadot/`: signed reads of the account, its
   domain list, one listing, the other-registrar list and a name's
-  verification values. No writes yet.
+  verification values; writes for `set_for_sale`, adding names held
+  elsewhere, listing them, and asking Dynadot to verify them. Writes go
+  once, never retried.
 - **Adapter** `src/core/services/markets/dynadot.ts`, registered as
   `dynadot` ("Dynadot"): listings of both kinds of name (below), the Open
   Marketplace Key read into the account's Ownership Verification ID on
-  each sync. Writes answer, name by name, that listing from DomBot isn't
-  built yet. Capabilities are what's built: USD, no minimum offer, sales or
-  Recheck yet.
+  each sync. Writes list, reprice and delist either kind ("Writes"), and
+  Recheck asks Dynadot to verify a name held elsewhere. Capabilities are
+  what's built: USD only, no minimum offer, no sales yet.
 - **Registrar-backed accounts:** Settings → Markets adds a Dynadot account by
   picking a Dynadot registrar account (each one once); it calls with that
   account's key and proxy route, keeps no credentials of its own, and
@@ -34,10 +36,14 @@ showed.
   only the NS3 counts as the market's nameservers.
 - **Demo:** a Dynadot account on the demo's Dynadot registrar account, with
   names from both sides.
-- **Live tests:** `src/core/markets/dynadot/client.live.test.ts`, reads only.
-- **Next:** writes (both kinds), verification and Recheck for names held
-  elsewhere, then sales. Not yet: the remove-both prompt and the registrar
-  card pointing back, and sharing the registrar's bulk lane.
+- **Live tests:** `client.live.test.ts` (reads), and
+  `client.writes.live.test.ts` (round trips on test names, behind
+  `DYNADOT_LIVE_WRITES=1`), not run yet: it needs domanio.com verified (its
+  TXT record) and a test name held at Dynadot ("Testing").
+- **Next:** the live write round trips, then sales. Not yet: a minimum offer
+  (Dynadot never shows it back), the Listing Currency setting, removing a
+  name from Dynadot's list, the remove-both prompt and the registrar card
+  pointing back, and sharing the registrar's bulk lane.
 
 Dynadot is already a DomBot registrar: registrar-client's `dynadot` speaks
 the same RESTful v2 API. The marketplace commands use the same host, the
@@ -176,7 +182,10 @@ with no listing in it.
 | `allow_seo_index`                     | boolean                                                                         | optional      |
 
 Whether it changes only the fields sent or replaces the listing isn't
-documented (open question 1).
+documented (open question 1). Observed: the live path is the plural
+`aftermarkets/…/for_sales` (the singular one answers "The specified API
+command is not recognized"), `description` and `listing_type` are required
+even to delist, and an empty description passes.
 
 ### Reading listings of names in the account
 
@@ -219,6 +228,14 @@ No seller "my listings" call exists for these. What there is:
 - A name's verification read gives `txt`, `open_market_key` (the same),
   `nameserver_list` (the pair and the NS3) and `cname`
   (`ns1-<key>.dyna-ns.net`).
+- `domain_info` answers 404 "Can not find the domain in the account." for a
+  name the account doesn't hold: one read tells the two kinds of name apart.
+- Writes, checked as far as validation on domanio.com (not in the account,
+  so nothing changed): `set_for_sale` needs `description` ("The required
+  parameter description is missing", 400) and `listing_type`, takes an empty
+  description, and then answers 404 "Can not find the domain in the
+  account." Listing domanio.com held elsewhere while unverified: 409 "This
+  domain is not verified."
 
 ### From Dynadot's pages
 
@@ -424,15 +441,19 @@ setting yet.
 One name a call (`writeBatch: 1`, market jobs past 10 names, in the
 registrar account's lane). Common to both kinds:
 
-- **`listing_type`** follows the result: a price alone is Buy Now, a price
-  and a minimum offer Buy Now + Make Offer, a minimum offer alone Make
-  Offer. A change keeps whatever it doesn't touch, so the adapter reads the
-  listing first, as Atom's does, and reads it back after to fill `saved`
-  and `adjusted`.
-- **Minimum offer:** sent, but no read returns it. DomBot keeps the last
-  value it sent in `extra.minOfferSent`, and the listing editor shows it as
-  last set from DomBot. If a live read has it after all, it becomes a
-  plain field.
+Built: `domain_info` first says which kind the name is (one read), then
+that kind's command. About four calls a name, so a bulk push runs about
+twelve names a minute at the client's pace.
+
+- **`listing_type`:** a listing keeps whether it takes offers (Buy Now or
+  Buy Now + Make Offer); a new listing is Buy Now; no price is Make Offer
+  alone. The adapter reads the listing first, as Atom's does, and reads it
+  back after to fill `saved` and `adjusted`.
+- **Minimum offer:** not set yet (refused with a message): no read returns
+  it, so DomBot couldn't show what's there. Planned: keep the last value
+  DomBot sent in the listing's extra, shown as last set from DomBot.
+- **Description:** `set_for_sale` needs one; DomBot sends it empty
+  (open question 11: whether that clears one set on Dynadot).
 - **If the write replaces the listing** (open question 1), a price change
   would clear the minimum offer, category, description and installments,
   and DomBot couldn't see it. Then DomBot re-sends its `minOfferSent`, and
@@ -446,20 +467,19 @@ registrar account's lane). Common to both kinds:
   says why.
 
 In the account: `set_for_sale` with `marketplace`, or `not_for_sale` to
-delist.
+delist (a name with no listing counts as delisted).
 
 Held elsewhere:
 
-- **List:** add the name if Dynadot doesn't have it yet, then
-  `listing_other_registrar_domain` with `marketplace`. Amounts go in the
-  currency's minor units (cents for USD; open question 7 for currencies
-  without them). The listing reads `pending` until Dynadot has verified the
-  name; whether Dynadot takes the listing before then is open question 5,
-  and if it doesn't, the market job lists the name once a later sync sees
-  it Verified.
+- **List:** a name not on the other-registrar list is added, and the result
+  says to add the ownership verification TXT record and list it again:
+  Dynadot refuses an unverified name (409, observed). A verified one is
+  listed with `listing_other_registrar_domain`, amounts in cents (open
+  question 7 for currencies without them). Planned: list a name by itself
+  once a sync sees it verified, so one List does it.
 - **Delist:** `listing_other_registrar_domain` with `not_for_sale`. The name
-  stays added and verified, so listing it again is one call. Delist has
-  **Also remove from Dynadot** (off), which runs
+  stays added and verified, so listing it again is one call. Planned:
+  **Also remove from Dynadot** (off), running
   `delete_other_registrar_domain` after.
 - **No landing page:** DomBot never sends `use_for_sale_landing_page`.
 
@@ -581,8 +601,9 @@ registrar, where the registrar supports it.
 
 ### Capabilities
 
-Planned, once writes, verification and sales are in. What's built declares
-only what works: USD, no minimum offer, `sales` and `verifyDns` off.
+Planned, once the minimum offer, currencies and sales are in. What's built
+declares only what works: USD, no minimum offer, `sales` off, `verifyDns`
+on.
 
 ```ts
 const DYNADOT_CAPABILITIES: MarketCapabilities = {
@@ -617,7 +638,7 @@ const DYNADOT_CAPABILITIES: MarketCapabilities = {
 The shared listing, sales and account tools work for Dynadot through its
 capabilities, and `market_list` shows `registrarAccountId`. Listings carry
 `held` and `verified`. `domain_verification_apply` and
-`domain_listing_verify` work for names held elsewhere;
+`domain_listing_verify` work for names held elsewhere (built). Planned:
 `domain_listing_delete` takes `removeFromMarket` for Dynadot's list.
 
 ### The demo
@@ -626,9 +647,10 @@ Built: a Dynadot account on the demo's Dynadot registrar account
 (`src/core/demo/markets.ts`), with a made-up Open Marketplace Key as its
 verification ID, listing about three in ten priced names: those the demo's
 Dynadot account holds, and names from its other registrars, a few still
-waiting on verification. Writes answer that they aren't built, as the real
-adapter does. Planned: a pending-sale listing, and a sale of a name held
-elsewhere waiting on its auth code.
+waiting on verification. Writes behave as the real adapter does: an
+unverified name held elsewhere is refused until Recheck verifies it, and a
+minimum offer is refused. Planned: a pending-sale listing, and a sale of a
+name held elsewhere waiting on its auth code.
 
 ## Testing
 
@@ -644,11 +666,16 @@ nobody would pay, read back, then delisted.
   listing through the adapter, and the key. It prints counts only; nothing
   about the listings goes in the repo.
 - **Held elsewhere:** domanio.com and domainio.com, both at 101domain, are
-  the test names (`DYNADOT_TEST_EXTERNAL_DOMAIN`): add, TXT through
-  101domain, verify, list, delist, remove. Other names from the user's
-  registrars only once they're picked.
+  the test names (`DYNADOT_TEST_EXTERNAL_DOMAIN`). domanio.com is on the
+  account's other-registrar list, unverified: it needs the account's key as
+  a TXT record at 101domain before `client.writes.live.test.ts` can list,
+  reprice and delist it. Other names from the user's registrars only once
+  they're picked.
 - **Writes in the account:** no sandbox, so production on a name held at
-  Dynadot (`DYNADOT_TEST_DOMAIN`), picked with the user first.
+  Dynadot that isn't listed (`DYNADOT_TEST_DOMAIN`), picked with the user
+  first; the test skips a name that's listed already. Open question 11
+  needs a separate check: a description set on Dynadot's site, then a
+  reprice from DomBot.
 
 ## Phases
 
@@ -662,13 +689,12 @@ nobody would pay, read back, then delisted.
    `other_registrar_domain_list` and from `is_for_sale` plus
    `get_listing_item`, the key into the verification ID, the demo account.
    Not yet: the Listing Currency setting (reads are USD).
-3. **Writes and verification:** list, reprice, Buy Now and offers, minimum
-   offer, delist for both kinds; add and remove for names held elsewhere;
-   the Open Marketplace Key read into the verification ID, Ownership
-   verification TXT… with a verify after it, Recheck, the nameserver preset
-   with its NS3, and the nameserver warning. Through the List and Delist
-   dialog, the bulk runner and the MCP tools. Live round trips on both
-   test names.
+3. **Writes and verification:** built: list, reprice and delist for both
+   kinds, adding names held elsewhere, Recheck (`verifyDns`), through the
+   List and Delist dialog, the bulk runner and the MCP tools. Not yet: the
+   live round trips, a minimum offer, removing a name from Dynadot's list,
+   listing a name by itself once it's verified, a verify after Ownership
+   verification TXT…, and the nameserver warning.
 4. **Sales:** sale records for names held elsewhere and their steps on the
    Sales tab; the Record sale… prefill for names in the account.
 
@@ -686,11 +712,11 @@ nobody would pay, read back, then delisted.
    says the buyer has paid, does the list read give a price or an order id,
    and can the auth code be submitted through the API (a command behind
    Submit Transfer, or `set_transfer_auth_code` on the order it creates)?
-5. Can a name held elsewhere be listed before it's verified, and does the
-   listing go live on its own once it is?
-6. Does the marketplace need anything on the key or the account (an API
-   setting, a price level), or does any registrar key work? Is the live
-   path `aftermarkets/…/for_sales` or `aftermarket/…`?
+5. Answered (2026-11-04): no, Dynadot refuses to list an unverified name
+   (409).
+6. Answered in part: the live path is `aftermarkets/…/for_sales`, and the
+   registrar's key reads the marketplace. Still open: whether writes need
+   anything more on the key or the account.
 7. Currency: reads convert (observed). Still open: is a listing kept in
    the currency it was set in? What are "cents" for JPY or KRW? What
    currency and format is `price` in the other-registrar list?
@@ -700,8 +726,8 @@ nobody would pay, read back, then delisted.
    another Dynadot user has already added?
 10. How often can Verify now be called, and how often does Dynadot check
     on its own?
-11. Is `description` really required on `set_for_sale`, and what does an
-    empty one do to an existing description?
+11. Answered in part: `description` is required, and an empty one passes.
+    Still open: does an empty one clear a description set on Dynadot?
 12. Can a name in the account be listed or changed while it has a sale
     under way, a Buy Lock, or a recent transfer, and what does Dynadot
     answer?

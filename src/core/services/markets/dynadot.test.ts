@@ -4,11 +4,13 @@ import {
   type DynadotClient,
   type DynadotExternalDomain,
   type DynadotListing,
+  type DynadotListingInput,
 } from '../../markets/dynadot';
 import {
   DynadotAdapter,
   listingFromDynadot,
   listingFromExternal,
+  listingTypeFor,
 } from './dynadot';
 
 const KEY = '0123456789abcdef0123456789abcdef';
@@ -44,9 +46,44 @@ function fakeClient(opts: {
   held?: { name: string; forSale: boolean }[];
   listings?: Record<string, DynadotListing | Error>;
   external?: DynadotExternalDomain[];
+  /** Names on the other-registrar list, and whether Dynadot verified them. */
+  verified?: Record<string, boolean>;
 }) {
   const calls: string[] = [];
+  const sent: { name: string; input: DynadotListingInput }[] = [];
   const client = {
+    holds: async (name: string) => {
+      calls.push(`holds:${name}`);
+      return (opts.held ?? []).some((d) => d.name === name);
+    },
+    setForSale: async (name: string, input: DynadotListingInput) => {
+      calls.push(`setForSale:${name}`);
+      sent.push({ name, input });
+      // Dynadot now shows what was sent.
+      opts.listings = {
+        ...opts.listings,
+        [name]: listing({
+          name,
+          price: input.price,
+          type: input.listingType,
+          typeRaw: input.listingType.toUpperCase(),
+        }),
+      };
+    },
+    listExternal: async (name: string, input: DynadotListingInput) => {
+      calls.push(`listExternal:${name}`);
+      sent.push({ name, input });
+    },
+    addExternal: async (names: string[]) => {
+      calls.push(`addExternal:${names.join(',')}`);
+    },
+    verifyExternal: async (names: string[]) => {
+      calls.push(`verifyExternal:${names.join(',')}`);
+      return {
+        verified: names.filter((n) => opts.verified?.[n]),
+        failed: names.filter((n) => !opts.verified?.[n]),
+      };
+    },
     accountInfo: async () => ({ username: 'x', priceLevel: 'Bulk Account' }),
     accountDomains: async () => {
       calls.push('accountDomains');
@@ -64,9 +101,10 @@ function fakeClient(opts: {
     },
     verification: async (name: string) => {
       calls.push(`verification:${name}`);
+      if (opts.verified && !(name in opts.verified)) return null;
       return {
         name,
-        verified: false,
+        verified: opts.verified?.[name] ?? false,
         key: KEY,
         txt: KEY,
         nameservers: [],
@@ -77,6 +115,7 @@ function fakeClient(opts: {
   return {
     adapter: new DynadotAdapter('acct', client as unknown as DynadotClient),
     calls,
+    sent,
   };
 }
 
@@ -142,6 +181,16 @@ describe('reading listings', () => {
         'acct',
       ),
     ).toBeNull();
+  });
+});
+
+describe('listing types', () => {
+  it('keeps offers on, starts new listings as Buy Now', () => {
+    expect(listingTypeFor('2500', null)).toBe('bin');
+    expect(listingTypeFor('2500', 'bin')).toBe('bin');
+    expect(listingTypeFor('2500', 'make_offer')).toBe('bin_make_offer');
+    expect(listingTypeFor('2500', 'bin_make_offer')).toBe('bin_make_offer');
+    expect(listingTypeFor(null, 'bin')).toBe('make_offer');
   });
 });
 
@@ -213,14 +262,136 @@ describe('the adapter', () => {
     expect(calls).toEqual(['externalDomains', 'getListing:lumenpost.com']);
   });
 
-  it('says listing from DomBot isn’t built yet, name by name', async () => {
-    const { adapter } = fakeClient({});
-    const [result] = await adapter.writeListings([
-      { name: 'lumenpost.com', price: '2500' },
+  it('reprices a name in the account, keeping whether it takes offers', async () => {
+    const { adapter, sent } = fakeClient({
+      held: [{ name: 'lumenpost.com', forSale: true }],
+      listings: {
+        'lumenpost.com': listing({
+          type: 'bin_make_offer',
+          typeRaw: 'BIN_MAKE_OFFER',
+        }),
+      },
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'lumenpost.com', price: '3000' },
     ]);
-    expect(result.ok).toBe(false);
-    expect(result.error?.code).toBe('UNSUPPORTED');
-    expect((await adapter.deleteListings(['lumenpost.com']))[0].ok).toBe(false);
+    expect(r).toMatchObject({ ok: true, error: null, adjusted: [] });
+    expect(r.saved).toMatchObject({ price: '3000', extra: { offers: true } });
+    expect(sent).toEqual([
+      {
+        name: 'lumenpost.com',
+        input: {
+          forSale: true,
+          listingType: 'bin_make_offer',
+          price: '3000',
+          minOffer: null,
+          currency: 'USD',
+        },
+      },
+    ]);
+  });
+
+  it('leaves a listing with a sale under way alone', async () => {
+    const { adapter, sent } = fakeClient({
+      held: [{ name: 'lumenpost.com', forSale: true }],
+      listings: { 'lumenpost.com': listing({ pendingSale: true }) },
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'lumenpost.com', price: '3000' },
+    ]);
+    expect(r.error?.code).toBe('ON_HOLD');
+    expect(sent).toEqual([]);
+  });
+
+  it('adds a name held elsewhere and says it needs verifying first', async () => {
+    const { adapter, calls, sent } = fakeClient({ verified: {} });
+    const [r] = await adapter.writeListings([
+      { name: 'domanio.com', price: '999999' },
+    ]);
+    expect(r.ok).toBe(false);
+    expect(r.error?.code).toBe('NOT_VERIFIED');
+    expect(r.error?.message).toMatch(/Added domanio\.com/);
+    expect(calls).toContain('addExternal:domanio.com');
+    expect(sent).toEqual([]);
+  });
+
+  it('won’t list a name held elsewhere until Dynadot has verified it', async () => {
+    const { adapter, sent } = fakeClient({
+      verified: { 'domanio.com': false },
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'domanio.com', price: '999999' },
+    ]);
+    expect(r.error?.code).toBe('NOT_VERIFIED');
+    expect(sent).toEqual([]);
+  });
+
+  it('lists a verified name held elsewhere', async () => {
+    const { adapter, sent } = fakeClient({
+      verified: { 'domanio.com': true },
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'domanio.com', price: '999999' },
+    ]);
+    expect(r.ok).toBe(true);
+    expect(sent[0].input).toMatchObject({
+      forSale: true,
+      listingType: 'bin',
+      price: '999999',
+    });
+    expect(r.saved).toMatchObject({
+      status: 'active',
+      price: '999999',
+      extra: { held: 'elsewhere', verified: true },
+    });
+  });
+
+  it('refuses what DomBot can’t set on Dynadot, sending nothing', async () => {
+    const { adapter, calls } = fakeClient({});
+    const results = await adapter.writeListings([
+      { name: 'lumenpost.com', floor: '100' },
+      { name: 'lumenpost.com', minOffer: '100' },
+      { name: 'lumenpost.com', currency: 'EUR' },
+      { name: 'lumenpost.com', forSale: false },
+    ]);
+    expect(results.map((r) => r.error?.code)).toEqual([
+      'UNSUPPORTED',
+      'UNSUPPORTED',
+      'UNSUPPORTED',
+      'UNSUPPORTED',
+    ]);
+    expect(calls).toEqual([]);
+  });
+
+  it('delists either kind, and counts a name with no listing as delisted', async () => {
+    const { adapter, sent } = fakeClient({
+      held: [
+        { name: 'lumenpost.com', forSale: true },
+        { name: 'quietfern.net', forSale: false },
+      ],
+      listings: { 'lumenpost.com': listing() },
+      verified: { 'domanio.com': true },
+    });
+    const results = await adapter.deleteListings([
+      'lumenpost.com',
+      'quietfern.net',
+      'domanio.com',
+      'brightloom.com',
+    ]);
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect(sent.map((s) => [s.name, s.input.forSale])).toEqual([
+      ['lumenpost.com', false],
+      ['domanio.com', false],
+    ]);
+  });
+
+  it('asks Dynadot to verify a name held elsewhere', async () => {
+    const { adapter } = fakeClient({
+      verified: { 'domanio.com': true, 'brightloom.com': false },
+    });
+    expect((await adapter.verifyDns('domanio.com')).ok).toBe(true);
+    const r = await adapter.verifyDns('brightloom.com');
+    expect(r.error?.code).toBe('NOT_VERIFIED');
   });
 
   it('reads the account’s key through any name held elsewhere', async () => {

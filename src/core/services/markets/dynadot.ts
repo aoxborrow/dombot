@@ -1,18 +1,23 @@
+import { assertDomainName } from '../../../shared/domain-name';
 import {
   DynadotClient,
   DynadotError,
   type DynadotClientOptions,
   type DynadotExternalDomain,
   type DynadotListing,
+  type DynadotListingInput,
+  type DynadotListingType,
 } from '../../markets/dynadot';
-import type {
-  MarketAdapter,
-  MarketCapabilities,
-  MarketConfigField,
-  MarketListing,
-  MarketListingChange,
-  MarketTestResult,
-  MarketWriteResult,
+import {
+  MarketUnsupportedError,
+  type Amount,
+  type MarketAdapter,
+  type MarketCapabilities,
+  type MarketConfigField,
+  type MarketListing,
+  type MarketListingChange,
+  type MarketTestResult,
+  type MarketWriteResult,
 } from '../../markets/types';
 
 // Dynadot's marketplace in the shared market model (docs/markets.md,
@@ -22,13 +27,15 @@ import type {
 // through Dynadot's open marketplace (`held: 'elsewhere'`), read from the
 // other-registrar list.
 //
-// Reads are checked live (2026-11-04). Listing from DomBot isn't built yet:
-// writes answer that they aren't, name by name.
+// Reads are checked live (2026-11-04). Writes ask Dynadot first which kind
+// a name is (`domain_info`), then use that kind's command; Dynadot won't
+// list a name held elsewhere until it has verified it.
 
 export const DYNADOT_CAPABILITIES: MarketCapabilities = {
-  // Reads are asked for in USD, the currency DomBot compares prices in
-  // until a Listing Currency setting comes with writes.
+  // Listed and read in USD until there's a Listing Currency setting.
   currencies: ['USD'],
+  // Dynadot takes a minimum offer but never shows it back, so DomBot
+  // doesn't set one yet.
   minOffer: false,
   floor: false,
   discount: false,
@@ -44,7 +51,8 @@ export const DYNADOT_CAPABILITIES: MarketCapabilities = {
   searchCounts: false,
   accountSettings: false,
   relist: false,
-  verifyDns: false,
+  // For names held elsewhere: ask Dynadot to check their verification now.
+  verifyDns: true,
   asyncInsert: false,
   writeBatch: 1,
   jobs: false,
@@ -59,9 +67,6 @@ export const DYNADOT_CONFIG_FIELDS: MarketConfigField[] = [];
 
 /** The currency DomBot reads prices in (see the capabilities). */
 const CURRENCY = 'USD';
-
-const NOT_BUILT =
-  'Listing on Dynadot from DomBot isn’t built yet. Change it on dynadot.com for now.';
 
 // Reading
 
@@ -151,15 +156,146 @@ export function listingFromExternal(
   };
 }
 
-function notBuilt(name: string): MarketWriteResult {
+// Writing
+
+function unsupported(field: string, message: string): never {
+  throw new MarketUnsupportedError('dynadot', field, message);
+}
+
+/** Rejects what DomBot can't set on Dynadot, before anything is sent. */
+export function checkDynadotChange(change: MarketListingChange): void {
+  if (change.floor != null) {
+    unsupported('floor', 'Dynadot has no floor price.');
+  }
+  if (change.minOffer != null) {
+    unsupported(
+      'minOffer',
+      'DomBot doesn’t set Dynadot’s minimum offer yet: Dynadot’s API never shows it back.',
+    );
+  }
+  if (change.leaseToOwn?.enabled) {
+    unsupported('leaseToOwn', 'DomBot doesn’t set Dynadot’s installments yet.');
+  }
+  if (change.currency && change.currency !== CURRENCY) {
+    unsupported('currency', `DomBot lists on Dynadot in ${CURRENCY} for now.`);
+  }
+  if (change.displayName !== undefined) {
+    unsupported('displayName', 'Dynadot has no display name.');
+  }
+  if (change.forSale === false) {
+    unsupported('forSale', 'Dynadot has no hidden listings; delist instead.');
+  }
+  if (change.extra) {
+    unsupported(
+      'extra',
+      `Settings for ${change.extra.market} don’t apply to Dynadot.`,
+    );
+  }
+}
+
+/**
+ * Buy Now, Make Offer or both, for a price: a listing keeps whether it
+ * takes offers; a new one is Buy Now, or Make Offer alone without a price.
+ */
+export function listingTypeFor(
+  price: Amount | null,
+  current: DynadotListingType | null,
+): DynadotListingType {
+  if (price === null) return 'make_offer';
+  return current === 'make_offer' || current === 'bin_make_offer'
+    ? 'bin_make_offer'
+    : 'bin';
+}
+
+function failed(
+  name: string,
+  code: string,
+  message: string,
+): MarketWriteResult {
   return {
     name,
     ok: false,
     pending: false,
     saved: null,
     adjusted: [],
-    error: { code: 'UNSUPPORTED', message: NOT_BUILT },
+    error: { code, message },
   };
+}
+
+function failedFrom(name: string, error: unknown): MarketWriteResult {
+  const code =
+    error instanceof MarketUnsupportedError
+      ? 'UNSUPPORTED'
+      : error instanceof DynadotError
+        ? error.code
+        : 'UNKNOWN';
+  return failed(
+    name,
+    code,
+    error instanceof Error ? error.message : String(error),
+  );
+}
+
+const same = (a: Amount | null, b: Amount | null) =>
+  (a === null ? null : Number(a)) === (b === null ? null : Number(b));
+
+/** A write that went through, with what Dynadot shows now when it reads. */
+function written(
+  name: string,
+  change: MarketListingChange,
+  saved: MarketListing | null,
+): MarketWriteResult {
+  return {
+    name,
+    ok: true,
+    pending: false,
+    saved,
+    adjusted:
+      saved && change.price !== undefined && !same(change.price, saved.price)
+        ? [{ field: 'price', asked: change.price, saved: saved.price }]
+        : [],
+    error: null,
+  };
+}
+
+function ok(name: string): MarketWriteResult {
+  return {
+    name,
+    ok: true,
+    pending: false,
+    saved: null,
+    adjusted: [],
+    error: null,
+  };
+}
+
+/**
+ * A name held elsewhere as listed: what Dynadot's listing read shows, or,
+ * where that read doesn't cover it, what was sent.
+ */
+function asSavedElsewhere(
+  name: string,
+  input: DynadotListingInput,
+  read: DynadotListing | null,
+  accountId: string,
+): MarketListing {
+  const type = read?.type ?? input.listingType;
+  const listing = listingFromExternal(
+    {
+      name,
+      registrar: null,
+      status: '',
+      verified: true,
+      verifyStatusRaw: 'Verified',
+      listingType: type,
+      listingTypeRaw: read?.typeRaw ?? type,
+      price: read ? read.price : input.price,
+      transferStatus: null,
+      updatedAt: null,
+    },
+    accountId,
+  );
+  return listing!;
 }
 
 // The adapter
@@ -242,14 +378,167 @@ export class DynadotAdapter implements MarketAdapter {
     return out;
   }
 
+  /** One name at a time (`writeBatch` 1): which kind, then its command. */
   async writeListings(
     changes: readonly MarketListingChange[],
   ): Promise<MarketWriteResult[]> {
-    return changes.map((c) => notBuilt(c.name));
+    const out: MarketWriteResult[] = [];
+    for (const change of changes) {
+      let name = change.name;
+      try {
+        name = assertDomainName(change.name);
+        checkDynadotChange(change);
+        out.push(
+          (await this.client.holds(name))
+            ? await this.writeHeld(name, change)
+            : await this.writeElsewhere(name, change),
+        );
+      } catch (error) {
+        out.push(failedFrom(name, error));
+      }
+    }
+    return out;
   }
 
+  /** A name in the account: read what's listed, set it, read it back. */
+  private async writeHeld(
+    name: string,
+    change: MarketListingChange,
+  ): Promise<MarketWriteResult> {
+    const current = await this.client.getListing(name, CURRENCY);
+    if (current?.pendingSale) {
+      return failed(
+        name,
+        'ON_HOLD',
+        'A buyer’s purchase is under way on Dynadot, so the listing stays as it is.',
+      );
+    }
+    const price =
+      change.price !== undefined ? change.price : (current?.price ?? null);
+    await this.client.setForSale(name, {
+      forSale: true,
+      listingType: listingTypeFor(price, current?.type ?? null),
+      price,
+      minOffer: null,
+      currency: CURRENCY,
+    });
+    const saved = await this.client
+      .getListing(name, CURRENCY)
+      .catch(() => null);
+    return written(
+      name,
+      change,
+      saved ? listingFromDynadot(saved, this.accountId) : null,
+    );
+  }
+
+  /**
+   * A name held elsewhere: added to the other-registrar list if it isn't
+   * there, and listed once Dynadot has verified it. Until then the result
+   * says what to do; Dynadot refuses the listing (observed).
+   */
+  private async writeElsewhere(
+    name: string,
+    change: MarketListingChange,
+  ): Promise<MarketWriteResult> {
+    const verification = await this.client.verification(name);
+    if (!verification) {
+      await this.client.addExternal([name]);
+      return failed(
+        name,
+        'NOT_VERIFIED',
+        `Added ${name} to Dynadot’s list of names held elsewhere. Dynadot lists it once it has verified that you own it: add your ownership verification TXT record, then list it again.`,
+      );
+    }
+    if (!verification.verified) {
+      return failed(
+        name,
+        'NOT_VERIFIED',
+        `Dynadot hasn’t verified that you own ${name} yet: add your ownership verification TXT record, then list it again.`,
+      );
+    }
+    // UNVERIFIED: whether the listing read covers names held elsewhere.
+    const current = await this.client
+      .getListing(name, CURRENCY)
+      .catch(() => null);
+    const price =
+      change.price !== undefined ? change.price : (current?.price ?? null);
+    const input: DynadotListingInput = {
+      forSale: true,
+      listingType: listingTypeFor(price, current?.type ?? null),
+      price,
+      minOffer: null,
+      currency: CURRENCY,
+    };
+    await this.client.listExternal(name, input);
+    const after = await this.client
+      .getListing(name, CURRENCY)
+      .catch(() => null);
+    return written(
+      name,
+      change,
+      asSavedElsewhere(name, input, after, this.accountId),
+    );
+  }
+
+  /**
+   * Delist: `not_for_sale` for either kind. A name held elsewhere stays on
+   * the other-registrar list, verified, so listing it again is one call. A
+   * name with no listing counts as delisted.
+   */
   async deleteListings(names: readonly string[]): Promise<MarketWriteResult[]> {
-    return names.map(notBuilt);
+    const out: MarketWriteResult[] = [];
+    for (const raw of names) {
+      let name = raw;
+      try {
+        name = assertDomainName(raw);
+        if (await this.client.holds(name)) {
+          const current = await this.client.getListing(name, CURRENCY);
+          if (current) {
+            await this.client.setForSale(name, {
+              forSale: false,
+              listingType: current.type ?? 'bin',
+              price: null,
+              minOffer: null,
+              currency: CURRENCY,
+            });
+          }
+        } else if (await this.client.verification(name)) {
+          await this.client.listExternal(name, {
+            forSale: false,
+            listingType: 'bin',
+            price: null,
+            minOffer: null,
+            currency: CURRENCY,
+          });
+        }
+        out.push(ok(name));
+      } catch (error) {
+        out.push(failedFrom(name, error));
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Recheck ownership for a name held elsewhere: Dynadot checks its TXT
+   * record or nameservers now. A name in the account needs none.
+   */
+  async verifyDns(raw: string): Promise<MarketWriteResult> {
+    let name = raw;
+    try {
+      name = assertDomainName(raw);
+      if (await this.client.holds(name)) return ok(name);
+      const result = await this.client.verifyExternal([name]);
+      if (result.verified.includes(name)) return ok(name);
+      return failed(
+        name,
+        'NOT_VERIFIED',
+        `Dynadot didn’t find ${name}’s ownership verification yet. A new TXT record can take a while to show, and Dynadot also checks on its own.`,
+      );
+    } catch (error) {
+      return failedFrom(name, error);
+    }
   }
 
   /**
