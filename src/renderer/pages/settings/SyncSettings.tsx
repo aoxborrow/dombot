@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RefreshCw } from 'lucide-react';
+import { CircleX, Clock, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -87,7 +87,7 @@ export default function SyncSettings() {
         </p>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         <SyncAllRow />
         <NeedsAttention />
       </div>
@@ -200,9 +200,10 @@ function SyncAllRow() {
 const ATTENTION_ORDER = { failed: 0, stale: 1, unsynced: 2, synced: 3 };
 
 /**
- * The accounts that keep the light from going green, a line each under Sync
- * all accounts: failed (red, with the error), not synced in over a week or
- * never synced (amber), each with a link to its card.
+ * The accounts that keep the light from going green, under Sync all
+ * accounts: failed (red, with the error), not synced in over a week or never
+ * synced (amber). Each is the box its card shows, named, with a link to the
+ * card.
  */
 function NeedsAttention() {
   const { accounts } = useSyncState();
@@ -212,7 +213,7 @@ function NeedsAttention() {
     .sort((a, b) => ATTENTION_ORDER[a.state] - ATTENTION_ORDER[b.state]);
   if (rows.length === 0) return null;
   return (
-    <ul className="flex flex-col gap-0.5 text-xs">
+    <ul className="flex flex-col gap-2">
       {rows.map(({ account, state }) => (
         <AttentionRow
           key={`${account.kind}:${account.id}`}
@@ -231,31 +232,34 @@ function AttentionRow({
   account: SyncAccount;
   state: ReturnType<typeof accountSyncState>;
 }) {
-  const text =
-    state === 'failed'
-      ? `${account.name} failed to sync${account.lastError ? `: ${account.lastError}` : ''}`
-      : state === 'stale'
-        ? `${account.name} last synced ${timeAgo(account.lastSyncedAt!)}`
-        : `${account.name} hasn’t synced yet`;
+  const failed = state === 'failed';
+  const detail = failed
+    ? (account.lastError ?? 'Sync failed.')
+    : state === 'stale'
+      ? `Last synced ${timeAgo(account.lastSyncedAt!)}.`
+      : 'Not synced yet.';
   const market = account.kind === 'market';
   return (
-    // One line from sm up, a long error cut short (all of it on hover);
-    // wrapped on phones.
+    // Styled like the error box on Registrars and Markets cards.
     <li
+      role={failed ? 'alert' : undefined}
       className={cn(
-        'sm:flex sm:items-baseline sm:gap-1',
-        SYNC_TONE[state === 'failed' ? 'error' : 'warn'],
+        'flex items-start gap-2 rounded-md border px-3 py-2 text-sm',
+        failed
+          ? 'border-destructive/40 bg-destructive/10'
+          : 'border-amber-500/40 bg-amber-500/10',
       )}
     >
-      <span className="sm:min-w-0 sm:truncate" title={text}>
-        {text}
-      </span>
-      <span className="whitespace-nowrap">
-        {' '}
-        ·{' '}
+      {failed ? (
+        <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
+      ) : (
+        <Clock className="mt-0.5 size-4 shrink-0 text-amber-500 dark:text-amber-400" />
+      )}
+      <span className="min-w-0 break-words">
+        <span className="font-medium">{account.name}:</span> {detail} ·{' '}
         <Link
           to={`/settings?tab=${market ? 'markets' : 'registrars'}`}
-          className="underline underline-offset-4"
+          className="whitespace-nowrap underline underline-offset-4"
         >
           {market ? 'Market settings' : 'Registrar settings'}
         </Link>
