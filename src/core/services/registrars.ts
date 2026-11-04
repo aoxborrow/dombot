@@ -107,8 +107,9 @@ function withoutQuote(record: DetailRecord): Partial<Domain> {
 // Fields a registrar's detail call can't read, which registrar-client fills
 // with a default instead. The list reports them, so detail must never cover
 // the list row's value. Namecheap's getInfo has no auto-renew flag, so every
-// Namecheap detail read came back "off".
-const LIST_ONLY_FIELDS: Partial<
+// Namecheap detail read came back "off". Mirrors registrar-client's
+// per-provider `listOnlyFields`; a test keeps the two in step.
+export const LIST_ONLY_FIELDS: Partial<
   Record<RegistrarName, readonly (keyof Domain)[]>
 > = {
   namecheap: ['autoRenew'],
@@ -148,9 +149,9 @@ function registrarByAccount(): Map<string, RegistrarName> {
   return new Map(listAccounts().map((a) => [a.id, a.registrar]));
 }
 
-/** Out of quota at the registrar. Namecheap answers over its limit with error
- *  500000 ("Too many requests") inside a 200 reply, which registrar-client
- *  raises as a plain Error rather than a RateLimitError. */
+/** Out of quota at the registrar. registrar-client raises a RateLimitError,
+ *  Namecheap's error 500000 ("Too many requests") included; the message test
+ *  catches any provider that still words it in a plain Error. */
 function isRateLimited(err: unknown): boolean {
   if (err instanceof RateLimitError) return true;
   return isRateLimitMessage(err instanceof Error ? err.message : String(err));

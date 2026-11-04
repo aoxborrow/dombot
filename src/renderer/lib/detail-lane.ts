@@ -20,14 +20,15 @@ export interface DetailPace {
 }
 
 // Namecheap allows 50 calls a minute, 700 an hour and 8,000 a day across the
-// whole API key, and a detail read is three calls (getInfo, getRegistrarLock,
-// dns.getList). 12 reads a minute is 36 calls and 180 an hour is 540, which
-// leaves room for Sync's list, pricing and premium calls.
+// whole API key, and a detail read is two calls (getInfo, which carries the
+// nameservers, and getRegistrarLock). 18 reads a minute is 36 calls and 270 an
+// hour is 540, which leaves room for Sync's list, pricing and premium calls.
+// A name whose getInfo lists no nameservers costs a third call (dns.getList).
 export const DETAIL_PACE: Partial<Record<RegistrarName, DetailPace>> = {
   namecheap: {
     windows: [
-      { reads: 12, perMs: 60_000 },
-      { reads: 180, perMs: 60 * 60_000 },
+      { reads: 18, perMs: 60_000 },
+      { reads: 270, perMs: 60 * 60_000 },
     ],
     pauseMs: 5 * 60_000,
   },

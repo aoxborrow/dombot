@@ -8,6 +8,7 @@ const getDomainDetail = vi.fn();
 vi.stubGlobal('window', { api: { getDomainDetail } });
 
 const { useAppStore } = await import('./app');
+const { DETAIL_PACE } = await import('../lib/detail-lane');
 
 const row = (registrar: string, domainName: string): Domain =>
   ({
@@ -54,18 +55,21 @@ describe('enrichVisible at a paced registrar', () => {
   });
 
   it('reads uncached rows a burst at a time', async () => {
+    // a minute's worth of reads at once, then the rest as the window refills
+    const burst = DETAIL_PACE.namecheap?.windows[0].reads ?? 0;
+    expect(burst).toBeGreaterThan(0);
     getDomainDetail.mockImplementation(async (_r, _n, _f, _a, cacheOnly) =>
       cacheOnly ? null : { locked: true, nameservers: ['ns1.x'] },
     );
-    const done = useAppStore.getState().enrichVisible(names(15));
+    const done = useAppStore.getState().enrichVisible(names(burst + 3));
 
     await vi.advanceTimersByTimeAsync(0);
-    expect(networkReads()).toBe(12);
+    expect(networkReads()).toBe(burst);
     expect(Object.keys(useAppStore.getState().enriching)).toHaveLength(3);
 
     await vi.advanceTimersByTimeAsync(60_000);
     await done;
-    expect(networkReads()).toBe(15);
+    expect(networkReads()).toBe(burst + 3);
     expect(useAppStore.getState().enriching).toEqual({});
   });
 
