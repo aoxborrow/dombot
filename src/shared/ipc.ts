@@ -1232,11 +1232,16 @@ export interface DombotApi {
   /** The markets DomBot supports, for Settings → Markets. */
   getMarketCatalog: () => Promise<MarketInfo[]>;
   listMarketAccounts: () => Promise<MarketAccountView[]>;
-  /** Tests the credentials, saves the account, then syncs it. */
+  /**
+   * Tests the credentials, saves the account, then syncs it. A market on a
+   * registrar's API (`MarketInfo.registrar`) takes the registrar account
+   * whose key it uses instead of credentials.
+   */
   connectMarketAccount: (
     market: MarketId,
     credentials: Record<string, string>,
     label?: string,
+    registrarAccountId?: string,
   ) => Promise<MarketAccountView[]>;
   renameMarketAccount: (
     accountId: string,

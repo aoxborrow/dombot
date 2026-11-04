@@ -27,6 +27,7 @@ import {
   marketAdapter,
   onMarketAccountRemoved,
   setMarketSyncState,
+  setMarketVerification,
 } from './accounts';
 import {
   answerRemovalsOfSales,
@@ -274,6 +275,7 @@ async function runMarketSync(accountId: string): Promise<void> {
   const notes = (previous?.notes ?? []).filter(
     (n) =>
       !n.startsWith('No search data on this account') &&
+      !n.startsWith('Dynadot API price level') &&
       !n.startsWith('Sedo’s API has no sales'),
   );
   let status = previous?.status ?? [];
@@ -316,6 +318,16 @@ async function runMarketSync(accountId: string): Promise<void> {
       }
     }
     void listings.setMany([...fresh]);
+
+    // A market whose API gives the account's verification value (Dynadot)
+    // keeps it current, so there's nothing to paste. A failed read keeps
+    // what's saved.
+    if (adapter.verificationId) {
+      const id = await adapter.verificationId().catch(() => null);
+      if (id && id !== account.verificationId) {
+        await setMarketVerification(accountId, id);
+      }
+    }
 
     // Sales: all of history the first time, then a window back from the
     // newest, since a recent sale's status keeps moving.

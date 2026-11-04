@@ -84,7 +84,7 @@ const accountId = z
     'A market account id from market_list. Defaults to every enabled account.',
   );
 const marketId = z
-  .enum(['afternic', 'atom', 'sedo'])
+  .enum(['afternic', 'atom', 'dynadot', 'sedo'])
   .optional()
   .describe('Only this market.');
 const limit = z
@@ -129,7 +129,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'List market accounts',
       description:
-        'List every connected marketplace account (Afternic, Atom, Sedo) with its `accountId`, `market`, `label`, whether it is `configured` and `enabled`, its last `sync` (when, listing and sale counts, any error), its `verificationId` (the saved Ownership Verification ID, null until set) and `verificationNameservers` (the nameservers to point a name at for this market, with Afternic’s NS3 once the ID is saved; set them with domain_nameservers_set), and what its market supports (`capabilities`). No secrets. Start here before the other market_* tools.',
+        'List every connected marketplace account (Afternic, Atom, Dynadot, Sedo) with its `accountId`, `market`, `label`, whether it is `configured` and `enabled`, `registrarAccountId` (for Dynadot: the registrar account whose API key it uses, so the registrar tools reach the same names), its last `sync` (when, listing and sale counts, any error), its `verificationId` (the saved Ownership Verification ID, null until set) and `verificationNameservers` (the nameservers to point a name at for this market, with Afternic’s or Dynadot’s NS3 once the ID is saved; set them with domain_nameservers_set), and what its market supports (`capabilities`). No secrets. Start here before the other market_* tools.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -141,6 +141,7 @@ export function registerMarketTools(server: McpServer): void {
           label: a.label,
           configured: a.configured,
           enabled: a.enabled,
+          registrarAccountId: a.registrarAccountId ?? null,
           sync: a.sync,
           verificationId: a.verificationId ?? null,
           verificationNameservers: verificationNameservers(

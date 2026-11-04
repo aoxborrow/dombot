@@ -1,6 +1,7 @@
 import type { MarketId, MarketInfo } from '../../../shared/markets';
 import { AFTERNIC_NAMESERVERS } from '../../markets/afternic';
 import { ATOM_NAMESERVERS } from '../../markets/atom';
+import { DYNADOT_NAMESERVERS } from '../../markets/dynadot';
 import { SEDO_NAMESERVERS } from '../../markets/sedo';
 import type {
   AfternicActions,
@@ -19,6 +20,11 @@ import {
   createAtomAdapter,
 } from './atom';
 import {
+  DYNADOT_CAPABILITIES,
+  DYNADOT_CONFIG_FIELDS,
+  createDynadotAdapter,
+} from './dynadot';
+import {
   SEDO_CAPABILITIES,
   SEDO_CONFIG_FIELDS,
   createSedoAdapter,
@@ -30,6 +36,16 @@ import {
 
 export type Credentials = Record<string, string>;
 
+/**
+ * How an account's calls go out: for a market on a registrar's API, the
+ * registrar account it uses, whose key and proxy route it shares.
+ */
+export interface AdapterContext {
+  registrarAccountId?: string;
+  /** Through the registrar account's proxy, when it has one. */
+  fetch?: typeof fetch;
+}
+
 /** An adapter, plus whichever market-only actions its market has. */
 export type AnyMarketAdapter = MarketAdapter &
   Partial<AfternicActions> &
@@ -38,7 +54,11 @@ export type AnyMarketAdapter = MarketAdapter &
 
 interface MarketEntry {
   info: MarketInfo;
-  create(accountId: string, credentials: Credentials): AnyMarketAdapter;
+  create(
+    accountId: string,
+    credentials: Credentials,
+    context: AdapterContext,
+  ): AnyMarketAdapter;
 }
 
 const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
@@ -72,6 +92,27 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     create: (accountId, credentials) =>
       createAtomAdapter(accountId, credentials),
   },
+  // Reads checked live; listing from DomBot not built yet
+  // (docs/dynadot-marketplace-api.md).
+  dynadot: {
+    info: {
+      id: 'dynadot',
+      name: 'Dynadot',
+      website: 'dynadot.com',
+      keysUrl: 'https://www.dynadot.com/help/question/open-marketplace',
+      helpText:
+        'Sells the names in your Dynadot account, and names you hold at other registrars once Dynadot has verified them. Uses the registrar account’s API key and proxy.',
+      configFields: DYNADOT_CONFIG_FIELDS,
+      capabilities: DYNADOT_CAPABILITIES,
+      nameservers: DYNADOT_NAMESERVERS,
+      registrar: 'dynadot',
+    },
+    create: (accountId, credentials, context) =>
+      createDynadotAdapter(accountId, credentials, {
+        fetch: context.fetch,
+        limiterKey: context.registrarAccountId ?? accountId,
+      }),
+  },
   // Checked live, reads and writes (docs/sedo-api.md).
   sedo: {
     info: {
@@ -92,7 +133,9 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
 
 /** Every supported market, for Settings. */
 export function marketCatalog(): MarketInfo[] {
-  return Object.values(MARKETS).map((m) => m.info);
+  return Object.values(MARKETS)
+    .map((m) => m.info)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function isMarketId(value: unknown): value is MarketId {
@@ -124,6 +167,7 @@ export function buildAdapter(
   market: MarketId,
   accountId: string,
   credentials: Credentials,
+  context: AdapterContext = {},
 ): AnyMarketAdapter {
   const entry = MARKETS[market];
   if (!entry) throw new Error(`DomBot doesn't support ${market} yet.`);
@@ -134,5 +178,5 @@ export function buildAdapter(
   }
   return factory
     ? factory(market, accountId, credentials)
-    : entry.create(accountId, credentials);
+    : entry.create(accountId, credentials, context);
 }

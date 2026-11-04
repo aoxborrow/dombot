@@ -40,7 +40,7 @@ import {
 import { cn } from '@/lib/utils';
 import { RegistrarLogo } from '../../components/RegistrarLogo';
 import { useAppStore } from '../../store/app';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { isDemo } from '../../lib/platform';
 import { timeAgo } from '../../lib/time';
 import { isStale, useSyncState } from '../../lib/sync-state';
@@ -89,6 +89,8 @@ export default function RegistrarsSettings() {
   const registrars = useAppStore((s) => s.registrars);
   const loadRegistrars = useAppStore((s) => s.loadRegistrars);
   const syncRegistrar = useAppStore((s) => s.syncRegistrar);
+  // A link to one account's card (a market account's registrar link).
+  const focusId = useSearchParams()[0].get('account');
   const [catalog, setCatalog] = useState<RegistrarDefinition[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   // The one unsaved account being added. It lives only here: nothing is
@@ -218,6 +220,7 @@ export default function RegistrarsSettings() {
             hasSiblings={hasSiblings}
             proxy={proxy}
             firstSync={syncingIds.has(idOf(account))}
+            focus={idOf(account) === focusId}
           />
         ))}
         {loaded && cards.length === 0 && !draft && <EmptyRegistrars />}
@@ -314,6 +317,7 @@ function AccountCard({
   hasSiblings,
   proxy,
   firstSync,
+  focus = false,
 }: {
   provider: RegistrarDefinition;
   account: RegistrarMeta;
@@ -321,6 +325,8 @@ function AccountCard({
   hasSiblings: boolean;
   proxy: ProxySettings['proxy'];
   firstSync: boolean;
+  /** Linked to (`?account=`): starts open, scrolled into view. */
+  focus?: boolean;
 }) {
   const syncRegistrar = useAppStore((s) => s.syncRegistrar);
   const setRegistrarEnabled = useAppStore((s) => s.setRegistrarEnabled);
@@ -339,7 +345,11 @@ function AccountCard({
   const menuOpen = useRef(false);
   const [renaming, setRenaming] = useState(false);
   const [nicknameError, setNicknameError] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(focus);
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focus) cardRef.current?.scrollIntoView({ block: 'start' });
+  }, [focus]);
   const [saving, setSaving] = useState(false);
   const [syncingHere, setSyncing] = useState(false);
   const [toggling, setToggling] = useState(false);
@@ -530,7 +540,10 @@ function AccountCard({
   const hasNickname = !isAutoLabel(currentLabel);
 
   return (
-    <Card className="@container gap-0 overflow-hidden rounded-md py-0">
+    <Card
+      ref={cardRef}
+      className="@container scroll-mt-4 gap-0 overflow-hidden rounded-md py-0"
+    >
       <Collapsible
         open={open}
         onOpenChange={(next) => {
