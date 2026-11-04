@@ -10,7 +10,6 @@ import {
 } from './convert';
 import { errorFromResponse } from './errors';
 import * as fx from './fixtures';
-import { registrarFromAfternic } from './registrars';
 import { dollarsToMicro, microToDecimal, microToDollars } from './wire';
 
 describe('money', () => {
@@ -130,24 +129,29 @@ describe('toStats and toSettings', () => {
   });
 });
 
-describe('registrarFromAfternic', () => {
+describe("Afternic's registrar text", () => {
+  const registrar = (raw: string | undefined) =>
+    toListing({ ...fx.domainBare, registrar: raw }).registrar;
+
   it.each([
     ['GODADDY', 'godaddy'],
     ['GoDaddy.com, LLC', 'godaddy'],
+    ['Wild West Domains, LLC', 'godaddy'],
     ['Dynadot Inc', 'dynadot'],
     ['Dynadot, LLC', 'dynadot'],
     ['NameCheap, Inc.', 'namecheap'],
     ['Spaceship, Inc.', 'spaceship'],
     ['Name.com, Inc.', 'namecom'],
+    ['TurnCommerce, Inc. DBA NameBright.com', 'namebright'],
     ['101domain GRS Limited', '101domain'],
   ])('%s → %s', (raw, name) => {
-    expect(registrarFromAfternic(raw)).toBe(name);
+    expect(registrar(raw)).toBe(name);
   });
 
-  it.each(['UNKNOWN', 'Unknown .DE registrar', 'Sav.com, LLC', '', null])(
+  it.each(['UNKNOWN', 'Unknown .DE registrar', 'Sav.com, LLC', '', undefined])(
     '%s → null',
     (raw) => {
-      expect(registrarFromAfternic(raw)).toBeNull();
+      expect(registrar(raw)).toBeNull();
     },
   );
 });

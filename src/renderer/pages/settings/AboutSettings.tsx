@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
   type ComponentProps,
   type ReactNode,
@@ -25,7 +26,11 @@ import { Switch } from '@/components/ui/switch';
 import { isDemo, isWeb } from '@/lib/platform';
 import { releaseNotesUrl, updateUrl, useUpdates } from '@/lib/updates';
 import { timeAgo } from '@/lib/time';
-import { isDevVersion, releasesNewerThan } from '../../../shared/releases';
+import {
+  feedIsStale,
+  isDevVersion,
+  releasesNewerThan,
+} from '../../../shared/releases';
 import type { UpdaterState } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { SETTINGS_LINK, SettingsCard } from './SettingsCard';
@@ -72,15 +77,22 @@ export default function AboutSettings() {
     void loadSettings();
   }, [appInfo, loadAppInfo, loadSettings]);
 
-  // Opening the page loads the list if this device has none stored yet,
-  // unless the user has turned checking off — then only "Check now" asks.
-  useEffect(() => {
-    if (settings?.updateChecks && !feed) void check();
-  }, [settings?.updateChecks, feed, check]);
-
   // The app menu's Check for Updates… arrives with ?check=1: check now, once,
   // and drop the flag so a reload doesn't check again.
   const [params, setParams] = useSearchParams();
+
+  // Opening the page loads the list if this device has none stored, or the
+  // stored one is over a day old (the weekly check can leave it a release
+  // behind), unless the user has turned checking off — then only "Check now"
+  // asks. Once per visit, so a failed fetch doesn't retry in a loop.
+  const checkedOnOpen = useRef(false);
+  useEffect(() => {
+    if (!settings?.updateChecks || checkedOnOpen.current) return;
+    checkedOnOpen.current = true;
+    if (params.get('check') !== '1' && feedIsStale(useUpdates.getState().feed))
+      void check();
+  }, [settings?.updateChecks, params, check]);
+
   useEffect(() => {
     if (params.get('check') !== '1') return;
     void check(true);

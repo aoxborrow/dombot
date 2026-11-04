@@ -2,7 +2,7 @@ import type { RegistrationLookup } from '../../shared/ipc';
 import { toAscii } from '../../shared/domain-name';
 import { userAgentHeaders } from '../app-info';
 import { Namespace } from '../storage/namespace';
-import { resolveRegistrar } from './registrar-mapping';
+import { resolveRegistrar } from '../../shared/registrar-mapping';
 
 // Public registration data for names that have left your accounts. Archive
 // uses it so created and expires keep moving after you no longer hold the
