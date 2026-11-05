@@ -64,9 +64,11 @@ export interface DataColumn<T> {
   cellClassName?: string;
 }
 
-/** Row selection, owned by the page (the Domains selection lives in the store). */
+/** Row selection, owned and scoped by the page. */
 export interface TableSelection<T> {
   selected: ReadonlySet<string>;
+  /** Identifies the current filter/navigation scope for shift selection. */
+  scope?: string;
   toggle: (key: string) => void;
   setMany: (keys: string[], on: boolean) => void;
   /** e.g. "Select all domains". */
@@ -159,16 +161,19 @@ export function DataTable<T>({
     !!selection && !allSelected && keys.some((k) => selection.selected.has(k));
   // The row last clicked without Shift; Shift-click selects from it through
   // the clicked row, in table order.
-  const anchor = useRef<string | null>(null);
+  const anchor = useRef<{ scope?: string; key: string } | null>(null);
   const selectRow = (key: string, shift: boolean) => {
     if (!selection) return;
-    const range = shift ? rangeKeys(keys, anchor.current, key) : null;
+    const range =
+      shift && anchor.current?.scope === selection.scope
+        ? rangeKeys(keys, anchor.current?.key ?? null, key)
+        : null;
     if (range) {
       selection.setMany(range, true);
       return;
     }
     selection.toggle(key);
-    anchor.current = key;
+    anchor.current = { scope: selection.scope, key };
   };
 
   // The first data column reads as part of the checkbox column: no divider.
