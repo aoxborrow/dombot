@@ -1,3 +1,4 @@
+import { useTableSelection } from '../lib/table-selection';
 import {
   useEffect,
   useMemo,
@@ -212,7 +213,6 @@ export default function Activity() {
   const [pageSize, setPageSize] = useState(
     () => usePreferences.getState().pageSize,
   );
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dialog, setDialog] = useState<DialogState | null>(null);
   // The row (by event id) whose notes editor is open.
   const [notesFor, setNotesFor] = useState<string | null>(null);
@@ -237,7 +237,6 @@ export default function Activity() {
       setChanges([]);
       setDays([]);
       setPage(0);
-      setSelected(new Set());
     }
   }
 
@@ -465,7 +464,41 @@ export default function Activity() {
     setPage(0);
   };
 
-  const selectedRows = allRows.filter((r) => selected.has(r.event.id));
+  const {
+    selected,
+    toggle,
+    setMany,
+    clear: clearSelection,
+    scope: selectionScope,
+  } = useTableSelection(
+    JSON.stringify([
+      location.key,
+      search,
+      importId,
+      reviewOnly,
+      types,
+      sources,
+      changes,
+      accounts,
+      days,
+    ]),
+    rows.map((row) => row.event.id),
+  );
+  useEffect(
+    () => setDialog(null),
+    [
+      location.key,
+      search,
+      importId,
+      reviewOnly,
+      types,
+      sources,
+      changes,
+      accounts,
+      days,
+    ],
+  );
+  const selectedRows = rows.filter((r) => selected.has(r.event.id));
   const newSelected = selectedRows.map((r) => r.event).filter(isNew);
   const arrivalsSelected = selectedRows
     .map((r) => r.event)
@@ -473,7 +506,6 @@ export default function Activity() {
   const departuresSelected = selectedRows
     .map((r) => r.event)
     .filter(departureToRecord);
-  const clearSelection = () => setSelected(new Set());
 
   const stateOf = (e: DomainEvent): Ownership | undefined =>
     ownership.get(e.domain);
@@ -538,12 +570,7 @@ export default function Activity() {
     });
   }
 
-  const deselect = (ids: string[]) =>
-    setSelected((current) => {
-      const next = new Set(current);
-      for (const id of ids) next.delete(id);
-      return next;
-    });
+  const deselect = (ids: string[]) => setMany(ids, false);
 
   /**
    * Save the registration that answers an arrival: the name's created date
@@ -1004,7 +1031,7 @@ export default function Activity() {
           selected.size > 0 && (
             <SelectionBar
               count={selected.size}
-              total={reviewOnly ? reviewIds.size : allRows.length}
+              total={rows.length}
               onClear={clearSelection}
               actionsClassName="w-60"
               actions={
@@ -1086,24 +1113,11 @@ export default function Activity() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         selection={{
+          scope: selectionScope,
           selected,
-          toggle: (id) =>
-            setSelected((current) => {
-              const next = new Set(current);
-              if (next.has(id)) next.delete(id);
-              else next.add(id);
-              return next;
-            }),
-          setMany: (ids, on) =>
-            setSelected((current) => {
-              const next = new Set(current);
-              for (const id of ids) {
-                if (on) next.add(id);
-                else next.delete(id);
-              }
-              return next;
-            }),
-          allLabel: 'Select all activity',
+          toggle,
+          setMany,
+          allLabel: `Select all ${rows.length} matching activity rows across pages`,
           rowLabel: (r) =>
             `Select ${toUnicode(r.event.domain)} ${VERB[r.shown.type]}`,
         }}
