@@ -69,6 +69,13 @@ describe('SaleUnlock', () => {
     );
   });
 
+  it('does not label Namefi’s unreported default as a completed unlock', () => {
+    const out = html(domain({ registrar: 'namefi', locked: false }));
+    expect(out).toContain('Check lock at Namefi');
+    expect(out).not.toContain('>Unlocked</button>');
+    expect(out).toContain('disabled=""');
+  });
+
   it('reads Unlocking… while its own write runs', () => {
     clicked = true;
     state.mutating = { 'dynadot:sold.com': true };

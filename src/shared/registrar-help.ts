@@ -32,8 +32,9 @@ export interface RegistrarHelp {
 }
 
 // Exhaustive over RegistrarName so adding a registrar to the library forces a
-// help entry here (the build fails until one is written).
-export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
+// help entry here (the build fails until one is written). Namefi is prepared for
+// its pending registrar-client provider release.
+export const REGISTRAR_HELP: Record<RegistrarName | 'namefi', RegistrarHelp> = {
   '101domain': {
     summary:
       'An API key from My Account › Developer Tools – API & MCP, with the ' +
@@ -174,6 +175,20 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
       apiToken:
         'Use a token from the Production section, not the Development/Test token.',
     },
+  },
+
+  namefi: {
+    summary:
+      'Create a Plain API Key in your Namefi account. Both email-held and NFT-held domains are included. Keys can spend your NFSC balance and charge your saved card. Privacy and transfer-lock state are not reported. Use Namefi for manual renewal, transfers and nameserver changes.',
+
+    links: [
+      { label: 'Create an API key', url: 'https://namefi.io/api-keys' },
+      {
+        label: 'Namefi API documentation',
+        url: 'https://api.namefi.io/v-next/openapi/doc',
+      },
+    ],
+    fields: { apiKey: 'Use a Plain API Key beginning with `nfk_`.' },
   },
 
   namesilo: {

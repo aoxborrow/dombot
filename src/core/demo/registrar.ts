@@ -562,7 +562,7 @@ export function tldOf(domainName: string): string {
 
 /** The nameservers a registrar hands out by default. */
 export function defaultNameservers(registrar: RegistrarName): string[] {
-  const table: Record<RegistrarName, string[]> = {
+  const table: Record<RegistrarName | 'namefi', string[]> = {
     '101domain': ['ns1.101domain.com', 'ns2.101domain.com'],
     cloudflare: ['ada.ns.cloudflare.com', 'rob.ns.cloudflare.com'],
     dynadot: ['ns1.dynadot.com', 'ns2.dynadot.com'],
@@ -571,6 +571,7 @@ export function defaultNameservers(registrar: RegistrarName): string[] {
     namebright: ['ns1.namebrightdns.com', 'ns2.namebrightdns.com'],
     namecheap: ['dns1.registrar-servers.com', 'dns2.registrar-servers.com'],
     namecom: ['ns1.name.com', 'ns2.name.com', 'ns3.name.com', 'ns4.name.com'],
+    namefi: ['ns3.namefi.io', 'ns4.namefi.io'],
     namesilo: ['ns1.dnsowl.com', 'ns2.dnsowl.com', 'ns3.dnsowl.com'],
     porkbun: [
       'curitiba.ns.porkbun.com',
