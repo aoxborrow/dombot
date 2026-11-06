@@ -10,6 +10,7 @@ import {
 import {
   recordsPrivacyConsent,
   reportsPrivacy,
+  reportsLock,
 } from '../../../shared/domain-ops';
 import { cn } from '@/lib/utils';
 import { ConfirmPopover } from '../ConfirmPopover';
@@ -119,13 +120,16 @@ export function FlagToggle({
   const Icon = value ? On : Off;
   // The library's false is only a default where the registrar doesn't report
   // privacy; don't show it as a verified "privacy off".
-  if (kind === 'privacy' && !reportsPrivacy(domain.registrar)) {
+  if (
+    (kind === 'privacy' && !reportsPrivacy(domain.registrar)) ||
+    (kind === 'lock' && !reportsLock(domain.registrar))
+  ) {
     return (
       <span
         role="img"
         className="mx-auto -my-2 flex h-8 items-center justify-center text-muted-foreground/50 compact:h-7"
-        title="This registrar doesn’t report WHOIS privacy through its API."
-        aria-label="WHOIS privacy: Not reported"
+        title={`This registrar doesn’t report ${kind === 'privacy' ? 'WHOIS privacy' : 'transfer lock'} through its API.`}
+        aria-label={`${kind === 'privacy' ? 'WHOIS privacy' : 'Transfer lock'}: Not reported`}
       >
         —
       </span>
