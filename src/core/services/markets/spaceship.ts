@@ -207,6 +207,14 @@ export function checkSpaceshipChange(change: MarketListingChange): void {
   if (change.currency && change.currency !== 'USD') {
     unsupported('currency', 'SellerHub lists in USD only.');
   }
+  // The spec takes two decimal places, but SellerHub drops the cents
+  // (1499.99 saved as 1499, observed): refused rather than cut.
+  for (const field of ['price', 'minOffer'] as const) {
+    const amount = change[field];
+    if (amount != null && !Number.isInteger(Number(amount))) {
+      unsupported(field, 'SellerHub takes whole-dollar amounts.');
+    }
+  }
   if (change.forSale === false) {
     unsupported(
       'forSale',

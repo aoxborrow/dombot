@@ -240,6 +240,16 @@ describe('SellerHub changes', () => {
     expect(() =>
       checkSpaceshipChange({ name: 'example.com', currency: 'EUR' }),
     ).toThrow(/USD/);
+    // SellerHub drops cents (observed), so they're refused.
+    expect(() =>
+      checkSpaceshipChange({ name: 'example.com', price: '1499.99' }),
+    ).toThrow(/whole-dollar/);
+    expect(() =>
+      checkSpaceshipChange({ name: 'example.com', minOffer: '250.5' }),
+    ).toThrow(/whole-dollar/);
+    expect(() =>
+      checkSpaceshipChange({ name: 'example.com', price: '1500.00' }),
+    ).not.toThrow();
     expect(() =>
       checkSpaceshipChange({ name: 'example.com', forSale: false }),
     ).toThrow(/delist/);

@@ -723,7 +723,7 @@ const changeShape = {
     })
     .optional()
     .describe(
-      'Spaceship SellerHub’s own listing field. SellerHub lists in USD, has no floor, and a listing needs a Buy Now price, a minimum offer, or both; `price: null` turns Buy Now off. A name held outside the Spaceship account stays pending until SellerHub has checked its ownership verification TXT record.',
+      'Spaceship SellerHub’s own listing field. SellerHub lists in whole US dollars, has no floor, and a listing needs a Buy Now price, a minimum offer, or both; `price: null` turns Buy Now off. A name held outside the Spaceship account stays pending until SellerHub has checked its ownership verification TXT record.',
     ),
 };
 

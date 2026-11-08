@@ -10,10 +10,10 @@ to read the schemas). Spaceship's release notes for SellerHub are at
 
 ## Status
 
-Built on #254's registrar-backed accounts, and verified live for reads
-(2026-11-07) on the account in `.env`: all 54 of its listings, the sold
-report (empty) and the verification record. Writes are unit-tested only;
-the live round trip waits for a go-ahead on a test name.
+Built on #254's registrar-backed accounts, and verified live (2026-11-07)
+on the account in `.env`: reads of all 54 of its listings, the sold report
+(empty) and the verification record; writes on testbot.io (reprice, offers
+off, cents, delete and add again), each put back as it was.
 
 - **Client** `src/core/markets/spaceship/`: listings (list, get, create,
   update, delete), the sold report with its cursor, the verification
@@ -32,9 +32,9 @@ the live round trip waits for a go-ahead on a test name.
   (`description`) setting on the listing tools.
 - **Demo:** a Spaceship account on the demo's Spaceship registrar account,
   with 34 listings (a few pending verification) and a recent sale.
-- **Live tests:** `client.live.test.ts` (reads, passing) and
+- **Live tests:** `client.live.test.ts` (reads) and
   `client.writes.live.test.ts` (behind `SPACESHIP_LIVE_WRITES=1` and
-  `SPACESHIP_TEST_DOMAIN`, not run yet).
+  `SPACESHIP_TEST_DOMAIN`), both passing.
 
 SellerHub runs on the Spaceship registrar's API with the same key and
 secret, given the `sellerhub:*` scopes. So it's a registrar-backed market
@@ -123,9 +123,9 @@ Listing statuses, from the spec:
   Management", "External API: Lease-to-Own Management" and "Improvement to
   external domain verification".
 
-### Observed (live reads, 2026-11-07)
+### Observed (live, 2026-11-07)
 
-On the account in `.env`, reads only:
+On the account in `.env`. Reads:
 
 - **Listings:** 54, all `onSale`, one page with `total: 54`. Every one has a
   `displayName`, equal to `unicodeName` (the seller set no capitals), so
@@ -137,6 +137,21 @@ On the account in `.env`, reads only:
 - **Verification records:** one option, a TXT record at `@` holding a
   UUID; no A/AAAA option.
 - **Errors:** a name that isn't listed answers 404.
+
+Writes, on testbot.io (held at Dynadot, DNS on `ns1/ns2.aftermarket.com`,
+the account's TXT record already in place, listed and `onSale`):
+
+- **The key writes** as it is: `sellerhub:write` came with it.
+- **A patch answers with the listing as saved,** and changes only what it
+  was sent: a reprice with offers off, then everything put back.
+- **Cents are dropped:** 1499.99 saved as 1499, 999998.7 as 999998, a
+  minimum of 250.75 as 250, though the spec allows two decimals. The
+  adapter refuses amounts with cents.
+- **Delete, then add again:** a get answers 404 straight after the delete;
+  the create answers `verifying`, and the listing was `onSale` at the first
+  check 20 seconds later, with the same prices. So adding a name again runs
+  the ownership check again, and with the record in place it passes in
+  seconds.
 
 ## What to implement
 
@@ -282,8 +297,10 @@ back.
   `adjusted`.
 - **`forSale: false`** is refused with "SellerHub's API can't pause a sale;
   delist instead". Nothing in the API stops or restarts one.
-- **Floor, discount, lease-to-own, a currency other than USD:** refused
-  with a message, never dropped (markets.md, "Capabilities").
+- **Floor, discount, lease-to-own, a currency other than USD, cents:**
+  refused with a message, never dropped (markets.md, "Capabilities").
+  SellerHub would cut cents off (observed), so a price or minimum offer has
+  to be whole dollars.
 - **Delist:** `DELETE`.
 
 At 60 calls a minute, pushing prices to 1,000 names takes about 17 minutes.
@@ -396,9 +413,11 @@ capabilities. No SellerHub-only tools for now.
 Unit tests map fixtures built from the spec's examples. Live tests follow
 Dynadot's: reads with the key in `.env` (`SPACESHIP_API_KEY`,
 `SPACESHIP_API_SECRET`), and a write round trip behind
-`SPACESHIP_LIVE_WRITES=1` on `SPACESHIP_TEST_DOMAIN`. Only domanio.com or
-domainio.com; both are held at 101domain, so they cover verification. A
-name held at Spaceship, for the internal path, needs the user's pick.
+`SPACESHIP_LIVE_WRITES=1` on `SPACESHIP_TEST_DOMAIN`. testbot.io is the
+test name: listed on SellerHub already, held at Dynadot with fast DNS
+(101domain's is slow, so domanio.com and domainio.com make poor ones). The
+test reprices it and puts it back. A name held at Spaceship, for the
+internal path, needs the user's pick.
 
 ## Phases
 
@@ -411,7 +430,7 @@ Built on #254's branch, so this PR merges after it.
    verification entry, demo account. Live reads.
 2. **Writes (built):** list, reprice, minimum offer, display name,
    description, delist, through the List and Delist dialog, the bulk runner
-   and the MCP listing tools. Next: the live round trip on one test name.
+   and the MCP listing tools. Checked live on testbot.io.
 3. **Later:** lease-to-own and For Sale page settings, when Spaceship's API
    has them.
 
@@ -423,10 +442,9 @@ registrar-backed market.
 1. Does the sold report include sales still under way (`saleProcessing`,
    `leaseActive`), or only finished ones? For a lease-to-own sale, is
    `salePrice` the lease total, and when does it appear?
-2. Answered in part (2026-11-07): the key in `.env` reads SellerHub as it
-   is. Still open: whether it can write, and whether a key without the
-   scopes can be given them or has to be replaced (and the registrar card
-   updated).
+2. Answered in part (2026-11-07): the key in `.env` reads and writes
+   SellerHub as it is. Still open: whether a key without the scopes can be
+   given them or has to be replaced (and the registrar card updated).
 3. Answered in part (2026-11-07): SellerHub keeps both amounts while their
    switches are off (36 of 54 live listings have a minimum with Make an
    Offer off), and no listing has both off. Still open: does the For Sale
@@ -443,8 +461,9 @@ registrar-backed market.
 7. Are the rate limits per key or per user, and do SellerHub and registrar
    calls share them?
 8. How is a description cleared: an empty string, or `null`?
-9. Does create answer `verifying` for an external name and `onSale` for one
-   in the same account? Does create check right away, the way Verify Domains
-   does, and how often does the background check run after that?
+9. Answered in part (2026-11-07): create answers `verifying` for a name
+   held elsewhere, and with the record in place it was `onSale` within 20
+   seconds. Still open: does a name in the same account go straight to
+   `onSale`, and how often does the check run for a record added later?
 10. Once a listing is verified, can the record be removed, or does
     SellerHub check again and take the listing down?
