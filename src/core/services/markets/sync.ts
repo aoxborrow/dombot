@@ -308,10 +308,19 @@ async function runMarketSync(accountId: string): Promise<void> {
         )
         .map(([, row]) => row);
       if (waiting.length) {
+        const byName = new Map(waiting.map((row) => [row.name, row]));
         for (const r of await adapter.listVerified(waiting)) {
-          if (!r.ok || !r.saved) continue;
-          fresh.set(prefix + r.name, r.saved);
-          if (r.saved.status === 'pending') verifying++;
+          // A check that failed (a network error, say) keeps DomBot's row
+          // as it is; only a name off the market's list (NOT_FOUND) is let
+          // go, to the clean-up below.
+          const row = r.ok
+            ? r.saved
+            : r.error?.code === 'NOT_FOUND'
+              ? null
+              : (byName.get(r.name) ?? null);
+          if (!row) continue;
+          fresh.set(prefix + r.name, row);
+          if (row.status === 'pending') verifying++;
         }
       }
     }
