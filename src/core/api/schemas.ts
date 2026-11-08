@@ -249,7 +249,7 @@ export const ownershipItems = z
 export const optionalDay = z.string().max(40).nullable().optional();
 
 // Markets
-export const marketId = z.enum(['afternic', 'atom', 'sedo']);
+export const marketId = z.enum(['afternic', 'atom', 'dynadot', 'sedo']);
 export const marketCredentials = z.record(
   z.string().max(100),
   z.string().max(1000),

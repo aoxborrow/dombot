@@ -36,6 +36,7 @@ import { marketAccount } from './markets/accounts';
 import { marketInfo } from './markets/registry';
 import {
   deleteMarketListings,
+  listVerifiedListings,
   pushAskingPrices,
   writeMarketListings,
 } from './markets/writes';
@@ -275,6 +276,18 @@ function finish(j: StoredJob): void {
   // Items were applied with `silent`, so reconcile any open window once.
   if (j.counts.ok > 0) broadcastPortfolioChanged();
   broadcastBulkFinished(snapshot(j)!);
+  // New TXT records: a market that lists a name only once it has verified
+  // it (Dynadot) checks the pending ones now.
+  if (j.op.kind === 'txtRecords') {
+    const written = j.results
+      .filter((r) => r.status === 'ok')
+      .map((r) => r.target.domainName);
+    if (written.length) {
+      void listVerifiedListings(written).catch((err) =>
+        console.error('[markets] listing verified names failed', err),
+      );
+    }
+  }
 }
 
 /** Earliest time any registrar with pending work may start, or null. */

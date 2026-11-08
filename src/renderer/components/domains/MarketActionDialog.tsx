@@ -90,7 +90,8 @@ export function MarketActionDialog({
   const bulk = useAppStore((s) => s.bulk);
   const startBulk = useAppStore((s) => s.startBulk);
   const enabled = accounts.filter((a) => a.enabled && a.configured);
-  const [addTxt, setAddTxt] = useState(false);
+  // Add ownership verification TXT records: null until you choose.
+  const [txtChoice, setTxtChoice] = useState<boolean | null>(null);
   // How starting the TXT job went: null until listing ran with it ticked.
   const [txtJob, setTxtJob] = useState<
     { names: number } | { error: string } | null
@@ -186,6 +187,15 @@ export function MarketActionDialog({
       domainName: d.domainName,
     }));
   const offerTxt = action === 'list' && txtValues.length > 0;
+  // Dynadot lists a name held elsewhere only once it has verified it, which
+  // the TXT record does: on to start when listing such names there.
+  const dynadotNeedsTxt = chosen.some(
+    (a) =>
+      a.market === 'dynadot' &&
+      !!a.verificationId &&
+      txtTargets.some((t) => t.accountId !== a.registrarAccountId),
+  );
+  const addTxt = txtChoice ?? dynadotNeedsTxt;
   const bulkBusy = bulk?.status === 'running';
 
   const run = async () => {
@@ -324,7 +334,7 @@ export function MarketActionDialog({
                   className="mt-0.5"
                   checked={addTxt && !bulkBusy}
                   disabled={bulkBusy || txtTargets.length === 0}
-                  onCheckedChange={(on) => setAddTxt(on === true)}
+                  onCheckedChange={(on) => setTxtChoice(on === true)}
                 />
                 <span>
                   Add ownership verification TXT records

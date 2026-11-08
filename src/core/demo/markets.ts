@@ -16,12 +16,13 @@ import type {
 import { SEARCH_DATA_FLAG } from '../../shared/markets';
 import { AFTERNIC_CAPABILITIES } from '../services/markets/afternic';
 import { ATOM_CAPABILITIES } from '../services/markets/atom';
+import { DYNADOT_CAPABILITIES } from '../services/markets/dynadot';
 import type { AnyMarketAdapter } from '../services/markets/registry';
 import { SEDO_CAPABILITIES } from '../services/markets/sedo';
 import { pick, rng, type DemoAskingPrice } from './seed';
 
-// The demo's marketplaces: an Afternic, a Sedo and an Atom account over one
-// in-memory world, so the Markets page, the listing columns, the listing
+// The demo's marketplaces: an Afternic, a Sedo, an Atom and a Dynadot account
+// over one in-memory world, so the Markets page, the listing columns, the listing
 // editor and the bell have something real-looking to show without a key.
 // Writes change the world the way each market would, within its
 // capabilities: Sedo holds a new name pending, Afternic caps lease months by
@@ -30,6 +31,7 @@ import { pick, rng, type DemoAskingPrice } from './seed';
 const CAPABILITIES: Record<MarketId, MarketCapabilities> = {
   afternic: AFTERNIC_CAPABILITIES,
   atom: ATOM_CAPABILITIES,
+  dynadot: DYNADOT_CAPABILITIES,
   sedo: SEDO_CAPABILITIES,
 };
 
@@ -53,6 +55,8 @@ export class DemoMarketWorld {
   readonly sales = new Map<string, MarketSale[]>();
   readonly settings = new Map<string, AfternicAccountSettings>();
   readonly market = new Map<string, MarketId>();
+  /** Names the demo's Dynadot registrar account holds. */
+  heldAtDynadot: (name: string) => boolean = () => false;
   constructor(readonly now: number = Date.now()) {}
 
   account(id: string): Map<string, MarketListing> {
@@ -107,6 +111,8 @@ function refusal(
   }
   if (market === 'sedo' && price && currency !== 'GBP' && Number(price) < 199)
     return `Sedo needs a Buy Now price of at least 199 ${currency}.`;
+  if (market === 'dynadot' && change.forSale === false)
+    return 'Dynadot has no hidden listings; delist instead.';
   return null;
 }
 
@@ -184,6 +190,28 @@ export class DemoMarketAdapter {
       if (change.floor !== undefined) next.floor = change.floor;
       if (change.forSale !== undefined && next.status !== 'pending')
         next.forSale = change.forSale;
+      // Dynadot lists a name held elsewhere only once it has verified it:
+      // a new one is added to its list and stays pending meanwhile. A
+      // listed name's minimum offer never shows.
+      if (
+        this.market === 'dynadot' &&
+        !current &&
+        !this.world.heldAtDynadot(name)
+      ) {
+        Object.assign(next, {
+          status: 'pending',
+          statusRaw: 'Buy Now · Unverified',
+          extra: {
+            ...next.extra,
+            held: 'elsewhere',
+            listingId: null,
+            offers: false,
+            verified: false,
+          },
+        });
+      }
+      if (this.market === 'dynadot' && next.status !== 'pending')
+        next.minOffer = null;
       const adjusted: MarketWriteResult['adjusted'] = [];
       if (change.leaseToOwn) {
         const asked = change.leaseToOwn.maxPayments;
@@ -304,6 +332,21 @@ export class DemoMarketAdapter {
 
   async verifyDns(name: string): Promise<MarketWriteResult> {
     const key = name.toLowerCase();
+    // Dynadot checks a list of names whenever it's asked.
+    if (this.market === 'dynadot') {
+      const l = this.mine.get(key);
+      if (l?.extra.market === 'dynadot' && l.extra.verified === false) {
+        this.mine.set(key, {
+          ...l,
+          status: 'active',
+          statusRaw: 'Buy Now · Verified',
+          forSale: true,
+          minOffer: null,
+          extra: { ...l.extra, verified: true },
+        });
+      }
+      return ok(this.mine.get(key) ?? null, key);
+    }
     const last = dnsChecks.get(this.accountId);
     if (last !== undefined && Date.now() - last < 12 * 60 * 60 * 1000) {
       return refused(
@@ -422,6 +465,17 @@ function extraFor(
           }
         : null,
     };
+  if (market === 'dynadot')
+    return {
+      market: 'dynadot',
+      held: 'dynadot',
+      listingId: String(21000000 + (h % 900000)),
+      offers: h % 2 === 0,
+      pendingSale: false,
+      verified: null,
+      registrar: null,
+      transferStatus: null,
+    };
   if (market === 'sedo')
     return {
       market: 'sedo',
@@ -467,6 +521,15 @@ export const DEMO_MARKET_ACCOUNTS = [
     label: 'Atom',
     credentials: { apiToken: 'demo-token', userId: '1234567' },
     verification: 'de30de30de30de30de30de30de30de30de30de30',
+  },
+  {
+    id: 'demo-dynadot',
+    market: 'dynadot',
+    label: 'Dynadot',
+    // None of its own: it uses the demo's Dynadot registrar account's key.
+    credentials: {},
+    registrarAccountId: 'dynadot',
+    verification: 'de30de30de30de30de30de30de30de30',
   },
 ] as const;
 
@@ -524,10 +587,13 @@ export function seedDemoMarkets(
   givesAuthCode: (name: string) => boolean = () => true,
   /** Names whose registrar can approve a transfer-out. */
   approvesTransfer: (name: string) => boolean = () => true,
+  /** Names the demo's Dynadot registrar account holds. */
+  heldAtDynadot: (name: string) => boolean = () => false,
   seed = 7,
 ): void {
   const r = rng(seed);
   const now = world.now;
+  world.heldAtDynadot = heldAtDynadot;
   for (const a of DEMO_MARKET_ACCOUNTS) world.market.set(a.id, a.market);
   const listed = (
     accountId: string,
@@ -620,6 +686,35 @@ export function seedDemoMarkets(
     if (share < 0.5) {
       listed('demo-sedo', 'sedo', name, at, asking[name]);
       listed('demo-atom', 'atom', name, at, asking[name]);
+    }
+    // Dynadot: names its registrar account holds, and names held elsewhere
+    // listed through its open marketplace, a few still being verified.
+    if (share >= 0.25 && share < 0.55) {
+      listed('demo-dynadot', 'dynadot', name, at, asking[name]);
+      const l = world.account('demo-dynadot').get(name);
+      if (l?.extra.market === 'dynadot') {
+        const home = heldAtDynadot(name);
+        const pending = !home && l.status === 'pending';
+        world.account('demo-dynadot').set(name, {
+          ...l,
+          status: pending ? 'pending' : 'active',
+          statusRaw: home
+            ? l.extra.offers
+              ? 'BIN_MAKE_OFFER'
+              : 'BIN'
+            : `Buy Now · ${pending ? 'Unverified' : 'Verified'}`,
+          // A pending one is DomBot's, held until Dynadot verifies the name.
+          forSale: true,
+          minOffer: pending ? l.minOffer : null,
+          listedAt: home ? null : l.listedAt,
+          extra: {
+            ...l.extra,
+            held: home ? 'dynadot' : 'elsewhere',
+            listingId: home ? l.extra.listingId : null,
+            verified: home ? null : !pending,
+          },
+        });
+      }
     }
   });
 
