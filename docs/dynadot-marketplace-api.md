@@ -389,8 +389,8 @@ Dynadot:
   Both now take from one limiter, keyed by the registrar account
   (`dynadotLimiter`, 50 a minute): the market client uses it directly, and
   registrar-client's Dynadot provider gets a fetch that waits its turn on
-  it (`pacedFetch`), through the proxy too. A 429 on either side pauses
-  both. Registrar sync for Dynadot is one list read, so it costs the
+  it (`dynadotPacedFetch`), through the proxy too. A 429 on either side,
+  as the status or Dynadot's envelope code, pauses both. Registrar sync for Dynadot is one list read, so it costs the
   market little. Not done: sizing it from `price_level` (Bulk allows 600).
   Auto-sync already runs markets after registrars, so the two syncs don't
   overlap.
@@ -584,15 +584,19 @@ Held elsewhere:
   may be in place already; verified, it's listed at once. Otherwise DomBot
   holds it (decided 2026-11-04): the result is pending, not an error, as
   on markets that check ownership themselves (`asyncInsert`), and the
-  pending row keeps the price, minimum offer and currency asked for.
-  Checked live on domainio.com (2026-11-07): added, and pending as "BIN ·
-  Unverified".
+  pending row keeps the price, minimum offer and currency asked for. Since
+  Dynadot has nothing of it, a later change to a pending listing keeps
+  what it doesn't give from that row (`withPendingListing`).
+  Checked live (2026-11-07): domainio.com, with no TXT record yet, was
+  added and held pending; cloudflareregistereddomaintest.uk, with its TXT
+  record in place, was added, verified and listed in one write.
 - **Listed once verified** (`listVerified`): each sync asks Dynadot to
   verify the account's pending names (one call for all of them) and lists
   those it verifies, at the pending row's price. One still unverified stays
   pending, under the "Waiting on ownership checks" note, however long it
   takes; one taken off Dynadot's list is dropped after a week, like any
-  listing a market never took. Recheck ownership… and the end of an
+  listing a market never took. Checked live: a pending row of
+  cloudflareregistereddomaintest.uk was verified and listed at its price. Recheck ownership… and the end of an
   Ownership verification TXT job do the same for their names. Verify
   answered six calls in a row without a limit (2026-11-07). This makes
   `market_sync` write, only for these names; its MCP description says so,
@@ -795,8 +799,15 @@ nobody would pay, read back, then delisted.
 - **Held elsewhere (done, 2026-11-04):** domanio.com, at 101domain, is the
   test name (`DYNADOT_TEST_EXTERNAL_DOMAIN`): on the account's
   other-registrar list, verified by the key's TXT record (kept in its DNS
-  for later runs), and delisted after each run. domainio.com is the spare.
-  Other names from the user's registrars only once they're picked.
+  for later runs), and delisted after each run. domainio.com is the spare:
+  added 2026-11-07 with the key's TXT record, which one of 101domain's
+  three nameservers still didn't serve ten minutes later. 101domain's DNS
+  is slow to update, so the verify-and-list tests used
+  cloudflareregistereddomaintest.uk (Cloudflare DNS, the record on every
+  nameserver at once; picked with the user), left on the list, verified,
+  delisted. Other names from the user's registrars only once they're
+  picked. A verify before the record is up can leave Dynadot holding the
+  "no record" answer for the zone's negative TTL (an hour at 101domain).
 - **Writes in the account:** testbot.io (`DYNADOT_TEST_DOMAIN`), listed at
   $499 Buy Now on Dynadot and Afternic, picked with the user. The test
   rewrites it at its price, moves it up $1 and puts it back, never
@@ -822,9 +833,9 @@ nobody would pay, read back, then delisted.
    (`verifyDns`), through the List and Delist dialog, the bulk runner and
    the MCP tools; checked live on both kinds; unverified names pending, and
    verified on listing, and listed once verified, by sync, Recheck or a
-   TXT job; the TXT box on to start. Not yet checked live: a pending name
-   listed once its TXT record is in (domainio.com waits on the record), and
-   a name in the account in another currency (the account lock was on).
+   TXT job; the TXT box on to start; all checked live. Not yet checked
+   live: a name in the account in another currency (the account lock was
+   on).
 4. **Sales:** sale records for names held elsewhere and their steps on the
    Sales tab; the Record sale… prefill for names in the account.
 

@@ -85,10 +85,18 @@ async function inBatches<T>(
  */
 export async function writeMarketListings(
   accountId: string,
-  changes: readonly MarketListingChange[],
+  asked: readonly MarketListingChange[],
   options: WriteOptions = {},
 ): Promise<MarketWriteResult[]> {
   const adapter = enabledAdapter(accountId);
+  // A market that won't take a listing until it has verified the name
+  // (Dynadot) has nothing of a pending one: DomBot's row is the listing, so
+  // a change to it keeps what it doesn't give.
+  const changes = adapter.listVerified
+    ? asked.map((c) =>
+        withPendingListing(c, cachedListing(accountId, toAscii(c.name))),
+      )
+    : asked;
   const skipped = new Map<string, MarketWriteResult>();
   const toSend = options.skipUnchanged
     ? changes.filter((c) => {
@@ -137,6 +145,27 @@ export async function writeMarketListings(
       failed(name, 'NO_RESULT', 'The market returned no result for this name.')
     );
   });
+}
+
+/**
+ * A change to a pending listing DomBot holds, with the price, minimum offer
+ * and currency it leaves out taken from the pending row.
+ */
+export function withPendingListing(
+  change: MarketListingChange,
+  pending: MarketListing | undefined,
+): MarketListingChange {
+  if (pending?.status !== 'pending' || !pending.forSale) return change;
+  return {
+    ...change,
+    price: change.price !== undefined ? change.price : pending.price,
+    minOffer:
+      change.minOffer !== undefined ? change.minOffer : pending.minOffer,
+    currency:
+      change.currency ??
+      (pending.currency as MarketListingChange['currency']) ??
+      undefined,
+  };
 }
 
 /**

@@ -37,8 +37,7 @@ import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { errorSummary } from './error-summary';
 import { createProxiedRegistrar } from './proxy-transport';
-import { dynadotLimiter } from '../markets/dynadot';
-import { pacedFetch } from '../markets/rate-limit';
+import { dynadotPacedFetch } from '../markets/dynadot';
 import { removeMarketAccountsOf } from './markets/accounts';
 import { consentIp } from './consent-ip';
 import { recordsPrivacyConsent } from '../../shared/domain-ops';
@@ -238,12 +237,15 @@ function buildProvider(
   if (factory) return factory(name, credentials, accountId);
   // A Dynadot key's calls share one budget with its marketplace account's
   // (docs/dynadot-marketplace-api.md, "Credentials").
-  const pace = name === 'dynadot' ? dynadotLimiter(accountId) : null;
+  const pace =
+    name === 'dynadot'
+      ? (inner?: typeof fetch) => dynadotPacedFetch(accountId, inner)
+      : null;
   return proxy
     ? createProxiedRegistrar(name, credentials, proxy, pace)
     : createRegistrar(name, credentials, {
         timeout: API_TIMEOUT_MS,
-        ...(pace && { fetch: pacedFetch(pace) }),
+        ...(pace && { fetch: pace() }),
       });
 }
 const clientCredentials = new Map<string, string>();

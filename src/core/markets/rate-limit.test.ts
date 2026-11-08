@@ -36,4 +36,22 @@ describe('pacedFetch', () => {
       'https://api.dynadot.com/b',
     ]);
   });
+
+  it('pauses everyone on the limiter after a 429', async () => {
+    const clock = fakeClock();
+    const limiter = new RateLimiter(clock, 60);
+    const fetch = pacedFetch(
+      limiter,
+      async () =>
+        new Response('slow down', {
+          status: 429,
+          headers: { 'retry-after': '30' },
+        }),
+      { pauseMs: 60_000 },
+    );
+    await fetch('https://api.dynadot.com/a');
+    // The market client's next call waits out Retry-After.
+    await limiter.take();
+    expect(clock.slept).toEqual([30_000]);
+  });
 });

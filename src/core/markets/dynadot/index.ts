@@ -4,6 +4,7 @@ export {
   EXTERNAL_PAGE,
   REQUESTS_PER_MINUTE,
   dynadotLimiter,
+  dynadotPacedFetch,
   type DynadotClientOptions,
   type DynadotCredentials,
 } from './client';

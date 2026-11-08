@@ -10,7 +10,12 @@ import {
 import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
 import {
   Archive,
   Building2,
@@ -146,6 +151,7 @@ import {
 } from '../components/domains/BulkActionsBar';
 import { BulkActionDialog } from '../components/domains/BulkActionDialog';
 import { defaultBulkOp } from '../lib/bulk';
+import { useTableSelection } from '../lib/table-selection';
 import {
   EXPIRATION_PRESETS,
   isDateRangeSet,
@@ -932,6 +938,9 @@ function matchesExpiration(d: Domain, range: DateRange): boolean {
   return matchesDateRange(utcDay(d.expirationDate), range);
 }
 
+/** A name an account still holds: what registrar actions run on. */
+const isHeld = (d: Domain) => !d.departed && d.source !== 'imported';
+
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function Domains() {
@@ -959,10 +968,6 @@ export default function Domains() {
     folders,
     folderAssignments,
     assignFolder,
-    selected,
-    toggleSelected,
-    setSelectedMany,
-    clearSelection,
     bulk,
     purchases,
     listPrices,
@@ -2097,11 +2102,48 @@ export default function Domains() {
   const { start, end } = paginate(filtered.length, page, pageSize);
   const visible = filtered.slice(start, end);
 
-  // The selected domains as merged rows, for the bulk bar and dialog.
+  const location = useLocation();
+  const selectionScope = JSON.stringify([
+    location.key,
+    view,
+    archiveView,
+    search,
+    tld,
+    registrar,
+    ns,
+    marketsFilter,
+    folder,
+    status,
+    autoRenewFilter,
+    pricingFilter,
+    created,
+    expires,
+    purchased,
+    sold,
+  ]);
+  const filteredKeys = useMemo(() => filtered.map(domainKey), [filtered]);
+  const {
+    selected,
+    toggle: toggleSelected,
+    setMany: setSelectedMany,
+    clear: clearSelection,
+  } = useTableSelection(selectionScope, filteredKeys);
+  useEffect(() => {
+    setListPriceFor(null);
+    setBulkNotesFor(null);
+    setMarketAction(null);
+    setOwnershipDialog(null);
+    setPurchaseFor(null);
+    setMarkSoldFor(null);
+    setBulkDialog(null);
+  }, [selectionScope]);
+  // Every bulk action uses exactly the checked names in the current result,
+  // including deliberate selections on its other pages.
   const selectedDomains = useMemo(
-    () => shown.filter((d) => selected.has(domainKey(d))),
-    [shown, selected],
+    () => filtered.filter((d) => selected.has(domainKey(d))),
+    [filtered, selected],
   );
+
   // Bulk: re-fetch every selected domain's detail from its registrar, bypassing
   // the detail cache (their cells show skeletons while in flight).
   // Registrar actions act on the selected names an account still holds.
@@ -2118,9 +2160,9 @@ export default function Domains() {
     }
     return counts;
   }, [selectedDomains, folderAssignments, folders]);
-  const selectedHeld = selectedDomains.filter(
-    (d) => !d.departed && d.source !== 'imported',
-  );
+  const selectedHeld = selectedDomains.filter(isHeld);
+  // Bulk Retry failed finds the job's names here, selected or not.
+  const allHeld = useMemo(() => merged.filter(isHeld), [merged]);
   const bulkRefresh = () => {
     const n = selectedDomains.length;
     void refreshNames(selectedDomains, `${n} domain${n === 1 ? '' : 's'}`);
@@ -2593,13 +2635,7 @@ export default function Domains() {
             <BulkActionsBar
               domains={selectedDomains}
               held={selectedHeld}
-              total={
-                archiveView
-                  ? archiveCount
-                  : view === 'listings'
-                    ? listedCount
-                    : ownedCount
-              }
+              total={filtered.length}
               folders={folders}
               folderCounts={selectedFolderCounts}
               onClear={clearSelection}
@@ -2641,6 +2677,7 @@ export default function Domains() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         selection={{
+          scope: selectionScope,
           selected,
           toggle: toggleSelected,
           setMany: setSelectedMany,
@@ -2711,6 +2748,7 @@ export default function Domains() {
         <BulkActionDialog
           initialOp={bulkDialog.op}
           domains={selectedHeld}
+          retryPool={allHeld}
           jobId={bulkDialog.jobId}
           onClose={() => setBulkDialog(null)}
         />

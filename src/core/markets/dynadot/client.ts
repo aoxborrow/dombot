@@ -2,6 +2,7 @@ import { userAgentHeaders } from '../../app-info';
 import { assertDomainName } from '../../../shared/domain-name';
 import {
   RateLimiter,
+  pacedFetch,
   realClock,
   sharedLimiter,
   type Clock,
@@ -68,6 +69,30 @@ export function dynadotLimiter(
     `dynadot:${key}`,
     () => new RateLimiter(clock, REQUESTS_PER_MINUTE),
   );
+}
+
+/**
+ * A fetch for the registrar side's calls on a Dynadot key (registrar-client
+ * takes one): it waits its turn on the key's limiter, and a 429, as the
+ * status or Dynadot's envelope code, pauses the limiter for the market
+ * client too.
+ */
+export function dynadotPacedFetch(
+  key: string,
+  inner: typeof fetch = (...args) => fetch(...args),
+): typeof fetch {
+  return pacedFetch(dynadotLimiter(key), inner, {
+    pauseMs: RATE_LIMIT_PAUSE_MS,
+    rateLimited: async (response) => {
+      if (response.status === 429) return true;
+      if (!response.ok) return false;
+      try {
+        return envelopeCode(JSON.parse(await response.clone().text())) === 429;
+      } catch {
+        return false;
+      }
+    },
+  });
 }
 
 /** How long to hold off after a 429 that doesn't say: Dynadot's message says 60 seconds. */
