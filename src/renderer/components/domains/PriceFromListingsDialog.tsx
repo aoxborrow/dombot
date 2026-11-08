@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { toAscii } from '../../../shared/domain-name';
 import type { Domain } from '../../../shared/ipc';
 import {
@@ -25,14 +25,14 @@ import { cn } from '@/lib/utils';
 const names = (n: number) => `${n.toLocaleString()} name${n === 1 ? '' : 's'}`;
 
 /**
- * Adopt listed price: copy what a market lists names for (BIN price,
+ * Price from listings: copy what a market lists names for (BIN price,
  * minimum offer, floor) into their asking prices in DomBot, from one market
  * or from whichever listing is highest. For starting out in DomBot with
  * prices set on a market, then pricing here and listing everywhere. For a
  * selection, names that already have an asking price keep it unless you
  * choose to replace them; one name picked from its row is replaced.
  */
-export function AdoptListedPriceDialog({
+export function PriceFromListingsDialog({
   domains,
   onClose,
 }: {
@@ -78,6 +78,7 @@ export function AdoptListedPriceDialog({
   const [replace, setReplace] = useState(one);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const saveRef = useRef<HTMLButtonElement>(null);
 
   // What each name would get, and why the rest are skipped.
   const plan = useMemo(() => {
@@ -137,9 +138,19 @@ export function AdoptListedPriceDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        // Start on Save rather than the first source, whose focus ring looks
+        // like a selection. With nothing to save, the dialog itself.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          const save = saveRef.current;
+          if (save && !save.disabled) save.focus();
+          else (e.currentTarget as HTMLElement | null)?.focus();
+        }}
+      >
         <ActionHeader
-          title={one ? 'Adopt listed price' : 'Adopt listed prices'}
+          title={one ? 'Price from listings' : 'Prices from listings'}
           names={domains.map((d) => d.domainName)}
         />
         <div className="flex flex-col gap-4 text-sm">
@@ -153,7 +164,7 @@ export function AdoptListedPriceDialog({
               <FieldLabel>From</FieldLabel>
               <div
                 role="radiogroup"
-                aria-label="Adopt from"
+                aria-label="Price from"
                 className="flex flex-col gap-2"
               >
                 {sources.map((s) => (
@@ -273,10 +284,11 @@ export function AdoptListedPriceDialog({
             Cancel
           </Button>
           <Button
+            ref={saveRef}
             disabled={saving || plan.found.length === 0}
             onClick={() => void run()}
           >
-            Adopt
+            Save
           </Button>
         </DialogFooter>
       </DialogContent>

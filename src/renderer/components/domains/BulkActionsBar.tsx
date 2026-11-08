@@ -302,7 +302,7 @@ export function BulkActionsBar({
                   {marketItem(
                     'importPrice',
                     <CopyCheck className={icon} />,
-                    'Adopt listed prices',
+                    'Prices from listings',
                   )}
                   {/* Recheck ownership is hidden for now, as in the row
                       menu. */}

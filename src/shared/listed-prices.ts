@@ -2,7 +2,7 @@ import { isRateCurrency, type CurrencyCode } from './currencies';
 import type { ExchangeRates } from './exchange-rates';
 import type { MarketId, MarketListing } from './markets';
 
-// Adopt listed price (Domains row and bulk menus, portfolio_asking_prices_import):
+// Price from listings (Domains row and bulk menus, portfolio_asking_prices_import):
 // copy what a market lists a name for into DomBot's asking price, so someone
 // who priced their names on a market can start pricing in DomBot and list
 // from there. Shared so the dialog and the MCP tool pick the same price.

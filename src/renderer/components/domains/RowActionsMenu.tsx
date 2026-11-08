@@ -59,7 +59,7 @@ const icon = 'text-muted-foreground';
  * as checkboxes, which flip with the same confirms as their cells, then
  * nameservers, forwarding, renew, auth code); then Pricing and the market
  * actions (with a market account: List at your price, Ownership verification
- * TXT, Adopt listed price, Delist); then Delete, only for a name no connected
+ * TXT, Price from listings, Delist); then Delete, only for a name no connected
  * account holds (imported or in Archive): a name you hold leaves by turning
  * its auto-renew off (docs/owned-and-archive.md). Otherwise every row in a
  * view gets the same items: what doesn't apply is greyed with the reason as
@@ -403,7 +403,7 @@ export function RowActionsMenu({
               {marketItem(
                 'importPrice',
                 <CopyCheck className={icon} />,
-                'Adopt listed price',
+                'Price from listings',
               )}
               {/* Recheck ownership is hidden for now: Afternic's relist
                   doesn't run the check, Sedo can't be asked, Atom allows

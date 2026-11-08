@@ -36,7 +36,7 @@ import { Field, FieldLabel } from '@/components/ui/field';
 /** Listing actions, which this dialog runs. */
 export type ListingAction = 'list' | 'delist';
 /** Every market action a row or the bulk bar offers (importPrice copies a
- * listed price into your asking price: AdoptListedPriceDialog). */
+ * listed price into your asking price: PriceFromListingsDialog). */
 export type MarketAction = ListingAction | VerificationAction | 'importPrice';
 
 /**
