@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { accountSyncState, syncSummary, type SyncAccount } from './sync-state';
+import {
+  accountSyncState,
+  syncBaseline,
+  syncProgress,
+  syncSummary,
+  syncingText,
+  type SyncAccount,
+} from './sync-state';
 
 const DAY = 86_400_000;
 const account = (patch: Partial<SyncAccount>): SyncAccount => ({
@@ -8,6 +15,7 @@ const account = (patch: Partial<SyncAccount>): SyncAccount => ({
   name: 'A',
   lastSyncedAt: Date.now() - 60_000,
   lastError: null,
+  lastAttemptAt: Date.now() - 60_000,
   ...patch,
 });
 
@@ -74,5 +82,42 @@ describe('syncSummary', () => {
       level: 'warn',
       label: 'No registrars to sync',
     });
+  });
+});
+
+describe('sync progress', () => {
+  it('counts the accounts whose last attempt moved since the Sync began', () => {
+    const before = [
+      account({ id: 'a', lastAttemptAt: 100 }),
+      account({ id: 'b', lastAttemptAt: null }),
+      account({ id: 'c', kind: 'market', lastAttemptAt: 200 }),
+    ];
+    const baseline = syncBaseline(before);
+    expect(syncProgress(before, baseline)).toEqual({ done: 0, total: 3 });
+    // a synced (its clock may be behind the browser's: it only has to move),
+    // b tried for the first time and failed; c is still going.
+    const now = [
+      account({ id: 'a', lastAttemptAt: 50 }),
+      account({ id: 'b', lastAttemptAt: 300, lastError: 'Bad key' }),
+      account({ id: 'c', kind: 'market', lastAttemptAt: 200 }),
+    ];
+    expect(syncProgress(now, baseline)).toEqual({ done: 2, total: 3 });
+  });
+
+  it('leaves out accounts the Sync doesn’t cover', () => {
+    const baseline = syncBaseline([account({ id: 'a', lastAttemptAt: 1 })]);
+    const now = [
+      account({ id: 'a', lastAttemptAt: 2 }),
+      account({ id: 'x', lastAttemptAt: 9 }),
+    ];
+    expect(syncProgress(now, baseline)).toEqual({ done: 1, total: 1 });
+  });
+
+  it('says how far along it is, or just Syncing', () => {
+    expect(syncingText({ done: 15, total: 17 }, 'accounts')).toBe(
+      'Syncing 15/17 accounts…',
+    );
+    expect(syncingText({ done: 15, total: 17 })).toBe('Syncing 15/17…');
+    expect(syncingText(null, 'accounts')).toBe('Syncing…');
   });
 });

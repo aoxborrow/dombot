@@ -165,7 +165,8 @@ export default function MarketsSettings() {
  * sums up the result.
  */
 function SyncAllButton() {
-  const { syncMarkets, marketsSyncing, syncing, bulkRunning } = useSyncState();
+  const { syncMarkets, marketsSyncing, syncing, syncingShort, bulkRunning } =
+    useSyncState();
   return (
     <Button
       variant="outline"
@@ -178,7 +179,7 @@ function SyncAllButton() {
       }
     >
       <RefreshCw className={cn(marketsSyncing && 'animate-spin')} />
-      {marketsSyncing ? 'Syncing…' : 'Sync all'}
+      {marketsSyncing ? syncingShort : 'Sync all'}
       {/* Room for the full label beside Add from sm up. */}
       {!marketsSyncing && (
         <span className="-ml-1 hidden sm:inline">markets</span>

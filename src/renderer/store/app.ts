@@ -310,6 +310,12 @@ interface AppState {
   /** Every enabled market account is syncing (Sync now, or Settings →
    * Markets' Sync all); one account's own sync shows on its card alone. */
   marketsSyncing: boolean;
+  /**
+   * While a Sync runs: each account it covers, keyed `kind:id`, and its last
+   * attempt when the Sync began. Progress counts the accounts that have
+   * attempted since (lib/sync-state.ts).
+   */
+  syncBaseline: Record<string, number | null> | null;
   /** Sync every enabled market account, then reload what they hold. A failed
    * account records its error on its card; this throws only when an account
    * ran out of time (it carries on in the background) or the call failed. */
@@ -944,6 +950,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     return failed;
   },
   marketsSyncing: false,
+  syncBaseline: null,
   syncMarkets: async () => {
     set({ marketsSyncing: true });
     // One account at a time, as auto-sync does, each with its own time
