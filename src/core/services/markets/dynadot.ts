@@ -375,7 +375,7 @@ function asSavedElsewhere(
       verified,
       verifyStatusRaw: verified ? 'Verified' : 'Unverified',
       listingType: input.listingType,
-      listingTypeRaw: input.listingType.toUpperCase(),
+      listingTypeRaw: LIST_TYPE_LABEL[input.listingType],
       price: input.price,
       transferStatus: null,
       updatedAt: null,
@@ -394,6 +394,13 @@ function asSavedElsewhere(
         listedAt: new Date().toISOString(),
       };
 }
+
+/** How the other-registrar list words each listing type (observed). */
+const LIST_TYPE_LABEL: Record<DynadotListingType, string> = {
+  bin: 'Buy Now',
+  make_offer: 'Make Offer',
+  bin_make_offer: 'Buy Now + Make Offer',
+};
 
 /** A listing DomBot holds until Dynadot has verified the name. */
 function pendingResult(saved: MarketListing): MarketWriteResult {
