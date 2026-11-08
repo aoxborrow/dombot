@@ -66,6 +66,7 @@ export function SyncSplitButton({
   const {
     sync,
     syncing,
+    syncingShort,
     disabled,
     title,
     reason,
@@ -131,7 +132,7 @@ export function SyncSplitButton({
             <RefreshCw className={cn(syncing && 'animate-spin')} />
           )}
           <span className="max-sm:sr-only">
-            {syncing ? 'Syncing…' : tooSoon ? 'Synced' : 'Sync now'}
+            {syncing ? syncingShort : tooSoon ? 'Synced' : 'Sync now'}
           </span>
         </Button>
         <DropdownMenu>
@@ -160,7 +161,7 @@ export function SyncSplitButton({
           >
             <DropdownMenuItem disabled={disabled} onSelect={sync}>
               <RefreshCw className={cn(syncing && 'animate-spin')} />
-              {syncing ? 'Syncing…' : 'Sync now'}
+              {syncing ? syncingShort : 'Sync now'}
               {(shortReason ?? accounts.length > 0) && (
                 <span className="ml-auto text-xs text-muted-foreground">
                   {shortReason ??

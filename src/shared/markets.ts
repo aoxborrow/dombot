@@ -23,7 +23,7 @@ export type AfternicFastTransferStatus =
   | 'USER_EXCLUDED'
   | 'UNKNOWN';
 
-export type MarketId = 'afternic' | 'atom' | 'dynadot' | 'sedo';
+export type MarketId = 'afternic' | 'atom' | 'dynadot' | 'sedo' | 'spaceship';
 
 /** A canonical decimal string, as DomBot's ListPrice ("2500", "1479.09"). */
 export type Amount = string;
@@ -146,7 +146,20 @@ export interface DynadotExtra {
   transferStatus: string | null;
 }
 
-export type MarketExtra = AfternicExtra | AtomExtra | DynadotExtra | SedoExtra;
+export interface SpaceshipExtra {
+  market: 'spaceship';
+  /**
+   * Where the name is: in the Spaceship account the market account uses
+   * (no ownership verification), or anywhere else. Null when the account's
+   * domain list couldn't be read.
+   */
+  held: 'spaceship' | 'elsewhere' | null;
+  /** The For Sale page's description. */
+  description: string | null;
+}
+
+export type MarketExtra =
+  AfternicExtra | AtomExtra | DynadotExtra | SedoExtra | SpaceshipExtra;
 
 /** A listing's GoDaddy search counts, when its market sends them. */
 export function searchesOf(l: MarketListing): AfternicExtra['searches'] | null {
@@ -187,8 +200,17 @@ export interface AtomExtraChange {
   description?: string;
 }
 
+export interface SpaceshipExtraChange {
+  market: 'spaceship';
+  /** The For Sale page's description, up to 5,000 characters. */
+  description?: string;
+}
+
 export type MarketExtraChange =
-  AfternicExtraChange | AtomExtraChange | SedoExtraChange;
+  | AfternicExtraChange
+  | AtomExtraChange
+  | SedoExtraChange
+  | SpaceshipExtraChange;
 
 /** A change to one listing. Only the fields given are changed. */
 export interface MarketListingChange {

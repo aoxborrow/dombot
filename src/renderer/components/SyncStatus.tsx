@@ -39,26 +39,34 @@ export function SyncLight({
 }
 
 /**
- * The light and its words ("14/14 accounts synced"). With `short`, the words
- * drop to the summary's short form below lg, where the status bar is tight.
+ * The light and its words ("14/14 accounts synced", "Syncing 9/14
+ * accounts…"). With `short`, the words drop to their short form below lg,
+ * where the status bar is tight.
  */
 export function SyncStatusLabel({
   summary,
   syncing,
+  syncingLabel = 'Syncing…',
+  syncingShort = syncingLabel,
   short = false,
 }: {
   summary: SyncSummary;
   syncing: boolean;
+  /** What to say while syncing, with the count when there is one. */
+  syncingLabel?: string;
+  syncingShort?: string;
   short?: boolean;
 }) {
-  const label = syncing ? 'Syncing…' : summary.label;
+  const label = syncing ? syncingLabel : summary.label;
   return (
     <>
       <SyncLight level={summary.level} syncing={syncing} />
       {short ? (
         <>
           <span className="hidden lg:inline">{label}</span>
-          <span className="lg:hidden">{syncing ? label : summary.short}</span>
+          <span className="lg:hidden">
+            {syncing ? syncingShort : summary.short}
+          </span>
         </>
       ) : (
         <span>{label}</span>

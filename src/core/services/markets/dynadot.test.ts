@@ -54,6 +54,8 @@ function fakeClient(opts: {
   refuse?: Error[];
   /** What Dynadot answers locking a name again with. */
   relockError?: Error;
+  /** What Dynadot answers unlocking a name with. */
+  unlockError?: Error;
   /** DomBot's minimum offers (its asking prices), in USD. */
   minOffers?: Record<string, string>;
   /** DomBot's asking prices, when not in USD. */
@@ -87,6 +89,7 @@ function fakeClient(opts: {
     setLock: async (name: string, locked: boolean) => {
       calls.push(`setLock:${name}:${locked}`);
       if (locked && opts.relockError) throw opts.relockError;
+      if (!locked && opts.unlockError) throw opts.unlockError;
     },
     listExternal: async (name: string, input: DynadotListingInput) => {
       calls.push(`listExternal:${name}`);
@@ -488,6 +491,58 @@ describe('the adapter', () => {
     ]);
     expect(r.error?.code).toBe('RELOCK_FAILED');
     expect(r.error?.message).toMatch(/couldn’t lock it again \(Server error\)/);
+  });
+
+  it('locks a name again when the unlock’s answer is lost', async () => {
+    const { adapter, calls } = fakeClient({
+      held: [{ name: 'testbot.io', forSale: true }],
+      listings: { 'testbot.io': listing({ name: 'testbot.io' }) },
+      refuse: [domainLocked()],
+      unlockError: new DynadotError(
+        'TIMEOUT',
+        'Dynadot did not respond in time.',
+        0,
+      ),
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'testbot.io', price: '500' },
+    ]);
+    expect(r.error?.code).toBe('TIMEOUT');
+    expect(calls.filter((c) => c.startsWith('setLock'))).toEqual([
+      'setLock:testbot.io:false',
+      'setLock:testbot.io:true',
+    ]);
+  });
+
+  it('says a name may be unlocked when neither lock call is answered', async () => {
+    const { adapter } = fakeClient({
+      held: [{ name: 'testbot.io', forSale: true }],
+      listings: { 'testbot.io': listing({ name: 'testbot.io' }) },
+      refuse: [domainLocked()],
+      unlockError: new DynadotError('NETWORK', 'Could not reach Dynadot.', 0),
+      relockError: new DynadotError('NETWORK', 'Could not reach Dynadot.', 0),
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'testbot.io', price: '500' },
+    ]);
+    expect(r.error?.code).toBe('RELOCK_FAILED');
+    expect(r.error?.message).toMatch(/^testbot\.io may be unlocked/);
+  });
+
+  it('leaves the lock alone when Dynadot refuses the unlock', async () => {
+    const { adapter, calls } = fakeClient({
+      held: [{ name: 'testbot.io', forSale: true }],
+      listings: { 'testbot.io': listing({ name: 'testbot.io' }) },
+      refuse: [domainLocked()],
+      unlockError: new DynadotError('INVALID', 'Not allowed.', 400),
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'testbot.io', price: '500' },
+    ]);
+    expect(r.error?.code).toBe('INVALID');
+    expect(calls.filter((c) => c.startsWith('setLock'))).toEqual([
+      'setLock:testbot.io:false',
+    ]);
   });
 
   it('leaves a listing with a sale under way alone', async () => {

@@ -48,6 +48,8 @@ const fake = {
    */
   verifiedNames: null as Set<string> | null,
   listedVerified: [] as string[][],
+  /** What `listVerified` fails each of these names with. */
+  verifyFails: new Map<string, string>(),
 };
 vi.mock('./registry', async () => {
   const { AFTERNIC_CONFIG_FIELDS } = await import('./afternic');
@@ -120,6 +122,17 @@ vi.mock('./registry', async () => {
         return async (rows: readonly MarketListing[]) => {
           fake.listedVerified.push(rows.map((r) => r.name));
           return rows.map((row) => {
+            const code = fake.verifyFails.get(row.name);
+            if (code) {
+              return {
+                name: row.name,
+                ok: false,
+                pending: false,
+                saved: null,
+                adjusted: [],
+                error: { code, message: code },
+              };
+            }
             const listed = verified.has(row.name);
             return {
               name: row.name,
@@ -149,6 +162,7 @@ const {
   setMarketSyncState,
 } = await import('./accounts');
 const {
+  isShownSale,
   marketAccountStats,
   marketListings,
   marketSale,
@@ -249,6 +263,7 @@ beforeEach(async () => {
     asked: [],
     verifiedNames: null,
     listedVerified: [],
+    verifyFails: new Map(),
   });
   held.clear();
   vi.useFakeTimers();
@@ -872,6 +887,24 @@ describe('listings a market is still checking', () => {
     );
   });
 
+  it('keeps a pending name whose check failed, and drops one off the market’s list', async () => {
+    fake.asyncInsert = true;
+    fake.verifiedNames = new Set();
+    fake.verifyFails = new Map([
+      ['blip.com', 'NETWORK'],
+      ['gone.com', 'NOT_FOUND'],
+    ]);
+    await connect();
+    putMarketListings(ACCOUNT, [
+      pending('blip.com', 9),
+      pending('gone.com', 9),
+    ]);
+    await syncMarketAccount(ACCOUNT);
+    expect(marketListings().map((l) => [l.name, l.status, l.price])).toEqual([
+      ['blip.com', 'pending', pending('blip.com', 9).price],
+    ]);
+  });
+
   it('drops pending rows on markets that list names straight away', async () => {
     await connect();
     putMarketListings(ACCOUNT, [pending('new.com', 1)]);
@@ -989,6 +1022,16 @@ describe('purchases in the sales list', () => {
         .map((s) => s.name)
         .sort(),
     ).toEqual(['lease.com', 'waiting.com']);
+  });
+
+  it('only reads Afternic’s list that way: SellerHub’s has no payout dates', () => {
+    const checkoutLink: MarketSale = {
+      ...sale('s1', 'sold.com', '2026-10-02'),
+      market: 'spaceship',
+      paidOutOn: null,
+    };
+    expect(isShownSale(checkoutLink)).toBe(true);
+    expect(isShownSale({ ...checkoutLink, market: 'afternic' })).toBe(false);
   });
 });
 

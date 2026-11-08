@@ -35,7 +35,7 @@ describe('demo markets', () => {
       marketAccountViews()
         .map((a) => a.market)
         .sort(),
-    ).toEqual(['afternic', 'atom', 'dynadot', 'sedo']);
+    ).toEqual(['afternic', 'atom', 'dynadot', 'sedo', 'spaceship']);
     const priced = Object.keys(demo.seed.askingPrices);
     expect(priced.length).toBe(Math.round((240 * 2) / 3));
     const on = (m: string) =>

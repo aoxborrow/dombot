@@ -49,6 +49,7 @@ import {
   searchesOf,
   type AfternicExtraChange,
   type AtomExtraChange,
+  type SpaceshipExtraChange,
   type MarketBulkJob,
   type MarketListing,
   type MarketListingChange,
@@ -84,7 +85,7 @@ const accountId = z
     'A market account id from market_list. Defaults to every enabled account.',
   );
 const marketId = z
-  .enum(['afternic', 'atom', 'dynadot', 'sedo'])
+  .enum(['afternic', 'atom', 'dynadot', 'sedo', 'spaceship'])
   .optional()
   .describe('Only this market.');
 const limit = z
@@ -129,7 +130,7 @@ export function registerMarketTools(server: McpServer): void {
     {
       title: 'List market accounts',
       description:
-        'List every connected marketplace account (Afternic, Atom, Dynadot, Sedo) with its `accountId`, `market`, `label`, whether it is `configured` and `enabled`, `registrarAccountId` (for Dynadot: the registrar account whose API key it uses, so the registrar tools reach the same names), its last `sync` (when, listing and sale counts, any error), its `verificationId` (the saved Ownership Verification ID, null until set) and `verificationNameservers` (the nameservers to point a name at for this market, with Afternic’s or Dynadot’s NS3 once the ID is saved; set them with domain_nameservers_set), and what its market supports (`capabilities`). No secrets. Start here before the other market_* tools.',
+        'List every connected marketplace account (Afternic, Atom, Dynadot, Sedo, Spaceship SellerHub) with its `accountId`, `market`, `label`, whether it is `configured` and `enabled`, `registrarAccountId` (for Dynadot and Spaceship: the registrar account whose API key it uses, so the registrar tools reach the same names), its last `sync` (when, listing and sale counts, any error), its `verificationId` (the saved Ownership Verification ID, null until set) and `verificationNameservers` (the nameservers to point a name at for this market, with Afternic’s or Dynadot’s NS3 once the ID is saved; set them with domain_nameservers_set), and what its market supports (`capabilities`). No secrets. Start here before the other market_* tools.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -712,6 +713,18 @@ const changeShape = {
     .describe(
       'Atom’s own listing fields. Atom has one price per name (no minimum offer or floor), at least $100, in whole dollars; `price: null` is Make an Offer. Category names containing “&” can only be set on atom.com.',
     ),
+  spaceship: z
+    .object({
+      description: z
+        .string()
+        .max(5000)
+        .optional()
+        .describe('The For Sale page’s description.'),
+    })
+    .optional()
+    .describe(
+      'Spaceship SellerHub’s own listing field. SellerHub lists in whole US dollars, has no floor, and a listing needs a Buy Now price, a minimum offer, or both; `price: null` turns Buy Now off. A name held outside the Spaceship account stays pending until SellerHub has checked its ownership verification TXT record.',
+    ),
 };
 
 type ChangeArgs = {
@@ -724,6 +737,7 @@ type ChangeArgs = {
   afternic?: Omit<AfternicExtraChange, 'market'>;
   sedo?: Omit<SedoExtraChange, 'market'>;
   atom?: Omit<AtomExtraChange, 'market'>;
+  spaceship?: Omit<SpaceshipExtraChange, 'market'>;
 };
 
 /** An amount as a decimal string, whether it came as a number or not. */
@@ -731,9 +745,9 @@ const amount = <T extends string | number | null | undefined>(v: T) =>
   (typeof v === 'number' ? String(v) : v) as Exclude<T, number> | string;
 
 function toChange(name: string, c: ChangeArgs): MarketListingChange {
-  if ([c.afternic, c.sedo, c.atom].filter(Boolean).length > 1) {
+  if ([c.afternic, c.sedo, c.atom, c.spaceship].filter(Boolean).length > 1) {
     throw new Error(
-      'Give one market’s settings (`afternic`, `atom` or `sedo`).',
+      'Give one market’s settings (`afternic`, `atom`, `sedo` or `spaceship`).',
     );
   }
   return {
@@ -751,6 +765,7 @@ function toChange(name: string, c: ChangeArgs): MarketListingChange {
     ...(c.afternic ? { extra: { market: 'afternic', ...c.afternic } } : {}),
     ...(c.sedo ? { extra: { market: 'sedo', ...c.sedo } } : {}),
     ...(c.atom ? { extra: { market: 'atom', ...c.atom } } : {}),
+    ...(c.spaceship ? { extra: { market: 'spaceship', ...c.spaceship } } : {}),
   };
 }
 

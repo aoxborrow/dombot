@@ -102,7 +102,15 @@ const TONE_HOVER: Record<SyncLevel, string> = {
 function SyncStatus() {
   const navigate = useNavigate();
   const state = useSyncState();
-  const { syncing, lastSyncedAt, accounts, unit, loaded } = state;
+  const {
+    syncing,
+    syncingLabel,
+    syncingShort,
+    lastSyncedAt,
+    accounts,
+    unit,
+    loaded,
+  } = state;
 
   // The desktop app menu's Sync Now does what the Domains page's Sync does,
   // or says why it can't (just synced, a bulk job running, nothing set up).
@@ -136,7 +144,13 @@ function SyncStatus() {
         )}
         title={`${summary.title} — open sync settings`}
       >
-        <SyncStatusLabel summary={summary} syncing={syncing} short />
+        <SyncStatusLabel
+          summary={summary}
+          syncing={syncing}
+          syncingLabel={syncingLabel}
+          syncingShort={syncingShort}
+          short
+        />
       </button>
       {lastSyncedAt !== null && summary.total > 0 && !syncing && (
         <SyncTime at={lastSyncedAt} className="-ml-1.5" />

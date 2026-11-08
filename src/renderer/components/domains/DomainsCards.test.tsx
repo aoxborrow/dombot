@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { ExchangeRates } from '../../../shared/exchange-rates';
 import type { Domain, RenewalPricing } from '../../../shared/ipc';
 import { priceKey } from '../../lib/renewals';
-import { DomainsCards } from './DomainsCards';
+import type { MarketListing } from '../../../shared/markets';
+import { DomainsCards, binTotal } from './DomainsCards';
 
 const DAY = 86_400_000;
 const NOW = Date.parse('2026-10-29T12:00:00Z');
@@ -111,5 +112,108 @@ describe('DomainsCards, Owned', () => {
   it('leaves the cost off when no auto-renewing name has a price', () => {
     const text = ownedCards(rows, {});
     expect(text).toContain('Auto-renew 40% Expiring');
+  });
+});
+
+describe('Total BIN', () => {
+  const listing = (
+    market: MarketListing['market'],
+    price: string | null,
+    patch: Partial<MarketListing> = {},
+  ): MarketListing =>
+    ({
+      market,
+      accountId: market,
+      name: 'a.com',
+      displayName: null,
+      status: 'active',
+      statusRaw: 'active',
+      forSale: true,
+      price,
+      buyNow: price != null,
+      minOffer: null,
+      floor: null,
+      discount: null,
+      currency: 'USD',
+      leaseToOwn: null,
+      tier: null,
+      listedAt: null,
+      updatedAt: null,
+      ...patch,
+    }) as MarketListing;
+  // EUR at 1, USD at 1.25: €100 is $125.
+  const fx = {
+    convert: (amount: number | string, from: string, to: string) => {
+      const rate: Record<string, number> = { EUR: 1, USD: 1.25 };
+      if (!(from in rate) || !(to in rate)) return null;
+      return {
+        amount: (Number(amount) * rate[to]) / rate[from],
+        period: null,
+        provisional: false,
+      };
+    },
+  };
+
+  it('adds up each name’s highest live Buy Now price across the markets', () => {
+    const total = binTotal([row('a.com'), row('b.com'), row('c.com')], {
+      listings: {
+        'a.com': [
+          listing('afternic', '1000'),
+          // €900 is $1,125: the highest.
+          listing('sedo', '900', { currency: 'EUR' }),
+          // Not live, so it doesn't count.
+          listing('atom', '5000', { status: 'pending' }),
+        ],
+        'b.com': [
+          // Offers only, and a hidden listing: neither has a live BIN.
+          listing('afternic', null),
+          listing('spaceship', '700', { forSale: false }),
+        ],
+        'c.com': [listing('spaceship', '2500')],
+      },
+      markets: ['afternic', 'sedo', 'atom', 'spaceship'],
+      // Your asking prices don't count once markets are connected.
+      listPrices: { 'b.com': { amount: '99999', currency: 'USD' } as never },
+      currency: 'USD',
+      fx,
+    });
+    expect(total).toEqual({ sum: 3625, count: 2, leftOut: 0 });
+  });
+
+  it('leaves out markets the filter leaves out, and prices it can’t convert', () => {
+    const total = binTotal([row('a.com'), row('b.com')], {
+      listings: {
+        'a.com': [listing('afternic', '1000'), listing('sedo', '5000')],
+        'b.com': [listing('sedo', '800', { currency: 'XYZ' as never })],
+      },
+      markets: ['afternic', 'sedo'],
+      listPrices: {},
+      currency: 'USD',
+      fx,
+    });
+    expect(total).toEqual({ sum: 5000, count: 1, leftOut: 1 });
+    expect(
+      binTotal([row('a.com')], {
+        listings: {
+          'a.com': [listing('afternic', '1000'), listing('sedo', '5000')],
+        },
+        markets: ['afternic'],
+        listPrices: {},
+        currency: 'USD',
+        fx,
+      }),
+    ).toEqual({ sum: 1000, count: 1, leftOut: 0 });
+  });
+
+  it('uses your asking prices without a market account', () => {
+    expect(
+      binTotal([row('a.com')], {
+        listings: null,
+        markets: [],
+        listPrices: { 'a.com': { amount: '400', currency: 'EUR' } as never },
+        currency: 'USD',
+        fx,
+      }),
+    ).toEqual({ sum: 500, count: 1, leftOut: 0 });
   });
 });

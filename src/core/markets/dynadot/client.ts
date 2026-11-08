@@ -67,7 +67,8 @@ export function dynadotLimiter(
 ): RateLimiter {
   return sharedLimiter(
     `dynadot:${key}`,
-    () => new RateLimiter(clock, REQUESTS_PER_MINUTE),
+    // One request in flight at a time, as a Regular account allows.
+    () => new RateLimiter(clock, REQUESTS_PER_MINUTE, { serial: true }),
   );
 }
 
@@ -466,37 +467,42 @@ export class DynadotClient {
       await this.signingKey,
       `${this.apiKey}\n${pathAndQuery}\n\n${bodyText}`,
     );
-    await this.limiter.take();
-    const started = this.clock.now();
     const endpoint = pathAndQuery.split('?')[0];
-    let response: Response;
-    try {
-      response = await this.fetchImpl(`${this.baseUrl}${pathAndQuery}`, {
-        method,
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/json',
-          authorization: `Bearer ${this.apiKey}`,
-          'x-signature': signature,
-          ...this.userAgent,
-        },
-        ...(body === undefined ? {} : { body: bodyText }),
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
-    } catch (error) {
-      const timedOut =
-        error instanceof Error &&
-        (error.name === 'TimeoutError' || error.name === 'AbortError');
-      if (timedOut) console.warn(`[dynadot] ${method} ${endpoint} timed out`);
-      throw new DynadotError(
-        timedOut ? 'TIMEOUT' : 'NETWORK',
-        timedOut
-          ? 'Dynadot did not respond in time.'
-          : 'Could not reach Dynadot.',
-        0,
-      );
-    }
-    const raw = await response.text();
+    // The answer is read inside the turn: the key's next request, the
+    // registrar side's included, waits for this one to finish.
+    const { response, raw, started } = await this.limiter.run(async () => {
+      const started = this.clock.now();
+      let response: Response;
+      try {
+        response = await this.fetchImpl(`${this.baseUrl}${pathAndQuery}`, {
+          method,
+          headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+            authorization: `Bearer ${this.apiKey}`,
+            'x-signature': signature,
+            ...this.userAgent,
+          },
+          ...(body === undefined ? {} : { body: bodyText }),
+          signal: AbortSignal.timeout(this.timeoutMs),
+        });
+      } catch (error) {
+        const timedOut =
+          error instanceof Error &&
+          (error.name === 'TimeoutError' || error.name === 'AbortError');
+        if (timedOut) {
+          console.warn(`[dynadot] ${method} ${endpoint} timed out`);
+        }
+        throw new DynadotError(
+          timedOut ? 'TIMEOUT' : 'NETWORK',
+          timedOut
+            ? 'Dynadot did not respond in time.'
+            : 'Could not reach Dynadot.',
+          0,
+        );
+      }
+      return { response, raw: await response.text(), started };
+    });
     const took = this.clock.now() - started;
     if (took > SLOW_CALL_MS) {
       console.warn(

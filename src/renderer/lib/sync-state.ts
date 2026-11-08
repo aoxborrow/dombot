@@ -31,6 +31,9 @@ export interface SyncAccount {
   /** Its last good sync (ms epoch), or null when it never synced. */
   lastSyncedAt: number | null;
   lastError: string | null;
+  /** Its last attempt, good or failed (ms epoch): what a sync's progress
+   *  watches change. Null when it never tried. */
+  lastAttemptAt: number | null;
 }
 
 /**
@@ -52,6 +55,8 @@ export function syncAccounts(
         name: accountName(registrars, r.accountId ?? r.name) ?? r.displayName,
         lastSyncedAt: r.sync.lastSyncedAt,
         lastError: r.sync.lastError,
+        lastAttemptAt:
+          Math.max(r.sync.lastSyncedAt ?? 0, r.sync.lastErrorAt ?? 0) || null,
       })),
     ...(markets ?? [])
       .filter((a) => a.configured && a.enabled)
@@ -62,8 +67,55 @@ export function syncAccounts(
         // A market account's `at` is its last attempt, good or not.
         lastSyncedAt: a.sync && a.sync.lastError == null ? a.sync.at : null,
         lastError: marketSyncError(a),
+        lastAttemptAt: a.sync?.at ?? null,
       })),
   ];
+}
+
+/** Where a running Sync is: accounts done of the accounts it covers. */
+export interface SyncProgress {
+  done: number;
+  total: number;
+}
+
+/** An account's key in a sync's baseline. */
+const baselineKey = (a: SyncAccount) => `${a.kind}:${a.id}`;
+
+/**
+ * Each account's last attempt as a Sync starts. An account is done once its
+ * last attempt has moved on: compared, not timed, so a server whose clock
+ * differs from the browser's (the web host) counts the same.
+ */
+export function syncBaseline(
+  accounts: SyncAccount[],
+): Record<string, number | null> {
+  return Object.fromEntries(
+    accounts.map((a) => [baselineKey(a), a.lastAttemptAt]),
+  );
+}
+
+export function syncProgress(
+  accounts: SyncAccount[],
+  baseline: Record<string, number | null>,
+): SyncProgress {
+  const covered = accounts.filter((a) => baselineKey(a) in baseline);
+  return {
+    done: covered.filter(
+      (a) =>
+        a.lastAttemptAt != null && a.lastAttemptAt !== baseline[baselineKey(a)],
+    ).length,
+    total: Object.keys(baseline).length,
+  };
+}
+
+/** "Syncing 15/17 accounts…", or "Syncing 15/17…" with no unit; "Syncing…"
+ *  when there's no count to show. */
+export function syncingText(
+  progress: SyncProgress | null,
+  unit?: string,
+): string {
+  if (!progress || progress.total === 0) return 'Syncing…';
+  return `Syncing ${progress.done}/${progress.total}${unit ? ` ${unit}` : ''}…`;
 }
 
 /** Accounts whose own last successful sync is past the threshold. The
@@ -187,21 +239,46 @@ type SyncScope = 'all' | 'registrars' | 'markets';
  * toast: the count synced, how many failed (their errors are on their cards
  * in Settings), or why the whole sync failed. */
 async function syncAndReport(scope: SyncScope) {
-  const { loadPortfolio, syncMarkets, marketAccounts } = useAppStore.getState();
+  const {
+    loadPortfolio,
+    loadRegistrars,
+    syncMarkets,
+    registrars: registrarsBefore,
+    marketAccounts,
+    marketCatalog,
+  } = useAppStore.getState();
   const withMarkets =
     scope !== 'registrars' && syncAccounts(null, marketAccounts).length > 0;
+  // What this Sync covers, as each account last tried, for its progress.
+  const covered = syncAccounts(
+    scope === 'markets' ? [] : registrarsBefore,
+    withMarkets ? marketAccounts : [],
+    marketCatalog,
+  );
   // Up front, so the pass reads as one sync: nothing looks done between the
   // registrars and the markets.
-  if (withMarkets) useAppStore.setState({ marketsSyncing: true });
+  useAppStore.setState({
+    syncBaseline: syncBaseline(covered),
+    ...(withMarkets && { marketsSyncing: true }),
+  });
+  // Registrars sync all at once in core, each saving its own result as it
+  // finishes: re-read them meanwhile so the count moves. Market accounts
+  // sync one at a time from here, each landing as it's done.
+  const watch =
+    scope !== 'markets'
+      ? setInterval(() => void loadRegistrars().catch(() => {}), 1000)
+      : null;
   let marketsError: string | null = null;
   try {
     if (scope !== 'markets') await loadPortfolio();
+    if (watch) clearInterval(watch);
     if (withMarkets)
       await syncMarkets().catch((err) => {
         marketsError = err instanceof Error ? err.message : String(err);
       });
   } finally {
-    useAppStore.setState({ marketsSyncing: false });
+    if (watch) clearInterval(watch);
+    useAppStore.setState({ marketsSyncing: false, syncBaseline: null });
   }
 
   const state = useAppStore.getState();
@@ -261,6 +338,7 @@ export function useSyncState() {
   const marketCatalog = useAppStore((s) => s.marketCatalog);
   // A sync mid-job would race the job's per-row cache patches for no benefit.
   const bulkRunning = useAppStore((s) => s.bulk?.status === 'running');
+  const baseline = useAppStore((s) => s.syncBaseline);
 
   const accounts = syncAccounts(registrars, marketAccounts, marketCatalog);
   const unit = syncUnit(registrars, accounts);
@@ -288,6 +366,9 @@ export function useSyncState() {
   const tooSoon =
     portfolioLoadedAt !== null && onCooldown(portfolioLoadedAt) && !bootSync;
   const syncing = portfolioLoading || marketsSyncing;
+  // A Sync's count of accounts done; a single account's sync has none.
+  const progress =
+    syncing && baseline ? syncProgress(accounts, baseline) : null;
 
   const [, tick] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
@@ -347,6 +428,12 @@ export function useSyncState() {
     shortReason,
     tooSoon,
     syncing,
+    /** A running Sync's accounts done of its total; null otherwise. */
+    progress,
+    /** "Syncing 15/17 accounts…" (or "Syncing…"), for a status line. */
+    syncingLabel: syncingText(progress, unit),
+    /** "Syncing 15/17…", for a button or a tight spot. */
+    syncingShort: syncingText(progress),
     /** Registrars or markets, as their own cards show it. */
     registrarsSyncing: portfolioLoading,
     marketsSyncing,

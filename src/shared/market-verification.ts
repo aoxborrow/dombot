@@ -34,6 +34,7 @@ interface VerificationInfo {
 
 const HEX40 = /^[0-9a-f]{40}$/i;
 const HEX32 = /^[0-9a-f]{32}$/i;
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 const VERIFICATION: Record<MarketId, VerificationInfo> = {
   afternic: {
@@ -77,6 +78,17 @@ const VERIFICATION: Record<MarketId, VerificationInfo> = {
     url: 'https://sedo.com/member/ownership_verification.php',
     path: 'My Domains → Domain Ownership Verification',
     parse: (value) => (HEX40.test(value) ? value.toLowerCase() : null),
+    txt: (id) => id,
+  },
+  // One TXT record at the apex per account, a UUID (read through the API,
+  // 2026-11-07). Sync fills it in from SellerHub's verification records, so
+  // a paste is rarely needed. UNVERIFIED: the dashboard's own wording and
+  // page (the URL is the SellerHub app, behind Spaceship's login).
+  spaceship: {
+    term: 'Verification record',
+    url: 'https://www.spaceship.com/application/sellerhub/',
+    path: 'SellerHub’s TXT verification record, filled in when the account syncs',
+    parse: (value) => UUID.exec(value)?.[0].toLowerCase() ?? null,
     txt: (id) => id,
   },
 };

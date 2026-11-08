@@ -202,6 +202,12 @@ export function matches(
       same(extra.description?.trim(), listing.extra.description)
     );
   }
+  if (extra.market === 'spaceship' && listing.extra.market === 'spaceship') {
+    return (
+      extra.description === undefined ||
+      same(extra.description.trim() || null, listing.extra.description)
+    );
+  }
   // Other markets' settings aren't all on the listing: always send.
   return false;
 }

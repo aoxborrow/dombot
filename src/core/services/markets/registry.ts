@@ -3,6 +3,7 @@ import { AFTERNIC_NAMESERVERS } from '../../markets/afternic';
 import { ATOM_NAMESERVERS } from '../../markets/atom';
 import { DYNADOT_NAMESERVERS } from '../../markets/dynadot';
 import { SEDO_NAMESERVERS } from '../../markets/sedo';
+import { SPACESHIP_NAMESERVERS } from '../../markets/spaceship';
 import { getListPrices } from '../list-prices';
 import type {
   AfternicActions,
@@ -31,6 +32,11 @@ import {
   SEDO_CONFIG_FIELDS,
   createSedoAdapter,
 } from './sedo';
+import {
+  SPACESHIP_CAPABILITIES,
+  SPACESHIP_CONFIG_FIELDS,
+  createSpaceshipAdapter,
+} from './spaceship';
 
 // The markets DomBot supports (docs/markets.md): what Settings shows for
 // each, and how to build its adapter from an account's stored credentials.
@@ -142,6 +148,26 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     },
     create: (accountId, credentials) =>
       createSedoAdapter(accountId, credentials),
+  },
+  // Reads checked live (docs/sellerhub-api.md).
+  spaceship: {
+    info: {
+      id: 'spaceship',
+      name: 'Spaceship',
+      website: 'spaceship.com',
+      keysUrl: 'https://www.spaceship.com/application/api-manager/',
+      helpText:
+        'Sells your names on Spaceship SellerHub. Uses the registrar account’s API key and proxy; the key needs SellerHub access (sellerhub:read, and sellerhub:write to list) in Spaceship’s API Manager.',
+      configFields: SPACESHIP_CONFIG_FIELDS,
+      capabilities: SPACESHIP_CAPABILITIES,
+      nameservers: SPACESHIP_NAMESERVERS,
+      registrar: 'spaceship',
+    },
+    create: (accountId, credentials, context) =>
+      createSpaceshipAdapter(accountId, credentials, {
+        fetch: context.fetch,
+        limiterKey: context.registrarAccountId ?? accountId,
+      }),
   },
 };
 
