@@ -1379,7 +1379,7 @@ export function registerTools(server: McpServer): void {
             'The names to import for. Omit for every name with a listed price.',
           ),
         source: z
-          .enum(['highest', 'afternic', 'atom', 'dynadot', 'sedo'])
+          .enum(['highest', 'afternic', 'atom', 'dynadot', 'sedo', 'spaceship'])
           .default('highest')
           .describe('The market to copy from, or `highest` (default).'),
         replace: z
