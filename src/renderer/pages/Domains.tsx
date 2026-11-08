@@ -125,7 +125,7 @@ import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { BulkPurchaseDialog } from '../components/domains/BulkPurchaseDialog';
 import { ListPriceDialog } from '../components/domains/ListPriceDialog';
-import { ImportListedPriceDialog } from '../components/domains/ImportListedPriceDialog';
+import { AdoptListedPriceDialog } from '../components/domains/AdoptListedPriceDialog';
 import { listedPriceFor } from '../../shared/listed-prices';
 import { MarketListingDialog } from '../components/domains/MarketListingDialog';
 import { ImportedDomainDialog } from '../components/domains/ImportedDomainDialog';
@@ -2789,7 +2789,7 @@ export default function Domains() {
             onClose={() => setMarketAction(null)}
           />
         ) : marketAction.action === 'importPrice' ? (
-          <ImportListedPriceDialog
+          <AdoptListedPriceDialog
             domains={marketAction.domains}
             onClose={() => setMarketAction(null)}
           />

@@ -25,14 +25,14 @@ import { cn } from '@/lib/utils';
 const names = (n: number) => `${n.toLocaleString()} name${n === 1 ? '' : 's'}`;
 
 /**
- * Import listed price: copy what a market lists names for (BIN price,
+ * Adopt listed price: copy what a market lists names for (BIN price,
  * minimum offer, floor) into their asking prices in DomBot, from one market
  * or from whichever listing is highest. For starting out in DomBot with
  * prices set on a market, then pricing here and listing everywhere. For a
  * selection, names that already have an asking price keep it unless you
  * choose to replace them; one name picked from its row is replaced.
  */
-export function ImportListedPriceDialog({
+export function AdoptListedPriceDialog({
   domains,
   onClose,
 }: {
@@ -139,21 +139,21 @@ export function ImportListedPriceDialog({
     <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
       <DialogContent className="sm:max-w-md">
         <ActionHeader
-          title={one ? 'Import listed price' : 'Import listed prices'}
+          title={one ? 'Adopt listed price' : 'Adopt listed prices'}
           names={domains.map((d) => d.domainName)}
         />
         <div className="flex flex-col gap-4 text-sm">
           <p className="text-muted-foreground">
-            Copies the BIN price, minimum offer and floor a market lists{' '}
-            {one ? 'this name' : 'these names'} for into your asking price in
-            DomBot. From then on you can price here and list on every market.
+            Copies the BIN price, minimum offer and floor from market listings
+            into your asking {one ? 'price' : 'prices'} in DomBot. From then on
+            you can price here and list on every market.
           </p>
           {sources.length > 1 && (
             <Field>
               <FieldLabel>From</FieldLabel>
               <div
                 role="radiogroup"
-                aria-label="Import from"
+                aria-label="Adopt from"
                 className="flex flex-col gap-2"
               >
                 {sources.map((s) => (
@@ -276,7 +276,7 @@ export function ImportListedPriceDialog({
             disabled={saving || plan.found.length === 0}
             onClick={() => void run()}
           >
-            Import
+            Adopt
           </Button>
         </DialogFooter>
       </DialogContent>

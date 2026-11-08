@@ -154,7 +154,7 @@ portfolio: synced, imported, or with history.
 - **`portfolio_asking_prices_import`** — `domains?` (default: every name
   with a listed price), `source?` (`highest`, the default, or a market id),
   `replace?` (default `false`). Copies a market listing's BIN price, minimum
-  offer and floor into the asking price, as the app's Import listed price
+  offer and floor into the asking price, as the app's Adopt listed price
   does: `highest` takes the highest listing (BIN, then minimum offer, then
   floor, in USD) for the BIN price and currency, a minimum offer or floor it
   lacks is filled from the other listings, amounts are rounded to whole, and

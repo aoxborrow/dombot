@@ -17,7 +17,7 @@ import {
   Server,
   Tag,
   Trash2,
-  Import,
+  CopyCheck,
 } from 'lucide-react';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
@@ -290,11 +290,6 @@ export function BulkActionsBar({
                     Pricing{dots}
                   </DropdownMenuItem>
                   {marketItem(
-                    'importPrice',
-                    <Import className={icon} />,
-                    'Import listed prices',
-                  )}
-                  {marketItem(
                     'list',
                     <Tag className={icon} />,
                     'List at your prices',
@@ -303,6 +298,11 @@ export function BulkActionsBar({
                     'verificationTxt',
                     <CertificateIcon className={icon} />,
                     'Verify ownership TXT',
+                  )}
+                  {marketItem(
+                    'importPrice',
+                    <CopyCheck className={icon} />,
+                    'Adopt listed prices',
                   )}
                   {/* Recheck ownership is hidden for now, as in the row
                       menu. */}

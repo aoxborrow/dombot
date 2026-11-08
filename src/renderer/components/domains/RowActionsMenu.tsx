@@ -15,7 +15,7 @@ import {
   Server,
   Tag,
   Trash2,
-  Import,
+  CopyCheck,
 } from 'lucide-react';
 import type { Domain, DomainOp, Folder } from '../../../shared/ipc';
 import type { ArchiveLabel } from '../../../shared/ownership';
@@ -59,7 +59,7 @@ const icon = 'text-muted-foreground';
  * as checkboxes, which flip with the same confirms as their cells, then
  * nameservers, forwarding, renew, auth code); then Pricing and the market
  * actions (with a market account: List at your price, Ownership verification
- * TXT, Delist); then Delete, only for a name no connected
+ * TXT, Adopt listed price, Delist); then Delete, only for a name no connected
  * account holds (imported or in Archive): a name you hold leaves by turning
  * its auto-renew off (docs/owned-and-archive.md). Otherwise every row in a
  * view gets the same items: what doesn't apply is greyed with the reason as
@@ -391,11 +391,6 @@ export function RowActionsMenu({
                 Pricing{dots}
               </DropdownMenuItem>
               {marketItem(
-                'importPrice',
-                <Import className={icon} />,
-                'Import listed price',
-              )}
-              {marketItem(
                 'list',
                 <Tag className={icon} />,
                 'List at your price',
@@ -404,6 +399,11 @@ export function RowActionsMenu({
                 'verificationTxt',
                 <CertificateIcon className={icon} />,
                 'Verify ownership TXT',
+              )}
+              {marketItem(
+                'importPrice',
+                <CopyCheck className={icon} />,
+                'Adopt listed price',
               )}
               {/* Recheck ownership is hidden for now: Afternic's relist
                   doesn't run the check, Sedo can't be asked, Atom allows
