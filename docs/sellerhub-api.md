@@ -13,7 +13,9 @@ to read the schemas). Spaceship's release notes for SellerHub are at
 Built on #254's registrar-backed accounts, and verified live (2026-11-07)
 on the account in `.env`: reads of all 54 of its listings, the sold report
 (empty) and the verification record; writes on testbot.io (reprice, offers
-off, cents, delete and add again), each put back as it was.
+off, cents, delete and add again), each put back as it was, and on
+dnslayer.com, a name the Spaceship account holds (listed through the
+adapter, then delisted).
 
 - **Client** `src/core/markets/spaceship/`: listings (list, get, create,
   update, delete), the sold report with its cursor, the verification
@@ -152,6 +154,11 @@ the account's TXT record already in place, listed and `onSale`):
   check 20 seconds later, with the same prices. So adding a name again runs
   the ownership check again, and with the record in place it passes in
   seconds.
+- **A name the account holds** (dnslayer.com, through the adapter): the
+  write came back pending (`verifying`) with `held: 'spaceship'`, and the
+  listing was `onSale` 15 seconds later with no TXT record. Then delisted.
+  So every new listing passes through `verifying`, and SellerHub clears the
+  account's own names by itself.
 
 ## What to implement
 
@@ -239,7 +246,8 @@ them as built; `registrar: 'spaceship'` on its `MarketInfo` turns them on.
   `'spaceship'` in `extra`, every other name `'elsewhere'`, as Dynadot's
   do. SellerHub doesn't say which, so the adapter reads the account's own domain list
   (`GET /v1/domains`, the same key) beside the listings. A held name needs
-  no ownership verification and moves internally after a sale.
+  no TXT record (it still shows `verifying` for a few seconds, observed)
+  and moves internally after a sale.
 - **Data bundles and MCP** need nothing new: a linked account has no secret
   of its own, and `market_list` already shows `registrarAccountId`.
 - **Code stays split:** the SellerHub client lives in
@@ -372,7 +380,9 @@ No traffic, so no SellerHub stats in Reporting. The demo has a SellerHub
 account linked to its fake Spaceship registrar account
 (`src/core/demo/markets.ts`): a fifth of the priced names, some held by
 that account and some elsewhere, a few still pending verification, and a
-recent sale. A new listing of a name held elsewhere starts pending.
+recent sale. A new listing of a name held elsewhere starts pending; live,
+every new listing is `verifying` for a few seconds, and the demo skips that
+for the account's own names.
 
 ### Capabilities
 
@@ -416,8 +426,9 @@ Dynadot's: reads with the key in `.env` (`SPACESHIP_API_KEY`,
 `SPACESHIP_LIVE_WRITES=1` on `SPACESHIP_TEST_DOMAIN`. testbot.io is the
 test name: listed on SellerHub already, held at Dynadot with fast DNS
 (101domain's is slow, so domanio.com and domainio.com make poor ones). The
-test reprices it and puts it back. A name held at Spaceship, for the
-internal path, needs the user's pick.
+test reprices it and puts it back. dnslayer.com, held by the Spaceship
+account and not otherwise listed, covered the account's own names once
+(2026-11-07); it's the user's, so ask before listing it again.
 
 ## Phases
 
@@ -461,9 +472,9 @@ registrar-backed market.
 7. Are the rate limits per key or per user, and do SellerHub and registrar
    calls share them?
 8. How is a description cleared: an empty string, or `null`?
-9. Answered in part (2026-11-07): create answers `verifying` for a name
-   held elsewhere, and with the record in place it was `onSale` within 20
-   seconds. Still open: does a name in the same account go straight to
-   `onSale`, and how often does the check run for a record added later?
+9. Answered in part (2026-11-07): create answers `verifying` for every
+   name. One held elsewhere, its record in place, was `onSale` within 20
+   seconds; one in the same account within 15, with no record. Still open:
+   how often the check runs for a record added later.
 10. Once a listing is verified, can the record be removed, or does
     SellerHub check again and take the listing down?
