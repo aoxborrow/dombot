@@ -125,6 +125,8 @@ import { ImportDomainsDialog } from '../components/domains/ImportDomainsDialog';
 import { PurchaseDialog } from '../components/domains/PurchaseDialog';
 import { BulkPurchaseDialog } from '../components/domains/BulkPurchaseDialog';
 import { ListPriceDialog } from '../components/domains/ListPriceDialog';
+import { PriceFromListingsDialog } from '../components/domains/PriceFromListingsDialog';
+import { listedPriceFor } from '../../shared/listed-prices';
 import { MarketListingDialog } from '../components/domains/MarketListingDialog';
 import { ImportedDomainDialog } from '../components/domains/ImportedDomainDialog';
 import { SaleDialog } from '../components/domains/SaleDialog';
@@ -1040,6 +1042,13 @@ export default function Domains() {
           ? 'Set an asking price with Pricing first'
           : 'None of these have an asking price; set one with Pricing first',
       delist: listed ? null : notListed,
+      importPrice: keys.some((k) =>
+        listedPriceFor(marketListings[k], 'highest'),
+      )
+        ? null
+        : one
+          ? `No price listed on ${where}`
+          : `None of these have a price listed on ${where}`,
       verificationTxt: !withId
         ? 'Save an Ownership Verification ID in Settings → Markets first'
         : held
@@ -2776,6 +2785,11 @@ export default function Domains() {
         (marketAction.action === 'list' || marketAction.action === 'delist' ? (
           <MarketActionDialog
             action={marketAction.action}
+            domains={marketAction.domains}
+            onClose={() => setMarketAction(null)}
+          />
+        ) : marketAction.action === 'importPrice' ? (
+          <PriceFromListingsDialog
             domains={marketAction.domains}
             onClose={() => setMarketAction(null)}
           />
