@@ -117,8 +117,9 @@ describe('resolveRegistrar', () => {
     ['Gransy, s.r.o.', 'Regtons'],
     ['Dotster, Inc.', 'Domain.com'],
     ['Reg.com', 'Reg.ru'],
-    ['Unstoppable Domains Inc.', 'Unstoppable Domains'],
-    ['UnstoppableUS3 LLC', 'Unstoppable Domains'],
+    ['Unstoppable Domains Inc.', 'Unstoppable'],
+    ['Unstoppable Domains', 'Unstoppable'],
+    ['UnstoppableUS3 LLC', 'Unstoppable'],
   ])('maps the WHOIS string %s to %s', (name, label) => {
     expect(resolveRegistrar({ name })?.label).toBe(label);
   });

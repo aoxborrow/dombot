@@ -106,7 +106,7 @@ export function mappingIndex(): Index {
     for (const id of entry.ianaIds) byId.set(id, key);
     const names = [
       labelOf(key),
-      // The id itself ("unstoppable" is not its name, "Unstoppable Domains"),
+      // The id itself ("gandi" is not its name, "Gandi.net"),
       // and "porkbun.com", as a file or a WHOIS record may give it.
       ...(isBuiltIn(key) ? [key, registrars[key].website] : []),
       entry.name,
