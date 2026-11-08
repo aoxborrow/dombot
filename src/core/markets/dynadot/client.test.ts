@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RateLimiter, type Clock } from '../rate-limit';
-import { DynadotClient } from './client';
+import { DynadotClient, dynadotLimiter, dynadotPacedFetch } from './client';
 import { DynadotError } from './errors';
 import * as fx from './fixtures';
 import { amount, cents, listingTypeOf } from './wire';
@@ -465,5 +465,25 @@ describe('wire', () => {
     expect(amount('1,500.50')).toBe('1500.5');
     expect(amount('')).toBeNull();
     expect(amount('0.00')).toBeNull();
+  });
+});
+
+describe('dynadotPacedFetch', () => {
+  it('pauses the key’s limiter when Dynadot’s envelope says 429', async () => {
+    const { clock, sleeps } = fakeClock();
+    // The market client's limiter for this key, first made with a fake clock.
+    const limiter = dynadotLimiter('paced-test', clock);
+    const fetch = dynadotPacedFetch(
+      'paced-test',
+      async () =>
+        new Response(JSON.stringify({ code: 429, message: 'Too many' }), {
+          status: 200,
+        }),
+    );
+    const response = await fetch('https://api.dynadot.com/restful/v2/x');
+    // registrar-client still reads the body.
+    expect(await response.json()).toEqual({ code: 429, message: 'Too many' });
+    await limiter.take();
+    expect(sleeps).toEqual([60_000]);
   });
 });

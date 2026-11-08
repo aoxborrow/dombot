@@ -76,15 +76,29 @@ export class RateLimiter {
 
 /**
  * `fetch` that waits its turn on `limiter` first, for a library that takes a
- * fetch (registrar-client) to share a market client's budget.
+ * fetch (registrar-client) to share a market client's budget. A response
+ * that says to back off pauses the limiter for everyone on it, the market
+ * client included: for `Retry-After`'s seconds, else `pauseMs`.
  */
 export function pacedFetch(
   limiter: RateLimiter,
   inner: typeof fetch = (...args) => fetch(...args),
+  options: {
+    pauseMs: number;
+    /** Whether a response is a rate-limit answer (default: HTTP 429). */
+    rateLimited?: (response: Response) => boolean | Promise<boolean>;
+  } = { pauseMs: 60_000 },
 ): typeof fetch {
+  const rateLimited =
+    options.rateLimited ?? ((response: Response) => response.status === 429);
   return async (input, init) => {
     await limiter.take();
-    return inner(input, init);
+    const response = await inner(input, init);
+    if (await rateLimited(response)) {
+      const retryAfter = Number(response.headers.get('retry-after'));
+      limiter.pause(retryAfter > 0 ? retryAfter * 1000 : options.pauseMs);
+    }
+    return response;
   };
 }
 

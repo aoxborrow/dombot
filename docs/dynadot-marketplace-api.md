@@ -390,8 +390,8 @@ Dynadot:
   Both now take from one limiter, keyed by the registrar account
   (`dynadotLimiter`, 50 a minute): the market client uses it directly, and
   registrar-client's Dynadot provider gets a fetch that waits its turn on
-  it (`pacedFetch`), through the proxy too. A 429 on either side pauses
-  both. Registrar sync for Dynadot is one list read, so it costs the
+  it (`dynadotPacedFetch`), through the proxy too. A 429 on either side,
+  as the status or Dynadot's envelope code, pauses both. Registrar sync for Dynadot is one list read, so it costs the
   market little. Not done: sizing it from `price_level` (Bulk allows 600).
   Auto-sync already runs markets after registrars, so the two syncs don't
   overlap.
@@ -585,7 +585,9 @@ Held elsewhere:
   may be in place already; verified, it's listed at once. Otherwise DomBot
   holds it (decided 2026-11-04): the result is pending, not an error, as
   on markets that check ownership themselves (`asyncInsert`), and the
-  pending row keeps the price, minimum offer and currency asked for.
+  pending row keeps the price, minimum offer and currency asked for. Since
+  Dynadot has nothing of it, a later change to a pending listing keeps
+  what it doesn't give from that row (`withPendingListing`).
   Checked live (2026-11-07): domainio.com, with no TXT record yet, was
   added and held pending; cloudflareregistereddomaintest.uk, with its TXT
   record in place, was added, verified and listed in one write.

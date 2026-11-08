@@ -388,6 +388,23 @@ describe('requestMarketVerification', () => {
     expect(fake.listedVerified).toEqual(['a.com']);
   });
 
+  it('keeps what a change to a pending listing leaves out (Dynadot)', async () => {
+    fake.listsVerified = true;
+    putMarketListings(ID, [
+      { ...listingOf('a.com', ID), price: '100', minOffer: '20' },
+      { ...listingOf('b.com', ID), status: 'active' },
+    ]);
+    await writes.writeMarketListings(ID, [
+      { name: 'a.com', price: '150' },
+      { name: 'b.com', price: '150' },
+    ]);
+    expect(fake.written[0]).toEqual([
+      { name: 'a.com', price: '150', minOffer: '20', currency: 'USD' },
+      // Not pending: as asked.
+      { name: 'b.com', price: '150' },
+    ]);
+  });
+
   it('lists the pending names among an Ownership verification TXT job’s (Dynadot)', async () => {
     fake.listsVerified = true;
     putMarketListings(ID, [
