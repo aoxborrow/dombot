@@ -37,8 +37,8 @@ import {
 // name (`listVerified`, from a sync or a Recheck).
 
 export const DYNADOT_CAPABILITIES: MarketCapabilities = {
-  // The 14 Dynadot lists in (observed). A listing keeps its currency, but no
-  // read says which it is (see `readCurrency`).
+  // The 30 Dynadot documents that DomBot has. A listing keeps its currency,
+  // but no read says which it is (see `currencyFor`).
   currencies: DYNADOT_CURRENCIES,
   // Sent, never shown back: Dynadot needs one whenever Make Offer is on.
   minOffer: true,
@@ -181,10 +181,7 @@ export function checkDynadotChange(change: MarketListingChange): void {
     unsupported('leaseToOwn', 'DomBot doesn’t set Dynadot’s installments yet.');
   }
   if (change.currency && !isDynadotCurrency(change.currency)) {
-    unsupported(
-      'currency',
-      `Dynadot lists in ${DYNADOT_CURRENCIES.join(', ')}, not ${change.currency}.`,
-    );
+    unsupported('currency', `Dynadot doesn’t list in ${change.currency}.`);
   }
   if (change.displayName !== undefined) {
     unsupported('displayName', 'Dynadot has no display name.');
@@ -273,9 +270,26 @@ class RelockError extends Error {}
 /** Dynadot's account lock, which DomBot never turns off. */
 const ACCOUNT_LOCKED = 'Dynadot account must be unlocked to change listings.';
 
-function failedFrom(name: string, error: unknown): MarketWriteResult {
+function failedFrom(
+  name: string,
+  error: unknown,
+  /** The currency the listing went out in, for a refusal of it. */
+  currency?: string,
+): MarketWriteResult {
   if (error instanceof DynadotError && error.code === 'ACCOUNT_LOCKED') {
     return failed(name, 'ACCOUNT_LOCKED', ACCOUNT_LOCKED);
+  }
+  // Dynadot documents 32 listing currencies, but one account took only 14
+  // (observed): "The value for parameter currency is invalid."
+  if (
+    error instanceof DynadotError &&
+    /parameter currency is invalid/i.test(error.message)
+  ) {
+    return failed(
+      name,
+      'CURRENCY',
+      `Dynadot didn’t accept ${currency ?? 'the currency'} for this listing.`,
+    );
   }
   if (error instanceof RelockError) {
     return failed(name, 'RELOCK_FAILED', error.message);
@@ -550,7 +564,9 @@ export class DynadotAdapter implements MarketAdapter {
             : await this.writeElsewhere(name, change),
         );
       } catch (error) {
-        out.push(failedFrom(name, error));
+        out.push(
+          failedFrom(name, error, change.currency ?? this.currencyFor(name)),
+        );
       }
     }
     return out;
@@ -703,7 +719,7 @@ export class DynadotAdapter implements MarketAdapter {
           ),
         );
       } catch (error) {
-        out.push(failedFrom(name, error));
+        out.push(failedFrom(name, error, row.currency ?? undefined));
       }
     }
     return out;
@@ -712,7 +728,9 @@ export class DynadotAdapter implements MarketAdapter {
   /**
    * Delist: `not_for_sale` for either kind. A name held elsewhere stays on
    * the other-registrar list, verified, so listing it again is one call. A
-   * name with no listing counts as delisted.
+   * name with no listing counts as delisted, and so does one held elsewhere
+   * that Dynadot hasn't verified, which it can't list (and whose delist it
+   * refuses, 409 "This domain is not verified", observed).
    */
   async deleteListings(names: readonly string[]): Promise<MarketWriteResult[]> {
     const out: MarketWriteResult[] = [];
@@ -738,7 +756,7 @@ export class DynadotAdapter implements MarketAdapter {
               }),
             );
           }
-        } else if (await this.client.verification(name)) {
+        } else if ((await this.client.verification(name))?.verified) {
           if (
             (await this.client.getListing(name, LIST_CURRENCY))?.pendingSale
           ) {

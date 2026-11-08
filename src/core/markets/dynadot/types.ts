@@ -5,26 +5,19 @@ import type { Amount } from '../../../shared/markets';
 // with dates as ISO strings and prices as decimal strings.
 
 /**
- * The currencies Dynadot lists in. Its reference names 32 for listings; it
- * takes these 14 and answers "The value for parameter currency is invalid"
- * for the rest, JPY, CHF and NZD among them (domanio.com, 2026-11-07).
- * Reads convert to any of the 32.
+ * The currencies Dynadot lists in: the 32 its reference names, less BTC
+ * and the withdrawn LTL, which DomBot doesn't have. One account took 14 of
+ * them (USD, EUR, GBP, CAD, AUD, CNY, HKD, BRL, INR, MXN, IDR, THB, PHP,
+ * KRW) and answered "The value for parameter currency is invalid" for the
+ * rest (domanio.com, 2026-11-07); whether that's the account's doing isn't
+ * known, so DomBot offers them all and passes the refusal on. Reads
+ * convert to any of the 32.
  */
+// prettier-ignore
 export const DYNADOT_CURRENCIES = [
-  'USD',
-  'EUR',
-  'GBP',
-  'CAD',
-  'AUD',
-  'CNY',
-  'HKD',
-  'BRL',
-  'INR',
-  'MXN',
-  'IDR',
-  'THB',
-  'PHP',
-  'KRW',
+  'USD', 'GBP', 'EUR', 'INR', 'PLN', 'ZAR', 'CNY', 'CAD', 'JPY', 'NZD',
+  'RUB', 'AUD', 'MXN', 'BRL', 'IDR', 'ARS', 'COP', 'DKK', 'RSD', 'HKD',
+  'CHF', 'AED', 'MYR', 'NGN', 'KES', 'CZK', 'NOK', 'THB', 'PHP', 'KRW',
 ] as const satisfies readonly CurrencyCode[];
 
 export type DynadotCurrency = (typeof DYNADOT_CURRENCIES)[number];

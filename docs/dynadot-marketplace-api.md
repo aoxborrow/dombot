@@ -30,8 +30,8 @@ below is from the API reference and Dynadot's help pages as read on
   name held elsewhere that Dynadot hasn't verified is pending, not an
   error; DomBot asks Dynadot to verify it when listing, and lists it once
   Dynadot has: on the next sync, a Recheck, or the end of an Ownership
-  verification TXT job. Listings go out in the 14 currencies Dynadot takes
-  ("Currencies"). Capabilities are what's built: a minimum offer sent
+  verification TXT job. Listings go out in any of the 30 currencies
+  Dynadot documents that DomBot has ("Currencies"). Capabilities are what's built: a minimum offer sent
   (DomBot's own) but never read back, pending inserts, no sales yet.
 - **Registrar-backed accounts:** Settings → Markets adds a Dynadot account by
   picking a Dynadot registrar account (each one once); it calls with that
@@ -468,13 +468,18 @@ offers are welcome even where it doesn't give the minimum.
 
 Built 2026-11-07, from live tests on domanio.com:
 
-- **Which:** Dynadot's reference names 32 currencies for listings, but it
-  takes 14: USD, EUR, GBP, CAD, AUD, CNY, HKD, BRL, INR, MXN, IDR, THB,
-  PHP and KRW (`DYNADOT_CURRENCIES`, the capabilities' `currencies`). The
-  rest, JPY, CHF, NZD, DKK, NOK, CZK and PLN among them, answer "The value
-  for parameter currency is invalid." Reads convert to all 32. Buy Now has
-  a ceiling per currency ($100,000,000, £75,000,000, €100,000,000,
-  C$125,000,000, AU$150,000,000, …), which Dynadot's message states.
+- **Which:** Dynadot's reference names 32 currencies for listings; DomBot
+  offers the 30 it has (not BTC or the withdrawn LTL):
+  `DYNADOT_CURRENCIES`, the capabilities' `currencies`. On the test
+  account Dynadot took 14 of them (USD, EUR, GBP, CAD, AUD, CNY, HKD, BRL,
+  INR, MXN, IDR, THB, PHP, KRW) and answered "The value for parameter
+  currency is invalid." for the rest, JPY, CHF and NZD among them. Whether
+  that depends on the account isn't known, so DomBot doesn't narrow the
+  list (decided 2026-11-07): a refused currency fails that name as
+  `CURRENCY`, "Dynadot didn't accept JPY for this listing." Reads convert
+  to all 32. Buy Now has a ceiling per currency ($100,000,000,
+  £75,000,000, €100,000,000, C$125,000,000, AU$150,000,000, …), which
+  Dynadot's message states.
 - **Kept, not shown:** a listing keeps the currency it was set in: listed
   at €999,999, the listing read in EUR was €1,000,009.69 (the transfer
   fee added) and in USD $1,115,081.50. No read says which currency a
@@ -484,8 +489,8 @@ Built 2026-11-07, from live tests on domanio.com:
   fee).
 - **No setting:** a listing goes out in the currency of the change, which
   "List at my price" takes from the name's DomBot asking price. A change
-  without one uses the asking price's currency when Dynadot takes it, else
-  USD.
+  without one uses the asking price's currency when it's one of the 30,
+  else USD.
 - **Names in the account** are read in that same currency, so a listing
   DomBot made reads back exactly; one priced in another currency on
   Dynadot's site reads converted.
@@ -595,7 +600,10 @@ Held elsewhere:
   and it isn't marked read-only, so a host that auto-approves read-only
   tools still asks.
 - **Delist:** `listing_other_registrar_domain` with `not_for_sale`. The name
-  stays added and verified, so listing it again is one call. Taking it off
+  stays added and verified, so listing it again is one call. An unverified
+  name can't be listed, and Dynadot refuses to delist one (409 "This
+  domain is not verified", domainio.com), so DomBot counts it as delisted
+  without a call. Taking it off
   Dynadot's list is done on Dynadot's dashboard, in bulk there (decided
   2026-11-07).
 - **No landing page:** DomBot never sends `use_for_sale_landing_page`.
@@ -839,10 +847,10 @@ nobody would pay, read back, then delisted.
 6. Answered in part: the live path is `aftermarkets/…/for_sales`, and the
    registrar's key reads the marketplace. Still open: whether writes need
    anything more on the key or the account.
-7. Answered (2026-11-07): a listing keeps the currency it was set in, but
-   no read says which; the other-registrar list shows USD, converted.
-   Dynadot takes 14 currencies, not the 32 documented, and "cents" are the
-   amount times 100 in each ("Currencies").
+7. Answered in part (2026-11-07): a listing keeps the currency it was set
+   in, but no read says which; the other-registrar list shows USD,
+   converted. "Cents" are the amount times 100 in each currency. Still
+   open: why the test account took only 14 of the 32 ("Currencies").
 8. What do `asking_price` and `reserve_price` do on a listing held
    elsewhere, beside Buy Now and the minimum offer?
 9. Does add refuse names at Dynadot (in another Dynadot account), or names

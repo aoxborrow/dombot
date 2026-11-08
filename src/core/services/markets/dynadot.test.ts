@@ -700,8 +700,8 @@ describe('the adapter', () => {
     const { adapter, calls } = fakeClient({});
     const results = await adapter.writeListings([
       { name: 'lumenpost.com', floor: '100' },
-      // Dynadot's reference lists JPY, but it refuses it (observed).
-      { name: 'lumenpost.com', currency: 'JPY' },
+      // Not one Dynadot lists in.
+      { name: 'lumenpost.com', currency: 'SEK' },
       { name: 'lumenpost.com', forSale: false },
     ]);
     expect(results.map((r) => r.error?.code)).toEqual([
@@ -709,7 +709,7 @@ describe('the adapter', () => {
       'UNSUPPORTED',
       'UNSUPPORTED',
     ]);
-    expect(results[1].error?.message).toMatch(/^Dynadot lists in USD, EUR/);
+    expect(results[1].error?.message).toBe('Dynadot doesn’t list in SEK.');
     expect(calls).toEqual([]);
   });
 
@@ -740,7 +740,7 @@ describe('the adapter', () => {
       },
       asking: {
         'lumenpost.com': { currency: 'EUR', minOffer: null },
-        'quietfern.net': { currency: 'JPY', minOffer: null },
+        'quietfern.net': { currency: 'SEK', minOffer: null },
       },
     });
     const { listings } = await adapter.allListings();
@@ -772,6 +772,36 @@ describe('the adapter', () => {
     ]);
     expect(eur.ok).toBe(true);
     expect(sent[0].input).toMatchObject({ minOffer: '400', currency: 'EUR' });
+  });
+
+  it('says so when Dynadot refuses a currency it documents', async () => {
+    const { adapter } = fakeClient({
+      held: [{ name: 'lumenpost.com', forSale: false }],
+      // One account took 14 of the 32 (observed).
+      refuse: [
+        new DynadotError(
+          'INVALID',
+          'The value for parameter currency is invalid.',
+          400,
+        ),
+      ],
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'lumenpost.com', price: '250000', currency: 'JPY' },
+    ]);
+    expect(r.error).toEqual({
+      code: 'CURRENCY',
+      message: 'Dynadot didn’t accept JPY for this listing.',
+    });
+  });
+
+  it('counts a name held elsewhere that Dynadot hasn’t verified as delisted', async () => {
+    const { adapter, sent } = fakeClient({
+      verified: { 'domainio.com': false },
+    });
+    const [r] = await adapter.deleteListings(['domainio.com']);
+    expect(r).toMatchObject({ ok: true, error: null });
+    expect(sent).toEqual([]);
   });
 
   it('lists a name held elsewhere in the currency asked for', async () => {
