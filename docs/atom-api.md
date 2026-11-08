@@ -73,8 +73,9 @@ Sedo into the Afternic PR (#197).
   Atom's discounts, and warnings about Atom's exclusivity, which Atom
   enforces itself; a name can be listed on several markets whatever its
   nameservers.
-- **Elsewhere:** Atom as a registrar, in registrar-client; then the shared
-  key for an account that's both ("One provider, registrar and market").
+- **Elsewhere:** Atom as a registrar, in registrar-client
+  ([atom-registrar.md](atom-registrar.md)). It takes its own token, so it
+  isn't linked to the market account.
 
 ### Unverified: what to check first
 
@@ -409,9 +410,8 @@ An Atom card in the Markets section, built the same way as Afternic's:
   Offer and its threshold, negotiation, auto-pilot discounts, automatic price
   increases) have no API. Link to the dashboard instead.
 - Storage is the same as Afternic: `market-credentials` and `market-accounts`,
-  encrypted on desktop, carried in bundles. An Atom market account can instead
-  point at an AtomRegistrar registrar account (see "One provider, registrar
-  and market").
+  encrypted on desktop, carried in bundles. The registrar API's token is a
+  different one, so an Atom market account never borrows a registrar key.
 
 ### Listings
 
@@ -532,49 +532,31 @@ supported for Atom (no API).
 
 ### Atom as a registrar
 
-The registrar API (32 operations: list/get domains, availability single and
-bulk of 50, TLD pricing, register, renew, transfer in single and bulk of 10,
-nameservers with `atom`/`parking`/`custom` types, DNS records and DNSSEC, URL
-forwards, privacy, auto-renew, lock, contacts) is a good fit for
-registrar-client as a new `atom` registrar, which would let DomBot sync names
-held at AtomRegistrar like any other account. It's a separate piece of work in
-that repo, not part of this client. Things it would hit:
-
-- Transfer-out is dashboard-only: unlocking (`locked: false`) and EPP codes
-  aren't in the API, so `getAuthCode` and unlock are `NotImplementedError`.
-  That also means the Afternic auth-code automation can't work for names held
-  at Atom.
-- Nameserver `type: "atom"` is the marketplace pair, so for a name registered
-  at Atom, "List on Atom" can set nameservers and verify in two calls.
-- The specs describe two tokens (seller `api_token` in the query, registrar
-  token as `Bearer`), both issued from the same Dashboard → API Access page.
-  Whether one token works for both is unverified (open question 9).
+Planned in [atom-registrar.md](atom-registrar.md): a new `atom` registrar in
+registrar-client, so DomBot syncs names held at AtomRegistrar like any other
+account. The registrar API takes its own Bearer token, and the seller token
+gets a 401 there (checked 2026-11-03), so an Atom registrar account and an
+Atom market account aren't linked: each card keeps its own key. Transfer-out
+(unlock, EPP code) is dashboard-only, so the Afternic auth-code automation
+can't fetch a code for a name held at Atom.
 
 ### One provider, registrar and market
 
-Atom is the first of several providers that are both a registrar and a
-market: Dynadot and Namecheap have marketplace APIs too, and DomBot will add
-them. Often one API key covers both sides. DomBot shouldn't make the user enter
-the same key twice or keep two cards in step, so:
+Where one provider is both a registrar and a market and one API key covers
+both sides, DomBot doesn't make the user enter it twice. Dynadot is built
+this way ([dynadot-marketplace-api.md](dynadot-marketplace-api.md)). Atom
+isn't one: its registrar API takes its own token
+([atom-registrar.md](atom-registrar.md)), so the Atom market account keeps
+its own key. For a provider that is:
 
-- **A market account can be backed by a registrar account.** It stores
-  `registrarAccountId` instead of its own credentials, and reads them from
-  `registrar-credentials` at call time. Rotating the key on the registrar card
-  fixes both. When the provider uses separate keys (as Atom's specs suggest),
-  the market account keeps its own entry in `market-credentials`, still linked
-  to the registrar account.
-- **The link also says the names are the same account's.** For a linked pair,
-  DomBot knows which registrar account holds a listed name without matching by
-  name across accounts, which makes "List on Atom" (set `atom` nameservers,
-  verify) and the exclusivity and nameserver checks exact.
-- **Settings:** the registrar card for such a provider gets a "Marketplace"
-  row ("Also sell on Atom": off, on with this key, or on with a separate key),
-  and the market card shows "Uses the AtomRegistrar key" with a link back.
-  Markets with no registrar side (Afternic, Sedo) are unaffected.
+- **A market account is backed by a registrar account.** It stores
+  `registrarAccountId` instead of its own credentials and calls with that
+  account's key. Rotating the key on the registrar card fixes both.
+- **Settings:** the market account is added by picking the registrar
+  account, and its card links to the registrar card. Removing the registrar
+  account removes the market account too.
 - **Enable separately.** Selling stays opt-in per account even when the key
   allows it: turning on a registrar account never starts listing sync.
-- **Removing** a registrar account that backs a market account asks whether
-  to remove both, or keep the market account and enter its own key.
 - **MCP:** `market_list` shows `registrarAccountId` for linked accounts, so an
   agent can go from a listing to the registrar tools for the same name.
 - **Code stays split:** the registrar side in registrar-client, the market
@@ -630,7 +612,7 @@ Separately, in registrar-client: an `atom` registrar.
 | Account settings | get/update listing defaults                                                   | none in API                                                                                      |
 | Rate limit       | 150/min, `Retry-After`                                                        | unpublished; 10/day appraisal                                                                    |
 | Valuation        | none                                                                          | appraisal (estimate, score, signals, TM conflicts)                                               |
-| Registrar        | separate (GoDaddy)                                                            | AtomRegistrar API, same company; may share a key                                                 |
+| Registrar        | separate (GoDaddy)                                                            | AtomRegistrar API, same company, its own token                                                   |
 
 Only Afternic: min offer and floor, daily stats series, search counts, sale
 workflow (auth codes, messages), bulk and jobs, account settings, relist.
@@ -647,15 +629,17 @@ markets are in [markets.md](markets.md), which replaces the first cut that
 was here. For Atom that means: whole-dollar prices become decimal strings in
 USD, Atom's tiers fill `tier`, the weekly discount fills `discount`, and
 analytics snapshots become `derived` daily stats. Bulk writes go through
-DomBot's bulk runner one name at a time (`writeBatch: 1`), and the account
-record's `registrarAccountId` is where "One provider, registrar and market"
-plugs in.
+DomBot's bulk runner one name at a time (`writeBatch: 1`). The account
+record's `registrarAccountId` stays empty for Atom: its registrar API takes
+its own token.
 
 ## Open questions
 
 Answered live (see "Observed"): response shapes and paging (bare arrays,
 no totals); `discount` is dollars off, 0 is refused, and repricing clears
 it; price 0 is Make an Offer; sale records carry no commission or payout.
+The seller token doesn't work on the registrar API (401, checked
+2026-11-03), so the two always use separate tokens.
 
 1. Rate limit for the seller API, and whether Atom offers bulk endpoints or a
    higher limit for large portfolios. (Ask service@atom.com.) None was hit
@@ -667,7 +651,3 @@ it; price 0 is Make an Offer; sale records carry no commission or payout.
 4. Can a seller token call the partnership or trademark endpoints, or only
    seller and appraisal? (Matters only if trademark checks move up.)
 5. Is the appraisal daily cap per token, and does it reset at midnight UTC?
-6. Does one Atom token work for both the seller and registrar APIs, or are
-   they always separate? And is the seller `user_id` the same account as the
-   registrar's? This decides whether the Atom market account usually borrows
-   the registrar key or keeps its own.
