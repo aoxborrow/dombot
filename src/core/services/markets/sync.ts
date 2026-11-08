@@ -210,14 +210,16 @@ export function marketSales(): MarketSale[] {
 }
 
 /**
- * Whether a sale record counts as a sale. A completed Buy Now sale is always
- * paid out, so one with no payout date isn't the account's sale: Afternic's
- * sales list includes the account's purchases, and that's how they look
- * (docs/afternic-api-issues.md, issue 1). Leases, sales still under way, and
- * cancelled ones have no payout date either and are kept.
+ * Whether a sale record counts as a sale. Afternic's sales list includes the
+ * account's purchases, and they look like a completed Buy Now sale with no
+ * payout date, which a sale of Afternic's always has (docs/afternic-api-issues.md,
+ * issue 1). Leases, sales still under way, and cancelled ones have no payout
+ * date either and are kept. Other markets' lists are sales only: SellerHub's
+ * sold report never has a payout date, Buy Now or not.
  */
 export function isShownSale(sale: MarketSale): boolean {
   return !(
+    sale.market === 'afternic' &&
     sale.status === 'completed' &&
     sale.kind === 'buy_now' &&
     !sale.paidOutOn

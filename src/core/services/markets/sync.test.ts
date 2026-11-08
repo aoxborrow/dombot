@@ -149,6 +149,7 @@ const {
   setMarketSyncState,
 } = await import('./accounts');
 const {
+  isShownSale,
   marketAccountStats,
   marketListings,
   marketSale,
@@ -989,6 +990,16 @@ describe('purchases in the sales list', () => {
         .map((s) => s.name)
         .sort(),
     ).toEqual(['lease.com', 'waiting.com']);
+  });
+
+  it('only reads Afternic’s list that way: SellerHub’s has no payout dates', () => {
+    const checkoutLink: MarketSale = {
+      ...sale('s1', 'sold.com', '2026-10-02'),
+      market: 'spaceship',
+      paidOutOn: null,
+    };
+    expect(isShownSale(checkoutLink)).toBe(true);
+    expect(isShownSale({ ...checkoutLink, market: 'afternic' })).toBe(false);
   });
 });
 
