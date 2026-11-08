@@ -304,6 +304,20 @@ export async function setMarketAccountEnabled(
 }
 
 /**
+ * Remove the market accounts that use a registrar account's key, when that
+ * registrar account is removed.
+ */
+export async function removeMarketAccountsOf(
+  registrarAccountId: string,
+): Promise<void> {
+  for (const account of listMarketAccounts()) {
+    if (account.registrarAccountId === registrarAccountId) {
+      await removeMarketAccount(account.id);
+    }
+  }
+}
+
+/**
  * Remove an account, its credentials and its synced listings. Its sales and
  * the `sold` events they wrote stay: they're history, not the account's.
  */

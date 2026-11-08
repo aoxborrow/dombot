@@ -332,7 +332,14 @@ function AccountCard({
   const setRegistrarEnabled = useAppStore((s) => s.setRegistrarEnabled);
   const loadRegistrars = useAppStore((s) => s.loadRegistrars);
   const refreshCache = useAppStore((s) => s.applyPortfolioCacheUpdate);
+  const loadMarkets = useAppStore((s) => s.loadMarkets);
   const id = idOf(account);
+  // Market accounts on this account's key (Dynadot's), removed with it.
+  const marketAccounts = useAppStore((s) => s.marketAccounts);
+  const linkedMarkets = useMemo(
+    () => (marketAccounts ?? []).filter((m) => m.registrarAccountId === id),
+    [marketAccounts, id],
+  );
   const currentLabel = account.accountLabel ?? '';
   const [values, setValues] = useState<CredentialValues>({});
   const [original, setOriginal] = useState<CredentialValues>({});
@@ -505,6 +512,7 @@ function AccountCard({
       await window.api.removeRegistrarAccount(id);
       await loadRegistrars();
       await refreshCache();
+      if (linkedMarkets.length) await loadMarkets().catch(() => {});
     } catch (err) {
       // On success the card unmounts; only a failure leaves state to reset.
       setRemoveError(errorMessage(err));
@@ -802,7 +810,7 @@ function AccountCard({
       {removing && (
         <ConfirmDialog
           title={`Remove ${title}?`}
-          description={`DomBot forgets this account's credentials and cached domains. The domains stay at ${provider.displayName}, and you can add the account again later.`}
+          description={`DomBot forgets this account's credentials and cached domains${linkedMarkets.length ? `, and removes the ${linkedMarkets.map((m) => m.label).join(' and ')} market account that uses its key` : ''}. The domains stay at ${provider.displayName}, and you can add the account again later.`}
           actionLabel="Remove account"
           busyLabel="Removing…"
           busy={saving}

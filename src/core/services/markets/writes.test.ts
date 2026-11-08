@@ -388,6 +388,26 @@ describe('requestMarketVerification', () => {
     expect(fake.listedVerified).toEqual(['a.com']);
   });
 
+  it('lists the pending names among an Ownership verification TXT job’s (Dynadot)', async () => {
+    fake.listsVerified = true;
+    putMarketListings(ID, [
+      listingOf('a.com', ID),
+      listingOf('b.com', ID),
+      { ...listingOf('c.com', ID), status: 'active' },
+    ]);
+    await writes.listVerifiedListings(['a.com', 'c.com', 'd.com']);
+    expect(fake.listedVerified).toEqual(['a.com']);
+    expect(
+      marketListings()
+        .map((l) => [l.name, l.status])
+        .sort(),
+    ).toEqual([
+      ['a.com', 'active'],
+      ['b.com', 'pending'],
+      ['c.com', 'active'],
+    ]);
+  });
+
   it('isn’t supported where the market has neither (Sedo)', async () => {
     fake.caps = { relist: false, verifyDns: false };
     await expect(

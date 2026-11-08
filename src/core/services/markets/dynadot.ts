@@ -1,7 +1,9 @@
 import { assertDomainName, toAscii } from '../../../shared/domain-name';
 import {
+  DYNADOT_CURRENCIES,
   DynadotClient,
   DynadotError,
+  isDynadotCurrency,
   type DynadotClientOptions,
   type DynadotExternalDomain,
   type DynadotListing,
@@ -35,8 +37,9 @@ import {
 // name (`listVerified`, from a sync or a Recheck).
 
 export const DYNADOT_CAPABILITIES: MarketCapabilities = {
-  // Listed and read in USD until there's a Listing Currency setting.
-  currencies: ['USD'],
+  // The 14 Dynadot lists in (observed). A listing keeps its currency, but no
+  // read says which it is (see `readCurrency`).
+  currencies: DYNADOT_CURRENCIES,
   // Sent, never shown back: Dynadot needs one whenever Make Offer is on.
   minOffer: true,
   floor: false,
@@ -68,14 +71,16 @@ export const DYNADOT_CAPABILITIES: MarketCapabilities = {
 /** None of its own: the account uses a Dynadot registrar account's key. */
 export const DYNADOT_CONFIG_FIELDS: MarketConfigField[] = [];
 
-/** The currency DomBot reads prices in (see the capabilities). */
-const CURRENCY = 'USD';
+/** The other-registrar list shows every price in USD, converted (observed). */
+const LIST_CURRENCY = 'USD';
 
 // Reading
 
 export function listingFromDynadot(
   l: DynadotListing,
   accountId: string,
+  /** The currency it was read in: Dynadot converts to the one asked for. */
+  currency: string = LIST_CURRENCY,
 ): MarketListing {
   return {
     market: 'dynadot',
@@ -91,7 +96,7 @@ export function listingFromDynadot(
     minOffer: null,
     floor: null,
     discount: null,
-    currency: CURRENCY,
+    currency: currency as MarketListing['currency'],
     leaseToOwn: null,
     tier: null,
     listedAt: null,
@@ -112,8 +117,10 @@ export function listingFromDynadot(
 /**
  * A name held elsewhere, as a listing; null when it's on the list but not
  * for sale ("Not Set"). Until Dynadot has verified it, it's pending; once a
- * transfer is under way (a buyer has paid), on hold. UNVERIFIED: which
- * transfer statuses Dynadot uses, and the price's currency (read as USD).
+ * transfer is under way (a buyer has paid), on hold. The price is in USD
+ * whatever the listing's currency: the list converts it (a listing at
+ * €999,999 read "$1115069.88", observed). UNVERIFIED: which transfer
+ * statuses Dynadot uses.
  */
 export function listingFromExternal(
   d: DynadotExternalDomain,
@@ -140,7 +147,7 @@ export function listingFromExternal(
     minOffer: null,
     floor: null,
     discount: null,
-    currency: CURRENCY,
+    currency: LIST_CURRENCY,
     leaseToOwn: null,
     tier: null,
     listedAt: null,
@@ -170,14 +177,14 @@ export function checkDynadotChange(change: MarketListingChange): void {
   if (change.floor != null) {
     unsupported('floor', 'Dynadot has no floor price.');
   }
-  if (change.minOffer != null && Number(change.minOffer) < 1) {
-    unsupported('minOffer', 'Dynadot’s minimum offer must be $1.00 or more.');
-  }
   if (change.leaseToOwn?.enabled) {
     unsupported('leaseToOwn', 'DomBot doesn’t set Dynadot’s installments yet.');
   }
-  if (change.currency && change.currency !== CURRENCY) {
-    unsupported('currency', `DomBot lists on Dynadot in ${CURRENCY} for now.`);
+  if (change.currency && !isDynadotCurrency(change.currency)) {
+    unsupported(
+      'currency',
+      `Dynadot lists in ${DYNADOT_CURRENCIES.join(', ')}, not ${change.currency}.`,
+    );
   }
   if (change.displayName !== undefined) {
     unsupported('displayName', 'Dynadot has no display name.');
@@ -199,13 +206,15 @@ export function checkDynadotChange(change: MarketListingChange): void {
  * on, alone or beside Buy Now ("The minimum_offer_price must be $1.00 or
  * higher", observed), and never shows it back. So a change to a listing
  * that takes offers, without a minimum of its own, sends DomBot's minimum
- * offer for the name (`fallbackMinOffer`); with none in DomBot, it's
- * refused. A price alone is Buy Now; a minimum offer alone, Make Offer.
+ * offer for the name (`fallbackMinOffer`, in the listing's currency);
+ * with none in DomBot, it's refused. A price alone is Buy Now; a minimum
+ * offer alone, Make Offer. `currency` is what the listing goes out in.
  */
 export function listingFor(
   change: MarketListingChange,
   current: { type: DynadotListingType | null; price: Amount | null } | null,
   fallbackMinOffer: Amount | null = null,
+  currency: string = 'USD',
 ): Pick<DynadotListingInput, 'listingType' | 'price' | 'minOffer'> {
   const price =
     change.price !== undefined ? change.price : (current?.price ?? null);
@@ -219,13 +228,11 @@ export function listingFor(
         'This Dynadot listing takes offers, and Dynadot needs a minimum offer with every change. Set one in DomBot’s asking price, or clear it to turn offers off.',
       );
     }
-    if (Number(fallbackMinOffer) < 1) {
-      unsupported(
-        'minOffer',
-        'Dynadot’s minimum offer must be $1.00 or more; DomBot’s for this name is less.',
-      );
-    }
     minOffer = fallbackMinOffer;
+  }
+  // Dynadot's floor; in other currencies, Dynadot says.
+  if (currency === 'USD' && minOffer !== null && Number(minOffer) < 1) {
+    unsupported('minOffer', 'Dynadot’s minimum offer must be $1.00 or more.');
   }
   if (price === null && minOffer === null) {
     unsupported(
@@ -339,7 +346,10 @@ function ok(name: string): MarketWriteResult {
  */
 function asSavedElsewhere(
   name: string,
-  input: Pick<DynadotListingInput, 'listingType' | 'price' | 'minOffer'>,
+  input: Pick<
+    DynadotListingInput,
+    'listingType' | 'price' | 'minOffer' | 'currency'
+  >,
   accountId: string,
   verified = true,
 ): MarketListing {
@@ -358,6 +368,8 @@ function asSavedElsewhere(
     },
     accountId,
   )!;
+  // In the currency sent, until a sync reads the list's USD.
+  listing.currency = input.currency as MarketListing['currency'];
   return verified
     ? listing
     : {
@@ -388,6 +400,12 @@ export interface DynadotAccountCredentials {
   apiSecret?: string;
 }
 
+/** DomBot's asking price for a name, as far as Dynadot writes use it. */
+export interface DynadotAsking {
+  currency: string;
+  minOffer: Amount | null;
+}
+
 export class DynadotAdapter implements MarketAdapter {
   readonly market = 'dynadot' as const;
   readonly capabilities = DYNADOT_CAPABILITIES;
@@ -397,9 +415,28 @@ export class DynadotAdapter implements MarketAdapter {
   constructor(
     readonly accountId: string,
     private readonly client: DynadotClient,
-    /** DomBot's minimum offer for a name (its asking price), in USD. */
-    private readonly minOfferFor: (name: string) => Amount | null = () => null,
+    /** DomBot's asking price for a name: its currency and minimum offer. */
+    private readonly askingFor: (name: string) => DynadotAsking | null = () =>
+      null,
   ) {}
+
+  /**
+   * The currency to read and list a name in: its DomBot asking price's,
+   * when Dynadot takes it, else USD. No read says a listing's own currency,
+   * and Dynadot converts to whichever is asked for, so a listing DomBot
+   * made reads back exactly, and one priced in another currency on
+   * Dynadot's site reads converted.
+   */
+  private currencyFor(name: string): string {
+    const currency = this.askingFor(name)?.currency;
+    return isDynadotCurrency(currency) ? currency : 'USD';
+  }
+
+  /** DomBot's minimum offer for a name, when it's in `currency`. */
+  private minOfferIn(name: string, currency: string): Amount | null {
+    const asking = this.askingFor(name);
+    return asking?.currency === currency ? asking.minOffer : null;
+  }
 
   /**
    * A write to a name in the account. Dynadot refuses one while the name is
@@ -455,8 +492,9 @@ export class DynadotAdapter implements MarketAdapter {
     for (const d of held.domains) {
       if (!d.forSale) continue;
       try {
-        const l = await this.client.getListing(d.name, CURRENCY);
-        if (l) listings.push(listingFromDynadot(l, this.accountId));
+        const currency = this.currencyFor(d.name);
+        const l = await this.client.getListing(d.name, currency);
+        if (l) listings.push(listingFromDynadot(l, this.accountId, currency));
       } catch (error) {
         if (error instanceof DynadotError && error.code === 'AUTH') throw error;
         complete = false;
@@ -489,8 +527,9 @@ export class DynadotAdapter implements MarketAdapter {
       if (l) out.push(l);
     }
     for (const name of wanted) {
-      const l = await this.client.getListing(name, CURRENCY);
-      if (l) out.push(listingFromDynadot(l, this.accountId));
+      const currency = this.currencyFor(name);
+      const l = await this.client.getListing(name, currency);
+      if (l) out.push(listingFromDynadot(l, this.accountId, currency));
     }
     return out;
   }
@@ -522,33 +561,36 @@ export class DynadotAdapter implements MarketAdapter {
     name: string,
     change: MarketListingChange,
   ): Promise<MarketWriteResult> {
-    const current = await this.client.getListing(name, CURRENCY);
+    // Read in the currency it goes out in, so a kept price is in it too.
+    const currency = change.currency ?? this.currencyFor(name);
+    const current = await this.client.getListing(name, currency);
     if (current?.pendingSale) return onHold(name);
     const input: DynadotListingInput = {
       forSale: true,
-      ...listingFor(change, current, this.minOfferFor(name)),
-      currency: CURRENCY,
+      ...listingFor(change, current, this.minOfferIn(name, currency), currency),
+      currency,
     };
     await this.withNameUnlocked(name, () =>
       this.client.setForSale(name, input),
     );
-    // UNVERIFIED: that a name in the account reads at the seller's price
-    // (no transfer fee to add).
+    // A name in the account reads at the seller's price (no transfer fee),
+    // observed in USD.
     const saved = await this.client
-      .getListing(name, CURRENCY)
+      .getListing(name, currency)
       .catch(() => null);
     return written(
       name,
       change,
-      saved ? listingFromDynadot(saved, this.accountId) : null,
+      saved ? listingFromDynadot(saved, this.accountId, currency) : null,
     );
   }
 
   /**
    * A name held elsewhere: added to the other-registrar list if it isn't
    * there, and listed once Dynadot has verified it. Dynadot refuses the
-   * listing before that (observed), so until then it's pending in DomBot,
-   * with the price asked for.
+   * listing before that (observed), so an unverified name is put to
+   * Dynadot's verify first (its TXT record may be in place already); if it
+   * still isn't verified, it's pending in DomBot, with the price asked for.
    */
   private async writeElsewhere(
     name: string,
@@ -556,73 +598,101 @@ export class DynadotAdapter implements MarketAdapter {
   ): Promise<MarketWriteResult> {
     const verification = await this.client.verification(name);
     if (!verification?.verified) {
-      const input = listingFor(change, null);
+      const currency = change.currency ?? this.currencyFor(name);
+      const input = { ...listingFor(change, null, null, currency), currency };
       if (!verification) await this.client.addExternal([name]);
-      return pendingResult(
-        asSavedElsewhere(name, input, this.accountId, false),
-      );
+      const { verified } = await this.client.verifyExternal([name]);
+      if (!verified.includes(name)) {
+        return pendingResult(
+          asSavedElsewhere(name, input, this.accountId, false),
+        );
+      }
     }
     // The listing read covers these names too, with the right type but the
     // buyer's price (observed); the seller's is on the other-registrar
     // list, read only when the change keeps the price. A read that fails
     // fails the write: guessing "not listed" could turn offers off.
-    const current = await this.client.getListing(name, CURRENCY);
+    const current = await this.client.getListing(name, LIST_CURRENCY);
     if (current?.pendingSale) return onHold(name);
-    const sellerPrice =
-      current && change.price === undefined
-        ? ((await this.client.externalDomains()).domains.find(
-            (d) => d.name === name,
-          )?.price ?? null)
-        : null;
+    const keepsPrice = current !== null && change.price === undefined;
+    // A kept price comes from the list, which shows it in USD only.
+    if (keepsPrice && change.currency && change.currency !== LIST_CURRENCY) {
+      unsupported(
+        'currency',
+        `Give a price in ${change.currency} too: Dynadot shows this listing’s price only in USD.`,
+      );
+    }
+    const currency = keepsPrice
+      ? LIST_CURRENCY
+      : (change.currency ?? this.currencyFor(name));
+    const sellerPrice = keepsPrice
+      ? ((await this.client.externalDomains()).domains.find(
+          (d) => d.name === name,
+        )?.price ?? null)
+      : null;
     const input: DynadotListingInput = {
       forSale: true,
       ...listingFor(
         change,
         current ? { type: current.type, price: sellerPrice } : null,
-        this.minOfferFor(name),
+        this.minOfferIn(name, currency),
+        currency,
       ),
-      currency: CURRENCY,
+      currency,
     };
     await this.client.listExternal(name, input);
     return written(name, change, asSavedElsewhere(name, input, this.accountId));
   }
 
   /**
-   * Pending listings of names held elsewhere, sent once Dynadot has
-   * verified the name; sync and Recheck call this. Each result's `saved` is
-   * the listing as it stands now: listed, or still pending. A name no longer
-   * on Dynadot's other-registrar list fails (NOT_FOUND); sync then treats
-   * it like any listing the market never took.
+   * Pending listings of names held elsewhere: Dynadot is asked to verify
+   * them all (one call), and those it verifies are listed; sync, Recheck
+   * and the end of an Ownership verification TXT job call this. Each
+   * result's `saved` is the listing as it stands now: listed, or still
+   * pending. A name no longer on Dynadot's other-registrar list fails
+   * (NOT_FOUND); sync then treats it like any listing the market never took.
    */
   async listVerified(
     pending: readonly MarketListing[],
   ): Promise<MarketWriteResult[]> {
+    if (!pending.length) return [];
+    let verified: Set<string>;
+    try {
+      verified = new Set(
+        (await this.client.verifyExternal(pending.map((r) => r.name))).verified,
+      );
+    } catch (error) {
+      return pending.map((r) => failedFrom(r.name, error));
+    }
     const out: MarketWriteResult[] = [];
     for (const row of pending) {
       const name = row.name;
       try {
-        const verification = await this.client.verification(name);
-        if (!verification) {
+        if (!verified.has(name)) {
+          // Verify fails a name that isn't on the list too.
           out.push(
-            failed(
-              name,
-              'NOT_FOUND',
-              `${name} isn’t on Dynadot’s list of names held elsewhere any more.`,
-            ),
+            (await this.client.verification(name))
+              ? pendingResult(row)
+              : failed(
+                  name,
+                  'NOT_FOUND',
+                  `${name} isn’t on Dynadot’s list of names held elsewhere any more.`,
+                ),
           );
           continue;
         }
-        if (!verification.verified) {
-          out.push(pendingResult(row));
-          continue;
-        }
+        const currency = isDynadotCurrency(row.currency)
+          ? row.currency
+          : this.currencyFor(name);
         const input: DynadotListingInput = {
           forSale: true,
           ...listingFor(
             { name, price: row.price, minOffer: row.minOffer },
             null,
+            null,
+            currency,
           ),
-          currency: CURRENCY,
+          currency,
         };
         await this.client.listExternal(name, input);
         out.push(
@@ -651,7 +721,7 @@ export class DynadotAdapter implements MarketAdapter {
       try {
         name = assertDomainName(raw);
         if (await this.client.holds(name)) {
-          const current = await this.client.getListing(name, CURRENCY);
+          const current = await this.client.getListing(name, LIST_CURRENCY);
           if (current?.pendingSale) {
             out.push(onHold(name));
             continue;
@@ -664,12 +734,14 @@ export class DynadotAdapter implements MarketAdapter {
                 listingType: 'bin',
                 price: null,
                 minOffer: null,
-                currency: CURRENCY,
+                currency: LIST_CURRENCY,
               }),
             );
           }
         } else if (await this.client.verification(name)) {
-          if ((await this.client.getListing(name, CURRENCY))?.pendingSale) {
+          if (
+            (await this.client.getListing(name, LIST_CURRENCY))?.pendingSale
+          ) {
             out.push(onHold(name));
             continue;
           }
@@ -678,7 +750,7 @@ export class DynadotAdapter implements MarketAdapter {
             listingType: 'bin',
             price: null,
             minOffer: null,
-            currency: CURRENCY,
+            currency: LIST_CURRENCY,
           });
         }
         out.push(ok(name));
@@ -727,11 +799,11 @@ export function createDynadotAdapter(
   accountId: string,
   credentials: DynadotAccountCredentials,
   {
-    minOfferFor,
+    askingFor,
     ...options
   }: Omit<DynadotClientOptions, 'apiKey' | 'apiSecret'> & {
-    /** DomBot's minimum offer for a name, in USD (see `listingFor`). */
-    minOfferFor?: (name: string) => Amount | null;
+    /** DomBot's asking price for a name (see `currencyFor`, `listingFor`). */
+    askingFor?: (name: string) => DynadotAsking | null;
   } = {},
 ): DynadotAdapter {
   const { apiKey, apiSecret } = credentials;
@@ -743,6 +815,6 @@ export function createDynadotAdapter(
   return new DynadotAdapter(
     accountId,
     new DynadotClient({ ...options, apiKey, apiSecret }),
-    minOfferFor,
+    askingFor,
   );
 }

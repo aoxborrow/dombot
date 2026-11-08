@@ -6,6 +6,7 @@ import {
   hydrateStores,
 } from '../../storage/namespace';
 import { createAccount } from '../accounts';
+import { removeRegistrarAccount } from '../registrars';
 import { getStoredCredentials, setStoredCredentials } from '../credentials';
 import {
   connectMarketAccount,
@@ -106,6 +107,17 @@ describe('a market on a registrar’s key', () => {
     await expect(
       connectMarketAccount('dynadot', {}, undefined, 'two', reg.id),
     ).rejects.toThrow(/already uses that registrar account/);
+  });
+
+  it('goes with its registrar account when that’s removed', async () => {
+    const reg = await createAccount('dynadot', 'Company');
+    const other = await createAccount('dynadot', 'Other');
+    await setStoredCredentials(reg.id, { apiKey: 'k', apiSecret: 's' });
+    await setStoredCredentials(other.id, { apiKey: 'k2', apiSecret: 's2' });
+    await connectMarketAccount('dynadot', {}, 'Mine', 'mkt', reg.id);
+    await connectMarketAccount('dynadot', {}, 'Theirs', 'mkt2', other.id);
+    await removeRegistrarAccount(reg.id);
+    expect(marketAccountViews().map((a) => a.id)).toEqual(['mkt2']);
   });
 
   it('isn’t configured while its registrar account has no key', async () => {

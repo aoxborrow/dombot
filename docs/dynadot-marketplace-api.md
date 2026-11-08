@@ -28,15 +28,19 @@ below is from the API reference and Dynadot's help pages as read on
   Marketplace Key read into the account's Ownership Verification ID on
   each sync. Writes list, reprice and delist either kind ("Writes"). A
   name held elsewhere that Dynadot hasn't verified is pending, not an
-  error; DomBot lists it once Dynadot has verified it, on the next sync or
-  a Recheck. Capabilities are what's built: USD only, a minimum offer sent
+  error; DomBot asks Dynadot to verify it when listing, and lists it once
+  Dynadot has: on the next sync, a Recheck, or the end of an Ownership
+  verification TXT job. Listings go out in the 14 currencies Dynadot takes
+  ("Currencies"). Capabilities are what's built: a minimum offer sent
   (DomBot's own) but never read back, pending inserts, no sales yet.
 - **Registrar-backed accounts:** Settings → Markets adds a Dynadot account by
   picking a Dynadot registrar account (each one once); it calls with that
   account's key and proxy route, keeps no credentials of its own, and
   `market_list` shows its `registrarAccountId`. The card links to that
   registrar account in a box (its logo and name), opening its card in
-  Settings → Registrars (`?tab=registrars&account=<id>`). Markets and
+  Settings → Registrars (`?tab=registrars&account=<id>`). Removing the
+  registrar account removes the market account too, and its confirmation
+  says so. Both sides' calls on the key share one rate limiter. Markets and
   accounts are listed alphabetically everywhere (by market, then account
   name).
 - **Verification:** the key parses from the key, its NS3 or its CNAME; the
@@ -49,11 +53,10 @@ below is from the API reference and Dynadot's help pages as read on
   passed on domanio.com held elsewhere, and on testbot.io in the account
   (locked; the account lock off); with the account lock on it stops at the
   refusal ("Testing").
-- **Next:** sales, and whether Dynadot's allowed-IP setting gets past the
-  account lock ("Locks"). Not
-  yet: the Listing Currency setting, removing a name from Dynadot's list, the remove-both
-  prompt and the registrar card pointing back, and sharing the registrar's
-  bulk lane.
+- **Not planned** (decided 2026-11-07): an "Also remove from Dynadot"
+  option on delist (Dynadot's dashboard removes names in bulk), the
+  registrar card pointing back to its market account, and a warning before
+  changing nameservers of names listed there. Sales come later.
 
 Dynadot is already a DomBot registrar: registrar-client's `dynadot` speaks
 the same RESTful v2 API. The marketplace commands use the same host, the
@@ -314,7 +317,6 @@ No seller "my listings" call exists for these. What there is:
 | `other_registrar_domain_verification` | The account's Open Marketplace Key, saved as its Ownership Verification ID, so there's nothing to paste once a name is added.                                                  |
 | `verify_other_registrar_domain`       | Recheck ownership, for a list of names; also run after DomBot adds the TXT records.                                                                                            |
 | `listing_other_registrar_domain`      | List, reprice, Buy Now and Make Offer, minimum offer, delist (`not_for_sale`) for names held elsewhere.                                                                        |
-| `delete_other_registrar_domain`       | Take a name off Dynadot's list entirely, when asked.                                                                                                                           |
 | `domain_list` (`is_for_sale`)         | Which names in the account are listed. From the registrar sync once registrar-client passes the flag through (a small registrar-client change); otherwise the market reads it. |
 | `get_listing_item`                    | Price, Buy Now or offers, and a sale under way, per listed name in the account.                                                                                                |
 | `set_for_sale`                        | List, reprice, Buy Now and Make Offer, minimum offer, delist (`not_for_sale`) for names in the account.                                                                        |
@@ -373,21 +375,26 @@ name held elsewhere.
 SellerHub's plan builds registrar-backed market accounts first
 (docs/sellerhub-api.md, "Credentials: borrowing the Spaceship registrar
 key"), and Dynadot uses the same flow: pick a Dynadot registrar account,
-read its key at call time, cards that point at each other, remove-both.
-Whichever market lands first builds it. What's different for Dynadot:
+read its key at call time, and removing the registrar account removes the
+market account with it (built here, 2026-11-07; the registrar card doesn't
+point back). Whichever market lands first builds it. What's different for
+Dynadot:
 
 - **No scopes.** Nothing in the reference scopes a key, so any key that
   works for the registrar should work for the marketplace (open question 6).
   The test reads `accounts/info` and one page of each listing read.
-- **One budget for both sides.** On Regular, Dynadot answers a second
-  request in flight with a 429. Registrar calls on a key already run in one
-  bulk lane, a second apart (docs/domain-editing.md, "Concurrency policy"),
-  while a market job gets a lane per market account. A Dynadot market
-  account's calls have to wait their turn behind the same key's registrar
-  calls: its market-job lane and the registrar lane share one limiter,
-  keyed by the registrar account (`src/core/markets/rate-limit.ts` is
-  already shared by account key), sized from `price_level`. Auto-sync
-  already runs markets after registrars, so the two syncs don't overlap.
+- **One budget for both sides** (built 2026-11-07). On Regular, Dynadot
+  answers a second request in flight with a 429. Registrar calls on a key
+  run in one bulk lane, a second apart (docs/domain-editing.md,
+  "Concurrency policy"), while a market job gets a lane per market account.
+  Both now take from one limiter, keyed by the registrar account
+  (`dynadotLimiter`, 50 a minute): the market client uses it directly, and
+  registrar-client's Dynadot provider gets a fetch that waits its turn on
+  it (`pacedFetch`), through the proxy too. A 429 on either side pauses
+  both. Registrar sync for Dynadot is one list read, so it costs the
+  market little. Not done: sizing it from `price_level` (Bulk allows 600).
+  Auto-sync already runs markets after registrars, so the two syncs don't
+  overlap.
 - **A Dynadot registrar account is needed** for the key, even to sell only
   names held elsewhere. A user with no Dynadot names opens a Dynadot
   account, makes a key and connects it as a registrar with nothing in it;
@@ -444,25 +451,54 @@ A failed read leaves `complete` false and keeps the last snapshot.
 | `status`                    | `active`; `on_hold` when `is_pending_sale_locked`        | `pending` while Unverified; `on_hold` once a buyer has paid (open question 4); else `active` |
 | `statusRaw`                 | `type`, with "pending sale" when locked                  | `status` and `verify_status`                                                                 |
 | `forSale`                   | true for every listing read                              | Verified and listed                                                                          |
-| `price`                     | `price` (open question 3: what a `make_offer` has there) | `price` (open question 7: its currency and format)                                           |
+| `price`                     | `price` (open question 3: what a `make_offer` has there) | `price`, in USD whatever the listing's currency ("Currencies")                               |
 | `buyNow`                    | `type` is `bin` or `bin_make_offer`                      | `for_sale_type` is Buy Now or Buy Now + Make Offer                                           |
 | `minOffer`                  | not readable; see below                                  | not readable; see below                                                                      |
 | `floor`, `discount`, `tier` | null                                                     | null                                                                                         |
 | `leaseToOwn`                | null: installments aren't readable                       | null: installments aren't readable                                                           |
-| `currency`                  | the account's listing currency (below)                   | the account's listing currency                                                               |
+| `currency`                  | the name's DomBot currency, read in it ("Currencies")    | USD                                                                                          |
 | `listedAt`                  | null                                                     | null                                                                                         |
 | `updatedAt`                 | null                                                     | `updated_date`                                                                               |
 
 `extra` is `{ market: 'dynadot', held, listingId, offers, pendingSale,
-verified, registrar, transferStatus, minOfferSent }`, each where the read
-has it. `offers` is true for the Make Offer types: Dynadot says whether
+verified, registrar, transferStatus }`, each where the read has it. `offers` is true for the Make Offer types: Dynadot says whether
 offers are welcome even where it doesn't give the minimum.
 
-**Currency:** the market card has a **Listing Currency** (USD to start).
-Writes send it and reads ask for it. A listing priced in another currency
-on Dynadot's site then reads converted (Dynadot converts, observed), and
-shows as above or below the DomBot price. Built so far: reads in USD, no
-setting yet.
+### Currencies
+
+Built 2026-11-07, from live tests on domanio.com:
+
+- **Which:** Dynadot's reference names 32 currencies for listings, but it
+  takes 14: USD, EUR, GBP, CAD, AUD, CNY, HKD, BRL, INR, MXN, IDR, THB,
+  PHP and KRW (`DYNADOT_CURRENCIES`, the capabilities' `currencies`). The
+  rest, JPY, CHF, NZD, DKK, NOK, CZK and PLN among them, answer "The value
+  for parameter currency is invalid." Reads convert to all 32. Buy Now has
+  a ceiling per currency ($100,000,000, £75,000,000, €100,000,000,
+  C$125,000,000, AU$150,000,000, …), which Dynadot's message states.
+- **Kept, not shown:** a listing keeps the currency it was set in: listed
+  at €999,999, the listing read in EUR was €1,000,009.69 (the transfer
+  fee added) and in USD $1,115,081.50. No read says which currency a
+  listing is in, and the other-registrar list shows every price in USD
+  ("$1115069.88"). "Cents" are the amount times 100 in every currency
+  (₩999,999,999 sent as 99999999900 read back as ₩999,999,999 plus the
+  fee).
+- **No setting:** a listing goes out in the currency of the change, which
+  "List at my price" takes from the name's DomBot asking price. A change
+  without one uses the asking price's currency when Dynadot takes it, else
+  USD.
+- **Names in the account** are read in that same currency, so a listing
+  DomBot made reads back exactly; one priced in another currency on
+  Dynadot's site reads converted.
+- **Names held elsewhere** read in USD, as the list shows them: the
+  listing read's price has the transfer fee in it, and the fee isn't
+  converted at the same rate, so the seller's price in another currency
+  can't be worked out. The saved listing has the currency sent until the
+  next sync. DomBot doesn't flag a price above or below its own when the
+  currencies differ. A change that keeps the price sends the list's USD
+  price in USD, and a change of currency without a price is refused.
+- **Minimum offer:** DomBot's is sent only when it's in the listing's
+  currency. Dynadot's $1 floor is checked locally for USD; for other
+  currencies Dynadot answers.
 
 ### Writes
 
@@ -515,10 +551,10 @@ twelve names a minute at the client's pace.
     account locks or domain locks on above IPs". If it works for listing
     changes, the advice (add the IP DomBot calls from, the fixed IP proxy's
     when the registrar account uses one, and tick that box) goes in DomBot's
-    help, not the error. So far it hasn't: from an allowed IP with the box
+    help, not the error. It doesn't: from an allowed IP with the box
     ticked, Dynadot still answered 409 for the name's lock, and 400 for the
-    account lock once that was on (2026-11-04). The setting may take a while
-    to apply.
+    account lock once that was on (2026-11-04), and again 400 three days
+    later (2026-11-07), so it isn't a delay in applying.
 - **What a write keeps:** on testbot.io, a reprice kept the category
   ("Business") and sub-category ("None") set on Dynadot, and replaced the
   description with the space DomBot sends (seen on the public listing
@@ -537,27 +573,29 @@ delist (a name with no listing counts as delisted).
 Held elsewhere:
 
 - **List:** a verified name is listed with
-  `listing_other_registrar_domain`, amounts in cents (open question 7 for
-  currencies without them). Dynadot refuses an unverified one (409,
-  observed), and keeps no listing request for it, so DomBot holds it
-  (decided 2026-11-04): a name not on the other-registrar list is added,
-  and the result is pending, not an error, as on markets that check
-  ownership themselves (`asyncInsert`). The pending row keeps the price and
-  minimum offer asked for.
-- **Listed once verified** (`listVerified`): each sync asks Dynadot about
-  the account's pending names (one verification read a name) and lists
-  those it has verified since, at the pending row's price. One still
-  unverified stays pending, under the "Waiting on ownership checks" note,
-  however long it takes; one taken off Dynadot's list is dropped after a
-  week, like any listing a market never took. Recheck ownership… lists a
-  name as soon as Dynadot verifies it. Dynadot also verifies on its own,
-  which DomBot only sees at the next sync (the auto-sync interval, a day by
-  default). This makes `market_sync` write, only for these names; its MCP
-  description says so.
+  `listing_other_registrar_domain`, amounts in cents ("Currencies").
+  Dynadot refuses an unverified one (409, observed), and keeps no listing
+  request for it. So a name not on the other-registrar list is added, and
+  an unverified one is put to Dynadot's verify first, since its TXT record
+  may be in place already; verified, it's listed at once. Otherwise DomBot
+  holds it (decided 2026-11-04): the result is pending, not an error, as
+  on markets that check ownership themselves (`asyncInsert`), and the
+  pending row keeps the price, minimum offer and currency asked for.
+  Checked live on domainio.com (2026-11-07): added, and pending as "BIN ·
+  Unverified".
+- **Listed once verified** (`listVerified`): each sync asks Dynadot to
+  verify the account's pending names (one call for all of them) and lists
+  those it verifies, at the pending row's price. One still unverified stays
+  pending, under the "Waiting on ownership checks" note, however long it
+  takes; one taken off Dynadot's list is dropped after a week, like any
+  listing a market never took. Recheck ownership… and the end of an
+  Ownership verification TXT job do the same for their names. Verify
+  answered six calls in a row without a limit (2026-11-07). This makes
+  `market_sync` write, only for these names; its MCP description says so.
 - **Delist:** `listing_other_registrar_domain` with `not_for_sale`. The name
-  stays added and verified, so listing it again is one call. Planned:
-  **Also remove from Dynadot** (off), running
-  `delete_other_registrar_domain` after.
+  stays added and verified, so listing it again is one call. Taking it off
+  Dynadot's list is done on Dynadot's dashboard, in bulk there (decided
+  2026-11-07).
 - **No landing page:** DomBot never sends `use_for_sale_landing_page`.
 
 ### Ownership verification
@@ -606,18 +644,20 @@ place.
 - **Ownership verification TXT…** offers the Dynadot account for names held
   elsewhere, through the registrar account that holds each name, as for
   every market. When the job has finished, DomBot asks Dynadot to verify
-  those names (one `verify_other_registrar_domain` call for the batch);
-  names that fail are asked again on the next sync, since resolvers may
-  still have the old answer cached.
+  the names it holds pending among them (one `verify_other_registrar_domain`
+  call) and lists those it verifies (built); names that fail are asked
+  again on the next sync, since resolvers may still have the old answer
+  cached.
 - **List at your prices** turns **Add ownership verification TXT records**
-  on to start for a Dynadot listing of names held elsewhere: without it
-  the listing can't go live. The user can still turn it off.
+  on to start when listing on Dynadot names its registrar account doesn't
+  hold (built): without it the listing can't go live. The user can still
+  turn it off.
 - **Recheck ownership…** works (`verifyDns: true`), many names a call, and
   lists a pending name once Dynadot has verified it ("Writes").
 - **Keeping it in place.** Removing the TXT record, or moving the name to
-  other nameservers, gets the Dynadot listing removed. DomBot's nameserver
-  change warning names the Dynadot listings that would lapse, and the DNS
-  editor keeps the record like any other.
+  other nameservers, gets the Dynadot listing removed. DomBot doesn't warn
+  about it (decided 2026-11-07); the DNS editor keeps the record like any
+  other.
 - **Tracking** (markets.md, "Tracking which names are set up") gets its
   answer for free here: `verify_status` from sync says, per name, whether
   Dynadot sees it. Phase 1's nameserver rule recognizes this account's NS3
@@ -716,8 +756,7 @@ const DYNADOT_CAPABILITIES: MarketCapabilities = {
 The shared listing, sales and account tools work for Dynadot through its
 capabilities, and `market_list` shows `registrarAccountId`. Listings carry
 `held` and `verified`. `domain_verification_apply` and
-`domain_listing_verify` work for names held elsewhere (built). Planned:
-`domain_listing_delete` takes `removeFromMarket` for Dynadot's list.
+`domain_listing_verify` work for names held elsewhere (built).
 
 ### The demo
 
@@ -762,20 +801,21 @@ nobody would pay, read back, then delisted.
 1. **Registrar-backed market accounts:** built here first (SellerHub's
    phase 1 can use it): the Settings picker, credentials and proxy through
    `registrarAccountId`, one market account per registrar account,
-   `market_list`. Not yet: the remove-both prompt, the registrar card
-   pointing back, and one limiter shared with the registrar's bulk lane.
+   `market_list`, removal with the registrar account, one limiter shared
+   with the registrar side.
 2. **Read side, both kinds:** built and checked live (reads only): client,
    adapter with the two paths, registry entry, sync from
    `other_registrar_domain_list` and from `is_for_sale` plus
    `get_listing_item`, the key into the verification ID, the demo account.
-   Not yet: the Listing Currency setting (reads are USD).
+   Currencies: built ("Currencies").
 3. **Writes and verification:** built: list, reprice and delist for both
    kinds with a minimum offer, adding names held elsewhere, Recheck
    (`verifyDns`), through the List and Delist dialog, the bulk runner and
    the MCP tools; checked live on both kinds; unverified names pending, and
-   listed once verified, by sync or Recheck. Not yet: removing a name from
-   Dynadot's list, a verify after Ownership verification TXT…, and the
-   nameserver warning.
+   verified on listing, and listed once verified, by sync, Recheck or a
+   TXT job; the TXT box on to start. Not yet checked live: a pending name
+   listed once its TXT record is in (domainio.com waits on the record), and
+   a name in the account in another currency (the account lock was on).
 4. **Sales:** sale records for names held elsewhere and their steps on the
    Sales tab; the Record sale… prefill for names in the account.
 
@@ -797,17 +837,17 @@ nobody would pay, read back, then delisted.
 6. Answered in part: the live path is `aftermarkets/…/for_sales`, and the
    registrar's key reads the marketplace. Still open: whether writes need
    anything more on the key or the account.
-7. Currency: reads convert, and the other-registrar list shows a USD
-   listing's price as "$999997.00" (observed). Still open: is a listing kept
-   in the currency it was set in, and how does the list show other
-   currencies? What are "cents" for JPY or KRW?
+7. Answered (2026-11-07): a listing keeps the currency it was set in, but
+   no read says which; the other-registrar list shows USD, converted.
+   Dynadot takes 14 currencies, not the 32 documented, and "cents" are the
+   amount times 100 in each ("Currencies").
 8. What do `asking_price` and `reserve_price` do on a listing held
    elsewhere, beside Buy Now and the minimum offer?
 9. Does add refuse names at Dynadot (in another Dynadot account), or names
    another Dynadot user has already added?
-10. Answered in part: Verify now found a fresh TXT record at once. Still
-    open: how often it can be called, and how often Dynadot checks on its
-    own.
+10. Answered in part: Verify now found a fresh TXT record at once, and
+    answered six calls in a row without a limit (2026-11-07). Still open:
+    how often Dynadot checks on its own.
 11. Answered (2026-11-04): `description` is required, a missing or empty
     one is refused and a single space passes; DomBot sends a space and
     doesn't manage descriptions.
@@ -820,7 +860,6 @@ nobody would pay, read back, then delisted.
     up and signed?
 14. Answered (2026-11-04): both. The name's lock (409) and the account
     lock (400 "Please unlock your account firstly.") each block
-    `set_for_sale`; DomBot unlocks and relocks the name itself. Still open:
-    whether Dynadot's "without checking account locks or domain locks"
-    setting for allowed IPs gets past the account lock (it didn't skip the
-    name's lock).
+    `set_for_sale`; DomBot unlocks and relocks the name itself. Dynadot's
+    "without checking account locks or domain locks" setting for allowed
+    IPs gets past neither (checked again 2026-11-07).

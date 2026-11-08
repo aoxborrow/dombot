@@ -8,6 +8,7 @@ import {
 } from '@aoxborrow/registrar-client';
 import { parseProxy, type ProxyRoute } from '../../shared/proxy';
 import { API_TIMEOUT_MS } from '../api-timeout';
+import { pacedFetch, type RateLimiter } from '../markets/rate-limit';
 
 // Routing a registrar account through the fixed IP proxy.
 //
@@ -127,6 +128,8 @@ export function createProxiedRegistrar(
   name: RegistrarName,
   credentials: RegistrarCredentials,
   route: ProxyRoute,
+  /** Requests wait their turn here first (a Dynadot key's shared budget). */
+  pace?: RateLimiter | null,
 ): Registrar {
   const proxy = parseProxy({ url: route.url, egressIp: route.ip });
   if (!proxy) throw new Error('Configure the proxy URL and outgoing IP.');
@@ -166,7 +169,7 @@ export function createProxiedRegistrar(
     name,
     // Through the proxy, its outgoing address is the Client IP Namecheap sees.
     name === 'namecheap' ? { ...credentials, clientIp: proxy.ip } : credentials,
-    { fetch, timeout: API_TIMEOUT_MS },
+    { fetch: pace ? pacedFetch(pace, fetch) : fetch, timeout: API_TIMEOUT_MS },
   );
   const baseUrl = (
     provider as unknown as { http?: { config?: { baseUrl?: string } } }

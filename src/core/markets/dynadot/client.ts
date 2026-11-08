@@ -55,6 +55,21 @@ export const EXTERNAL_PAGE = 100;
  * under it, leaving room for registrar calls on the same key.
  */
 export const REQUESTS_PER_MINUTE = 50;
+/**
+ * The pacing for one Dynadot key, by its registrar account: the market
+ * client and the registrar side's calls (registrar-client, through a paced
+ * fetch) take from the same budget.
+ */
+export function dynadotLimiter(
+  key: string,
+  clock: Clock = realClock,
+): RateLimiter {
+  return sharedLimiter(
+    `dynadot:${key}`,
+    () => new RateLimiter(clock, REQUESTS_PER_MINUTE),
+  );
+}
+
 /** How long to hold off after a 429 that doesn't say: Dynadot's message says 60 seconds. */
 const RATE_LIMIT_PAUSE_MS = 60_000;
 /** A call slower than this is logged (by endpoint only). */
@@ -130,10 +145,7 @@ export class DynadotClient {
     this.clock = options.clock ?? realClock;
     this.limiter =
       options.limiter ??
-      sharedLimiter(
-        `dynadot:${options.limiterKey ?? this.apiKey.slice(0, 8)}`,
-        () => new RateLimiter(this.clock, REQUESTS_PER_MINUTE),
-      );
+      dynadotLimiter(options.limiterKey ?? this.apiKey.slice(0, 8), this.clock);
     this.maxRetries = options.maxRetries ?? 3;
     this.timeoutMs = options.timeoutMs ?? 30_000;
   }

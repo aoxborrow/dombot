@@ -24,6 +24,7 @@ import {
   DYNADOT_CAPABILITIES,
   DYNADOT_CONFIG_FIELDS,
   createDynadotAdapter,
+  type DynadotAsking,
 } from './dynadot';
 import {
   SEDO_CAPABILITIES,
@@ -63,12 +64,15 @@ interface MarketEntry {
 }
 
 /**
- * DomBot's minimum offer for a name, from its asking price, when that's in
- * USD: Dynadot needs one with every change to a listing that takes offers.
+ * DomBot's asking price for a name, for Dynadot: the currency to read and
+ * list it in, and the minimum offer Dynadot needs with every change to a
+ * listing that takes offers.
  */
-function askingMinOffer(name: string): string | null {
+function askingFor(name: string): DynadotAsking | null {
   const price = getListPrices()[name];
-  return price?.currency === 'USD' ? (price.minOffer ?? null) : null;
+  return price
+    ? { currency: price.currency, minOffer: price.minOffer ?? null }
+    : null;
 }
 
 const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
@@ -120,7 +124,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       createDynadotAdapter(accountId, credentials, {
         fetch: context.fetch,
         limiterKey: context.registrarAccountId ?? accountId,
-        minOfferFor: askingMinOffer,
+        askingFor,
       }),
   },
   // Checked live, reads and writes (docs/sedo-api.md).

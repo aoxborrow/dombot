@@ -48,15 +48,21 @@ function fakeClient(opts: {
   external?: DynadotExternalDomain[];
   /** Names on the other-registrar list, and whether Dynadot verified them. */
   verified?: Record<string, boolean>;
+  /** Names whose TXT record is in place: asking Dynadot verifies them. */
+  txtInPlace?: string[];
   /** What Dynadot answers each `set_for_sale` with instead of taking it. */
   refuse?: Error[];
   /** What Dynadot answers locking a name again with. */
   relockError?: Error;
-  /** DomBot's minimum offers (its asking prices). */
+  /** DomBot's minimum offers (its asking prices), in USD. */
   minOffers?: Record<string, string>;
+  /** DomBot's asking prices, when not in USD. */
+  asking?: Record<string, { currency: string; minOffer: string | null }>;
 }) {
   const calls: string[] = [];
   const sent: { name: string; input: DynadotListingInput }[] = [];
+  /** The currency each listing read asked for. */
+  const readIn: string[] = [];
   const client = {
     holds: async (name: string) => {
       calls.push(`holds:${name}`);
@@ -91,6 +97,10 @@ function fakeClient(opts: {
     },
     verifyExternal: async (names: string[]) => {
       calls.push(`verifyExternal:${names.join(',')}`);
+      for (const n of names) {
+        if (opts.txtInPlace?.includes(n) && opts.verified && n in opts.verified)
+          opts.verified[n] = true;
+      }
       return {
         verified: names.filter((n) => opts.verified?.[n]),
         failed: names.filter((n) => !opts.verified?.[n]),
@@ -101,8 +111,9 @@ function fakeClient(opts: {
       calls.push('accountDomains');
       return { domains: opts.held ?? [], complete: true };
     },
-    getListing: async (name: string) => {
+    getListing: async (name: string, currency: string) => {
       calls.push(`getListing:${name}`);
+      readIn.push(`${name}:${currency}`);
       const l = opts.listings?.[name];
       if (l instanceof Error) throw l;
       return l ?? null;
@@ -128,10 +139,15 @@ function fakeClient(opts: {
     adapter: new DynadotAdapter(
       'acct',
       client as unknown as DynadotClient,
-      (name) => opts.minOffers?.[name] ?? null,
+      (name) =>
+        opts.asking?.[name] ??
+        (opts.minOffers?.[name]
+          ? { currency: 'USD', minOffer: opts.minOffers[name] }
+          : null),
     ),
     calls,
     sent,
+    readIn,
   };
 }
 
@@ -250,6 +266,18 @@ describe('what a change sends', () => {
     expect(() =>
       listingFor({ name: 'x.com', price: '3000' }, offers, '0.50'),
     ).toThrow(/\$1\.00 or more/);
+    expect(() =>
+      listingFor({ name: 'x.com', price: '3000', minOffer: '0.5' }, bin),
+    ).toThrow(/\$1\.00 or more/);
+    // Other currencies: Dynadot says.
+    expect(
+      listingFor(
+        { name: 'x.com', price: '3000', minOffer: '500' },
+        bin,
+        null,
+        'KRW',
+      ).minOffer,
+    ).toBe('500');
   });
 
   it('needs a price or a minimum offer', () => {
@@ -492,6 +520,20 @@ describe('the adapter', () => {
     expect(sent).toEqual([]);
   });
 
+  it('lists a name right away when Dynadot verifies it on asking', async () => {
+    const { adapter, calls, sent } = fakeClient({
+      verified: { 'domanio.com': false },
+      txtInPlace: ['domanio.com'],
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'domanio.com', price: '999999' },
+    ]);
+    expect(r).toMatchObject({ ok: true, pending: false });
+    expect(r.saved?.status).toBe('active');
+    expect(calls).toContain('verifyExternal:domanio.com');
+    expect(sent[0].input).toMatchObject({ forSale: true, price: '999999' });
+  });
+
   it('holds a listing for a name Dynadot hasn’t verified yet', async () => {
     const { adapter, calls, sent } = fakeClient({
       verified: { 'domanio.com': false },
@@ -658,17 +700,129 @@ describe('the adapter', () => {
     const { adapter, calls } = fakeClient({});
     const results = await adapter.writeListings([
       { name: 'lumenpost.com', floor: '100' },
-      { name: 'lumenpost.com', minOffer: '0.5' },
-      { name: 'lumenpost.com', currency: 'EUR' },
+      // Dynadot's reference lists JPY, but it refuses it (observed).
+      { name: 'lumenpost.com', currency: 'JPY' },
       { name: 'lumenpost.com', forSale: false },
     ]);
     expect(results.map((r) => r.error?.code)).toEqual([
       'UNSUPPORTED',
       'UNSUPPORTED',
       'UNSUPPORTED',
-      'UNSUPPORTED',
     ]);
+    expect(results[1].error?.message).toMatch(/^Dynadot lists in USD, EUR/);
     expect(calls).toEqual([]);
+  });
+
+  it('lists a name in the account in the currency asked for, and reads it back in it', async () => {
+    const { adapter, sent, readIn } = fakeClient({
+      held: [{ name: 'lumenpost.com', forSale: false }],
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'lumenpost.com', price: '2500', currency: 'EUR' },
+    ]);
+    expect(r.ok).toBe(true);
+    expect(sent[0].input).toMatchObject({ price: '2500', currency: 'EUR' });
+    expect(readIn).toEqual(['lumenpost.com:EUR', 'lumenpost.com:EUR']);
+    expect(r.saved).toMatchObject({ price: '2500', currency: 'EUR' });
+  });
+
+  it('reads a name in the account in its DomBot currency, when Dynadot takes it', async () => {
+    const { adapter, readIn } = fakeClient({
+      held: [
+        { name: 'lumenpost.com', forSale: true },
+        { name: 'quietfern.net', forSale: true },
+        { name: 'harborlane.com', forSale: true },
+      ],
+      listings: {
+        'lumenpost.com': listing(),
+        'quietfern.net': listing({ name: 'quietfern.net' }),
+        'harborlane.com': listing({ name: 'harborlane.com' }),
+      },
+      asking: {
+        'lumenpost.com': { currency: 'EUR', minOffer: null },
+        'quietfern.net': { currency: 'JPY', minOffer: null },
+      },
+    });
+    const { listings } = await adapter.allListings();
+    expect(readIn).toEqual([
+      'lumenpost.com:EUR',
+      'quietfern.net:USD',
+      'harborlane.com:USD',
+    ]);
+    expect(listings.map((l) => l.currency)).toEqual(['EUR', 'USD', 'USD']);
+  });
+
+  it('sends DomBot’s minimum offer only in the currency it’s in', async () => {
+    const { adapter, sent } = fakeClient({
+      held: [{ name: 'lumenpost.com', forSale: true }],
+      listings: {
+        'lumenpost.com': listing({
+          type: 'bin_make_offer',
+          typeRaw: 'BIN_MAKE_OFFER',
+        }),
+      },
+      asking: { 'lumenpost.com': { currency: 'EUR', minOffer: '400' } },
+    });
+    const [usd] = await adapter.writeListings([
+      { name: 'lumenpost.com', price: '3000', currency: 'USD' },
+    ]);
+    expect(usd.error?.code).toBe('UNSUPPORTED');
+    const [eur] = await adapter.writeListings([
+      { name: 'lumenpost.com', price: '3000', currency: 'EUR' },
+    ]);
+    expect(eur.ok).toBe(true);
+    expect(sent[0].input).toMatchObject({ minOffer: '400', currency: 'EUR' });
+  });
+
+  it('lists a name held elsewhere in the currency asked for', async () => {
+    const { adapter, sent } = fakeClient({
+      verified: { 'domanio.com': true },
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'domanio.com', price: '999999', currency: 'EUR' },
+    ]);
+    expect(sent[0].input).toMatchObject({ price: '999999', currency: 'EUR' });
+    // As sent, until a sync reads the list's USD.
+    expect(r.saved).toMatchObject({ price: '999999', currency: 'EUR' });
+  });
+
+  it('keeps a listed name held elsewhere at its price in USD, the only one the list shows', async () => {
+    const { adapter, sent } = fakeClient({
+      verified: { 'domanio.com': true },
+      listings: {
+        'domanio.com': listing({
+          name: 'domanio.com',
+          price: '1115081.50',
+          type: 'bin',
+        }),
+      },
+      external: [external({ price: '1115069.88' })],
+    });
+    const [kept] = await adapter.writeListings([
+      { name: 'domanio.com', minOffer: '5000' },
+    ]);
+    expect(kept.ok).toBe(true);
+    expect(sent[0].input).toMatchObject({
+      price: '1115069.88',
+      minOffer: '5000',
+      currency: 'USD',
+    });
+    const [refused] = await adapter.writeListings([
+      { name: 'domanio.com', minOffer: '5000', currency: 'EUR' },
+    ]);
+    expect(refused.error?.message).toMatch(/Give a price in EUR too/);
+  });
+
+  it('holds a pending name in its currency and lists it in that one', async () => {
+    const verified: Record<string, boolean> = { 'domanio.com': false };
+    const { adapter, sent } = fakeClient({ verified });
+    const [held] = await adapter.writeListings([
+      { name: 'domanio.com', price: '999999', currency: 'GBP' },
+    ]);
+    expect(held.saved).toMatchObject({ status: 'pending', currency: 'GBP' });
+    verified['domanio.com'] = true;
+    await adapter.listVerified([held.saved!]);
+    expect(sent[0].input).toMatchObject({ price: '999999', currency: 'GBP' });
   });
 
   it('delists either kind, and counts a name with no listing as delisted', async () => {

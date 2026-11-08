@@ -1,7 +1,40 @@
+import type { CurrencyCode } from '../../../shared/currencies';
 import type { Amount } from '../../../shared/markets';
 
 // What the Dynadot client returns: Dynadot's marketplace in its own terms,
 // with dates as ISO strings and prices as decimal strings.
+
+/**
+ * The currencies Dynadot lists in. Its reference names 32 for listings; it
+ * takes these 14 and answers "The value for parameter currency is invalid"
+ * for the rest, JPY, CHF and NZD among them (domanio.com, 2026-11-07).
+ * Reads convert to any of the 32.
+ */
+export const DYNADOT_CURRENCIES = [
+  'USD',
+  'EUR',
+  'GBP',
+  'CAD',
+  'AUD',
+  'CNY',
+  'HKD',
+  'BRL',
+  'INR',
+  'MXN',
+  'IDR',
+  'THB',
+  'PHP',
+  'KRW',
+] as const satisfies readonly CurrencyCode[];
+
+export type DynadotCurrency = (typeof DYNADOT_CURRENCIES)[number];
+
+export function isDynadotCurrency(value: unknown): value is DynadotCurrency {
+  return (
+    typeof value === 'string' &&
+    (DYNADOT_CURRENCIES as readonly string[]).includes(value)
+  );
+}
 
 /** Buy Now, Make Offer, or both (`BIN`, `MAKE_OFFER`, `BIN_MAKE_OFFER`). */
 export type DynadotListingType = 'bin' | 'make_offer' | 'bin_make_offer';
@@ -56,7 +89,7 @@ export interface DynadotListingInput {
   /** Buy Now; null for Make Offer alone. */
   price: Amount | null;
   minOffer: Amount | null;
-  /** ISO 4217; Dynadot takes it lowercase. */
+  /** ISO 4217; Dynadot takes it lowercase. A listing keeps it. */
   currency: string;
   /** Required, non-empty, by `set_for_sale` for a name in the account. */
   description?: string;
