@@ -985,7 +985,7 @@ describe('local write tools', () => {
     ]);
   });
 
-  it('portfolio_asking_prices_import copies listed prices, keeping yours', async () => {
+  it('portfolio_asking_prices_import copies listed prices, filling gaps, keeping yours', async () => {
     const listing = (over: Record<string, unknown>) => ({
       market: 'afternic',
       accountId: 'x',
@@ -1012,7 +1012,7 @@ describe('local write tools', () => {
       {
         domainName: 'a.com',
         amount: '3000',
-        minOffer: null,
+        minOffer: '1000',
         floor: null,
         currency: 'USD',
       },

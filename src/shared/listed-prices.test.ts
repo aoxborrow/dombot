@@ -69,6 +69,45 @@ describe('listedPriceFor', () => {
     expect(listedPriceFor(listings, 'highest', rates)?.currency).toBe('EUR');
   });
 
+  it('fills a minimum offer or floor the winner lacks from the others', () => {
+    const rates = new ExchangeRates(
+      {},
+      new Map([['2024-03', { USD: 1.1 } as never]]),
+    );
+    const listings = [
+      listing({ market: 'atom', price: '3000' }),
+      listing({ price: '2500', minOffer: '750', floor: '2000' }),
+      listing({ market: 'sedo', price: '2500', minOffer: '900' }),
+      // Above the winner's BIN price: never used.
+      listing({ market: 'dynadot', price: '1000', floor: '5000' }),
+    ];
+    expect(listedPriceFor(listings, 'highest')).toMatchObject({
+      market: 'atom',
+      amount: '3000',
+      minOffer: '900',
+      floor: '2000',
+    });
+    // Another currency fills in only with rates, converted and rounded.
+    const eur = [
+      listing({ market: 'atom', price: '3000' }),
+      listing({
+        market: 'sedo',
+        price: '2000',
+        minOffer: '500',
+        currency: 'EUR',
+      }),
+    ];
+    expect(listedPriceFor(eur, 'highest')?.minOffer).toBeNull();
+    expect(listedPriceFor(eur, 'highest', rates)?.minOffer).toBe('550');
+    // A winner's own amounts are kept.
+    expect(
+      listedPriceFor(
+        [listing({ minOffer: '100' }), listing({ price: '10', minOffer: '9' })],
+        'highest',
+      )?.minOffer,
+    ).toBe('100');
+  });
+
   it('rounds to whole amounts and drops amounts above the BIN price', () => {
     expect(
       listedPriceFor(

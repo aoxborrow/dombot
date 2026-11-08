@@ -156,8 +156,9 @@ portfolio: synced, imported, or with history.
   `replace?` (default `false`). Copies a market listing's BIN price, minimum
   offer and floor into the asking price, as the app's Import listed price
   does: `highest` takes the highest listing (BIN, then minimum offer, then
-  floor, in USD), amounts are rounded to whole, and one above the BIN price
-  is dropped. Names with an asking price keep it unless `replace`. Returns
+  floor, in USD) for the BIN price and currency, a minimum offer or floor it
+  lacks is filled from the other listings, amounts are rounded to whole, and
+  one above the BIN price is dropped. Names with an asking price keep it unless `replace`. Returns
   `{ imported: [{ domain, market, askingPrice }], kept, notListed }`.
 - **`domain_renewal_price_set`** — `amount` (`null` clears it), `currency?`
   (default `USD`). Your yearly price, which `domain_renewal_price` then

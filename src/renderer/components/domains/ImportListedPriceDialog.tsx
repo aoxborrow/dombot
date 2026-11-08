@@ -200,7 +200,7 @@ export function ImportListedPriceDialog({
               <dt />
               <dd className="text-xs text-muted-foreground">
                 {sources.length > 1 && source === 'highest'
-                  ? marketName(single.market)
+                  ? 'Highest listed'
                   : 'Listed'}
               </dd>
               <dd className="text-xs text-muted-foreground">Yours now</dd>

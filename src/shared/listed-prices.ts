@@ -62,25 +62,43 @@ function inUsd(
   return rates.convert(value, currency, 'USD')?.amount ?? Number(value);
 }
 
+/** An amount in `from`, as a whole amount in `to`; null without a rate. */
+function wholeIn(
+  value: string,
+  from: string,
+  to: string,
+  rates: ExchangeRates | undefined,
+): string | null {
+  if (from === to) return value;
+  const converted = rates?.convert(value, from, to)?.amount;
+  return converted == null ? null : whole(String(converted));
+}
+
 /**
  * The asking price to import from a name's listings, or null when none of
  * them (on `source`, for one market) lists a price. A sold listing doesn't
  * count. With several, the highest BIN price wins, then the highest minimum
- * offer, then the highest floor, compared in USD when `rates` is given; the
- * winner's three amounts are taken together, never mixed across listings.
+ * offer, then the highest floor, compared in USD when `rates` is given. The
+ * winner sets the BIN price and currency; a minimum offer or floor it
+ * doesn't have is filled from the other listings: the highest that isn't
+ * above the BIN price, converted to the winner's currency (other currencies
+ * only with `rates`). `market` and `accountId` name the winner.
  */
 export function listedPriceFor(
   listings: readonly MarketListing[] | undefined,
   source: ListedPriceSource,
   rates?: ExchangeRates,
 ): ListedPrice | null {
-  let best: ListedPrice | null = null;
-  let bestKey: number[] = [];
+  const candidates: ListedPrice[] = [];
   for (const l of listings ?? []) {
     if (l.status === 'sold') continue;
     if (source !== 'highest' && l.market !== source) continue;
     const price = fromListing(l);
-    if (!price) continue;
+    if (price) candidates.push(price);
+  }
+  let best: ListedPrice | null = null;
+  let bestKey: number[] = [];
+  for (const price of candidates) {
     const key = [price.amount, price.minOffer, price.floor].map((v) =>
       inUsd(v, price.currency, rates),
     );
@@ -90,5 +108,21 @@ export function listedPriceFor(
       bestKey = key;
     }
   }
-  return best;
+  if (!best) return null;
+  const winner = best;
+  const fill = (field: 'minOffer' | 'floor'): string | null => {
+    if (winner[field] !== null) return winner[field];
+    let found: string | null = null;
+    for (const other of candidates) {
+      const raw = other[field];
+      if (other === winner || raw === null) continue;
+      const value = wholeIn(raw, other.currency, winner.currency, rates);
+      if (value === null) continue;
+      if (winner.amount !== null && Number(value) > Number(winner.amount))
+        continue;
+      if (found === null || Number(value) > Number(found)) found = value;
+    }
+    return found;
+  };
+  return { ...winner, minOffer: fill('minOffer'), floor: fill('floor') };
 }
