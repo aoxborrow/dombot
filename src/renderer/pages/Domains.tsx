@@ -1,3 +1,4 @@
+import { useTableSelection } from '../lib/table-selection';
 import { accountNumber, accountTitle } from '../../shared/account-label';
 import { syncProblems } from '../lib/activity';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
@@ -10,7 +11,12 @@ import {
 import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
 import {
   Archive,
   Building2,
@@ -959,10 +965,6 @@ export default function Domains() {
     folders,
     folderAssignments,
     assignFolder,
-    selected,
-    toggleSelected,
-    setSelectedMany,
-    clearSelection,
     bulk,
     purchases,
     listPrices,
@@ -2097,11 +2099,44 @@ export default function Domains() {
   const { start, end } = paginate(filtered.length, page, pageSize);
   const visible = filtered.slice(start, end);
 
-  // The selected domains as merged rows, for the bulk bar and dialog.
-  const selectedDomains = useMemo(
-    () => shown.filter((d) => selected.has(domainKey(d))),
-    [shown, selected],
-  );
+  const location = useLocation();
+  const selectionScope = JSON.stringify([
+    location.key,
+    view,
+    archiveView,
+    search,
+    tld,
+    registrar,
+    ns,
+    marketsFilter,
+    folder,
+    status,
+    autoRenewFilter,
+    pricingFilter,
+    created,
+    expires,
+    purchased,
+    sold,
+  ]);
+  const {
+    selected,
+    toggle: toggleSelected,
+    setMany: setSelectedMany,
+    clear: clearSelection,
+  } = useTableSelection(selectionScope, filtered.map(domainKey));
+  useEffect(() => {
+    setListPriceFor(null);
+    setBulkNotesFor(null);
+    setMarketAction(null);
+    setOwnershipDialog(null);
+    setPurchaseFor(null);
+    setMarkSoldFor(null);
+    setBulkDialog(null);
+  }, [selectionScope]);
+  // Every bulk action uses exactly the checked names in the current result,
+  // including deliberate selections on its other pages.
+  const selectedDomains = filtered.filter((d) => selected.has(domainKey(d)));
+
   // Bulk: re-fetch every selected domain's detail from its registrar, bypassing
   // the detail cache (their cells show skeletons while in flight).
   // Registrar actions act on the selected names an account still holds.
@@ -2593,13 +2628,7 @@ export default function Domains() {
             <BulkActionsBar
               domains={selectedDomains}
               held={selectedHeld}
-              total={
-                archiveView
-                  ? archiveCount
-                  : view === 'listings'
-                    ? listedCount
-                    : ownedCount
-              }
+              total={filtered.length}
               folders={folders}
               folderCounts={selectedFolderCounts}
               onClear={clearSelection}
@@ -2641,10 +2670,11 @@ export default function Domains() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         selection={{
+          scope: selectionScope,
           selected,
           toggle: toggleSelected,
           setMany: setSelectedMany,
-          allLabel: 'Select all domains',
+          allLabel: `Select all ${filtered.length} matching domains across pages`,
           rowLabel: (d) => `Select ${d.domainName}`,
         }}
         empty={
