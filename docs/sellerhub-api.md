@@ -421,7 +421,7 @@ internal path, needs the user's pick.
 
 ## Phases
 
-Built on #254's branch, so this PR merges after it.
+Registrar-backed accounts came with Dynadot's market (#254, merged).
 
 1. **Read side (built, verified live):** client (auth, problem+json errors, paging, cursor, the
    context's `fetch`, a limiter keyed by the registrar account), adapter
